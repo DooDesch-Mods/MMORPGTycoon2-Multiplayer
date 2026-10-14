@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.4",
-  "summary": "Restore original save visibility, retain world folders, unblock new-world loading and allow idle Clients to leave after Host loss.",
-  "native_evidence": "docs/evidence/beta4-native.json"
+  "version": "0.1.0-beta.5",
+  "summary": "Allow ordinary world names, retire previous Client bindings, unify world loading and start, and join public lobby rows directly.",
+  "native_evidence": "docs/evidence/beta5-native.json"
 }

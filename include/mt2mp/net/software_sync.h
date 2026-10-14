@@ -5,6 +5,7 @@
 namespace mt2mp::net {
 void initialize_software_sync();
 void begin_software_sync(uint64_t epoch, const game::native::SoftwareCache& initial);
+void retire_software_sync();
 void tick_software_sync();
 nlohmann::json software_sync_status();
 }

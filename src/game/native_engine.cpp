@@ -59,6 +59,7 @@ struct SoftwareReplica {
     void* world = nullptr;
     void* software = nullptr;
     SoftwareCache initial{}, applied{};
+    std::string world_folder;
     std::string error;
 };
 SoftwareReplica software_replica;
@@ -857,8 +858,12 @@ bool bind_software_replica(void* software) {
         return true;
     }
     std::string folder;
-    if (!read_game_string(singleton(game_slot), 0x470, folder) || !valid_test_name(folder))
-        return software_replica_reject("active world is not a diagnostic MPTest world");
+    if (!read_game_string(singleton(game_slot), 0x470, folder))
+        return software_replica_reject("active world folder is unreadable");
+    // Joined snapshots carry their validated destination folder through the title-mode arm.
+    // The legacy diagnostic route has no snapshot folder and keeps its MPTest restriction.
+    if (software_replica.world_folder.empty() ? !valid_test_name(folder) : folder != software_replica.world_folder)
+        return software_replica_reject("active world folder differs from the armed snapshot world");
     if (!software_cache_read(software, software_replica.initial))
         return software_replica_reject("initial cache pair is unreadable or nonfinite");
     software_replica.world = world;
@@ -967,9 +972,11 @@ void record_software_tick_forwarded(bool ticker_receiver) {
     software_tick_counters[ticker_receiver ? 1 : 0].forwarded.fetch_add(1, std::memory_order_relaxed);
 }
 
-bool arm_software_replica(uint64_t epoch, std::string& error) {
+bool arm_software_replica(uint64_t epoch, std::string& error, const std::string& world_folder) {
     if (!check_thread(error)) return false;
     if (!epoch) return fail(error, "software replica arm rejected: epoch must be nonzero");
+    if (!world_folder.empty() && !net::snapshot_world_path::valid_folder(world_folder))
+        return fail(error, "software replica arm rejected: snapshot world folder is invalid");
     auto* game = singleton(game_slot);
     void* title = nullptr;
     void* active = nullptr;
@@ -983,7 +990,9 @@ bool arm_software_replica(uint64_t epoch, std::string& error) {
     software_replica = {};
     software_replica.armed = true;
     software_replica.epoch = epoch;
-    LOG_INFO("[Native] Software replica armed epoch={}; awaiting diagnostic world", epoch);
+    software_replica.world_folder = world_folder;
+    LOG_INFO("[Native] Software replica armed epoch={} world={}; awaiting native load", epoch,
+        world_folder.empty() ? "diagnostic MPTest" : world_folder);
     return true;
 }
 
@@ -993,6 +1002,17 @@ bool disarm_software_replica(uint64_t epoch, std::string& error) {
         return fail(error, "software replica disarm rejected: armed epoch differs");
     software_replica = {};
     LOG_INFO("[Native] Software replica disarmed epoch={}", epoch);
+    return true;
+}
+
+bool retire_software_replica(std::string& error) {
+    if (!check_thread(error)) return false;
+    WorldStatus actual;
+    if (!read_world_status(actual, error)) return false;
+    if (actual.active_mode_index != 2 || actual.title_transition_pending || actual.saves_in_progress > 0)
+        return fail(error, "software replica retirement requires idle native Title");
+    if (software_replica.armed && !disarm_software_replica(software_replica.epoch, error)) return false;
+    error.clear();
     return true;
 }
 

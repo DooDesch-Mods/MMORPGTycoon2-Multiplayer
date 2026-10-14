@@ -87,9 +87,14 @@ include("${CMAKE_CURRENT_LIST_DIR}/cold_time_retire_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/snapshot_world_path_checks.cmake")
 
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_observer_checks.cmake")
+
 include("${CMAKE_CURRENT_LIST_DIR}/empty_network_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/client_leave_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/original_saves_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/private_save_parent_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/named_world_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/diagnostic_mailbox_checks.cmake")

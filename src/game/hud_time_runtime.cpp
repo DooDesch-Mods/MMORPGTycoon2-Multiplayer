@@ -11,6 +11,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <mutex>
 #include <stdexcept>
 #include <windows.h>
@@ -22,6 +23,8 @@ std::atomic<bool> initialized=false;
 bool show_hook_created=false;
 using Show=void(*)(void*,bool,bool);
 Show original_show=nullptr;
+uintptr_t show_target=0;
+uint32_t show_thread=0;
 uint64_t bind_epoch_attempted=0;
 std::atomic<uint64_t> read_calls=0,read_microseconds=0,max_read_microseconds=0;
 struct Observation {std::string reason;uint64_t repeats=0;};
@@ -77,7 +80,34 @@ bool initialize(const hud_time::Config& config,std::string& error) {
     if(!hooks::create_hook(reinterpret_cast<void*>(config.image+0x81ec20),reinterpret_cast<void*>(&show),reinterpret_cast<void**>(&original_show))) {
         error="hud_time_WindowShow_hook_creation_failed";return false;
     }
+    show_target=config.image+0x81ec20;show_thread=config.game_thread;
     show_hook_created=true;initialized=true;return true;
+}
+bool verify_window_show_hook(uintptr_t target,std::string& error) {
+    if(!initialized||!show_hook_created||!original_show||target!=show_target||writer.status().hook_mask!=7){
+        error="hud_time_owned_Show_hook_not_ready";return false;
+    }
+    if(GetCurrentThreadId()!=show_thread){error="hud_time_owned_Show_hook_wrong_thread";return false;}
+    const auto reads=hud_time::process_read_services();
+    std::array<unsigned char,13> entry{};
+    if(!reads.read(reads.user,target,entry.data(),entry.size(),error))return false;
+    constexpr std::array<unsigned char,8> tail{0xb9,0x77,0x03,0,0,0,0x75,0x23};
+    if(entry[0]!=0xe9||!std::equal(tail.begin(),tail.end(),entry.begin()+5)){
+        error="hud_time_owned_Show_entry_differs";return false;
+    }
+    int32_t displacement=0;std::memcpy(&displacement,entry.data()+1,sizeof(displacement));
+    const auto relay=uintptr_t(int64_t(target)+5+displacement);
+    const auto trampoline=reinterpret_cast<uintptr_t>(original_show);
+    // MinHook x64 keeps its absolute relay inside the same 64-byte trampoline slot.
+    if(relay<trampoline||relay-trampoline>50){error="hud_time_owned_Show_relay_outside_own_slot";return false;}
+    std::array<unsigned char,14> jump{};
+    if(!reads.read(reads.user,relay,jump.data(),jump.size(),error))return false;
+    constexpr std::array<unsigned char,6> indirect{0xff,0x25,0,0,0,0};
+    uintptr_t destination=0;std::memcpy(&destination,jump.data()+6,sizeof(destination));
+    if(!std::equal(indirect.begin(),indirect.end(),jump.begin())||destination!=reinterpret_cast<uintptr_t>(&show)){
+        error="hud_time_owned_Show_relay_target_differs";return false;
+    }
+    error.clear();return true;
 }
 bool hooks_enabled(bool time_update_hook,bool clock_scope_hook,std::string& error) {
     if(!initialized||!show_hook_created||!original_show||!time_update_hook||!clock_scope_hook) {

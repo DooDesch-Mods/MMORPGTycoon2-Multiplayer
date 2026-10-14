@@ -257,7 +257,7 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         if(!game::time_integration::instance().suspend("verified snapshot replaces client world",error))
             throw std::runtime_error("time authority retire before client load failed: "+error);
 #endif
-        if(!game::native::arm_software_replica(incoming_epoch,error)) throw std::runtime_error("software replica arm before load failed: "+error);
+        if(!game::native::arm_software_replica(incoming_epoch,error,incoming_world_name)) throw std::runtime_error("software replica arm before load failed: "+error);
         if(!game::normal_load_identity::begin(incoming_hash,id,error)) {
             auto identity_error=error;
             if(!game::native::disarm_software_replica(incoming_epoch,error)) LOG_NET_ERROR("[SNAPSHOT] Replica disarm after identity arm rejection failed: {}",error);

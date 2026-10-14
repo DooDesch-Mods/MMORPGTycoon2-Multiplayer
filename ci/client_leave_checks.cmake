@@ -12,8 +12,22 @@ string(LENGTH "${client_leave_end_marker}" client_leave_end_size)
 math(EXPR client_leave_size "${client_leave_end}+${client_leave_end_size}-${client_leave_begin}")
 string(SUBSTRING "${client_leave_text}" ${client_leave_begin} ${client_leave_size} client_leave_body)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/client_leave_runtime_body.inc" "${client_leave_body}\n")
+set(software_sync_source "${MT2MP_SOURCE_ROOT}/src/net/software_sync.cpp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${software_sync_source}")
+file(READ "${software_sync_source}" software_sync_text)
+string(FIND "${software_sync_text}" "void retire_software_sync()" software_retire_begin)
+string(FIND "${software_sync_text}" "void begin_software_sync(" software_retire_end)
+if(software_retire_begin LESS 0 OR software_retire_end LESS software_retire_begin)
+    message(FATAL_ERROR "Actual software stream retirement body boundaries changed")
+endif()
+math(EXPR software_retire_size "${software_retire_end}-${software_retire_begin}")
+string(SUBSTRING "${software_sync_text}" ${software_retire_begin} ${software_retire_size} software_retire_body)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/software_sync_retire_body.inc" "${software_retire_body}\n")
+if(NOT DEFINED CLIENT_LEAVE_TEST_SOURCE)
+    set(CLIENT_LEAVE_TEST_SOURCE "${MT2MP_SOURCE_ROOT}/test/test_client_leave.cpp")
+endif()
 add_executable(test_client_leave
-    "${MT2MP_SOURCE_ROOT}/test/test_client_leave.cpp"
+    "${CLIENT_LEAVE_TEST_SOURCE}"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp")
 target_include_directories(test_client_leave PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"

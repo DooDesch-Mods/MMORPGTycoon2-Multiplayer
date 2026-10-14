@@ -25,10 +25,11 @@ portable starter remains a separate test route outside the game directory.
 
 PLAY AND DIAGNOSTICS
 1. The Host opens a friends or public lobby.
-2. The Client selects the lobby and presses Join.
-3. The Host creates or loads a small world. The open world is selected automatically.
-4. The Host presses Start session once. Wait for capture, transfer and loading.
-5. Both players wait for the shared world to become ready before building.
+2. The Client opens a public lobby row to join directly, or enters its ID and presses Join.
+3. The Host creates or opens a small world normally, or selects a save in
+   Multiplayer and presses Load world and start. An open Host world starts
+   shared preparation automatically.
+4. Both players wait for the shared world to become ready before building.
 
 A visible world name is not a completed world-load acknowledgement.
 

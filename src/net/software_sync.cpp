@@ -102,6 +102,10 @@ void receive(uint64_t sender,const uint8_t* bytes,uint32_t length) {
 }
 }
 void initialize_software_sync() { session_wire::register_handler(7,receive); }
+void retire_software_sync() {
+    if(epoch)LOG_NET_INFO("[SoftwareSync] Retired epoch={} after native lobby Leave",epoch);
+    epoch=revision=applied_updates=0;initial={};published={};peers.clear();failure.clear();last_send={};
+}
 void begin_software_sync(uint64_t world_epoch,const Cache& source) {
     if(!world_epoch) throw std::runtime_error("software stream requires nonzero epoch");
     parse_cache(cache(source));

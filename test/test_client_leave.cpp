@@ -3,6 +3,9 @@
 #include "action_session.h"
 #include <iostream>
 #include <stdexcept>
+#include <map>
+#include <chrono>
+#define LOG_NET_INFO(...) ((void)0)
 
 using namespace mt2mp::action_session;
 namespace {
@@ -68,12 +71,15 @@ namespace fixture {
 using Json=nlohmann::json;
 Json captures=Json::object(),snapshot_status=Json::object();
 uint32_t thread=7;
-unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0;
+unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0,native_retired=0;
+bool software_armed=true,software_ok=true,time_active=false;
+void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
 bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true;
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
-    suspended=invalidated=deleted=wire_retired=membership_left=0;
+    suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
+    software_armed=software_ok=true;time_active=false;reset_software_stream();
     title=transition=saving=time_initialized=false;in_lobby=true;
     fence_ok=wire_ok=time_ok=live_ok=true;
 }
@@ -81,6 +87,12 @@ void reset(){
 uint32_t GetCurrentThreadId(){return fixture::thread;}
 namespace mt2mp {
 namespace net {
+uint64_t epoch=0,revision=0,applied_updates=0;
+std::array<float,2> initial{},published{};
+std::map<uint64_t,int> peers;
+std::string failure;
+std::chrono::steady_clock::time_point last_send{};
+#include "software_sync_retire_body.inc"
 namespace session_wire {
 void suspend_actions(){++fixture::suspended;}
 bool retire_lobby(std::string& e){++fixture::wire_retired;if(!fixture::wire_ok)e="wire retirement failed";return fixture::wire_ok;}
@@ -88,7 +100,11 @@ bool retire_lobby(std::string& e){++fixture::wire_retired;if(!fixture::wire_ok)e
 void invalidate_snapshot_world(const char*){++fixture::invalidated;}
 struct SteamMatchmaking {
     static SteamMatchmaking& instance(){static SteamMatchmaking value;return value;}
-    void leave_lobby(){++fixture::membership_left;fixture::in_lobby=false;}
+    void leave_lobby(){
+        require(fixture::native_retired==1&&!fixture::software_armed,"Steam membership released before native software retirement");
+        require(!epoch&&!revision&&!applied_updates&&initial==std::array<float,2>{}&&published==std::array<float,2>{}&&peers.empty()&&failure.empty()&&last_send==std::chrono::steady_clock::time_point{},"Steam membership released before actual software stream retirement");
+        ++fixture::membership_left;fixture::in_lobby=false;
+    }
     bool in_lobby()const{return fixture::in_lobby;}
 };
 }
@@ -96,6 +112,11 @@ namespace game {
 namespace native {
 struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0;};
 bool read_world_status(WorldStatus& out,std::string&){out={fixture::title?2:3,fixture::transition,fixture::saving?1:0};return true;}
+bool retire_software_replica(std::string& e){
+    ++fixture::native_retired;
+    if(!fixture::software_ok){e="original software retirement failure";return false;}
+    fixture::software_armed=false;e.clear();return true;
+}
 }
 namespace ui_build_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_remove_runtime {fixture::Json status(){return fixture::captures;}}
@@ -107,7 +128,7 @@ namespace time_runtime {enum class Phase{Waiting,Active};}
 namespace time_integration {
 struct Status{struct {time_runtime::Phase phase=time_runtime::Phase::Waiting;uint64_t epoch=0;} runtime;};
 struct Adapter {
-    bool status(Status&,std::string& e){if(!fixture::time_initialized){e="time_integration_not_initialized";return false;}return true;}
+    bool status(Status& out,std::string& e){if(!fixture::time_initialized){e="time_integration_not_initialized";return false;}if(fixture::time_active){out.runtime.phase=time_runtime::Phase::Active;out.runtime.epoch=42;}return true;}
     bool suspend(const char*,std::string& e){if(!fixture::time_ok)e="time retirement failed";return fixture::time_ok;}
 };
 Adapter& instance(){static Adapter value;return value;}
@@ -135,6 +156,40 @@ fixture::Json status(){return fixture::snapshot_status;}
 }
 }
 namespace runtime=mt2mp::game::typed_action_runtime;
+namespace fixture {
+void reset_software_stream(){
+    mt2mp::net::epoch=42;mt2mp::net::revision=9;mt2mp::net::applied_updates=8;
+    mt2mp::net::initial={100,2};mt2mp::net::published={120,3};mt2mp::net::peers={{2,9}};
+    mt2mp::net::failure="retained software cache name failure";
+    mt2mp::net::last_send=std::chrono::steady_clock::now();
+}
+}
+void software_retirement_delta(){
+    Pair pair;std::string error;bool ready=true;
+    fixture::reset();auto* owner=new runtime::Runtime(pair.client);owner->lobby_retiring=true;
+    runtime::published_runtime.store(owner);
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"active World cleared replica");
+    fixture::title=true;fixture::transition=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"pending native Leave cleared replica");
+    fixture::transition=false;fixture::saving=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"native save cleared replica");
+    fixture::saving=false;fixture::time_initialized=fixture::time_active=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"active Time owner cleared replica");
+    fixture::time_active=false;
+    require(runtime::finish_lobby_leave(ready,error)&&ready,error);
+    require(!fixture::software_armed&&fixture::native_retired==1&&fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1,"settled Leave did not retire exactly once");
+
+    fixture::reset();fixture::title=true;fixture::software_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="original software retirement failure"&&fixture::software_armed&&mt2mp::net::epoch==42&&fixture::membership_left==0&&fixture::wire_retired==0,"native failure was hidden or old stream/membership released");
+    fixture::reset();fixture::title=true;fixture::fence_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&error=="fence Unknown"&&fixture::native_retired==0&&fixture::software_armed&&mt2mp::net::epoch==42,"fence failure bypassed before native retirement");
+
+    fixture::reset();fixture::title=true;pair.submit();
+    owner=new runtime::Runtime(pair.client);owner->lobby_retiring=true;runtime::published_runtime.store(owner);
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::native_retired==0&&fixture::software_armed&&mt2mp::net::epoch==42,"pending Controller released software owner");
+    runtime::published_runtime.store(nullptr);delete owner;
+    std::cout<<"PASS actual Leave ordering: active/pending/save/Time/Controller retained; native failure preserved; native and actual stream cleared before Steam release\n";
+}
 
 void idle_departure(){
     Pair p;require(p.client.can_retire_lobby(),"idle connected Client cannot retire");
@@ -211,7 +266,11 @@ void other_guards(){
     runtime::published_runtime.store(nullptr);delete owner;
 }
 int main(){
-    try{idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();
+    try{
+#ifndef NAMED_WORLD_LEAVE_DELTA_ONLY
+        idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();
+#endif
+        software_retirement_delta();
         std::cout<<"client Leave regressions passed: actual Controller and actual begin/finish bodies\n";return 0;
     }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
 }

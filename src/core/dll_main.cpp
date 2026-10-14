@@ -42,6 +42,8 @@
 #include "../game/root_building_load.h"
 #include "../game/network_identity.h"
 #include "../game/native_open_runtime.h"
+#include "../game/tutorial_observer.h"
+#include "../game/welcome_close.h"
 #include "../game/native_free_diagnostics.h"
 #include "../game/remove_diagnostics.h"
 #include "../game/typed_action_runtime.h"
@@ -98,7 +100,7 @@ static void* subscriber_context_lookup(void* context,int32_t id) {
 static game::subscriber_retirement::Remove original_subscriber_remove=nullptr;
 static void subscriber_remove(void* manager,void* subscriber){game::subscriber_retirement::observe(manager,subscriber,original_subscriber_remove);}
 static uintptr_t native_image_begin=0,native_image_end=0;
-static std::string runtime_root,run_id,last_request;
+static std::string runtime_root,run_id,last_request,last_mailbox_request;
 static std::string loaded_dll_sha256;
 static json installed_proof_receipt;
 static uint64_t completed_game_updates=0;
@@ -144,6 +146,11 @@ static bool native_lobby_attempted=false,native_lobby_initialized=false;
 static std::string native_lobby_error;
 static json pending_camera;
 static std::chrono::steady_clock::time_point camera_started;
+static bool diagnostic_executor_idle() {
+    return deferred_response.is_null()&&pending_frame.is_null()&&pending_world.is_null()&&
+        pending_overlay.is_null()&&pending_crash_dismiss.is_null()&&pending_snapshot.is_null()&&
+        pending_placement.is_null()&&pending_load.is_null()&&pending_camera.is_null();
+}
 static net::SnapshotLoadWatch load_watch;
 static std::filesystem::path snapshot_path;
 static std::chrono::steady_clock::time_point snapshot_started;
@@ -675,7 +682,7 @@ static void init_paths() {
         if(owned_native_profile&&env("MT2MP_TRANSPORT")=="steam")cfg.local_test=false;
     }
     cfg.runtime_root=runtime_root;cfg.run_id=run_id;
-    game::lobby_operations::configure(run_id);
+    game::lobby_operations::configure(run_id,diagnostic_executor_idle);
 }
 static void write_json(const std::filesystem::path& path,const json& data) {
     auto temporary=path; temporary+=".tmp";
@@ -935,6 +942,8 @@ static json status() {
     result["capabilities"]["append_subscriber_record_probe"]=Config::instance().local_test && !Config::instance().is_host && game::native::in_game();
     result["capabilities"]["read_subscriber_candidates"]=game::native::in_game();
     result["capabilities"]["read_network_state"]=game::native::in_game();
+    result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
+    result["capabilities"]["tutorial_welcome_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_time_ui"]=owned_native_profile&&time_hooks_ready&&game::native::in_game();
     const bool native_time_input_ready=owned_native_profile&&time_hooks_ready&&game::time_input_diagnostics::ready()&&game::native::in_game();
     result["capabilities"]["read_time_acceptance"]=native_time_input_ready;
@@ -1239,17 +1248,20 @@ static void diagnostics_tick() {
         }
         auto request_path=dir/"request.json";
         json request;
-        if(!game::lobby_operations::take_request(request)) {
+        const bool internal_request=game::lobby_operations::take_request(request);
+        if(!internal_request) {
             if(!Config::instance().diagnostic_mailbox_enabled||game::lobby_operations::pending()||!std::filesystem::exists(request_path))return;
             request=read_request(request_path);
         }
-        auto id=request.at("id").get<std::string>(); if(id==last_request) return;
-        if(request.at("run_id")!=run_id) { last_request=id; LOG_INFO("[MCP] Previous-run request skipped: id={}",id); return; }
+        auto id=request.at("id").get<std::string>(); if(!internal_request&&id==last_mailbox_request) return;
+        if(request.at("run_id")!=run_id) { if(!internal_request)last_mailbox_request=id; last_request=id; LOG_INFO("[MCP] Previous-run request skipped: id={}",id); return; }
         if(id.size()!=36||request.at("schema_version")!=1) throw std::runtime_error("request identity mismatch");
         request_in_progress=id;
+        // Internal operations must not make an unchanged external mailbox request new again.
+        if(!internal_request)last_mailbox_request=id;
         auto operation=request.at("op").get<std::string>();
         json response={{"schema_version",1},{"id",id},{"run_id",run_id}};
-        if(game::ui_network_runtime::unresolved()&&operation!="read_node_observer"&&operation!="read_network_placement"&&operation!="read_network_state"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
+        if(game::ui_network_runtime::unresolved()&&operation!="read_node_observer"&&operation!="read_network_placement"&&operation!="read_network_state"&&operation!="read_tutorial"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("network_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_path_runtime::unresolved()&&operation!="read_path"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("path_ui_previous_effect_unresolved; competing native operation rejected");
@@ -1728,6 +1740,25 @@ static void diagnostics_tick() {
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_HOLDER_REJECTED"},{"message",error}};
         }
+        else if(operation=="tutorial_welcome_ok") {
+            if(!owned_native_profile||!Config::instance().is_host)throw std::runtime_error("tutorial welcome diagnostic requires owned Host profile");
+            const auto& args=request.at("args");
+            if(!args.is_object()||args.size()!=5||!args.at("token").is_string()||!args.at("snapshot_uuid").is_string()||
+               !args.at("world_epoch").is_number_unsigned()||!args.at("world_generation").is_number_unsigned()||!args.at("current_step_index").is_number_unsigned()||args.at("current_step_index")!=4)
+                throw std::runtime_error("tutorial welcome requires exact token/origin/index fields");
+            game::tutorial_welcome::Request close{args.at("token").get<std::string>(),args.at("snapshot_uuid").get<std::string>(),
+                args.at("world_epoch").get<uint64_t>(),args.at("world_generation").get<uint64_t>(),args.at("current_step_index").get<int32_t>()};
+            std::string error;json receipt;
+            response["ok"]=game::tutorial_welcome::close(close,receipt,error);response["result"]=std::move(receipt);
+            if(!response["ok"].get<bool>())response["error"]={{"code","TUTORIAL_WELCOME_REJECTED"},{"message",error}};
+        }
+        else if(operation=="read_tutorial") {
+            if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("tutorial read requires empty object arguments");
+            std::string error;json observed;
+            response["ok"]=game::tutorial_observer::read(observed,error);
+            if(response["ok"].get<bool>())response["result"]=std::move(observed);
+            else response["error"]={{"code","TUTORIAL_READ_REJECTED"},{"message",error}};
+        }
         else if(operation=="read_network_state") {
             if(!request.at("args").empty()) throw std::runtime_error("network read requires empty arguments");
             game::native_network::State network; std::string error;
@@ -1855,8 +1886,8 @@ static void diagnostics_tick() {
             auto current=status(); std::string error;
             auto actual_root=current.at("write_dir").get<std::string>();
             if(actual_root.empty()) throw std::runtime_error("PHYSFS write directory unavailable");
-            std::string world_name="MPTestSession";
-            if(!Config::instance().local_test&&!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
+            std::string world_name;
+            if(!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
             snapshot_path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,id);
             std::filesystem::create_directories(snapshot_path.parent_path());
             if(!game::building_capture_identity::begin(id,Config::instance().session_id,error,world_name)) throw std::runtime_error("building capture begin failed before native save: "+error);

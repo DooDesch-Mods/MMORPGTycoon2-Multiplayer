@@ -25,8 +25,10 @@ OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot",
 OPS.add("append_subscriber_record_probe")
 MUTATIONS = {"set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
+OPS.add("tutorial_welcome_ok")
+MUTATIONS.add("tutorial_welcome_ok")
 OPS.update({"arm_subscriber_needs", "apply_subscriber_needs", "disarm_subscriber_needs"})
-OPS.update({"read_network_state", "read_subscriber_candidates", "read_time_ui", "read_building_catalog"})
+OPS.update({"read_network_state", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_tutorial"})
 OPS.update({"read_time_acceptance", "native_time_key", "read_time_input"})
 OPS.update({"native_time_button", "read_time_mouse"})
 MUTATIONS.add("native_time_button")

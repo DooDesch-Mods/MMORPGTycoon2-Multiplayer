@@ -1,0 +1,42 @@
+{
+  "version": "0.1.0-beta.5",
+  "native_checks": [
+    "The small retained fixture loads in an ordinary Worlds of Titans folder; both peers reach Playing, native software ACK, world authority and enabled action captures.",
+    "Automatic Host-world preparation starts after the external native load acknowledgement without replaying that diagnostic request.",
+    "Both peers leave to Title, rejoin in the same processes, select the retained named world through the native picker and reach Playing using the sole load/start button.",
+    "The native lobby frame shows the single load/start control with readable layout.",
+    "Actual native cash, ledger and calendar agree after both shared loads.",
+    "Native Client HUD speed and Pause plus Host Normal and Pause each receive one Host effect and matching peer presentation. Client simulation clock remains paused.",
+    "Both test games exit normally with code 0 after final Leave."
+  ],
+  "named_world_start_and_rejoin": {
+    "path": "artifacts/acceptance/b97004c6-1072-4df8-9cd0-ecac40a7fddf/summary.json",
+    "sha256": "3b9ea4e6e636a8d06b512c12fa38fc622aaab29767e058040576c15501c91d89"
+  },
+  "native_hud_buttons": {
+    "path": "artifacts/acceptance/06568e3f-0493-4f0a-9975-de97549c69a0/summary.json",
+    "sha256": "3c21dd22aaefee796708f48cbdfa2aa10f62d2da385c6c20cf353769fa14bc18"
+  },
+  "native_shutdown": {
+    "path": "artifacts/acceptance/b9fc9c7a-1426-48b1-8c58-f64aea96ebac/summary.json",
+    "sha256": "e0723a8f6f4a7d9539232efbb347f95efe571de7673c5031cfc5a0b3c9b7f87a"
+  },
+  "mod_sha256": "232a26bfd7bdc939766159085445ccadec72daf8ffe74205ba29900203d75086",
+  "build": "artifacts/build_history/20261014T225654087739Z",
+  "regressions": [
+    "named_world",
+    "client_leave",
+    "auto_host_world",
+    "prepare_current_world",
+    "lobby_row_join",
+    "diagnostic_mailbox"
+  ],
+  "unit_scope": "Actual production decision bodies, native primitive doubles and the real action Controller; no game launch in unit CI.",
+  "limits": [
+    "The local pair uses loopback transport. Separate-account Steam discovery, admission and gameplay require the next manual friend test.",
+    "Direct public row Join is covered through actual command and callback bodies, not a new two-account discovery run.",
+    "The named-world acceptance proves preparation, shared live state, HUD controls and rejoin. Prior object-action evidence is carried; every action family was not replayed.",
+    "Tutorial progression is not shared yet. Complete action coverage, Undo/Redo, four players and large worlds remain open.",
+    "The tested local binary and the CI release are distinct builds of the same intended source. Downloaded release startup is recorded separately after publication."
+  ]
+}

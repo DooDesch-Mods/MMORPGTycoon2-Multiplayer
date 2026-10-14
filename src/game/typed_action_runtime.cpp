@@ -7,6 +7,7 @@
 #include "live_host_state/day_rollover/native_day.h"
 #include "live_host_state/day_rollover/economy/native_monetary.h"
 #include "mt2mp/net/snapshot_sync.h"
+#include "mt2mp/net/software_sync.h"
 #include "typed_action/action_session.h"
 #include "typed_action/sidecar_adapter.h"
 #include "typed_action/steam_action_adapter.h"
@@ -886,6 +887,8 @@ bool finish_lobby_leave(bool& ready,std::string& e){
         if(time.runtime.phase!=time_runtime::Phase::Waiting||time.runtime.epoch){e.clear();return true;}
     }else if(e!="time_integration_not_initialized")return false;
     if(!live_host_state::retire_lobby_fence(e))return false;
+    if(!native::retire_software_replica(e))return false;
+    net::retire_software_sync();
     // Retain callback storage until the native World and its bound Time owner have ended.
     net::SteamMatchmaking::instance().leave_lobby();
     if(net::SteamMatchmaking::instance().in_lobby()){e="native lobby Leave local membership readback still present";return false;}

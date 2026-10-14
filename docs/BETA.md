@@ -18,6 +18,8 @@ Private mod saves and diagnostics stay under `%LOCALAPPDATA%\MT2Multiplayer\<ins
 
 Normal saves for the current Steam account are visible through the game's desktop and world picker. They are mounted behind private session saves for reading. All new saves use the private profile, and multiplayer snapshots retain the selected world's folder name. Existing `MPTestSession` folders from older betas are preserved.
 
+The Host opens a lobby before creating or opening a world. An active Host world starts shared preparation automatically. To start from the multiplayer save picker, select a world and use the single **Load world and start** button. Opening a public lobby row joins it directly; manual lobby-ID Join remains available. Both players must reach the shared ready state before building. A world name alone does not confirm synchronization.
+
 ## Migrate a legacy proxy copied into the game directory
 
 These checks apply only when a legacy proxy actually replaced `steam_api64.dll`. The portable beta.2 package used outside the game directory does not require restoration of the normal installation. Do not install the legacy proxy and WSOCK loader together.

@@ -43,7 +43,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "list0";
-			text "Auswählen";
+			text "Öffnen";
 			dims 112 60;
 			anchorType TopLeft;
 			anchorPos 572 76;
@@ -71,7 +71,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "list1";
-			text "Auswählen";
+			text "Öffnen";
 			dims 112 60;
 			anchorType TopLeft;
 			anchorPos 572 152;
@@ -99,7 +99,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "list2";
-			text "Auswählen";
+			text "Öffnen";
 			dims 112 60;
 			anchorType TopLeft;
 			anchorPos 572 228;
@@ -127,7 +127,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "list3";
-			text "Auswählen";
+			text "Öffnen";
 			dims 112 60;
 			anchorType TopLeft;
 			anchorPos 572 304;

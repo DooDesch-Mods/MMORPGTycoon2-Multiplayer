@@ -198,26 +198,11 @@ mmoWindow
 		}
 		mmoButtonPane
 		{
-			id "prepare";
-			text "Welt laden";
-			dims 200 36;
+			id "start";
+			text "Welt laden und starten";
+			dims 416 36;
 			anchorType TopLeft;
 			anchorPos 16 464;
-			textSize 16;
-			clickable true;
-			border true;
-			edges All;
-			corners "TopLeft BottomRight";
-			cornerSize 8;
-			command "MessageTo Mode MT2MPPrepare";
-		}
-		mmoButtonPane
-		{
-			id "start";
-			text "Sitzung starten";
-			dims 200 36;
-			anchorType TopLeft;
-			anchorPos 232 464;
 			textSize 16;
 			clickable true;
 			border true;

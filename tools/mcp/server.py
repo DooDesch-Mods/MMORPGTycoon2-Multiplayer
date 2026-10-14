@@ -198,6 +198,11 @@ OP_SCHEMAS = {
     "native_chat_ui_text": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
     "inspect_engine": EMPTY,
     "read_network_state": EMPTY,
+    "read_tutorial": EMPTY,
+    "tutorial_welcome_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
+        "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
+        "current_step_index": {"type": "integer", "const": 4}},
+        ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
     "read_time_ui": EMPTY,
     "read_time_acceptance": EMPTY,
     "native_time_key": object_schema({"key": {"type": "string", "enum": list(TIME_KEYS)},
@@ -282,6 +287,8 @@ OP_DESCRIPTIONS = {
     "native_chat_ui_text": "Queue bounded UTF-8 text through SDL text input only while the actual chat field is active. Read the rendered draft afterward.",
     "inspect_engine": "Inspect verified engine metadata on the game thread.",
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
+    "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
+    "tutorial_welcome_ok": "Hide only the current native Host welcome message once through its original window Show path. Requires exact local origin and index4; read tutorial afterward to confirm native progression. Never replay an unknown result.",
     "read_time_ui": "Read the four owned native time-button states and authoritative presentation revision from the shared host/client runtime.",
     "read_time_acceptance": "Read owned native time-input guards, bindings, actor states and authoritative receipt counters; this does not prove calendar or economy authority.",
     "native_time_key": "Queue one guarded SPACE or F1-F4 diagnostic input in the owned test world. Preserve its token and inspect its receipt; never replay a partial or unknown input.",
@@ -346,7 +353,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -375,6 +382,18 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "building history UI requires exact direction and guards")
             if any(not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None for key in ("snapshot_uuid", "target_action_uuid")) or type(arguments["expected_host_revision"]) is not int or not 0 <= arguments["expected_host_revision"] <= 18446744073709551615:
                 raise RuntimeErrorDetail("invalid_args", "building history UI snapshot, target or revision invalid")
+        if op == "read_tutorial" and (not isinstance(arguments, dict) or arguments):
+            raise RuntimeErrorDetail("invalid_args", "read_tutorial requires empty object arguments")
+        if op == "tutorial_welcome_ok":
+            required = {"token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index"}
+            if not isinstance(arguments, dict) or set(arguments) != required:
+                raise RuntimeErrorDetail("invalid_args", "tutorial welcome requires exact token/origin/index fields")
+            if any(not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None
+                   for key in ("token", "snapshot_uuid")):
+                raise RuntimeErrorDetail("invalid_args", "tutorial welcome token and local snapshot require canonical UUIDs")
+            if any(type(arguments[key]) is not int or not 1 <= arguments[key] <= 18446744073709551615
+                   for key in ("world_epoch", "world_generation")) or type(arguments["current_step_index"]) is not int or arguments["current_step_index"] != 4:
+                raise RuntimeErrorDetail("invalid_args", "tutorial welcome requires positive local origin and index4")
         if op == "read_chat" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "read_chat requires empty object arguments")
         if op == "read_chat_ui" and (not isinstance(arguments, dict) or arguments):

@@ -223,8 +223,9 @@ bool read_software_state(SoftwareState& state, std::string& error);
 bool software_calculation_should_forward(void* receiver, SoftwareCalcLeaf leaf);
 void record_software_calculation_forwarded(SoftwareCalcLeaf leaf);
 // Arm in title mode before loading a diagnostic world. Tick itself must still run.
-bool arm_software_replica(uint64_t epoch, std::string& error);
+bool arm_software_replica(uint64_t epoch, std::string& error, const std::string& world_folder = "");
 bool disarm_software_replica(uint64_t epoch, std::string& error);
+bool retire_software_replica(std::string& error);
 bool apply_software_cache(uint64_t epoch, uint64_t revision, const SoftwareCache& expected_before,
     const SoftwareCache& host_values, SoftwareCacheReceipt& receipt, std::string& error);
 // Bind from a native game Update detour, before invoking any bridge operation.

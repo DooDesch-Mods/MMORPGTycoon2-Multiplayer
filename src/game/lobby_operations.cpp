@@ -3,10 +3,11 @@
 #include <random>
 #include <array>
 namespace mt2mp::game::lobby_operations {
-namespace {nlohmann::json request,response;std::string active,run_id;}
-void configure(const std::string& run){run_id=run;}
+namespace {nlohmann::json request,response;std::string active,run_id;bool(*idle_reader)()=nullptr;}
+void configure(const std::string& run,bool(*idle)()){run_id=run;idle_reader=idle;}
 bool pending(){return !active.empty();}
 bool available(){return !run_id.empty();}
+bool executor_idle(){return available()&&!pending()&&idle_reader&&idle_reader();}
 bool submit(const std::string& op,const nlohmann::json& args,std::string& id,std::string& error) {
     if(run_id.empty()){error="owned native executor run is unavailable";return false;}
     if(pending()){error="native lobby operation already pending id="+active;return false;}

@@ -9,4 +9,5 @@ bool suspend(const std::string&,std::string&);
 hud_time::UpdateResult on_update(void*,void*);
 void clock_update(void*,float,hud_time::OriginalClockUpdate);
 nlohmann::json status_json();
+bool verify_window_show_hook(uintptr_t target,std::string& error);
 }
