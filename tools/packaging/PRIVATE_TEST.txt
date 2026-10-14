@@ -1,19 +1,18 @@
-MT2 Multiplayer - privater Testkandidat
-=====================================
+MT2 Multiplayer - private test candidate
+=======================================
 
-Dieses Archiv enthält die aktuellen Mod-DLLs und die nativen Menüdateien.
-Es ist ein vorbereitetes Datenpaket. Der isolierte Steam-Startweg und der
-Test zwischen zwei Rechnern sind noch offen. friend_test_ready ist false.
+This archive contains the current mod DLLs and native menu assets.
+It is a prepared payload. The isolated Steam starter and acceptance across
+two computers are still required. friend_test_ready is false.
 
-Das alte install.bat wird nicht mitgeliefert: Ein bloßes Kopieren der DLLs
-aktiviert die aktuelle Koop-Konfiguration nicht vollständig.
-Dieses Paket deshalb noch nicht in den Steam-Spielordner kopieren.
+The legacy install.bat is excluded: copying the DLLs alone does not activate
+the current co-op configuration completely. Do not copy this payload into
+the Steam game directory as an installation package.
 
-package.json nennt den erforderlichen Spielhash sowie Größe und SHA256 aller
-Nutzdateien. Beide Spieler benötigen ihre eigene Steam-Version des Spiels.
-Originale Spieldateien, persönliche Spielstände und Sitzungsdaten sind nicht
-enthalten. Die Originalinstallation und private Saves bleiben erhalten.
+package.json lists the required game hash, payload sizes and SHA256 hashes.
+Each player needs their own Steam copy of the game. Original game files,
+personal saves and session data are excluded.
 
-Lokal sind gezielte Zweiernachweise für Bauen, Bewegen, Löschen, gemeinsame
-Zeit sowie ausgewählte Wirtschafts- und NPC-Zustände vorhanden. Das beweist
-keine vollständige Unterstützung aller Spielaktionen oder der Steam-Verbindung.
+Targeted local checks exist for placement, movement, removal, shared time
+and selected economy and NPC states. These checks do not establish complete
+support for every game action or the cross-computer Steam connection.

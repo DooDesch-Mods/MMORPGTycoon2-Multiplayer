@@ -1,41 +1,41 @@
-MT2 Multiplayer - privater Zweier-Test
-=====================================
+MT2 Multiplayer - private two-player test
+=======================================
 
-Experimenteller Teststand, kein vollständiger Koop-Release. Der lokale Zweier-
-Test und das Erstellen einer echten Steam-Lobby wurden bestätigt. Beitritt,
-Weltübertragung und gemeinsames Spielen auf zwei Rechnern sind noch ungeprüft.
+Experimental test build, not a complete co-op release. Targeted local tests
+and creation of a real Steam lobby have passed. Joining, world transfer and
+shared gameplay across two computers still require acceptance.
 
-START - AUF BEIDEN RECHNERN
-1. Dasselbe ZIP in einen eigenen Ordner entpacken, außerhalb des Spielordners.
-2. Steam mit dem eigenen Konto starten. Beide benötigen MMORPG Tycoon 2.
-3. MT2MP-Start.exe öffnen. Falls gefragt, den Ordner mit MT2.exe eingeben.
-4. Im Spiel auf dem Desktop die Multiplayer-App öffnen.
+START ON BOTH COMPUTERS
+1. Extract the same ZIP into a separate folder outside the game directory.
+2. Start Steam with your own account. Both players must own MMORPG Tycoon 2.
+3. Open MT2MP-Start.exe. If prompted, enter the folder containing MT2.exe.
+4. Open the Multiplayer app on the in-game desktop.
 
 HOST
-1. Zunächst über Neues Spiel eine kleine Welt anlegen und speichern.
-2. Im Desktop die Multiplayer-App öffnen und Lobby für Freunde wählen.
-3. Freunde einladen. Alternativ die Lobby-ID für Beitreten verwenden.
-4. Welt auswählen, Welt laden und nach bestätigter Bereitschaft Sitzung starten.
+1. Create and save a small world through New Game first.
+2. Open the Multiplayer app and choose the friends lobby option.
+3. Invite your friend. Joining by lobby ID is an alternative.
+4. Select the world, load it and start the session after readiness is confirmed.
 
 CLIENT
-1. Vor Annahme einer Steam-Einladung einmal Lobbys suchen öffnen.
-   Die Registrierung direkt nach einem kalten Start ist noch nicht nachgewiesen.
-2. Einladung annehmen oder die Lobby-ID unter Beitreten eingeben.
-3. Auf vollständige Weltübertragung und Laden warten.
+1. Open lobby search once before accepting a Steam invitation.
+   Invitation handling immediately after a cold start is not yet verified.
+2. Accept the invitation or enter the lobby ID to join.
+3. Wait for the complete world transfer and loading acknowledgement.
 
-Für den ersten Test eine neue kleine Welt verwenden. Platzieren, Bewegen,
-Löschen und die gemeinsame Zeit prüfen. Bei einem Sitzungsfehler pausieren und
-Logs behalten. Nicht alle Objektarten, Undo/Redo und laufenden Systeme sind
-vollständig unterstützt. Große Saves und vier Spieler bleiben spätere Tests.
+Use a new small world for the first test. Check placement, movement, removal
+and shared time. Pause after a session failure and retain the logs. Support
+for all object types, undo/redo and simulation systems is incomplete. Large
+saves and four-player sessions remain later tests.
 
-DATEN UND FEHLER
-Das Originalspiel bleibt unverändert. Der Starter erstellt eine eigene Kopie
-unter _SteamTest/_MPTest/host/game. Testdaten und Saves bleiben unter host/data.
-Diagnosen liegen in host/diagnostics, Spiel-Logs unter host/game/mt2mp.log.
-Das Spiel regulär beenden. Den Testordner mit Saves bei Updates behalten.
+DATA AND DIAGNOSTICS
+The original installation stays unchanged. The starter creates a separate
+copy under _SteamTest/_MPTest/host/game. Test saves stay under host/data.
+Diagnostics are in host/diagnostics; game logs include host/game/mt2mp.log.
+Exit the game normally. Preserve the test directory and its saves on updates.
 
-Unterstützt: Windows x64, Spielbuild 24993678. Ein anderer MT2.exe-Hash wird
-mit Ursache abgelehnt. package.json enthält Dateihashes und den Spielhash.
-Python ist im Starter enthalten; keine zusätzliche Installation erforderlich.
-Bibliotheken: Python, PyInstaller, MinHook, Dear ImGui, SDL3 und Steam SDK.
-Lizenzhinweise für den Starter liegen unter licenses/.
+Supported: Windows x64, game build 24993678. An unsupported MT2.exe hash is
+rejected with a reason. package.json lists payload hashes and the game hash.
+The starter includes Python; no separate Python installation is required.
+Libraries include Python, PyInstaller, MinHook, Dear ImGui, SDL3 and Steam SDK.
+Starter license notices are under licenses/.

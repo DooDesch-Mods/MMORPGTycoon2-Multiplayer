@@ -2,13 +2,13 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Experimenteller Koop-Mod für die Windows-Version von MMORPG Tycoon 2. Dieses private Repository enthält den Mod-Quellcode und seine Build-Werkzeuge. Es ist kein freigegebener Release. Lokale Abnahmen einzelner Aktionen ersetzen keine vollständige Online-/Steam-Abnahme.
+An experimental cooperative multiplayer mod for MMORPG Tycoon 2 on Windows. This private repository contains the mod source and build tools. It is not a finished release. Targeted local gameplay checks do not establish complete online or Steam support.
 
-Enthalten ist der Quellcode für die Mod-DLL, den Steam-API-Proxy, das lokale Relay und die eigene native Multiplayer-Oberfläche. Spielinstallation, binäre DLLs, Saves, persönliche Konfigurationen und native Testartefakte sind nicht enthalten.
+The repository includes source for the mod DLL, Steam API proxy, local relay and native multiplayer UI. Game installations, original game libraries, saves, personal settings and native test artifacts are excluded.
 
-## Bauen
+## Build and test
 
-Voraussetzungen: Windows x64, Visual Studio 2022 mit C++/Windows SDK/MASM, CMake und Python 3. Für den Mod-Build wird eine zur enthaltenen SDL3-Version 3.2.24 passende Importbibliothek benötigt. CI baut diese aus der gepinnten offiziellen SDL-Quelle; eine DLL aus dem Spiel wird dafür nicht verwendet.
+Building requires Windows x64, Visual Studio 2022 with C++, the Windows SDK and MASM, CMake, and Python 3. The mod build needs an import library matching the included SDL 3.2.24 headers. CI builds that library from pinned official SDL source without using a game DLL.
 
 ```powershell
 cmake -S ci -B build/unit -A x64
@@ -17,19 +17,25 @@ ctest --test-dir build/unit -C Release --output-on-failure
 python -m unittest discover -s test -p test_build_input_guard.py
 ```
 
-Der Workflow [.github/workflows/windows.yml](.github/workflows/windows.yml) prüft die vorhandenen spielunabhängigen Tests und baut anschließend `MT2_Multiplayer`, `steam_api64` und `mt2mp_sidecar`. Er startet kein Spiel und lädt die Mod-DLL nicht in einen Testprozess. Ein grüner Build ist kein nativer Gameplay-Beleg.
+The [Windows workflow](.github/workflows/windows.yml) runs the game-independent tests and builds `MT2_Multiplayer`, `steam_api64` and `mt2mp_sidecar`. It does not launch the game or load the mod DLL. A successful build does not prove gameplay behavior.
 
-Nach Bereitstellung der SDL3-Importbibliothek bei `include/vendor/SDL3/lib/x64/SDL3.lib`:
+Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
 ```powershell
 cmake -S . -B build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar --parallel 2
 ```
 
-Die separaten CI-Tests vermeiden die bisherige pauschale Bindung aller CMake-Testziele an die Mod-DLL. Die Launcher- und MCP-Werkzeuge benötigen eine eigene legale Spielinstallation und explizite lokale Pfade. Sie werden nicht vom Workflow ausgeführt.
+The separate CI test entry avoids linking every test to the injected mod DLL. Launcher and MCP tools require a legally installed copy of the game and explicit local runtime paths. CI does not run these tools.
 
-## Abhängigkeiten
+## Installation status
 
-Siehe [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) für MinHook, Dear ImGui, nlohmann/json und SDL. Die Steam-Typdefinitionen sind ein kleiner lokaler Interface-Stub; das Steamworks SDK und Original-Steam-DLLs sind nicht enthalten.
+The intended installation is to extract the mod into the game directory and launch normally through Steam. That distribution path is still being implemented. The current private test package uses an isolated runtime and is not the final installation method.
 
-Der Workflow hat nur Leserechte auf Repository-Inhalte. Er erstellt keine Releases, lädt keine Pakete hoch und veröffentlicht keine Spiel- oder Mod-Binärdateien. Für Mod-eigene Quellen wird durch diesen initialen Import keine neue Open-Source-Lizenz festgelegt.
+World selection has been verified in the native menu. Native desktop icon integration is being tested. Joining from another computer, world transfer and shared online gameplay still require acceptance with separate Steam accounts.
+
+## Dependencies
+
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for MinHook, Dear ImGui, nlohmann/json and SDL. The Steam declarations are a small local interface stub; the Steamworks SDK and original Steam DLLs are not included.
+
+The workflow has read-only access to repository contents. It does not create releases or publish packages. This initial private source import does not assign a new open-source license to mod-authored code.
