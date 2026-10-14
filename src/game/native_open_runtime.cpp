@@ -112,7 +112,7 @@ bool hooks_enabled(std::string& error) {
     return confirmed;
 }
 bool prepare(const std::filesystem::path& root,const std::string& uuid,const std::string& sha,
-             uint64_t bytes,uint64_t& generation,std::string& error) {
+             uint64_t bytes,uint64_t& generation,std::string& error,const std::string& world_name) {
     using GetWriteDir=const char*(*)();
     const auto module=GetModuleHandleW(L"libphysfs.dll");
     const auto getter=module?reinterpret_cast<GetWriteDir>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
@@ -125,7 +125,7 @@ bool prepare(const std::filesystem::path& root,const std::string& uuid,const std
     const auto steam_id=write.filename().string();
     if(next_generation==std::numeric_limits<uint64_t>::max()){error="native open generation exhausted";return false;}
     const auto next=++next_generation;
-    if(!witness::begin(root,steam_id,uuid,sha,bytes,next,error))return false;
+    if(!witness::begin(root,steam_id,uuid,sha,bytes,next,error,world_name))return false;
     generation=next;active_generation.store(next);
     LOG_INFO("[NativeOpen] File pinned uuid={} generation={} bytes={}",uuid,next,bytes);
     return true;

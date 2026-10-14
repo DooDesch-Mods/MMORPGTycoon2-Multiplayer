@@ -865,7 +865,7 @@ bool begin_lobby_leave(std::string& e){
     if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||npc_probe::action_runtime::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
     if(current.value("snapshot_handoff",false)||!current.value("snapshot_error",std::string{}).empty()){e="native lobby Leave blocked by current snapshot handoff: "+current.value("snapshot_error",std::string{});return false;}
     auto* r=published_runtime.load(std::memory_order_acquire);
-    if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||s.pending||s.locked||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
+    if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
         r->lobby_retiring=true;net::session_wire::suspend_actions();
         if(r->live_state&&!r->live_state->suspend_snapshot(e)){r->live_error=e;return false;}
         if(r->live_port&&!live_host_state::economic_fence().suspend_snapshot(e)){r->live_error=e;return false;}
@@ -880,7 +880,7 @@ bool finish_lobby_leave(bool& ready,std::string& e){
     ready=false;native::WorldStatus actual;if(!native::read_world_status(actual,e))return false;
     if(actual.active_mode_index!=2||actual.title_transition_pending||actual.saves_in_progress>0){e.clear();return true;}
     auto* r=published_runtime.load(std::memory_order_acquire);
-    if(r&&(r->thread!=GetCurrentThreadId()||!r->lobby_retiring||r->controller.status().pending||r->controller.status().locked)){e="lobby owner retirement not idle or Unknown";return false;}
+    if(r&&(r->thread!=GetCurrentThreadId()||!r->lobby_retiring||!r->controller.can_retire_lobby())){e="lobby owner retirement not idle or Unknown";return false;}
     time_integration::Status time;
     if(time_integration::instance().status(time,e)){
         if(time.runtime.phase!=time_runtime::Phase::Waiting||time.runtime.epoch){e.clear();return true;}

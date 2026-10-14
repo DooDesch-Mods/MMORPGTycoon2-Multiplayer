@@ -45,7 +45,7 @@ struct SnapshotLoadWatch {
 };
 void initialize_snapshot_sync();
 void tick_snapshot_sync();
-bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error);
+bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error,const std::string& world_name="MPTestSession");
 std::string snapshot_sync_status();
 std::string current_snapshot_id();
 // Snapshot epoch only; native adapters must also verify their bound world receivers.

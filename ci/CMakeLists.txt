@@ -84,3 +84,12 @@ include("${CMAKE_CURRENT_LIST_DIR}/dropin_proof_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dropin_write_dir_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/cold_time_retire_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/snapshot_world_path_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/empty_network_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/client_leave_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/original_saves_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/private_save_parent_checks.cmake")

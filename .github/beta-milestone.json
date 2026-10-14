@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.3",
-  "summary": "Drop-in Steam startup, automatic Host world selection and native load/leave fixes.",
-  "native_evidence": "docs/evidence/beta3-native.json"
+  "version": "0.1.0-beta.4",
+  "summary": "Restore original save visibility, retain world folders, unblock new-world loading and allow idle Clients to leave after Host loss.",
+  "native_evidence": "docs/evidence/beta4-native.json"
 }

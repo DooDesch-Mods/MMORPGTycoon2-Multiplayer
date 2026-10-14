@@ -1,4 +1,5 @@
 #include "network_identity.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/game/normal_load_identity.h"
 #include "mt2mp/core/logger.h"
@@ -176,7 +177,7 @@ bool roots_read(Roots& roots,std::string& cause) {
     if(!read_at(reinterpret_cast<void*>(base),map_slot,roots.map)||!vtable(roots.map,map_vtable)) { cause="root map singleton/vtable differs"; return false; }
     roots.shard=static_cast<uint8_t*>(roots.map)+0x1c0;
     int32_t type=-1,allocated=-1;
-    if(!vtable(roots.shard,shard_vtable)||!read_at(roots.shard,0x48,type)||type!=0||!read_at(roots.map,0x358,roots.array)||!read_at(roots.map,0x360,roots.count)||!read_at(roots.map,0x364,allocated)||roots.count<=0||roots.count>int32_t(maximum_regions)||allocated<roots.count||!readable(roots.array,size_t(roots.count)*sizeof(void*))) {
+    if(!vtable(roots.shard,shard_vtable)||!read_at(roots.shard,0x48,type)||type!=0||!read_at(roots.map,0x358,roots.array)||!read_at(roots.map,0x360,roots.count)||!read_at(roots.map,0x364,allocated)||roots.count<0||roots.count>int32_t(maximum_regions)||allocated<roots.count||((roots.count||allocated)&&!readable(roots.array,std::max(size_t(roots.count),size_t(1))*sizeof(void*)))) {
         cause="root shard/region array guard failed count="+std::to_string(roots.count)+" allocated="+std::to_string(allocated); return false;
     }
     roots.regions.clear(); roots.regions.reserve(size_t(roots.count));
@@ -264,19 +265,19 @@ WriterScope writer_scope(const Shared& s,void* writer,WriterBinding& binding,std
     const char* text=nullptr; size_t bytes=0; int32_t mode=-1;
     if(!read_at(file,8,text)||!read_at(file,0x10,bytes)) { cause="native save filename header unreadable"; return WriterScope::Invalid; }
     if(bytes!=s.filename.size()) { cause="foreign native filename length"; return WriterScope::Foreign; }
-    if(bytes>256||!readable(text,bytes)) { cause="native save filename bytes unreadable or exceed256"; return WriterScope::Invalid; }
-    std::array<char,256> value{};
+    if(bytes>512||!readable(text,bytes)) { cause="native save filename bytes unreadable or exceed512"; return WriterScope::Invalid; }
+    std::array<char,512> value{};
     const auto exception=copy_native(text,value.data(),bytes);
     if(exception) { cause="native save filename read exception="+std::to_string(exception); return WriterScope::Invalid; }
     if(memcmp(value.data(),s.filename.data(),bytes)) { cause="foreign native filename/UUID"; return WriterScope::Foreign; }
     if(!read_at(file,0x70,mode)||mode!=4) { cause="owned native file write mode actual="+std::to_string(mode)+" required=4"; return WriterScope::Invalid; }
     return WriterScope::Own;
 }
-void reset(Shared& s,const std::string& uuid,const std::string& sha,uint32_t expected,const std::string& role) {
+void reset(Shared& s,const std::string& uuid,const std::string& sha,uint32_t expected,const std::string& role,const std::string& world_name="MPTestSession") {
     s.uuid=uuid; s.sha=sha; s.expected=expected; s.role=role; s.error.clear(); s.keys_digest.clear(); s.invalidation_reason.clear(); s.discarded=0;
     ++client_generation; s.first_context_probe={}; s.last_context_probe={}; s.context_owners.clear(); s.observer_threads.clear(); s.client_load_mode=nullptr; s.first_observer_thread=s.last_observer_thread=0; s.obsolete_callbacks=s.typed_worker_callbacks=s.typed_main_callbacks=s.duplicate_callbacks=0;
     s.pending.clear(); s.pending_nodes=0; s.bindings.clear(); s.shards.clear(); s.contexts.clear(); s.completed_arrays=0; s.roots={};
-    s.filename="user/save/MPTestSession/snapshot-"+uuid+".vrz"; s.foreign_writers=0; s.foreign_reason.clear();
+    s.filename=net::snapshot_world_path::capture(world_name,uuid); s.foreign_writers=0; s.foreign_reason.clear();
     selector_reads=0; non_node_callbacks=0;
 }
 bool publish(Shared& s,const Roots& roots,std::string& error) {
@@ -333,11 +334,11 @@ bool initialize(std::string& error) {
     image=base; s.state="idle"; s.error.clear(); error.clear(); return true;
 }
 void* capture_entrypoint() { return image.load()?reinterpret_cast<void*>(image.load()+capture_rva):nullptr; }
-bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& error) {
+bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& error,const std::string& world_name) {
     auto& s=shared(); std::lock_guard lock(s.mutex);
     if(capture_active||client_active||!s.pending.empty()) return fail_locked(s,"identity operation or original callback still active",&error);
-    if(!valid_uuid(uuid)||expected>maximum_nodes) return fail_locked(s,"host capture UUID/count invalid",&error);
-    reset(s,uuid,"",expected,"host"); s.state="capturing";
+    if(!valid_uuid(uuid)||expected>maximum_nodes||!net::snapshot_world_path::valid_folder(world_name)) return fail_locked(s,"host capture UUID/count invalid",&error);
+    reset(s,uuid,"",expected,"host",world_name); s.state="capturing";
     if(!main_gate(s,true,error,true)) return false;
     std::string cause; std::map<uint64_t,Binding> live;
     if(!roots_read(s.roots,cause)||!census(s.roots,live,cause)) return fail_locked(s,"host capture root baseline: "+cause,&error);

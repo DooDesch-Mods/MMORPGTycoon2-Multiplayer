@@ -37,6 +37,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 -m unittest discover -s test -p test_loader_separation.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Restore SDL import library
         id: sdl_import
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4

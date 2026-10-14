@@ -166,7 +166,8 @@ class MilestoneTests(unittest.TestCase):
         self.assertNotIn(self.data['native_evidence'], posts[0]['body'])
         self.assertNotIn(fixtures.COMMIT, posts[0]['body'])
         self.assertNotIn('Accepted milestone:', posts[0]['body'])
-        self.assertIn(' - Steam launch and lobby fixes', posts[0]['name'])
+        title = (SOURCE / 'docs/BETA_RELEASE_NOTES.md').read_text(encoding='utf8').splitlines()[0].removeprefix('# ')
+        self.assertEqual(posts[0]['name'], fixtures.TAG + ' - ' + title)
         self.assertFalse(api.release['draft'])
         self.assertTrue(api.release['prerelease'])
 

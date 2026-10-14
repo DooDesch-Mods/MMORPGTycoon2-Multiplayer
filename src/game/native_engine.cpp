@@ -1,4 +1,5 @@
 #include "mt2mp/game/native_engine.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/core/logger.h"
 #include "live_host_state/economic_fence.h"
 
@@ -2273,6 +2274,18 @@ bool set_clock(bool paused, float speed, std::string& error) {
     if (!read_at(clock, 0x58, actual) || actual != target)
         return fail(error, "clock readback differs: actual=" + std::to_string(actual) + " required=" + std::to_string(target));
     LOG_INFO("[Native] Clock scale readback confirmed={}", actual);
+    return true;
+}
+
+bool read_active_world_folder(std::string& folder, std::string& error) {
+    folder.clear();
+    if (!check_thread(error)) return false;
+    if (!in_game() || !read_game_string(singleton(game_slot), 0x470, folder) ||
+        !net::snapshot_world_path::valid_folder(folder)) {
+        folder.clear();
+        return fail(error, "snapshot world folder unavailable or invalid on active native world");
+    }
+    error.clear();
     return true;
 }
 

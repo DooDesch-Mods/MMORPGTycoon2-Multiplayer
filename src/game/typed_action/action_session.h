@@ -176,6 +176,7 @@ public:
     bool receive(uint64_t authenticated_sender,const uint8_t*,size_t,uint64_t now_ms,std::string& cause);
     bool tick(uint64_t now_ms,std::string& cause);
     Status status() const {return status_;}
+    bool can_retire_lobby() const;
     Context bound_context() const {return context_;}
     Binding bound_binding() const {return binding_;}
 private:
@@ -194,11 +195,11 @@ private:
     std::optional<Message> pending_;
     std::optional<Message> authority_waiting_;
     std::optional<Message> local_request_;
-    bool busy_=false;
+    bool busy_=false,idle_session_loss_=false;
     std::string last_logged_error_;
     bool guard(std::string&);
     bool invoke(const std::function<bool()>&,std::string&);
-    bool fail(const std::string&,std::string&,bool lock=false);
+    bool fail(const std::string&,std::string&,bool lock=false,bool session_loss=false);
     bool send(uint64_t,const Message&,std::string&);
     bool request(const Message&,uint64_t,std::string&);
     bool result(const Message&,std::string&);

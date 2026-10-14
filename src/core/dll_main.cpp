@@ -26,6 +26,7 @@
 #include "../game/subscriber_lifecycle/runtime_capture.h"
 #include "../game/subscriber_lifecycle/runtime_append.h"
 #include "mt2mp/net/snapshot_sync.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/software_sync.h"
 #include "mt2mp/net/diagnostic_placement.h"
@@ -1223,14 +1224,15 @@ static void diagnostics_tick() {
                 }
                 if(sealed==game::building_capture_identity::SealResult::Failed)
                     LOG_ERROR("[MCP] Snapshot file complete id={} but building identity failed cause={}",id,identity.error);
-                json record={{"snapshot_id",id},{"path",snapshot_path.string()},{"bytes",length},{"sha256",digest},{"run_id",run_id},
+                const auto world_name=pending_snapshot.at("world_name").get<std::string>();
+                json record={{"snapshot_id",id},{"world_name",world_name},{"path",net::snapshot_world_path::utf8(snapshot_path)},{"bytes",length},{"sha256",digest},{"run_id",run_id},
                     {"state","snapshot_file_complete"},{"distribution_requested",distribute},{"building_bindings_confirmed",identity.bindings_confirmed},{"building_identity_error",identity.error}};
                 write_json(dir/("snapshot-"+id+".json"),record);
                 json response={{"schema_version",1},{"id",pending_snapshot.at("id")},{"run_id",run_id},{"ok",true},{"result",record}};
                 respond(dir,response);
                 LOG_INFO("[MCP] SNAPSHOT_CAPTURED bytes={} sha256={} path={}",length,digest,snapshot_path.string());
                 pending_snapshot=nullptr;
-                if(distribute&&!net::distribute_snapshot(id,digest,snapshot_path,error)) LOG_ERROR("[SNAPSHOT] Captured file distribution failed: {}",error);
+                if(distribute&&!net::distribute_snapshot(id,digest,snapshot_path,error,world_name)) LOG_ERROR("[SNAPSHOT] Captured file distribution failed: {}",error);
                 if(!distribute)LOG_INFO("[MCP] Local snapshot retained id={} bytes={}; distribution deliberately skipped",id,length);
             }
             return;
@@ -1837,7 +1839,8 @@ static void diagnostics_tick() {
             pending_overlay={{"id",id},{"previous",previous}}; overlay_started=now; last_request=id; return;
         }
         else if(operation=="create_test_world") {
-            std::string name="MPTest"+id; std::string error;
+            // Keep diagnostic world folders short enough for native metadata paths.
+            std::string name="MPTest"+id.substr(0,16); std::string error;
             response["ok"]=game::native::prepare_test_world(name,error);
             if(response["ok"].get<bool>()) { pending_world={{"id",id},{"name",name},{"state","preparing"}}; world_started=now; last_request=id; LOG_INFO("[MCP] Test world preparation requested name={}",name); return; }
             response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
@@ -1852,9 +1855,11 @@ static void diagnostics_tick() {
             auto current=status(); std::string error;
             auto actual_root=current.at("write_dir").get<std::string>();
             if(actual_root.empty()) throw std::runtime_error("PHYSFS write directory unavailable");
-            snapshot_path=std::filesystem::path(actual_root)/"save"/"MPTestSession"/("snapshot-"+id+".vrz");
+            std::string world_name="MPTestSession";
+            if(!Config::instance().local_test&&!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
+            snapshot_path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,id);
             std::filesystem::create_directories(snapshot_path.parent_path());
-            if(!game::building_capture_identity::begin(id,Config::instance().session_id,error)) throw std::runtime_error("building capture begin failed before native save: "+error);
+            if(!game::building_capture_identity::begin(id,Config::instance().session_id,error,world_name)) throw std::runtime_error("building capture begin failed before native save: "+error);
             snapshot_observer_begun=true;
             building_capture_original_start=building_original_attempted.load();
             building_capture_return_start=building_original_returned.load();
@@ -1863,16 +1868,16 @@ static void diagnostics_tick() {
                 game::native_network::State nodes;
                 if(game::native_network::read_state(nodes,error)) {
                     if(nodes.node_slots<nodes.null_node_slots) throw std::runtime_error("network node census invalid slots="+std::to_string(nodes.node_slots)+" null="+std::to_string(nodes.null_node_slots));
-                    if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error))
+                    if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error,world_name))
                         LOG_ERROR("[MCP] Network capture begin rejected id={} cause={}; native file capture continues",id,error);
                 } else {
                     game::network_identity::cancel_pending("network census failed before native capture: "+error);
                     LOG_ERROR("[MCP] Network census failed id={} cause={}; native file capture continues",id,error);
                 }
             }
-            response["ok"]=game::native::capture_snapshot("user/save/MPTestSession/snapshot-"+id+".vrz",error);
+            response["ok"]=game::native::capture_snapshot(net::snapshot_world_path::capture(world_name,id),error);
             if(response["ok"].get<bool>()) {
-                pending_snapshot={{"id",id},{"snapshot_id",id},{"distribute",distribute}}; snapshot_started=now; last_request=id;
+                pending_snapshot={{"id",id},{"snapshot_id",id},{"world_name",world_name},{"distribute",distribute}}; snapshot_started=now; last_request=id;
                 LOG_INFO("[MCP] Snapshot pending: request={} target={}",id,snapshot_path.string()); return;
             }
             game::building_capture_identity::cancel(error);
@@ -1885,7 +1890,10 @@ static void diagnostics_tick() {
             auto manifest=dir/("snapshot-"+snapshot_id+".json");
             std::ifstream stream(manifest); json record; stream>>record;
             auto actual_root=status().at("write_dir").get<std::string>();
-            auto path=std::filesystem::path(actual_root)/"save"/"MPTestSession"/("snapshot-"+snapshot_id+".vrz");
+            const auto world_name=net::snapshot_world_path::from_manifest(record);
+            auto path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,snapshot_id);
+            if(record.at("snapshot_id").get<std::string>()!=snapshot_id) throw std::runtime_error("local snapshot manifest UUID differs");
+            if(record.contains("world_name")&&record.contains("path")&&std::filesystem::weakly_canonical(net::snapshot_world_path::utf8_path(record.at("path").get<std::string>()))!=std::filesystem::weakly_canonical(path)) throw std::runtime_error("local snapshot manifest path differs from owned world folder");
             const auto expected=record.at("bytes").get<uint64_t>();
             if(expected==0||expected>net::snapshot_max_bytes||std::filesystem::file_size(path)!=expected) throw std::runtime_error("local snapshot size differs from manifest");
             std::string error;
@@ -1893,7 +1901,7 @@ static void diagnostics_tick() {
             if(!net::hash_snapshot_file(path,digest,length,error)) throw std::runtime_error("local snapshot hash failed: "+error);
             if(length!=expected||digest!=record.at("sha256").get<std::string>()) throw std::runtime_error("local snapshot incomplete or SHA256 differs");
             uint64_t origin_generation=0;
-            if(!game::native_open_runtime::prepare(runtime_root,snapshot_id,digest,expected,origin_generation,error))
+            if(!game::native_open_runtime::prepare(runtime_root,snapshot_id,digest,expected,origin_generation,error,world_name))
                 throw std::runtime_error("native snapshot origin preparation failed: "+error);
             try {
             if(!suspend_time("MCP verified local snapshot replaces world",error)) throw std::runtime_error("time authority retire before load failed: "+error);
@@ -1907,7 +1915,7 @@ static void diagnostics_tick() {
                 throw;
             }
             if(!game::native_open_runtime::before_request(origin_generation,error)) throw std::runtime_error("native origin request binding failed: "+error);
-            response["ok"]=game::native::request_load("save/MPTestSession/snapshot-"+snapshot_id+".vrz",error);
+            response["ok"]=game::native::request_load(net::snapshot_world_path::load(world_name,snapshot_id),error);
             if(response["ok"].get<bool>()) { pending_load={{"id",id},{"snapshot_id",snapshot_id},{"origin_generation",origin_generation}}; load_watch.begin(now); last_request=id; return; }
             else { game::normal_load_identity::cancel(error); response["error"]={{"code","ENGINE_REJECTED"},{"message",error}}; }
         }

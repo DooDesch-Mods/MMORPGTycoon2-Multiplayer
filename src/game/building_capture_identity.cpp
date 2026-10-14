@@ -1,4 +1,5 @@
 #include "building_capture_identity.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "npc_quest_target_runtime.h"
 #include "npc_saved_identity_runtime.h"
 #include "mt2mp/core/logger.h"
@@ -316,9 +317,9 @@ bool initialize(std::string& error) {
     error.clear(); return true;
 }
 void* capture_entrypoint() { std::lock_guard lock(mutex); return image ? reinterpret_cast<void*>(image + entry_rva) : nullptr; }
-bool begin(const std::string& uuid, uint64_t epoch, std::string& error) {
+bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const std::string& world_name) {
     std::lock_guard lock(mutex);
-    if (!image || armed || !valid_uuid(uuid)) { error = "begin requires ready resolver, valid UUID and no active capture"; LOG_ERROR("[BuildingCapture] {}", error); return false; }
+    if (!image || armed || !valid_uuid(uuid) || !net::snapshot_world_path::valid_folder(world_name)) { error = "begin requires ready resolver, valid UUID and no active capture"; LOG_ERROR("[BuildingCapture] {}", error); return false; }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
     uint8_t main_skip = 0, legacy_skip = 0; uint64_t main_offset = 0;
     if (!read(reinterpret_cast<void*>(image + 0x13be4c0), 0x20, main_skip, error) ||
@@ -341,7 +342,7 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error) {
     if (!read_world_witness(candidate_world, error)) { LOG_ERROR("[BuildingCapture] begin world witness rejected: {}", error); return false; }
     clear_private(); current = {}; emergency_failure = false; current.state = "armed"; current.capture_uuid = uuid; current.session_epoch = epoch;
     bound_world = candidate_world; current.world_witness_bound = true; current.world_witness_current = true;
-    current.game_thread_id = GetCurrentThreadId(); filename = "user/save/MPTestSession/snapshot-" + uuid + ".vrz"; armed = true;
+    current.game_thread_id = GetCurrentThreadId(); filename = net::snapshot_world_path::capture(world_name, uuid); armed = true;
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
     if (!npc_quest_target_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; return fail(error,"Quest target capture arm failed: "+error); }
     if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }

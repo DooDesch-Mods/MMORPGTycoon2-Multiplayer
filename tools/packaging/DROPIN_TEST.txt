@@ -39,6 +39,10 @@ Keep these files when updating. The normal game's private saves are not
 reset or migrated by installing this package. No game launch is performed
 by CI and no complete separate-account online acceptance is claimed.
 
+Normal saves for the current Steam account appear on the desktop and in
+the world picker. They remain original read sources; new saves are written
+to the private profile. Session snapshots keep the selected world's folder.
+
 UPDATE OR DISABLE
 Exit the game before replacing known mod-owned files with a newer verified
 package. Keep private data, logs and the original Steam backup. To disable,

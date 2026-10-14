@@ -1,0 +1,26 @@
+# Exercise actual Controller and native Leave bodies with bounded services.
+set(client_leave_source "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${client_leave_source}")
+file(READ "${client_leave_source}" client_leave_text)
+string(FIND "${client_leave_text}" "bool begin_lobby_leave(" client_leave_begin)
+set(client_leave_end_marker "    ready=true;e.clear();return true;\n}")
+string(FIND "${client_leave_text}" "${client_leave_end_marker}" client_leave_end)
+if(client_leave_begin LESS 0 OR client_leave_end LESS client_leave_begin)
+    message(FATAL_ERROR "Native Leave body boundaries changed; update the affected test extraction")
+endif()
+string(LENGTH "${client_leave_end_marker}" client_leave_end_size)
+math(EXPR client_leave_size "${client_leave_end}+${client_leave_end_size}-${client_leave_begin}")
+string(SUBSTRING "${client_leave_text}" ${client_leave_begin} ${client_leave_size} client_leave_body)
+file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/client_leave_runtime_body.inc" "${client_leave_body}\n")
+add_executable(test_client_leave
+    "${MT2MP_SOURCE_ROOT}/test/test_client_leave.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp")
+target_include_directories(test_client_leave PRIVATE
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action"
+    "${MT2MP_SOURCE_ROOT}/include")
+if(MSVC)
+    target_compile_options(test_client_leave PRIVATE /W4 /WX /utf-8)
+endif()
+add_test(NAME client_leave COMMAND test_client_leave)
+set_tests_properties(client_leave PROPERTIES TIMEOUT 30)

@@ -33,7 +33,7 @@ bool initialize(const std::filesystem::path& runtime_root,std::string& error);
 bool confirm_hooks(uint32_t installed_mask,std::string& error);
 void hooks_stopped(const std::string& cause);
 bool begin(const std::filesystem::path& runtime_root,const std::string& steam_id,
-           const std::string& uuid,const std::string& sha,uint64_t bytes,uint64_t generation,std::string& error);
+           const std::string& uuid,const std::string& sha,uint64_t bytes,uint64_t generation,std::string& error,const std::string& world_name="MPTestSession");
 // These guards observe the caller's original invocation. A rejection must not skip the original.
 bool file_before(void* file,const void* gcc_filename,int32_t mode,std::string& error) noexcept;
 bool file_after(void* file,std::string& error) noexcept;

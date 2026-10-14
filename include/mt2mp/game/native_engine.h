@@ -276,6 +276,7 @@ bool set_clock(bool paused, float speed, std::string& error);
 bool read_saves_in_progress(int32_t& count, std::string& error);
 // Takes user/save/<game-folder>/<filename>.vrz in the engine virtual filesystem.
 // True means the native task was dispatched. Confirm persistence via the file hook.
+bool read_active_world_folder(std::string& folder, std::string& error);
 bool capture_snapshot(const std::string& virtual_filename, std::string& error);
 // Accepts save/<game-folder>/<filename>.vrz while the title mode is active.
 // True means a load was requested, not that world activation completed.

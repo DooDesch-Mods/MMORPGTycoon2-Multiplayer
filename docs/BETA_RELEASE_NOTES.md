@@ -1,19 +1,18 @@
-# Steam launch and lobby fixes
+# World loading and lobby exit fixes
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
 ## Highlights
 
-- **Launch through Steam.** Install the mod directly in your game folder. A separate starter is no longer needed.
-- **Your Host world appears automatically.** Create or load a world after opening a lobby, then start the session from Multiplayer.
-- **Leave and host again.** Leaving a lobby now completes correctly, so you can open another lobby.
+- **Start a new world together.** Empty network state no longer blocks the shared world's final loading confirmation.
+- **Leave after the Host disconnects.** An idle Client can return to the desktop instead of getting stuck in the lobby.
+- **Find your existing saves.** Your Steam account's normal worlds appear alongside private multiplayer saves.
 
 ## Fixes
 
-- Fixed missing session initialization when the game was launched directly through Steam.
-- Fixed starting a shared session in a freshly created, empty world.
-- Fixed loading a world before the session's time controls had initialized.
-- Updated Steam Friends detection used by lobby invitations.
+- Kept the original world folder when capturing and loading session snapshots. New sessions no longer create an extra `MPTestSession` world.
+- Kept original saves unchanged while routing new saves to the private multiplayer profile.
+- Prevented the local two-instance launcher from mixing the installed loader with its Steam proxy.
 
 ## Install and play
 
@@ -25,4 +24,4 @@
 
 ## Beta status
 
-This build is ready for the next two-player test. Separate-account online play still needs confirmation. Undo/Redo, complete action coverage, four players and large worlds remain in development.
+The affected loading and disconnect flows are checked locally. Separate-account online play still needs confirmation. Tutorial progression is not shared yet. Undo/Redo, complete action coverage, four players and large worlds remain in development.

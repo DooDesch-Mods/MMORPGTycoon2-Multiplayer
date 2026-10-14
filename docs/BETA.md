@@ -16,6 +16,8 @@ The 15-file drop-in ZIP contains two mod DLLs, five authored UI files, six notic
 
 Private mod saves and diagnostics stay under `%LOCALAPPDATA%\MT2Multiplayer\<installation-id>\`. Preserve this directory, normal saves, and old portable test directories during updates. To disable, exit the game and move only verified mod-owned files outside its folder; do not delete private data or the original Steam library.
 
+Normal saves for the current Steam account are visible through the game's desktop and world picker. They are mounted behind private session saves for reading. All new saves use the private profile, and multiplayer snapshots retain the selected world's folder name. Existing `MPTestSession` folders from older betas are preserved.
+
 ## Migrate a legacy proxy copied into the game directory
 
 These checks apply only when a legacy proxy actually replaced `steam_api64.dll`. The portable beta.2 package used outside the game directory does not require restoration of the normal installation. Do not install the legacy proxy and WSOCK loader together.

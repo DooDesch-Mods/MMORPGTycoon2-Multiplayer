@@ -1,0 +1,217 @@
+#include <atomic>
+#include <memory>
+#include "action_session.h"
+#include <iostream>
+#include <stdexcept>
+
+using namespace mt2mp::action_session;
+namespace {
+const std::string snapshot="11111111-1111-1111-1111-111111111111";
+const std::string action_id="22222222-2222-2222-2222-222222222222";
+const std::string record_key=std::string(64,'a')+":world:building:44";
+void require(bool okay,const std::string& cause) {if(!okay)throw std::runtime_error(cause);}
+struct FakeSession:Session {
+    Context value;bool available=true;std::function<void()> on_current;
+    explicit FakeSession(uint64_t peer):value{42,peer,1,3,peer==1?Role::Host:Role::Client,snapshot} {}
+    bool current(Context& out,std::string& cause) override {if(on_current)on_current();if(!available){cause="fixture disconnected";return false;}out=value;cause.clear();return true;}
+};
+struct FakeEngine:Engine {
+    Binding world{5,8};Ledger state;Evidence receipt;uint64_t executions=0,applies=0,retirements=0;
+    bool current_ok=true,retirement_ok=true,throw_execute=false,throw_observe=false;Outcome effect=Outcome::Confirmed;
+    std::function<void()> on_observe;
+    FakeEngine(){state.cash=1000;state.flat_day=13;state.record_present=1;state.record_day=13;state.record_cash=1000;state.line_counts[0]=3;}
+    bool bind(const std::string& id,Binding& out,std::string& cause) override {if(id!=snapshot){cause="wrong snapshot";return false;}out=world;cause.clear();return true;}
+    bool current(const Binding& b,const std::string&,std::string& cause) override {if(!current_ok||b!=world){cause="fixture native world replaced";return false;}cause.clear();return true;}
+    bool ledger(const Binding&,Ledger& out,std::string& cause) override {out=state;cause.clear();return true;}
+    Outcome remove(std::string& cause) {
+        if(throw_execute)throw std::runtime_error("fixture native exception");
+        if(effect!=Outcome::Confirmed){cause="fixture native rejected/unknown original cause";return effect;}
+        receipt={};receipt.before=state;state.cash+=400;state.record_cash+=400;state.record_income+=400;
+        state.line_counts[0]--;state.line_income[0]+=400;receipt.after=state;
+        receipt.target_retired=receipt.undo_confirmed=receipt.selection_confirmed=true;cause.clear();return effect;
+    }
+    Outcome execute_remove(const Binding&,const Request&,std::string& cause) override {++executions;return remove(cause);}
+    Outcome apply_remove(const Binding&,const Request&,const Evidence&,std::string& cause) override {++applies;return remove(cause);}
+    bool observe_remove(const Binding&,const Request&,Evidence& out,std::string& cause) override {
+        if(on_observe)on_observe();
+        if(throw_observe)throw std::runtime_error("fixture receipt observation exception");
+        out=receipt;cause.clear();return true;
+    }
+    bool retire(const Binding&,const Request&,std::string& cause) override {
+        ++retirements;if(!retirement_ok){cause="fixture holder retirement failed";return false;}receipt.retirement_confirmed=true;cause.clear();return true;
+    }
+};
+struct Packet {uint64_t sender,target;std::vector<uint8_t> bytes;};
+struct Wire:Transport {
+    uint64_t peer;Handler handler;std::deque<Packet>& packets;bool refused=false;uint64_t claims=0;
+    Wire(uint64_t p,std::deque<Packet>& q):peer(p),packets(q) {}
+    bool claim(Handler h,std::string& cause) override {++claims;if(handler){cause="channel already claimed";return false;}handler=std::move(h);cause.clear();return true;}
+    bool send(uint64_t target,const std::vector<uint8_t>& bytes,std::string& cause) override {
+        if(refused){cause="fixture send refused";return false;}packets.push_back({peer,target,bytes});cause.clear();return true;
+    }
+};
+struct Pair {
+    std::deque<Packet> packets;FakeSession hs{1},cs{2};FakeEngine he,ce;Wire ht{1,packets},ct{2,packets};
+    std::vector<std::string> logs;Controller host,client;std::string error;
+    Pair():host(hs,he,ht,[this](const char* level,const std::string& op,const std::string& cause){logs.push_back(std::string(level)+" "+op+" "+cause);}),
+        client(cs,ce,ct,[this](const char* level,const std::string& op,const std::string& cause){logs.push_back(std::string(level)+" "+op+" "+cause);}) {
+        require(host.start(0,error),error);require(client.start(0,error),error);
+    }
+    Packet pop() {require(!packets.empty(),"expected serialized packet");auto p=packets.front();packets.pop_front();return p;}
+    bool deliver(const Packet& p,uint64_t now=1) {return (p.target==1?host:client).receive(p.sender,p.bytes.data(),p.bytes.size(),now,error);}
+    Message message(const Packet& p){Message m;require(decode(p.bytes.data(),p.bytes.size(),m,error),error);return m;}
+    void submit() {require(client.submit_remove(action_id,record_key,0,error),error);require(he.executions==0&&ce.applies==0,"submit must not execute client");}
+};
+}
+
+namespace fixture {
+using Json=nlohmann::json;
+Json captures=Json::object(),snapshot_status=Json::object();
+uint32_t thread=7;
+unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0;
+bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
+bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true;
+void reset(){
+    captures=Json::object();snapshot_status=Json::object();thread=7;
+    suspended=invalidated=deleted=wire_retired=membership_left=0;
+    title=transition=saving=time_initialized=false;in_lobby=true;
+    fence_ok=wire_ok=time_ok=live_ok=true;
+}
+}
+uint32_t GetCurrentThreadId(){return fixture::thread;}
+namespace mt2mp {
+namespace net {
+namespace session_wire {
+void suspend_actions(){++fixture::suspended;}
+bool retire_lobby(std::string& e){++fixture::wire_retired;if(!fixture::wire_ok)e="wire retirement failed";return fixture::wire_ok;}
+}
+void invalidate_snapshot_world(const char*){++fixture::invalidated;}
+struct SteamMatchmaking {
+    static SteamMatchmaking& instance(){static SteamMatchmaking value;return value;}
+    void leave_lobby(){++fixture::membership_left;fixture::in_lobby=false;}
+    bool in_lobby()const{return fixture::in_lobby;}
+};
+}
+namespace game {
+namespace native {
+struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0;};
+bool read_world_status(WorldStatus& out,std::string&){out={fixture::title?2:3,fixture::transition,fixture::saving?1:0};return true;}
+}
+namespace ui_build_runtime {fixture::Json status(){return fixture::captures;}}
+namespace ui_remove_runtime {fixture::Json status(){return fixture::captures;}}
+namespace ui_move_runtime {fixture::Json status(){return fixture::captures;}}
+namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
+namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
+namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
+namespace time_runtime {enum class Phase{Waiting,Active};}
+namespace time_integration {
+struct Status{struct {time_runtime::Phase phase=time_runtime::Phase::Waiting;uint64_t epoch=0;} runtime;};
+struct Adapter {
+    bool status(Status&,std::string& e){if(!fixture::time_initialized){e="time_integration_not_initialized";return false;}return true;}
+    bool suspend(const char*,std::string& e){if(!fixture::time_ok)e="time retirement failed";return fixture::time_ok;}
+};
+Adapter& instance(){static Adapter value;return value;}
+}
+namespace live_host_state {
+struct Fence{bool suspend_snapshot(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}};
+Fence& economic_fence(){static Fence value;return value;}
+bool retire_lobby_fence(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}
+namespace day {void bind_host_journal(void*){}}
+}
+namespace typed_action_runtime {
+struct Live{bool suspend_snapshot(std::string& e){if(!fixture::live_ok)e="live Unknown";return fixture::live_ok;}};
+struct Runtime {
+    action_session::Controller& controller;
+    uint32_t thread=7;bool lobby_retiring=false;
+    std::unique_ptr<Live> live_state;bool live_port=false;
+    std::string live_error;
+    explicit Runtime(action_session::Controller& value):controller(value){}
+    ~Runtime(){++fixture::deleted;}
+};
+std::atomic<Runtime*> published_runtime{nullptr};
+fixture::Json status(){return fixture::snapshot_status;}
+#include "client_leave_runtime_body.inc"
+}
+}
+}
+namespace runtime=mt2mp::game::typed_action_runtime;
+
+void idle_departure(){
+    Pair p;require(p.client.can_retire_lobby(),"idle connected Client cannot retire");
+    p.cs.available=false;require(!p.client.tick(2,p.error),"missing Host session accepted");
+    require(p.client.status().locked&&p.client.can_retire_lobby(),"idle host departure prevents retirement");
+    const auto cause=p.client.status().cause;
+    require(!p.client.submit_remove(action_id,record_key,3,p.error),"retirement eligibility resumed action admission");
+    require(p.client.status().cause==cause&&p.packets.empty()&&p.ce.applies==0,"idle retirement changed cause or sent/replayed action");
+    bool other_thread_allowed=true;
+    std::thread other([&]{other_thread_allowed=p.client.can_retire_lobby();});other.join();
+    require(!other_thread_allowed,"foreign thread gained retirement eligibility");
+
+    fixture::reset();auto* owner=new runtime::Runtime(p.client);owner->live_state=std::make_unique<runtime::Live>();owner->live_port=true;
+    runtime::published_runtime.store(owner);
+    require(runtime::begin_lobby_leave(p.error),p.error);
+    require(owner->lobby_retiring&&fixture::suspended==1&&fixture::invalidated==1,"Leave did not suspend before world transition");
+    bool ready=true;require(runtime::finish_lobby_leave(ready,p.error)&&!ready&&fixture::deleted==0,"owner deleted before actual Title");
+    fixture::title=true;fixture::transition=true;
+    require(runtime::finish_lobby_leave(ready,p.error)&&!ready&&fixture::deleted==0,"owner deleted during Title transition");
+    fixture::transition=false;fixture::saving=true;
+    require(runtime::finish_lobby_leave(ready,p.error)&&!ready,"owner deleted during native save");
+    fixture::saving=false;
+    require(runtime::finish_lobby_leave(ready,p.error)&&ready,p.error);
+    require(fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&!runtime::published_runtime.load(),"Leave did not finish membership/handler/storage retirement");
+    require(p.client.status().locked&&p.client.status().cause==cause,"retirement cleared original Controller lock");
+}
+void completed_actions_and_reentry(){
+    Pair completed;completed.submit();
+    for(unsigned i=0;i<4;++i)require(completed.deliver(completed.pop()),completed.error);
+    require(completed.client.status().confirmed==1,"completed action fixture failed");
+    completed.cs.available=false;
+    require(!completed.client.tick(3,completed.error)&&completed.client.can_retire_lobby(),
+        "confirmed historical action prevented idle retirement");
+    Pair changed;changed.cs.value.peer_mask=7;
+    require(!changed.client.tick(3,changed.error)&&changed.client.can_retire_lobby(),"idle membership change prevented retirement");
+    Pair reentrant;bool entered=false;
+    reentrant.cs.on_current=[&]{entered=true;std::string cause;require(!reentrant.client.tick(3,cause),"reentrant guard admitted");};
+    require(!reentrant.client.tick(3,reentrant.error)&&entered&&!reentrant.client.can_retire_lobby(),
+        "nested Unknown was relabeled as harmless session observation loss");
+}
+void incomplete_preparation(){
+    fixture::reset();std::string error;bool ready=false;
+    require(runtime::begin_lobby_leave(error),"uninitialized Controller cannot Leave preparation");
+    fixture::title=true;
+    require(runtime::finish_lobby_leave(ready,error)&&ready,"uninitialized Controller cannot finish Leave");
+    require(fixture::deleted==0&&fixture::wire_retired==1,"uninitialized retirement fabricated an owner");
+}
+void pending_and_unknown(){
+    Pair pending;pending.submit();pending.cs.available=false;
+    require(!pending.client.tick(2,pending.error)&&!pending.client.can_retire_lobby(),"sent Client request retired without completion");
+    Pair unknown;unknown.he.throw_execute=true;unknown.submit();require(unknown.deliver(unknown.pop()),unknown.error);
+    require(unknown.host.status().locked&&!unknown.host.can_retire_lobby(),"native Unknown admitted retirement");
+    unknown.hs.available=false;require(!unknown.host.tick(3,unknown.error)&&!unknown.host.can_retire_lobby(),"disconnect erased native Unknown");
+    Pair native_loss;native_loss.ce.current_ok=false;
+    require(!native_loss.client.tick(2,native_loss.error)&&!native_loss.client.can_retire_lobby(),"native world mismatch admitted session-only retirement");
+    Pair send_failure;send_failure.ct.refused=true;
+    require(!send_failure.client.submit_remove(action_id,record_key,2,send_failure.error)&&!send_failure.client.can_retire_lobby(),"uncertain send admitted retirement");
+    fixture::reset();auto* owner=new runtime::Runtime(unknown.host);runtime::published_runtime.store(owner);
+    require(!runtime::begin_lobby_leave(unknown.error)&&fixture::suspended==0&&fixture::invalidated==0,"runtime ignored Unknown guard");
+    runtime::published_runtime.store(nullptr);delete owner;
+}
+void other_guards(){
+    Pair p;p.cs.available=false;require(!p.client.tick(2,p.error),"setup failed");
+    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending"}){
+        fixture::reset();fixture::captures[key]=true;
+        auto* owner=new runtime::Runtime(p.client);runtime::published_runtime.store(owner);
+        require(!runtime::begin_lobby_leave(p.error)&&fixture::suspended==0,"pending UI capture admitted retirement");
+        runtime::published_runtime.store(nullptr);delete owner;
+    }
+    fixture::reset();fixture::live_ok=false;
+    auto* owner=new runtime::Runtime(p.client);owner->live_state=std::make_unique<runtime::Live>();runtime::published_runtime.store(owner);
+    require(!runtime::begin_lobby_leave(p.error)&&p.error=="live Unknown"&&fixture::invalidated==0,"live Unknown bypassed");
+    require(!runtime::begin_lobby_leave(p.error),"partial retirement replayed");
+    runtime::published_runtime.store(nullptr);delete owner;
+}
+int main(){
+    try{idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();
+        std::cout<<"client Leave regressions passed: actual Controller and actual begin/finish bodies\n";return 0;
+    }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
+}

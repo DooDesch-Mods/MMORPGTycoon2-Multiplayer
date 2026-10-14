@@ -32,7 +32,7 @@ The separate CI test entry avoids linking every test to the injected mod DLL. La
 
 New drop-in beta packages contain `WSOCK32.dll`, `MT2_Multiplayer.dll` and the authored `mt2mp_ui` folder. Copy those beside `MT2.exe` and launch normally through Steam. Keep the game's original `steam_api64.dll`; an older proxy copied into that location requires the hash-checked restoration in the [beta guide](docs/BETA.md). Do not overwrite another mod's unknown loader.
 
-Multiplayer worlds and diagnostics use a separate private profile. Existing normal saves and portable test directories are preserved. Historical beta.2 packages use their separate portable starter; keep those files outside the game installation.
+Multiplayer worlds and diagnostics use a separate private profile. The current Steam account's normal saves also appear on the desktop and in the world picker. The mod reads those originals and writes session saves into its private profile. Existing normal saves and portable test directories are preserved. Historical beta.2 packages use their separate portable starter; keep those files outside the game installation.
 
 World selection, desktop icon dragging and native double-click behavior have passed targeted checks in the game. Joining from another computer, world transfer and shared online gameplay still require acceptance with separate Steam accounts.
 

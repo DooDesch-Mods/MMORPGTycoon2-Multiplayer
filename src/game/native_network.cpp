@@ -127,8 +127,8 @@ bool read_state(State& output,std::string& error) {
         void* map=nullptr;
         if(!read_at(reinterpret_cast<void*>(base),map_slot,map)||!vtable(map,base,map_vtable)) return fail(error,"network map singleton/vtable mismatch");
         void** regions=nullptr; int32_t region_count=-1,region_capacity=-1;
-        if(!read_at(map,0x358,regions)||!read_at(map,0x360,region_count)||!read_at(map,0x364,region_capacity)||region_count<=0||region_count>int32_t(max_regions)||region_capacity<region_count) return fail(error,"network region count actual="+std::to_string(region_count)+" allocated="+std::to_string(region_capacity)+" required=1.."+std::to_string(max_regions)+" and<=allocated");
-        if(!readable(regions,size_t(region_count)*sizeof(void*))) return fail(error,"network region array unreadable");
+        if(!read_at(map,0x358,regions)||!read_at(map,0x360,region_count)||!read_at(map,0x364,region_capacity)||region_count<0||region_count>int32_t(max_regions)||region_capacity<region_count) return fail(error,"network region count actual="+std::to_string(region_count)+" allocated="+std::to_string(region_capacity)+" required=0.."+std::to_string(max_regions)+" and<=allocated");
+        if((region_count||region_capacity)&&!readable(regions,std::max(size_t(region_count),size_t(1))*sizeof(void*))) return fail(error,"network region array unreadable");
         State state; state.region_count=uint32_t(region_count);
         int64_t total_base=0,total_extra=0,total_capacity=0;
         for(int32_t index=0;index<region_count;++index) {

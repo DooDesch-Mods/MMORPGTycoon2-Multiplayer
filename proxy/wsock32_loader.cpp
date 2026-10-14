@@ -5,6 +5,8 @@
 #include <memory>
 #include <intrin.h>
 #include <iterator>
+#include <mutex>
+#include "mt2mp/core/original_saves.h"
 #include "mt2mp/core/installed_profile.h"
 #include "mt2mp/core/private_profile_paths.h"
 
@@ -17,7 +19,11 @@ Duplicate duplicate=nullptr;WriteDir original_write_dir=nullptr;
 INIT_ONCE socket_once=INIT_ONCE_STATIC_INIT,profile_once=INIT_ONCE_STATIC_INIT;
 std::atomic<unsigned> isolation{0},mod_state{0};std::atomic<bool> stopping{false};
 std::atomic<bool> log_root_ready{false};
-std::filesystem::path game_dir,root,data_dir;
+std::filesystem::path game_dir,root,data_dir,original_save_proof_root,original_save_appdata;
+mt2mp::original_saves::Native original_save_io;
+mt2mp::original_saves::State original_save_state;
+std::mutex original_save_gate;
+std::string original_save_message;
 std::string run_id,pref_utf8;
 mt2mp::private_profile::DirectoryPins root_pins;
 std::unique_ptr<mt2mp::private_profile::DirectoryPins> write_pins;
@@ -71,12 +77,15 @@ BOOL CALLBACK prepare_profile(PINIT_ONCE,void*,void**){
             throw std::runtime_error("original SDL preference import is outside actual game directory");
         const auto legacy_steam=game_dir/L"steam_api64_original.dll";
         if(GetModuleHandleW(legacy_steam.c_str()))throw std::runtime_error("drop-in and legacy Steam proxy cannot own one process");
-        checked_dropin_proof_root(game_dir);
+        original_save_proof_root=checked_dropin_proof_root(game_dir);
         const auto requested=mt2mp::private_profile::runtime_root(game_dir);
         root_pins.verify(requested.parent_path().parent_path());
         root_pins.verify(requested,true);root=requested;log_root_ready.store(true);data_dir=root/L"data";
         root_pins.verify(data_dir,true);root_pins.verify(root/L"diagnostics",true);
         run_id=mt2mp::private_profile::new_run_id();pref_utf8=mt2mp::private_profile::utf8(data_dir)+"/";
+        std::array<wchar_t,32768> roaming{};
+        const DWORD roaming_size=GetEnvironmentVariableW(L"APPDATA",roaming.data(),DWORD(roaming.size()));
+        if(roaming_size&&roaming_size<roaming.size())original_save_appdata=roaming.data();
         ensure_system();record("info","private installed profile prepared before native preference path");return TRUE;
     }catch(const std::exception& error){fatal(error.what(),GetLastError());}
 }
@@ -84,6 +93,22 @@ void ensure_profile(){if(!InitOnceExecuteOnce(&profile_once,prepare_profile,null
 char* private_pref_path(const char*,const char*){
     ensure_profile();char* path=duplicate(pref_utf8.c_str());if(!path)fatal("SDL_strdup private preference path failed",ERROR_NOT_ENOUGH_MEMORY);
     isolation.fetch_or(1);return path;
+}
+int private_mount(const char* value,const char* mountpoint,int append){
+    const int result=original_save_io.mount(value,mountpoint,append);
+    if(!result||stopping.load()||!log_root_ready.load())return result;
+    std::lock_guard lock(original_save_gate);
+    std::string detail;
+    auto outcome=mt2mp::original_saves::Result::Failed;
+    try{outcome=mt2mp::original_saves::maintain(original_save_state,original_save_io,data_dir,
+        original_save_proof_root,original_save_appdata,value,mountpoint,detail);}
+    catch(const std::exception& error){detail=std::string("original saves read visibility failed: ")+error.what();}
+    if(outcome!=mt2mp::original_saves::Result::Waiting&&detail!=original_save_message){
+        original_save_message=detail;
+        const auto bounded=detail.substr(0,800);
+        record(outcome==mt2mp::original_saves::Result::Failed?"error":"info",bounded.c_str());
+    }
+    return result;
 }
 int private_write_dir(const char* value){
     ensure_profile();if(!value)return original_write_dir(nullptr);
@@ -129,7 +154,7 @@ void shutdown(){
     steam_shutdown();
 }
 struct ImportPatch {ULONGLONG* slot=nullptr;ULONGLONG original=0,replacement=0;};
-ImportPatch patches[4]{};size_t patch_count=0;
+ImportPatch patches[5]{};size_t patch_count=0;
 bool same(const char* a,const char* b,bool insensitive=false){
     while(*a&&*b){char x=*a++,y=*b++;if(insensitive){if(x>='A'&&x<='Z')x=static_cast<char>(x+32);if(y>='A'&&y<='Z')y=static_cast<char>(y+32);}if(x!=y)return false;}return *a==*b;
 }
@@ -181,10 +206,26 @@ void rollback(){
         duplicate=reinterpret_cast<Duplicate>(GetProcAddress(sdl_module,"SDL_strdup"));
     if(!pref||!duplicate||
        !patch_import("libphysfs.dll","PHYSFS_setWriteDir",reinterpret_cast<void*>(&private_write_dir),reinterpret_cast<void**>(&original_write_dir))||
+       !patch_import("libphysfs.dll","PHYSFS_mount",reinterpret_cast<void*>(&private_mount),reinterpret_cast<void**>(&original_save_io.mount))||
        !patch_import("steam_api64.dll","SteamAPI_RunCallbacks",reinterpret_cast<void*>(&callbacks),reinterpret_cast<void**>(&steam_callbacks))||
        !patch_import("steam_api64.dll","SteamAPI_Shutdown",reinterpret_cast<void*>(&shutdown),reinterpret_cast<void**>(&steam_shutdown))){
         OutputDebugStringA("error: drop-in EXE import bridge installation failed\n");rollback();return false;
-    }return true;
+    }
+    const auto physfs=GetModuleHandleW(L"libphysfs.dll");
+    if(physfs){
+        original_save_io.write_dir=reinterpret_cast<decltype(original_save_io.write_dir)>(GetProcAddress(physfs,"PHYSFS_getWriteDir"));
+        original_save_io.unmount=reinterpret_cast<decltype(original_save_io.unmount)>(GetProcAddress(physfs,"PHYSFS_unmount"));
+        original_save_io.mount_point=reinterpret_cast<decltype(original_save_io.mount_point)>(GetProcAddress(physfs,"PHYSFS_getMountPoint"));
+        original_save_io.search_path=reinterpret_cast<decltype(original_save_io.search_path)>(GetProcAddress(physfs,"PHYSFS_getSearchPath"));
+        original_save_io.free_list=reinterpret_cast<decltype(original_save_io.free_list)>(GetProcAddress(physfs,"PHYSFS_freeList"));
+        original_save_io.error_code=reinterpret_cast<decltype(original_save_io.error_code)>(GetProcAddress(physfs,"PHYSFS_getLastErrorCode"));
+        original_save_io.error_text=reinterpret_cast<decltype(original_save_io.error_text)>(GetProcAddress(physfs,"PHYSFS_getErrorByCode"));
+    }
+    if(!original_save_io.write_dir||!original_save_io.unmount||!original_save_io.mount_point||!original_save_io.search_path||
+       !original_save_io.free_list||!original_save_io.error_code||!original_save_io.error_text){
+        OutputDebugStringA("error: drop-in original save read exports unavailable\n");rollback();return false;
+    }
+    return true;
 }
 }
 extern "C" void** mt2mp_wsock_resolve(unsigned index){

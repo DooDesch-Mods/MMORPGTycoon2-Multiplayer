@@ -1,4 +1,5 @@
 #include "mt2mp/net/snapshot_sync.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/software_snapshot.h"
 #include "mt2mp/net/software_sync.h"
@@ -40,6 +41,7 @@ static clock::time_point snapshot_now() {
 #endif
 }
 static SnapshotBuffer buffer;
+static std::string incoming_world_name="MPTestSession";
 static std::string incoming_id,incoming_hash,status="Kein Snapshot empfangen";
 static bool receiving=false,load_pending=false;
 static clock::time_point incoming_started;
@@ -194,9 +196,10 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         if(!valid_id(id)||hash.size()!=64||hash.find_first_not_of("0123456789abcdef")!=std::string::npos) throw std::runtime_error("invalid snapshot id or SHA256");
         std::optional<network_meta::Metadata> metadata; std::string metadata_error;
         if(!network_meta::parse_begin(value,sender,metadata,metadata_error)) throw std::runtime_error(metadata_error);
+        const auto world_name=snapshot_world_path::from_manifest(value);
         if(id==last_loaded) {
             if(!snapshot_world_valid||snapshot_failed) throw std::runtime_error("completed snapshot belongs to retired world; require new snapshot UUID");
-            if(hash!=incoming_hash||metadata.has_value()!=incoming_network.has_value()||(metadata&&(metadata->expected_nodes!=incoming_network->expected_nodes||metadata->keys_sha256!=incoming_network->keys_sha256))||last_loaded_ack.is_null()) throw std::runtime_error("completed snapshot manifest differs from original");
+            if(world_name!=incoming_world_name||hash!=incoming_hash||metadata.has_value()!=incoming_network.has_value()||(metadata&&(metadata->expected_nodes!=incoming_network->expected_nodes||metadata->keys_sha256!=incoming_network->keys_sha256))||last_loaded_ack.is_null()) throw std::runtime_error("completed snapshot manifest differs from original");
             if(last_loaded_ack.contains("network_identity")) {
                 json current_ack; network_meta::Disposition disposition;
                 if(!network_meta::make_loaded_ack(id,hash,incoming_network,network_receipt(),true,current_ack,disposition,metadata_error)||current_ack!=last_loaded_ack) throw std::runtime_error("completed native network map no longer current: "+metadata_error);
@@ -210,12 +213,12 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         if(chunks>std::numeric_limits<uint32_t>::max()) throw std::runtime_error("snapshot chunk count exceeds uint32");
         auto software=parse_initial_software_cache(value.at("software"));
         std::string error;
-        auto path=write_root()/"save"/"MPTestSession"/("snapshot-"+id+".vrz"); std::filesystem::create_directories(path.parent_path());
+        auto path=snapshot_world_path::physical(write_root(),world_name,id); std::filesystem::create_directories(path.parent_path());
         auto staging=path; staging+=".incoming";
         if(!buffer.begin(value.at("bytes").get<uint64_t>(),uint32_t(chunks),staging,path,hash,error)) throw std::runtime_error(error);
         if(snapshot_failed) LOG_NET_INFO("[SNAPSHOT] New transfer accepted after failure id={} discarded_events={}",id,discarded_after_failure);
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
-        incoming_id=id; incoming_hash=hash; incoming_software=software; incoming_epoch=software_epoch(id); incoming_started=snapshot_now(); incoming_load={}; receiving=true; status="Snapshot wird empfangen";
+        incoming_id=id; incoming_hash=hash; incoming_world_name=world_name; incoming_software=software; incoming_epoch=software_epoch(id); incoming_started=snapshot_now(); incoming_load={}; receiving=true; status="Snapshot wird empfangen";
         incoming_network=std::move(metadata); incoming_network_error.clear(); last_loaded_ack=nullptr;
         snapshot_world_valid=false;
         LOG_NET_INFO("[SNAPSHOT] Manifest accepted id={} bytes={}",id,buffer.size());
@@ -236,14 +239,14 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         if(!buffer.commit(error)) throw std::runtime_error(error);
         auto path=buffer.target();
         auto runtime=std::filesystem::path(Config::instance().runtime_root);
-        { std::ofstream stream(runtime/"diagnostics"/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",path.string()}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
+        { std::ofstream stream(runtime/"diagnostics"/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",snapshot_world_path::utf8(path)},{"world_name",incoming_world_name}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
         receiving=false; status="Snapshot vollständig geprüft";
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);
         message({{"type","snapshot_verified"},{"id",id},{"sha256",incoming_hash}},1);
         incoming_load.begin(snapshot_now()); load_observation_sent=false;
 #ifndef MT2MP_SNAPSHOT_TEST
         incoming_origin_generation=0;
-        if(!game::native_open_runtime::prepare(runtime,id,incoming_hash,buffer.size(),incoming_origin_generation,error))
+        if(!game::native_open_runtime::prepare(runtime,id,incoming_hash,buffer.size(),incoming_origin_generation,error,incoming_world_name))
             throw std::runtime_error("native client snapshot origin preparation failed: "+error);
         try {
         game::time_input_diagnostics::suspend("verified snapshot replaces client world");
@@ -275,7 +278,7 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         if(!game::native_open_runtime::before_request(incoming_origin_generation,error))
             throw std::runtime_error("native client origin request binding failed: "+error);
 #endif
-        if(!game::native::request_load("save/MPTestSession/snapshot-"+id+".vrz",error)) {
+        if(!game::native::request_load(snapshot_world_path::load(incoming_world_name,id),error)) {
             auto load_error=error;
             game::normal_load_identity::cancel(load_error);
             if(!game::native::disarm_software_replica(incoming_epoch,error)) LOG_NET_ERROR("[SNAPSHOT] Replica disarm after rejected load failed: {}",error);
@@ -286,8 +289,8 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
     } catch(const std::exception& error) { fail(error.what()); }
 }
 void initialize_snapshot_sync() { session_wire::register_handler(4,receive_control); session_wire::register_handler(5,receive_chunk); }
-bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error) {
-    if(!Config::instance().is_host||!valid_id(id)||outbound_active) {
+bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error,const std::string& world_name) {
+    if(!Config::instance().is_host||!valid_id(id)||outbound_active||!snapshot_world_path::valid_folder(world_name)) {
         error="snapshot distribution requires idle host"; LOG_NET_ERROR("[SNAPSHOT] Distribution rejected: {}",error); return false;
     }
     try {
@@ -301,7 +304,7 @@ bool distribute_snapshot(const std::string& id,const std::string& digest,const s
         begin_software_sync(software_epoch(id),{software.rating,software.fun});
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
         outbound_id=id; incoming_hash=digest; outbound_expected_peers=peers; outbound_peers.clear(); outbound_active=true; outbound_progress=snapshot_now();
-        json begin={{"type","snapshot_begin"},{"transport_revision",2},{"id",id},{"sha256",digest},{"bytes",outbound.size()},{"chunks",outbound.chunks()},
+        json begin={{"type","snapshot_begin"},{"transport_revision",2},{"world_name",world_name},{"id",id},{"sha256",digest},{"bytes",outbound.size()},{"chunks",outbound.chunks()},
             {"software",{{"revision",1},{"rating",software.rating},{"fun",software.fun}}}};
         outbound_network_receipt=network_receipt(); network_meta::Disposition disposition;
         if(!network_meta::attach_begin(begin,outbound_network_receipt,disposition,error)||!network_meta::parse_begin(begin,1,outbound_network,error)) throw std::runtime_error(error);

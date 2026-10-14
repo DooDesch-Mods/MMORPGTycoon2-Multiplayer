@@ -271,7 +271,7 @@ def source_files(source, build, *, original_steam=None):
         raise LaunchError(f"unsupported MT2.exe SHA256 actual={actual} required={EXPECTED_EXE_SHA256}")
     files = {"MT2.exe": executable}
     for path in source.glob("*.dll"):
-        if path.name.casefold() not in ("steam_api64.dll", "mt2_multiplayer.dll"):
+        if path.name.casefold() not in ("steam_api64.dll", "mt2_multiplayer.dll", "wsock32.dll"):
             files[path.name] = path
     original_steam = original_steam or source / "steam_api64_original.dll"
     if not original_steam.is_file():

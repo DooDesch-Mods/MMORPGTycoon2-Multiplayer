@@ -1,4 +1,5 @@
 #include "native_open_witness.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #ifndef MT2MP_MIXED_OPEN_TEST
 #include "mt2mp/core/installed_profile.h"
 #endif
@@ -361,11 +362,11 @@ void hooks_stopped(const std::string& cause) {
     init_fail(error,"native_open_hooks_stopped cause="+cause);
 }
 bool begin(const std::filesystem::path& runtime_root,const std::string& steam_id,const std::string& uuid,
-           const std::string& sha,uint64_t bytes,uint64_t generation,std::string& error) {
+           const std::string& sha,uint64_t bytes,uint64_t generation,std::string& error,const std::string& world_name) {
     std::lock_guard lock(gate);
     if(held!=INVALID_HANDLE_VALUE)return fail(error,"begin_while_previous_file_held");
     if(init_phase!=InitPhase::Ready||installed_hooks!=required_hooks)return fail(error,"begin_unconfirmed_initialization_or_hooks cause="+init_error);
-    if(!generation||generation<=retired_generation||!string_format(uuid,true)||!string_format(sha,false)||!bytes||
+    if(!net::snapshot_world_path::valid_folder(world_name)||!generation||generation<=retired_generation||!string_format(uuid,true)||!string_format(sha,false)||!bytes||
        steam_id.size()<17||steam_id.size()>20||!std::all_of(steam_id.begin(),steam_id.end(),[](char c){return c>='0'&&c<='9';}))
         return fail(error,"invalid_owned_file_receipt_uuid_SHA_bytes_generation_user");
     try {
@@ -373,18 +374,19 @@ bool begin(const std::filesystem::path& runtime_root,const std::string& steam_id
             return fail(error,"owned_runtime_unconfigured_or_changed");
         if(!tested){native::WorldStatus world;if(!native::read_world_status(world,error))return fail(error,"begin_not_native_game_thread cause="+error);}
         const auto name=L"snapshot-"+std::wstring(uuid.begin(),uuid.end())+L".vrz";
-        physical=absolute_path(configured_root/L"data"/std::wstring(steam_id.begin(),steam_id.end())/L"save/MPTestSession"/name);
-        const auto expected=(configured_root/L"data"/std::wstring(steam_id.begin(),steam_id.end())/L"save/MPTestSession"/name).lexically_normal();
+        const auto route_name=std::filesystem::path(L"data")/std::wstring(steam_id.begin(),steam_id.end())/L"save"/net::snapshot_world_path::utf8_path(world_name)/name;
+        physical=absolute_path(configured_root/route_name);
+        const auto expected=(configured_root/route_name).lexically_normal();
         if(!path_equal(physical,expected))return fail(error,"snapshot_path_reparse_or_alias");
         auto route=configured_root;
-        for(const auto& part:std::filesystem::path(L"data")/std::wstring(steam_id.begin(),steam_id.end())/L"save/MPTestSession"/name){
+        for(const auto& part:route_name){
             route/=part;if(!no_reparse(route,error))return false;
         }
         current={};callback_failure.store(false);current.uuid=uuid;current.sha256=sha;current.bytes=bytes;current.generation=generation;current.world_epoch=world_epoch;current.state="opening";current.game_thread=GetCurrentThreadId();
         native_file=nullptr;native_stream=nullptr;native_reader=nullptr;file_pending=stream_pending=reader_pending=false;
         native_task=nullptr;native_mode=nullptr;worker_pending=false;
         loaded_world={};
-        virtual_name="user/save/MPTestSession/snapshot-"+uuid+".vrz";
+        virtual_name=net::snapshot_world_path::capture(world_name,uuid);
         held=CreateFileW(physical.c_str(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN,nullptr);
         if(held==INVALID_HANDLE_VALUE)return fail(error,"snapshot_pin_open winerror="+std::to_string(GetLastError()));
         current.held=true;current.state="hashing";

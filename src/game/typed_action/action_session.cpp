@@ -609,9 +609,17 @@ bool Controller::invoke(const std::function<bool()>& fn,std::string& cause) {
     if(!was_locked&&status_.locked){cause=status_.cause;return false;}
     return accepted;
 }
-bool Controller::fail(const std::string& cause,std::string& out,bool lock) {
+bool Controller::can_retire_lobby() const {
+    return (thread_==std::thread::id{}||thread_==std::this_thread::get_id())&&!busy_&&
+        !status_.pending&&!pending_&&!local_request_&&!authority_waiting_&&(!status_.locked||idle_session_loss_);
+}
+bool Controller::fail(const std::string& cause,std::string& out,bool lock,bool session_loss) {
     out=cause.empty()?"action failure lacks cause":cause;status_.cause=out;++status_.failed;
-    if(lock){status_.locked=true;status_.outcome=Outcome::Unknown;}
+    if(lock){
+        // Lost session observation may retire an idle owner, but never resume it.
+        idle_session_loss_=session_loss&&!status_.locked&&!status_.pending&&!busy_&&!pending_&&!local_request_&&!authority_waiting_;
+        status_.locked=true;status_.outcome=Outcome::Unknown;
+    }
     if(last_logged_error_!=out){last_logged_error_=out;if(logger_)logger_("error","ActionSession",out);}
     else ++status_.suppressed_errors;
     return false;
@@ -622,8 +630,8 @@ bool Controller::guard(std::string& error) {
     if(busy_)return fail("action controller reentrant call",error,true);
     if(status_.locked){error="action controller locked: "+status_.cause;++status_.suppressed_errors;return false;}
     Context actual;std::string cause;
-    if(!invoke([&]{return session_.current(actual,cause);},cause))return fail("session observation: "+cause,error,true);
-    if(actual!=context_)return fail("immutable action session/snapshot/participant binding changed",error,true);
+    if(!invoke([&]{return session_.current(actual,cause);},cause))return fail("session observation: "+cause,error,true,true);
+    if(actual!=context_)return fail("immutable action session/snapshot/participant binding changed",error,true,true);
     if(!invoke([&]{return engine_.current(binding_,context_.snapshot_uuid,cause);},cause))return fail("native world observation: "+cause,error,true);
     return true;
 }

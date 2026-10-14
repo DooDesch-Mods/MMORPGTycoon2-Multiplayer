@@ -1,0 +1,56 @@
+{
+  "version": "0.1.0-beta.4",
+  "native_checks": [
+    "The retained small friend-test world loads on both local peers with matching native network keys and network_verified acknowledgement.",
+    "After native Host Leave and exact owned Host bridge loss, one Client Leave returns to Title and retires the Controller.",
+    "An original-save fixture appears on the native Desktop and in the installed Steam world picker.",
+    "Installed-profile capture, Title, native load and recapture retain the native world folder; original fixture unchanged and no new MPTestSession files.",
+    "The owned installed proof exits through the native shutdown path with code 0."
+  ],
+  "local_world": {
+    "path": "artifacts/acceptance/e2febe9e-402d-4d92-b737-ea9ecdcfd125/summary.json",
+    "sha256": "45e324212d8db3ef30f80796dbc58789b63b38e6a37b1ff8bef38e27201ac079"
+  },
+  "host_loss_leave": {
+    "path": "artifacts/acceptance/71719e5f-86bf-4263-a372-d24a6939073c/summary.json",
+    "sha256": "fba3967a6a228baf2bac1a450f56e229b65d7609f362ed440cb5150b3179bddc"
+  },
+  "installed_roundtrip": {
+    "path": "artifacts/acceptance/0a91e81b-9746-4e36-8b10-98b31c25f636/summary.json",
+    "sha256": "ab6021fd4baaa617f3f54949faba95ac46158ddffef14b577bf6d7ed3d8c3af2"
+  },
+  "installed_shutdown": {
+    "path": "artifacts/acceptance/d9f88cbc-e67f-44ae-a456-d3b6c5765797/summary.json",
+    "sha256": "a11799cab13ba57aea7c7c9b71aa6fca2eb976dd795c6010920b1bea0ad2ef41"
+  },
+  "original_picker_checkpoint": {
+    "path": "artifacts/acceptance/5ac175ad-d65f-4df8-a03a-34481e6562e3/summary.json",
+    "sha256": "c56aad2603b58503fab2bc19301dbe006ef6f876b83f9f9e67a72f09e5971a3c",
+    "accepted_check": "original-save-picker-visible",
+    "source_overall_passed": false,
+    "later_failure": "The later diagnostic-world capture used a 265-character metadata path. Only auto-generated test-world names were shortened; original save selection remains accepted."
+  },
+  "original_desktop": {
+    "path": "test/mcp/evidence/friend-proof-after-parent_20261014T205816989778Z.json",
+    "sha256": "38090400809fb668ef9b58bd491661b253baf86d69fbd5f969fd08f212bba8c3"
+  },
+  "mod_sha256": "f0183fc5ec99c65b04dfd754806f51b11d6c88853e48de4b6b05fa8f979115dc",
+  "loader_sha256": "fabb86e6e9c10595d00909513d8bf18d7d359d2f9feea6c880550abc54219c7f",
+  "build": "artifacts/build_history/20261014T210346187284Z",
+  "regressions": [
+    "empty_network",
+    "client_leave",
+    "snapshot_world_path",
+    "snapshot_world_folder",
+    "original_saves",
+    "private_save_parents",
+    "test_loader_separation.py"
+  ],
+  "carried_evidence": "Local two-peer gameplay and Leave used mod7c7d61df. The final mod only shortens MCP-generated diagnostic world names from42 to22 characters. Loader-only directory seeding does not affect the legacy local transport. Affected installed capture/load checks used the final candidate.",
+  "limits": [
+    "The reported tester Client log was unavailable; the local idle session-loss cause and its correction were reproduced.",
+    "The final correction still needs the next manual two-account Steam test.",
+    "Tutorial progression is not yet shared. Full co-op, complete action coverage, Undo/Redo, four peers and large worlds are not proven.",
+    "Original Title loading and a shared installed Steam session are not claimed by the single-account installed proof."
+  ]
+}
