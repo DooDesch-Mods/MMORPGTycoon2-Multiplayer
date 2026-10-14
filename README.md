@@ -38,4 +38,4 @@ World selection has been verified in the native menu. Native desktop icon integr
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for MinHook, Dear ImGui, nlohmann/json and SDL. The Steam declarations are a small local interface stub; the Steamworks SDK and original Steam DLLs are not included.
 
-The workflow has read-only access to repository contents. It does not create releases or publish packages. This initial private source import does not assign a new open-source license to mod-authored code.
+The workflow has read-only access to repository contents. It does not create releases or publish packages. Mod-authored code, documentation and assets are covered by the [project license](LICENSE.md). Third-party components retain their own licenses.
