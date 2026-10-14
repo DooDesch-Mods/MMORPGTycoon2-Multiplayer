@@ -60,6 +60,8 @@ target_include_directories(MT2_Multiplayer PRIVATE src/game)
 if(MSVC)
     # MSBuild parallelism schedules projects; /MP also compiles files concurrently.
     target_compile_options(MT2_Multiplayer PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/MP2>")
+    target_precompile_headers(MT2_Multiplayer PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/nlohmann/json.hpp>")
 endif()
 target_link_libraries(MT2_Multiplayer PRIVATE
     minhook
