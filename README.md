@@ -32,10 +32,12 @@ The separate CI test entry avoids linking every test to the injected mod DLL. La
 
 The intended installation is to extract the mod into the game directory and launch normally through Steam. That distribution path is still being implemented. The current private test package uses an isolated runtime and is not the final installation method.
 
-World selection has been verified in the native menu. Native desktop icon integration is being tested. Joining from another computer, world transfer and shared online gameplay still require acceptance with separate Steam accounts.
+World selection, desktop icon dragging and native double-click behavior have passed targeted checks in the game. Joining from another computer, world transfer and shared online gameplay still require acceptance with separate Steam accounts.
+
+Download private test builds from [GitHub Releases](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases). See the [beta guide](docs/BETA.md) for tester steps, known limitations and the tagged release workflow.
 
 ## Dependencies
 
 See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for MinHook, Dear ImGui, nlohmann/json and SDL. The Steam declarations are a small local interface stub; the Steamworks SDK and original Steam DLLs are not included.
 
-The workflow has read-only access to repository contents. It does not create releases or publish packages. Mod-authored code, documentation and assets are covered by the [project license](LICENSE.md). Third-party components retain their own licenses.
+The source-check workflow has read-only access to repository contents. The beta workflow builds and checks tags such as `v0.1.0-beta.1`, then publishes a prerelease with a ZIP and SHA256 file. Only its release job has write permission. Mod-authored code, documentation and assets are covered by the [project license](LICENSE.md). Third-party components retain their own licenses.

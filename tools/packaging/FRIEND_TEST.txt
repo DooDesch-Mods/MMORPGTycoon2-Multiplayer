@@ -37,5 +37,6 @@ Exit the game normally. Preserve the test directory and its saves on updates.
 Supported: Windows x64, game build 24993678. An unsupported MT2.exe hash is
 rejected with a reason. package.json lists payload hashes and the game hash.
 The starter includes Python; no separate Python installation is required.
-Libraries include Python, PyInstaller, MinHook, Dear ImGui, SDL3 and Steam SDK.
+Libraries include Python, PyInstaller, MinHook, Dear ImGui and SDL3.
+Steam interfaces use the original Steam library from your game installation.
 Starter license notices are under licenses/.

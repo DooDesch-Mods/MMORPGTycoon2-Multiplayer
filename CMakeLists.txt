@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 project(MT2_Multiplayer VERSION 0.1.0 LANGUAGES CXX)
+set(MT2MP_BUILD_VERSION "${PROJECT_VERSION}" CACHE STRING "Full mod build version")
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -68,6 +69,7 @@ target_link_libraries(MT2_Multiplayer PRIVATE
 )
 target_include_directories(MT2_Multiplayer PRIVATE ${CMAKE_SOURCE_DIR}/include/vendor/SDL3/include)
 target_compile_definitions(MT2_Multiplayer PRIVATE
+    MT2MP_BUILD_VERSION="${MT2MP_BUILD_VERSION}"
     MT2MP_EXPORTS
     WIN32_LEAN_AND_MEAN
     NOMINMAX
@@ -103,12 +105,5 @@ set_target_properties(mt2mp_sidecar PROPERTIES
 option(MT2MP_BUILD_TESTS "Build tests" ON)
 if(MT2MP_BUILD_TESTS)
     enable_testing()
-    file(GLOB TEST_SOURCES test/test_*.cpp)
-    foreach(TEST_FILE ${TEST_SOURCES})
-        get_filename_component(TEST_NAME ${TEST_FILE} NAME_WE)
-        add_executable(${TEST_NAME} ${TEST_FILE})
-        target_include_directories(${TEST_NAME} PRIVATE include)
-        target_link_libraries(${TEST_NAME} PRIVATE MT2_Multiplayer)
-        add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
-    endforeach()
+    add_subdirectory(ci)
 endif()

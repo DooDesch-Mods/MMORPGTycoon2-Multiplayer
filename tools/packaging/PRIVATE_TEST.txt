@@ -3,7 +3,7 @@ MT2 Multiplayer - private test candidate
 
 This archive contains the current mod DLLs and native menu assets.
 It is a prepared payload. The isolated Steam starter and acceptance across
-two computers are still required. friend_test_ready is false.
+two computers are still required. ready_for_manual_testing is false.
 
 The legacy install.bat is excluded: copying the DLLs alone does not activate
 the current co-op configuration completely. Do not copy this payload into

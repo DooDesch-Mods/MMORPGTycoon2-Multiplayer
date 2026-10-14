@@ -2,7 +2,7 @@
 import re
 from runtime import RuntimeErrorDetail
 
-BUTTONS = ("open", "host", "host_public", "search", "list_refresh", "list_previous", "list_next", "list_back", "list0", "list1", "list2", "list3", "join", "pick", "prepare", "start", "leave")
+BUTTONS = ("icon_single", "icon_drag", "open", "host", "host_public", "search", "list_refresh", "list_previous", "list_next", "list_back", "list0", "list1", "list2", "list3", "join", "pick", "prepare", "start", "leave")
 UUID_PATTERN = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 SCHEMAS = {
     "read_native_lobby": {"type": "object", "properties": {}, "additionalProperties": False},
@@ -16,7 +16,7 @@ SCHEMAS = {
 }
 DESCRIPTIONS = {
     "read_native_lobby": "Read actual registered native desktop/menu panes, disabled flags, command strings, callbacks, physical lobby membership and preparation receipts. Membership is not Ready.",
-    "native_lobby_button": "Activate one actual native multiplayer ClickView/ButtonPane on the bound active-mode thread once. Keep its token and observe callbacks with read_native_lobby. Native return is not Steam admission or world readiness. Invitation operations are excluded.",
+    "native_lobby_button": "Activate one actual native multiplayer DesktopIcon/ButtonPane on the bound active-mode thread once. icon_single probes native Press/Release without opening; icon_drag probes Press/Drag/Release with one bounded 20-pixel move and readback; both require the visible Title Desktop and an idle real cursor. No cursor warp or direct position write. Keep its token and observe callbacks with read_native_lobby. Native return is not Steam admission or world readiness. Invitation operations are excluded.",
 }
 
 

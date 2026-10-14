@@ -22,6 +22,7 @@
 #include <charconv>
 #include <map>
 #include <algorithm>
+#include <cmath>
 #include "world_selection.h"
 
 namespace mt2mp::game::native_lobby {
@@ -95,7 +96,7 @@ DWORD set_disabled(void* p,bool disabled) {
 }
 DWORD activate_native(void* p,bool entry) {
     __try {
-        if(entry)reinterpret_cast<void(*)(void*,void*,const void*)>(image+0x6a6220)(p,nullptr,nullptr);
+        if(entry)reinterpret_cast<void(*)(void*,void*,const void*)>(image+0x609490)(p,nullptr,nullptr);
         else reinterpret_cast<void(*)(void*)>(image+0x674780)(p);
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
@@ -141,6 +142,89 @@ DWORD queue_layout(void* desktop) {
     __try {reinterpret_cast<void(*)(void*)>(image+0x81a330)(desktop);}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
+struct DesktopIconBinding {void* desktop=nullptr;void* record=nullptr;};
+std::map<void*,DesktopIconBinding> desktop_icon_bindings;
+using IconMethod=void(*)(void*);
+IconMethod original_icon_launch=nullptr,original_icon_destroy=nullptr;
+void* desktop_position_owner=nullptr;bool desktop_position_valid=false;
+float desktop_position[2]{};
+// The game owns the native icon through Desktop's icon list and content array.
+// Its separate runtime record does not enter the user's persisted DesktopRecord.
+DWORD delete_icon_record(void* record) {
+    __try {reinterpret_cast<void(*)(void*)>(image+0xbfb4b0)(record);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+struct alignas(8) NativeIconInput {unsigned char bytes[1024];};
+DWORD make_desktop_icon(void* desktop,void** icon,void** icon_record,bool* record_entered_make) {
+    String filename{};NativeIconInput file{},source{};
+    bool filename_built=false,file_built=false,source_built=false;DWORD code=0;
+    *icon=nullptr;*icon_record=nullptr;*record_entered_make=false;
+    __try {
+        *icon_record=reinterpret_cast<void*(*)(void*)>(image+0xd8f2a0)(nullptr);
+        if(!*icon_record)return ERROR_NOT_ENOUGH_MEMORY;
+        // Type 6 is the original valid app shell without a separately owned window.
+        // The launch hook binds this specific instance to the Multiplayer command.
+        const int shell_type=6;
+        std::memcpy(static_cast<unsigned char*>(*icon_record)+0x38,&shell_type,sizeof(shell_type));
+        float width=0;std::memcpy(&width,static_cast<unsigned char*>(desktop)+0x138,sizeof(width));
+        const bool restored=desktop_position_valid&&desktop_position_owner==desktop;
+        const float position[2]={restored?desktop_position[0]:(width>120.f?width-120.f:20.f),restored?desktop_position[1]:80.f};
+        std::memcpy(static_cast<unsigned char*>(*icon_record)+0x3c,position,sizeof(position));
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(&filename,"mt2mp_ui/entry.win");filename_built=true;
+        reinterpret_cast<void(*)(void*,const void*,int)>(image+0x95ec00)(&file,&filename,0);file_built=true;
+        reinterpret_cast<void(*)(void*)>(image+0x9667c0)(&source);source_built=true;
+        if(!reinterpret_cast<bool(*)(void*,void*)>(image+0x95ddb0)(&file,&source))code=ERROR_INVALID_DATA;
+        else {
+            *record_entered_make=true;
+            *icon=reinterpret_cast<void*(*)(void*,void*,void*)>(image+0x5fdd60)(desktop,&source,*icon_record);
+        }
+    }__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
+    if(source_built){__try{reinterpret_cast<void(*)(void*)>(image+0x9676a0)(&source);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    if(file_built){__try{reinterpret_cast<void(*)(void*)>(image+0x962170)(&file);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    if(filename_built){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&filename);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    return code;
+}
+DWORD place_desktop_icon(void* desktop,void* icon) {
+    __try {reinterpret_cast<void(*)(void*,void*)>(image+0x5fe5f0)(desktop,icon);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+bool native_icon_identity(void* icon,void* desktop,std::string& error) {
+    uintptr_t vtable=0;void* record=nullptr;
+    const auto binding=desktop_icon_bindings.find(icon);
+    if(binding==desktop_icon_bindings.end()||binding->second.desktop!=desktop||
+       !read(icon,0,vtable)||vtable!=image+0x16fb650||
+       !read(icon,0x318,record)||record!=binding->second.record||!record){
+        error="native Multiplayer DesktopIcon class/record/owner differs";return false;
+    }
+    void* icons=nullptr;int count=0;
+    if(!read(desktop,0x4f0,icons)||!read(desktop,0x4f8,count)||count<1||
+       !readable(icons,size_t(count)*sizeof(void*))){error="native Desktop icon list unreadable";return false;}
+    bool listed=false;
+    for(int index=0;index<count;++index){void* member=nullptr;if(!read(icons,size_t(index)*sizeof(void*),member)){error="native Desktop icon list member unreadable";return false;}if(member==icon){listed=true;break;}}
+    if(!listed){error="Multiplayer icon missing from native Desktop icon list";return false;}
+    return true;
+}
+DWORD set_icon_text_key(void* pane,const void* key) {
+    __try {reinterpret_cast<void(*)(void*,const void*)>(image+0x7f46e0)(pane,key);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+bool bind_desktop_icon_presentation(void* icon,void* desktop,std::string& error) {
+    if(!native_icon_identity(icon,desktop,error))return false;
+    void* picture=nullptr;void* title_pane=nullptr;void* args_begin=nullptr;void* args_end=nullptr;
+    if(!read(icon,0x3c0,picture)||!picture||!read(icon,0x3c8,title_pane)||!title_pane){error="native DesktopIcon original icon/label links absent";return false;}
+    if(!read(icon,0x3a0,args_begin)||!read(icon,0x3a8,args_end)||args_begin!=args_end){error="native Multiplayer display-name arguments must be empty";return false;}
+    // SetText alone leaves the original app's localization source in the pane.
+    // Keep the icon's own vsLocString and SetTextKey source consistent instead.
+    auto code=string_call(0x11bfce0,static_cast<unsigned char*>(icon)+0x360,"Multiplayer");
+    if(code){error="native Multiplayer icon name assignment failed exception="+std::to_string(code);return false;}
+    code=string_call(0x11bfce0,static_cast<unsigned char*>(icon)+0x380,"Multiplayer");
+    if(code){error="native Multiplayer icon display-name assignment failed exception="+std::to_string(code);return false;}
+    code=set_icon_text_key(title_pane,static_cast<unsigned char*>(icon)+0x380);
+    if(code){error="native Multiplayer icon text-key binding failed exception="+std::to_string(code);return false;}
+    code=string_call(0x771f90,picture,"mt2mp_desktop_multiplayer");
+    if(code){error="native Multiplayer icon material binding failed exception="+std::to_string(code);return false;}
+    return true;
+}
 bool desktop_entry(void* game,bool title_active,void** entry,bool* visible,std::string& error) {
     *entry=nullptr;*visible=false;void* desktop=nullptr;
     if(!read(game,0x1e8,desktop)||!desktop){error="native game Desktop owner absent";return false;}
@@ -149,11 +233,25 @@ bool desktop_entry(void* game,bool title_active,void** entry,bool* visible,std::
     if(desktop_attempt_owner!=desktop){desktop_attempt_owner=desktop;desktop_append_attempted=false;}
     auto code=string_call(0x816150,desktop,"entry_button",entry);
     if(code){error="native Desktop entry lookup failed exception="+std::to_string(code);return false;}
+    // Native drag temporarily extracts the icon from Desktop content. The native
+    // icon list and the destructor-bound record keep its identity during that drag.
+    if(!*entry)for(const auto& [icon,binding]:desktop_icon_bindings)if(binding.desktop==desktop){
+        if(*entry){error="multiple native Multiplayer icons for Desktop";return false;}*entry=icon;
+    }
     if(!*entry&&title_active) {
         if(desktop_append_attempted){error="native Desktop entry append already attempted; no replay";return false;}
         desktop_append_attempted=true;
-        code=string_call(0xbb2e60,static_cast<unsigned char*>(desktop)+0x2c8,"mt2mp_ui/entry.win");
-        if(code||string_call(0x816150,desktop,"entry_button",entry)||!*entry){error="native Desktop content append/ACK failed; no replay";return false;}
+        void* record=nullptr;bool record_entered_make=false;
+        code=make_desktop_icon(desktop,entry,&record,&record_entered_make);
+        if(*entry)desktop_icon_bindings.emplace(*entry,DesktopIconBinding{desktop,record});
+        if(code||!*entry) {
+            if(record&&!record_entered_make){const auto cleanup=delete_icon_record(record);if(cleanup)LOG_ERROR("[NativeLobby] Unbound native icon record cleanup failed exception={}",cleanup);}
+            if(record&&record_entered_make&&!*entry)LOG_ERROR("[NativeLobby] Native icon MakeIcon failed after record handoff; ownership unknown, record retained; no replay");
+            error="native Desktop MakeIcon failed exception="+std::to_string(code)+"; no replay";return false;
+        }
+        if(!bind_desktop_icon_presentation(*entry,desktop,error))return false;
+        code=place_desktop_icon(desktop,*entry);
+        if(code){error="native Desktop PlaceIcon failed exception="+std::to_string(code);return false;}
         code=queue_layout(desktop);
         if(code){error="native Desktop entry layout queue failed exception="+std::to_string(code);return false;}
         LOG_INFO("[NativeLobby] Multiplayer entry adopted by native Desktop content");
@@ -161,8 +259,10 @@ bool desktop_entry(void* game,bool title_active,void** entry,bool* visible,std::
     uint8_t shown=0;void* parent=nullptr;void* window=nullptr;
     if(!read(desktop,0x45f,shown)){error="native Desktop visibility unreadable";return false;}
     if(*entry) {
-        if(!read(*entry,0x278,parent)||!read(*entry,0x280,window)){error="native Desktop entry ancestry unreadable";return false;}
-        *visible=title_active&&shown&&parent==desktop&&window==desktop;
+        if(!native_icon_identity(*entry,desktop,error))return false;
+        uint8_t dragging=0;
+        if(!read(*entry,0x278,parent)||!read(*entry,0x280,window)||!read(*entry,0x358,dragging)){error="native Desktop entry ancestry/drag state unreadable";return false;}
+        *visible=title_active&&shown&&parent==desktop&&window==desktop&&!dragging;
     }
     return true;
 }
@@ -171,6 +271,35 @@ bool current_desktop_entry(void** entry,bool* visible,std::string& error) {
     void* game=nullptr;
     if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!game){error="native Desktop game owner absent";return false;}
     return desktop_entry(game,world.active_mode_index==2&&!world.title_transition_pending,entry,visible,error);
+}
+void desktop_icon_launch(void* icon) {
+    if(!desktop_icon_bindings.contains(icon)){original_icon_launch(icon);return;}
+    if(GetCurrentThreadId()!=thread){fail("native Multiplayer icon launch outside bound game thread");return;}
+    void* current=nullptr;bool visible=false;std::string error;
+    if(!current_desktop_entry(&current,&visible,error)||current!=icon||!visible){
+        fail(error.empty()?"native Multiplayer icon launch requires visible current Desktop":error);return;
+    }
+    const auto code=string_call(0x4b9be0,ui_owner,"MT2MPOpen");
+    if(code)fail("native Multiplayer icon Mode command failed exception="+std::to_string(code));
+}
+void desktop_icon_destroy(void* icon) {
+    void* record=nullptr;
+    const auto found=desktop_icon_bindings.find(icon);
+    if(found!=desktop_icon_bindings.end()) {
+        record=found->second.record;
+        float position[2]{};
+        if(read(record,0x3c,position)){
+            desktop_position_owner=found->second.desktop;desktop_position_valid=true;
+            desktop_position[0]=position[0];desktop_position[1]=position[1];
+        }else LOG_ERROR("[NativeLobby] Native Multiplayer icon position retirement read failed");
+        if(desktop_attempt_owner==found->second.desktop)desktop_append_attempted=false;
+        desktop_icon_bindings.erase(found);
+    }
+    original_icon_destroy(icon);
+    if(record) {
+        const auto code=delete_icon_record(record);
+        if(code)LOG_ERROR("[NativeLobby] Native Multiplayer icon record retirement failed exception={}",code);
+    }
 }
 bool refresh_saved_worlds(std::string& error) {
     using Enumerate=char**(*)(const char*);
@@ -399,6 +528,19 @@ bool initialize(const std::filesystem::path& assets,uintptr_t base,std::string& 
     if(!hooks::create_hook(reinterpret_cast<void*>(image+0x4a2f90),reinterpret_cast<void*>(&ingame_command),reinterpret_cast<void**>(&original_ingame_command))){error="native in-game Command hook creation failed";return false;}
     const auto ingame_enabled=MH_EnableHook(reinterpret_cast<void*>(image+0x4a2f90));
     if(ingame_enabled!=MH_OK){error="native in-game Command hook enable failed: "+std::string(MH_StatusToString(ingame_enabled));return false;}
+    constexpr unsigned char launch_bytes[]={0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xf0,0,0,0};
+    constexpr unsigned char destroy_bytes[]={0x56,0x53,0x48,0x83,0xec,0x28};
+    if(!readable(reinterpret_cast<void*>(image+0x609060),sizeof(launch_bytes))||
+       std::memcmp(reinterpret_cast<void*>(image+0x609060),launch_bytes,sizeof(launch_bytes))||
+       !readable(reinterpret_cast<void*>(image+0x6087e0),sizeof(destroy_bytes))||
+       std::memcmp(reinterpret_cast<void*>(image+0x6087e0),destroy_bytes,sizeof(destroy_bytes))){error="native DesktopIcon launch/destructor bytes differ";return false;}
+    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x609060),reinterpret_cast<void*>(&desktop_icon_launch),reinterpret_cast<void**>(&original_icon_launch))||
+       !hooks::create_hook(reinterpret_cast<void*>(image+0x6087e0),reinterpret_cast<void*>(&desktop_icon_destroy),reinterpret_cast<void**>(&original_icon_destroy))){error="native DesktopIcon behavior hook creation failed";return false;}
+    const auto destroy_enabled=MH_EnableHook(reinterpret_cast<void*>(image+0x6087e0));
+    if(destroy_enabled!=MH_OK){error="native DesktopIcon destructor hook enable failed: "+std::string(MH_StatusToString(destroy_enabled));return false;}
+    const auto launch_enabled=MH_EnableHook(reinterpret_cast<void*>(image+0x609060));
+    if(launch_enabled!=MH_OK){error="native DesktopIcon launch hook enable failed: "+std::string(MH_StatusToString(launch_enabled));return false;}
+
     error.clear();return true;
 }
 bool tick(std::string& error) {
@@ -493,6 +635,17 @@ bool observe(nlohmann::json& result,std::string& error) {
     void* entry=nullptr;bool visible=false;if(!current_desktop_entry(&entry,&visible,error))return false;
     result["entry_registered"]=entry!=nullptr;result["entry_visible"]=visible;
     result["entry_owner"]="native_game_desktop";result["entry_in_mode_window_array"]=false;
+    if(entry){
+        void* picture=nullptr;void* title_pane=nullptr;
+        std::string name,display_key,pane_key,pane_text,material;
+        if(!read(entry,0x3c0,picture)||!picture||!read(entry,0x3c8,title_pane)||!title_pane||
+           !text(static_cast<unsigned char*>(entry)+0x360,name)||!text(static_cast<unsigned char*>(entry)+0x380,display_key)||
+           !text(static_cast<unsigned char*>(title_pane)+0x310,pane_key)||!text(static_cast<unsigned char*>(title_pane)+0x2d0,pane_text)||
+           !text(static_cast<unsigned char*>(picture)+0x178,material)){
+            error="native Multiplayer icon presentation readback failed";return false;
+        }
+        result["entry_presentation"]={{"name",name},{"display_name_key",display_key},{"pane_text_key",pane_key},{"text",pane_text},{"material",material}};
+    }
     result["panel_registered"]=panel!=nullptr;
     void* legacy_entry=nullptr;if(find_window("mt2mp_entry",&legacy_entry)){error="native legacy entry registry read failed";return false;}
     result["legacy_entry_window_registered"]=legacy_entry!=nullptr;
@@ -506,6 +659,129 @@ bool observe(nlohmann::json& result,std::string& error) {
         auto* p=pane(id);std::string actual;
         if(!p||!text(static_cast<unsigned char*>(p)+0x2d0,actual)){error="native lobby text readback failed id="+std::string(id);return false;}
         result["native_labels"][id]=actual;
+    }
+    error.clear();return true;
+}
+struct IconEventState {
+    std::array<float,2> position{},entity{},anchor{},dimensions{};
+    uint8_t dragging=0,armed=0;uint64_t click_ms=0;
+};
+bool icon_event_state(void* icon,void* record,IconEventState& state,std::string& error) {
+    if(!read(record,0x3c,state.position)||!read(icon,0x110,state.entity)||!read(icon,0x140,state.anchor)||
+       !read(icon,0x138,state.dimensions)||!read(icon,0x358,state.dragging)||!read(icon,0x359,state.armed)||!read(icon,0x350,state.click_ms)){
+        error="native icon event state unreadable";return false;
+    }
+    for(const auto* pair:{&state.position,&state.entity,&state.anchor,&state.dimensions})for(float value:*pair)if(!std::isfinite(value)){
+        error="native icon event geometry non-finite";return false;
+    }
+    return true;
+}
+nlohmann::json icon_event_json(const IconEventState& state) {
+    return {{"record_position",state.position},{"entity_position",state.entity},{"anchor_position",state.anchor},
+        {"dimensions",state.dimensions},{"dragging",state.dragging!=0},{"click_armed",state.armed!=0},{"last_click_ms",state.click_ms}};
+}
+DWORD icon_mouse_down(void* cursor,bool* down) {
+    __try {*down=reinterpret_cast<bool(*)(const void*)>(image+0x5853e0)(cursor);}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+DWORD icon_native_event(uintptr_t rva,void* icon,void* cursor,const std::array<float,2>& point) {
+    __try {reinterpret_cast<void(*)(void*,void*,const void*)>(image+rva)(icon,cursor,point.data());}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+bool icon_event_probe(const std::string& token,const std::string& button,nlohmann::json& result,std::string& error) {
+    if(!image||!thread||GetCurrentThreadId()!=thread||ui_mode!=2){error="native icon event requires bound Title thread";return false;}
+    void* icon=nullptr;bool visible=false;
+    if(!current_desktop_entry(&icon,&visible,error)||!icon||!visible){if(error.empty())error="native icon event requires visible current Desktop";return false;}
+    const auto binding=desktop_icon_bindings.find(icon);
+    if(binding==desktop_icon_bindings.end()||!native_icon_identity(icon,binding->second.desktop,error))return false;
+    void* desktop=binding->second.desktop;void* record=binding->second.record;
+    native::WorldStatus world;
+    if(!native::read_world_status(world,error)||world.active_mode_index!=2||world.title_transition_pending){if(error.empty())error="native icon event actual Title mode differs";return false;}
+    int type=0;void* cursor=nullptr;uintptr_t cursor_vtable=0;void* trap=nullptr;void* clicked_window=nullptr;
+    std::array<float,2> cursor_before{},desktop_dimensions{};
+    if(!read(record,0x38,type)||type!=6||!read(reinterpret_cast<void*>(image),0x13df9d0,cursor)||
+       !read(cursor,0,cursor_vtable)||cursor_vtable!=image+0x1786dd0||!read(cursor,0x1d8,trap)||
+       !read(cursor,0x1c0,clicked_window)||!read(cursor,0x1f0,cursor_before)||!read(desktop,0x138,desktop_dimensions)){
+        error="native icon event real cursor/type/geometry contract differs";return false;
+    }
+    bool down=false;const auto idle_code=icon_mouse_down(cursor,&down);
+    if(idle_code||down||trap||clicked_window){error="native icon event requires idle uncaptured cursor exception="+std::to_string(idle_code);return false;}
+    IconEventState before;
+    if(!icon_event_state(icon,record,before,error))return false;
+    if(before.dragging){error="native icon event already dragging; no replay";return false;}
+    void* clock_slot=nullptr;void* clock=nullptr;uint64_t microseconds=0;
+    if(!read(reinterpret_cast<void*>(image),0x164b160,clock_slot)||!read(clock_slot,0,clock)||!read(clock,0x20,microseconds)){
+        error="native icon first-click clock unreadable";return false;
+    }
+    const uint64_t now_ms=microseconds/1000;
+    if(before.armed&&(now_ms<before.click_ms||now_ms-before.click_ms<=499)){
+        error="native icon first-click interval not elapsed measured_ms="+std::to_string(now_ms>=before.click_ms?now_ms-before.click_ms:0)+" required_ms>499";return false;
+    }
+    const bool drag=button=="icon_drag";
+    if(button!="icon_single"&&!drag){error="native icon event is not admitted";return false;}
+    float delta=0;
+    if(drag) {
+        if(before.position[0]>=24.f)delta=-20.f;
+        else if(before.position[0]+before.dimensions[0]+24.f<=desktop_dimensions[0])delta=20.f;
+        else {error="native icon drag requires room for bounded 20-pixel move";return false;}
+        const float x=before.position[0]+delta,y=before.position[1];
+        if(!std::isfinite(desktop_dimensions[0])||!std::isfinite(desktop_dimensions[1])||
+           x<0.f||y<0.f||before.dimensions[0]<=0.f||before.dimensions[1]<=0.f||
+           x+before.dimensions[0]>desktop_dimensions[0]||y+before.dimensions[1]>desktop_dimensions[1]){
+            error="native icon drag target is outside actual Desktop dimensions";return false;
+        }
+    }
+    // Original Window event dispatch supplies coordinates relative to the window.
+    // Our type6 native Drag uses this argument and never warps the real cursor.
+    const std::array<float,2> press_point={before.entity[0]+before.dimensions[0]*0.5f,before.entity[1]+24.f};
+    const std::array<float,2> drop_point={press_point[0]+delta,press_point[1]};
+    const auto commands_before=command_count,failures_before=command_failures;
+    result={{"acceptance_token",token},{"button",button},{"native_attempted",true},{"native_returned",false},
+        {"handler_reached",false},{"backend_confirmed",false},{"sequence_confirmed",false},
+        {"native_event",drag?"DesktopIcon::Press/Drag/Release":"DesktopIcon::Press/Release"},
+        {"before",icon_event_json(before)},{"cursor_screen_before",cursor_before},{"cursor_fields_written",false},
+        {"window_local_press_point",press_point},{"window_local_drop_point",drop_point},{"bounded_delta",std::array<float,2>{delta,0.f}}};
+    route_receipts[token]=result;
+    const auto press_code=icon_native_event(0x6094b0,icon,cursor,press_point);
+    result["press_exception"]=press_code;
+    IconEventState pressed;std::string read_error;
+    const bool pressed_read=icon_event_state(icon,record,pressed,read_error);
+    if(pressed_read)result["after_press"]=icon_event_json(pressed);
+    DWORD drag_code=0;
+    if(drag&&!press_code&&pressed_read&&command_count==commands_before&&command_failures==failures_before){
+        drag_code=icon_native_event(0x608bd0,icon,cursor,drop_point);
+        result["drag_attempted"]=true;result["drag_exception"]=drag_code;
+        IconEventState moved;std::string detail;
+        if(icon_event_state(icon,record,moved,detail))result["during_drag"]=icon_event_json(moved);
+        else if(read_error.empty())read_error=detail;
+    }else result["drag_attempted"]=false;
+    // Complete the original release even when a preceding native call failed.
+    // No pointer is replayed after loss of its native identity.
+    std::string release_error;
+    const bool release_owned=native_icon_identity(icon,desktop,release_error);
+    DWORD release_code=0;
+    result["release_attempted"]=release_owned;
+    if(release_owned)release_code=icon_native_event(0x607a60,icon,cursor,result.value("drag_attempted",false)?drop_point:press_point);
+    result["release_exception"]=release_code;
+    IconEventState after;std::string after_error;
+    const bool after_read=release_owned&&icon_event_state(icon,record,after,after_error);
+    if(after_read)result["after"]=icon_event_json(after);
+    std::array<float,2> cursor_after{};
+    const bool cursor_read=read(cursor,0x1f0,cursor_after);
+    if(cursor_read)result["cursor_screen_after"]=cursor_after;
+    const bool native_returned=!press_code&&!drag_code&&release_owned&&!release_code;
+    const bool commands_unchanged=command_count==commands_before&&command_failures==failures_before;
+    const bool moved=after_read&&std::abs((after.position[0]-before.position[0])-delta)<0.5f&&std::abs(after.position[1]-before.position[1])<0.5f;
+    const bool started=!drag||(result.contains("during_drag")&&result["during_drag"].value("dragging",false));
+    const bool confirmed=native_returned&&pressed_read&&pressed.armed&&!pressed.dragging&&read_error.empty()&&after_read&&!after.dragging&&
+        moved&&started&&commands_unchanged&&cursor_read&&cursor_before==cursor_after;
+    result["native_returned"]=native_returned;result["handler_reached"]=command_count!=commands_before;
+    result["commands_unchanged"]=commands_unchanged;result["sequence_confirmed"]=confirmed;
+    result["command_count_before"]=commands_before;result["command_count_after"]=command_count;
+    route_receipts[token]=result;
+    if(!confirmed){
+        error="native icon event proof failed press="+std::to_string(press_code)+" drag="+std::to_string(drag_code)+" release="+std::to_string(release_code)+
+            " read="+read_error+" release_guard="+release_error+" after="+after_error;return false;
     }
     error.clear();return true;
 }
@@ -523,11 +799,12 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
     if(args.contains("world")){world_name=args.at("world").get<std::string>();
         if(world_name.empty()||world_name.size()>200||world_name.find_first_of("/\\\"\r\n\t")!=std::string::npos||world_name==".."){
             error="native world selection name invalid";return false;}}
-    const std::map<std::string,std::string> admitted_buttons={{"open","MT2MPOpen"},{"host","MT2MPHost"},{"host_public","MT2MPHostPublic"},{"search","MT2MPSearch"},{"join","MT2MPJoin"},{"list_refresh","MT2MPRefresh"},{"list_previous","MT2MPListPrevious"},{"list_next","MT2MPListNext"},{"list_back","MT2MPListBack"},{"list0","MT2MPList0"},{"list1","MT2MPList1"},{"list2","MT2MPList2"},{"list3","MT2MPList3"},
+    const std::map<std::string,std::string> admitted_buttons={{"icon_single",""},{"icon_drag",""},{"open","MT2MPOpen"},{"host","MT2MPHost"},{"host_public","MT2MPHostPublic"},{"search","MT2MPSearch"},{"join","MT2MPJoin"},{"list_refresh","MT2MPRefresh"},{"list_previous","MT2MPListPrevious"},{"list_next","MT2MPListNext"},{"list_back","MT2MPListBack"},{"list0","MT2MPList0"},{"list1","MT2MPList1"},{"list2","MT2MPList2"},{"list3","MT2MPList3"},
         {"pick","MT2MPPickWorld"},{"prepare","MT2MPPrepare"},{"start","MT2MPStart"},{"leave","MT2MPLeave"}};
     const auto expected=admitted_buttons.find(button);if(expected==admitted_buttons.end()){error="native lobby button is not admitted; invitation delivery excluded";return false;}
     if(route_receipts.contains(token)){result=route_receipts.at(token);error="native lobby token has already been attempted; read receipt, no replay";return false;}
     if(route_receipts.size()>=64){error="native lobby receipt limit reached required<64";return false;}
+    if(button=="icon_single"||button=="icon_drag")return icon_event_probe(token,button,result,error);
     nlohmann::json current;if(!observe(current,error))return false;
     if(!current.value("ui_owner_current",false)||!current.value("panel_registered",false)){
         error="native lobby button requires actual current mode-owned windows";return false;}
@@ -537,15 +814,21 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
         if(!label("lobby_id",id)){error=cause;return false;}
     }
     void* target=nullptr;bool entry=button=="open";
-    if(entry){bool visible=false;if(!current_desktop_entry(&target,&visible,error)||!target||!visible){if(error.empty())error="actual main-menu Desktop ClickView unavailable or hidden";return false;}}
+    if(entry){bool visible=false;if(!current_desktop_entry(&target,&visible,error)||!target||!visible){if(error.empty())error="actual main-menu DesktopIcon unavailable or hidden";return false;}}
     else target=pane(button.c_str());
     std::string native_command;uint8_t disabled=0;
-    if(!target||(!entry&&!read(target,0x46d,disabled))||disabled||
-       !text(static_cast<unsigned char*>(target)+(entry?0x318:0x388),native_command)||native_command!="MessageTo Mode "+expected->second){
+    if(entry) {
+        const auto binding=desktop_icon_bindings.find(target);
+        if(binding==desktop_icon_bindings.end()||!native_icon_identity(target,binding->second.desktop,error)){
+            if(error.empty())error="native Multiplayer DesktopIcon binding unavailable";return false;
+        }
+    }else if(!target||!read(target,0x46d,disabled)||disabled||
+       !text(static_cast<unsigned char*>(target)+0x388,native_command)||native_command!="MessageTo Mode "+expected->second){
         error="native lobby target disabled or command differs from authored button";return false;}
     const auto before=command_count,failed=command_failures;
     result={{"acceptance_token",token},{"button",button},{"native_attempted",true},{"native_returned",false},{"handler_reached",false},{"backend_confirmed",false}};
     route_receipts[token]=result;
+    result["native_event"]=entry?"mmoDesktopIcon::DoubleClick":"mmoButtonPane::Activate";
     const auto code=activate_native(target,entry);
     result["native_returned"]=code==0;result["exception_code"]=code;
     result["handler_reached"]=command_count==before+1&&last_command==expected->second;
