@@ -57,6 +57,10 @@ enable_language(ASM_MASM)
 target_sources(MT2_Multiplayer PRIVATE src/game/object_identity/native_lease/native_free/native_free_bridges.asm)
 target_include_directories(MT2_Multiplayer PUBLIC include)
 target_include_directories(MT2_Multiplayer PRIVATE src/game)
+if(MSVC)
+    # MSBuild parallelism schedules projects; /MP also compiles files concurrently.
+    target_compile_options(MT2_Multiplayer PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/MP2>")
+endif()
 target_link_libraries(MT2_Multiplayer PRIVATE
     minhook
     imgui
