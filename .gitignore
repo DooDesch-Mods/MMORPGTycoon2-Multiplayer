@@ -1,0 +1,55 @@
+# Build products and local execution data
+/build/
+/artifacts/
+/_MPTest/
+/_SteamTest/
+/.ci-build/
+/.ci-deps/
+/.vs/
+/.idea/
+/.vscode/
+/.agents/
+/.codex/
+/.impeccable/
+
+*.obj
+*.o
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.pch
+*.log
+*.vrz
+*.vrr
+*.vrs
+*.incoming
+*.zip
+*.7z
+*.dmp
+*.dump
+__pycache__/
+*.py[cod]
+.venv/
+node_modules/
+.env
+.env.*
+*.local.json
+*.user
+*.suo
+
+# Local test output and private diagnostic material
+/test/*_evidence/
+/test/mcp/evidence/
+/test/mcp/jobs/
+/test/mcp/screenshots/
+
+# Historical analysis/staging trees are not canonical source
+/tools/*/
+!/tools/mcp/
+!/tools/sidecar/
+!/tools/packaging/
+
+# _drafts is excluded locally through .git/info/exclude.

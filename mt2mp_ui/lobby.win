@@ -1,0 +1,245 @@
+mmoWindow
+{
+	id "mt2mp_lobby";
+	dims 700 528;
+	anchorType Window;
+	anchorPos 120 40;
+	hasTitlebar true;
+	title "Multiplayer";
+	material "PanelBacking";
+	corners "BottomRight";
+	cornerSize 12;
+	hideOnEscape true;
+	transitionType rez;
+	rezSpeed normal;
+	content
+	{
+		mmoTextEditPane
+		{
+			id "status";
+			text "Multiplayer";
+			dims 668 24;
+			anchorType TopLeft;
+			anchorPos 16 10;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "host";
+			text "Lobby für Freunde";
+			dims 200 36;
+			anchorType TopLeft;
+			anchorPos 16 50;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPHost";
+		}
+		mmoButtonPane
+		{
+			id "host_public";
+			text "Öffentliche Lobby";
+			dims 200 36;
+			anchorType TopLeft;
+			anchorPos 232 50;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPHostPublic";
+		}
+		mmoButtonPane
+		{
+			id "search";
+			text "Lobbys suchen";
+			dims 236 36;
+			anchorType TopLeft;
+			anchorPos 448 50;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPSearch";
+		}
+		mmoButtonPane
+		{
+			id "join";
+			text "Beitreten";
+			dims 300 36;
+			anchorType TopLeft;
+			anchorPos 16 96;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPJoin";
+		}
+		mmoButtonPane
+		{
+			id "invite";
+			text "Freunde einladen";
+			dims 344 36;
+			anchorType TopLeft;
+			anchorPos 340 96;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPInvite";
+		}
+		mmoTextEditPane
+		{
+			id "world";
+			text "Keine Welt ausgewählt";
+			dims 668 24;
+			anchorType TopLeft;
+			anchorPos 16 158;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "pick";
+			text "Welt auswählen";
+			dims 300 36;
+			anchorType TopLeft;
+			anchorPos 16 192;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPPickWorld";
+		}
+		mmoTextEditPane
+		{
+			id "lobby_id";
+			text "";
+			dims 340 30;
+			anchorType TopLeft;
+			anchorPos 340 196;
+			editable true;
+			clickable true;
+			maxLength 20;
+			border true;
+			edges All;
+			material "DarkGrey";
+		}
+		mmoTextEditPane
+		{
+			id "player0";
+			text "Freier Platz";
+			dims 668 36;
+			anchorType TopLeft;
+			anchorPos 16 258;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
+			id "player1";
+			text "Freier Platz";
+			dims 668 36;
+			anchorType TopLeft;
+			anchorPos 16 304;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
+			id "player2";
+			text "Freier Platz";
+			dims 668 36;
+			anchorType TopLeft;
+			anchorPos 16 350;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
+			id "player3";
+			text "Freier Platz";
+			dims 668 36;
+			anchorType TopLeft;
+			anchorPos 16 396;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "prepare";
+			text "Welt laden";
+			dims 200 36;
+			anchorType TopLeft;
+			anchorPos 16 464;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPPrepare";
+		}
+		mmoButtonPane
+		{
+			id "start";
+			text "Sitzung starten";
+			dims 200 36;
+			anchorType TopLeft;
+			anchorPos 232 464;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPStart";
+		}
+		mmoButtonPane
+		{
+			id "leave";
+			text "Lobby verlassen";
+			dims 236 36;
+			anchorType TopLeft;
+			anchorPos 448 464;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPLeave";
+		}
+	}
+}

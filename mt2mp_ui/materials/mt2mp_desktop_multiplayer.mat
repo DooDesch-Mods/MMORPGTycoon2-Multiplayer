@@ -1,0 +1,10 @@
+Material{
+    mode normal
+    color 0.3 0.65 0.85 1.0
+    culling none
+    zread false
+    zwrite false
+    glow false
+    texture "mt2mp_ui/multiplayer.png" clampUV
+    shader "default_v.glsl" "icon_f.glsl"
+}

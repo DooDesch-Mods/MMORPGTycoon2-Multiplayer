@@ -1,0 +1,203 @@
+mmoWindow
+{
+	id "mt2mp_browser";
+	dims 700 472;
+	anchorType Window;
+	anchorPos 120 40;
+	hasTitlebar true;
+	title "Auswahl";
+	material "PanelBacking";
+	corners "BottomRight";
+	cornerSize 12;
+	hideOnEscape true;
+	transitionType rez;
+	rezSpeed normal;
+	content
+	{
+		mmoTextEditPane
+		{
+			id "list_status";
+			text "Öffentliche Lobbys";
+			dims 668 32;
+			anchorType TopLeft;
+			anchorPos 16 16;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
+			id "list_text0";
+			text "-";
+			dims 536 60;
+			anchorType TopLeft;
+			anchorPos 16 76;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "list0";
+			text "Auswählen";
+			dims 112 60;
+			anchorType TopLeft;
+			anchorPos 572 76;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPList0";
+		}
+		mmoTextEditPane
+		{
+			id "list_text1";
+			text "-";
+			dims 536 60;
+			anchorType TopLeft;
+			anchorPos 16 152;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "list1";
+			text "Auswählen";
+			dims 112 60;
+			anchorType TopLeft;
+			anchorPos 572 152;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPList1";
+		}
+		mmoTextEditPane
+		{
+			id "list_text2";
+			text "-";
+			dims 536 60;
+			anchorType TopLeft;
+			anchorPos 16 228;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "list2";
+			text "Auswählen";
+			dims 112 60;
+			anchorType TopLeft;
+			anchorPos 572 228;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPList2";
+		}
+		mmoTextEditPane
+		{
+			id "list_text3";
+			text "-";
+			dims 536 60;
+			anchorType TopLeft;
+			anchorPos 16 304;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoButtonPane
+		{
+			id "list3";
+			text "Auswählen";
+			dims 112 60;
+			anchorType TopLeft;
+			anchorPos 572 304;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPList3";
+		}
+		mmoButtonPane
+		{
+			id "list_refresh";
+			text "Aktualisieren";
+			dims 200 36;
+			anchorType TopLeft;
+			anchorPos 16 412;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPRefresh";
+		}
+		mmoButtonPane
+		{
+			id "list_previous";
+			text "Zurück";
+			dims 92 36;
+			anchorType TopLeft;
+			anchorPos 232 412;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPListPrevious";
+		}
+		mmoButtonPane
+		{
+			id "list_next";
+			text "Weiter";
+			dims 92 36;
+			anchorType TopLeft;
+			anchorPos 340 412;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPListNext";
+		}
+		mmoButtonPane
+		{
+			id "list_back";
+			text "Schließen";
+			dims 236 36;
+			anchorType TopLeft;
+			anchorPos 448 412;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPListBack";
+		}
+	}
+}

@@ -1,0 +1,58 @@
+name: Windows source checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-source-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - name: Build source-only tests
+        run: |
+          cmake -S ci -B .ci-build/tests -A x64
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .ci-build/tests --config Release --parallel 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir .ci-build/tests -C Release --output-on-failure --timeout 60
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s test -p test_build_input_guard.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Read official SDL source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: libsdl-org/SDL
+          ref: a8589a84226a6202831a3d49ff4edda4acab9acd # release-3.2.24
+          path: .ci-deps/sdl
+          persist-credentials: false
+      - name: Build external SDL import library
+        run: |
+          cmake -S .ci-deps/sdl -B .ci-build/sdl -A x64 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .ci-build/sdl --config Release --target SDL3-shared --parallel 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $libraries = @(Get-ChildItem -LiteralPath .ci-build/sdl -Recurse -File -Filter SDL3.lib)
+          if ($libraries.Count -ne 1) { throw "Expected exactly one SDL import library, found $($libraries.Count)" }
+          New-Item -ItemType Directory -Force -Path include/vendor/SDL3/lib/x64 | Out-Null
+          Copy-Item -LiteralPath $libraries[0].FullName -Destination include/vendor/SDL3/lib/x64/SDL3.lib
+      - name: Compile mod, proxy and relay
+        run: |
+          cmake -S . -B .ci-build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .ci-build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar --parallel 2
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }

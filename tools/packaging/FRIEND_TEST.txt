@@ -1,0 +1,41 @@
+MT2 Multiplayer - privater Zweier-Test
+=====================================
+
+Experimenteller Teststand, kein vollständiger Koop-Release. Der lokale Zweier-
+Test und das Erstellen einer echten Steam-Lobby wurden bestätigt. Beitritt,
+Weltübertragung und gemeinsames Spielen auf zwei Rechnern sind noch ungeprüft.
+
+START - AUF BEIDEN RECHNERN
+1. Dasselbe ZIP in einen eigenen Ordner entpacken, außerhalb des Spielordners.
+2. Steam mit dem eigenen Konto starten. Beide benötigen MMORPG Tycoon 2.
+3. MT2MP-Start.exe öffnen. Falls gefragt, den Ordner mit MT2.exe eingeben.
+4. Im Spiel auf dem Desktop die Multiplayer-App öffnen.
+
+HOST
+1. Zunächst über Neues Spiel eine kleine Welt anlegen und speichern.
+2. Im Desktop die Multiplayer-App öffnen und Lobby für Freunde wählen.
+3. Freunde einladen. Alternativ die Lobby-ID für Beitreten verwenden.
+4. Welt auswählen, Welt laden und nach bestätigter Bereitschaft Sitzung starten.
+
+CLIENT
+1. Vor Annahme einer Steam-Einladung einmal Lobbys suchen öffnen.
+   Die Registrierung direkt nach einem kalten Start ist noch nicht nachgewiesen.
+2. Einladung annehmen oder die Lobby-ID unter Beitreten eingeben.
+3. Auf vollständige Weltübertragung und Laden warten.
+
+Für den ersten Test eine neue kleine Welt verwenden. Platzieren, Bewegen,
+Löschen und die gemeinsame Zeit prüfen. Bei einem Sitzungsfehler pausieren und
+Logs behalten. Nicht alle Objektarten, Undo/Redo und laufenden Systeme sind
+vollständig unterstützt. Große Saves und vier Spieler bleiben spätere Tests.
+
+DATEN UND FEHLER
+Das Originalspiel bleibt unverändert. Der Starter erstellt eine eigene Kopie
+unter _SteamTest/_MPTest/host/game. Testdaten und Saves bleiben unter host/data.
+Diagnosen liegen in host/diagnostics, Spiel-Logs unter host/game/mt2mp.log.
+Das Spiel regulär beenden. Den Testordner mit Saves bei Updates behalten.
+
+Unterstützt: Windows x64, Spielbuild 24993678. Ein anderer MT2.exe-Hash wird
+mit Ursache abgelehnt. package.json enthält Dateihashes und den Spielhash.
+Python ist im Starter enthalten; keine zusätzliche Installation erforderlich.
+Bibliotheken: Python, PyInstaller, MinHook, Dear ImGui, SDL3 und Steam SDK.
+Lizenzhinweise für den Starter liegen unter licenses/.

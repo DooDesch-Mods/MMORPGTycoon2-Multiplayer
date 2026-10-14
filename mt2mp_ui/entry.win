@@ -1,0 +1,30 @@
+mmoClickView
+{
+    id "entry_button";
+    dims 100 82;
+    anchorType TopRight;
+    anchorPos 20 80;
+    clickable true;
+    command "MessageTo Mode MT2MPOpen";
+    content
+    {
+        mmoPane
+        {
+            id "multiplayer_icon";
+            dims 48 48;
+            anchorType Top;
+            material "mt2mp_desktop_multiplayer";
+            clickable false;
+        }
+        mmoTextPane
+        {
+            text "Multiplayer";
+            dims 100 32;
+            anchorType Top;
+            anchorPos 0 50;
+            size 14;
+            justify topcenter;
+            clickable false;
+        }
+    }
+}

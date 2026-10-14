@@ -1,0 +1,19 @@
+MT2 Multiplayer - privater Testkandidat
+=====================================
+
+Dieses Archiv enthält die aktuellen Mod-DLLs und die nativen Menüdateien.
+Es ist ein vorbereitetes Datenpaket. Der isolierte Steam-Startweg und der
+Test zwischen zwei Rechnern sind noch offen. friend_test_ready ist false.
+
+Das alte install.bat wird nicht mitgeliefert: Ein bloßes Kopieren der DLLs
+aktiviert die aktuelle Koop-Konfiguration nicht vollständig.
+Dieses Paket deshalb noch nicht in den Steam-Spielordner kopieren.
+
+package.json nennt den erforderlichen Spielhash sowie Größe und SHA256 aller
+Nutzdateien. Beide Spieler benötigen ihre eigene Steam-Version des Spiels.
+Originale Spieldateien, persönliche Spielstände und Sitzungsdaten sind nicht
+enthalten. Die Originalinstallation und private Saves bleiben erhalten.
+
+Lokal sind gezielte Zweiernachweise für Bauen, Bewegen, Löschen, gemeinsame
+Zeit sowie ausgewählte Wirtschafts- und NPC-Zustände vorhanden. Das beweist
+keine vollständige Unterstützung aller Spielaktionen oder der Steam-Verbindung.
