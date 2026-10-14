@@ -39,6 +39,10 @@ struct Config {
     bool overlay_visible = false;
     bool chat_visible = false;
     bool local_test = false;
+    bool installed_profile_verified = false;
+    bool diagnostic_mailbox_enabled = false;
+    std::string runtime_root;
+    std::string run_id;
     uint64_t peer_id = 0;
     uint64_t session_id = 0;
     std::string session_token;

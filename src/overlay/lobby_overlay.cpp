@@ -1,4 +1,5 @@
 #include "mt2mp/overlay/lobby_overlay.h"
+#include "mt2mp/net/steam_module.h"
 #include "mt2mp/overlay/notification_overlay.h"
 #include "mt2mp/net/net_manager.h"
 #include "mt2mp/net/steam_networking.h"
@@ -368,7 +369,7 @@ void LobbyOverlay::render_session_view() {
             static auto s_invite_fn = reinterpret_cast<void(*)(void*, uint64_t)>(nullptr);
 
             if (!s_friends_iface) {
-                HMODULE steam = GetModuleHandleA("steam_api64_original.dll");
+                HMODULE steam = mt2mp::net::steam_module();
                 if (steam) {
                     // Get ISteamFriends via SteamInternal
                     using FindFn = void*(*)(int32_t, const char*);
@@ -396,7 +397,7 @@ void LobbyOverlay::render_session_view() {
             SDL_SetClipboardText(id_str);
 
             // Check if overlay is available
-            HMODULE steam = GetModuleHandleA("steam_api64_original.dll");
+            HMODULE steam = mt2mp::net::steam_module();
             bool overlay_ok = false;
             if (steam) {
                 using FnUtilsAccessor = void*(*)();

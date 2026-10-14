@@ -3,6 +3,7 @@
 // NO P2P sessions, NO callbacks needed. Pure polling.
 
 #include "mt2mp/net/steam_networking.h"
+#include "mt2mp/net/steam_module.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/core/config.h"
 
@@ -26,7 +27,6 @@ using FnGetLobbyOwner = uint64_t(*)(void* self, uint64_t lobby);
 
 namespace mt2mp::net {
 
-static HMODULE g_steam_dll = nullptr;
 
 // Function pointers
 static FnGetSteamID fn_GetSteamID = nullptr;
@@ -41,12 +41,7 @@ static void* g_user_iface = nullptr;
 static void* g_friends_iface = nullptr;
 static void* g_mm_iface = nullptr; // matchmaking, set by SteamMatchmaking
 
-static HMODULE get_steam() {
-    if (g_steam_dll) return g_steam_dll;
-    g_steam_dll = GetModuleHandleA("steam_api64_original.dll");
-    if (!g_steam_dll) g_steam_dll = LoadLibraryA(Config::instance().original_steam_dll.c_str());
-    return g_steam_dll;
-}
+static HMODULE get_steam() { return steam_module(); }
 
 template<typename T>
 static T load_fn(const char* name) {
@@ -60,7 +55,7 @@ SteamNetworking& SteamNetworking::instance() {
 
 bool SteamNetworking::init() {
     if (initialized_) return true;
-    if (!get_steam()) { LOG_STEAM_ERROR("Cannot find steam_api64_original.dll"); return false; }
+    if (!get_steam()) { LOG_STEAM_ERROR("Cannot resolve exact selected Steam module"); return false; }
 
     // Get ISteamUser
     auto fn_user_acc = load_fn<FnSteamUser>("SteamAPI_SteamUser_v023");

@@ -1,0 +1,58 @@
+{
+  "version": "0.1.0-beta.3",
+  "native_checks": [
+    "two local peers automatically select a newly created Host world and reach Playing/Ready",
+    "equal calendar, all 20 ledger groups and complete financial history",
+    "installed profile loads unchanged original Steam with private PhysFS paths",
+    "native Steam lobby, Leave and rehost acknowledged",
+    "complete snapshot captured and loaded through native engine",
+    "native shutdown acknowledged and exact process exits with code 0"
+  ],
+  "local_acceptance": {
+    "path": "artifacts/acceptance/6d060060-010f-40f0-ad6e-7249a306c061/summary.json",
+    "sha256": "2d89b0ec439cfd4782312ba41b90b23a19203a6cdd5d5e6c9c9108f30b37a6ce"
+  },
+  "installed_receipts": [
+    {
+      "path": "test/mcp/evidence/dropin-cold-load-title_20261014T185918616194Z.json",
+      "sha256": "1ac0da662d76c94986d0c49786307a35f6c73c61d4e5cbf86423545438135037"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-cold-host_20261014T185950575804Z.json",
+      "sha256": "0e1c28a176e0ea26e016b12316ee28e981297c5ef39f3e5c0cbdf2cf6074ce19"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-cold-capture_20261014T190052741538Z.json",
+      "sha256": "972bba9513929655eda6bebd36bda55c5933a362e4e07f9cfb5326eff69fcaa6"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-cold-leave-readback_20261014T190135988571Z.json",
+      "sha256": "b0d1102d0d92fd4a695a04e2bb7b5d2b7c10e5670313ce1dabf92ec94595125b"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-cold-rehost_20261014T190204416758Z.json",
+      "sha256": "82e6b45cf65d335b108b5278ecab2a3e18bfb5ef47e97aea1892652c495f070e"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-cold-native-load_20261014T190227578250Z.json",
+      "sha256": "3318e37f3192ab9fbfe24866b92acdc339266c4ef1062ab2e293a7976f06e180"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-exit-title-readback_20261014T190416555333Z.json",
+      "sha256": "df700efb8891da81c85ef62f4e3f5c228a2d432a8595d2f97759f469c625b383"
+    },
+    {
+      "path": "test/mcp/evidence/dropin-native-exit_20261014T190445444420Z.json",
+      "sha256": "4e6dcc83e406304c47d3a88c6af6617be91fd62679ded3f4ed80fe2a471dd551"
+    }
+  ],
+  "mod_sha256": "1896e4c18bf067df38f81baf8c588cd90e9b142b20d3cd6bfda4f3834728ea39",
+  "loader_sha256": "6589e4f02ea95cf31fcdc536fc21f7e49d008f22b8667a235921dee6c6c89d49",
+  "carried_evidence": "The final change only admits retirement before any Time initialization attempt. The accepted active two-peer Time path is unchanged.",
+  "limits": [
+    "Two accounts on separate computers still require the user test.",
+    "No invitation was sent.",
+    "Four peers and large saves remain pending.",
+    "Full co-op is not proven."
+  ]
+}

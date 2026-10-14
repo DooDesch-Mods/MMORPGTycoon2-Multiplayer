@@ -19,7 +19,7 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def collect(root, build, freeze, with_sidecar=False, launcher=None, release_version=None):
+def collect(root, build, freeze, with_sidecar=False, launcher=None, release_version=None, mode="legacy"):
     version = re.search(r"project\(MT2_Multiplayer VERSION (\d+\.\d+\.\d+)",
                         (root / "CMakeLists.txt").read_text(encoding="utf-8"))
     if not version:
@@ -28,8 +28,12 @@ def collect(root, build, freeze, with_sidecar=False, launcher=None, release_vers
     if not re.fullmatch(r"\d+\.\d+\.\d+(?:-beta\.[1-9]\d*)?", full_version):
         raise ValueError("package version must be X.Y.Z or X.Y.Z-beta.N")
     pin = json.loads(freeze.read_text(encoding="utf-8"))
+    if mode not in {"legacy", "dropin"}:
+        raise ValueError("unknown package mode")
+    if mode == "dropin" and (with_sidecar or launcher is not None):
+        raise ValueError("drop-in package cannot include launcher or sidecar")
     entries = {}
-    binaries = (*BINARY_NAMES, "mt2mp_sidecar.exe") if with_sidecar else BINARY_NAMES
+    binaries = ("MT2_Multiplayer.dll", "WSOCK32.dll") if mode == "dropin" else ((*BINARY_NAMES, "mt2mp_sidecar.exe") if with_sidecar else BINARY_NAMES)
     sources = {name: build / name for name in binaries}
     sources.update({"mt2mp_ui/" + name: root / "mt2mp_ui" / name for name in UI_NAMES})
     for name, source in sources.items():
@@ -42,6 +46,8 @@ def collect(root, build, freeze, with_sidecar=False, launcher=None, release_vers
     actual = digest(entries["MT2_Multiplayer.dll"])
     if actual != pin["dll_sha256"]:
         raise ValueError(f"candidate DLL differs: actual={actual} required={pin['dll_sha256']}")
+    if mode == "dropin" and digest(entries["WSOCK32.dll"]) != pin.get("loader_sha256"):
+        raise ValueError("candidate WSOCK loader differs from freeze")
     if launcher is not None:
         entries["MT2MP-Start.exe"] = launcher.read_bytes()
         if not entries["MT2MP-Start.exe"].startswith(b"MZ"):
@@ -65,14 +71,14 @@ def collect(root, build, freeze, with_sidecar=False, launcher=None, release_vers
     }
     for name, source in notices.items():
         entries[name] = source.read_bytes()
-    readme = "FRIEND_TEST.txt" if launcher is not None else "PRIVATE_TEST.txt"
+    readme = "DROPIN_TEST.txt" if mode == "dropin" else ("FRIEND_TEST.txt" if launcher is not None else "PRIVATE_TEST.txt")
     entries["README.txt"] = (root / "tools/packaging" / readme).read_bytes()
     manifest = {
         "schema_version": 1, "version": full_version,
         "source_commit": pin.get("source_commit", ""),
-        "candidate": pin["candidate"], "stage": "manual-online-test" if launcher else "payload-only",
-        "manual_test_package": launcher is not None, "online_acceptance_passed": False,
-        "ready_for_manual_testing": launcher is not None,
+        "candidate": pin["candidate"], "package_mode": mode, "stage": "manual-online-test" if launcher or mode == "dropin" else "payload-only",
+        "manual_test_package": launcher is not None or mode == "dropin", "online_acceptance_passed": False,
+        "ready_for_manual_testing": launcher is not None or mode == "dropin",
         "required_game_exe_sha256": GAME_SHA256,
         "files": {name: {"size": len(data), "sha256": digest(data)}
                   for name, data in entries.items()},
@@ -104,12 +110,13 @@ def main():
     parser.add_argument("--with-sidecar", action="store_true")
     parser.add_argument("--launcher", type=Path)
     parser.add_argument("--version")
+    parser.add_argument("--mode", choices=("legacy", "dropin"), default="legacy")
     args = parser.parse_args()
     try:
         output = args.output.resolve()
         if not output.is_relative_to(ROOT / "artifacts"):
             raise ValueError("private packages must be written under project artifacts/")
-        entries, manifest = collect(ROOT, args.build, args.freeze, args.with_sidecar, args.launcher, args.version)
+        entries, manifest = collect(ROOT, args.build, args.freeze, args.with_sidecar, args.launcher, args.version, args.mode)
         write_package(entries, output)
         print(json.dumps({"status": "payload-verified", "output": str(output),
                           "files": len(entries), "ready_for_manual_testing": manifest["ready_for_manual_testing"]}))

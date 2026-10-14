@@ -1,4 +1,5 @@
 #include "mt2mp/net/steam_matchmaking.h"
+#include "mt2mp/net/steam_module.h"
 #include "mt2mp/net/steam_networking.h"
 #include "mt2mp/net/save_transfer.h"
 #include "mt2mp/core/logger.h"
@@ -140,7 +141,6 @@ static int __cdecl cb_get_size_lobby_join(void* thisptr) {
 
 namespace mt2mp::net {
 
-static HMODULE g_steam_dll = nullptr;
 static void* g_mm_iface = nullptr;
 static void* g_utils_iface = nullptr;
 
@@ -165,12 +165,7 @@ static uint64_t g_pending_list_call = 0;
 static std::chrono::steady_clock::time_point g_create_started, g_join_started, g_list_started;
 static bool g_cancel_create = false, g_cancel_join = false;
 
-static HMODULE get_steam() {
-    if (g_steam_dll) return g_steam_dll;
-    g_steam_dll = GetModuleHandleA("steam_api64_original.dll");
-    if (!g_steam_dll) g_steam_dll = LoadLibraryA("steam_api64_original.dll");
-    return g_steam_dll;
-}
+static HMODULE get_steam() { return steam_module(); }
 
 template<typename T>
 static T load_fn(const char* name) {

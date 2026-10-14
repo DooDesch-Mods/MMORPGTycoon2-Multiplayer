@@ -12,10 +12,13 @@ START ON BOTH COMPUTERS
 4. Open the Multiplayer app on the in-game desktop.
 
 HOST
-1. Create and save a small world through New Game first.
-2. Open the Multiplayer app and choose the friends lobby option.
+1. Open the Multiplayer app and choose the friends lobby option.
+2. Create or load a small world through the game. The open Host world is
+   selected automatically and its name is published to the lobby.
 3. Invite your friend. Joining by lobby ID is an alternative.
-4. Select the world, load it and start the session after readiness is confirmed.
+4. Start the session. Its current world is captured after the peer handshake.
+
+You can also select a saved world in the lobby and use the world load option.
 
 CLIENT
 1. Open lobby search once before accepting a Steam invitation.

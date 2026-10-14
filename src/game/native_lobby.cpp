@@ -2,6 +2,7 @@
 #define NOMINMAX
 #endif
 #include "native_lobby.h"
+#include "mt2mp/net/steam_module.h"
 #include "initial_release/release_owner.h"
 #include "placement_ui_probe/ui_probe.h"
 #include "mt2mp/game/native_engine.h"
@@ -40,6 +41,8 @@ Command original_command=nullptr,original_ingame_command=nullptr;
 bool release_fixture_active=false;void* release_fixture_mode=nullptr;uint64_t release_fixture_callbacks=0;std::string release_fixture_error;
 std::string ui_status="Multiplayer",cause,last_ui_status,selected_world,selected_file;
 bool local_admitted=false;
+bool current_host_world=false;
+std::string current_host_world_error;
 bool choosing=false,pending=false,load_attempted=false,append_attempted=false;
 bool playing_close_attempted=false;
 uint64_t owner=0,generation=0,last_leave_confirmed=0;
@@ -350,6 +353,33 @@ bool select_world(void* mode,const std::string& command) {
     return true;
 }
 bool lobby_host(){return admitted()&&(Config::instance().local_test?Config::instance().peer_id==1:net::SteamMatchmaking::instance().is_host());}
+bool adopt_current_host_world(void* game,bool ingame_active,bool title_active,const nlohmann::json& preparation,std::string& error){
+    if(!lobby_host()||load_attempted||preparation.value("state",0)!=0)return true;
+    if(publication_failed){error=publication_error;return false;}
+    if(!ingame_active){
+        if(title_active&&current_host_world){
+            std::string detail;
+            if(!Config::instance().local_test&&!net::SteamMatchmaking::instance().publish_lobby_data("game_name","Welt wird ausgewählt",detail)){error=detail;return metadata_failure(error);}
+            current_host_world=false;selected_world.clear();selected_file.clear();
+        }
+        return true;
+    }
+    std::string name;
+    // Native CreateGame and Title Load both acknowledge this game-folder string.
+    if(!text(static_cast<unsigned char*>(game)+0x470,name,200)||!world_selection::valid_name(name)){
+        error="active Host world name is unreadable or invalid";
+        if(current_host_world_error!=error)LOG_ERROR("[NativeLobby] {}",error);
+        current_host_world_error=error;return false;
+    }
+    if(!current_host_world_error.empty()){LOG_INFO("[NativeLobby] Active Host world name recovered");current_host_world_error.clear();}
+    if(current_host_world&&selected_world==name)return true;
+    std::string detail;
+    if(!Config::instance().local_test&&!net::SteamMatchmaking::instance().publish_lobby_data("game_name",name,detail)){error=detail;return metadata_failure(error);}
+    selected_world=name;selected_file.clear();current_host_world=true;current_host_world_error.clear();choosing=false;
+    ui_status="Welt ausgewählt";
+    LOG_INFO("[NativeLobby] Active Host world selected name={}; capture waits for session start",name);
+    return true;
+}
 bool admit_local(bool host){
     const auto peer=net::session_wire::local_peer();const auto mask=net::session_wire::peer_mask();
     if(!net::session_wire::connected()||peer<1||peer>4||(mask&3)!=3||!(mask&(1u<<(peer-1))))return fail("local lobby admission awaits confirmed launcher peer membership");
@@ -462,9 +492,12 @@ void dispatch(void* mode,const void* value,Command original) {
         load_attempted=true;ui_status="Welt wird geladen";return;
     }
     if(cmd=="MT2MPStart") {
-        if(!admitted()||!lobby_host()||selected_file.empty()){fail("start requires confirmed Host and selected world");return;}
+        if(!admitted()||!lobby_host()||(!current_host_world&&selected_file.empty())){fail("start requires confirmed Host and selected world");return;}
         std::string error;
-        if(!load_attempted){if(!lobby_prepare::prepare(selected_file,error)){fail(error);return;}load_attempted=true;}
+        if(!load_attempted){
+            const bool prepared=current_host_world?lobby_prepare::prepare_current(error):lobby_prepare::prepare(selected_file,error);
+            if(!prepared){fail(error);return;}load_attempted=true;
+        }
         if(!lobby_prepare::start(error)){fail(error);return;}
         ui_status="Sitzung wird vorbereitet";return;
     }
@@ -474,15 +507,27 @@ void dispatch(void* mode,const void* value,Command original) {
         ++generation;pending=false;choosing=false;ui_status="Sitzung wird beendet";return;
     }
     if(cmd=="MT2MPInvite") {
-        const auto steam=GetModuleHandleA("steam_api64_original.dll");
+        const auto reject_invite=[](const char* detail,const char* status){fail(detail);ui_status=status;};
+        if(!mm.in_lobby()){reject_invite("Steam invite dialog rejected: no active lobby","Keine Steam-Lobby");return;}
+        const auto lobby_id=mm.current_lobby_id();
+        if(!lobby_id){reject_invite("Steam invite dialog rejected: active lobby ID is zero","Steam-Lobby-ID fehlt");return;}
+        const auto steam=mt2mp::net::steam_module();
+        if(!steam){reject_invite("Steam invite dialog unavailable: selected Steam module unavailable","Steam-Bibliothek nicht verfügbar");return;}
         using Access=void*(*)();using Enabled=bool(*)(void*);using Invite=void(*)(void*,uint64_t);
-        auto friends=steam?reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamFriends_v017")):nullptr;
-        auto utils=steam?reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamUtils_v010")):nullptr;
-        auto enabled=steam?reinterpret_cast<Enabled>(GetProcAddress(steam,"SteamAPI_ISteamUtils_IsOverlayEnabled")):nullptr;
-        auto invite=steam?reinterpret_cast<Invite>(GetProcAddress(steam,"SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog")):nullptr;
-        auto* f=friends?friends():nullptr;auto* u=utils?utils():nullptr;
-        if(!mm.in_lobby()||!f||!u||!enabled||!enabled(u)||!invite){ui_status="Steam-Overlay nicht verfügbar";LOG_WARN("[NativeLobby] Invite dialog unavailable; no invitation request");return;}
-        invite(f,mm.current_lobby_id());ui_status="Steam-Einladungsdialog angefordert";
+        auto friends=reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamFriends_v018"));
+        auto utils=reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamUtils_v010"));
+        auto enabled=reinterpret_cast<Enabled>(GetProcAddress(steam,"SteamAPI_ISteamUtils_IsOverlayEnabled"));
+        auto invite=reinterpret_cast<Invite>(GetProcAddress(steam,"SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog"));
+        if(!friends){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamFriends_v018","Steam-Freundeschnittstelle fehlt");return;}
+        if(!utils){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamUtils_v010","Steam-Dienstschnittstelle fehlt");return;}
+        if(!enabled){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamUtils_IsOverlayEnabled","Steam-Overlayprüfung fehlt");return;}
+        if(!invite){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog","Steam-Einladungsfunktion fehlt");return;}
+        auto* f=friends();
+        if(!f){reject_invite("Steam invite dialog unavailable: SteamFriends interface is null","Steam-Freundeschnittstelle nicht bereit");return;}
+        auto* u=utils();
+        if(!u){reject_invite("Steam invite dialog unavailable: SteamUtils interface is null","Steam-Dienstschnittstelle nicht bereit");return;}
+        if(!enabled(u)){reject_invite("Steam invite dialog unavailable: overlay disabled","Steam-Overlay deaktiviert");return;}
+        invite(f,lobby_id);cause.clear();ui_status="Steam-Einladungsdialog angefordert";
         LOG_INFO("[NativeLobby] Steam invite dialog requested; recipient selection and delivery not confirmed");return;
     }
     fail("unknown native lobby command "+cmd);
@@ -552,7 +597,7 @@ bool tick(std::string& error) {
     if(!Config::instance().local_test&&mm.in_lobby()&&!owner){owner=mm.host_steam_id();Config::instance().is_host=owner!=0&&owner==net::SteamNetworking::instance().local_steam_id();}
     const auto preparation=lobby_prepare::status();
     const auto left=preparation.value("leave_confirmed",uint64_t{});
-    if(left!=last_leave_confirmed){last_leave_confirmed=left;playing_close_attempted=false;local_admitted=false;owner=0;selected_world.clear();selected_file.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
+    if(left!=last_leave_confirmed){last_leave_confirmed=left;playing_close_attempted=false;local_admitted=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
     if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Sitzung nicht verfügbar"));
     native::WorldStatus world;
     if(!native::read_world_status(world,error))return false;
@@ -564,6 +609,7 @@ bool tick(std::string& error) {
     if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!read(game,mode_offset,mode)||!read(game,0x28,active)||mode!=active){error="native UI owner differs from actual active mode";return false;}
     if(ui_owner!=mode||ui_mode!=world.active_mode_index){ui_owner=mode;ui_mode=world.active_mode_index;panel=nullptr;browser_panel=nullptr;append_attempted=false;last_ui_status.clear();}
     if(title_active)title=mode;
+    if(!adopt_current_host_world(game,ingame_active,title_active,preparation,error))return false;
     void* entry=nullptr;bool entry_visible=false;
     if(!desktop_entry(game,title_active,&entry,&entry_visible,error))return false;
     if(find_window("mt2mp_lobby",&panel)||find_window("mt2mp_browser",&browser_panel)){error="native lobby registry read failed";return false;}
@@ -602,13 +648,17 @@ bool tick(std::string& error) {
     const bool shared_client_world=!Config::instance().is_host&&ingame_active&&admitted()&&preparation.value("ready",false)&&
         shared.value("phase",std::string{})=="active"&&shared.value("world_authority_valid",false)&&
         !preparation.value("snapshot_id",std::string{}).empty()&&shared.value("id",std::string{})==preparation.value("snapshot_id",std::string{});
-    const std::string world_label=selected_world.empty()?(shared_client_world?"Gemeinsame Welt geladen":"Keine Welt ausgewählt"):selected_world;
+    std::string world_label=selected_world.empty()?(shared_client_world?"Gemeinsame Welt geladen":"Keine Welt ausgewählt"):selected_world;
+    if(!Config::instance().local_test&&!Config::instance().is_host&&admitted()&&selected_world.empty()){
+        const auto host_world=mm.get_lobby_data("game_name");
+        if(world_selection::valid_name(host_world)&&host_world!="Welt wird ausgewählt")world_label=host_world;
+    }
     if(!label("world",world_label)){error=cause;return false;}
     const auto rows=player_rows();
     for(size_t i=0;i<rows.size();++i)if(!label(("player"+std::to_string(i)).c_str(),rows[i])){error=cause;return false;}
     if(!disable("host_public",!title_active||pending||admitted())||!disable("search",!title_active||pending||admitted()||list_pending)||!disable("host",!title_active||pending||admitted())||!disable("join",!title_active||pending||admitted())||!disable("pick",!title_active||!lobby_host()||pending||load_attempted)||
-       !disable("leave",pending||preparation.value("leaving",false))||!disable("prepare",publication_failed||!lobby_host()||selected_file.empty()||load_attempted)||
-       !disable("start",publication_failed||!lobby_host()||selected_file.empty()||pending||preparation.value("start_requested",false)||!preparation.value("error",std::string{}).empty())){error=cause;return false;}
+       !disable("leave",pending||preparation.value("leaving",false))||!disable("prepare",publication_failed||!lobby_host()||selected_file.empty()||load_attempted||current_host_world)||
+       !disable("start",publication_failed||!lobby_host()||(!current_host_world&&selected_file.empty())||pending||preparation.value("start_requested",false)||!preparation.value("error",std::string{}).empty())){error=cause;return false;}
     error.clear();return true;
 }
 bool admitted(){return Config::instance().local_test?local_admitted&&net::session_wire::connected():net::SteamMatchmaking::instance().in_lobby();}
@@ -622,8 +672,9 @@ bool observe(nlohmann::json& result,std::string& error) {
         {"local_admitted",Config::instance().local_test&&local_admitted},{"local_role",Config::instance().local_test?(net::session_wire::local_peer()==1?"host":"client"):"none"},{"local_session_id",Config::instance().local_test?net::session_wire::session_id():0},
         {"local_peer",Config::instance().local_test?net::session_wire::local_peer():0},{"local_peer_mask",Config::instance().local_test?net::session_wire::peer_mask():0},{"wire_connected",net::session_wire::connected()},{"player_rows",player_rows()},{"playing_close_attempted",playing_close_attempted},
         {"generation",generation},{"commands",command_count},{"last_command",last_command},{"command_failures",command_failures},
-        {"metadata_failed",publication_failed},{"metadata_error",publication_error},{"discovery_callback_completed",list_callback_completed},{"discovery_callback_ok",list_callback_ok},{"discovery_pending",list_pending},{"discovery_generation",list_generation},{"discovery_state",list_status},{"discovery_page",list_page},{"selected_lobby",selected_lobby},{"lobbies",nlohmann::json::array()},{"callback_pending",pending},{"selected_world",selected_world},{"selected_file",selected_file},{"world_selection_open",choosing},{"saved_worlds",saved_worlds},{"prepare",lobby_prepare::status()},
+        {"metadata_failed",publication_failed},{"metadata_error",publication_error},{"discovery_callback_completed",list_callback_completed},{"discovery_callback_ok",list_callback_ok},{"discovery_pending",list_pending},{"discovery_generation",list_generation},{"discovery_state",list_status},{"discovery_page",list_page},{"selected_lobby",selected_lobby},{"lobbies",nlohmann::json::array()},{"callback_pending",pending},{"selected_world",selected_world},{"selected_file",selected_file},{"current_host_world",current_host_world},{"world_selection_open",choosing},{"saved_worlds",saved_worlds},{"prepare",lobby_prepare::status()},
         {"steam_lobby_id",net::SteamMatchmaking::instance().current_lobby_id()},{"steam_host_id",net::SteamMatchmaking::instance().host_steam_id()},
+        {"lobby_world_metadata",Config::instance().local_test?selected_world:net::SteamMatchmaking::instance().get_lobby_data("game_name")},
         {"steam_in_lobby",net::SteamMatchmaking::instance().in_lobby()},{"steam_members",net::SteamMatchmaking::instance().get_lobby_members()},
         {"native_panes",nlohmann::json::array()},{"route_receipts",nlohmann::json::array()}};
     for(const auto& row:discovered)result["lobbies"].push_back({{"lobby_id",row.lobby_id},{"host",row.host_name},{"world",row.save_name},{"players",row.player_count},{"slots",row.max_players},{"state",row.state}});

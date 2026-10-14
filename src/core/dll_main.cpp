@@ -1,5 +1,9 @@
 #include "mt2mp/core/dll_main.h"
 #include "mt2mp/core/config.h"
+#include "mt2mp/core/installed_profile.h"
+#include "mt2mp/core/private_profile_paths.h"
+#include "mt2mp/net/steam_module.h"
+#include <map>
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_engine.h"
 #include "mt2mp/hooks/hook_renderer.h"
@@ -81,6 +85,7 @@
 #include <psapi.h>
 #include <intrin.h>
 
+namespace mt2mp::installed_profile {const std::filesystem::path& diagnostic_root();}
 namespace mt2mp {
 using json=nlohmann::json;
 static HMODULE g_module=nullptr;
@@ -94,6 +99,7 @@ static void subscriber_remove(void* manager,void* subscriber){game::subscriber_r
 static uintptr_t native_image_begin=0,native_image_end=0;
 static std::string runtime_root,run_id,last_request;
 static std::string loaded_dll_sha256;
+static json installed_proof_receipt;
 static uint64_t completed_game_updates=0;
 // Bound game-thread aggregates attribute CPU-side wall time without per-frame logging.
 struct FrameTimingTotals { uint64_t count=0,total_ns=0,max_ns=0; };
@@ -187,7 +193,7 @@ static bool time_input_context(void*,game::native_time_input::Context& out,std::
     auto* window=hooks::get_game_window();
     out.epoch=runtime.epoch;out.revision=state.revision;out.peer=static_cast<uint32_t>(cfg.peer_id);
     out.owned_window=reinterpret_cast<uintptr_t>(window);out.window_id=window?SDL_GetWindowID(window):0;
-    out.owned_test=owned_native_profile&&!runtime_root.empty()&&!run_id.empty()&&!loaded_dll_sha256.empty();
+    out.owned_test=owned_native_profile&&(!cfg.installed_profile_verified||installed_profile::get()!=nullptr)&&!runtime_root.empty()&&!run_id.empty()&&!loaded_dll_sha256.empty();
     out.world_owned=runtime.epoch!=0&&runtime.epoch==net::current_world_epoch()&&world.world_present&&
         world.active_mode_index==3&&world.in_game_state==4&&!world.quitting&&!world.title_transition_pending;
     out.time_active=runtime.phase==game::time_runtime::Phase::Active&&runtime.hook_mask==3&&
@@ -287,6 +293,7 @@ static void initialize_time_hooks() {
 static bool suspend_time(const std::string& reason,std::string& error) {
     game::time_input_diagnostics::suspend(reason);
     if(!game::node_observer::suspend_if_prepared(reason,error))return false;
+    if(!time_initialization_attempted&&!time_initialized){error.clear();return true;}
     if(!time_initialized) { error="time_integration_not_initialized: "+time_initialization_error; return false; }
     if(!game::hud_time_runtime::suspend(reason,error))return false;
     if(!game::hud_calendar_runtime::suspend(reason,error))return false;
@@ -642,21 +649,31 @@ static void game_update(void* game,float dt) {
 }
 static std::string env(const char* name) { char value[32768]; DWORD n=GetEnvironmentVariableA(name,value,sizeof(value)); return n&&n<sizeof(value)?std::string(value,n):""; }
 static void init_paths() {
-    auto& cfg=Config::instance(); char path[32768];
-    if(!GetModuleFileNameA(nullptr,path,sizeof(path))) throw std::runtime_error("GetModuleFileName failed");
-    cfg.game_dir=std::filesystem::path(path).parent_path().string();
-    cfg.log_file=cfg.game_dir+"/mt2mp.log"; cfg.original_steam_dll=cfg.game_dir+"/steam_api64_original.dll";
-    cfg.user_data_dir=env("MT2MP_TEST_ROOT"); cfg.local_test=!cfg.user_data_dir.empty();
-    if(cfg.local_test) {
-        runtime_root=env("MT2MP_RUNTIME_ROOT"); run_id=env("MT2MP_RUN_ID");
-        cfg.peer_id=std::stoull(env("MT2MP_PEER_ID")); cfg.session_id=std::stoull(env("MT2MP_SESSION_ID"));
-        cfg.session_token=env("MT2MP_SESSION_TOKEN"); cfg.is_host=cfg.peer_id==1;
-        auto control=std::stoul(env("MT2MP_CONTROL_PORT"));
-        if(cfg.peer_id<1||cfg.peer_id>4||control<1||control>65535||runtime_root.empty()||run_id.empty()) throw std::runtime_error("invalid local runtime configuration");
-        cfg.sidecar_control_port=uint16_t(control);
+    auto& cfg=Config::instance();
+    if(const auto* installed=installed_profile::get()){
+        cfg.game_dir=installed->game_dir.string();cfg.user_data_dir=installed->user_data_dir.string();
+        runtime_root=installed->runtime_root.string();run_id=installed->run_id;
+        cfg.installed_profile_verified=true;cfg.diagnostic_mailbox_enabled=!installed_profile::diagnostic_root().empty();cfg.local_test=false;
+        cfg.original_steam_dll=(installed->game_dir/L"steam_api64.dll").string();
+        cfg.log_file=(installed->runtime_root/L"mt2mp.log").string();owned_native_profile=true;
+    }else{
+        char path[32768];const auto length=GetModuleFileNameA(nullptr,path,sizeof(path));
+        if(!length||length>=sizeof(path))throw std::runtime_error("GetModuleFileName failed or truncated");
+        cfg.game_dir=std::filesystem::path(path).parent_path().string();
+        cfg.log_file=cfg.game_dir+"/mt2mp.log";cfg.original_steam_dll=cfg.game_dir+"/steam_api64_original.dll";
+        cfg.user_data_dir=env("MT2MP_TEST_ROOT");cfg.local_test=!cfg.user_data_dir.empty();
+        if(cfg.local_test){
+            runtime_root=env("MT2MP_RUNTIME_ROOT");run_id=env("MT2MP_RUN_ID");
+            cfg.peer_id=std::stoull(env("MT2MP_PEER_ID"));cfg.session_id=std::stoull(env("MT2MP_SESSION_ID"));
+            cfg.session_token=env("MT2MP_SESSION_TOKEN");cfg.is_host=cfg.peer_id==1;
+            auto control=std::stoul(env("MT2MP_CONTROL_PORT"));
+            if(cfg.peer_id<1||cfg.peer_id>4||control<1||control>65535||runtime_root.empty()||run_id.empty())throw std::runtime_error("invalid local runtime configuration");
+            cfg.sidecar_control_port=uint16_t(control);
+        }
+        owned_native_profile=cfg.local_test;cfg.diagnostic_mailbox_enabled=owned_native_profile;
+        if(owned_native_profile&&env("MT2MP_TRANSPORT")=="steam")cfg.local_test=false;
     }
-    owned_native_profile=cfg.local_test;
-    if(owned_native_profile&&env("MT2MP_TRANSPORT")=="steam")cfg.local_test=false;
+    cfg.runtime_root=runtime_root;cfg.run_id=run_id;
     game::lobby_operations::configure(run_id);
 }
 static void write_json(const std::filesystem::path& path,const json& data) {
@@ -711,6 +728,7 @@ static json status() {
         {"world_ready",false},{"blocker","Engine-Replikation noch nicht bewiesen"},
         {"overlay_visible",overlay::LobbyOverlay::instance().is_visible()},
         {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",render_thread!=0}}}};
+    if(!installed_proof_receipt.is_null())result["installed_proof"]=installed_proof_receipt;
     result["capabilities"]["read_chat"]=true;
     result["capabilities"]["send_chat"]=net::chat::Runtime::instance().snapshot().connected;
     result["capabilities"]["read_chat_ui"]=render_thread!=0;
@@ -1051,7 +1069,7 @@ static void diagnostics_tick() {
         } recovery;
         auto dir=std::filesystem::path(runtime_root)/"diagnostics";
         static auto last_status=std::chrono::steady_clock::time_point{};
-        if(now-last_status>=std::chrono::seconds(1)) { write_json(dir/"status.json",status()); last_status=now; }
+        if(Config::instance().diagnostic_mailbox_enabled&&now-last_status>=std::chrono::seconds(1)) { write_json(dir/"status.json",status()); last_status=now; }
         if(!deferred_response.is_null()) { write_json(dir/"response.json",deferred_response); deferred_response=nullptr; return; }
         if(!pending_frame.is_null()) return;
         if(!pending_camera.is_null()) {
@@ -1220,7 +1238,7 @@ static void diagnostics_tick() {
         auto request_path=dir/"request.json";
         json request;
         if(!game::lobby_operations::take_request(request)) {
-            if(game::lobby_operations::pending()||!std::filesystem::exists(request_path))return;
+            if(!Config::instance().diagnostic_mailbox_enabled||game::lobby_operations::pending()||!std::filesystem::exists(request_path))return;
             request=read_request(request_path);
         }
         auto id=request.at("id").get<std::string>(); if(id==last_request) return;
@@ -1921,9 +1939,42 @@ static void diagnostics_tick() {
         }
     }
 }
+static void publish_installed_proof(){
+    const auto* profile=installed_profile::get();
+    const auto& proof=installed_profile::diagnostic_root();
+    if(!profile||proof.empty())return;
+    FILETIME creation{},exit{},kernel{},user{};
+    if(!GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user))throw std::runtime_error("drop-in proof process start query failed Win32="+std::to_string(GetLastError()));
+    const auto start=std::to_string((uint64_t(creation.dwHighDateTime)<<32)|creation.dwLowDateTime);
+    const auto exe=private_profile::module_file(nullptr);
+    if(!private_profile::equal(exe,proof/L"game/MT2.exe"))throw std::runtime_error("drop-in proof executable identity differs");
+    json modules=json::object();
+    const std::pair<const char*,HMODULE> actual[]={{"executable",GetModuleHandleW(nullptr)},
+        {"loader",GetModuleHandleW((profile->game_dir/L"WSOCK32.dll").c_str())},{"mod",g_module},{"steam",net::steam_module()}};
+    const std::map<std::string,std::filesystem::path> expected={{"executable",exe},{"loader",profile->game_dir/L"WSOCK32.dll"},
+        {"mod",profile->game_dir/L"MT2_Multiplayer.dll"},{"steam",profile->game_dir/L"steam_api64.dll"}};
+    for(const auto& [name,module]:actual){
+        if(!module)throw std::runtime_error("drop-in proof loaded module missing: "+std::string(name));
+        const auto path=private_profile::module_file(module);
+        if(!private_profile::equal(path,expected.at(name)))throw std::runtime_error("drop-in proof actual module path differs: "+std::string(name));
+        std::string hash,error;uint64_t bytes=0;
+        if(!net::hash_snapshot_file(path,hash,bytes,error)||!bytes)throw std::runtime_error("drop-in proof module hash failed: "+std::string(name)+" cause="+error);
+        modules[name]={{"path",path.string()},{"sha256",hash},{"bytes",bytes}};
+    }
+    installed_proof_receipt={{"acceptance_root",proof.string()},{"game_dir",profile->game_dir.string()},
+        {"runtime_root",profile->runtime_root.string()},{"user_data_dir",profile->user_data_dir.string()},
+        {"diagnostic_mailbox_enabled",Config::instance().diagnostic_mailbox_enabled},{"local_test",Config::instance().local_test},
+        {"isolation_flags",3},{"process_start_time",start},{"modules",modules}};
+    if(!Config::instance().diagnostic_mailbox_enabled||Config::instance().local_test)throw std::runtime_error("drop-in proof diagnostic policy differs");
+    json manifest={{"schema_version",1},{"profile","installed_dropin_proof"},{"run_id",run_id},{"pid",GetCurrentProcessId()},
+        {"process_start_time",start},{"runtime_root",profile->runtime_root.string()},{"executable_path",exe.string()},
+        {"owner",{{"kind","MPTest"},{"run_id",run_id}}},{"installed_proof",installed_proof_receipt}};
+    write_json(profile->runtime_root/L"instance.json",manifest);
+    LOG_INFO("[DropinProof] Owned installed manifest published root={} local_test=false",profile->runtime_root.string());
+}
 bool initialize(HMODULE module) {
     try {
-        g_module=module; init_paths(); Logger::instance().init(Config::instance().game_dir);
+        g_module=module; init_paths(); Logger::instance().init(Config::instance().installed_profile_verified?runtime_root:Config::instance().game_dir);
         if(owned_native_profile) {
             wchar_t dll_path[32768];
             const auto length=GetModuleFileNameW(module,dll_path,32768);
@@ -2017,6 +2068,7 @@ bool initialize(HMODULE module) {
         }
         if(owned_native_profile) game::native::set_subscriber_needs_hook_mask(0x3f);
         if(owned_native_profile) game::subscriber_lifecycle_append::set_lookup_hook_ready(true);
+        publish_installed_proof();
         LOG_INFO("[RUNTIME] REQUIRED_HOOKS_READY SDL3 input renderer window"); return true;
     } catch(const std::exception& error) { LOG_ERROR("[RUNTIME] Initialization failed: {}",error.what()); return false; }
     catch(...) { LOG_ERROR("[RUNTIME] Initialization failed: unknown exception"); return false; }
@@ -2040,6 +2092,11 @@ void shutdown() {
     game::normal_load_identity::shutdown(); hooks::cleanup(); Logger::instance().shutdown();
 }
 HMODULE get_module_handle() { return g_module; }
+}
+extern "C" __declspec(dllexport) bool MT2MP_InitInstalled(HMODULE module,const mt2mp::installed_profile::Receipt* receipt) {
+    std::string error;
+    if(!receipt||!mt2mp::installed_profile::accept(*receipt,error))return false;
+    return mt2mp::initialize(module);
 }
 extern "C" __declspec(dllexport) bool MT2MP_Init(HMODULE module) { return mt2mp::initialize(module); }
 extern "C" __declspec(dllexport) void MT2MP_Shutdown() { mt2mp::shutdown(); }

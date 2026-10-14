@@ -18,30 +18,42 @@ PAYLOAD = {
     'mt2mp_ui/multiplayer.png', 'mt2mp_ui/materials/mt2mp_desktop_multiplayer.mat',
 }
 
+DROPIN_NOTICES = NOTICES - {'licenses/Python.txt', 'licenses/PyInstaller.txt'}
+DROPIN_PAYLOAD = (PAYLOAD - {'steam_api64.dll', 'mt2mp_sidecar.exe', 'MT2MP-Start.exe'}) | {'WSOCK32.dll'}
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def validate(archive, candidate):
+def validate(archive, candidate, expected_mode=None):
     with zipfile.ZipFile(archive) as zipped:
         names = zipped.namelist()
-        required = NOTICES | PAYLOAD | {'package.json', '_internal/python313.dll', '_internal/base_library.zip'}
+        if len(names) != len(set(names)):
+            raise ValueError('duplicate ZIP entry')
+        if 'package.json' not in names:
+            raise ValueError('beta package missing: package.json')
+        manifest = json.loads(zipped.read('package.json'))
+        mode = manifest.get('package_mode', 'legacy')
+        if mode not in {'legacy', 'dropin'} or expected_mode is not None and mode != expected_mode:
+            raise ValueError('beta package mode differs')
+        notices = DROPIN_NOTICES if mode == 'dropin' else NOTICES
+        payload = DROPIN_PAYLOAD if mode == 'dropin' else PAYLOAD
+        required = notices | payload | {'package.json'}
+        if mode == 'legacy':
+            required |= {'_internal/python313.dll', '_internal/base_library.zip'}
         missing = required - set(names)
         if missing:
             raise ValueError('beta package missing: ' + ', '.join(sorted(missing)))
-        if len(names) != len(set(names)):
-            raise ValueError('duplicate ZIP entry')
         for name in names:
             path = Path(name)
             if (name.startswith(('/', '\\')) or '\\' in name or ':' in name or '..' in path.parts
-                    or name not in NOTICES | PAYLOAD | {'package.json'} and not name.startswith('_internal/')):
+                    or name not in notices | payload | {'package.json'} and not (mode == 'legacy' and name.startswith('_internal/'))):
                 raise ValueError('unexpected beta payload: ' + name)
             if path.suffix.lower() in {'.vrz', '.vrr', '.vrs', '.log', '.pdb'} or path.name.casefold() in {'mt2.exe', 'steam_api64_original.dll', '.env'}:
                 raise ValueError('private/game payload rejected: ' + name)
             if not zipped.read(name):
                 raise ValueError('empty beta payload: ' + name)
-        manifest = json.loads(zipped.read('package.json'))
         if manifest['candidate'] != candidate:
             raise ValueError('package candidate differs from tag and source commit')
         if manifest['version'] != candidate.split('@', 1)[0][1:]:
@@ -49,7 +61,7 @@ def validate(archive, candidate):
         if manifest.get('source_commit') != candidate.split('@', 1)[1]:
             raise ValueError('package source commit differs')
         if manifest.get('manual_test_package') is not True or manifest.get('ready_for_manual_testing') is not True:
-            raise ValueError('portable tester package not confirmed')
+            raise ValueError('tester package not confirmed')
         if set(manifest['files']) != set(names) - {'package.json'}:
             raise ValueError('package manifest membership differs')
         if manifest.get('online_acceptance_passed') is not False:
@@ -66,6 +78,7 @@ def main():
     parser.add_argument('--tag', required=True)
     parser.add_argument('--commit', required=True)
     parser.add_argument('--build-only', action='store_true')
+    parser.add_argument('--mode', choices=('legacy', 'dropin'), default='legacy')
     args = parser.parse_args()
     match = re.fullmatch(r'v(\d+\.\d+\.\d+)-beta\.([1-9]\d*)', args.tag)
     if not match or not re.fullmatch(r'[0-9a-f]{40}', args.commit):
@@ -79,20 +92,24 @@ def main():
                         '-DMT2MP_BUILD_TESTS=OFF', '-DCMAKE_POLICY_VERSION_MINIMUM=3.5',
                         '-DMT2MP_BUILD_VERSION=' + args.tag[1:]], check=True, cwd=root)
         subprocess.run(['cmake', '--build', str(root / '.ci-build/mod'), '--config', 'Release', '--target',
-                        'MT2_Multiplayer', 'steam_api64', 'mt2mp_sidecar', '--parallel', '2'], check=True, cwd=root)
+                        *(['MT2_Multiplayer', 'wsock32'] if args.mode == 'dropin' else ['MT2_Multiplayer', 'steam_api64', 'mt2mp_sidecar']), '--parallel', '2'], check=True, cwd=root)
         return
     output = root / 'artifacts/beta'
     output.mkdir(parents=True, exist_ok=True)
     candidate = args.tag + '@' + args.commit
     build = root / '.ci-build/mod/bin/Release'
     pin = output / 'freeze.json'
-    pin.write_text(json.dumps({'candidate': candidate, 'source_commit': args.commit,
-                              'dll_sha256': digest((build / 'MT2_Multiplayer.dll').read_bytes())}) + '\n')
+    frozen = {'candidate': candidate, 'source_commit': args.commit, 'dll_sha256': digest((build / 'MT2_Multiplayer.dll').read_bytes())}
+    if args.mode == 'dropin':
+        frozen['loader_sha256'] = digest((build / 'WSOCK32.dll').read_bytes())
+    pin.write_text(json.dumps(frozen) + '\n')
     archive = output / ('MMORPGTycoon2-Multiplayer-' + args.tag + '-windows-x64.zip')
-    subprocess.run(['python', str(root / 'tools/package.py'), '--freeze', str(pin), '--build', str(build),
-                    '--with-sidecar', '--version', args.tag[1:], '--launcher', str(root / '.ci-build/launcher/MT2MP-Start/MT2MP-Start.exe'),
-                    '--output', str(archive)], check=True, cwd=root)
-    validate(archive, candidate)
+    command = ['python', str(root / 'tools/package.py'), '--freeze', str(pin), '--build', str(build),
+               '--version', args.tag[1:], '--mode', args.mode, '--output', str(archive)]
+    if args.mode == 'legacy':
+        command += ['--with-sidecar', '--launcher', str(root / '.ci-build/launcher/MT2MP-Start/MT2MP-Start.exe')]
+    subprocess.run(command, check=True, cwd=root)
+    validate(archive, candidate, args.mode)
     checksum = archive.with_suffix('.zip.sha256')
     checksum.write_text(digest(archive.read_bytes()) + '  ' + archive.name + '\n', encoding='ascii')
     print(json.dumps({'status': 'beta-package-checked', 'candidate': candidate, 'archive': str(archive)}))

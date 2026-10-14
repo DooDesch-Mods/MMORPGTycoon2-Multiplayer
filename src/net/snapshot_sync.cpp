@@ -84,7 +84,6 @@ static uint64_t software_epoch(const std::string& id) {
     return epoch;
 }
 static bool valid_id(const std::string& id) { return id.size()==36&&id.find_first_not_of("0123456789abcdef-")==std::string::npos; }
-static std::string env(const char* name) { char value[32768]; DWORD n=GetEnvironmentVariableA(name,value,sizeof(value)); return n&&n<sizeof(value)?std::string(value,n):""; }
 static void message(const json& value,uint64_t target=0) {
     auto bytes=value.dump();
     if(!session_wire::send(4,reinterpret_cast<const uint8_t*>(bytes.data()),uint32_t(bytes.size()),target)) throw std::runtime_error("snapshot control queue rejected");
@@ -236,7 +235,7 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         if(!buffer.complete()) return;
         if(!buffer.commit(error)) throw std::runtime_error(error);
         auto path=buffer.target();
-        auto runtime=std::filesystem::path(env("MT2MP_RUNTIME_ROOT"));
+        auto runtime=std::filesystem::path(Config::instance().runtime_root);
         { std::ofstream stream(runtime/"diagnostics"/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",path.string()}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
         receiving=false; status="Snapshot vollständig geprüft";
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);

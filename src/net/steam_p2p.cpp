@@ -1,4 +1,5 @@
 #include "mt2mp/net/steam_p2p.h"
+#include "mt2mp/net/steam_module.h"
 #include "mt2mp/core/logger.h"
 
 #include <windows.h>
@@ -92,7 +93,6 @@ using FnRunCallbacks = void(*)(void* self);
 using FnReleaseMessage = void(*)(SteamNetworkingMessage_t* msg);
 
 // Steam interface and function pointers
-static HMODULE g_steam_dll = nullptr;
 static void* g_sockets_iface = nullptr;
 static void* g_utils_iface = nullptr;
 
@@ -116,12 +116,7 @@ static std::mutex g_conn_mutex;
 static std::unordered_map<HSteamNetConnection, uint64_t> g_connections; // conn → peer steam id
 static SteamP2P::ReceiveCallback g_receive_cb;
 
-static HMODULE get_steam() {
-    if (g_steam_dll) return g_steam_dll;
-    g_steam_dll = GetModuleHandleA("steam_api64_original.dll");
-    if (!g_steam_dll) g_steam_dll = LoadLibraryA("steam_api64_original.dll");
-    return g_steam_dll;
-}
+static HMODULE get_steam() { return steam_module(); }
 
 template<typename T>
 static T load_fn(const char* name) {
@@ -186,7 +181,7 @@ SteamP2P& SteamP2P::instance() {
 bool SteamP2P::init() {
     if (g_sockets_iface) return true;
     if (!get_steam()) {
-        LOG_ERROR("[P2P] Cannot find steam_api64_original.dll");
+        LOG_ERROR("[P2P] Cannot resolve exact selected Steam module");
         return false;
     }
 

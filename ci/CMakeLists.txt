@@ -72,3 +72,15 @@ if(MSVC)
 endif()
 add_test(NAME desktop_icon_presentation COMMAND test_desktop_icon_presentation)
 set_tests_properties(desktop_icon_presentation PROPERTIES TIMEOUT 60)
+
+include("${CMAKE_CURRENT_LIST_DIR}/auto_world_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/invite_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/empty_world_bind_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/dropin_proof_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/dropin_write_dir_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/cold_time_retire_checks.cmake")

@@ -209,5 +209,132 @@ class BetaReleaseTests(unittest.TestCase):
         self.assertNotIn('PATCH', [method for method, _ in service.writes])
 
 
+class DropinPackageTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        spec = importlib.util.spec_from_file_location('actual_dropin_package', ROOT / 'tools/package.py')
+        self.builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.builder)
+        self.build = self.root / '.ci-build/mod/bin/Release'
+        self.build.mkdir(parents=True)
+        (self.root / 'CMakeLists.txt').write_text('project(MT2_Multiplayer VERSION 0.1.0)')
+        for name in ['MT2_Multiplayer.dll', 'WSOCK32.dll', 'steam_api64.dll', 'mt2mp_sidecar.exe']:
+            (self.build / name).write_bytes(('fixture ' + name).encode())
+        for name in self.builder.UI_NAMES:
+            path = self.root / 'mt2mp_ui' / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(('authored ' + name).encode())
+        for name in ['LICENSE.md', 'THIRD_PARTY_NOTICES.md', 'include/vendor/minhook/LICENSE.txt',
+                     'include/vendor/imgui/LICENSE.txt', 'include/vendor/nlohmann/LICENSE.MIT',
+                     'include/vendor/SDL3/LICENSE.txt', 'tools/packaging/DROPIN_TEST.txt']:
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text('English fixture notice ' + name)
+        self.pin = self.root / 'freeze.json'
+        self.pin.write_text(json.dumps({'candidate': CANDIDATE, 'source_commit': COMMIT,
+            'dll_sha256': build_beta.digest((self.build / 'MT2_Multiplayer.dll').read_bytes()),
+            'loader_sha256': build_beta.digest((self.build / 'WSOCK32.dll').read_bytes())}))
+
+    def collect(self, **options):
+        return self.builder.collect(self.root, self.build, self.pin, release_version=TAG[1:], mode='dropin', **options)
+
+    def archive(self, entries):
+        path = self.root / 'dropin.zip'
+        self.builder.write_package(entries, path)
+        return path
+
+    def test_exact_two_dll_dropin_contents_and_hashes(self):
+        entries, manifest = self.collect()
+        expected = build_beta.DROPIN_NOTICES | build_beta.DROPIN_PAYLOAD | {'package.json'}
+        self.assertEqual(set(entries), expected)
+        self.assertEqual(len(entries), 15)
+        self.assertEqual(manifest['package_mode'], 'dropin')
+        self.assertTrue(manifest['ready_for_manual_testing'])
+        self.assertFalse(manifest['online_acceptance_passed'])
+        self.assertEqual(build_beta.validate(self.archive(entries), CANDIDATE, 'dropin')['source_commit'], COMMIT)
+
+    def test_dropin_does_not_need_proxy_sidecar_or_python(self):
+        (self.build / 'steam_api64.dll').unlink()
+        (self.build / 'mt2mp_sidecar.exe').unlink()
+        entries, manifest = self.collect()
+        self.assertNotIn('steam_api64.dll', entries)
+        self.assertNotIn('MT2MP-Start.exe', entries)
+        self.assertEqual(manifest['package_mode'], 'dropin')
+
+    def test_mixed_legacy_options_fail(self):
+        for options in [{'with_sidecar': True}, {'launcher': self.root / 'not-shipped.exe'}]:
+            with self.subTest(options=options), self.assertRaisesRegex(ValueError, 'cannot include'):
+                self.collect(**options)
+
+    def test_missing_and_stale_loader_cannot_package(self):
+        loader = self.build / 'WSOCK32.dll'
+        loader.write_bytes(b'wrong loader')
+        with self.assertRaisesRegex(ValueError, 'WSOCK loader differs'):
+            self.collect()
+        loader.unlink()
+        with self.assertRaisesRegex(ValueError, 'required regular payload'):
+            self.collect()
+
+    def test_dropin_rejects_game_and_all_legacy_runtime_files(self):
+        for name in ['steam_api64.dll', 'steam_api64_original.dll', 'MT2.exe', 'mt2mp_sidecar.exe',
+                     'MT2MP-Start.exe', '_internal/python313.dll', 'licenses/Python.txt', 'data/private.vrz']:
+            with self.subTest(name=name):
+                entries, manifest = self.collect()
+                entries[name] = b'not allowed even with a correct hash'
+                manifest['files'][name] = {'size': len(entries[name]), 'sha256': build_beta.digest(entries[name])}
+                entries['package.json'] = json.dumps(manifest).encode()
+                with tempfile.TemporaryDirectory() as temporary:
+                    archive = Path(temporary) / 'mixed.zip'
+                    self.builder.write_package(entries, archive)
+                    with self.assertRaisesRegex(ValueError, 'unexpected beta payload'):
+                        build_beta.validate(archive, CANDIDATE, 'dropin')
+
+    def test_release_mode_must_match_explicit_build_choice(self):
+        entries, manifest = self.collect()
+        manifest['package_mode'] = 'legacy'
+        entries['package.json'] = json.dumps(manifest).encode()
+        with self.assertRaisesRegex(ValueError, 'mode differs'):
+            build_beta.validate(self.archive(entries), CANDIDATE, 'dropin')
+
+    def test_dropin_loader_is_a_required_release_file(self):
+        entries, manifest = self.collect()
+        del entries['WSOCK32.dll']
+        del manifest['files']['WSOCK32.dll']
+        entries['package.json'] = json.dumps(manifest).encode()
+        with self.assertRaisesRegex(ValueError, 'missing: WSOCK32.dll'):
+            build_beta.validate(self.archive(entries), CANDIDATE, 'dropin')
+
+    def test_dropin_cli_build_selects_wsock_without_legacy_targets(self):
+        helper = self.root / '.github/scripts/build_beta.py'
+        arguments = [str(helper), '--tag', TAG, '--commit', COMMIT, '--mode', 'dropin', '--build-only']
+        with patch.object(build_beta, '__file__', str(helper)), patch.object(sys, 'argv', arguments), patch.object(build_beta.subprocess, 'run') as run:
+            build_beta.main()
+        command = run.call_args_list[1].args[0]
+        self.assertIn('wsock32', command)
+        self.assertNotIn('steam_api64', command)
+        self.assertNotIn('mt2mp_sidecar', command)
+        self.assertIn('-DMT2MP_BUILD_VERSION=' + TAG[1:], run.call_args_list[0].args[0])
+
+    def test_dropin_cli_packages_explicit_mode_and_loader_freeze(self):
+        helper = self.root / '.github/scripts/build_beta.py'
+        arguments = [str(helper), '--tag', TAG, '--commit', COMMIT, '--mode', 'dropin']
+        def package_command(command, **kwargs):
+            pin = Path(command[command.index('--freeze') + 1])
+            output = Path(command[command.index('--output') + 1])
+            entries, _ = self.builder.collect(self.root, self.build, pin, release_version=TAG[1:], mode='dropin')
+            self.builder.write_package(entries, output)
+        with patch.object(build_beta, '__file__', str(helper)), patch.object(sys, 'argv', arguments), patch.object(build_beta.subprocess, 'run', side_effect=package_command) as run, patch.object(build_beta, 'validate', wraps=build_beta.validate) as validate:
+            build_beta.main()
+        command = run.call_args.args[0]
+        self.assertEqual(command[command.index('--mode') + 1], 'dropin')
+        self.assertNotIn('--launcher', command)
+        self.assertNotIn('--with-sidecar', command)
+        frozen = json.loads((self.root / 'artifacts/beta/freeze.json').read_text())
+        self.assertEqual(frozen['loader_sha256'], build_beta.digest((self.build / 'WSOCK32.dll').read_bytes()))
+        self.assertEqual(validate.call_args.args[2], 'dropin')
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -23,6 +23,7 @@ namespace mt2mp::game::lobby_prepare {
 namespace {
 enum class Step {Idle,LoadSelected,CaptureLocal,ReturnTitle,LoadOrigin,CaptureShared,AwaitAck,Ready,Starting,Playing,Failed,Handshake,Leaving};
 Step step=Step::Idle;std::string operation,snapshot,failure,selected_path;bool start_requested=false;
+bool source_current_world=false,zero_day_reload_attempted=false;
 auto began=std::chrono::steady_clock::time_point{};
 uint64_t leave_confirmed=0;
 const char* label(){switch(step){case Step::Idle:return "Welt auswählen";case Step::LoadSelected:case Step::LoadOrigin:return "Welt wird geladen";
@@ -77,12 +78,26 @@ bool prepare(const std::string& path,std::string& error){
     if(!Config::instance().is_host){error="native preparation requires confirmed Host";return false;}
     if(!lobby_operations::available()){error="owned native snapshot executor is unavailable; world load not attempted";return false;}
     if(!path.starts_with("save/")||!path.ends_with(".vrz")||path.find("..")!=std::string::npos){error="native selected save path invalid";return false;}
+    source_current_world=false;zero_day_reload_attempted=false;
     if(!net::session_wire::prepare(error)){
         if(!error.starts_with("info:"))return false;
         selected_path=path;enter(Step::Handshake);error.clear();return true;
     }
     if(!net::session_wire::connected()){selected_path=path;enter(Step::Handshake);error.clear();return true;}
     if(!native::request_load(path,error))return fail(error);enter(Step::LoadSelected);error.clear();return true;
+}
+bool prepare_current(std::string& error){
+    if(step!=Step::Idle){error="native preparation has already been attempted; no replay";return false;}
+    if(!Config::instance().is_host){error="native preparation requires confirmed Host";return false;}
+    if(!lobby_operations::available()){error="owned native snapshot executor is unavailable; current world capture not attempted";return false;}
+    if(!native::in_game()){error="current Host world is no longer active";return false;}
+    source_current_world=true;zero_day_reload_attempted=false;selected_path.clear();
+    if(!net::session_wire::prepare(error)){
+        if(!error.starts_with("info:")){source_current_world=false;return false;}
+        enter(Step::Handshake);error.clear();return true;
+    }
+    if(!net::session_wire::connected()){enter(Step::Handshake);error.clear();return true;}
+    return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
 }
 bool start(std::string& error){
     if(step==Step::Idle||step==Step::Failed||step==Step::Playing||step==Step::Leaving){error="native start requires pending or ready preparation";return false;}
@@ -117,7 +132,7 @@ bool tick(std::string& error){
     if(step==Step::Failed){error=failure;return false;}
     if(step==Step::Leaving){
         bool ready=false;if(!typed_action_runtime::finish_lobby_leave(ready,error))return fail(error);
-        if(ready){operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;++leave_confirmed;enter(Step::Idle);}
+        if(ready){operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;source_current_world=false;zero_day_reload_attempted=false;++leave_confirmed;enter(Step::Idle);}
         else if(std::chrono::steady_clock::now()-began>=std::chrono::seconds(net::snapshot_native_load_timeout_seconds)){error="native Leave timed out awaiting actual Title/Time retirement required<900s; owner retained";return fail(error);}
         error.clear();return true;
     }
@@ -145,14 +160,38 @@ bool tick(std::string& error){
         error="Steam transport lost during native preparation: "+net::session_wire::failure_reason();return fail(error);
     }
     nlohmann::json response;error.clear();
-    if(step==Step::Handshake){if(!native::request_load(selected_path,error))return fail(error);enter(Step::LoadSelected);}
+    if(step==Step::Handshake){
+        if(source_current_world){
+            if(!native::in_game()){error="current Host world left before capture";return fail(error);}
+            return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+        }
+        if(!native::request_load(selected_path,error))return fail(error);enter(Step::LoadSelected);
+    }
     else if(step==Step::LoadSelected){if(native::in_game())return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);}
     else if(step==Step::CaptureLocal){if(completed(response,error)){snapshot=response.at("result").at("snapshot_id").get<std::string>();
         if(!response.at("result").value("building_bindings_confirmed",false)){error="Host snapshot building bindings are incomplete: "+response.at("result").value("building_identity_error",std::string("native capture cause unavailable"));return fail(error);}
         if(!native::request_return_to_title(error))return fail(error);enter(Step::ReturnTitle);}}
     else if(step==Step::ReturnTitle){native::WorldStatus world;if(!native::read_world_status(world,error))return fail(error);
         if(world.active_mode_index==2&&!world.title_transition_pending)return submit("load_snapshot",{{"snapshot_id",snapshot}},Step::LoadOrigin,error);}
-    else if(step==Step::LoadOrigin){if(completed(response,error))return submit("capture_snapshot",nlohmann::json::object(),Step::CaptureShared,error);}
+    else if(step==Step::LoadOrigin){if(completed(response,error)){
+        native::SimulationState actual;
+        if(!native::read_simulation_state(actual,error))return fail("Host loaded Clock/CurrentRecord read failed: "+error);
+        if(!actual.clock.paused||actual.clock.time_scale!=0||!actual.record_present||
+           actual.record_day!=actual.clock.flat_day||actual.record_cash!=actual.cash||actual.clock.flat_day<0){
+            error="Host loaded Clock/CurrentRecord baseline differs paused="+std::to_string(actual.clock.paused)+
+                " scale="+std::to_string(actual.clock.time_scale)+" day="+std::to_string(actual.clock.flat_day)+
+                " record_present="+std::to_string(actual.record_present)+" record_day="+std::to_string(actual.record_day)+
+                " cash="+std::to_string(actual.cash)+" record_cash="+std::to_string(actual.record_cash);return fail(error);
+        }
+        if(actual.clock.flat_day==0){
+            if(zero_day_reload_attempted){error="Host native zero-day normalization incomplete after one original reload day="+
+                std::to_string(actual.clock.flat_day)+" record_day="+std::to_string(actual.record_day)+
+                " cash="+std::to_string(actual.cash)+" record_cash="+std::to_string(actual.record_cash);return fail(error);}
+            zero_day_reload_attempted=true;
+            return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+        }
+        return submit("capture_snapshot",nlohmann::json::object(),Step::CaptureShared,error);
+    }}
     else if(step==Step::CaptureShared){if(completed(response,error)){snapshot=response.at("result").at("snapshot_id").get<std::string>();
         if(!response.at("result").value("building_bindings_confirmed",false)){error="shared snapshot building bindings are incomplete: "+response.at("result").value("building_identity_error",std::string("native capture cause unavailable"));return fail(error);}enter(Step::AwaitAck);}}
     else if(step==Step::AwaitAck||step==Step::Ready){const auto progress=net::snapshot_progress();if(progress.value("phase",std::string{})=="failed"){error="snapshot transfer/load failed: "+net::snapshot_sync_status();return fail(error);}
@@ -167,5 +206,5 @@ bool tick(std::string& error){
         }}
     if(step==Step::Failed){error=failure;return false;}return true;
 }
-nlohmann::json status(){return {{"leave_confirmed",leave_confirmed},{"leaving",step==Step::Leaving},{"state",int(step)},{"label",label()},{"snapshot_id",snapshot},{"operation_id",operation},{"start_requested",start_requested},{"prepared",step==Step::Ready},{"captures_ready",captures_ready()},{"ready",step==Step::Playing&&captures_ready()},{"playing",step==Step::Playing},{"error",failure},{"captures",{{"build",ui_build_runtime::status()},{"remove",ui_remove_runtime::status()},{"move",ui_move_runtime::status()},{"region",ui_region_runtime::status()},{"terrain",ui_terrain_runtime::status()},{"path",ui_path_runtime::status()}}}};}
+nlohmann::json status(){return {{"leave_confirmed",leave_confirmed},{"leaving",step==Step::Leaving},{"state",int(step)},{"label",label()},{"source",source_current_world?"current_world":"selected_save"},{"snapshot_id",snapshot},{"operation_id",operation},{"start_requested",start_requested},{"prepared",step==Step::Ready},{"captures_ready",captures_ready()},{"ready",step==Step::Playing&&captures_ready()},{"playing",step==Step::Playing},{"error",failure},{"captures",{{"build",ui_build_runtime::status()},{"remove",ui_remove_runtime::status()},{"move",ui_move_runtime::status()},{"region",ui_region_runtime::status()},{"terrain",ui_terrain_runtime::status()},{"path",ui_path_runtime::status()}}}};}
 }

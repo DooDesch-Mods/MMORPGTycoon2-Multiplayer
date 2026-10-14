@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import json
+import hashlib
 import logging
 import os
 import io
@@ -14,6 +15,8 @@ import uuid
 
 LOG = logging.getLogger("mt2_mcp")
 MAX_JSON = 262144
+INSTALLED_PROOF_ROOT = Path(__file__).resolve().parents[2] / "_MPTest" / "dropin-proof"
+INSTALLED_EXE_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
 JSON_SHARING_WAIT_SECONDS = 0.25
 JSON_SHARING_POLL_SECONDS = 0.01
 STATUS_PUBLICATION_WAIT_SECONDS = 0.25
@@ -259,14 +262,59 @@ def windows_process(pid: int) -> dict | None:
         kernel.CloseHandle(handle)
 
 
+def windows_modules(pid: int) -> list[str]:
+    """Read module paths for only the exact owned PID selected by Runtime."""
+    if os.name != "nt":
+        raise RuntimeErrorDetail("unsupported_platform", "Installed module proof requires Windows")
+    class Module(ctypes.Structure):
+        _fields_ = [(name, wintypes.DWORD) for name in ("dwSize", "th32ModuleID", "th32ProcessID", "GlblcntUsage", "ProccntUsage")] + [
+            ("modBaseAddr", ctypes.c_void_p), ("modBaseSize", wintypes.DWORD), ("hModule", wintypes.HMODULE),
+            ("szModule", wintypes.WCHAR * 256), ("szExePath", wintypes.WCHAR * 260)]
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    kernel.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    for name in ("Module32FirstW", "Module32NextW"):
+        getattr(kernel, name).argtypes = [wintypes.HANDLE, ctypes.POINTER(Module)]
+        getattr(kernel, name).restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    snapshot = ctypes.c_void_p(-1).value
+    for attempt in range(3):
+        snapshot = kernel.CreateToolhelp32Snapshot(0x08 | 0x10, pid)
+        if snapshot != ctypes.c_void_p(-1).value:
+            break
+        error = ctypes.get_last_error()
+        if error != 24 or attempt == 2:
+            raise RuntimeErrorDetail("module_query_failed", f"Module snapshot pid={pid} attempt={attempt + 1} Windows error={error}")
+        LOG.info("Module snapshot changed pid=%s attempt=%s cause=ERROR_BAD_LENGTH; bounded retry", pid, attempt + 1)
+    try:
+        item = Module(); item.dwSize = ctypes.sizeof(Module)
+        if not kernel.Module32FirstW(snapshot, ctypes.byref(item)):
+            raise RuntimeErrorDetail("module_query_failed", f"First module pid={pid} Windows error={ctypes.get_last_error()}")
+        paths = []
+        while True:
+            if len(paths) >= 4096 or not item.szExePath or len(item.szExePath) >= 259:
+                raise RuntimeErrorDetail("module_query_failed", "Module list/path bound exceeded")
+            paths.append(str(Path(item.szExePath).resolve()))
+            if not kernel.Module32NextW(snapshot, ctypes.byref(item)):
+                error = ctypes.get_last_error()
+                if error != 18:
+                    raise RuntimeErrorDetail("module_query_failed", f"Next module pid={pid} Windows error={error}")
+                return paths
+    finally:
+        if not kernel.CloseHandle(snapshot):
+            LOG.error("Module snapshot close failed pid=%s Windows error=%s", pid, ctypes.get_last_error())
+
+
 class Runtime:
-    def __init__(self, instances_root: Path, inspector=windows_process, timeout: float = 5.0):
+    def __init__(self, instances_root: Path, inspector=windows_process, timeout: float = 5.0, module_inspector=windows_modules):
         self.instances_root = instances_root.resolve()
         if "_mptest" not in {part.lower() for part in self.instances_root.parts}:
             raise RuntimeErrorDetail("invalid_root", "Configured instances root must be inside _MPTest")
         if not 0.05 <= timeout <= 65:
             raise RuntimeErrorDetail("invalid_timeout", "Mailbox timeout must be 0.05 through 65 seconds")
         self.inspector = inspector
+        self.module_inspector = module_inspector
         self.timeout = timeout
         self.bound: dict | None = None
         self.manifest_path: Path | None = None
@@ -297,6 +345,66 @@ class Runtime:
         value = read_json(path)
         return self._manifest_value(value, expected_root=path.parent)
 
+    def _installed_manifest(self, value: dict, expected_root: Path | None) -> dict:
+        if value["owner"] != {"kind": "MPTest", "run_id": value["run_id"]}:
+            raise RuntimeErrorDetail("ownership_failed", "Installed manifest owner must identify this MPTest run")
+        proof = value.get("installed_proof")
+        required = {"acceptance_root", "game_dir", "runtime_root", "user_data_dir", "diagnostic_mailbox_enabled", "local_test", "isolation_flags", "process_start_time", "modules"}
+        if not isinstance(proof, dict) or set(proof) != required:
+            raise RuntimeErrorDetail("invalid_installed_proof", "Installed proof receipt fields differ")
+        boundary = INSTALLED_PROOF_ROOT.absolute()
+        if boundary.resolve() != boundary:
+            raise RuntimeErrorDetail("path_escape", "Repository proof root contains an alias")
+        if proof["diagnostic_mailbox_enabled"] is not True or proof["local_test"] is not False or type(proof["isolation_flags"]) is not int or proof["isolation_flags"] != 3:
+            raise RuntimeErrorDetail("ownership_failed", "Installed proof must retain private isolation and real Steam mode")
+        for key in ("acceptance_root", "game_dir", "runtime_root", "user_data_dir"):
+            if not isinstance(proof[key], str) or not Path(proof[key]).is_absolute():
+                raise RuntimeErrorDetail("invalid_installed_proof", f"Installed {key} must be absolute")
+        game = boundary / "game"
+        install_id = hashlib.sha256(str(game).lower().encode("utf-16le")).hexdigest()
+        runtime = boundary / "appdata" / "MT2Multiplayer" / install_id
+        self._within(runtime, self.instances_root)
+        paths = {"acceptance_root": boundary, "game_dir": game, "runtime_root": runtime, "user_data_dir": runtime / "data"}
+        for key, path in paths.items():
+            actual = Path(proof[key])
+            if actual.resolve() != path or actual.absolute() != path:
+                raise RuntimeErrorDetail("path_escape", f"Installed {key} differs from exact owned proof layout")
+            for ancestor in (actual, *actual.parents):
+                if ancestor.is_symlink() or (hasattr(ancestor, "is_junction") and ancestor.is_junction()):
+                    raise RuntimeErrorDetail("path_escape", f"Installed {key} contains a reparse alias")
+        if Path(value["runtime_root"]).resolve() != runtime or (expected_root is not None and expected_root != runtime):
+            raise RuntimeErrorDetail("invalid_manifest", "Installed manifest must be in its exact private runtime root")
+        executable = game / "MT2.exe"
+        if Path(value["executable_path"]).resolve() != executable or proof["process_start_time"] != value["process_start_time"]:
+            raise RuntimeErrorDetail("ownership_failed", "Installed executable/start token differs")
+        modules = proof["modules"]
+        filenames = {"executable": "MT2.exe", "loader": "WSOCK32.dll", "mod": "MT2_Multiplayer.dll", "steam": "steam_api64.dll"}
+        if not isinstance(modules, dict) or set(modules) != set(filenames):
+            raise RuntimeErrorDetail("invalid_installed_proof", "Installed four-module receipt differs")
+        for key, filename in filenames.items():
+            item = modules[key]
+            target = game / filename
+            if not isinstance(item, dict) or set(item) != {"path", "sha256", "bytes"} or not isinstance(item["path"], str) or Path(item["path"]).resolve() != target:
+                raise RuntimeErrorDetail("ownership_failed", f"Installed module path differs: {key}")
+            if not isinstance(item["sha256"], str) or len(item["sha256"]) != 64 or any(c not in "0123456789abcdef" for c in item["sha256"]):
+                raise RuntimeErrorDetail("invalid_installed_proof", f"Installed module hash invalid: {key}")
+            if type(item["bytes"]) is not int or item["bytes"] <= 0:
+                raise RuntimeErrorDetail("invalid_installed_proof", f"Installed module byte count invalid: {key}")
+            try:
+                actual_size = target.stat().st_size
+                digest = hashlib.sha256()
+                with target.open("rb") as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b""):
+                        digest.update(block)
+            except OSError as exc:
+                raise RuntimeErrorDetail("module_read_failed", f"Read installed module {key}: {exc}") from exc
+            if type(item["bytes"]) is not int or item["bytes"] <= 0 or actual_size != item["bytes"] or digest.hexdigest() != item["sha256"]:
+                raise RuntimeErrorDetail("module_changed", f"Installed module hash/size differs: {key}")
+        if modules["executable"]["sha256"] != INSTALLED_EXE_SHA256:
+            raise RuntimeErrorDetail("ownership_failed", "Installed executable exact-build hash differs")
+        value["runtime_root"] = str(runtime); value["executable_path"] = str(executable)
+        return value
+
     def _manifest_value(self, value: dict, expected_root: Path | None = None) -> dict:
         required = {"schema_version", "run_id", "pid", "process_start_time", "runtime_root", "executable_path", "owner"}
         if not required.issubset(value) or value.get("schema_version") != 1:
@@ -312,6 +420,8 @@ class Runtime:
         for field in ("runtime_root", "executable_path"):
             if not isinstance(value[field], str) or not Path(value[field]).is_absolute():
                 raise RuntimeErrorDetail("invalid_manifest", f"Manifest {field} must be absolute path")
+        if value.get("profile") == "installed_dropin_proof":
+            return self._installed_manifest(value, expected_root)
         root = self._within(Path(value["runtime_root"]), self.instances_root)
         executable = self._within(Path(value["executable_path"]), root)
         if (expected_root is not None and root != expected_root) or executable.name.lower() != "mt2.exe":
@@ -370,6 +480,11 @@ class Runtime:
             raise RuntimeErrorDetail("ownership_failed", f"Executable identity differs for pid={manifest['pid']}")
         if observed.get("owned_by_current_user") is not True:
             raise RuntimeErrorDetail("ownership_failed", f"Process pid={manifest['pid']} belongs to another account")
+        if manifest.get("profile") == "installed_dropin_proof":
+            loaded = {Path(path).resolve() for path in self.module_inspector(manifest["pid"])}
+            expected = {Path(item["path"]).resolve() for item in manifest["installed_proof"]["modules"].values()}
+            if not expected.issubset(loaded):
+                raise RuntimeErrorDetail("module_identity_failed", "Installed process lacks an exact receipt module path")
         return True
 
     def list_instances(self) -> dict:
@@ -434,6 +549,8 @@ class Runtime:
                     reading_status = False
                     if status.get("schema_version") != 1 or status.get("run_id") != bound["run_id"] or status.get("pid") != bound["pid"]:
                         raise RuntimeErrorDetail("stale_status", "Runtime status identity does not match bound process")
+                    if bound.get("profile") == "installed_dropin_proof" and status.get("installed_proof") != bound["installed_proof"]:
+                        raise RuntimeErrorDetail("stale_status", "Installed status proof differs from exact bound module/profile receipt")
                     if type(status.get("game_thread_ready")) is not bool or not isinstance(status.get("capabilities"), dict):
                         raise RuntimeErrorDetail("invalid_status", "Runtime status lacks readiness or capabilities")
                     self._current()

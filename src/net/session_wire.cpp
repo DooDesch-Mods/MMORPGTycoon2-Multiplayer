@@ -2,6 +2,7 @@
 #define NOMINMAX
 #endif
 #include "mt2mp/net/session_wire.h"
+#include "mt2mp/net/steam_module.h"
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/steam_networking.h"
 #include "mt2mp/net/local_session.h"
@@ -88,7 +89,7 @@ bool binding(std::string& error,bool publish) {
 }
 bool initialize_api(std::string& error) {
     if(api)return true;
-    auto dll=GetModuleHandleA("steam_api64_original.dll");using Access=void*(*)();
+    auto dll=mt2mp::net::steam_module();using Access=void*(*)();
     auto accessor=dll?reinterpret_cast<Access>(GetProcAddress(dll,"SteamAPI_SteamNetworking_v006")):nullptr;
     raw_send=dll?reinterpret_cast<Send>(GetProcAddress(dll,"SteamAPI_ISteamNetworking_SendP2PPacket")):nullptr;
     raw_available=dll?reinterpret_cast<Available>(GetProcAddress(dll,"SteamAPI_ISteamNetworking_IsP2PPacketAvailable")):nullptr;

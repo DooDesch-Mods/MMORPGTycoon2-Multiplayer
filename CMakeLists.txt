@@ -90,6 +90,17 @@ target_compile_definitions(steam_api64 PRIVATE
     NOMINMAX
 )
 
+# Installed Steam loader
+add_library(wsock32 SHARED
+    proxy/wsock32_loader.cpp
+    proxy/wsock32_stubs.asm
+    proxy/wsock32_proxy.def
+)
+target_include_directories(wsock32 PRIVATE include)
+target_compile_definitions(wsock32 PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(wsock32 PRIVATE bcrypt ws2_32)
+set_target_properties(wsock32 PROPERTIES OUTPUT_NAME "WSOCK32")
+
 # ── Sidecar Relay Process ────────────────────────────────────
 add_executable(mt2mp_sidecar
     tools/sidecar/mt2mp_sidecar_main.cpp

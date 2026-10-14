@@ -287,16 +287,29 @@ public:
         return true;
     }
     bool bind(const std::string& snapshot,action::Binding& out,std::string& error)override {
+        building_mixed_identity::opened_file::CurrentWorld before,opened;
+        if(!native_open_runtime::read_current_world(before,error))return false;
         json sources;if(!remove_diagnostics::bindings(sources,error))return false;
-        bool present=false;
-        for(const auto& entry:sources.at("bindings"))if(entry.at("snapshot_id")==snapshot)present=true;
-        if(!present){error="typed actions require actual current NativeSnapshot bindings";return false;}
+        if(!native_open_runtime::read_current_world(opened,error))return false;
+        if(before.game!=opened.game||before.mode!=opened.mode||before.state!=opened.state||
+           before.world!=opened.world||before.map!=opened.map||before.uuid!=opened.uuid||
+           before.sha256!=opened.sha256||before.world_epoch!=opened.world_epoch||
+           before.generation!=opened.generation){error="typed native action current world changed during binding";return false;}
         out={sources.at("world_epoch").get<uint64_t>(),sources.at("world_generation").get<uint64_t>()};
+        if(out.native_epoch!=opened.world_epoch||out.native_generation!=opened.generation){
+            error="typed native action baseline world epoch or generation differs";return false;
+        }
+        bool present=false;
+        for(const auto& entry:sources.at("bindings"))if(entry.at("snapshot_id")==snapshot&&!entry.value("revoked",false))present=true;
+        if(!present){
+            if(!sources.at("bindings").empty()||sources.value("baseline_snapshot_id",std::string{})!=snapshot||
+               sources.value("baseline_sha256",std::string{}).empty()){
+                error="typed actions require actual current NativeSnapshot bindings or confirmed empty baseline";return false;
+            }
+        }
         thread_=GetCurrentThreadId();
         if(!current(out,snapshot,error))return false;
-        building_mixed_identity::opened_file::CurrentWorld opened;
-        if(!native_open_runtime::read_current_world(opened,error))return false;
-        world_state::Origin origin{snapshot,opened.sha256,out.native_epoch,out.native_generation};
+        world_state::Origin origin{snapshot,present?opened.sha256:sources.at("baseline_sha256").get<std::string>(),out.native_epoch,out.native_generation};
         std::vector<world_state::SnapshotObject> objects;
         for(const auto& entry:sources.at("bindings")) {
             if(entry.at("snapshot_id")!=snapshot||entry.value("revoked",false))continue;

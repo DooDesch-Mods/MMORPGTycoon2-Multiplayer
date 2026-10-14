@@ -1,0 +1,6 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.3",
+  "summary": "Drop-in Steam startup, automatic Host world selection and native load/leave fixes.",
+  "native_evidence": "docs/evidence/beta3-native.json"
+}

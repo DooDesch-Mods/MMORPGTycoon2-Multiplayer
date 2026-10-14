@@ -1,4 +1,7 @@
 #include "native_open_witness.h"
+#ifndef MT2MP_MIXED_OPEN_TEST
+#include "mt2mp/core/installed_profile.h"
+#endif
 #include "mt2mp/game/native_engine.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -295,12 +298,19 @@ bool initialize(const std::filesystem::path& runtime_root,std::string& error) {
         const auto component=candidate.filename().wstring();
         const bool client=component.rfind(L"client-",0)==0&&component.size()>7&&
             std::all_of(component.begin()+7,component.end(),[](wchar_t c){return c>=L'0'&&c<=L'9';});
+        std::filesystem::path expected_game=candidate/L"game";
+#ifndef MT2MP_MIXED_OPEN_TEST
+        if(const auto* installed=installed_profile::get()){
+            if(!path_equal(candidate,absolute_path(installed->runtime_root)))return init_fail(error,"runtime_root_not_verified_installed_profile");
+            expected_game=installed->game_dir;
+        }else
+#endif
         if(candidate.parent_path().filename()!=L"_MPTest"||(component!=L"host"&&!client))return init_fail(error,"runtime_root_not_MPTest_instance");
         if(tested){configured_root=candidate;init_phase=InitPhase::Ready;return true;}
         if(!native::ready())return init_fail(error,"native_exact_build_resolver_unavailable");
         image=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
         std::array<wchar_t,32768> executable{};const auto exe_n=GetModuleFileNameW(nullptr,executable.data(),DWORD(executable.size()));
-        if(!exe_n||exe_n==executable.size()||!path_equal(absolute_path(executable.data()),absolute_path(candidate/L"game/MT2.exe")))
+        if(!exe_n||exe_n==executable.size()||!path_equal(absolute_path(executable.data()),absolute_path(expected_game/L"MT2.exe")))
             return init_fail(error,"native_executable_not_owned_runtime");
         if(!native_code(image,0x95ec00,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53",12,error)||
            !native_code(image,0xa02d10,stream_ctor_entry,sizeof(stream_ctor_entry)-1,error)||
@@ -319,7 +329,7 @@ bool initialize(const std::filesystem::path& runtime_root,std::string& error) {
         if(!dll)return init_fail(error,"owned_PhysicsFS_module_missing winerror="+std::to_string(GetLastError()));
         std::array<wchar_t,32768> path{};const auto n=GetModuleFileNameW(dll,path.data(),DWORD(path.size()));
         if(!n||n==path.size())return init_fail(error,"PhysicsFS_module_path_failed winerror="+std::to_string(GetLastError()));
-        if(!path_equal(absolute_path(path.data()),absolute_path(candidate/L"game/libphysfs.dll")))
+        if(!path_equal(absolute_path(path.data()),absolute_path(expected_game/L"libphysfs.dll")))
             return init_fail(error,"PhysicsFS_module_outside_owned_runtime");
         HANDLE file=CreateFileW(path.data(),GENERIC_READ,FILE_SHARE_READ,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
         if(file==INVALID_HANDLE_VALUE)return init_fail(error,"PhysicsFS_hash_open winerror="+std::to_string(GetLastError()));

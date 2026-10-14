@@ -2,25 +2,70 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Beta builds are tester prereleases in the private [GitHub repository](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases). Only people with repository access can download them. The repository remains private.
+Tester prereleases are in the private [GitHub repository](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases). Download access requires repository access. A new drop-in release requires the maintainer's native acceptance first; CI does not perform that acceptance.
 
-## Test the current beta
+## Install a drop-in beta
 
-1. Download the Windows x64 ZIP and its `.sha256` file from the selected prerelease.
-2. Compare the ZIP hash with `Get-FileHash <downloaded-zip> -Algorithm SHA256`.
-3. Extract the complete ZIP into a separate folder outside the game installation, keeping `_internal` beside `MT2MP-Start.exe`.
-4. Start Steam with your own account, then run `MT2MP-Start.exe` and follow the included `README.txt`.
+1. Exit MMORPG Tycoon 2 normally and verify the downloaded ZIP's `.sha256` checksum.
+2. Read `package.json`: `package_mode` must be `dropin`. Check its file hashes before installation.
+3. If beta.2's proxy was copied into the game installation, perform the guarded migration below first.
+4. Copy `WSOCK32.dll`, `MT2_Multiplayer.dll` and the authored `mt2mp_ui` folder beside `MT2.exe`; keep the README, manifest and notices. Stop if an unknown `WSOCK32.dll` already exists.
+5. Start the game normally through Steam and open Multiplayer on the native desktop.
 
-Each player needs a legal installation of the supported game build. The starter copies required files locally from that installation; the download contains no game executable, original Steam library, save or personal configuration. Keep the test directory and its saves when updating.
+The 15-file drop-in ZIP contains two mod DLLs, five authored UI files, six notice files, `README.txt` and `package.json`. It contains no original game/Steam DLL, Steam proxy, sidecar, Python starter, save or personal configuration. Each player needs a legal supported Windows x64 game installation. The game's `steam_api64.dll` remains original.
 
-This beta uses the current isolated test starter. It is not the planned drop-in installation. Separate-account online joining, world transfer and complete gameplay still need native acceptance. CI compiles and checks source and package contents. Its `--help` starter check does not launch the game and does not establish native gameplay success.
+Private mod saves and diagnostics stay under `%LOCALAPPDATA%\MT2Multiplayer\<installation-id>\`. Preserve this directory, normal saves, and old portable test directories during updates. To disable, exit the game and move only verified mod-owned files outside its folder; do not delete private data or the original Steam library.
 
-## Publish the next beta
+## Migrate a legacy proxy copied into the game directory
 
-The maintainer commits the intended source, UI, starter and notices first, with a matching CMake base version. After the required native checks, create and push an unused tag such as `v0.1.0-beta.1`. Tags matching `vX.Y.Z-beta.N` trigger the [private beta workflow](../.github/workflows/beta.yml).
+These checks apply only when a legacy proxy actually replaced `steam_api64.dll`. The portable beta.2 package used outside the game directory does not require restoration of the normal installation. Do not install the legacy proxy and WSOCK loader together.
 
-The workflow runs the six current CTest targets and Python source and packaging checks, builds pinned SDL3 and the mod, builds the Python 3.13 starter with PyInstaller 6.16.0, and validates the ZIP against `package.json`. It publishes a prerelease only after those jobs pass. Only the release job has repository write permission.
+The supported original Steam DLL is 319584 bytes, SHA256 `e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65`. The known beta.2 proxy SHA256 is `e157a9da8d041970964712d53d882433c76736bb4df530bf1310bd4fecaf955b`. The original hash was retained in `artifacts/auto_world/installed-inspection.json`. Do not infer originality from a filename.
 
-The package manifest binds the beta tag and full source commit, required game hash and every payload file hash. A separate checksum covers the ZIP. Releases remain prereleases and are not marked as the latest stable version.
+The following manual PowerShell sequence changes only `steam_api64.dll`, after matching the supported executable, current proxy and preserved original backup. Replace the example path. It stops if the exact game is running, process paths cannot be read, or any hash differs. It keeps `steam_api64_original.dll` and all user data.
 
-Identical existing assets are retained on a repeated publish. Different existing bytes fail without overwriting the release. A fresh rebuild can change binary or ZIP timestamps; use a new beta tag for a replacement build. If a publication failed after an upload, inspect the draft and failed job before retrying. The workflow does not silently delete or replace assets.
+```powershell
+& {
+$ErrorActionPreference = 'Stop'
+$game = (Resolve-Path -LiteralPath 'C:\Path\To\MMORPG Tycoon 2').Path
+$exe = Join-Path $game 'MT2.exe'
+$steam = Join-Path $game 'steam_api64.dll'
+$backup = Join-Path $game 'steam_api64_original.dll'
+foreach ($file in @($exe, $steam, $backup)) {
+    $item = Get-Item -LiteralPath $file
+    if ($item.PSIsContainer -or ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw 'Expected regular installation files; no files changed.' }
+}
+$processes = @(Get-CimInstance Win32_Process -Filter "Name='MT2.exe'")
+foreach ($process in $processes) {
+    if (-not $process.ExecutablePath -or [string]::Equals([IO.Path]::GetFullPath($process.ExecutablePath), $exe, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'Exit the game normally; its installation must be idle and readable.'
+    }
+}
+if ((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6') { throw 'Unsupported game executable; no files changed.' }
+if ((Get-Item -LiteralPath $backup).Length -ne 319584 -or (Get-FileHash -LiteralPath $backup -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65') { throw 'Original Steam backup differs; no files changed.' }
+$current = (Get-FileHash -LiteralPath $steam -Algorithm SHA256).Hash.ToLowerInvariant()
+if ($current -eq 'e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65') {
+    Write-Output 'Original Steam DLL already restored; no copy needed.'
+} elseif ($current -eq 'e157a9da8d041970964712d53d882433c76736bb4df530bf1310bd4fecaf955b') {
+    Copy-Item -LiteralPath $backup -Destination $steam -Force
+    if ((Get-FileHash -LiteralPath $steam -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65') { throw 'Restored Steam DLL readback differs; do not start the game.' }
+    Write-Output 'Original Steam DLL restored; preserved backup retained.'
+} else {
+    throw 'Current Steam DLL is neither the known proxy nor the supported original; no files changed.'
+}
+}
+```
+
+Run this only while keeping the game closed; the check does not lock out a later manual launch. If a backup is missing or a hash is unknown, retain the files and recover through Steam's verification route instead of copying an unverified DLL. No installer or migration command is run by CI.
+
+## Legacy portable test route
+
+Beta.1/beta.2 archives use the isolated starter. Extract those full ZIPs outside the game installation, keep `_internal` beside `MT2MP-Start.exe`, start Steam and follow their included instructions. Their source and test route remain supported. Do not merge their files into a drop-in ZIP. New private beta CI selects `--mode dropin` explicitly; `tools/package.py` and `build_beta.py` retain the default `legacy` mode for existing callers.
+
+## Publish the next accepted beta
+
+Commit the intended source, UI and notices with a matching CMake base version. After native acceptance, push an unused `vX.Y.Z-beta.N` tag or update `.github/beta-milestone.json` on main with exact `schema`, `version`, `summary` and `native_evidence` fields. No planned or failed milestone receives a record. The [beta workflow](../.github/workflows/beta.yml) keeps its manual-tag and same-run milestone publication paths.
+
+CI runs source and package tests, builds official pinned SDL, `MT2_Multiplayer` and `wsock32`, then packages only the drop-in allowlist. It skips PyInstaller for drop-in releases. `package.json` binds the mode, beta version, source commit and every file hash; the build freeze also binds the WSOCK loader hash. It keeps `online_acceptance_passed=false`. Only the release job can write tags/releases. Native loader, original Steam behavior and real peer world loading still require the maintainer's actual game checks.
+
+Existing tags and conflicting assets are never overwritten. Identical repeated publication keeps existing assets; changed rebuild bytes require a new version. Published beta.2 remains unchanged. Inspect a failed draft or unknown write before retrying. No recursive `GITHUB_TOKEN` tag trigger is required.

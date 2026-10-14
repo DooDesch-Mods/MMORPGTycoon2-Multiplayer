@@ -206,6 +206,7 @@ bool bindings(json& out,std::string& error) {
     const auto capture=building_capture_identity::status();
     const auto loaded=normal_load_identity::status();
     json list=json::array();
+    std::string baseline_snapshot,baseline_sha;
     if(capture.bindings_confirmed&&capture.world_witness_current&&!capture.capture_uuid.empty()) {
         building_capture_identity::Status fresh;
         if(building_capture_identity::seal(capture.capture_uuid,capture.snapshot_sha256,capture.snapshot_bytes,
@@ -217,6 +218,7 @@ bool bindings(json& out,std::string& error) {
            fresh.snapshot_sha256!=capture.snapshot_sha256||fresh.snapshot_bytes!=capture.snapshot_bytes) {
             error="fresh native capture identity differs";return false;
         }
+        baseline_snapshot=fresh.capture_uuid;baseline_sha=fresh.snapshot_sha256;
         if(!import_bindings(fresh.buildings,fresh.capture_uuid,fresh.snapshot_sha256,actual,list,error))return false;
     } else if(loaded.state=="confirmed"&&!loaded.load_pending&&loaded.snapshot_uuid==world.uuid&&loaded.snapshot_sha256==world.sha256) {
         auto native_bindings=loaded.buildings;
@@ -231,12 +233,14 @@ bool bindings(json& out,std::string& error) {
                 error="loaded inline native building record key lacks confirmed saved root path";return false;
             }
         }
+        baseline_snapshot=loaded.snapshot_uuid;baseline_sha=loaded.snapshot_sha256;
         if(!import_bindings(native_bindings,loaded.snapshot_uuid,loaded.snapshot_sha256,actual,list,error))return false;
     } else {
         error="current complete NativeSnapshot building binding unavailable";return false;
     }
     if(!attach_refunds(world,list,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",list}};return false;}
-    out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",std::move(list)}};
+    out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},
+        {"baseline_snapshot_id",baseline_snapshot},{"baseline_sha256",baseline_sha},{"bindings",std::move(list)}};
     return true;
 }
 namespace {

@@ -1,0 +1,53 @@
+MMORPG Tycoon 2 Multiplayer - drop-in tester beta
+================================================
+
+> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
+
+This package contains WSOCK32.dll, MT2_Multiplayer.dll, the authored mt2mp_ui
+files and license notices. It contains no game executable, original Steam
+library, Steam proxy, sidecar or Python starter. Each player needs their own
+legal Steam installation of the supported Windows x64 game build 24993678.
+
+INSTALL
+1. Exit the game normally. Keep your saves and existing test directories.
+2. If an older Steam proxy was copied into the game folder, follow the
+   hash-checked restoration steps in repository docs/BETA.md first. Keep
+   steam_api64_original.dll. Do not replace an unknown Steam DLL.
+3. Verify the downloaded ZIP checksum and its package.json file hashes.
+4. Copy WSOCK32.dll, MT2_Multiplayer.dll and mt2mp_ui beside MT2.exe. Keep the
+   README, package.json and notices. Do not overwrite an unknown WSOCK32.dll
+   from another mod; resolve that conflict before installation.
+5. Start the game normally through Steam. Open Multiplayer on the desktop.
+
+The game's steam_api64.dll stays original and unchanged. Do not copy the
+Steam proxy or MT2MP-Start.exe from beta.2 into this installation. The old
+portable starter remains a separate test route outside the game directory.
+
+PLAY AND DIAGNOSTICS
+1. The Host opens a friends or public lobby.
+2. The Client selects the lobby and presses Join.
+3. The Host creates or loads a small world. The open world is selected automatically.
+4. The Host presses Start session once. Wait for capture, transfer and loading.
+5. Both players wait for the shared world to become ready before building.
+
+A visible world name is not a completed world-load acknowledgement.
+
+Drop-in data and diagnostics use a private directory under
+%LOCALAPPDATA%\MT2Multiplayer\<installation-id>\. Saves are under data;
+diagnostics are under diagnostics; mt2mp_bootstrap.log records loader startup.
+Keep these files when updating. The normal game's private saves are not
+reset or migrated by installing this package. No game launch is performed
+by CI and no complete separate-account online acceptance is claimed.
+
+UPDATE OR DISABLE
+Exit the game before replacing known mod-owned files with a newer verified
+package. Keep private data, logs and the original Steam backup. To disable,
+move only this package's matching WSOCK32.dll, MT2_Multiplayer.dll and owned
+mt2mp_ui files to a backup directory outside the game folder. Do not remove
+the game's steam_api64.dll or delete user data.
+
+KNOWN LIMITS
+This remains a tester beta. Separate-account online play, all object types,
+Undo/Redo, large worlds and four players are not fully accepted. Stop after
+a session error and retain its cause and diagnostics. CI source/package
+success does not prove native gameplay.

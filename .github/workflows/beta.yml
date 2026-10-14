@@ -2,6 +2,8 @@ name: Private beta release
 
 on:
   push:
+    branches: [main]
+    paths: ['.github/beta-milestone.json']
     tags:
       - 'v*-beta.*'
 
@@ -9,12 +11,15 @@ permissions:
   contents: read
 
 concurrency:
-  group: private-beta-${{ github.ref }}
+  group: private-beta-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 
 jobs:
   build:
     if: github.repository == 'DooDesch/MMORPGTycoon2-Multiplayer' && github.event.repository.private
+    outputs:
+      tag: ${{ steps.beta.outputs.tag }}
+      milestone: ${{ steps.beta.outputs.milestone }}
     runs-on: windows-2022
     timeout-minutes: 40
     defaults:
@@ -28,11 +33,13 @@ jobs:
         with:
           python-version: '3.13'
           architecture: x64
-      - name: Validate beta tag
+      - name: Select explicit beta version
+        id: beta
         env:
-          BETA_TAG: ${{ github.ref_name }}
+          BETA_REF: ${{ github.ref }}
         run: |
-          if ($env:BETA_TAG -notmatch '^v\d+\.\d+\.\d+-beta\.[1-9]\d*$') { throw 'Expected vX.Y.Z-beta.N' }
+          python .github/scripts/beta_milestone.py resolve --ref $env:BETA_REF --output $env:GITHUB_OUTPUT
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build and run source checks
         run: |
           cmake -S ci -B .ci-build/tests -A x64
@@ -42,6 +49,10 @@ jobs:
           ctest --test-dir .ci-build/tests -C Release --output-on-failure --timeout 60
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_build_input_guard.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s test -p test_beta_milestone.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_beta_release.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -66,27 +77,19 @@ jobs:
           if ($libraries.Count -ne 1) { throw "Expected exactly one SDL import library, found $($libraries.Count)" }
           New-Item -ItemType Directory -Force -Path include/vendor/SDL3/lib/x64 | Out-Null
           Copy-Item -LiteralPath $libraries[0].FullName -Destination include/vendor/SDL3/lib/x64/SDL3.lib
-      - name: Build mod, proxy and relay
+      - name: Build mod and drop-in loader
         env:
-          BETA_TAG: ${{ github.ref_name }}
+          BETA_TAG: ${{ steps.beta.outputs.tag }}
           BETA_COMMIT: ${{ github.sha }}
         run: |
-          python .github/scripts/build_beta.py --tag $env:BETA_TAG --commit $env:BETA_COMMIT --build-only
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Build portable tester starter
-        run: |
-          python -m pip install --disable-pip-version-check PyInstaller==6.16.0
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m PyInstaller --noconfirm --clean --onedir --console --name MT2MP-Start --paths tools --distpath .ci-build/launcher --workpath .ci-build/pyinstaller --specpath .ci-build/spec tools/steam_test.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          & ./.ci-build/launcher/MT2MP-Start/MT2MP-Start.exe --help
+          python .github/scripts/build_beta.py --tag $env:BETA_TAG --commit $env:BETA_COMMIT --build-only --mode dropin
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Package exact tagged build
         env:
-          BETA_TAG: ${{ github.ref_name }}
+          BETA_TAG: ${{ steps.beta.outputs.tag }}
           BETA_COMMIT: ${{ github.sha }}
         run: |
-          python .github/scripts/build_beta.py --tag $env:BETA_TAG --commit $env:BETA_COMMIT
+          python .github/scripts/build_beta.py --tag $env:BETA_TAG --commit $env:BETA_COMMIT --mode dropin
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Keep checked beta payload for release job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -117,12 +120,25 @@ jobs:
         with:
           name: private-beta
           path: artifacts/beta
-      - name: Publish private prerelease
+      - name: Bind milestone tag to built source
+        if: needs.build.outputs.milestone == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          BETA_TAG: ${{ github.ref_name }}
+          BETA_TAG: ${{ needs.build.outputs.tag }}
           BETA_COMMIT: ${{ github.sha }}
         shell: pwsh
         run: |
-          python .github/scripts/publish_beta.py --tag $env:BETA_TAG --commit $env:BETA_COMMIT --directory artifacts/beta
+          python .github/scripts/beta_milestone.py ensure-tag --tag $env:BETA_TAG --commit $env:BETA_COMMIT
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Publish private prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BETA_TAG: ${{ needs.build.outputs.tag }}
+          BETA_COMMIT: ${{ github.sha }}
+          BETA_MILESTONE: ${{ needs.build.outputs.milestone }}
+        shell: pwsh
+        run: |
+          $arguments = @('.github/scripts/publish_beta.py', '--tag', $env:BETA_TAG, '--commit', $env:BETA_COMMIT, '--directory', 'artifacts/beta')
+          if ($env:BETA_MILESTONE -eq 'true') { $arguments += @('--milestone', '.github/beta-milestone.json') }
+          python @arguments
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

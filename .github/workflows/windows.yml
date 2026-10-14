@@ -35,6 +35,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_build_input_guard.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Read official SDL source
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -56,5 +58,5 @@ jobs:
         run: |
           cmake -S . -B .ci-build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build .ci-build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar --parallel 2
+          cmake --build .ci-build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar wsock32 --parallel 2
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
