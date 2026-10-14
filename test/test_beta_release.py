@@ -61,6 +61,8 @@ class ReleaseAPI:
             return {'sha': self.commit}
         if '/releases/tags/' in url:
             return copy.deepcopy(self.release) if self.exists else None
+        if method == 'POST' and url.endswith('/releases/generate-notes'):
+            return {'body': '**Full Changelog**: https://github.com/private/compare/previous...current'}
         if method == 'POST' and '/releases/1/assets?' in url:
             name = url.split('?name=', 1)[1]
             asset = self.asset(name, payload)
@@ -176,7 +178,7 @@ class BetaReleaseTests(unittest.TestCase):
         service = ReleaseAPI(self.directory)
         with patch.object(publish_beta, 'api', service):
             publish_beta.publish(TAG, COMMIT, self.directory)
-        self.assertEqual([method for method, _ in service.writes], ['POST', 'POST', 'POST', 'PATCH'])
+        self.assertEqual([method for method, _ in service.writes], ['POST', 'POST', 'POST', 'POST', 'PATCH'])
         self.assertFalse(service.release['draft'])
 
     def test_identical_publish_does_not_write_again(self):

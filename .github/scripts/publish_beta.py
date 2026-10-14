@@ -32,13 +32,11 @@ def api(method, url, payload=None, content_type='application/json', missing=Fals
 def publish(tag, commit, directory, milestone=None):
     if not re.fullmatch(r'v\d+\.\d+\.\d+-beta\.[1-9]\d*', tag) or not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('invalid beta tag or source commit')
-    milestone_notes = ''
     if milestone is not None:
         from beta_milestone import read_record
         record = read_record(milestone)
         if 'v' + record['version'] != tag:
             raise ValueError('milestone version differs from release tag')
-        milestone_notes = '\n\nAccepted milestone: ' + record['summary'] + '\nNative evidence: ' + record['native_evidence'] + '\nSource commit: ' + commit + '\n'
     base = 'https://api.github.com/repos/' + REPOSITORY
     if api('GET', base).get('private') is not True:
         raise ValueError('beta publishing requires the private repository')
@@ -53,9 +51,16 @@ def publish(tag, commit, directory, milestone=None):
     release = api('GET', base + '/releases/tags/' + tag, missing=True)
     if release is None:
         notes = (Path(__file__).resolve().parents[2] / 'docs/BETA_RELEASE_NOTES.md').read_text(encoding='utf8')
-        notes += milestone_notes
+        heading, separator, body = notes.partition('\n')
+        if not separator or not heading.startswith('# ') or not heading[2:].strip():
+            raise ValueError('release notes require a descriptive title')
+        generated = api('POST', base + '/releases/generate-notes', {'tag_name': tag, 'target_commitish': commit})
+        changelog = generated.get('body')
+        if not isinstance(changelog, str) or not changelog.strip():
+            raise ValueError('GitHub generated an empty release changelog')
+        notes = body.strip() + '\n\n' + changelog.strip() + '\n'
         release = api('POST', base + '/releases', {'tag_name': tag, 'target_commitish': commit,
-                      'name': tag, 'body': notes, 'draft': True, 'prerelease': True, 'make_latest': 'false'})
+                      'name': tag + ' - ' + heading[2:].strip(), 'body': notes, 'draft': True, 'prerelease': True, 'make_latest': 'false'})
     if release['tag_name'] != tag or release['target_commitish'] != commit or release['prerelease'] is not True:
         raise ValueError('existing release identity or prerelease flag differs')
     assets_url = base + '/releases/' + str(release['id']) + '/assets'

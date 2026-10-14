@@ -143,7 +143,7 @@ class MilestoneTests(unittest.TestCase):
             beta_milestone.ensure_tag(TAG, COMMIT, api)
         self.assertEqual(len(api.writes()), 1)
 
-    def test_milestone_notes_and_source_reach_existing_publisher(self):
+    def test_release_notes_use_player_changes_and_github_changelog(self):
         spec = importlib.util.spec_from_file_location('release_fixtures', SOURCE / 'test/test_beta_release.py')
         fixtures = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(fixtures)
@@ -161,9 +161,12 @@ class MilestoneTests(unittest.TestCase):
             return api(method, url, payload, *args, **kwargs)
         with patch.object(publish_beta, 'api', capture), patch.object(publish_beta, '__file__', str(SOURCE / '.github/scripts/publish_beta.py')):
             publish_beta.publish(fixtures.TAG, fixtures.COMMIT, assets, self.record)
-        self.assertIn(self.data['summary'], posts[0]['body'])
-        self.assertIn(self.data['native_evidence'], posts[0]['body'])
-        self.assertIn(fixtures.COMMIT, posts[0]['body'])
+        self.assertIn('## Highlights', posts[0]['body'])
+        self.assertIn('**Full Changelog**', posts[0]['body'])
+        self.assertNotIn(self.data['native_evidence'], posts[0]['body'])
+        self.assertNotIn(fixtures.COMMIT, posts[0]['body'])
+        self.assertNotIn('Accepted milestone:', posts[0]['body'])
+        self.assertIn(' - Steam launch and lobby fixes', posts[0]['name'])
         self.assertFalse(api.release['draft'])
         self.assertTrue(api.release['prerelease'])
 
