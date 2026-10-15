@@ -18,6 +18,7 @@
 #include "scenery_kiss/lifecycle_contract.h"
 #include "native_open_runtime.h"
 #include "tutorial_replication/native.h"
+#include "tutorial_replication/start_ledger.h"
 #include "ui_remove_runtime.h"
 #include "ui_build_runtime.h"
 #include "building_history_slice/native_bridge.h"
@@ -82,6 +83,32 @@ class NativeEngine final:public action::Engine {
             if(error.empty())error="startingpoint native action result/ledger differs";return action::Outcome::Unknown;}
         if(host&&(host->after!=receipt.evidence.after||host->startingpoint_after!=receipt.evidence.startingpoint_after)){
             error="startingpoint Client native result differs from Host";return action::Outcome::Unknown;}
+        receipt.confirmed=true;return action::Outcome::Confirmed;
+    }
+    action::Outcome perform_start(const action::Binding& binding,const action::Request& request,const action::Evidence* host,std::string& error){
+        if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
+        if(commits_.contains(request.action_uuid)){error="startingpoint Start already attempted; no replay";return action::Outcome::Unknown;}
+        if(commits_.size()>=action::history_limit){error="startingpoint retained action receipt limit reached";return action::Outcome::RejectedNoEffect;}
+        action::Context context;if(!action::selected_session().current(context,error))return action::Outcome::RejectedNoEffect;
+        if((context.role==action::Role::Client)!=(host!=nullptr)){error="startingpoint Start role/authority differs";return action::Outcome::RejectedNoEffect;}
+        action::Evidence evidence;tutorial_replication::startingpoint::Row before;
+        if(!read_ledger(evidence.before,error)||!tutorial_replication::read_startingpoint_row(context,binding,before,error))return action::Outcome::RejectedNoEffect;
+        evidence.startingpoint_before=before;
+        if(host&&(host->before!=evidence.before||host->startingpoint_before!=evidence.startingpoint_before||!host->startingpoint_after)){
+            error="startingpoint Start differs from exact Host BEFORE";return action::Outcome::RejectedNoEffect;}
+        auto& receipt=commits_.emplace(request.action_uuid,CommitOperation{request,binding,evidence}).first->second;
+        bool attempted=false,unknown=false;action::Ledger expected;tutorial_replication::startingpoint::Row target;
+        const bool applied=host?
+            tutorial_replication::apply_startingpoint_start(context,binding,request.action_uuid,evidence.before,host->after,before,*host->startingpoint_after,attempted,unknown,error):
+            tutorial_replication::start_startingpoint(context,binding,evidence.before,before,expected,target,attempted,error);
+        if(!applied)return attempted||unknown?action::Outcome::Unknown:action::Outcome::RejectedNoEffect;
+        tutorial_replication::startingpoint::Row after;
+        if(!read_ledger(receipt.evidence.after,error)||!tutorial_replication::read_startingpoint_row(context,binding,after,error))return action::Outcome::Unknown;
+        receipt.evidence.startingpoint_after=after;
+        if(!tutorial_replication::start_intent::rows(before,after,error)||
+           !tutorial_replication::start_intent::payment(evidence.before,receipt.evidence.after,error))return action::Outcome::Unknown;
+        if(host&&(host->after!=receipt.evidence.after||host->startingpoint_after!=receipt.evidence.startingpoint_after)){
+            error="startingpoint Start Client actual result differs from Host";return action::Outcome::Unknown;}
         receipt.confirmed=true;return action::Outcome::Confirmed;
     }
     bool observe_commit(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error){
@@ -390,6 +417,7 @@ public:
         return outcome;
     }
     action::Outcome execute_action_native(const action::Binding& binding,const action::Request& request,std::string& error) {
+        if(request.action==action::Action::StartStartingpoint)return perform_start(binding,request,nullptr,error);
         if(request.action==action::Action::CommitStartingpoint)return perform_commit(binding,request,nullptr,error);
         if(request.action==action::Action::PlaceNPC||request.action==action::Action::RemoveNPC||
            request.action==action::Action::MoveNPC)
@@ -406,6 +434,7 @@ public:
         return action::Engine::execute_action(binding,request,error);
     }
     action::Outcome apply_action_native(const action::Binding& binding,const action::Request& request,const action::Evidence& host,std::string& error) {
+        if(request.action==action::Action::StartStartingpoint)return perform_start(binding,request,&host,error);
         if(request.action==action::Action::CommitStartingpoint)return perform_commit(binding,request,&host,error);
         if(request.action==action::Action::PlaceNPC||request.action==action::Action::RemoveNPC||
            request.action==action::Action::MoveNPC)
@@ -461,7 +490,7 @@ public:
         error=original;return outcome;
     }
     bool observe_action(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error)override {
-        if(request.action==action::Action::CommitStartingpoint)return observe_commit(binding,request,out,error);
+        if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint)return observe_commit(binding,request,out,error);
         if(request.action==action::Action::PlaceNPC||request.action==action::Action::RemoveNPC||
            request.action==action::Action::MoveNPC)
             return npc_probe::action_runtime::observe(binding,request,out,error);
@@ -545,7 +574,7 @@ public:
         return true;
     }
     bool retire(const action::Binding& binding,const action::Request& request,std::string& error)override {
-        if(request.action==action::Action::CommitStartingpoint){
+        if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint){
             action::Evidence actual;if(!observe_commit(binding,request,actual,error))return false;
             const auto controller=typed_action_runtime::status();
             if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
@@ -860,6 +889,12 @@ bool submit_region_property(const std::string& id,const action::RegionPropertyIn
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="region property requires started Mainthread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; region property not attempted";return false;}
     return runtime->controller.submit_region_property(id,intent,GetTickCount64(),error);
+}
+bool submit_start_startingpoint(const std::string& id,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="startingpoint Start requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Start not attempted";return false;}
+    return runtime->controller.submit_start_startingpoint(id,GetTickCount64(),error);
 }
 bool submit_commit_startingpoint(const std::string& id,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);

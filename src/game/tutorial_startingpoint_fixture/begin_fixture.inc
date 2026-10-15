@@ -15,10 +15,7 @@ bool begin_project(const Request& request,json& result,Progress*& phase,std::str
     tutorial_development::StartingpointSnapshot before;json diagnostic;
     if(!begin_snapshot(p,before,diagnostic,e)||diagnostic!=p.development||before.project)return fail(e,e.empty()?"startingpoint begin private baseline differs":e);
     if(!tutorial_replication::startingpoint::creation::code(memory,p.image,e))return false;
-    std::array<unsigned char,16> pay_bytes{};
-    if(!memory.copy(p.image+host_begin_pay_entry.rva,pay_bytes.data(),pay_bytes.size(),e))return false;
-    if(mt2mp::sha256(std::vector<unsigned char>(pay_bytes.begin(),pay_bytes.end()))!=host_begin_pay_entry.sha256)
-        return fail(e,"startingpoint begin original Pay entry differs");
+    if(!tutorial_replication::verify_pay_entry(p.image+host_begin_pay_entry.rva,e))return false;
     int32_t price=0;if(!at(before.tech,0xac,price,e))return false;
     native::SimulationState ledger_before;if(!native::read_simulation_state(ledger_before,e))return false;
     json expected_ledger;if(!begin_payment(ledger_before,price,expected_ledger,e))return false;

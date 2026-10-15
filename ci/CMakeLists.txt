@@ -112,3 +112,4 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_creation_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_commit_intent_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_client_commit_ui_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_start_intent_checks.cmake")

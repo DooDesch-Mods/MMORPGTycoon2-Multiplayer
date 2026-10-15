@@ -1,0 +1,104 @@
+{
+  "schema": 1,
+  "scope": "Ordinary joined Client Research button for the initial Startingpoint project through the existing Host-ordered action Controller",
+  "released": false,
+  "ordinary_client_research_start_proven": true,
+  "paused_and_running_host_proven": true,
+  "full_tutorial_proven": false,
+  "runtime_run_id": "11762ef4-0b71-41d2-b2d1-69fe12f1506e",
+  "source_parent": "79190273946db92efcc1eea941856506d9f150fc",
+  "mod_sha256": "3b17387f2f225b3ece3b78baffd993f8d53512596264e740efbe524df457fbce",
+  "build": "artifacts/build_history/20261015T043556607154Z",
+  "actions": {
+    "paused": "29986d81-9f77-496f-a6a1-41811b6f602e",
+    "running": "dbe0a393-c57a-4a95-8a0c-6850f4edc603"
+  },
+  "native": {
+    "paused_admission": {
+      "path": "artifacts/acceptance/f008d7e0-96f4-47e8-aa87-c8e561807753/summary.json",
+      "sha256": "a28b97d46624aeb5276fd1da9ff3dcf7cb0e817da15fcbbeedd53a17e1b7316f"
+    },
+    "paused_client_research": {
+      "path": "artifacts/acceptance/a6488c07-89a0-4fe1-ad30-84282cf0f3f5/summary.json",
+      "sha256": "e577397c58a7507b67009ea2921124eaab45942e1f8ee895831c9578bd364137"
+    },
+    "running_admission": {
+      "path": "artifacts/acceptance/31000f48-2d2f-4103-8b96-6245e9339f0a/summary.json",
+      "sha256": "5391edc3c37c408724240c4b635dd08e28d25ee6355b061ef2c1fb8bb4c51730"
+    },
+    "running_client_research": {
+      "path": "artifacts/acceptance/529bd1ac-9620-44a2-9351-ed040ff8a801/summary.json",
+      "sha256": "d4c0a5570b9973b4547c8c056e3b1b1e6c148977363adab21dc9609e251df374"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/44a6ffb5-e800-43c5-8dbc-c6c71ebc4e37/summary.json",
+      "sha256": "054886e957b62d410cadbdb1c321b9fc621fc81e9c4c0da4b603af3963a43de5"
+    },
+    "native_exit": {
+      "path": "artifacts/acceptance/6f1182e9-d988-4f0a-8c91-a6343c86e2b1/summary.json",
+      "sha256": "78f7f17b40b6f46c560fb75ba0795cd29b97a5359c9a4b118f48f9da47baf352"
+    }
+  },
+  "frames": {
+    "before": "_drafts/media/client-research-before.bmp",
+    "client-1": "_drafts/media/client-research-client-1.bmp"
+  },
+  "crash_monitors": [
+    "artifacts/tutorial_crash/11762ef4-0b71-41d2-b2d1-69fe12f1506e/monitor-result.json",
+    "artifacts/tutorial_crash/11762ef4-0b71-41d2-b2d1-69fe12f1506e/peer-2/monitor-result.json"
+  ],
+  "checks": [
+    "The actual owned Client DevelopmentWindow opens Tech through original Show and SetPage. A pure observer waits for normal game layout before selecting the actual native row and activating the enabled Research button once.",
+    "Client original Pay is captured only at the exact Research UI returnsite and suppressed before its local success tail. One fixed Action19/schema21 request uses existing Channel9 and carries no process pointer or free command.",
+    "The Host executes original Pay and SetCurrent once. The Client applies original Pay inside the existing EconomicFence, adopts the full AFTER ledger, and creates its native already-purchased project before ACK.",
+    "Both Controllers confirm one native attempt and one Host revision for the same action UUID. Host ACK3 equals required ACK3.",
+    "Native project presence, purchase, cash, day record, income, expense and all20 categories agree. Even price0 produces exactly one category3 purchase entry. Client simulation stays Clock0.",
+    "The Client original success presentation changes to Staff, displays Starting Points and Awaiting Staff, and does not replay UICommand.",
+    "A second fresh baseline confirms the same real Client Research while actual Host Clock1 runs. Existing native clock MCP sets up this test; production Host polling distributes shared time and Client simulation remains paused.",
+    "Both games return to Title and exit normally with code0. Both crash monitors end without a dump."
+  ],
+  "tests": {
+    "start_helper_scenarios": 29,
+    "serialized_controller_groups": 7,
+    "research_actual_body_assertions": 42,
+    "research_ctest_seconds": 0.51,
+    "research_ctest_log": "artifacts/build_history/20261015T043556607154Z/native-parent-route-ctest.log",
+    "mcp_tests": 22,
+    "scope": "Actual codec/Controller, capture/accounting/ownership helpers, extracted physical hook-confirmation body, and real Research fixture body. Full guarded production build passes."
+  },
+  "retained_failures": {
+    "loader_thread_mainthread_guard": {
+      "path": "artifacts/acceptance/10cfd5ba-b01c-44d4-8330-f55c8a59e987/summary.json",
+      "sha256": "3c321fcba280db5d991d1b1004bbdfc0494aa617cf9156bf4aa816ba84200022"
+    },
+    "pre_show_owner": {
+      "path": "artifacts/acceptance/460d9402-abc3-490f-9b63-2755acda5bd7/summary.json",
+      "sha256": "3bfe689aa8f00ac08bdd0abc64720b07d9b59bf84e38aa7a72709aa8f4a66638"
+    },
+    "inactive_page_owner": {
+      "path": "artifacts/acceptance/aa629ebd-fb67-4e9b-a288-e118e7476647/summary.json",
+      "sha256": "a75ad9dbd0926fe0db6816a7695d6c5cc3dc2b07bc92748a204874267140eeda"
+    },
+    "actual_parent_command": {
+      "path": "artifacts/acceptance/90023678-1209-4f80-8e78-3ed841e38136/summary.json",
+      "sha256": "04f42e3e3493a5bce1ebaeb7cc6dd0e478b75d7f978c2c810fcffafaeedfe723"
+    },
+    "hidden_hud_setup_no_native_attempt": {
+      "path": "artifacts/acceptance/d635d210-9c8a-4637-b292-fae9652b0525/summary.json",
+      "sha256": "811e987b42466faec1e3b5259ef1c908ed19271d23b4bc2f0c7a896e7a09524a"
+    },
+    "overstrict_read_only_resume": {
+      "path": "artifacts/acceptance/1579e61a-0734-4632-bf9c-3dfd2df415d2/summary.json",
+      "sha256": "d0bf428cdeb7f74de5f3583a0100dff7e949ddde79abda11048008921207de85"
+    }
+  },
+  "recovery": "Physical Pay verification remains separate from the public game-thread resolver. Child ownership follows original Show/layout/page lifecycle. Grid command is the observed MessageTo Parent SelectProject. The running proof resumes only the confirmed open view after log-confirmed native_attempted=false for the hidden HUD rejection; no Show, time-button or Research mutation is replayed.",
+  "limits": [
+    "Only the fixed initial Startingpoint technology is accepted. Other technologies, hiring and worker controls remain open.",
+    "The baseline is an early WASD tutorial snapshot. This does not prove the complete natural tutorial.",
+    "Native purchase price is0; positive prices are covered by unit tests, not a positive-price native Research run.",
+    "The running Research setup uses existing native clock MCP. This is not a new mouse or keyboard time-control acceptance.",
+    "Existing accepted Creation, Commit, time and object-action evidence is carried forward. Four-player, large-world and separate-account Steam acceptance are not repeated.",
+    "The native local DLL and CI release are separate builds of the same intended source; release payload startup is recorded separately."
+  ]
+}

@@ -24,3 +24,13 @@ if(MSVC)
 endif()
 add_test(NAME tutorial_pending_binding COMMAND test_tutorial_pending_binding)
 set_tests_properties(tutorial_pending_binding PROPERTIES TIMEOUT 60)
+
+add_executable(test_tutorial_client_research_ui "${MT2MP_SOURCE_ROOT}/test/test_tutorial_client_research_ui.cpp")
+target_include_directories(test_tutorial_client_research_ui PRIVATE "${MT2MP_SOURCE_ROOT}/src/game"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_startingpoint_fixture" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_tutorial_client_research_ui PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(test_tutorial_client_research_ui PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME tutorial_client_research_ui COMMAND test_tutorial_client_research_ui)
+set_tests_properties(tutorial_client_research_ui PROPERTIES TIMEOUT 60)

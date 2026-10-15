@@ -1,6 +1,12 @@
 #include "native.h"
 #include "owned_sequence_entry.h"
 #include "owned_commit_entry.h"
+#include "start_capture.h"
+#include "start_apply.h"
+#include "start_window.h"
+#include "start_presentation.h"
+#include "owned_pay_entry.h"
+#include <intrin.h>
 #include "message_progress.h"
 #include "message_progress_contract.h"
 #include "startingpoint_native_code.h"
@@ -32,9 +38,12 @@ using Call=void(*)(void*);using Update=void(*)(void*,float);
 Call original_postload=nullptr,original_command=nullptr,original_save=nullptr,original_tech=nullptr;
 Update original_update=nullptr;
 Call original_commit=nullptr;
+bool(*original_pay)(void*)=nullptr;
 placement_ui_probe::ProcessMemory memory;
 uintptr_t image=0;uint32_t mainthread=0;
-tutorial_sync::OwnedSequenceEntry owned,owned_commit;
+tutorial_sync::OwnedSequenceEntry owned,owned_commit,owned_pay;
+bool pay_current(void*);
+bool intent_uuid(std::string&,std::string&);
 struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;};
 CommitReceipt commit_receipt;
 bool client_commit_suppressed=false;
@@ -174,6 +183,8 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
     assign(n.instance+0x60,target.last);return put(n.instance,0x50,int32_t(target.history.size()),e);
 }
 #include "startingpoint_native.inc"
+#include "start_action_native.inc"
+#include "start_capture_native.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -192,10 +203,14 @@ bool initialize(uintptr_t base,std::string& e){
     std::array<unsigned char,16> commit_bytes{};
     if(!memory.copy(image+0x25fb10,commit_bytes.data(),commit_bytes.size(),e))return false;
     if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
+    if(!start_intent::verify_pay(nullptr,image+start_intent::pay_rva,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||
+       !start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
+    owned_pay.target=image+start_intent::pay_rva;owned_pay.detour=reinterpret_cast<uintptr_t>(&pay_current);owned_pay.original_verified=true;
     owned_commit.target=image+0x25fb10;owned_commit.detour=reinterpret_cast<uintptr_t>(&commit_current);owned_commit.original_verified=true;
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {start_intent::pay_rva,reinterpret_cast<void*>(&pay_current),reinterpret_cast<void**>(&original_pay)},
         {0x25fb10,reinterpret_cast<void*>(&commit_current),reinterpret_cast<void**>(&original_commit)},
         {0x4fc4a0,reinterpret_cast<void*>(&sequence_update),reinterpret_cast<void**>(&original_update)},
         {0x4f5900,reinterpret_cast<void*>(&postload),reinterpret_cast<void**>(&original_postload)},
@@ -203,13 +218,20 @@ bool initialize(uintptr_t base,std::string& e){
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
+    owned_pay.trampoline=reinterpret_cast<uintptr_t>(original_pay);
     owned.trampoline=reinterpret_cast<uintptr_t>(original_update);owned_commit.trampoline=reinterpret_cast<uintptr_t>(original_commit);return true;
 }
 bool hooks_enabled(std::string& e){
-    owned.enabled=owned_commit.enabled=true;
-    if(!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
-        owned.enabled=owned_commit.enabled=false;return false;
+    owned.enabled=owned_commit.enabled=owned_pay.enabled=true;
+    if(!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
+        owned.enabled=owned_commit.enabled=owned_pay.enabled=false;return false;
     }return true;
+}
+bool verify_pay_entry(uintptr_t address,std::string& e){
+    uintptr_t base=0;uint32_t thread=0;std::string sha;
+    if(!native::read_resolver_receipt(base,thread,sha,e))return false;
+    if(base!=image||thread!=GetCurrentThreadId())return fail(e,"tutorial Pay verifier requires actual Mainthread/image");
+    return start_intent::verify_pay(owned_pay.enabled?&owned_pay:nullptr,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);
 }
 bool verify_commit_entry(uintptr_t address,std::string& e){
     uintptr_t base=0;uint32_t thread=0;std::string sha;
@@ -220,6 +242,7 @@ bool verify_commit_entry(uintptr_t address,std::string& e){
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
+    pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();
     commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
@@ -259,7 +282,7 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -275,6 +298,10 @@ bool read_progress(nlohmann::json& out,std::string& e){
         out={{"schema",1},{"mainthread_confirmed",true},{"lifetime_confirmed",true},
              {"snapshot_uuid",before.uuid},{"world_epoch",before.world_epoch},{"world_generation",before.generation},
              {"client_sequence_fenced",context.role==action_session::Role::Client},{"tutorial",encode(state)},
+             {"client_start_suppressed",client_start_receipt.suppressed},
+             {"client_start_submitted",client_start_receipt.submitted},{"client_start_action_uuid",client_start_receipt.action_uuid},
+             {"client_start_cause",client_start_receipt.cause},
+             {"client_start_presentation_cause",client_start_presentation_cause},
              {"client_commit_suppressed",client_commit_suppressed},
              {"client_commit_cause",client_commit_cause},{"client_commit_action_uuid",client_commit_action},{"client_commit_submitted",client_commit_submitted},
              {"host_commit_receipt_cause",commit_receipt.cause}};
@@ -318,4 +345,25 @@ bool apply(const action_session::Context& c,const action_session::Binding& b,con
     }catch(const std::exception& x){unknown=attempted;e=std::string("tutorial native Apply failed: ")+x.what();block(e);return false;}
 }
 #include "startingpoint_commit_intent.inc"
+}
+
+namespace mt2mp::game::tutorial_replication {
+bool start_startingpoint(const action_session::Context& c,const action_session::Binding& b,
+    const action_session::Ledger& before,const startingpoint::Row& row,
+    action_session::Ledger& after,startingpoint::Row& result,bool& attempted,std::string& e){
+    bool unknown=false;return run_start_action(c,b,before,row,nullptr,nullptr,after,result,attempted,unknown,e);
+}
+bool apply_startingpoint_start(const action_session::Context& c,const action_session::Binding& b,const std::string& action,
+    const action_session::Ledger& before,const action_session::Ledger& after,
+    const startingpoint::Row& row,const startingpoint::Row& result,bool& attempted,bool& unknown,std::string& e){
+    action_session::Ledger measured;startingpoint::Row actual;
+    if(!run_start_action(c,b,before,row,&after,&result,measured,actual,attempted,unknown,e))return false;
+    bool presentation_attempted=false;std::string cause;
+    if(!finish_start_presentation(action,c,b,presentation_attempted,cause)){
+        client_start_presentation_cause=cause;
+        if(presentation_attempted){unknown=true;e=cause;return false;}
+        LOG_WARN("[Tutorial] Startingpoint StartTech presentation skipped cause={}",cause);
+    }else client_start_presentation_cause.clear();
+    return true;
+}
 }

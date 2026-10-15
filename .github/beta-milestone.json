@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.5",
-  "summary": "Allow ordinary world names, retire previous Client bindings, unify world loading and start, and join public lobby rows directly.",
-  "native_evidence": "docs/evidence/beta5-native.json"
+  "version": "0.1.0-beta.6",
+  "summary": "Share initial tutorial instructions and progress, and route Client Starting Points Research and Commit through the Host.",
+  "native_evidence": "docs/evidence/beta6-native.json"
 }

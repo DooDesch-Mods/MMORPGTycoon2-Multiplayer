@@ -1,17 +1,18 @@
-# Shared world start fixes
+# Shared tutorial and Client research
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
 ## Highlights
 
-- **Use your world's name.** Fixed Clients rejecting loaded worlds because an old diagnostic check still required a special MPTest name.
-- **Load and start in one action.** Opening a Host world starts shared preparation automatically. The multiplayer save picker has one load/start button.
-- **Join directly from the browser.** Opening a public lobby row now joins it immediately.
+- **See the same tutorial step.** Clients receive the Host's tutorial instructions and movement progress bar.
+- **Start research together.** The Client's Research button starts the initial Starting Points project on both players, with one Host-ordered purchase.
+- **Share the completed project.** The Client can Commit the completed Starting Points project. Both players receive the unlock and Release entry once.
 
 ## Fixes
 
-- Cleared the previous Client simulation binding after leaving, so another session can load in the same game process.
-- Prevented internal world operations from repeating an already handled diagnostic load request.
+- Kept research purchases, project creation and Commit on the existing shared action path.
+- Applied the Client's research success display only after the shared result is confirmed.
+- Added targeted regression tests for native research controls, ownership, accounting and action ordering.
 
 ## Install and play
 
@@ -23,4 +24,4 @@
 
 ## Beta status
 
-The affected loading and disconnect flows are checked locally. Separate-account online play still needs confirmation. Tutorial progression is not shared yet. Undo/Redo, complete action coverage, four players and large worlds remain in development.
+Client Research was checked with two local game instances while the Host was paused and running. Client Commit and the first shared tutorial steps were also checked in game. The complete natural tutorial, developer assignment/hiring and other technologies still need work. Undo/Redo, complete action coverage, four players and large worlds remain in development. The shared online test with separate Steam accounts is still manual.

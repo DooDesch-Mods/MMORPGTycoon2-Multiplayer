@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.6",
+  "scope": "Shared initial tutorial presentation and fixed Startingpoint research, creation and Commit",
+  "native_evidence": [
+    "docs/evidence/tutorial-first-step-native.json",
+    "docs/evidence/tutorial-progress-native.json",
+    "docs/evidence/tutorial-movement-native.json",
+    "docs/evidence/tutorial-startingpoint-shared-native.json",
+    "docs/evidence/tutorial-startingpoint-creation-native.json",
+    "docs/evidence/tutorial-client-commit-native.json",
+    "docs/evidence/tutorial-client-research-native.json"
+  ],
+  "latest_mod_sha256": "3b17387f2f225b3ece3b78baffd993f8d53512596264e740efbe524df457fbce",
+  "latest_build": "artifacts/build_history/20261015T043556607154Z",
+  "acceptance": "The latest two-peer run confirms an ordinary Client Research click once on both native Controllers, full ledger equality, actual project creation and Client success presentation. Paused and running Host baselines pass. Both games leave and exit with code0, and both monitors end without a dump. Earlier accepted tutorial and Commit slices retain their recorded evidence.",
+  "limits": [
+    "This is a partial tutorial milestone, not complete natural tutorial acceptance.",
+    "Research is limited to the initial Startingpoint technology; worker controls, hiring and other technologies remain open.",
+    "The native purchase price is0. Positive-price accounting is unit-tested only.",
+    "CI checks source and packages but does not run the game. Its release binaries differ from the accepted local build; downloaded payload startup must be recorded separately.",
+    "Separate-account Steam gameplay remains a manual test. Four-player, large-save and Undo/Redo acceptance remain open."
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

@@ -4,13 +4,15 @@ from pathlib import Path
 import time
 import uuid
 
-from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, compare_ledgers, hash_file, read_json, utc
+from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, compare_ledgers, extract_result, hash_file, read_json, utc
 from lobby_ui.native_local_acceptance import button, observe, left, ready
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'retire'), required=True)
+parser.add_argument('--host-running', action='store_true', help='Run the Host through the existing native clock MCP during Client Research')
+parser.add_argument('--resume-start-from', type=Path, help='Reuse a confirmed open Research view after a recorded no-effect hidden-HUD time rejection')
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
 parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
 args = parser.parse_args()
@@ -24,6 +26,8 @@ if args.phase == 'begin':
     runner.summary['scope'] = 'joined Host original Starting Point Pay and project creation with Client adoption and full native ledger equality'
 if args.phase == 'client-prove':
     runner.summary['scope'] = 'ordinary Client Commit button submits one Host-ordered action and both peers confirm actual deployment and retirement'
+if args.phase == 'client-start':
+    runner.summary['scope'] = 'ordinary Client Research button submits one Host-ordered purchase and project creation with actual native ledger equality'
 
 
 def shared_state(name, expected):
@@ -65,6 +69,224 @@ def fixed_operation(peer, operation, current):
         raise AcceptanceError(operation + ' outcome/token differs; no replay')
     runner.checked(operation, result)
     return result
+
+
+def host_time(scale):
+    engine = runner.inspect('start-time-' + str(scale) + '-before', 'host')
+    runtime = engine['shared_time']['runtime']
+    controller = runtime['controller']
+    if runtime['phase'] != 3 or controller['write_locked']:
+        raise AcceptanceError('Client Research requires active shared time authority')
+    runner.checked('start-time-' + str(scale) + '-native-clock-return',
+                   runner.single('start-time-' + str(scale) + '-once', 'host', 'game_set_time_scale', {'scale': scale}))
+    deadline, count = time.monotonic() + 45, 0
+    while True:
+        count += 1
+        actual = runner.inspect('start-time-' + str(scale) + '-host-' + str(count), 'host')
+        client = runner.inspect('start-time-' + str(scale) + '-client-' + str(count), 'client-1')
+        host_state = actual['shared_time']['runtime']['controller']
+        client_state = client['shared_time']['runtime']['controller']
+        if host_state['write_locked'] or client_state['write_locked']:
+            raise AcceptanceError('Research clock setup lost shared time authority')
+        if (actual['clock']['scale'] == scale and host_state['observed']['selected'] == scale
+                and client['clock']['scale'] == 0 and client_state['applied']['selected'] == scale
+                and client_state['applied']['revision'] == host_state['observed']['revision']):
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Research native clock setup not observed on both peers required<45s; no replay')
+    runner.checked('start-time-' + str(scale) + '-confirmed',
+                   {'setup_route': 'existing native clock MCP; production Host polling and Client presentation',
+                    'clock': actual['clock'], 'host_observed': host_state['observed'],
+                    'client_applied': client_state['applied'], 'client_clock': client['clock']})
+
+
+def prior_result(prior, step, tool):
+    jobs = [job for job in prior['jobs'] if job['step'] == step]
+    if len(jobs) != 1 or jobs[0]['state'] != 'confirmed':
+        raise AcceptanceError('Resume lacks original confirmed observation: ' + step)
+    evidence = Path(jobs[0]['evidence_path'])
+    if hash_file(evidence) != jobs[0]['evidence_sha256']:
+        raise AcceptanceError('Original resume evidence changed: ' + step)
+    return extract_result(read_json(evidence), tool)
+
+
+def resume_research_view(baseline, client, ledger, controllers, host_engine):
+    path = args.resume_start_from.resolve()
+    if not path.is_relative_to(ROOT / 'artifacts/acceptance') or not args.host_running:
+        raise AcceptanceError('Research resume requires an owned running-Host acceptance record')
+    prior = read_json(path)
+    if (prior.get('passed') is not False or prior.get('runtime_run_id') != runner.summary['runtime_run_id']
+            or prior.get('dll_sha256') != runner.summary['dll_sha256']
+            or prior.get('error', {}).get('step') != 'start-time-1-once'
+            or 'TIME_MOUSE_REJECTED: time_mouse_actual_hud_panel_not_visible' not in prior['error']['cause']):
+        raise AcceptanceError('Research resume is restricted to the recorded no-native hidden-HUD rejection')
+    checks = {item['check']: item['result'] for item in prior['checks']}
+    if checks.get('client-start-baseline') != baseline:
+        raise AcceptanceError('Research resume native Host baseline changed')
+    shown = checks.get('client_research_show', {})
+    if (shown.get('attempted') is not True or shown.get('returned') is not True
+            or shown.get('confirmed') is not True or shown.get('unknown') is not False
+            or shown.get('after') != client):
+        raise AcceptanceError('Research resume lacks the same confirmed open Client view')
+    old_ledger = compare_ledgers(prior_result(prior, 'start-ledger-before-host', 'game_inspect_engine'),
+                                 prior_result(prior, 'start-ledger-before-client', 'game_inspect_engine'))
+    if ledger != old_ledger:
+        raise AcceptanceError('Research resume full native ledger changed')
+    for peer, current in controllers.items():
+        old = prior_result(prior, 'before-client-start-' + peer, 'game_read_native_lobby')['controller']
+        if any(current[field] != old[field] for field in ('attempted', 'confirmed', 'failed', 'host_revision', 'action_uuid')):
+            raise AcceptanceError('Research resume Controller changed on ' + peer)
+    old_time = prior_result(prior, 'start-time-1-before', 'game_inspect_engine')['shared_time']['runtime']
+    current_time = host_engine['shared_time']['runtime']
+    old_observed = old_time['controller']['observed']
+    current_observed = current_time['controller']['observed']
+    if (any(current_time[field] != old_time[field] for field in ('epoch', 'native_set_confirmed'))
+            or current_time['controller']['processed_sequences'] != old_time['controller']['processed_sequences']
+            or any(current_observed[field] != old_observed[field] for field in ('selected', 'pause', 'present', 'uncertain'))
+            or current_observed['revision'] < old_observed['revision']):
+        raise AcceptanceError('Research resume current time authority/clock or processed commands changed')
+    token = checks['start-time-1-request']['acceptance_token']
+    log = Path(read_json(runner.manifests['host'])['runtime_root']) / 'game/mt2mp.log'
+    matching = [line for line in log.read_text(encoding='utf-8').splitlines()
+                if '[TimeMouse]' in line and 'token=' + token in line and 'native_attempted=false' in line
+                and 'failed cause=time_mouse_actual_hud_panel_not_visible' in line]
+    if len(matching) != 1:
+        raise AcceptanceError('Research resume lacks the original native no-attempt acknowledgement')
+    runner.checked('confirmed-open-view-resumed', {'original_acceptance': prior['acceptance_id'],
+                   'original_summary_sha256': hash_file(path), 'native_time_attempted': False,
+                   'ui_show_replayed': False, 'same_origin_controller_and_ledger': True,
+                   'old_time_observation_revision': old_observed['revision'],
+                   'current_time_observation_revision': current_observed['revision']})
+    return shown
+
+
+def client_start():
+    baseline = runner.single('client-start-baseline', 'host', 'game_read_tutorial_development')
+    runner.checked('client-start-baseline', baseline)
+    if (baseline['project'].get('present') is not False or baseline['startingpoint'].get('record_present') is not True
+            or any(baseline['startingpoint'].get(field) is not False for field in ('purchased', 'deployed', 'custom', 'owned'))
+            or baseline['startingpoint'].get('inventory_count') != 0
+            or baseline['startingpoint_release'].get('feature_count') != 0):
+        raise AcceptanceError('Client Research requires unpurchased unowned Startingpoint and no current project')
+    shared_state('client-start-baseline', baseline)
+    host_engine = runner.inspect('start-ledger-before-host', 'host')
+    client_engine = runner.inspect('start-ledger-before-client', 'client-1')
+    ledger_before = compare_ledgers(host_engine, client_engine)
+    before = {}
+    for peer in ('host', 'client-1'):
+        context = runner.single('before-client-start-' + peer, peer, 'game_read_native_lobby')
+        if not ready(context) or context['controller'].get('pending') is not False:
+            raise AcceptanceError('Client Research requires both peers Playing with an idle Controller')
+        before[peer] = context['controller']
+    client = runner.single('client-start-current', 'client-1', 'game_read_tutorial_development')
+    shown = (resume_research_view(baseline, client, ledger_before, before, host_engine)
+             if args.resume_start_from else fixed_operation('client-1', 'client_research_show', client))
+    price = shown.get('price')
+    if (type(price) is not int or price < 0 or shown.get('page_requested') is not True
+            or shown.get('selection_confirmed') is not False):
+        raise AcceptanceError('Research Show lacks actual price and confirmed page request')
+    deadline, sample = time.monotonic() + 30, 0
+    while True:
+        sample += 1
+        state_request = {'token': str(uuid.uuid4()), 'native_origin_uuid': client['snapshot_uuid'],
+                         'world_epoch': client['world_epoch'], 'world_generation': client['world_generation'],
+                         'operation': 'client_research_state', 'expected_development': client}
+        state = runner.single('research-layout-state-' + str(sample), 'client-1',
+                              'game_tutorial_startingpoint', state_request)
+        if (state.get('read_only') is not True or state.get('attempted') is not False
+                or state.get('confirmed') is not True or state.get('unknown') is not False):
+            raise AcceptanceError('Research presentation observation lacks read-only acknowledgement')
+        runner.checked('research-layout-state-' + str(sample), state)
+        if state.get('ready') is True:
+            break
+        if state.get('ready') is not False or time.monotonic() >= deadline:
+            raise AcceptanceError('Research native page/layout not ready required<30s; no UI replay: ' + str(state))
+    runner.checked('client-research-button-before', runner.single('client-research-button-before', 'client-1', 'game_capture_frame'))
+    if args.host_running:
+        host_time(1)
+    client = runner.single('client-research-current', 'client-1', 'game_read_tutorial_development')
+    submitted = fixed_operation('client-1', 'client_research', client)
+    if (submitted.get('price') != price or submitted.get('selection_confirmed') is not True
+            or submitted.get('selection_attempted') is not True or submitted.get('activation_attempted') is not True):
+        raise AcceptanceError('Research lacks original selection/activation or stable native price/row; no replay')
+    for field in ('ledger_before', 'ledger_after'):
+        receipt = submitted.get(field, {})
+        if any(receipt.get(key) != value for key, value in ledger_before.items()):
+            raise AcceptanceError('Client Research changed local ledger before applying the Host result: ' + field)
+    action_id = submitted.get('action_uuid')
+    try:
+        if submitted.get('submitted') is not True or str(uuid.UUID(action_id)) != action_id:
+            raise ValueError('actual action UUID missing')
+    except (ValueError, TypeError, AttributeError) as error:
+        raise AcceptanceError('Client Research has no confirmed submission identity; no replay: ' + str(error)) from error
+    runner.checked('submitted-start-action', {'action_uuid': action_id, 'submitted': True, 'result_confirmed': False})
+    deadline, sample = time.monotonic() + 60, 0
+    while True:
+        sample += 1
+        final = {peer: runner.single('start-result-' + peer + '-' + str(sample), peer, 'game_read_native_lobby')
+                 for peer in ('host', 'client-1')}
+        for peer, context in final.items():
+            state = context['controller']
+            if state.get('locked') or state.get('failed') != before[peer]['failed']:
+                raise AcceptanceError('Client Research failed peer=' + peer + ' cause=' + str(state.get('cause')))
+            if state.get('pending') is True and state.get('outcome') == 0:
+                if (context['prepare'].get('playing') is not True or context['prepare'].get('error')
+                        or context['snapshot'].get('world_authority_valid') is not True):
+                    raise AcceptanceError('Pending Client Research lost its actual world/session on ' + peer)
+            elif not ready(context):
+                raise AcceptanceError('Peer lost Playing during Client Research: ' + peer)
+        if all(context['controller'].get('action_uuid') == action_id
+               and context['controller'].get('pending') is False and context['controller'].get('outcome') == 1
+               and context['controller'].get('confirmed') == before[peer]['confirmed'] + 1
+               for peer, context in final.items()):
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Client Research result timeout required<60s; no replay: ' +
+                                  str({peer: context['controller'] for peer, context in final.items()}))
+    for peer, context in final.items():
+        state = context['controller']
+        if (state.get('attempted') != before[peer]['attempted'] + 1
+                or state.get('host_revision') != before[peer]['host_revision'] + 1):
+            raise AcceptanceError('Client Research attempt/revision delta differs from1 on ' + peer)
+        runner.checked('confirmed-start-controller-' + peer, state)
+    if final['host']['controller']['ack_mask'] != final['host']['controller']['required_mask']:
+        raise AcceptanceError('Host lacks the complete Research adoption ACK mask')
+    if args.host_running:
+        clock = runner.inspect('start-confirmed-running-host', 'host')['clock']
+        if clock.get('scale') != 1 or clock.get('paused') is not False:
+            raise AcceptanceError('Host was not running when Research confirmation was observed')
+        runner.checked('start-confirmed-running-clock', clock)
+        host_time(0)
+    after = runner.single('after-client-start-host', 'host', 'game_read_tutorial_development')
+    project, technology = after['project'], after['startingpoint']
+    if (project.get('present') is not True or project.get('kind') != 0 or project.get('tech_key') != 'startingpoint'
+            or technology.get('purchased') is not True
+            or any(technology.get(field) is not False for field in ('deployed', 'custom', 'owned'))
+            or technology.get('inventory_count') != 0 or after['startingpoint_release'] != baseline['startingpoint_release']):
+        raise AcceptanceError('Research result lacks the actual purchased current Startingpoint project')
+    shared_state('client-start', after)
+    after_ledger = compare_ledgers(runner.inspect('start-ledger-after-host', 'host'),
+                                   runner.inspect('start-ledger-after-client', 'client-1'))
+    expected = {**ledger_before, 'line_counts': list(ledger_before['line_counts']), 'line_income': list(ledger_before['line_income'])}
+    expected['cash'] -= price
+    expected['record_cash'] -= price
+    expected['record_expense'] += price
+    expected['line_counts'][3] += 1
+    expected['line_income'][3] -= price
+    if after_ledger != expected:
+        raise AcceptanceError('Research full ledger differs from one category3 purchase: ' +
+                              str({'expected': expected, 'actual': after_ledger}))
+    progress = runner.single('client-start-progress', 'client-1', 'game_read_tutorial_progress')
+    if (progress.get('client_start_submitted') is not True or progress.get('client_start_suppressed') is not True
+            or progress.get('client_start_action_uuid') != action_id or progress.get('client_start_cause')
+            or progress.get('client_start_presentation_cause')):
+        raise AcceptanceError('Ordinary Client Research capture/presentation receipt differs')
+    runner.checked('client-start-hook-submission', progress)
+    runner.checked('client-start-host-frame', runner.single('client-start-host-frame', 'host', 'game_capture_frame'))
+    runner.checked('client-start-ledger-after', after_ledger)
+    runner.summary.update(before=baseline, after=after, action_uuid=action_id, ordinary_client_start_proven=True,
+                          client_adoption_proven=True, two_peer_action_confirmation_proven=True,
+                          ledger_equality_proven=True, native_purchase_price=price, host_running_proven=args.host_running)
 
 
 def client_commit():
@@ -257,6 +479,8 @@ try:
         runner.checked('loaded-development', runner.single('loaded-development', 'host', 'game_read_tutorial_development'))
     elif args.phase == 'client-prove':
         client_commit()
+    elif args.phase == 'client-start':
+        client_start()
     elif args.phase == 'begin':
         begin_project()
     elif args.phase == 'prove':
