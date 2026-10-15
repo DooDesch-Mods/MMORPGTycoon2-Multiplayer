@@ -9,6 +9,18 @@
 #include <set>
 
 namespace mt2mp::game::tutorial_welcome {
+const char* leveltwo_message(int32_t index){
+    switch(index){
+    case 2:return "welcome";
+    case 4:return "customise";
+    case 6:return "trainers";
+    case 9:return "new_region";
+    case 11:return "mountain_pass";
+    case 13:return "doitagain";
+    case 14:return "readytogo";
+    default:return nullptr;
+    }
+}
 namespace {
 using World=building_mixed_identity::opened_file::CurrentWorld;
 bool fail(std::string& e,const std::string& s){e=s;return false;}
@@ -43,24 +55,28 @@ bool world(const Request& request,World& out,std::string& e){
 }
 struct Pin {uintptr_t state=0,log=0,instance=0,sequence=0,step=0,window=0,show=0;bool operator==(const Pin&)const=default;};
 bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
-    const char* message=request.index==4?"welcome":request.index==103?"allDone":nullptr;
-    if(!message)return fail(e,"tutorial close supports only welcome4 or allDone103");
+    const bool leveltwo=request.leveltwo;
+    const char* scenario=leveltwo?"leveltwo_tutorial":"initial_tutorial";
+    const auto scenario_length=std::strlen(scenario);
+    const int32_t required_count=leveltwo?17:107;
+    const char* message=leveltwo?leveltwo_message(request.index):request.index==4?"welcome":request.index==103?"allDone":nullptr;
+    if(!message)return fail(e,"tutorial close requires a fixed LevelTwo message or Initial welcome4/allDone103");
     World current;if(!world(request,current,e))return false;p.state=reinterpret_cast<uintptr_t>(current.state);
     uintptr_t singleton=0,active=0;int32_t count=0;
     if(!at(p.state,0x1e8,p.log,e)||!at(image,0x13df330,singleton,e)||!at(p.log,0x20,active,e)||!at(p.log,0x28,count,e))return false;
     if(p.log!=singleton||count<1||count>64)return fail(e,"welcome scenario owner/count differs");
     for(int32_t i=0;i<count;++i){uintptr_t candidate=0;if(!at(active,size_t(i)*8,candidate,e))return false;
         uintptr_t data=0;uint64_t size=0;if(!at(candidate,0x18,data,e)||!at(candidate,0x20,size,e))return false;
-        if(size!=16)continue;
-        std::array<char,17> id{};if(!bytes(data,id.data(),id.size(),e))return false;
-        if(std::memcmp(id.data(),"initial_tutorial",17))continue;
+        if(size!=scenario_length)continue;
+        std::array<char,32> id{};if(!bytes(data,id.data(),scenario_length+1,e))return false;
+        if(std::memcmp(id.data(),scenario,scenario_length+1))continue;
         if(p.instance)return fail(e,"welcome duplicate tutorial owner");p.instance=candidate;
     }
     uintptr_t type=0,steps=0,indexed=0,window_type=0,logic=0;int32_t next=0,step_count=0;uint8_t complete=0,target=0,locked=0,instance_complete=0,sequence_complete=0;
     if(!p.instance)return fail(e,"welcome tutorial absent");
     if(!at(p.instance,0,type,e)||type!=image+0x173ce70)return fail(e,e.empty()?"welcome instance type differs":e);
     if(!at(p.instance,0x38,instance_complete,e)||!at(p.instance,0x58,p.sequence,e)||!at(p.sequence,0,type,e)||!at(p.sequence,0x54,sequence_complete,e)||!at(p.sequence,0x48,p.step,e)||!at(p.sequence,0x50,next,e)||!at(p.sequence,0x28,step_count,e)||!at(p.sequence,0x20,steps,e))return false;
-    if(instance_complete||sequence_complete||type!=image+0x16dbd80||step_count!=107||next!=request.index+1)return fail(e,"tutorial close active sequence/count/index differs required="+std::to_string(request.index));
+    if(instance_complete||sequence_complete||type!=image+0x16dbd80||step_count!=required_count||next!=request.index+1)return fail(e,"tutorial close active sequence/count/index differs required="+std::to_string(request.index));
     if(!at(steps,size_t(request.index)*8,indexed,e))return false;
     if(p.step!=indexed)return fail(e,"tutorial close current indexed pointer differs");
     if(!at(p.step,0,type,e)||!at(p.step,0x18,complete,e)||!literal(p.step,0x20,message,e)||!at(p.step,0x1a8,p.window,e))return false;
@@ -81,7 +97,7 @@ DWORD hide(const Pin& p){
 bool close(const Request& request,nlohmann::json& receipt,std::string& e){
     receipt={{"attempted",false},{"confirmed",false},{"unknown",false}};e.clear();
     try{
-        if((request.index!=4&&request.index!=103)||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"tutorial close requires exact origin/index4 or103 and bounded token");
+        if((request.leveltwo?!leveltwo_message(request.index):(request.index!=4&&request.index!=103))||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"tutorial close requires exact origin/fixed message index and bounded token");
         // Mainthread serializes this operation. Keep used tokens for the process lifetime,
         // including failed calls, so a lost receipt cannot replay an uncertain mutation.
         static std::set<std::string> used;
@@ -104,7 +120,7 @@ bool close(const Request& request,nlohmann::json& receipt,std::string& e){
             receipt["unknown"]=true;if(e.empty())e="welcome origin changed after call";return false;
         }
         if(target!=0){receipt["unknown"]=true;return fail(e,"welcome native hide target readback differs required=0");}
-        receipt["confirmed"]=true;receipt["effect"]=request.index==4?"welcome_window_hide_requested":"allDone_window_hide_requested";
+        receipt["confirmed"]=true;receipt["effect"]=request.leveltwo?"leveltwo_message_window_hide_requested":request.index==4?"welcome_window_hide_requested":"allDone_window_hide_requested";
         receipt["progression"]="await_normal_native_update";receipt["before"]=std::move(observed);return true;
     }catch(const std::exception& exception){receipt["unknown"]=receipt.value("attempted",false);return fail(e,std::string("welcome close exception: ")+exception.what());}
 }

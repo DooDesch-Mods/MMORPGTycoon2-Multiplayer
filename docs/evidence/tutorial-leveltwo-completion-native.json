@@ -1,0 +1,164 @@
+{
+  "schema": 1,
+  "scope": "Original Host LevelTwo message sequence and replicated Client terminal retirement",
+  "base_commit": "2ea31aa1d869fdd0ca433421c99ba0dfa3c53c30",
+  "source_stage_seal": "9a49014fa931e5ec53c8b2cfcdbe7b562c107d178fdbe6f4851bdf592907c29d",
+  "source_sha256": {
+    "src/game/welcome_close.h": "cd9aa51fe2a70c5887b59ab4b5645af5136fabcf9e570fba8e2c17bde9bd79bd",
+    "src/game/welcome_close.cpp": "86744ea64a8434bdfa09fc8569e02d51ad5376c57c44abc67b0680d718b6f970",
+    "src/core/dll_main.cpp": "584e931d9d277764a6025e0c77fda54d022143eaebda2250c098c60f914b53f7",
+    "tools/mcp/runtime.py": "08172c47ad114cdedda6a4e10220514235829592bb6a634af2db40e5bd25d279",
+    "tools/mcp/server.py": "e609f2f640e9c58c394eb249641cfece82f1cc257f98c39eb45b0a0ec17d52fc",
+    "test/test_tutorial_message_close.cpp": "2ae3066ca60205fc72724486df06279f9442dbcc7eb2115939da6d4d8bbb2c69",
+    "test/mcp/test_tutorial_network_tab.py": "0ec68129b63bfda943e75bbef41f29f2e5bb6effe1ed68ea66e95ef9313184d3"
+  },
+  "build": "artifacts/build_history/20261015T114529372649Z",
+  "dll_sha256": "70ee3596ade0f56087a2dc7fb1d5f4c1e550afbc8dae04188753efd3c2b96b9a",
+  "focused_cases": {
+    "actual_cpp_body": 57,
+    "sdk_adapter": 34
+  },
+  "canonical_check": "artifacts/leveltwo_message_canonical_ctest.log",
+  "input_snapshot": "0975c55f-86e4-4060-bd45-1b37148d7889",
+  "shared_world_admission": "artifacts/acceptance/7eb35ce0-6c57-4b23-add6-e519fb3a9a32/summary.json",
+  "native_acceptance": "artifacts/acceptance/4f2ec789-a45e-4ef4-afb7-a93f239ce9fb/summary.json",
+  "message_indices": [
+    2,
+    4,
+    6,
+    9,
+    11,
+    13,
+    14
+  ],
+  "host_original_ok_count": 7,
+  "client_sequence_fenced": true,
+  "terminal_tutorial": {
+    "active": [],
+    "initial_complete": false,
+    "leveltwo_complete": true,
+    "leveltwo_initial_next": -1,
+    "lifecycle_order": [
+      [
+        0,
+        0
+      ],
+      [
+        0,
+        1
+      ]
+    ],
+    "staff_display": null,
+    "startingpoint": null,
+    "terminal": [
+      {
+        "complete": true,
+        "count": 17,
+        "history": [
+          "welcome",
+          "customise",
+          "trainers",
+          "new_region",
+          "mountain_pass",
+          "doitagain"
+        ],
+        "last": "readytogo",
+        "message_progress": null,
+        "next": 17,
+        "scenario": "leveltwo_tutorial"
+      }
+    ],
+    "terminal_startingpoint": null,
+    "terminal_version": null,
+    "version": null
+  },
+  "entire_native_economy_equal": true,
+  "full_ledger": {
+    "clock_day": 1,
+    "cash": 88400,
+    "record_present": true,
+    "record_day": 1,
+    "record_cash": 88400,
+    "record_income": 2130,
+    "record_expense": 8330,
+    "line_counts": [
+      53,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "line_income": [
+      2120,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -7360,
+      0,
+      -10,
+      0,
+      0,
+      -500,
+      -300,
+      0,
+      0,
+      0,
+      -150,
+      0,
+      0,
+      0
+    ]
+  },
+  "frames": {
+    "host": {
+      "customise": "_drafts/media/leveltwo-customise-frame-host.bmp",
+      "completed": "_drafts/media/leveltwo-completed-frame-host.bmp",
+      "viewed": true
+    },
+    "client-1": {
+      "customise": "_drafts/media/leveltwo-customise-frame-client-1.bmp",
+      "completed": "_drafts/media/leveltwo-completed-frame-client-1.bmp",
+      "viewed": true
+    }
+  },
+  "saved_completed_input": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 241170,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-1a268382-10af-4400-93f2-3a904a83775b.vrz",
+    "run_id": "81815dc2-9602-4615-bbf2-d867e0d2ce8f",
+    "sha256": "2d7a6658608f63584d3a8dfa40fc37b8197aeeb1bd8b53e3f97211c5e8b1a2b8",
+    "snapshot_id": "1a268382-10af-4400-93f2-3a904a83775b",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "saved_input_receipt": "test/mcp/evidence/leveltwo-complete-save_20261015T115252963576Z.json",
+  "retirement": "artifacts/acceptance/ac39d003-752f-4e92-94aa-34db3799ae4d/summary.json",
+  "native_exit": "artifacts/acceptance/c7a05999-d411-4e9d-924c-99892635e120/summary.json",
+  "both_exit_codes": 0,
+  "crash_dumps": 0,
+  "limits": [
+    "Continues the saved natural LevelTwo birth from an XP-only boundary copy",
+    "Initial full natural new-world traversal remains open",
+    "This delta adds only native MCP interaction and tests; the replicated gameplay path is unchanged from Beta9",
+    "Four players, large worlds and separate-account Steam acceptance remain open"
+  ]
+}

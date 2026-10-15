@@ -1,0 +1,30 @@
+{
+  "version": "0.1.0-beta.9",
+  "source_commit": "2ea31aa1d869fdd0ca433421c99ba0dfa3c53c30",
+  "release_url": "https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.9",
+  "ci": {
+    "release": {
+      "run_id": 38728346598,
+      "conclusion": "success"
+    },
+    "source": {
+      "run_id": 38728346556,
+      "conclusion": "success"
+    }
+  },
+  "zip_sha256": "fcb0f2ef154236b8e0c3a10954863308ffc2a54e4e0098e82dc0e86d785d8a7b",
+  "mod_sha256": "537e2c7a63a983442dc113e75bb254a5ee5d3c9b2e42744081dadcfa026315ce",
+  "loader_sha256": "037703a6a4677aa66ffb9e469e9b056774a4810881011db4427285b03798c3aa",
+  "native_title_receipt": "test/mcp/evidence/beta9-cloud-title_20261015T115437110700Z.json",
+  "native_title_receipt_sha256": "a961472597bfd4bd68ed663a6e83a2d08a0b3463d70a48248e6d4f7d6a69a56e",
+  "viewed_frame": "_MPTest/dropin-proof/appdata/MT2Multiplayer/e03de47ada50273877bdf80a746b8c58c775f67fc1f9d8fea9bbef9a7327313b/diagnostics/frame-102f6959-7297-434a-9a98-18513465c0a9.bmp",
+  "native_shutdown_receipt": "artifacts/acceptance/106922ab-479e-421a-9b5d-36610bb0f362/summary.json",
+  "native_shutdown_receipt_sha256": "3b2dd866437965b49650dde1025d048aefaed69fd52dd9c649d3301491ba74f4",
+  "native_exit_code": 0,
+  "original_installation_updated": true,
+  "online_acceptance_passed": false,
+  "tutorial_sync_complete": false,
+  "installation_receipt": "artifacts/installed_beta9/20261015T115540Z/receipt.json",
+  "saves_touched": false,
+  "original_steam_sha256": "e082bf5c9f881c822b1540a76b74f9d15e18019a73ebd206a559595badcb7f65"
+}

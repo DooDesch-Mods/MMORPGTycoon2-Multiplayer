@@ -60,6 +60,29 @@ int main(){try{
     put<uint8_t>(Fixture::ptr(f.window),0x377,1);require(!f.pin(error),"locked message accepted");put<uint8_t>(Fixture::ptr(f.window),0x377,0);
     current_world.world_epoch=9;require(!f.pin(error),"foreign world origin accepted");current_world.world_epoch=1;
     require(f.pin(error),"restored original owner was not accepted");
+    f.request.leveltwo=true;
+    constexpr std::array<int32_t,7> indices={2,4,6,9,11,13,14};
+    constexpr std::array<const char*,7> messages={"welcome","customise","trainers","new_region","mountain_pass","doitagain","readytogo"};
+    f.select(2);put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>("welcome"));
+    require(!f.pin(error),"Initial owner accepted as LevelTwo");
+    put(Fixture::ptr(f.instance),0x18,reinterpret_cast<uintptr_t>("leveltwo_tutorial"));put<uint64_t>(Fixture::ptr(f.instance),0x20,17);
+    require(!f.pin(error),"LevelTwo with Initial step count accepted");
+    put<int32_t>(Fixture::ptr(f.sequence),0x28,17);
+    for(size_t i=0;i<indices.size();++i){
+        f.select(indices[i]);put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>(messages[i]));put<uint64_t>(Fixture::ptr(f.step),0x28,std::strlen(messages[i]));
+        require(f.pin(error),"authored LevelTwo index/message rejected");
+        const auto wrong=messages[(i+1)%messages.size()];put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>(wrong));put<uint64_t>(Fixture::ptr(f.step),0x28,std::strlen(wrong));
+        require(!f.pin(error),"LevelTwo index/message mismatch accepted");
+        put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>(messages[i]));put<uint64_t>(Fixture::ptr(f.step),0x28,std::strlen(messages[i]));
+        put<int32_t>(Fixture::ptr(f.sequence),0x50,indices[i]);require(!f.pin(error),"LevelTwo wrong next accepted");put<int32_t>(Fixture::ptr(f.sequence),0x50,indices[i]+1);
+        f.steps[size_t(indices[i])]=0;require(!f.pin(error),"LevelTwo foreign indexed step accepted");f.steps[size_t(indices[i])]=Fixture::ptr(f.step);
+    }
+    for(int32_t index:std::array<int32_t,5>{-1,0,3,15,103}){
+        f.request.index=index;require(!f.pin(error),"unsupported LevelTwo index accepted");
+        nlohmann::json rejected;require(!mt2mp::game::tutorial_welcome::close(f.request,rejected,error)&&rejected.at("attempted")==false&&rejected.at("unknown")==false,"unsupported LevelTwo request attempted effect");
+    }
+    f.select(4);put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>("welcome"));put<uint64_t>(Fixture::ptr(f.step),0x28,7);f.request.leveltwo=false;
+    require(!f.pin(error),"LevelTwo accepted through Initial welcome operation");
     nlohmann::json receipt;f.request.index=99;
     require(!mt2mp::game::tutorial_welcome::close(f.request,receipt,error)&&receipt.at("attempted")==false&&receipt.at("unknown")==false,"unsupported close attempted a native effect");
     std::cout<<passed<<" actual tutorial message pin checks passed\n";return 0;

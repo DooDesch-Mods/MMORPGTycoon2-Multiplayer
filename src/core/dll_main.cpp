@@ -981,6 +981,7 @@ static json status() {
     result["capabilities"]["tutorial_movement_focus"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_tutorial_movement_focus"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["tutorial_welcome_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
+    result["capabilities"]["tutorial_leveltwo_message_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["tutorial_finish_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["tutorial_network_tab"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_time_ui"]=owned_native_profile&&time_hooks_ready&&game::native::in_game();
@@ -1832,18 +1833,19 @@ static void diagnostics_tick() {
             }
             response["result"]=tutorial_movement_receipt();
         }
-        else if(operation=="tutorial_welcome_ok"||operation=="tutorial_finish_ok"||operation=="tutorial_network_tab") {
+        else if(operation=="tutorial_welcome_ok"||operation=="tutorial_finish_ok"||operation=="tutorial_network_tab"||operation=="tutorial_leveltwo_message_ok") {
             if(!owned_native_profile||!Config::instance().is_host)throw std::runtime_error("tutorial welcome diagnostic requires owned Host profile");
             const auto& args=request.at("args");
+            const bool leveltwo=operation=="tutorial_leveltwo_message_ok";
             const int32_t expected_index=operation=="tutorial_welcome_ok"?4:operation=="tutorial_finish_ok"?103:56;
             if(!args.is_object()||args.size()!=5||!args.at("token").is_string()||!args.at("snapshot_uuid").is_string()||
-               !args.at("world_epoch").is_number_unsigned()||!args.at("world_generation").is_number_unsigned()||!args.at("current_step_index").is_number_unsigned()||args.at("current_step_index")!=expected_index)
+               !args.at("world_epoch").is_number_unsigned()||!args.at("world_generation").is_number_unsigned()||!args.at("current_step_index").is_number_unsigned()||(leveltwo?(args.at("current_step_index").get<uint64_t>()>14||!game::tutorial_welcome::leveltwo_message(args.at("current_step_index").get<int32_t>())):args.at("current_step_index")!=expected_index))
                 throw std::runtime_error("tutorial welcome requires exact token/origin/index fields");
             game::tutorial_welcome::Request close{args.at("token").get<std::string>(),args.at("snapshot_uuid").get<std::string>(),
-                args.at("world_epoch").get<uint64_t>(),args.at("world_generation").get<uint64_t>(),args.at("current_step_index").get<int32_t>()};
+                args.at("world_epoch").get<uint64_t>(),args.at("world_generation").get<uint64_t>(),args.at("current_step_index").get<int32_t>(),leveltwo};
             std::string error;json receipt;
             response["ok"]=operation=="tutorial_network_tab"?game::tutorial_welcome::network_tab(close,receipt,error):game::tutorial_welcome::close(close,receipt,error);response["result"]=std::move(receipt);
-            if(!response["ok"].get<bool>())response["error"]={{"code",operation=="tutorial_welcome_ok"?"TUTORIAL_WELCOME_REJECTED":operation=="tutorial_finish_ok"?"TUTORIAL_FINISH_REJECTED":"TUTORIAL_NETWORK_TAB_REJECTED"},{"message",error}};
+            if(!response["ok"].get<bool>())response["error"]={{"code",operation=="tutorial_leveltwo_message_ok"?"TUTORIAL_LEVELTWO_MESSAGE_REJECTED":operation=="tutorial_welcome_ok"?"TUTORIAL_WELCOME_REJECTED":operation=="tutorial_finish_ok"?"TUTORIAL_FINISH_REJECTED":"TUTORIAL_NETWORK_TAB_REJECTED"},{"message",error}};
         }
         else if(operation=="read_tutorial") {
             if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("tutorial read requires empty object arguments");
