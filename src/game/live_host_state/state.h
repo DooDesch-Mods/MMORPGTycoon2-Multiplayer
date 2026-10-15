@@ -25,6 +25,7 @@ struct Frame {
     Values values;
     std::optional<network::State> network;
     std::optional<tutorial_replication::State> tutorial;
+    std::optional<developer_staff::PoolState> developers;
     bool operator==(const Frame&)const=default;
 };
 struct Pin {

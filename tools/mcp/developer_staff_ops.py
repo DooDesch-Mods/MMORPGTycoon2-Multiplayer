@@ -19,8 +19,10 @@ SCHEMAS = {
         "additionalProperties": False,
     },
 }
+SCHEMAS["native_developer_ui"] = SCHEMAS["native_developer_fixture"]
 DESCRIPTIONS = {
     "read_native_developers": "Read the actual fixed 50-Developer catalogue, persisted IDs, employment/active/map/job flags, manager membership counts, full ledger and retained fixture receipts on owned GameUpdate. Does not advance Developer simulation.",
+    "native_developer_ui": "Run one fixed original DevelopmentWindow Show or HOOKED Hire/Fire UICommand on an owned live local-test peer with the actual idle Controller and exact Origin/count. Hire/Fire returns exactly one captured action UUID before native gameplay effects. This is admission only, never execution or peer ACK. Token consumed before the UI entry; no replay.",
     "native_developer_fixture": "Run one fixed original DevelopmentWindow Show or genuine Hire/Fire UICommand on isolated Host/Clock0 before Controller initialization. Requires exact native Origin and settled expected count. Acknowledges only the immediate original count/ledger effect, not final firing retirement or peer completion. Token consumed before native call; no replay.",
 }
 
@@ -59,7 +61,7 @@ def validate(op, args):
                 bad("Developer retirement slot/persisted ID must be exact int0..49")
         return
     required = {"command", "token", "native_origin_uuid", "epoch", "generation", "expected_count"}
-    if op != "native_developer_fixture" or set(args) != required:
+    if op not in {"native_developer_fixture", "native_developer_ui"} or set(args) != required:
         bad("Developer fixture requires exact six fields")
     if not isinstance(args["command"], str) or args["command"] not in {"Show", "Hire", "Fire"}:
         bad("Developer fixture command must be Show/Hire/Fire")

@@ -1,3 +1,4 @@
+#include "action_native.h"
 #include "probe.h"
 #include "job_census.h"
 #include "entry_fingerprints.h"
@@ -35,7 +36,7 @@ bool window_owner(const Capture& c,uintptr_t& out,std::string& e){
     return read_window([](uintptr_t p,void* target,size_t n,std::string& cause){return memory.copy(p,target,n,cause);},c,out,e);
 }
 bool code(const Capture& c,std::string& e){
-    try{for(const auto& body:original_bodies){std::vector<unsigned char> bytes(body.size);
+    try{for(const auto& body:original_bodies){if(body.rva==0x6c7b70){if(!action_runtime::verify_entry(c.image+body.rva,e))return false;continue;}std::vector<unsigned char> bytes(body.size);
         if(!memory.copy(c.image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=body.sha256)return fail(e,"Developer fixture original full body differs RVA="+std::to_string(body.rva));}}
     catch(const std::exception& ex){return fail(e,std::string("Developer fixture native body hash failed: ")+ex.what());}
@@ -85,6 +86,7 @@ bool thread(std::string& e){
 }
 FixtureUpdateScope::FixtureUpdateScope(void* game)noexcept:outer_(update_depth==0){if(outer_)update_game=game;++update_depth;}
 FixtureUpdateScope::~FixtureUpdateScope(){if(update_depth)--update_depth;if(outer_)update_game=nullptr;}
+bool authorize_ui_update(Capture& c,std::string& e){if(!thread(e)||!read_process(c,e))return false;return c.pin.origin.game==update_game||fail(e,"Developer UI proof actual GameUpdate owner differs");}
 bool authorize_fixture(Capture& c,uintptr_t& window,std::string& e){ProcessProbe port;return port.authorize(c,window,e);}
 bool observe_fixture(nlohmann::json& out,std::string& e){
     out={{"observed",false}};if(!thread(e))return false;Capture c;if(!read_process(c,e))return false;

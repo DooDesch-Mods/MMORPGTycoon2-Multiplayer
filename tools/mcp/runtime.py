@@ -806,3 +806,6 @@ class Runtime:
         except Exception as observation_failure:
             LOG.error("Publication verification failed id=%s cause=%s; lock retained; original=%s", request_id, observation_failure, failure)
             return False
+
+OPS.add("native_developer_ui")
+MUTATIONS.add("native_developer_ui")

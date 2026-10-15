@@ -1,5 +1,5 @@
 bool research_code(uintptr_t image,std::string& e){
-    if(!tutorial_replication::start_intent::verify_ui(image,[&](uintptr_t p,void* out,size_t n,std::string& why){return memory.copy(p,out,n,why);},e)||
+    if(!tutorial_replication::start_intent::verify_ui(image,[&](uintptr_t p,void* out,size_t n,std::string& why){return memory.copy(p,out,n,why);},e,developer_staff::action_runtime::verify_entry)||
        !tutorial_replication::verify_pay_entry(image+0x262ec0,e))return false;
     constexpr tutorial_replication::start_intent::Body bodies[]={
         {0x6c4d10,0xa0,"5a691aaf4a4c5a42d1312aab315a219f3bbd41a19d59328c40c1ff8ad8241f2d"},

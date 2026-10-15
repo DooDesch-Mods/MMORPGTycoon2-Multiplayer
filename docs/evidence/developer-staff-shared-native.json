@@ -1,0 +1,171 @@
+{
+  "schema_version": 1,
+  "scope": "Shared original Client Hire, Host Fire, natural indoor retirement and Host TechDevelop-to-idle adoption. Native jobs and outdoor workers remain unfinished.",
+  "runtime_run_id": "1771a1e8-45f4-48f1-b078-ba403e62ce29",
+  "dll_sha256": "a347d4d2d6d7dad4dd139f8c3541b1dbef63c5f3270483478bc175fa097e5d1b",
+  "shared_hire_fire": {
+    "passed": true,
+    "evidence": "artifacts/acceptance/1c5426db-7951-4e44-ad8c-f30b825d0471/summary.json",
+    "hire_origin": "client-1",
+    "hire_action_uuid": "95464e8e-1426-4fa9-a729-d77307fce7b9",
+    "fire_origin": "host",
+    "fire_action_uuid": "71ae0394-4052-400a-9d8c-f9007c816dfd",
+    "original_ui_capture": true,
+    "host_ack_mask_per_action": 3,
+    "original_execution_per_peer_per_action": 1,
+    "native_count_setter_per_peer_per_action": 1,
+    "developer_counts": [
+      1,
+      2,
+      1
+    ],
+    "cash": [
+      100000,
+      99500,
+      99500
+    ],
+    "full_50_rows_equal": true,
+    "full_20_ledger_groups_equal": true,
+    "natural_retirement": {
+      "host": {
+        "active": false,
+        "employed": false,
+        "id": 1,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 1,
+        "state": 0
+      },
+      "client-1": {
+        "active": false,
+        "employed": false,
+        "id": 1,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 1,
+        "state": 0
+      }
+    },
+    "retirement_method": "One ordinary Host time-scale 1 interval until actual active=false; pause 0 confirmed on both. Client original Active property adoption, no isolated retirement command or Fire replay."
+  },
+  "natural_technology_completion": {
+    "passed": true,
+    "evidence": "artifacts/acceptance/f2edd7aa-0014-4b3d-aebe-125e43b177fc/summary.json",
+    "input_snapshot": "71b654a4-e005-4ad6-af5c-9c2974f9d41f",
+    "host_time_scale": 9,
+    "final_time_scale": 0,
+    "actual_workers": {
+      "host": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 0,
+        "state": 0
+      },
+      "client-1": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 0,
+        "state": 0
+      }
+    },
+    "queue_counts": {
+      "host": 0,
+      "client-1": 0
+    },
+    "job_link_counts": {
+      "host": 0,
+      "client-1": 0
+    },
+    "full_50_rows_equal": true,
+    "full_20_ledger_groups_equal": true,
+    "fixed_failure": "docs/evidence/developer-job-census-native.json",
+    "forced_completion": false,
+    "raw_state_store": false
+  },
+  "implementation": "Existing HostState frame schema10 carries the full50 pool. Original engine State/Active properties apply no-job indoor changes before tutorial presentation. Existing Controller actions21/22 order original Hire/Fire and ACK actual native effects.",
+  "checks": {
+    "full_build_passed": true,
+    "build": "artifacts/build_history/20261015T151354744955Z",
+    "canonical_ctest_groups_passed": 21,
+    "ctest_logs": [
+      "artifacts/developer_gameplay_ctest.log",
+      "artifacts/developer_gameplay_shared_ctest.log"
+    ],
+    "new_actual_cpp_assertions": 364,
+    "sdk_cases": 4,
+    "retained_original_build_failure": "artifacts/build_history/20261015T145856818712Z/build-1.log",
+    "build_repair": "Add the shared pool codec dependency to affected existing test targets and update the extracted Leave fixture for the two new staff ports. Production source and accepted DLL unchanged."
+  },
+  "shutdown": {
+    "evidence": "artifacts/acceptance/23e5887c-2d42-49c1-833c-20e5fa1fa951/summary.json",
+    "both_exit_codes": 0,
+    "crash_dumps": 0,
+    "monitors": "artifacts/tutorial_completion_monitors/1771a1e8-45f4-48f1-b078-ba403e62ce29"
+  },
+  "source_sha256": {
+    "src/core/dll_main.cpp": "c44b5ebecfe22e60ea7a4b8863dc7990903545781a68a2096221b4298e2dce8d",
+    "src/game/developer_staff/action_calls.cpp": "9380eef28f8fc2fbb6eda67e2568e2ec956a7af6a020a0c4b7a6aae7c30a7aef",
+    "src/game/developer_staff/action_calls.h": "f87347a507b91a0984ec6b0d3a754589deeab58e48aad0ef127bedde4e706570",
+    "src/game/developer_staff/action_native.cpp": "8fb4a4bc83cccacba392224d3e89c9afcf15fc68ca86572311be14b02c9c2c7e",
+    "src/game/developer_staff/action_native.h": "5f9d845e054e2ee1d1f39deb0c7ccf73a79af743a7cbd82d8aa3b8c62ae261b9",
+    "src/game/developer_staff/frame_apply.h": "5bca981cd220b0504f3602f0198d0004d2f4d8c8e92485aff6551b6e96a3c69e",
+    "src/game/developer_staff/owned_ui_entry.h": "cb70ff9bb86e9c23704844fdbf65d1e9c51c0c10a6dc5680c3a68b1874984c77",
+    "src/game/developer_staff/probe.h": "3308d0deae3f60ef1eda136fa1ca31b91c6f576dacf40b2a50d9dc1f61332535",
+    "src/game/developer_staff/probe_process.cpp": "16496019aa049dc822a38ec5ff3a7020762cfd8c13fc653d6e30e4bc7c645bc8",
+    "src/game/developer_staff/scalar.cpp": "0cfc34592a4484dde0c7002fdf4b2ecc6f35fa9fe83cc0cd91fbc8cc1d694f0e",
+    "src/game/developer_staff/scalar.h": "41388db08bc65f1e5ba279a4ceba0ebff435408ab30660d7797b8d47fd9617d1",
+    "src/game/developer_staff/scalar_calls.cpp": "47b342b5471eb39688505970bc38daad6d61803006fec3aa50fff43bb301898d",
+    "src/game/developer_staff/shared_state.cpp": "aa6a737f4b0913a0c21d0578bf3ad097b2038d2dfe3c97012c70698620ab335d",
+    "src/game/developer_staff/shared_state.h": "5a3f903624e2d5de665b63197430923beb035108f47e81f2ccdb178d89c372b0",
+    "src/game/developer_staff/ui_capture.h": "5d09c5e9cfcf4f1d5f0a65ff32a1b76b799929fd0f5909886a75cf5034b1d2b3",
+    "src/game/live_host_state/bridge.cpp": "33f30c80968b46d68e829fb65d6cbc020f15acf03e74767253040b547a9c9451",
+    "src/game/live_host_state/state.cpp": "705a8ad5392943664a45fea540e40f9cdb6630cdd3d8022bd97be62634d8594c",
+    "src/game/live_host_state/state.h": "e0793e6fe46901dcf71a39f3ad7f6356aca486852ab78766a1614d8507b3c82b",
+    "src/game/tutorial_replication/native.cpp": "9d6348be66f84875a84aabd4af3e375291587784eadd9d040e4c49054101455d",
+    "src/game/tutorial_replication/native.h": "70850d4c6618a43e686fbe83ae6ec38877a3a8f8f74fb3d234067ec8b43c58cd",
+    "src/game/tutorial_replication/staff_native.inc": "d4d85ccc90fb2a1546e87efc7a40a780da56fccfc72b87b71f70078db5084563",
+    "src/game/tutorial_replication/start_capture_native.inc": "b98df35b0b59372c8d737a3e228a1b4b6137bc2bff77f2af3edadff836c2fb0d",
+    "src/game/tutorial_replication/start_presentation.h": "2b7e35a9c3ff94761f493ded8f2775a43a4dc81d0d8eb6c79fe118a412f9888b",
+    "src/game/tutorial_startingpoint_fixture/research_ui_native.inc": "52f012fdbf79e8a0b116445903ee809dd769962e2d42e7aeabf806fc0067001e",
+    "src/game/tutorial_startingpoint_fixture/staff_ui_native.inc": "f15f9fc1e3268f262938c59253e1274e51e571297bc645ed91548ae12d26ac69",
+    "src/game/tutorial_startingpoint_fixture/startingpoint_fixture.cpp": "dc0a9b90f3b188333ca5ae8e362c55e5adb8df2e6f9cc88cb9b9be0e5c521442",
+    "src/game/typed_action/action_session.cpp": "26388f0393ca52863e589e41a252f99a06a7f28b5647a49295e2ae390696b10c",
+    "src/game/typed_action/action_session.h": "499ef2eb1c965a1571480e8d4b1b61373564c29fb34c211870b8e9e9df376b30",
+    "src/game/typed_action_runtime.cpp": "a39e07488ac3cad000295df8e70851792bd7e9c13e24125bb2432a48e75b6087",
+    "src/game/typed_action_runtime.h": "fffce6e2cd3b1b99ece11aba01d326274dcb206d5894c35aa9962b2ec105cb88",
+    "tools/mcp/developer_staff_ops.py": "b1a428a784aa630f1e6488e2e04bcff8d377ebf83e65cbab0e091fd4481e5f91",
+    "tools/mcp/runtime.py": "df99d95eb49f23725d824d8b93252f87effab6c280aa96b1ee3c8f0f7ecfc88d"
+  },
+  "limits": [
+    "No native Job identity, reciprocal links, outdoor map/movement or Building activation adoption is accepted.",
+    "No separate-account Steam acceptance, four-player or large-save acceptance is inferred.",
+    "No new beta release is created by this prerequisite milestone."
+  ],
+  "full_coop_proven": false
+}

@@ -22,6 +22,7 @@ bool capture(const action_session::Context&,const action_session::Binding&,State
 bool read_startingpoint_row(const action_session::Context&,const action_session::Binding&,startingpoint::Row&,std::string&);
 bool commit_startingpoint(const action_session::Context&,const action_session::Binding&,const startingpoint::Row& expected,bool& attempted,std::string&);
 bool apply_startingpoint_commit(const action_session::Context&,const action_session::Binding&,const startingpoint::Row& before,const startingpoint::Row& after,bool& attempted,bool& unknown,std::string&);
+bool invalidate_developer_pool(const action_session::Context&,const action_session::Binding&,std::string&);
 bool read_progress(nlohmann::json&,std::string&);
 bool preflight(const action_session::Context&,const action_session::Binding&,const State&,std::string&);
 bool apply(const action_session::Context&,const action_session::Binding&,const State&,bool& attempted,bool& unknown,std::string&);

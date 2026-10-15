@@ -9,6 +9,7 @@
 #include "network_pipe_action.h"
 #include "npc_action.h"
 #include "../tutorial_replication/startingpoint.h"
+#include "../developer_staff/shared_state.h"
 #include <array>
 #include <cstdint>
 #include <deque>
@@ -23,7 +24,7 @@ namespace mt2mp::action_session {
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=16384, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -71,6 +72,7 @@ struct Evidence {
     NetworkState network_before,network_after;
     NpcState npc_before,npc_after;
     std::optional<game::tutorial_replication::startingpoint::Row> startingpoint_before,startingpoint_after;
+    std::optional<game::developer_staff::PoolState> developers_before,developers_after;
     std::string region_retired_sha256;
     bool operator==(const Evidence&) const = default;
 };
@@ -156,6 +158,7 @@ bool valid_npc(const NpcIntent&);
 bool valid_npc_effect(const Request&,const Evidence&);
 class Controller {
 public:
+    bool submit_developer(bool hire,const std::string& action_uuid,uint64_t now,std::string& error);
     bool submit_commit_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
     bool submit_startingpoint_workers(const std::string& action_uuid,int32_t desired,uint64_t now,std::string&);
     bool submit_start_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);

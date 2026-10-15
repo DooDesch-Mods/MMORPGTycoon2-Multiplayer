@@ -26,6 +26,7 @@
 #include "ui_move_runtime.h"
 #include "ui_region_runtime.h"
 #include "ui_price_runtime.h"
+#include "developer_staff/action_native.h"
 #include "npc_probe.h"
 #include "ui_terrain_runtime.h"
 #include "ui_path_runtime.h"
@@ -450,6 +451,8 @@ public:
            request.action==action::Action::MoveNPC)
             return npc_probe::action_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetPrices)return ui_price_runtime::perform(binding,request,nullptr,error);
+        if(request.action==action::Action::HireDeveloper||request.action==action::Action::FireDeveloper)
+            return developer_staff::action_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)
             return perform_building_history(binding,request,nullptr,error);
         if((request.action==action::Action::PlaceNetworkNode||request.action==action::Action::PlaceNetworkPipe))return ui_network_runtime::perform(binding,request,nullptr,error);
@@ -468,6 +471,8 @@ public:
            request.action==action::Action::MoveNPC)
             return npc_probe::action_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::SetPrices)return ui_price_runtime::perform(binding,request,&host,error);
+        if(request.action==action::Action::HireDeveloper||request.action==action::Action::FireDeveloper)
+            return developer_staff::action_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)
             return perform_building_history(binding,request,&host,error);
         if((request.action==action::Action::PlaceNetworkNode||request.action==action::Action::PlaceNetworkPipe))return ui_network_runtime::perform(binding,request,&host,error);
@@ -523,6 +528,8 @@ public:
            request.action==action::Action::MoveNPC)
             return npc_probe::action_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::SetPrices)return ui_price_runtime::observe(binding,request,out,error);
+        if(request.action==action::Action::HireDeveloper||request.action==action::Action::FireDeveloper)
+            return developer_staff::action_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding) {
             if(!current(binding,request.snapshot_uuid,error))return false;
             const auto found=history_.find(request.action_uuid);
@@ -602,6 +609,15 @@ public:
         return true;
     }
     bool retire(const action::Binding& binding,const action::Request& request,std::string& error)override {
+        if(request.action==action::Action::HireDeveloper||request.action==action::Action::FireDeveloper){
+            if(!current(binding,request.snapshot_uuid,error))return false;
+            const auto controller=typed_action_runtime::status();
+            if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
+                error="Developer retirement lacks exact Controller request";return false;}
+            action::Evidence actual;if(!developer_staff::action_runtime::observe(binding,request,actual,error))return false;
+            if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
+            return developer_staff::action_runtime::retire(binding,request,error);
+        }
         if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers){
             action::Evidence actual;if(!observe_commit(binding,request,actual,error))return false;
             const auto controller=typed_action_runtime::status();
@@ -741,7 +757,7 @@ bool start(std::string& error) {
     if(runtime->lobby_retiring){error="typed lobby owner is retiring; no start";return false;}
     if(runtime->attempted){error="typed action start already attempted; no restart";return false;}
     runtime->attempted=true;
-    if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error))return false;
+    if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error))return false;
     return runtime->controller.start(GetTickCount64(),error);
 }
 bool enable_live_state(std::string& error) {
@@ -803,6 +819,7 @@ void tick() {
     ui_move_runtime::tick();
     ui_region_runtime::tick();
     ui_price_runtime::tick();
+    developer_staff::action_runtime::tick();
     npc_probe::action_runtime::tick();
     ui_terrain_runtime::tick();
     ui_path_runtime::tick();
@@ -831,7 +848,7 @@ json status() {
         live_host_state::day::economy::State actual;std::vector<uint8_t> encoded;
         if(runtime->economy_state->read_current(*runtime->live_state->last(),actual,economy_read_error)&&live_host_state::day::economy::encode(actual,encoded,economy_read_error))native_economy=nlohmann::json::parse(encoded);
     }
-    return {{"initialized",true},{"ui_price",ui_price_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
+    return {{"initialized",true},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
         {"host_revision",s.host_revision},{"attempted",s.attempted},{"confirmed",s.confirmed},{"failed",s.failed},
         {"duplicates",s.duplicates},{"suppressed_errors",s.suppressed_errors},{"required_mask",s.required_mask},{"ack_mask",s.ack_mask},
         {"outcome",int(s.outcome)},{"action_uuid",s.action_uuid},{"cause",s.cause},{"last_packet_accepted",s.last_packet_accepted},
@@ -917,6 +934,12 @@ bool submit_region_property(const std::string& id,const action::RegionPropertyIn
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="region property requires started Mainthread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; region property not attempted";return false;}
     return runtime->controller.submit_region_property(id,intent,GetTickCount64(),error);
+}
+bool submit_developer(bool hire,const std::string& id,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Developer Hire/Fire requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Developer Hire/Fire not attempted";return false;}
+    return runtime->controller.submit_developer(hire,id,GetTickCount64(),error);
 }
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1011,7 +1034,7 @@ namespace mt2mp::game::typed_action_runtime {
 bool begin_lobby_leave(std::string& e){
     const auto current=status();
     const auto build=ui_build_runtime::status(),remove=ui_remove_runtime::status(),move=ui_move_runtime::status(),region=ui_region_runtime::status(),price=ui_price_runtime::status();
-    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||npc_probe::action_runtime::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
+    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||npc_probe::action_runtime::pending_ui()||developer_staff::action_runtime::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
     if(current.value("snapshot_handoff",false)||!current.value("snapshot_error",std::string{}).empty()){e="native lobby Leave blocked by current snapshot handoff: "+current.value("snapshot_error",std::string{});return false;}
     auto* r=published_runtime.load(std::memory_order_acquire);
     if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
@@ -1042,6 +1065,7 @@ bool finish_lobby_leave(bool& ready,std::string& e){
     if(net::SteamMatchmaking::instance().in_lobby()){e="native lobby Leave local membership readback still present";return false;}
     if(!net::session_wire::retire_lobby(e))return false;
     tutorial_replication::retire("confirmed native Title after lobby Leave");
+    if(!developer_staff::action_runtime::retire_lobby(e))return false;
     live_host_state::day::bind_host_journal(nullptr);published_runtime.store(nullptr,std::memory_order_release);delete r;
     ready=true;e.clear();return true;
 }

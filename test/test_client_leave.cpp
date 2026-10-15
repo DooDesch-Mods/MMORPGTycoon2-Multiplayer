@@ -76,14 +76,14 @@ bool software_armed=true,software_ok=true,time_active=false;
 bool tutorial_fenced=true,tutorial_fenced_at_delete=true;unsigned tutorial_retired=0;std::string tutorial_cause;
 void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
-bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true;
+bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true,staff_ok=true;unsigned staff_retired=0;
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
     software_armed=software_ok=true;time_active=false;reset_software_stream();
     tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
-    fence_ok=wire_ok=time_ok=live_ok=true;
+    fence_ok=wire_ok=time_ok=live_ok=staff_ok=true;staff_retired=0;
 }
 }
 uint32_t GetCurrentThreadId(){return fixture::thread;}
@@ -126,6 +126,17 @@ namespace ui_move_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
 namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
+namespace developer_staff::action_runtime {
+bool pending_ui(){return fixture::captures.value("staff_pending",false);}
+bool retire_lobby(std::string& e){
+    ++fixture::staff_retired;
+    require(fixture::title&&!fixture::transition&&!fixture::saving,"Developer owner retired before idle native Title");
+    require(fixture::native_retired==1&&fixture::wire_retired==1&&fixture::membership_left==1&&fixture::tutorial_retired==1,
+        "Developer owner retired before software/membership/wire/tutorial retirement");
+    if(!fixture::staff_ok){e="original Developer retirement readback failure";return false;}
+    return true;
+}
+}
 namespace time_runtime {enum class Phase{Waiting,Active};}
 namespace time_integration {
 struct Status{struct {time_runtime::Phase phase=time_runtime::Phase::Waiting;uint64_t epoch=0;} runtime;};
@@ -319,8 +330,29 @@ void locked_live_departure(){
     runtime::published_runtime.store(nullptr);delete owner;
     std::cout<<"PASS locked live Leave: original cause retained, no action replay, exact Title retirement, distinct suspension failure\n";
 }
+void developer_lifetime_delta(){
+    Pair pair;fixture::reset();std::string error;bool ready=true;
+    auto* owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    fixture::captures["staff_pending"]=true;
+    require(!runtime::begin_lobby_leave(error)&&error=="native lobby Leave blocked by retained active/pending UI capture intent"&&
+        !fixture::suspended&&!owner->lobby_retiring&&!fixture::invalidated,"pending Developer intent crossed Leave boundary");
+    fixture::captures["staff_pending"]=false;
+    require(runtime::begin_lobby_leave(error),error);
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&!fixture::staff_retired,"active World retired Developer owner");
+    fixture::title=true;fixture::staff_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="original Developer retirement readback failure"&&
+        fixture::staff_retired==1&&!fixture::deleted&&runtime::published_runtime.load()==owner,
+        "Developer retirement failure was hidden or callback storage deleted");
+    runtime::published_runtime.store(nullptr);delete owner;
+    fixture::reset();owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    require(runtime::begin_lobby_leave(error),error);fixture::title=true;
+    require(runtime::finish_lobby_leave(ready,error)&&ready&&fixture::staff_retired==1&&fixture::deleted==1&&
+        !runtime::published_runtime.load(),"confirmed Developer Title retirement did not release owner once");
+    std::cout<<"PASS Developer Leave lifetime: pending intent, active World, exact ordering, original failure, confirmed retirement\n";
+}
 int main(){
     try{
+        developer_lifetime_delta();
         locked_live_departure();
 #ifndef TUTORIAL_LEAVE_DELTA_ONLY
 #ifndef NAMED_WORLD_LEAVE_DELTA_ONLY

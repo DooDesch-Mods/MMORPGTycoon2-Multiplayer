@@ -16,6 +16,7 @@ bool submit_place(const std::string& action_uuid,const action_session::BuildingS
 bool submit_move(const std::string& action_uuid,const std::string& object_key,const action_session::BuildingState&,std::string&);
 bool submit_building_history(action_session::Action action,const std::string& action_uuid,const std::string& target_action_uuid,std::string&);
 bool submit_commit_startingpoint(const std::string& action_uuid,std::string&);
+bool submit_developer(bool hire,const std::string& id,std::string& error);
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error);
 bool submit_start_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_prices(const std::string& action_uuid,const action_session::PriceIntent&,std::string&);

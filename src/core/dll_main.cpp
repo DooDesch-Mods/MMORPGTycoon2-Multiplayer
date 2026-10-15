@@ -24,6 +24,7 @@
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
 #include "../game/developer_staff/probe.h"
+#include "../game/developer_staff/action_native.h"
 #include "../game/developer_staff/retirement/retire.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
 #include "../game/subscriber_lifecycle/runtime_append.h"
@@ -887,6 +888,7 @@ static json status() {
     result["capabilities"]["read_native_loans"]=owned_native_profile;
     result["capabilities"]["read_native_release"]=owned_native_profile;
     result["capabilities"]["read_native_developers"]=owned_native_profile;
+    result["capabilities"]["native_developer_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_native_developer_retirement"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_developer_retirement_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_developer_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
@@ -1337,6 +1339,12 @@ static void diagnostics_tick() {
             }else response["ok"]=game::developer_staff::retirement::run_fixture(request.at("args"),observed,error);
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_RETIREMENT_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_developer_ui") {
+            json observed;std::string error;
+            response["ok"]=game::developer_staff::action_runtime::ui_fixture(request.at("args"),observed,error);
+            response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_UI_ADMISSION_FAILED"},{"message",error}};
         }
         else if(operation=="read_native_developers"||operation=="native_developer_fixture") {
             json observed;std::string error;

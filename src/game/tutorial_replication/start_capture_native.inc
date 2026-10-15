@@ -14,7 +14,7 @@ struct StartCaptureCalls {
         if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
         StartActionCalls reader{context,binding};live_host_state::Pin pin;
         if(!reader.snapshot(snapshot,pin,e)||!reader.preflight(e))return false;
-        if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
+        if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
         return start_intent::window(memory,snapshot,reinterpret_cast<uintptr_t>(receiver),window,e);
     }
     bool action_uuid(std::string& id,std::string& e){return intent_uuid(id,e);}
@@ -46,7 +46,7 @@ bool finish_start_presentation(const std::string& action,const action_session::C
     if(!same_world(pending.origin,snapshot.origin)||
        !start_intent::window(memory,snapshot,pending.window.selected,window,e,true)||window!=pending.window)
         return e.empty()?fail(e,"Startingpoint StartTech presentation window/selection changed"):false;
-    if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
+    if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
     attempted=true;const auto code=start_intent::native_present(image,window.address,window.tabs);
     if(code)return fail(e,"Startingpoint StartTech native presentation exception="+std::to_string(code));
     tutorial_development::StartingpointSnapshot final;

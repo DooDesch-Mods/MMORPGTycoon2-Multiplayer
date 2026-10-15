@@ -1,3 +1,4 @@
+#include "developer_staff/action_native.h"
 #include "native.h"
 #include "lifecycle.h"
 #include "owned_scenario_start_entry.h"
@@ -228,7 +229,7 @@ bool initialize(uintptr_t base,std::string& e){
     if(!memory.copy(image+0x25fb10,commit_bytes.data(),commit_bytes.size(),e))return false;
     if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
     if(!start_intent::verify_pay(nullptr,image+start_intent::pay_rva,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||
-       !start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
+       !start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
     std::array<unsigned char,16> staff_entry{};
     if(!memory.copy(image+staff::allocate_rva,staff_entry.data(),staff_entry.size(),e)||staff_entry!=staff::allocate_entry)
         return fail(e,e.empty()?"Startingpoint original AllocateTechWorkers entry differs":e);
@@ -413,5 +414,12 @@ bool apply_startingpoint_start(const action_session::Context& c,const action_ses
         LOG_WARN("[Tutorial] Startingpoint StartTech presentation skipped cause={}",cause);
     }else client_start_presentation_cause.clear();
     return true;
+}
+}
+
+namespace mt2mp::game::tutorial_replication {
+bool invalidate_developer_pool(const action_session::Context& c,const action_session::Binding& b,std::string& e){
+    World world;if(!origin(c,b,world,e))return false;
+    display_native::clear();e.clear();return true;
 }
 }

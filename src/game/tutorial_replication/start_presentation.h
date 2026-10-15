@@ -19,9 +19,9 @@ inline constexpr Body ui_bodies[]={
     {0x756470,0x470,"2dcd11e0c8ebe7fe1b3bb4a81b56a5c975b70071e8eb8b69f841c340cb7bf003"}
 };
 template<class Copy>
-bool verify_ui(uintptr_t image,Copy&& copy,std::string& error){
+bool verify_ui(uintptr_t image,Copy&& copy,std::string& error,bool(*owned)(uintptr_t,std::string&)=nullptr){
     if(!image||image>UINTPTR_MAX-0x1800000){error="Startingpoint StartTech UI code range invalid";return false;}
-    for(const auto& entry:ui_bodies){std::vector<unsigned char> body(entry.size);if(!copy(image+entry.rva,body.data(),body.size(),error))return false;
+    for(const auto& entry:ui_bodies){if(entry.rva==0x6c7b70&&owned){if(!owned(image+entry.rva,error))return false;continue;}std::vector<unsigned char> body(entry.size);if(!copy(image+entry.rva,body.data(),body.size(),error))return false;
         try{if(mt2mp::sha256(body)!=entry.sha){error="Startingpoint StartTech UI body differs RVA="+std::to_string(entry.rva);return false;}}
         catch(const std::exception& cause){error=std::string("Startingpoint StartTech UI hash failed: ")+cause.what();return false;}}
     error.clear();return true;

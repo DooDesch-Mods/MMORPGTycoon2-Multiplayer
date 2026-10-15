@@ -139,3 +139,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_retirement_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_job_census_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_gameplay_checks.cmake")

@@ -44,5 +44,6 @@ public:
 };
 bool observe_fixture(nlohmann::json&,std::string&);
 bool run_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool authorize_ui_update(Capture&,std::string&);
 bool authorize_fixture(Capture&,uintptr_t& owned_development_window,std::string&);
 }

@@ -1,3 +1,4 @@
+#include "developer_staff/action_native.h"
 #include "startingpoint_fixture.h"
 #include "activity_format_probe.h"
 #include "controller_admission.h"
@@ -92,6 +93,7 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
     }
     if(!hud_time_runtime::verify_window_show_hook(p.image+0x81ec20,e))return false;
     for(const auto& entry:entries){
+        if(entry.rva==0x6c7b70){if(!developer_staff::action_runtime::verify_entry(p.image+entry.rva,e))return false;continue;}
         if(entry.rva==0x25fb10){if(!tutorial_replication::verify_commit_entry(p.image+entry.rva,e))return false;continue;}
         std::vector<unsigned char> actual(entry.size);
         if(!memory.copy(p.image+entry.rva,actual.data(),actual.size(),e))return false;

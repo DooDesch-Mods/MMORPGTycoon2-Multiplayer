@@ -77,7 +77,7 @@ struct StaffCaptureCalls {
         if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
         StaffCalls calls{context,binding};
         if(!calls.admit(desired,e)||calls.before.lounge!=reinterpret_cast<uintptr_t>(receiver))return fail(e,e.empty()?"Startingpoint staff UI receiver differs from current lounge":e);
-        if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff_window(calls.before,desired,e))return false;
+        if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry)||!staff_window(calls.before,desired,e))return false;
         startingpoint::Row row;action_session::Ledger ledger;
         return calls.read(row,ledger,e)&&row==*calls.before.row||fail(e,e.empty()?"Startingpoint staff capture changed native row":e);
     }
