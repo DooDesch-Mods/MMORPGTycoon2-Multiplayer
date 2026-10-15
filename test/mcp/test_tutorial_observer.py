@@ -7,6 +7,24 @@ from server import dispatch, tools_for
 
 
 class TutorialObserverTests(unittest.TestCase):
+    def test_staff_activity_preserves_native_unknown_receipt(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"staff_activity_state","expected_development":{"project":{"present":True}}}
+        receipt={"attempted":False,"read_only":True,"confirmed":False,"unknown":True,"retry_blocked":True,
+                 "cause":"original LocArg exception", "native_calls":{"formatter":{"attempted":1,"returned":0,"confirmed":False}}}
+        runtime=Mock();runtime.request.return_value=receipt
+        self.assertIs(dispatch(runtime,"game_tutorial_startingpoint",args),receipt)
+        runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+
+    def test_staff_activity_cannot_supply_labels_or_developer_pointer(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"staff_activity_state","expected_development":{"project":{"present":True}}}
+        for extra in ({"label":"arbitrary"},{"developer":42},{"call":"IdleTick"}):
+            runtime=Mock()
+            with self.subTest(extra=extra),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_startingpoint",{**args,**extra})
+            runtime.request.assert_not_called()
+
     def test_research_state_preserves_read_only_pending_receipt(self):
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"client_research_state","expected_development":{"project":{"present":False}}}
@@ -57,7 +75,7 @@ class TutorialObserverTests(unittest.TestCase):
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}

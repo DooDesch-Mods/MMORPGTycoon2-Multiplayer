@@ -10,7 +10,7 @@ from lobby_ui.native_local_acceptance import button, observe, left, ready
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'client-staff', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'client-staff', 'staff-activity', 'retire'), required=True)
 parser.add_argument('--host-running', action='store_true', help='Run the Host through the existing native clock MCP during Client Research')
 parser.add_argument('--natural-work', action='store_true', help='Let the assigned Host developer complete Startingpoint before ordinary Client Commit')
 parser.add_argument('--resume-start-from', type=Path, help='Reuse a confirmed open Research view after a recorded no-effect hidden-HUD time rejection')
@@ -31,6 +31,8 @@ if args.phase == 'client-start':
     runner.summary['scope'] = 'ordinary Client Research button submits one Host-ordered purchase and project creation with actual native ledger equality'
 if args.phase == 'client-staff':
     runner.summary['scope'] = 'ordinary Client Staff pip orders one native worker allocation, followed by natural Host work and matching Client state'
+if args.phase == 'staff-activity':
+    runner.summary['scope'] = 'read original Developer activity, counts and native project formatters on a paused joined pair; no Staff UI replication claim'
 
 
 def shared_state(name, expected):
@@ -103,6 +105,65 @@ def host_time(scale):
                    {'setup_route': 'existing native clock MCP; production Host polling and Client presentation',
                     'clock': actual['clock'], 'host_observed': host_state['observed'],
                     'client_applied': client_state['applied'], 'client_clock': client['clock']})
+
+
+def staff_activity():
+    baseline = runner.single('activity-baseline', 'host', 'game_read_tutorial_development')
+    project = baseline['project']
+    if not project.get('present') or project.get('desired_workers') != 1 or project.get('work', 7200) >= 7200:
+        raise AcceptanceError('Activity setup requires a current unfinished project with one assigned worker')
+    shared_state('activity-baseline', baseline)
+    host_time(1)
+    deadline, sample = time.monotonic() + 45, 0
+    while True:
+        sample += 1
+        current = runner.single('activity-natural-work-' + str(sample), 'host', 'game_read_tutorial_development')
+        if current['project']['work'] > project['work'] + 1:
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Host assigned worker did not advance project within45s; no clock replay')
+    host_time(0)
+    current = runner.single('activity-paused', 'host', 'game_read_tutorial_development')
+    shared_state('activity-paused', current)
+    ledger_before = compare_ledgers(runner.inspect('activity-before-host', 'host'),
+                                    runner.inspect('activity-before-client', 'client-1'))
+    values = {}
+    for peer in ('host', 'client-1'):
+        local = runner.single('activity-local-' + peer, peer, 'game_read_tutorial_development')
+        request = {'token': str(uuid.uuid4()), 'native_origin_uuid': local['snapshot_uuid'],
+                   'world_epoch': local['world_epoch'], 'world_generation': local['world_generation'],
+                   'operation': 'staff_activity_state', 'expected_development': local}
+        result = runner.single('activity-probe-once-' + peer, peer, 'game_tutorial_startingpoint', request)
+        runner.checked('activity-probe-' + peer, result)
+        if (result.get('token') != request['token'] or result.get('attempted') is not False
+                or result.get('unknown') is not False or result.get('native_exception') != 0
+                or any(result.get(key) is not True for key in
+                       ('read_only', 'returned', 'confirmed', 'formatter_confirmed',
+                        'native_project_unchanged', 'ledger_unchanged'))):
+            raise AcceptanceError('Activity probe lacks original read/format/disposal confirmation on ' + peer + '; no replay')
+        for name in ('getter', 'formatter', 'destructor'):
+            calls = result['native_calls'][name]
+            if not calls.get('confirmed') or calls.get('attempted', 0) <= 0 or calls['attempted'] != calls['returned']:
+                raise AcceptanceError('Activity native boundary not confirmed: ' + peer + '/' + name)
+        if result.get('development') != local:
+            raise AcceptanceError('Activity probe changed local project on ' + peer)
+        for developer in result['developers']:
+            if developer['job'] in (6, 7):
+                key = '{dev_state_tech_develop}' if developer['job'] == 6 else '{dev_state_tech_debug}'
+                if developer['activity'] != result['formatted'][key]:
+                    raise AcceptanceError('Native project formatter differs from actual Developer activity on ' + peer)
+        values[peer] = result
+    if values['host']['active_tech_workers'] < 1:
+        raise AcceptanceError('Host activity probe did not observe an actual working Developer')
+    if values['host']['formatted'] != values['client-1']['formatted']:
+        raise AcceptanceError('Host and Client native project formatters differ')
+    ledger_after = compare_ledgers(runner.inspect('activity-after-host', 'host'),
+                                   runner.inspect('activity-after-client', 'client-1'))
+    if ledger_after != ledger_before:
+        raise AcceptanceError('Activity probe changed full ledger')
+    runner.summary.update(activity=values, native_activity_formatters_proven=True,
+                          original_developer_getter_proven=True, ledger_unchanged=True,
+                          client_activity_ui_replicated=False)
 
 
 def prior_result(prior, step, tool):
@@ -637,6 +698,8 @@ try:
         client_start()
     elif args.phase == 'client-staff':
         client_staff()
+    elif args.phase == 'staff-activity':
+        staff_activity()
     elif args.phase == 'begin':
         begin_project()
     elif args.phase == 'prove':

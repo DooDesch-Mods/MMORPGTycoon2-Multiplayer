@@ -1,0 +1,181 @@
+{
+  "schema": 1,
+  "scope": "Native Startingpoint Developer activity and localized-value ABI proof; no UI synchronization acceptance",
+  "runtime_run_id": "a8d4e9c4-6579-4432-b069-046614b5717b",
+  "mod_sha256": "8ab79cfd46c102e60711160e6f55433a9afa119dbdd44f9a4298ec775ca7b2f5",
+  "build": "artifacts/build_history/20261015T061031703259Z",
+  "admission": {
+    "path": "artifacts/acceptance/65a1e4f8-f5c5-4ffd-90d1-fab46492d83e/summary.json",
+    "sha256": "8c80c2a84e4a1c7bcf3e66b54458a38dceec2ec35d9c291ba914871a76a712d2"
+  },
+  "activity": {
+    "path": "artifacts/acceptance/3537ee79-855b-4fa7-8711-c43dd353aa53/summary.json",
+    "sha256": "ded589c0f039796db3f4bbd0ed037ce023944a8a48e10bfdaca542af2c3ab97f"
+  },
+  "retirement": {
+    "path": "artifacts/acceptance/c8d209ec-0664-43fb-8796-de4e44b568bc/summary.json",
+    "sha256": "d80a00b24d130c34188b2cc09d2de0d177a19145c43385bfb66e22903372ca1a"
+  },
+  "shutdown": {
+    "path": "artifacts/acceptance/1868c0ba-7d91-44fd-8bb8-0797229f943c/summary.json",
+    "sha256": "8c0ce1fa2c4de2c5141b8b414daed6310e38fd0985725bc7c981a531f772fb8d"
+  },
+  "native_results": {
+    "host": {
+      "active_tech_workers": 1,
+      "active_developers": 1,
+      "developers": [
+        {
+          "activity": {
+            "args": [
+              {
+                "name": "techname",
+                "type": 0,
+                "value": {
+                  "args": [],
+                  "key": "{tech_startingpoint_displayname}"
+                }
+              }
+            ],
+            "key": "{dev_state_tech_develop}"
+          },
+          "id": 0,
+          "job": 6,
+          "on_map": false
+        }
+      ],
+      "native_calls": {
+        "destructor": {
+          "attempted": 9,
+          "confirmed": true,
+          "returned": 9
+        },
+        "formatter": {
+          "attempted": 3,
+          "confirmed": true,
+          "returned": 3
+        },
+        "getter": {
+          "attempted": 6,
+          "confirmed": true,
+          "returned": 6
+        }
+      },
+      "formatted": {
+        "{dev_state_tech_debug}": {
+          "args": [
+            {
+              "name": "techname",
+              "type": 0,
+              "value": {
+                "args": [],
+                "key": "{tech_startingpoint_displayname}"
+              }
+            }
+          ],
+          "key": "{dev_state_tech_debug}"
+        },
+        "{dev_state_tech_develop}": {
+          "args": [
+            {
+              "name": "techname",
+              "type": 0,
+              "value": {
+                "args": [],
+                "key": "{tech_startingpoint_displayname}"
+              }
+            }
+          ],
+          "key": "{dev_state_tech_develop}"
+        }
+      },
+      "native_exception": 0
+    },
+    "client-1": {
+      "active_tech_workers": 1,
+      "active_developers": 1,
+      "developers": [
+        {
+          "activity": {
+            "args": [
+              {
+                "name": "techname",
+                "type": 0,
+                "value": {
+                  "args": [],
+                  "key": "{tech_startingpoint_displayname}"
+                }
+              }
+            ],
+            "key": "{dev_state_tech_develop}"
+          },
+          "id": 0,
+          "job": 6,
+          "on_map": false
+        }
+      ],
+      "native_calls": {
+        "destructor": {
+          "attempted": 9,
+          "confirmed": true,
+          "returned": 9
+        },
+        "formatter": {
+          "attempted": 3,
+          "confirmed": true,
+          "returned": 3
+        },
+        "getter": {
+          "attempted": 6,
+          "confirmed": true,
+          "returned": 6
+        }
+      },
+      "formatted": {
+        "{dev_state_tech_debug}": {
+          "args": [
+            {
+              "name": "techname",
+              "type": 0,
+              "value": {
+                "args": [],
+                "key": "{tech_startingpoint_displayname}"
+              }
+            }
+          ],
+          "key": "{dev_state_tech_debug}"
+        },
+        "{dev_state_tech_develop}": {
+          "args": [
+            {
+              "name": "techname",
+              "type": 0,
+              "value": {
+                "args": [],
+                "key": "{tech_startingpoint_displayname}"
+              }
+            }
+          ],
+          "key": "{dev_state_tech_develop}"
+        }
+      },
+      "native_exception": 0
+    }
+  },
+  "checks": [
+    "29 actual-body checks",
+    "26 MCP tests",
+    "full fixture translation unit /W4 /WX",
+    "guarded canonical build",
+    "both actual games exit0; both crash monitors exit0; no dump"
+  ],
+  "limits": [
+    "This fixed diagnostic reads original values and constructs/disposes private native text temporaries. It does not set UI, tick workers, assign jobs or change the ledger.",
+    "The retained purchased-project fixture already contains a working Developer on both peers. It proves the getter/formatter/disposal ABI, not replication of fresh worker activity.",
+    "The separate fresh-creation Staff presentation gap remains open. Its fix must carry Host presentation data through the existing frame without enabling Client simulation.",
+    "The original Steam installation and public tester package remain Beta6; this probe build is isolated."
+  ],
+  "client_activity_ui_replicated": false,
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

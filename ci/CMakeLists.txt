@@ -117,3 +117,4 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_start_intent_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_staff_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_client_staff_ui_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_staff_activity_checks.cmake")
