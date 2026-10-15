@@ -974,7 +974,7 @@ static json status() {
     result["capabilities"]["read_network_state"]=game::native::in_game();
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
-    result["capabilities"]["tutorial_startingpoint"]=owned_native_profile&&cfg.local_test&&cfg.is_host&&game::native::in_game();
+    result["capabilities"]["tutorial_startingpoint"]=owned_native_profile&&cfg.local_test&&game::native::in_game();
     result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_movement"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_tutorial_movement"]=tutorial_movement_ready;
@@ -1782,8 +1782,8 @@ static void diagnostics_tick() {
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_HOLDER_REJECTED"},{"message",error}};
         }
         else if(operation=="tutorial_startingpoint") {
-            if(!owned_native_profile||!Config::instance().local_test||!Config::instance().is_host)
-                throw std::runtime_error("startingpoint fixture requires owned local-test Host");
+            if(!owned_native_profile||!Config::instance().local_test)
+                throw std::runtime_error("startingpoint fixture requires owned local-test runtime");
             const auto& args=request.at("args");
             if(!args.is_object()||args.size()!=6||!args.at("token").is_string()||!args.at("native_origin_uuid").is_string()||
                !args.at("operation").is_string()||!args.at("world_epoch").is_number_unsigned()||

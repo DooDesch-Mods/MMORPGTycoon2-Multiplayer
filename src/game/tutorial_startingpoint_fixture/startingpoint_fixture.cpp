@@ -1,5 +1,7 @@
 #include "startingpoint_fixture.h"
 #include "controller_admission.h"
+#include "client_admission.h"
+#include "live_host_state/native_port.h"
 #include "begin_guards.h"
 #include "tutorial_replication/startingpoint_creation_native.h"
 #include "tutorial_development.h"
@@ -56,14 +58,15 @@ struct Pin {
     std::array<uintptr_t,200> items{};
     json development,tutorial;
 };
-bool pin(const Request& request,Pin& p,std::string& e){
+bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending_id={},
+         const action_session::Context* submitted_context=nullptr,const action_session::Binding* submitted_binding=nullptr){
     uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(p.image,thread,sha,e))return false;
     if(sha!=exact_sha||p.image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
         return fail(e,"startingpoint fixture requires exact EXE/owned GameUpdate/Mainthread");
-    if(!Config::instance().local_test||!Config::instance().is_host)return fail(e,"startingpoint fixture requires isolated local-test Host");
+    if(!Config::instance().local_test||Config::instance().is_host==client)return fail(e,client?"startingpoint fixture requires isolated local-test Client":"startingpoint fixture requires isolated local-test Host");
     const auto controller=typed_action_runtime::status();
-    if(!controller_admission(controller,e))return false;
+    if(client?!client_controller_admission(controller,pending_id,e):!controller_admission(controller,e))return false;
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.edit_operations||status.saves_in_progress||status.quitting||status.title_transition_pending||status.map_task_pending)
         return fail(e,"startingpoint fixture requires idle InGame without edit/save/transition");
@@ -74,10 +77,15 @@ bool pin(const Request& request,Pin& p,std::string& e){
         return fail(e,"startingpoint fixture expected local Origin differs");
     if(controller.at("initialized").get<bool>()){
         action_session::Context context;action_session::Binding binding;
-        if(!action_session::selected_session().current(context,e)||
-           !typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
-        if(context.role!=action_session::Role::Host||binding.native_epoch!=p.world.world_epoch||binding.native_generation!=p.world.generation)
-            return fail(e,"startingpoint fixture actual Host session binding differs from native Origin");
+        if(!action_session::selected_session().current(context,e))return false;
+        if(!pending_id.empty()){
+            if(!client||!submitted_context||!submitted_binding||context!=*submitted_context)
+                return fail(e,"startingpoint submitted readback requires original Client Context/binding");
+            if(!typed_action_runtime::observe_startingpoint_submission(*submitted_context,*submitted_binding,pending_id,e))return false;
+            binding=*submitted_binding;
+        }else if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
+        if(context.role!=(client?action_session::Role::Client:action_session::Role::Host)||binding.native_epoch!=p.world.world_epoch||binding.native_generation!=p.world.generation)
+            return fail(e,client?"startingpoint fixture actual Client session binding differs from native Origin":"startingpoint fixture actual Host session binding differs from native Origin");
     }
     if(!hud_time_runtime::verify_window_show_hook(p.image+0x81ec20,e))return false;
     for(const auto& entry:entries){
@@ -160,6 +168,7 @@ DWORD show(uintptr_t image,uintptr_t window){__try{reinterpret_cast<void(*)(void
 DWORD complete_state(uintptr_t image,uintptr_t lounge,bool& result){__try{result=reinterpret_cast<bool(*)(void*)>(image+0x25ed50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Busy {Busy(){busy=true;}~Busy(){busy=false;}};
 #include "begin_fixture.inc"
+#include "client_ui_fixture.inc"
 }
 UpdateScope::UpdateScope(void* game) noexcept:outer_(update_depth==0){if(outer_)update_game=game;++update_depth;}
 UpdateScope::~UpdateScope(){if(update_depth)--update_depth;if(outer_)update_game=nullptr;}
@@ -168,7 +177,7 @@ bool run(const Request& request,json& result,std::string& e){
     std::string key;Progress* phase=nullptr;
     try{
         if(request.token.empty()||request.token.size()>64||request.origin_uuid.empty()||!request.epoch||!request.generation||
-           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"))return fail(e,"startingpoint fixture fixed request invalid");
+           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"))return fail(e,"startingpoint fixture fixed request invalid");
         // No shared receipt state is touched outside the bound update thread.
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,e))return false;
@@ -177,6 +186,7 @@ bool run(const Request& request,json& result,std::string& e){
         if(receipts.contains(request.token)){result=receipts.at(request.token);result["replay_rejected"]=true;return fail(e,"startingpoint fixture token consumed; no replay");}
         if(busy||receipts.size()>=64||worlds.size()>=64)return fail(e,"startingpoint fixture busy or receipt bound reached");
         Busy scope;
+        if(request.operation=="client_show"||request.operation=="client_commit")return client_ui(request,result,phase,key,e);
         if(request.operation=="begin")return begin_project(request,result,phase,key,e);
         Pin p;if(!pin(request,p,e)||!before(p,e))return false;
         if(p.development!=request.expected_development)return fail(e,"startingpoint fixture expected development readback differs");

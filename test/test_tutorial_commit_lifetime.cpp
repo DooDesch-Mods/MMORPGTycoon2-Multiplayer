@@ -15,6 +15,10 @@ namespace {
 struct CommitReceipt{World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;} commit_receipt;
 struct {bool armed=false;} load;
 bool client_commit_suppressed=false,entry_valid=true;
+bool client_commit_submitted=false,intent_accept=false;
+std::string client_commit_action,client_commit_cause;
+unsigned intent_calls=0;
+bool submit_client_commit(void*,std::string& e){++intent_calls;if(!intent_accept){e="original Controller request pending";return false;}client_commit_action="fixed-intent";return true;}
 uintptr_t image=0x140000000;uint32_t mainthread=7,thread=7;
 unsigned originals=0,read_calls=0,tests=0;
 std::string fault;
@@ -44,12 +48,13 @@ tutorial_development::StartingpointSnapshot project(){
     startingpoint::Row row;row.project_present=row.purchased=true;out.row=row;return out;
 }
 auto deployed(){auto out=project();out.project=0;out.row->project_present=false;out.row->deployed=true;out.row->inventory_count=1;out.row->release_change_count=1;out.row->release_feature_count=1;out.row->release_counter=1;return out;}
-void reset(){commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};}
+void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=0;commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};}
 void saved_receipt(){auto old=deployed();commit_receipt={old.origin,old.tech,old.record,startingpoint::CommitBugs{0,0},{}};}
 void need(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 void pass(const char* name){++tests;std::cout<<"PASS "<<name<<'\n';}
 }
 int main(){try{
+    {reset();load.armed=true;intent_accept=true;commit_current(reinterpret_cast<void*>(0x200000));need(!originals&&!read_calls&&intent_calls==1&&client_commit_submitted&&client_commit_action=="fixed-intent"&&client_commit_cause.empty(),"Client Commit did not submit exactly one intent");pass("joined Client submits fixed intent without executing original Commit");}
     {reset();auto before=project();before.row->bugs_total=2;before.row->bugs_known=1;samples={before,deployed()};commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&read_calls==2&&commit_receipt.bugs==startingpoint::CommitBugs{2,1}&&commit_receipt.tech==before.tech&&commit_receipt.record==before.record&&commit_receipt.cause.empty(),"Host Commit did not preserve actual pre-reset bug receipt");pass("original Host Commit runs once and records pre-reset bug counters");}
     {reset();saved_receipt();auto other=deployed();other.project=0x240000;samples={other};commit_current(reinterpret_cast<void*>(other.lounge));need(originals==1&&read_calls==1&&commit_receipt.bugs==startingpoint::CommitBugs{0,0}&&commit_receipt.record==other.record,"later unrelated Commit erased Startingpoint receipt");pass("later other-project Commit preserves proven Startingpoint receipt");}
     {reset();saved_receipt();fail_read=1;samples={project()};commit_current(reinterpret_cast<void*>(0x200000));need(originals==1&&commit_receipt.bugs.has_value()&&!messages.empty()&&messages.back().find("original Startingpoint read failed")!=std::string::npos,"optional read failure erased receipt or swallowed original");pass("optional Host read failure retains receipt and cause while original runs once");}

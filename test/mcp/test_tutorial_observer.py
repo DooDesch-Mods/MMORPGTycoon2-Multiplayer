@@ -7,13 +7,30 @@ from server import dispatch, tools_for
 
 
 class TutorialObserverTests(unittest.TestCase):
+    def test_startingpoint_client_ui_preserves_submission_not_completion(self):
+        good={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"client_commit","expected_development":{"project":{"present":True}}}
+        receipt={"attempted":True,"returned":True,"confirmed":True,"unknown":False,"submitted":True,
+                 "action_uuid":"f473438a-510a-4f85-8337-b4e154ea15d6","host_completion_confirmed":False}
+        for operation in ("client_show","client_commit"):
+            with self.subTest(operation=operation):
+                runtime=Mock();runtime.request.return_value=receipt
+                args={**good,"operation":operation}
+                self.assertIs(dispatch(runtime,"game_tutorial_startingpoint",args),receipt)
+                runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+        for bad in ({**good,"operation":"client_complete"},{**good,"command":"CommitTech"},{**good,"world_epoch":0}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_startingpoint",bad)
+            runtime.request.assert_not_called()
+
     def test_startingpoint_fixed_mutation_preserves_actual_development_guards(self):
         runtime=Mock()
         runtime.available.return_value={"tutorial_startingpoint"}
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}

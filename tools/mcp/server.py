@@ -201,7 +201,7 @@ OP_SCHEMAS = {
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
     "tutorial_startingpoint": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
-        "operation": {"type":"string","enum":["begin","show","complete","commit"]},
+        "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit"]},
         "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
         "expected_development": {"type":"object"}},
         ("token","native_origin_uuid","operation","world_epoch","world_generation","expected_development")),
@@ -300,7 +300,7 @@ OP_DESCRIPTIONS = {
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
-    "tutorial_startingpoint": "Fixed Host Starting Point proof: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
+    "tutorial_startingpoint": "Fixed Starting Point proof: client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
     "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
     "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",
@@ -409,7 +409,7 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
         if op == "tutorial_startingpoint":
             required={"token","native_origin_uuid","operation","world_epoch","world_generation","expected_development"}
-            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit"):
+            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit"):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires exact fixed operation and guards")
             if any(not isinstance(arguments[key],str) or re.fullmatch(TIME_TOKEN_PATTERN,arguments[key]) is None for key in ("token","native_origin_uuid")):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires canonical token and native origin UUIDs")

@@ -1,0 +1,85 @@
+{
+  "schema": 1,
+  "scope": "Ordinary joined Client Startingpoint Commit through the existing Host-ordered action Controller",
+  "released": false,
+  "ordinary_client_commit_proven": true,
+  "client_research_start_proven": false,
+  "full_tutorial_proven": false,
+  "runtime_run_id": "b0c895ce-33b1-47ef-8d22-2c388fa6a424",
+  "action_uuid": "b88570f7-39bd-4009-8465-aedd1b9cc8ec",
+  "mod_sha256": "7cbe732b05e118684774bad1f4b2d844552e1f536270ece4f7e1a0d0ce851cbe",
+  "build": "artifacts/build_history/20261015T032316747874Z",
+  "native": {
+    "admission": {
+      "path": "artifacts/acceptance/08b2a41c-710d-42c3-a3c9-e56a144163bc/summary.json",
+      "sha256": "cdadb0214d7044ff7c8bd3a38a170e380d31673c9d251dfa9bf1ad5235fddbe0"
+    },
+    "ordinary_client_commit": {
+      "path": "artifacts/acceptance/16121cf8-f816-4a2e-add7-9ca63e3c2ea4/summary.json",
+      "sha256": "54a2042f1a94ad1d5eb2c6e419f061c85de63baf57951998be7a1f5edb8e2f27"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/4e8c17b8-1696-409b-9198-bea960890797/summary.json",
+      "sha256": "cad1e621cc206d79afc851951ba5596c4ce3981f0a43755a74dd3770c720cf72"
+    },
+    "native_exit": {
+      "path": "artifacts/acceptance/b4f8fb94-b19b-4f57-8110-9e94acbe68b9/summary.json",
+      "sha256": "62aa91e5c2d9336c4b8fd046a1d2f5e55961bec5bd26ad7406792daeeb69cb3e"
+    }
+  },
+  "frames": {
+    "host": "_drafts/media/client-commit-host.bmp",
+    "client-1": "_drafts/media/client-commit-client-1.bmp"
+  },
+  "crash_monitors": [
+    "artifacts/tutorial_crash/b0c895ce-33b1-47ef-8d22-2c388fa6a424/monitor-result.json",
+    "artifacts/tutorial_crash/b0c895ce-33b1-47ef-8d22-2c388fa6a424/peer-2/monitor-result.json"
+  ],
+  "retained_failure_and_recovery": {
+    "initial_diagnostic_failure": {
+      "path": "artifacts/acceptance/749cea9a-5ef3-447b-866f-518711c74003/summary.json",
+      "sha256": "ca9ebbd81f26d0f93b7f21687398dc67283e9772d726ed7737236a91298d79c2",
+      "passed": false
+    },
+    "original_action_read_only_recovery": {
+      "path": "artifacts/acceptance/e0b26dd9-205a-4a1b-a43e-a4012b09a14f/summary.json",
+      "sha256": "2980d9ad4dfce590de00ab25c854aceb2ae171acc27675c6afb5ec470e1c3669",
+      "passed": true
+    }
+  },
+  "candidates": {
+    "intent_manifest_sha256": "5e56fc379ffc4714e39fa8a2617d1e9fe35dc531c388d8f0b44a867c125b73b0",
+    "client_ui_manifest_sha256": "66e553f984bfbd15c438dc3c4047ce1175d734807d6873a7c1eaf123f1278b86",
+    "pending_observer_manifest_sha256": "8881dc44e355b7d8a542d3cfc328ee190f8c87c02e0216adc403716a6aba260e"
+  },
+  "checks": [
+    "The Host prepared native completion and the Client received the actual complete project before the UI click.",
+    "The real owned Client DevelopmentWindow and enabled Commit button were activated once. Client original Commit stayed suppressed.",
+    "The Client submitted one fixed Action18/schema20 request through existing Channel9; no process pointer or free command was sent.",
+    "The Host original Commit executed and both peers confirmed the same action UUID, one native attempt and one ordered revision each.",
+    "Host ACK mask3 equals required mask3. Client native adoption and retirement preceded its ACK and final Completion.",
+    "Both actual native readbacks show no current project, exactly one StartingPoints item and exactly one Release feature/counter increment.",
+    "Both full native cash, day record, income, expense and all20 ledger categories stayed unchanged; actual Client simulation remained Clock0.",
+    "Both original images show the Grid instruction and Starting Points release entry with independent local UI.",
+    "Both games left and exited normally with code0. Both monitors attached before Client Commit and ended without a dump."
+  ],
+  "tests": {
+    "core_ctest_groups": 4,
+    "core_seconds": 0.34,
+    "core_log": "artifacts/build_history/20261015T030935659866Z/commit-core-tests-details.log",
+    "ui_and_pending_ctest_groups": 2,
+    "ui_and_pending_seconds": 0.29,
+    "ui_and_pending_log": "artifacts/build_history/20261015T032316747874Z/pending-binding-test-details.log",
+    "mcp_tests": 21,
+    "mcp_log": "tools/tutorial_sync/tech_commit_intent_stage/client_ui_stage/runs/20261015T030526520585Z/3.log",
+    "scope": "Actual codec/Controller, native helper and Commit lifetime; real idle/pending provider bodies and actual UI fixture body."
+  },
+  "diagnostic_correction": "The first real action completed successfully, but its diagnostic post-pin called idle-only network_binding. Its result was recovered read-only without replay. The fix observes only the exact saved pending Context/binding/UUID and NativeEngine::current; ordinary request admission remains unchanged. The fresh controlled run passes the complete diagnostic.",
+  "limits": [
+    "This proves ordinary Client Commit for the fixed initial Startingpoint project. Research/start requests and other technologies remain open.",
+    "Host project work was completed through the existing original-engine fixture. This does not prove the complete natural tutorial flow.",
+    "Nonzero Map bug effects and noninitial Release deployment retain their existing rejection.",
+    "No new four-player, large-save or separate-account Steam acceptance was performed.",
+    "Published and installed tester version remains Beta5. This source milestone does not change the release marker."
+  ]
+}

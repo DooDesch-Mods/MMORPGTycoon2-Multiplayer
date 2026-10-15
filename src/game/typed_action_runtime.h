@@ -3,7 +3,7 @@
 #include <string>
 #include <cstdint>
 namespace mt2mp::action_session::ui_capture {struct Replay;}
-namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct NpcIntent;struct Binding;enum class Action:uint8_t;}
+namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
 
 namespace mt2mp::game::typed_action_runtime {
 bool start(std::string&);
@@ -15,11 +15,14 @@ bool request_remove(const nlohmann::json&,nlohmann::json&,std::string&);
 bool submit_place(const std::string& action_uuid,const action_session::BuildingState&,std::string&);
 bool submit_move(const std::string& action_uuid,const std::string& object_key,const action_session::BuildingState&,std::string&);
 bool submit_building_history(action_session::Action action,const std::string& action_uuid,const std::string& target_action_uuid,std::string&);
+bool submit_commit_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_prices(const std::string& action_uuid,const action_session::PriceIntent&,std::string&);
 bool submit_npc(const std::string& action_uuid,const action_session::NpcIntent&,std::string&);
 bool submit_remove_npc(const std::string& action_uuid,const std::string& target_action_uuid,std::string&);
 bool submit_move_npc(const std::string& action_uuid,const std::string& target_action_uuid,
     const action_session::BuildingState& transform,std::string&);
+bool observe_startingpoint_submission(const action_session::Context& expected_context,
+    const action_session::Binding& expected_binding,const std::string& action_uuid,std::string&);
 bool network_binding(const std::string& snapshot,action_session::Binding&,std::string&);
 bool request_place(const nlohmann::json&,nlohmann::json&,std::string&);
 bool request_move(const nlohmann::json&,nlohmann::json&,std::string&);

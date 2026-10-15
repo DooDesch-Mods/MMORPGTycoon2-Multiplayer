@@ -169,8 +169,15 @@ void commit_current(void* lounge){
     // ordinary Commit button must not run a second independent Commit.
     if(load.armed){
         if(GetCurrentThreadId()!=mainthread){block("Client native Commit thread differs");return;}
-        if(!client_commit_suppressed){client_commit_suppressed=true;LOG_INFO("[Tutorial] Client native Commit suppressed; Host owns development");}
-        return;
+        client_commit_suppressed=true;std::string cause;
+        try{client_commit_submitted=submit_client_commit(lounge,cause);}
+        catch(const std::exception& x){client_commit_submitted=false;cause=std::string("startingpoint Commit intent exception: ")+x.what();}
+        if(!client_commit_submitted&&cause.empty())cause="startingpoint Commit intent rejected without cause";
+        if(cause!=client_commit_cause||client_commit_submitted){
+            if(client_commit_submitted)LOG_INFO("[Tutorial] Client Startingpoint Commit submitted action={}",client_commit_action);
+            else LOG_WARN("[Tutorial] Client Startingpoint Commit not submitted cause={}",cause);
+        }
+        client_commit_cause=cause;return;
     }
     tutorial_development::StartingpointSnapshot before;
     nlohmann::json diagnostic;std::string cause;

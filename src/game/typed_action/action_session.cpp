@@ -191,6 +191,11 @@ bool valid_npc_target(const Request& r) {
         r.canonical_record_key=="action:"+r.target_action_uuid;
 }
 bool valid_request(const Request& r) {
+    if(r.action==Action::CommitStartingpoint)return uuid(r.action_uuid)&&r.target_action_uuid.empty()&&
+        r.canonical_record_key=="tech:startingpoint"&&r.building==BuildingState{}&&r.region==RegionIntent{}&&
+        r.region_property==RegionPropertyIntent{}&&r.price==PriceIntent{}&&r.terrain==TerrainIntent{}&&
+        r.path==PathIntent{}&&r.path_delete==PathDeleteIntent{}&&r.network==NetworkIntent{}&&
+        r.network_pipe==NetworkPipeIntent{}&&r.npc==NpcIntent{};
     if(r.action==Action::MoveNPC)return uuid(r.action_uuid)&&valid_npc_target(r)&&
         valid_npc_transform(r.building)&&r.npc==NpcIntent{}&&r.region==RegionIntent{}&&
         r.region_property==RegionPropertyIntent{}&&r.price==PriceIntent{}&&r.terrain==TerrainIntent{}&&
@@ -265,6 +270,14 @@ bool object_effect(const Request& r,const Evidence& e) {
     return e.object_before.alive&&e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant;
 }
 bool execution(const Request& r,const Evidence& e) {
+    if(r.action==Action::CommitStartingpoint){
+        namespace sp=game::tutorial_replication::startingpoint;
+        sp::Plan operation;std::string cause;
+        return e.startingpoint_before&&e.startingpoint_after&&
+            sp::plan(e.startingpoint_before,e.startingpoint_after,operation,cause)&&operation==sp::Plan::Deploy&&
+            e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed&&
+            e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    }
     if(r.action==Action::MoveNPC)return npc_move_effect(r,e);
     if(r.action==Action::RemoveNPC)return npc_remove_effect(e);
     if(r.action==Action::PlaceNPC)return npc_effect(r,e);
@@ -378,6 +391,14 @@ bool same_action(const Message& a,const Message& b) {return a.session==b.session
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
 bool valid_message(const Message& m,std::string& error) {
+    if(m.request.action!=Action::CommitStartingpoint&&(m.evidence.startingpoint_before||m.evidence.startingpoint_after)){
+        error="startingpoint evidence outside Commit action";return false;
+    }
+    if(m.evidence.startingpoint_before.has_value()!=m.evidence.startingpoint_after.has_value()){
+        error="startingpoint Commit evidence requires both rows";return false;
+    }
+    for(const auto* row:{&m.evidence.startingpoint_before,&m.evidence.startingpoint_after})
+        if(*row&&!game::tutorial_replication::startingpoint::valid(**row,error))return false;
     if(!valid_ledger(m.evidence.before)||!valid_ledger(m.evidence.after)) {
         error="ledger record_present requires 0 or 1";return false;
     }
@@ -442,13 +463,17 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t(quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t(r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(r.action==Action::PlaceNPC||r.action==Action::RemoveNPC||r.action==Action::MoveNPC) {
+        if(r.action==Action::CommitStartingpoint){
+            namespace sp=game::tutorial_replication::startingpoint;
+            j["evidence"]["startingpoint_before"]=e.startingpoint_before?sp::encode(*e.startingpoint_before):json(nullptr);
+            j["evidence"]["startingpoint_after"]=e.startingpoint_after?sp::encode(*e.startingpoint_after):json(nullptr);
+        } else if(r.action==Action::PlaceNPC||r.action==Action::RemoveNPC||r.action==Action::MoveNPC) {
             if(r.action==Action::PlaceNPC)j["request"]["npc"]=npc_intent_json(r.npc);
             else j["request"]["target_action_uuid"]=r.target_action_uuid;
             if(r.action==Action::MoveNPC)j["request"]["building"]=building_json(r.building);
@@ -506,7 +531,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>19)throw std::runtime_error("unsupported action schema");
+        const auto schema=u64(j.at("schema"));if(schema<1||schema>20)throw std::runtime_error("unsupported action schema");
         if(schema!=19&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
@@ -525,21 +550,31 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==12)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path_delete"});
         else if(schema==11||schema==15)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region_property"});
         else if(schema==10)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
-        else if(schema==1)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key"});
+        else if(schema==1||schema==20)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key"});
         else if(schema==2)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","building"});
         else if(schema==3||schema==5)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region"});
         else if(schema==9)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network_pipe"});
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));if(action<1||action>17||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));if(action<1||action>18||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
         if(schema==10||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
         const auto& e=j.at("evidence");
-        if(schema==16||schema==17||schema==18||schema==19) {
+        if(schema==20){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","startingpoint_before","startingpoint_after"});
+            const auto read=[](const json& j,std::optional<game::tutorial_replication::startingpoint::Row>& out){
+                if(j.is_null())return;
+                game::tutorial_replication::startingpoint::Row row;std::string cause;
+                if(!game::tutorial_replication::startingpoint::decode(j,row,cause))throw std::runtime_error(cause);
+                out=row;
+            };
+            read(e.at("startingpoint_before"),m.evidence.startingpoint_before);
+            read(e.at("startingpoint_after"),m.evidence.startingpoint_after);
+        } else if(schema==16||schema==17||schema==18||schema==19) {
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","npc_before","npc_after"});
             if(schema==16||(schema==19&&action==15))m.request.npc=npc_intent_read(r.at("npc"));
             if(schema==18||(schema==19&&action==17))m.request.building=building_read(r.at("building"),true);
@@ -738,6 +773,10 @@ bool Controller::submit_move_npc(const std::string& id,const std::string& target
     else request.canonical_record_key=target;
     request.building=transform;return submit(std::move(request),now,error);
 }
+bool Controller::submit_commit_startingpoint(const std::string& id,uint64_t now,std::string& error){
+    Request request;request.action=Action::CommitStartingpoint;request.action_uuid=id;
+    request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
+}
 bool Controller::submit(Request request,uint64_t now,std::string& error) {
     if(!guard(error))return false;now_=now;
     if(pending_||local_request_)return fail("one action already pending; no queue",error);
@@ -763,7 +802,8 @@ bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidenc
        retired.region_before!=evidence.region_before||retired.region_after!=evidence.region_after||
        retired.property_before!=evidence.property_before||retired.property_after!=evidence.property_after||
        retired.region_retired_sha256!=evidence.region_retired_sha256||retired.terrain_before!=evidence.terrain_before||retired.terrain_after!=evidence.terrain_after||
-       retired.npc_before!=evidence.npc_before||retired.npc_after!=evidence.npc_after)
+       retired.npc_before!=evidence.npc_before||retired.npc_after!=evidence.npc_after||
+       retired.startingpoint_before!=evidence.startingpoint_before||retired.startingpoint_after!=evidence.startingpoint_after)
         return fail("native retirement acknowledgment: "+error,error,true);
     evidence=retired;return true;
 }

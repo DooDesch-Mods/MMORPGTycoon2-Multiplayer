@@ -17,6 +17,9 @@
 #include "mt2mp/core/logger.h"
 #include "mt2mp/game/native_engine.h"
 #include <windows.h>
+#include <bcrypt.h>
+#include <cstdio>
+#include "typed_action_runtime.h"
 #include <array>
 #include <cstring>
 #include <set>
@@ -35,6 +38,9 @@ tutorial_sync::OwnedSequenceEntry owned,owned_commit;
 struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;};
 CommitReceipt commit_receipt;
 bool client_commit_suppressed=false;
+std::string client_commit_action,client_commit_cause;
+bool client_commit_submitted=false;
+bool submit_client_commit(void* lounge,std::string&);
 void commit_current(void* lounge);
 bool same_world(const World&,const World&);
 struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;} load;
@@ -214,7 +220,7 @@ bool verify_commit_entry(uintptr_t address,std::string& e){
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
-    commit_receipt={};client_commit_suppressed=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
+    commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
     pending=false;
@@ -253,7 +259,7 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();commit_receipt={};client_commit_suppressed=false;}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -270,7 +276,7 @@ bool read_progress(nlohmann::json& out,std::string& e){
              {"snapshot_uuid",before.uuid},{"world_epoch",before.world_epoch},{"world_generation",before.generation},
              {"client_sequence_fenced",context.role==action_session::Role::Client},{"tutorial",encode(state)},
              {"client_commit_suppressed",client_commit_suppressed},
-             {"client_commit_cause",client_commit_suppressed?"Client tech-action routing pending; original Client Commit was not executed":""},
+             {"client_commit_cause",client_commit_cause},{"client_commit_action_uuid",client_commit_action},{"client_commit_submitted",client_commit_submitted},
              {"host_commit_receipt_cause",commit_receipt.cause}};
         e.clear();return true;
     }catch(const std::exception& cause){out=nullptr;return fail(e,std::string("tutorial progress read: ")+cause.what());}
@@ -311,4 +317,5 @@ bool apply(const action_session::Context& c,const action_session::Binding& b,con
     State observed;std::vector<NativeCursor> rows;if(!native_state(c,b,observed,rows,e)||observed!=target)throw std::runtime_error(e.empty()?"tutorial full cursor/history readback differs":e);return true;
     }catch(const std::exception& x){unknown=attempted;e=std::string("tutorial native Apply failed: ")+x.what();block(e);return false;}
 }
+#include "startingpoint_commit_intent.inc"
 }

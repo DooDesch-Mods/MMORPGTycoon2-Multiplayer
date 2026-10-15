@@ -10,7 +10,7 @@ from lobby_ui.native_local_acceptance import button, observe, left, ready
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'retire'), required=True)
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
 parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
 args = parser.parse_args()
@@ -22,6 +22,8 @@ if args.require_client:
     runner.summary['scope'] = 'joined Host Starting Point completion and ordinary Commit with actual Client project, inventory and Release adoption'
 if args.phase == 'begin':
     runner.summary['scope'] = 'joined Host original Starting Point Pay and project creation with Client adoption and full native ledger equality'
+if args.phase == 'client-prove':
+    runner.summary['scope'] = 'ordinary Client Commit button submits one Host-ordered action and both peers confirm actual deployment and retirement'
 
 
 def shared_state(name, expected):
@@ -49,6 +51,115 @@ def shared_state(name, expected):
             differences = {field: {'host': expected[field], 'client': actual[field]}
                            for field in fields if actual[field] != expected[field]}
             raise AcceptanceError('Client adoption timeout required<60s during ' + name + ': ' + str(differences))
+
+
+def fixed_operation(peer, operation, current):
+    request = {'token': str(uuid.uuid4()), 'native_origin_uuid': current['snapshot_uuid'],
+               'world_epoch': current['world_epoch'], 'world_generation': current['world_generation'],
+               'operation': operation, 'expected_development': current}
+    runner.checked(operation + '-request', request)
+    result = runner.single(operation + '-once', peer, 'game_tutorial_startingpoint', request)
+    if any(result.get(field) is not True for field in ('attempted', 'returned', 'confirmed')):
+        raise AcceptanceError(operation + ' lacks native attempt/return/readback; no replay')
+    if result.get('unknown') is not False or result.get('token') != request['token']:
+        raise AcceptanceError(operation + ' outcome/token differs; no replay')
+    runner.checked(operation, result)
+    return result
+
+
+def client_commit():
+    baseline = runner.single('client-commit-baseline', 'host', 'game_read_tutorial_development')
+    runner.checked('client-commit-baseline', baseline)
+    if (baseline['project'].get('present') is not True or baseline['project'].get('tech_key') != 'startingpoint'
+            or baseline['startingpoint'].get('purchased') is not True
+            or baseline['startingpoint'].get('deployed') is not False
+            or baseline['startingpoint_release'].get('change_count') != 0):
+        raise AcceptanceError('Client Commit requires the current unowned initial Startingpoint project')
+    shared_state('client-commit-baseline', baseline)
+    fixed_operation('host', 'complete', baseline)
+    completed = runner.single('host-completed-project', 'host', 'game_read_tutorial_development')
+    runner.checked('host-completed-project', completed)
+    shared_state('client-complete', completed)
+    before = {}
+    for peer in ('host', 'client-1'):
+        context = runner.single('before-client-commit-' + peer, peer, 'game_read_native_lobby')
+        if not ready(context) or context['controller'].get('pending') is not False:
+            raise AcceptanceError('Client Commit requires both peers Playing with an idle Controller')
+        before[peer] = context['controller']
+    ledger_before = compare_ledgers(runner.inspect('commit-ledger-before-host', 'host'),
+                                    runner.inspect('commit-ledger-before-client', 'client-1'))
+    client = runner.single('client-completed-project', 'client-1', 'game_read_tutorial_development')
+    fixed_operation('client-1', 'client_show', client)
+    runner.checked('client-button-before', runner.single('client-button-before', 'client-1', 'game_capture_frame'))
+    client = runner.single('client-button-current-project', 'client-1', 'game_read_tutorial_development')
+    submitted = fixed_operation('client-1', 'client_commit', client)
+    action_id = submitted.get('action_uuid')
+    try:
+        if submitted.get('submitted') is not True or str(uuid.UUID(action_id)) != action_id:
+            raise ValueError('actual action UUID missing')
+    except (ValueError, TypeError, AttributeError) as error:
+        raise AcceptanceError('Client button has no confirmed submission identity; no replay: ' + str(error)) from error
+    runner.checked('submitted-action', {'action_uuid': action_id, 'submitted': True, 'result_confirmed': False})
+    deadline = time.monotonic() + 60
+    sample = 0
+    while True:
+        sample += 1
+        final = {peer: runner.single('commit-result-' + peer + '-' + str(sample), peer, 'game_read_native_lobby')
+                 for peer in ('host', 'client-1')}
+        for peer, context in final.items():
+            state = context['controller']
+            if state.get('locked') or state.get('failed') != before[peer]['failed']:
+                raise AcceptanceError('Client Commit failed peer=' + peer + ' cause=' + str(state.get('cause')))
+            if state.get('pending') is True and state.get('outcome') == 0:
+                if (context['prepare'].get('playing') is not True or context['prepare'].get('error')
+                        or context['snapshot'].get('world_authority_valid') is not True):
+                    raise AcceptanceError('Pending Client Commit lost its actual world/session on ' + peer)
+                if state.get('cause'):
+                    runner.checked('pending-commit-' + peer + '-' + str(sample),
+                                   {'action_uuid': state.get('action_uuid'), 'cause': state['cause']})
+            elif not ready(context):
+                raise AcceptanceError('Peer lost Playing during Client Commit: ' + peer)
+        if all(context['controller'].get('action_uuid') == action_id
+               and context['controller'].get('pending') is False
+               and context['controller'].get('outcome') == 1
+               and context['controller'].get('confirmed') == before[peer]['confirmed'] + 1
+               for peer, context in final.items()):
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Client Commit result timeout required<60s; no replay: ' +
+                                  str({peer: context['controller'] for peer, context in final.items()}))
+    for peer, context in final.items():
+        state = context['controller']
+        if state.get('attempted') != before[peer]['attempted'] + 1:
+            raise AcceptanceError('Client Commit native attempt count differs from1 on ' + peer)
+        if state.get('host_revision') != before[peer]['host_revision'] + 1:
+            raise AcceptanceError('Client Commit ordered Host revision delta differs from1 on ' + peer)
+        runner.checked('confirmed-controller-' + peer, state)
+    if final['host']['controller']['ack_mask'] != final['host']['controller']['required_mask']:
+        raise AcceptanceError('Host lacks the full required native adoption ACK mask')
+    actual = runner.single('after-client-commit-host', 'host', 'game_read_tutorial_development')
+    runner.checked('after-client-commit-host', actual)
+    project, technology, release = actual['project'], actual['startingpoint'], actual['startingpoint_release']
+    if (project.get('present') is not False or technology.get('deployed') is not True
+            or technology.get('owned') is not True or technology.get('inventory_count') != 1
+            or release.get('feature_count') != 1 or release.get('change_count') != 1
+            or release.get('mutation_counter') != 1):
+        raise AcceptanceError('Host result lacks exact native project retirement and one inventory/Release effect')
+    shared_state('client-commit', actual)
+    ledger_after = compare_ledgers(runner.inspect('commit-ledger-after-host', 'host'),
+                                   runner.inspect('commit-ledger-after-client', 'client-1'))
+    if ledger_after != ledger_before:
+        raise AcceptanceError('Client Commit changed full native cash/current-day ledger')
+    progress = runner.single('client-commit-progress', 'client-1', 'game_read_tutorial_progress')
+    if (progress.get('client_commit_submitted') is not True or progress.get('client_commit_suppressed') is not True
+            or progress.get('client_commit_action_uuid') != action_id or progress.get('client_commit_cause')):
+        raise AcceptanceError('Ordinary Client Commit hook submission receipt differs')
+    runner.checked('client-hook-submission', progress)
+    runner.checked('client-commit-host-frame', runner.single('client-commit-host-frame', 'host', 'game_capture_frame'))
+    runner.checked('commit-ledger-unchanged', ledger_after)
+    runner.summary.update(before=baseline, after=actual, action_uuid=action_id,
+                          ordinary_client_commit_proven=True, client_adoption_proven=True,
+                          two_peer_action_confirmation_proven=True, ledger_equality_proven=True)
 
 
 def begin_project():
@@ -144,6 +255,8 @@ try:
             if time.monotonic() >= deadline:
                 raise AcceptanceError('Host load did not reach idle mode3/state4 within60s; no replay')
         runner.checked('loaded-development', runner.single('loaded-development', 'host', 'game_read_tutorial_development'))
+    elif args.phase == 'client-prove':
+        client_commit()
     elif args.phase == 'begin':
         begin_project()
     elif args.phase == 'prove':

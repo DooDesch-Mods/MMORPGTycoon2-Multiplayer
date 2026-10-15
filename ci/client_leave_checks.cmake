@@ -28,7 +28,8 @@ if(NOT DEFINED CLIENT_LEAVE_TEST_SOURCE)
 endif()
 add_executable(test_client_leave
     "${CLIENT_LEAVE_TEST_SOURCE}"
-    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp")
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp")
 target_include_directories(test_client_leave PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action"
