@@ -12,6 +12,7 @@ using nlohmann::json;
 constexpr uintptr_t base=0x140000000,state=0x200000,mode=0x201000,world=0x202000,player=0x203000,lounge=0x204000,software=0x205000;
 constexpr uintptr_t project=0x206000,tree=0x207000,tech=0x208000,record=0x209000,type=0x20a000,inventory=0x20b000,item=0x20c000,proxy=0x20d000;
 constexpr uintptr_t tech_array=0x210000,record_array=0x211000,slots=0x212000;
+constexpr uintptr_t release_manager=0x220000,release=0x221000,change=0x222000,change2=0x223000,change_array=0x224000;
 struct Fake final:detail::Port {
     std::map<uintptr_t,unsigned char> memory;
     std::map<uintptr_t,int> reads;
@@ -30,6 +31,14 @@ struct Fake final:detail::Port {
         put<float>(lounge+0xb0,1.25f);put<int32_t>(lounge+0xb4,9);put<int32_t>(lounge+0xb8,3);put<int32_t>(lounge+0xbc,1);put<int32_t>(lounge+0xc4,1);
         put<uintptr_t>(base+0x13df250,tree);vt(tree,0x16dc400);array(tree+0x10,tech_array,{tech});vt(tech,0x16dc330);str(tech+0x20,"startingpoint");str(tech+0x1f0,"@StartingPoints");put<uintptr_t>(tech+0x1e8,record);
         array(software+0x280,record_array,{record});vt(record,0x16e79d0);str(record+0x18,"Starting Point");str(record+0x38,"startingpoint");put<uintptr_t>(record+0x60,tech);
+        fill_guard(0x4df220,"4154555756534883ec2031db4889d78b");
+        fill_guard(0x71e90,"5756534883ec20488951704889ce4889");
+        fill_guard(0x4e34a0,"4157415641554154555756534881ecc8");
+        owned(state,0x190,0x13df4f0,release_manager,0x1714ed0);
+        put<uintptr_t>(release_manager+0x38,release);vt(release,0x16c12b0);
+        array(release+0x150,change_array,{});put<uint32_t>(release+0x1c4,7);
+        vt(change,0x1786d10);put<uintptr_t>(change+0x70,tech);str(change+0x18,"tech_release");
+        vt(change2,0x1786d10);put<uintptr_t>(change2+0x70,tech);str(change2+0x18,"tech_release");
         flags(1,0,0);put<uintptr_t>(base+0x13e2050,type);put<uintptr_t>(base+0x13e2040,type);vt(type,0x173b7b0);put<uintptr_t>(base+0x173b7b0+0xa8,base+0xd31590);
         put<uintptr_t>(type+0x28,0);put<uintptr_t>(type+0x30,0);str(type+0x48,"@StartingPoints");put<uintptr_t>(type+0x40,proxy);
         put<uintptr_t>(player+0x1d0,inventory);vt(inventory,0x16df0f0);put<uintptr_t>(inventory+8,slots);put<int32_t>(inventory+0x10,200);
@@ -91,5 +100,30 @@ int main(){try{
     {Fake f;f.put<uint64_t>(tech+0x28,201);rejects(f,"string bytes=201 required<=200");}
     {Fake f;f.unstable=record+0x58;rejects(f,"changed during read");}
     for(int field=0;field<10;++field){Fake f;f.change_origin=[field](auto& o){switch(field){case 0:o.game=nullptr;break;case 1:o.mode=nullptr;break;case 2:o.state=nullptr;break;case 3:o.world=nullptr;break;case 4:o.map=nullptr;break;case 5:++o.generation;break;case 6:++o.world_epoch;break;case 7:++o.bytes;break;case 8:o.uuid="changed";break;case 9:o.sha256="changed";break;}};rejects(f,"current world origin changed");}
+    {Fake f;auto row=success(f);require(row["startingpoint_release"]==json{{"change_count",0},{"mutation_counter",7},{"feature_count",0},{"feature_present",false}},"absent release feature was inferred from purchase");}
+    {Fake f;f.array(release+0x150,change_array,{change});auto row=success(f);require(row["startingpoint_release"]["feature_count"]==1&&row["startingpoint_release"]["feature_present"]==true,"owned exact-key feature absent");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.put<uintptr_t>(change+0x70,tech+8);auto row=success(f);require(row["startingpoint_release"]["feature_count"]==0,"foreign Tech owner counted");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.str(change+0x18,"tech_purchase");auto row=success(f);require(row["startingpoint_release"]["feature_count"]==0,"another feature key counted");}
+    {Fake f;f.array(release+0x150,change_array,{change,change2});auto row=success(f);require(row["startingpoint_release"]["feature_count"]==2&&row["startingpoint_release"]["change_count"]==2,"distinct duplicate-feature rows hidden");}
+    {Fake f;f.put<uint32_t>(release+0x1c4,0xffffffffu);auto row=success(f);require(row["startingpoint_release"]["mutation_counter"]==4294967295ULL,"raw counter bits narrowed or discarded");}
+    {Fake f;f.put<uintptr_t>(state+0x190,0xdead);rejects(f,"ReleaseManager current owner differs");}
+    {Fake f;f.put<uintptr_t>(::base+0x13df4f0,0xdead);rejects(f,"ReleaseManager current owner differs");}
+    {Fake f;f.vt(release_manager,0x16c12b0);rejects(f,"vtable differs: ReleaseManager");}
+    {Fake f;f.vt(release,0x1714ed0);rejects(f,"vtable differs: Release");}
+    {Fake f;f.array(release+0x150,change_array,{change,change});rejects(f,"change array has null/duplicate member");}
+    {Fake f;f.array(release+0x150,change_array,{0});rejects(f,"change array has null/duplicate member");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.vt(change,0x16dc330);rejects(f,"vtable differs: Change");}
+    {Fake f;f.put<int32_t>(release+0x158,-1);rejects(f,"change bounds invalid");}
+    {Fake f;f.put<int32_t>(release+0x158,5);rejects(f,"change bounds invalid");}
+    {Fake f;f.put<int32_t>(release+0x15c,4097);rejects(f,"change bounds invalid");}
+    {Fake f;f.array(release+0x150,0,{change});rejects(f,"change bounds invalid");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.put<uint64_t>(change+0x20,201);rejects(f,"key bytes=201 required<=200");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.memory[change+0x18+0x1000000+12]=1;rejects(f,"key terminator differs");}
+    {Fake f;f.unreadable=release+0x1c4;rejects(f,"fixture memory original cause");}
+    {Fake f;f.memory[::base+0x71e90]^=1;rejects(f,"startingpoint release code guard differs");}
+    {Fake f;f.unstable=release+0x1c4;rejects(f,"changed during read");}
+    {Fake f;f.unstable=release_manager+0x38;rejects(f,"changed during read");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.unstable=change+0x70;rejects(f,"changed during read");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.unstable=change_array;rejects(f,"changed during read");}
     std::cout<<"PASS "<<tests<<" actual reader fixtures; no game writes or native calls\n";return 0;
 }catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}}

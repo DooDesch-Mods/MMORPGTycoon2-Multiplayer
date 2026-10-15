@@ -7,6 +7,38 @@ from server import dispatch, tools_for
 
 
 class TutorialObserverTests(unittest.TestCase):
+    def test_startingpoint_fixed_mutation_preserves_actual_development_guards(self):
+        runtime=Mock()
+        runtime.available.return_value={"tutorial_startingpoint"}
+        tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
+        self.assertIn("tutorial_startingpoint",MUTATIONS)
+        self.assertFalse(tool.annotations.readOnlyHint)
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["show","complete","commit"])
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
+        runtime.request.return_value={"attempted":True,"confirmed":True}
+        self.assertEqual(dispatch(runtime,"game_tutorial_startingpoint",args),runtime.request.return_value)
+        runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+
+    def test_startingpoint_invalid_fields_never_reach_native(self):
+        good={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"commit","expected_development":{"project":{"present":True}}}
+        for bad in (None,{},[],{**good,"operation":"deploy-other"},{**good,"address":42},{**good,"token":"replay"},
+                    {**good,"world_epoch":0},{**good,"world_generation":True},{**good,"world_epoch":2**64},
+                    {**good,"expected_development":{}},{**good,"expected_development":[]}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_startingpoint",bad)
+            runtime.request.assert_not_called()
+
+    def test_startingpoint_failure_retains_native_cause(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"show","expected_development":{"project":{"present":True}}}
+        runtime=Mock()
+        runtime.request.side_effect=RuntimeErrorDetail("TUTORIAL_STARTINGPOINT_REJECTED","Development owner changed")
+        with self.assertRaisesRegex(RuntimeErrorDetail,"Development owner changed"):
+            dispatch(runtime,"game_tutorial_startingpoint",args)
+
     def test_focus_request_and_readback_keep_distinct_contracts(self):
         runtime=Mock()
         runtime.available.return_value={"tutorial_movement_focus", "read_tutorial_movement_focus"}

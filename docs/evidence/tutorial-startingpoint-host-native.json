@@ -1,0 +1,125 @@
+{
+  "schema": 1,
+  "scope": "Isolated Host Starting Point completion and original UI Commit with native inventory and Release readback",
+  "released": false,
+  "client_adoption_proven": false,
+  "full_tutorial_proven": false,
+  "build": "artifacts/build_history/20261015T013916524034Z",
+  "mod_sha256": "e4023b4e601fe6f6c893ffe5887281bd92ea7dee5c90cd9e8ca621806a76338c",
+  "runtime_run_id": "3edf2a61-7346-46e4-a022-4a9adcfe8dfb",
+  "native": {
+    "prepare": {
+      "path": "artifacts/acceptance/0835ad29-dbec-40c2-8aea-5e5e593bc254/summary.json",
+      "sha256": "96e77f4c98b4c2af4e3147e299f27dbfe7eca63c2076a1e7849b3520f323ad1d"
+    },
+    "completion_and_commit": {
+      "path": "artifacts/acceptance/a36e8a13-0bae-438e-a322-379fe8986c5f/summary.json",
+      "sha256": "62e94b7f98b2f9343117285af53315ddc5db702936ee4efc063cf68c028b13d0"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/321ed2f5-62db-4081-af82-ba8a65fef4aa/summary.json",
+      "sha256": "4f51ab51bc616e29adaa158b7e4d8b931b98d2eb595ebd79067eb0d18c6b83ee"
+    },
+    "native_exit": {
+      "path": "artifacts/acceptance/6734e3e9-e050-4d3c-aa7c-0f33cff238e0/summary.json",
+      "sha256": "446eccf4a2e6ce4a3ba3ba0801a0f6e92ad845dd456b625d5433d3c931971066"
+    }
+  },
+  "before": {
+    "lifetime_confirmed": true,
+    "mainthread_confirmed": true,
+    "project": {
+      "bugs_known": 0,
+      "bugs_total": 0,
+      "bugs_unknown": 0,
+      "desired_workers": 1,
+      "kind": 0,
+      "lines": 182,
+      "present": true,
+      "tech_key": "startingpoint",
+      "work": 78.88058471679688
+    },
+    "schema": 1,
+    "snapshot_uuid": "71b654a4-e005-4ad6-af5c-9c2974f9d41f",
+    "startingpoint": {
+      "custom": false,
+      "deployed": false,
+      "inventory_count": 0,
+      "inventory_present": false,
+      "item_type_name": "@StartingPoints",
+      "key": "startingpoint",
+      "owned": false,
+      "purchased": true,
+      "record_present": true
+    },
+    "startingpoint_release": {
+      "change_count": 0,
+      "feature_count": 0,
+      "feature_present": false,
+      "mutation_counter": 0
+    },
+    "world_epoch": 1,
+    "world_generation": 1
+  },
+  "after": {
+    "lifetime_confirmed": true,
+    "mainthread_confirmed": true,
+    "project": {
+      "bugs_known": 0,
+      "bugs_total": 0,
+      "bugs_unknown": 0,
+      "desired_workers": 0,
+      "kind": null,
+      "lines": 0,
+      "present": false,
+      "tech_key": null,
+      "work": 0.0
+    },
+    "schema": 1,
+    "snapshot_uuid": "71b654a4-e005-4ad6-af5c-9c2974f9d41f",
+    "startingpoint": {
+      "custom": false,
+      "deployed": true,
+      "inventory_count": 1,
+      "inventory_present": true,
+      "item_type_name": "@StartingPoints",
+      "key": "startingpoint",
+      "owned": true,
+      "purchased": true,
+      "record_present": true
+    },
+    "startingpoint_release": {
+      "change_count": 1,
+      "feature_count": 1,
+      "feature_present": true,
+      "mutation_counter": 1
+    },
+    "world_epoch": 1,
+    "world_generation": 1
+  },
+  "frames": {
+    "show": "_drafts/media/startingpoint-show.bmp",
+    "complete": "_drafts/media/startingpoint-complete.bmp",
+    "commit": "_drafts/media/startingpoint-commit.bmp"
+  },
+  "tests": {
+    "actual_development_reader_cases": 69,
+    "startingpoint_guard_cases": 18,
+    "mcp_contract_tests": 18,
+    "ctest": "artifacts/source-checks/Testing/Temporary/LastTest.log",
+    "ctest_seconds": 0.48
+  },
+  "retained_failure": {
+    "path": "artifacts/acceptance/d954b889-e425-4880-990a-770dfab567d6/summary.json",
+    "cause": "Original Show entry hash rejected the existing owned HUD Show hook",
+    "native_operation_attempted": false,
+    "resolution": "Verify the existing owned hook, unchanged Show suffix and full original Show body separately"
+  },
+  "limits": [
+    "Completion uses the exact original CheatCompleteDevProject function called by the matching tutorial step, in an unadmitted local Host fixture at Clock0.",
+    "Commit uses the original visible Development window and enabled Commit button. The fixture does not set technology ownership or inventory fields.",
+    "The proof requires actual zero bug counters. Nonzero Map bug effects and Client technology adoption remain open.",
+    "The new diagnostic Release sample is read-only on both roles; this native run covers its isolated Host path.",
+    "Step93 Client replication remains rejected until the required native adoption effects are implemented."
+  ]
+}

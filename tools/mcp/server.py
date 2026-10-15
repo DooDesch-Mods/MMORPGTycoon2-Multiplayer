@@ -200,6 +200,11 @@ OP_SCHEMAS = {
     "read_network_state": EMPTY,
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
+    "tutorial_startingpoint": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
+        "operation": {"type":"string","enum":["show","complete","commit"]},
+        "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
+        "expected_development": {"type":"object"}},
+        ("token","native_origin_uuid","operation","world_epoch","world_generation","expected_development")),
     "read_tutorial_progress": EMPTY,
     "read_tutorial_movement": EMPTY,
     "read_tutorial_movement_focus": EMPTY,
@@ -295,6 +300,7 @@ OP_DESCRIPTIONS = {
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
+    "tutorial_startingpoint": "Fixed isolated Host Starting Point proof: show the owned native Development window, complete the existing project, or activate its real Commit button. Requires no Controller, Clock0 and exact current native development readback. Keep each token; never replay an unknown effect.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
     "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
     "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",
@@ -401,6 +407,14 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires exact token/origin")
             if any(not isinstance(value, str) or re.fullmatch(TIME_TOKEN_PATTERN, value) is None for value in arguments.values()):
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
+        if op == "tutorial_startingpoint":
+            required={"token","native_origin_uuid","operation","world_epoch","world_generation","expected_development"}
+            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("show","complete","commit"):
+                raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires exact fixed operation and guards")
+            if any(not isinstance(arguments[key],str) or re.fullmatch(TIME_TOKEN_PATTERN,arguments[key]) is None for key in ("token","native_origin_uuid")):
+                raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires canonical token and native origin UUIDs")
+            if any(type(arguments[key]) is not int or not 1<=arguments[key]<=18446744073709551615 for key in ("world_epoch","world_generation")) or not isinstance(arguments["expected_development"],dict) or not arguments["expected_development"]:
+                raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires positive local origin and actual development object")
         if op == "read_tutorial_movement_focus" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "tutorial movement focus read requires empty arguments")
         if op == "tutorial_movement_focus":

@@ -46,6 +46,7 @@
 #include "../game/tutorial_development.h"
 #include "../game/tutorial_replication/native.h"
 #include "../game/tutorial_movement/movement_input.h"
+#include "../game/tutorial_startingpoint_fixture/startingpoint_fixture.h"
 #include "../game/welcome_close.h"
 #include "../game/native_free_diagnostics.h"
 #include "../game/remove_diagnostics.h"
@@ -639,6 +640,7 @@ static void game_update(void* game,float dt) {
     if(previous_frame_start!=std::chrono::steady_clock::time_point{})record_frame_timing(frame_intervals,uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(measured_update.started-previous_frame_start).count()));
     previous_frame_start=measured_update.started;
     game::initial_release::FixtureUpdateScope release_fixture_scope(game);
+    game::tutorial_startingpoint_fixture::UpdateScope startingpoint_fixture_scope(game);
     bool live_scope=false;
     if(game::typed_action_runtime::live_state_active()) {std::string error;live_scope=game::live_host_state::economic_fence().enter_game_update(error);report_live_scope_entry(live_scope,error);}
     struct LiveScope {bool active;void close(){if(active){game::live_host_state::economic_fence().leave_game_update();active=false;}}~LiveScope(){close();}} scope{live_scope};
@@ -972,6 +974,7 @@ static json status() {
     result["capabilities"]["read_network_state"]=game::native::in_game();
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
+    result["capabilities"]["tutorial_startingpoint"]=owned_native_profile&&cfg.local_test&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_movement"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_tutorial_movement"]=tutorial_movement_ready;
@@ -1777,6 +1780,21 @@ static void diagnostics_tick() {
             response["ok"]=game::native_free_diagnostics::probe(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_HOLDER_REJECTED"},{"message",error}};
+        }
+        else if(operation=="tutorial_startingpoint") {
+            if(!owned_native_profile||!Config::instance().local_test||!Config::instance().is_host)
+                throw std::runtime_error("startingpoint fixture requires owned local-test Host");
+            const auto& args=request.at("args");
+            if(!args.is_object()||args.size()!=6||!args.at("token").is_string()||!args.at("native_origin_uuid").is_string()||
+               !args.at("operation").is_string()||!args.at("world_epoch").is_number_unsigned()||
+               !args.at("world_generation").is_number_unsigned()||!args.at("expected_development").is_object())
+                throw std::runtime_error("startingpoint fixture requires exact token/operation/origin/development fields");
+            game::tutorial_startingpoint_fixture::Request effect{args.at("token").get<std::string>(),args.at("native_origin_uuid").get<std::string>(),
+                args.at("operation").get<std::string>(),args.at("world_epoch").get<uint64_t>(),args.at("world_generation").get<uint64_t>(),args.at("expected_development")};
+            std::string error;json receipt;
+            response["ok"]=game::tutorial_startingpoint_fixture::run(effect,receipt,error);
+            response["result"]=std::move(receipt);
+            if(!response["ok"].get<bool>())response["error"]={{"code","TUTORIAL_STARTINGPOINT_REJECTED"},{"message",error}};
         }
         else if(operation=="tutorial_movement_focus"||operation=="read_tutorial_movement_focus") {
             if(!tutorial_movement_ready||!owned_native_profile||!Config::instance().local_test||!Config::instance().is_host)

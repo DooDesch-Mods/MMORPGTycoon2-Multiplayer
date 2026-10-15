@@ -1,4 +1,5 @@
 #include "tutorial_development.h"
+#include "initial_release/startingpoint_read.h"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -15,10 +16,11 @@ bool same(const Origin& a,const Origin& b){
         a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.bytes==b.bytes&&a.uuid==b.uuid&&a.sha256==b.sha256;
 }
 struct Witness {uintptr_t address;std::vector<unsigned char> bytes;};
-class Reader {
+class Reader final:public initial_release::Memory {
     Port& port_;std::vector<Witness> reads_;size_t count_=0;
 public:
     explicit Reader(Port& port):port_(port){}
+    bool copy(uintptr_t p,void* out,size_t count,std::string& error)override{return bytes(p,out,count,error);}
     bool bytes(uintptr_t p,void* out,size_t count,std::string& error){
         if(!p||!count||count>byte_limit-count_||p>UINTPTR_MAX-count)return fail(error,"development memory range/byte budget invalid required<=1048576");
         Witness w{p,std::vector<unsigned char>(count)};if(!port_.copy(p,w.bytes.data(),count,error))return false;
@@ -76,8 +78,8 @@ bool project(Reader& r,uintptr_t image,uintptr_t lounge,nlohmann::json& out,std:
     if(current){int32_t kind=0;std::string key;if(!r.type(current,image+0x16e48c0,"DevProject",error)||!r.at(current,0x18,kind,error)||!r.string(current,0x20,key,error))return false;
         if(kind<0||kind>3)return fail(error,"development project kind outside0..3");out["kind"]=kind;if(kind==0)out["tech_key"]=key;}return true;
 }
-bool technology(Reader& r,uintptr_t image,uintptr_t software,nlohmann::json& out,std::string& error){
-    uintptr_t tree=0,tech=0,record=0,linked=0;if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"TechTree",error))return false;
+bool technology(Reader& r,uintptr_t image,uintptr_t software,uintptr_t& tech,nlohmann::json& out,std::string& error){
+    tech=0;uintptr_t tree=0,record=0,linked=0;if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"TechTree",error))return false;
     std::vector<uintptr_t> techs,records;if(!r.array(tree,0x10,techs,error)||!r.array(software,0x280,records,error))return false;
     for(auto candidate:techs){std::string key;if(!r.string(candidate,0x20,key,error))return false;if(key=="startingpoint"){
         if(tech)return fail(error,"development startingpoint TechTree key duplicated");tech=candidate;}}
@@ -141,12 +143,16 @@ bool observe(Port& port,nlohmann::json& result,std::string& error){
            !owner(r,image,mode,0x150,0x13df9f0,0x17873b0,"Player",player,error)||
            !owner(r,image,state,0x180,0x13df290,0x16de6c0,"DevLounge",lounge,error)||
            !owner(r,image,state,0x1c8,0x13df500,0x1715450,"SoftwareStatus",software,error))return false;
-        nlohmann::json dev,tech;int32_t item_count=0;
-        if(!project(r,image,lounge,dev,error)||!technology(r,image,software,tech,error)||!inventory(r,image,player,item_count,error)||!r.stable(error))return false;
+        nlohmann::json dev,tech;int32_t item_count=0;uintptr_t startingpoint=0;
+        initial_release::StartingpointRelease release;
+        if(!project(r,image,lounge,dev,error)||!technology(r,image,software,startingpoint,tech,error)||
+           !inventory(r,image,player,item_count,error)||!initial_release::read_startingpoint_release(r,image,state,startingpoint,release,error)||!r.stable(error))return false;
         Origin after;if(!port.current(after,error))return false;if(!same(before,after))return fail(error,"development current world origin changed during read");
         tech["inventory_count"]=item_count;tech["inventory_present"]=item_count!=0;
         result={{"schema",1},{"mainthread_confirmed",true},{"lifetime_confirmed",true},{"snapshot_uuid",before.uuid},
-            {"world_epoch",before.world_epoch},{"world_generation",before.generation},{"project",std::move(dev)},{"startingpoint",std::move(tech)}};
+            {"world_epoch",before.world_epoch},{"world_generation",before.generation},{"project",std::move(dev)},{"startingpoint",std::move(tech)},
+            {"startingpoint_release",{{"change_count",release.change_count},{"mutation_counter",release.mutation_counter},
+                {"feature_count",release.feature_count},{"feature_present",release.feature_count!=0}}}};
         error.clear();return true;
     }catch(const std::exception& x){result=nullptr;return fail(error,std::string("development read exception: ")+x.what());}
 }
