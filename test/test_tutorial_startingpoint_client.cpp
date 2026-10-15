@@ -78,6 +78,8 @@ void transitions(){
 void guards(){
     std::string error;bool attempted=false,unknown=false;Calls calls;
     tutorial::State state;state.startingpoint=before();auto legacy=tutorial::encode(state);legacy.erase("startingpoint");tutorial::State decoded;
+    require(!tutorial::decode(legacy,decoded,error)&&!error.empty(),"mixed Staff schema without Startingpoint field was accepted");
+    legacy.erase("staff_display");
     require(tutorial::decode(legacy,decoded,error)&&!decoded.startingpoint,"legacy State absence was fabricated into native project");
     require(!sp::apply(before(),decoded.startingpoint,calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty(),"legacy null erased an existing actual project");pass("legacy missing Row stays null and cannot retire an existing project");
     require(!sp::apply(std::nullopt,after(),calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty(),"deployed first frame fabricated an unobserved local project");pass("deployed first frame without local baseline cannot cause native adoption");

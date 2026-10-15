@@ -1,6 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-beta.7",
-  "summary": "Share Starting Points developer allocation, natural project progress and the native Staff activity display.",
+  "summary": "Share Starting Points developer allocation, natural project progress and native Staff activity with legacy snapshot compatibility checks.",
   "native_evidence": "docs/evidence/beta7-native.json"
 }
