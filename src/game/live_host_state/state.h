@@ -5,6 +5,7 @@
 #include <vector>
 #include <optional>
 #include "network/node_state.h"
+#include "tutorial_replication/state.h"
 namespace mt2mp::game::live_host_state {
 constexpr size_t scalar_count=52;
 constexpr size_t max_frame_payload=action_session::max_transport_payload;
@@ -23,6 +24,7 @@ struct Frame {
     float selected=0,pause=0;
     Values values;
     std::optional<network::State> network;
+    std::optional<tutorial_replication::State> tutorial;
     bool operator==(const Frame&)const=default;
 };
 struct Pin {

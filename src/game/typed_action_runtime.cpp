@@ -17,6 +17,7 @@
 #include "scenery_kiss/native_catalog.h"
 #include "scenery_kiss/lifecycle_contract.h"
 #include "native_open_runtime.h"
+#include "tutorial_replication/native.h"
 #include "ui_remove_runtime.h"
 #include "ui_build_runtime.h"
 #include "building_history_slice/native_bridge.h"
@@ -893,6 +894,7 @@ bool finish_lobby_leave(bool& ready,std::string& e){
     net::SteamMatchmaking::instance().leave_lobby();
     if(net::SteamMatchmaking::instance().in_lobby()){e="native lobby Leave local membership readback still present";return false;}
     if(!net::session_wire::retire_lobby(e))return false;
+    tutorial_replication::retire("confirmed native Title after lobby Leave");
     live_host_state::day::bind_host_journal(nullptr);published_runtime.store(nullptr,std::memory_order_release);delete r;
     ready=true;e.clear();return true;
 }

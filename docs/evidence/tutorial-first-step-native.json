@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "scope": "First Host welcome transition shared with one joined Client",
+  "released": false,
+  "full_tutorial_proven": false,
+  "runtime_run_id": "f8070e3d-53bf-47bc-836b-4535dd49fe7e",
+  "mod_sha256": "3551b3f96971f9c8fcd8c5864f6d3c93120ede29548cf1237ed546d1b482ee4b",
+  "build": "artifacts/build_history/20261014T234125538294Z",
+  "accepted": {
+    "initial_load": "artifacts/acceptance/30dacc58-3cf4-4e81-bc56-46d31a413f82/summary.json",
+    "host_welcome_to_wasd_and_client_adoption": "artifacts/acceptance/429e6402-cc3c-469f-a7b9-f0f11c70e7d2/summary.json",
+    "joined_fence_retirement_at_title": "artifacts/acceptance/1a2c657d-d545-48da-9cbb-6df9140c2c6b/summary.json",
+    "both_native_exit_zero": "artifacts/acceptance/38c7bb89-b27e-41d6-ac60-d47e6d2bcced/summary.json"
+  },
+  "tests": {
+    "tutorial_load_gate": "Passed, actual canonical finish_client_load function body",
+    "unchanged_payload_observer_leave": "Prior accepted checks retained; no unrelated replay"
+  },
+  "native_result": {
+    "host_step": 6,
+    "client_step": 6,
+    "step_id": "wasd",
+    "history_count_each": 1
+  },
+  "frames": {
+    "frame-host": {
+      "path": "_drafts\\media\\tutorial-first-host.bmp",
+      "sha256": "2e7433e8a69ee8fbf84c437c06801ec826ac8d4c1a3ee62435b9a5fc47d537d1"
+    },
+    "frame-client-1": {
+      "path": "_drafts\\media\\tutorial-first-client-1.bmp",
+      "sha256": "961d48886426b53b75c367d82f84a62bc55265eb98a629b433b570a9fcb78547"
+    }
+  },
+  "limits": [
+    "The Client frame has no tutorial progress bar; the Host frame shows 0/100.",
+    "Later tutorial steps have not been natively accepted.",
+    "CompleteTech step 93, level-up and scenario creation/completion remain blocked by preflight.",
+    "No separate-account online acceptance or Beta 6 release is claimed."
+  ]
+}

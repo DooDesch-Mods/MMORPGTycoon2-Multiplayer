@@ -16,6 +16,7 @@ def main():
     parser.add_argument('--restart', action='store_true')
     parser.add_argument('--peer', choices=('both','host','client-1'), default='both')
     parser.add_argument('--expected-run-id')
+    parser.add_argument('--disconnected-title', action='store_true', help='Use native Title ownership when the transport has already disconnected')
     args = parser.parse_args()
     args.cleanup = False
     args.step_timeout = 30
@@ -31,7 +32,13 @@ def main():
             raise AcceptanceError('owned run differs; no exit requested')
         peers=('client-1','host') if args.peer=='both' else (args.peer,)
         for peer in peers:
-            runner.poll_title(peer)
+            if args.disconnected_title:
+                title=runner.single(f'{peer}-disconnected-title',peer,'game_read_native_lobby')
+                if title.get('title_active') is not True or title.get('ui_mode')!=2 or title.get('ui_owner_current') is not True:
+                    raise AcceptanceError(f'native exit requires the current owned Title peer={peer}')
+                runner.checked(f'{peer}-disconnected-title-owned',title)
+            else:
+                runner.poll_title(peer)
         processes = WindowsProcesses()
         for peer in peers:
             identity = read_json(runner.manifests[peer])

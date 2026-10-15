@@ -7,6 +7,63 @@ from server import dispatch, tools_for
 
 
 class TutorialObserverTests(unittest.TestCase):
+    def test_progress_read_is_read_only_and_preserves_the_receipt(self):
+        runtime=Mock()
+        runtime.available.return_value={"read_tutorial_progress"}
+        tool=next(tool for tool in tools_for(runtime) if tool.name=="game_read_tutorial_progress")
+        self.assertIn("read_tutorial_progress",OPS)
+        self.assertNotIn("read_tutorial_progress",MUTATIONS)
+        self.assertTrue(tool.annotations.readOnlyHint)
+        self.assertFalse(tool.annotations.destructiveHint)
+        self.assertFalse(tool.inputSchema["additionalProperties"])
+        self.assertEqual(tool.inputSchema["properties"],{})
+        runtime.request.return_value={"schema":1,"client_sequence_fenced":True,"tutorial":{"active":[]}}
+        self.assertEqual(dispatch(runtime,"game_read_tutorial_progress",{}),runtime.request.return_value)
+        runtime.request.assert_called_once_with("read_tutorial_progress",{})
+
+    def test_progress_invalid_arguments_and_native_failure_stay_visible(self):
+        for bad in (None,[],[{}],{"value":100},{"complete":True}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_read_tutorial_progress",bad)
+            runtime.request.assert_not_called()
+        runtime=Mock()
+        runtime.request.side_effect=RuntimeErrorDetail("TUTORIAL_PROGRESS_READ_REJECTED","tutorial origin changed")
+        with self.assertRaisesRegex(RuntimeErrorDetail,"tutorial origin changed"):
+            dispatch(runtime,"game_read_tutorial_progress",{})
+
+    def test_development_receipt_is_read_only_and_has_no_arguments(self):
+        runtime=Mock()
+        runtime.available.return_value={"read_tutorial_development"}
+        tool=next(tool for tool in tools_for(runtime) if tool.name=="game_read_tutorial_development")
+        self.assertIn("read_tutorial_development",OPS)
+        self.assertNotIn("read_tutorial_development",MUTATIONS)
+        self.assertTrue(tool.annotations.readOnlyHint)
+        self.assertFalse(tool.annotations.destructiveHint)
+        self.assertFalse(tool.inputSchema["additionalProperties"])
+        self.assertEqual(tool.inputSchema["properties"],{})
+
+    def test_development_dispatch_preserves_native_receipt(self):
+        runtime=Mock()
+        runtime.request.return_value={"schema":1,"project":{"present":True,"tech_key":"startingpoint"},
+                                      "startingpoint":{"owned":False,"inventory_count":0}}
+        result=dispatch(runtime,"game_read_tutorial_development",{})
+        runtime.request.assert_called_once_with("read_tutorial_development",{})
+        self.assertEqual(result,runtime.request.return_value)
+
+    def test_development_invalid_arguments_never_reach_the_mailbox(self):
+        for bad in (None,[],[{}],{"commit":True},{"tech_key":"startingpoint"}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_read_tutorial_development",bad)
+            runtime.request.assert_not_called()
+
+    def test_development_failure_keeps_the_native_cause(self):
+        runtime=Mock()
+        runtime.request.side_effect=RuntimeErrorDetail("TUTORIAL_DEVELOPMENT_READ_REJECTED","current_world_read_wrong_thread")
+        with self.assertRaisesRegex(RuntimeErrorDetail,"current_world_read_wrong_thread"):
+            dispatch(runtime,"game_read_tutorial_development",{})
+
     def test_observation_is_read_only_and_has_no_arguments(self):
         runtime=Mock()
         runtime.available.return_value={"read_tutorial"}

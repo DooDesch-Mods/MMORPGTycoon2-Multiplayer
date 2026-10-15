@@ -1,0 +1,115 @@
+{
+  "schema": 1,
+  "scope": "Read-only Starting Point development, technology and inventory receipt in the joined step-35 world",
+  "released": false,
+  "technology_replication_proven": false,
+  "full_tutorial_proven": false,
+  "mod_sha256": "c467bc57954751d98a13cd0f69db4e9d526a385a8d66cc39f98f85a3d7c4c24f",
+  "build": "artifacts/build_history/20261014T235112213266Z",
+  "native": {
+    "normal_picker_and_reader": "artifacts/acceptance/a16b4e64-d57b-4323-9a48-23acbd600a35/summary.json",
+    "snapshot_start_and_reader": "artifacts/acceptance/698367d7-4f6c-4c60-a664-229712806a88/summary.json",
+    "leave": "artifacts/acceptance/75ff514c-5f66-4343-829b-4e7e2cf1897f/summary.json",
+    "both_exit_zero": "artifacts/acceptance/ce713611-e689-4506-82ac-8b3b02597266/summary.json",
+    "crash_monitor": "artifacts/tutorial_crash/62fb19d2-6deb-4f08-bb26-43d47321d1d3/monitor-result.json"
+  },
+  "development": {
+    "host": {
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "project": {
+        "bugs_known": 0,
+        "bugs_total": 0,
+        "bugs_unknown": 0,
+        "desired_workers": 1,
+        "kind": 0,
+        "lines": 182,
+        "present": true,
+        "tech_key": "startingpoint",
+        "work": 80.01408386230469
+      },
+      "schema": 1,
+      "snapshot_uuid": "ce1f7803-bd17-4102-ae3c-a17ba4355f8b",
+      "startingpoint": {
+        "custom": false,
+        "deployed": false,
+        "inventory_count": 0,
+        "inventory_present": false,
+        "item_type_name": "@StartingPoints",
+        "key": "startingpoint",
+        "owned": false,
+        "purchased": true,
+        "record_present": true
+      },
+      "world_epoch": 2,
+      "world_generation": 1
+    },
+    "client-1": {
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "project": {
+        "bugs_known": 0,
+        "bugs_total": 0,
+        "bugs_unknown": 0,
+        "desired_workers": 1,
+        "kind": 0,
+        "lines": 182,
+        "present": true,
+        "tech_key": "startingpoint",
+        "work": 80.01408386230469
+      },
+      "schema": 1,
+      "snapshot_uuid": "76615768-4fd8-413b-a340-8d117625d6a9",
+      "startingpoint": {
+        "custom": false,
+        "deployed": false,
+        "inventory_count": 0,
+        "inventory_present": false,
+        "item_type_name": "@StartingPoints",
+        "key": "startingpoint",
+        "owned": false,
+        "purchased": true,
+        "record_present": true
+      },
+      "world_epoch": 1,
+      "world_generation": 1
+    }
+  },
+  "frames": {
+    "tutorial-frame-host": {
+      "path": "_drafts\\media\\tutorial-development-host.bmp",
+      "sha256": "d661f450ae438fed14847aab602da4612d7db8f3610c5e9e57143d761b0cbea6"
+    },
+    "tutorial-frame-client-1": {
+      "path": "_drafts\\media\\tutorial-development-client-1.bmp",
+      "sha256": "6273f6f05ff4d5ce8a493c4b7df2305e53a38ac0659ed3b305e944dfc52d7b7b"
+    }
+  },
+  "tests": {
+    "actual_reader_fixtures": 44,
+    "canonical_ctest_seconds": 0.36,
+    "mcp_contract_tests": 10
+  },
+  "unresolved_crash": {
+    "run_id": "41a5d5c3-14bd-4d01-9f78-b284c027f247",
+    "host_pid": 117532,
+    "exception": "0xc0000374",
+    "operation": "MCP snapshot load, automatic Host capture, then return to Title",
+    "evidence": "artifacts/tutorial_crash/41a5d5c3-14bd-4d01-9f78-b284c027f247",
+    "failed_attempt": "artifacts/acceptance/b18a248f-3945-4af0-bba8-8a3f4bbb4337/summary.json",
+    "reader_invoked": false,
+    "cause_proven": false,
+    "later_diagnostic_run_reproduced": false
+  },
+  "fixture_selection_failure": {
+    "attempt": "artifacts/acceptance/345a31ad-2703-4f6a-8620-93264d224441/summary.json",
+    "cause": "PhysFS sees files copied after startup; native latest-save selection reads a separate asynchronous save cache.",
+    "static_evidence": "tools/tutorial_sync/tech_reader/notes/latest_save/HANDOFF.md",
+    "next_boot_normal_picker_accepted": true
+  },
+  "limits": [
+    "No development, technology deployment or inventory mutation is added.",
+    "CompleteTech 93, level-up and scenario creation/completion remain outside the accepted tutorial slice.",
+    "An unreproduced heap crash is retained as an open issue; no speculative fix or full stability claim."
+  ]
+}

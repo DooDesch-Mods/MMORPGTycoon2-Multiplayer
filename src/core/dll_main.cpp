@@ -43,6 +43,8 @@
 #include "../game/network_identity.h"
 #include "../game/native_open_runtime.h"
 #include "../game/tutorial_observer.h"
+#include "../game/tutorial_development.h"
+#include "../game/tutorial_replication/native.h"
 #include "../game/welcome_close.h"
 #include "../game/native_free_diagnostics.h"
 #include "../game/remove_diagnostics.h"
@@ -943,6 +945,8 @@ static json status() {
     result["capabilities"]["read_subscriber_candidates"]=game::native::in_game();
     result["capabilities"]["read_network_state"]=game::native::in_game();
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
+    result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
+    result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_welcome_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_time_ui"]=owned_native_profile&&time_hooks_ready&&game::native::in_game();
     const bool native_time_input_ready=owned_native_profile&&time_hooks_ready&&game::time_input_diagnostics::ready()&&game::native::in_game();
@@ -1261,7 +1265,7 @@ static void diagnostics_tick() {
         if(!internal_request)last_mailbox_request=id;
         auto operation=request.at("op").get<std::string>();
         json response={{"schema_version",1},{"id",id},{"run_id",run_id}};
-        if(game::ui_network_runtime::unresolved()&&operation!="read_node_observer"&&operation!="read_network_placement"&&operation!="read_network_state"&&operation!="read_tutorial"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
+        if(game::ui_network_runtime::unresolved()&&operation!="read_node_observer"&&operation!="read_network_placement"&&operation!="read_network_state"&&operation!="read_tutorial"&&operation!="read_tutorial_development"&&operation!="read_tutorial_progress"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("network_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_path_runtime::unresolved()&&operation!="read_path"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("path_ui_previous_effect_unresolved; competing native operation rejected");
@@ -1759,6 +1763,22 @@ static void diagnostics_tick() {
             if(response["ok"].get<bool>())response["result"]=std::move(observed);
             else response["error"]={{"code","TUTORIAL_READ_REJECTED"},{"message",error}};
         }
+        else if(operation=="read_tutorial_progress") {
+            if(!owned_native_profile)throw std::runtime_error("tutorial progress read requires owned native profile");
+            if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("tutorial progress read requires empty object arguments");
+            std::string error;json observed;
+            response["ok"]=game::tutorial_replication::read_progress(observed,error);
+            if(response["ok"].get<bool>())response["result"]=std::move(observed);
+            else response["error"]={{"code","TUTORIAL_PROGRESS_READ_REJECTED"},{"message",error}};
+        }
+        else if(operation=="read_tutorial_development") {
+            if(!owned_native_profile)throw std::runtime_error("development read requires owned native profile");
+            if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("development read requires empty object arguments");
+            std::string error;json observed;
+            response["ok"]=game::tutorial_development::read(observed,error);
+            if(response["ok"].get<bool>())response["result"]=std::move(observed);
+            else response["error"]={{"code","TUTORIAL_DEVELOPMENT_READ_REJECTED"},{"message",error}};
+        }
         else if(operation=="read_network_state") {
             if(!request.at("args").empty()) throw std::runtime_error("network read requires empty arguments");
             game::native_network::State network; std::string error;
@@ -2037,6 +2057,7 @@ bool initialize(HMODULE module) {
             if(!native_image_begin || !image_info.SizeOfImage || image_info.SizeOfImage>std::numeric_limits<uintptr_t>::max()-native_image_begin)
                 throw std::runtime_error("native caller image bounds invalid");
             native_image_end=native_image_begin+image_info.SizeOfImage;
+            if(!game::tutorial_replication::initialize(native_image_begin,native_error))throw std::runtime_error("tutorial initialization failed: "+native_error);
             if(!game::native_open_runtime::initialize(runtime_root,native_image_begin,native_error))
                 throw std::runtime_error("native snapshot origin initialization failed: "+native_error);
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ClockUpdate),reinterpret_cast<void*>(&clock_update),reinterpret_cast<void**>(&original_clock_update))) throw std::runtime_error("native pending-load clock pause hook failed");
@@ -2104,6 +2125,9 @@ bool initialize(HMODULE module) {
         if(!hooks::enable_all()) { initialized=false; throw std::runtime_error("hook activation failed"); }
         if(owned_native_profile&&!game::native_open_runtime::hooks_enabled(native_error)) {
             initialized=false; throw std::runtime_error("native snapshot origin hook confirmation failed: "+native_error);
+        }
+        if(owned_native_profile&&!game::tutorial_replication::hooks_enabled(native_error)) {
+            initialized=false; throw std::runtime_error("tutorial hook confirmation failed: "+native_error);
         }
         if(owned_native_profile) game::native::set_subscriber_needs_hook_mask(0x3f);
         if(owned_native_profile) game::subscriber_lifecycle_append::set_lookup_hook_ready(true);

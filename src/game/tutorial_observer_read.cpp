@@ -51,6 +51,7 @@ public:
             return fail(error,"tutorial array count="+std::to_string(count)+" capacity="+std::to_string(capacity)+" required 0<=count<=capacity<="+std::to_string(limit));
         return true;
     }
+    bool owned_sequence_entry(uintptr_t address,std::string& error){return port_.owned_sequence_entry(address,error);}
     bool stable(std::string& error){
         for(const auto& witness:reads_){std::vector<unsigned char> again(witness.bytes.size());
             if(!port_.copy(witness.address,again.data(),again.size(),error))return false;
@@ -72,7 +73,7 @@ bool guard(Reader& reader,uintptr_t image,std::string& error){
     if(!reader.bytes(image+0x4f5dc0,actual.data(),actual.size(),error))return false;
     if(std::memcmp(actual.data(),instance_entry,actual.size()))return fail(error,"tutorial ScenarioSequenceInstance Update code guard differs");
     if(!reader.bytes(image+0x4fc4a0,actual.data(),actual.size(),error))return false;
-    if(std::memcmp(actual.data(),sequence_entry,actual.size()))return fail(error,"tutorial Sequence Update code guard differs");
+    if(std::memcmp(actual.data(),sequence_entry,actual.size())&&!reader.owned_sequence_entry(image+0x4fc4a0,error))return false;
     return true;
 }
 bool tutorial(const std::string& id){return id=="initial_tutorial"||id=="leveltwo_tutorial";}

@@ -1,4 +1,5 @@
 #include "tutorial_observer.h"
+#include "tutorial_replication/owned_sequence_entry.h"
 #include <array>
 #include <cstring>
 #include <functional>
@@ -37,6 +38,20 @@ struct Fake:observer::Port {
         if(address==unreadable||!data){error="fixture native memory unreadable";return false;}
         std::memcpy(out,data,count);return true;
     }
+    mt2mp::game::tutorial_sync::OwnedSequenceEntry owned;
+    bool owned_sequence_entry(uintptr_t address,std::string& error)override{
+        if(!owned.enabled){error="tutorial Sequence Update code guard differs";return false;}
+        return mt2mp::game::tutorial_sync::verify_owned_sequence_entry(owned,address,[this](auto p,auto out,auto count,auto& e){return copy(p,out,count,e);},error);
+    }
+    void install_owned_hook(){
+        constexpr uintptr_t trampoline=0x30000000,detour=0x30001000;
+        owned={::fixture::image+0x4fc4a0,detour,trampoline,true,true};allocate(trampoline,34);
+        std::memcpy(pointer(trampoline,6),mt2mp::game::tutorial_sync::sequence_entry.data(),6);
+        const unsigned char jump[]={0xff,0x25,0,0,0,0};
+        std::memcpy(pointer(trampoline+6,6),jump,6);put(trampoline+12,owned.target+6);
+        std::memcpy(pointer(trampoline+20,6),jump,6);put(trampoline+26,detour);
+        put(owned.target,uint8_t(0xe9));put(owned.target+1,int32_t(trampoline+20-owned.target-5));
+    }
     Fake(){
         allocate(::fixture::image+0x4f5dc0,16);allocate(::fixture::image+0x4fc4a0,16);allocate(::fixture::image+0x13df2a0,8);allocate(::fixture::image+0x13df330,8);
         const unsigned char instance_entry[]={0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x38,0x48,0x83,0x79,0x58};
@@ -64,6 +79,10 @@ int main()try{
     check(row.at("scenario_id")=="initial_tutorial"&&row.at("current_step_index")==0&&row.at("current_step_type")=="mmoStepMessage"&&row.at("current_step_id")=="welcome","welcome scalar receipt differs");
     check(row.at("history_count")==0&&row.at("step_count")==2&&!row.at("complete").get<bool>(),"welcome counts differ");
     check(receipt.dump().find("pointer")==std::string::npos&&receipt.dump().find("address")==std::string::npos&&receipt.dump().find("vtable")==std::string::npos,"receipt exports process addresses");
+    Fake hooked;hooked.install_owned_hook();accepted(hooked);
+    rejected([](Fake& f){f.put(image+0x4fc4a0,uint8_t(0xe9));},"code guard differs");
+    rejected([](Fake& f){f.install_owned_hook();f.put(f.owned.trampoline+26,uintptr_t(5));},"detour");
+    rejected([](Fake& f){f.install_owned_hook();f.change=image+0x4fc4a0;},"patch/suffix");
     Fake absent;absent.put(scenario_log+0x28,int32_t(0));auto none=accepted(absent);check(none.at("state")=="inactive"&&none.at("tutorials").empty(),"absent tutorial was not normal inactive state");
     Fake done;done.put(scenario_log+0x28,int32_t(0));done.put(scenario_log+0x58,int32_t(1));done.text(completed,0,"initial_tutorial");auto completed_receipt=accepted(done);check(completed_receipt.at("initial_tutorial_complete")==true&&completed_receipt.at("state")=="inactive","completed tutorial scalar differs");
     Fake zone;zone.text(first,0x20,"zone_2");zone.text(second,0x20,"zone_2");const auto zone_before=accepted(zone);zone.origins=0;zone.put(sequence+0x48,second);zone.put(sequence+0x50,int32_t(2));const auto zone_after=accepted(zone);

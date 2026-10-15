@@ -1,0 +1,107 @@
+{
+  "schema": 1,
+  "scope": "Native WASD progress display visibility and exact zero-value parity",
+  "released": false,
+  "dynamic_movement_progress_proven": false,
+  "full_tutorial_proven": false,
+  "mod_sha256": "13c96a3bc82567c8d479f6b882785a7f46c43cadb0401c8210053265547b1fc1",
+  "build": "artifacts/build_history/20261015T001259174864Z",
+  "native": {
+    "shared_display": "artifacts/acceptance/44554925-019f-45d2-b0d6-a8c598e1462b/summary.json",
+    "leave": "artifacts/acceptance/f4769912-fe8b-4113-b440-62782cd7e4a4/summary.json",
+    "both_exit_zero": "artifacts/acceptance/ebfc6051-ba72-4979-a3c7-1844a8103c05/summary.json",
+    "crash_monitor": "artifacts/tutorial_crash/24c79b80-15d6-4002-92b5-439c4f0a2ace/monitor-result.json"
+  },
+  "progress": {
+    "host": {
+      "client_sequence_fenced": false,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "2b8636b3-722a-4d49-9945-8f1de4d2ad38",
+      "tutorial": {
+        "active": [
+          {
+            "complete": false,
+            "count": 107,
+            "history": [
+              "welcome"
+            ],
+            "last": "wasd",
+            "message_progress": {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "shown": true,
+              "value": 0.0
+            },
+            "next": 7,
+            "scenario": "initial_tutorial"
+          }
+        ],
+        "initial_complete": false,
+        "leveltwo_complete": false
+      },
+      "world_epoch": 2,
+      "world_generation": 2
+    },
+    "client-1": {
+      "client_sequence_fenced": true,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "f3e177fe-0eb7-49d8-8745-ffd8edcca266",
+      "tutorial": {
+        "active": [
+          {
+            "complete": false,
+            "count": 107,
+            "history": [
+              "welcome"
+            ],
+            "last": "wasd",
+            "message_progress": {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "shown": true,
+              "value": 0.0
+            },
+            "next": 7,
+            "scenario": "initial_tutorial"
+          }
+        ],
+        "initial_complete": false,
+        "leveltwo_complete": false
+      },
+      "world_epoch": 1,
+      "world_generation": 1
+    }
+  },
+  "frames": {
+    "frame-host": {
+      "path": "_drafts\\media\\tutorial-progress-host.bmp",
+      "sha256": "36ee09ba00fa3af650c35e2dc7d6fb3634d22e370dbab694cc9df16fb7a8c4cb"
+    },
+    "frame-client-1": {
+      "path": "_drafts\\media\\tutorial-progress-client-1.bmp",
+      "sha256": "0624926e36c6edfa15821c695ed7a6e199ccf836b417fafc55fc0db76fd140af"
+    }
+  },
+  "tests": {
+    "progress_scenarios": 28,
+    "affected_tutorial_payload_cases": 17,
+    "canonical_ctest_seconds": 0.2,
+    "mcp_contract_tests": 12
+  },
+  "fixture": {
+    "snapshot_id": "bfea4710-d9fa-4dd0-ac8a-c6bd525844a5",
+    "bytes": 218784,
+    "sha256": "e8f208d8abf9c81d93309acfdf180acbe4adc70bcf9d791b6599a445765b02de",
+    "receipt": "test/mcp/evidence/tutorial-wasd-fixture_20261015T001917517164Z.json"
+  },
+  "limits": [
+    "Host movement was not executed in this acceptance; no dynamic progress or next-step claim.",
+    "Client Sequence remains fenced. No StepMessage Update, accumulator write or completion write is added.",
+    "The earlier unreproduced heap crash remains documented in tutorial-development-native.json.",
+    "CompleteTech 93, level-up and scenario creation/completion remain outside the accepted tutorial slice."
+  ]
+}

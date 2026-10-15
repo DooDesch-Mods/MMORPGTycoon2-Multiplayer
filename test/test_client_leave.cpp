@@ -73,6 +73,7 @@ Json captures=Json::object(),snapshot_status=Json::object();
 uint32_t thread=7;
 unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0,native_retired=0;
 bool software_armed=true,software_ok=true,time_active=false;
+bool tutorial_fenced=true,tutorial_fenced_at_delete=true;unsigned tutorial_retired=0;std::string tutorial_cause;
 void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
 bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true;
@@ -80,6 +81,7 @@ void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
     software_armed=software_ok=true;time_active=false;reset_software_stream();
+    tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
     fence_ok=wire_ok=time_ok=live_ok=true;
 }
@@ -139,6 +141,13 @@ Fence& economic_fence(){static Fence value;return value;}
 bool retire_lobby_fence(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}
 namespace day {void bind_host_journal(void*){}}
 }
+namespace tutorial_replication {
+void retire(const std::string& cause){
+    require(fixture::title&&!fixture::transition&&!fixture::saving,"tutorial fence retired before actual idle Title");
+    require(fixture::native_retired==1&&!fixture::software_armed&&fixture::membership_left==1&&fixture::wire_retired==1&&fixture::wire_ok,"tutorial fence retired before software/Steam/wire completion");
+    ++fixture::tutorial_retired;fixture::tutorial_fenced=false;fixture::tutorial_cause=cause;
+}
+}
 namespace typed_action_runtime {
 struct Live{bool suspend_snapshot(std::string& e){if(!fixture::live_ok)e="live Unknown";return fixture::live_ok;}};
 struct Runtime {
@@ -147,7 +156,7 @@ struct Runtime {
     std::unique_ptr<Live> live_state;bool live_port=false;
     std::string live_error;
     explicit Runtime(action_session::Controller& value):controller(value){}
-    ~Runtime(){++fixture::deleted;}
+    ~Runtime(){fixture::tutorial_fenced_at_delete=fixture::tutorial_fenced;++fixture::deleted;}
 };
 std::atomic<Runtime*> published_runtime{nullptr};
 fixture::Json status(){return fixture::snapshot_status;}
@@ -189,6 +198,35 @@ void software_retirement_delta(){
     require(!runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::native_retired==0&&fixture::software_armed&&mt2mp::net::epoch==42,"pending Controller released software owner");
     runtime::published_runtime.store(nullptr);delete owner;
     std::cout<<"PASS actual Leave ordering: active/pending/save/Time/Controller retained; native failure preserved; native and actual stream cleared before Steam release\n";
+}
+
+void tutorial_lifetime_delta(){
+    Pair pair;std::string error;bool ready=true;
+    fixture::reset();auto* owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    require(runtime::begin_lobby_leave(error),error);
+    require(fixture::tutorial_fenced&&fixture::tutorial_retired==0,"begin Leave released tutorial fence with old World active");
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"active World released tutorial fence");
+    fixture::title=true;fixture::transition=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"pending Title released tutorial fence");
+    fixture::transition=false;fixture::saving=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"native save released tutorial fence");
+    fixture::saving=false;fixture::time_initialized=fixture::time_active=true;
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"active Time owner released tutorial fence");
+    fixture::time_active=false;
+    require(runtime::finish_lobby_leave(ready,error)&&ready,error);
+    require(fixture::tutorial_retired==1&&!fixture::tutorial_fenced&&!fixture::tutorial_fenced_at_delete&&fixture::deleted==1&&!runtime::published_runtime.load()&&fixture::tutorial_cause=="confirmed native Title after lobby Leave","settled Leave did not retire tutorial once before owner storage ended");
+
+    fixture::reset();fixture::title=true;fixture::wire_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="wire retirement failed"&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"wire retirement failure released tutorial fence or lost original cause");
+    fixture::reset();fixture::title=true;fixture::software_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="original software retirement failure"&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"software retirement failure released tutorial fence or lost original cause");
+    fixture::reset();fixture::title=true;fixture::fence_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="fence Unknown"&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"economic fence failure released tutorial fence or lost original cause");
+    fixture::reset();fixture::title=true;pair.submit();
+    owner=new runtime::Runtime(pair.client);owner->lobby_retiring=true;runtime::published_runtime.store(owner);
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"pending Controller released tutorial fence");
+    runtime::published_runtime.store(nullptr);delete owner;
+    std::cout<<"PASS tutorial Title lifetime: World/transition/save/Time/Controller/failures retain fence; settled software/Steam/wire retire once before owner deletion\n";
 }
 
 void idle_departure(){
@@ -267,10 +305,13 @@ void other_guards(){
 }
 int main(){
     try{
+#ifndef TUTORIAL_LEAVE_DELTA_ONLY
 #ifndef NAMED_WORLD_LEAVE_DELTA_ONLY
         idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();
 #endif
         software_retirement_delta();
+#endif
+        tutorial_lifetime_delta();
         std::cout<<"client Leave regressions passed: actual Controller and actual begin/finish bodies\n";return 0;
     }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
 }

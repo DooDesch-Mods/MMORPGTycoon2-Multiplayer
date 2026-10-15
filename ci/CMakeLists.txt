@@ -98,3 +98,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/private_save_parent_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/named_world_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/diagnostic_mailbox_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_state_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_load_gate_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_development_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_progress_checks.cmake")

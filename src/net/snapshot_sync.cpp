@@ -13,6 +13,7 @@
 #include "../game/time_integration.h"
 #include "../game/time_input_diagnostics.h"
 #include "../game/native_open_runtime.h"
+#include "../game/tutorial_replication/native.h"
 #include "../game/hud_time_runtime.h"
 #include "../game/hud_calendar_runtime.h"
 #endif
@@ -248,6 +249,7 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         incoming_origin_generation=0;
         if(!game::native_open_runtime::prepare(runtime,id,incoming_hash,buffer.size(),incoming_origin_generation,error,incoming_world_name))
             throw std::runtime_error("native client snapshot origin preparation failed: "+error);
+        if(!game::tutorial_replication::arm_client_load(id,incoming_origin_generation,error))throw std::runtime_error("tutorial Client load arm failed: "+error);
         try {
         game::time_input_diagnostics::suspend("verified snapshot replaces client world");
         if(!game::hud_time_runtime::suspend("verified snapshot replaces client world",error))
@@ -365,6 +367,9 @@ void tick_snapshot_sync() {
             if(!game::native_open_runtime::finish(incoming_origin_generation,origin_pending,error))
                 throw std::runtime_error("native client snapshot origin completion failed: "+error);
             if(origin_pending) return;
+            bool tutorial_pending=false;
+            if(!game::tutorial_replication::finish_client_load(tutorial_pending,error))throw std::runtime_error("tutorial Client load completion failed: "+error);
+            if(tutorial_pending)return;
 #endif
             game::normal_load_identity::Status identity; std::string identity_error;
             if(!game::normal_load_identity::finalize(identity,identity_error)) LOG_NET_WARN("[SNAPSHOT] Loaded world identity observation incomplete id={}: {}",incoming_id,identity_error);
@@ -402,6 +407,9 @@ uint64_t current_world_epoch() {
     return !receiving&&!load_pending&&!last_loaded.empty()?incoming_epoch:0;
 }
 void invalidate_snapshot_world(const std::string& reason) {
+#ifndef MT2MP_SNAPSHOT_TEST
+    game::tutorial_replication::invalidate(reason);
+#endif
     snapshot_world_valid=false;
     last_loaded_ack=nullptr;
     for(auto& [peer,state]:outbound_peers) {

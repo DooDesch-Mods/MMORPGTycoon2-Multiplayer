@@ -1,5 +1,6 @@
 #include "tutorial_observer.h"
 #include "native_open_runtime.h"
+#include "tutorial_replication/native.h"
 #include <windows.h>
 #include <cstring>
 #include <limits>
@@ -23,6 +24,7 @@ public:
         out=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
         if(out)return true;error="tutorial native game module unavailable";return false;
     }
+    bool owned_sequence_entry(uintptr_t address,std::string& error)override{return tutorial_replication::verify_sequence_entry(address,error);}
     bool copy(uintptr_t address,void* target,size_t count,std::string& error)override{
         if(!address||!target||!count||address>std::numeric_limits<uintptr_t>::max()-count){error="tutorial memory range invalid";return false;}
         const auto end=address+count;auto cursor=address;

@@ -17,6 +17,7 @@ struct Port {
     virtual bool current(Origin&,std::string&)=0;
     virtual bool image(uintptr_t&,std::string&)=0;
     virtual bool copy(uintptr_t,void*,size_t,std::string&)=0;
+    virtual bool owned_sequence_entry(uintptr_t,std::string& error){error="tutorial Sequence Update code guard differs";return false;}
 };
 bool observe(Port&,nlohmann::json&,std::string&);
 }
