@@ -61,6 +61,10 @@ void scenario_start(void* log,void* scenario,void* parameters){
         try{
             std::string e,id;if(!str(reinterpret_cast<uintptr_t>(scenario),0x18,id,e)){block(e);return;}
             if(!supported(id)){original_scenario_start(log,scenario,parameters);return;}
+            if(!creation&&!load.ready){
+                Owners owner;if(!bootstrap_owners(id,owner,e)||owner.log!=reinterpret_cast<uintptr_t>(log)||owner.asset!=reinterpret_cast<uintptr_t>(scenario)||parameters){block(e.empty()?"Client tutorial bootstrap Start Mode/library/log/parameters differs":e);return;}
+                LOG_INFO("[Tutorial] Client bootstrap scenario start suppressed until Host frame scenario={}",id);return;
+            }
             World w;if(GetCurrentThreadId()!=mainthread||!native_open_runtime::read_current_world(w,e)||w.uuid!=load.uuid||w.generation!=load.generation){block(e.empty()?"Client scenario creation bound thread/origin differs":e);return;}
             Owners owner;if(!owners(w,id,owner,e)||owner.log!=reinterpret_cast<uintptr_t>(log)||owner.asset!=reinterpret_cast<uintptr_t>(scenario)){block(e.empty()?"Client scenario creation Mode/library/log owner differs":e);return;}
             if(!creation){LOG_INFO("[Tutorial] Client native scenario start suppressed until Host frame scenario={}",id);return;}

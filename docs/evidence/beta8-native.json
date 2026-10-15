@@ -17,5 +17,27 @@
     "Local candidate differs from future cloud binaries; delivery startup is separate"
   ],
   "online_acceptance_passed": false,
-  "full_coop_proven": false
+  "full_coop_proven": false,
+  "delivery_state": "withdrawn-as-draft-before-download-or-installation",
+  "withdrawal": {
+    "source_commit": "34613f958f6346a9245882bbde4c4755cb25e59e",
+    "release_ci": {
+      "run_id": 38715193142,
+      "conclusion": "success"
+    },
+    "source_ci": {
+      "run_id": 38715192996,
+      "conclusion": "success"
+    },
+    "draft_readback": true,
+    "native_load_acceptance": "artifacts/acceptance/b0efefa6-76eb-4222-8049-b312a1d5846a/summary.json",
+    "cause": "tutorial Client load completion failed: current_world_read_origin_unavailable",
+    "scope": "Client automatic Initial Start runs before completed NativeOpen origin exists in an existing world without Initial",
+    "leave_receipt": "artifacts/acceptance/884e8a31-bd4b-4197-8f0d-b18058ea164d/summary.json",
+    "leave_observation_failure": "Both Leave handlers confirmed; observer rejected the retained preparation error. No Leave replay.",
+    "graceful_exit": "artifacts/acceptance/bbbe3328-c3a0-4593-9dd8-9be86b07bd7b/summary.json",
+    "both_game_exit_codes": 0,
+    "installed_version": "0.1.0-beta.7",
+    "next_action": "Fix guarded bootstrap suppression, prove the same immutable input, then use a new release version"
+  }
 }

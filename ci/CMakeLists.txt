@@ -122,3 +122,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_staff_display_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_message_close_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_completion_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_network_tab_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_load_start_checks.cmake")

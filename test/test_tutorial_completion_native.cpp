@@ -14,7 +14,7 @@ struct NativeCursor {uintptr_t instance=0,sequence=0,steps=0;Cursor value;};
 uintptr_t image=0x140000000,mainthread=7,scoped_sequence=0,return_address=0;
 uint32_t thread_id=7;
 std::string fault;
-struct Load {bool armed=true;std::set<uintptr_t> sequences,quarantined;std::string uuid="world";uint64_t generation=1;} load;
+struct Load {bool armed=true;std::set<uintptr_t> sequences,quarantined;std::string uuid="world";uint64_t generation=1;bool ready=false;} load;
 std::map<uintptr_t,unsigned char> memory_bytes;
 std::map<uintptr_t,std::string> memory_strings;
 bool origin_ok=true,type_ok=true,append_ok=true,remove_ok=true,version_ok=true,owner_change=false;
@@ -59,6 +59,7 @@ namespace lifecycle_native {
 #include "lifecycle_cache.inc"
 struct Owners {uintptr_t log=0,library=0,asset=0;std::vector<uintptr_t> instances;size_t completed=0;};
 bool owners(const World&,const std::string&,Owners& out,std::string&){out={1,owner_change&&completes?99u:2u,3,instances,completed_ids};return true;}
+bool bootstrap_owners(const std::string& id,Owners& out,std::string& e){return owners(World{},id,out,e);}
 bool log_owners(const World& w,const std::string& id,Owners& out,std::string& e){return owners(w,id,out,e);}
 bool owned_cursor(const Owners&,const std::string&,NativeCursor& out,bool& found,std::string& e){found=fixture_present;out=native_cursor;if(!found)return true;uint8_t done=0;return at(fixture_sequence,0x50,out.value.next,e)&&at(fixture_sequence,0x54,done,e)&&(out.value.complete=done!=0,true);}
 bool array(uintptr_t address,size_t offset,int32_t,uintptr_t& data,int32_t& count,std::string& e){return at(address,offset,data,e)&&at(address,offset+8,count,e);}

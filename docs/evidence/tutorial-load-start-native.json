@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "scope": "Client automatic tutorial Start before completed NativeOpen origin publication",
+  "source_stage_seal": "b4252f4459bb5bdbea319511699416a89f71e467e9556355ae8363af82f3cb82",
+  "build": "artifacts/build_history/20261015T101414917368Z",
+  "dll_sha256": "26d6c7ec933fa958dd51681bd93878c3afce55451d25d75a1bbf2cc4734657eb",
+  "focused_tests": {
+    "new_actual_body_cases": 21,
+    "affected_actual_body_cases": 28,
+    "passed": true,
+    "canonical_ctest": "artifacts/tutorial_load_start_canonical_ctest.log"
+  },
+  "failed_before": "artifacts/acceptance/b0efefa6-76eb-4222-8049-b312a1d5846a/summary.json",
+  "accepted_after": "artifacts/acceptance/fa422951-e555-448a-afbf-afd92fa0e505/summary.json",
+  "input": "artifacts/tutorial_leveltwo_input_registered.json",
+  "native_order": [
+    "12:17:23.691 Client bootstrap Initial Start suppressed with actual request/owner identity",
+    "12:17:23.730 Client load waits for native ScenarioLog PostLoad",
+    "12:17:28.711 Native PostLoad completes and tutorial fences confirm",
+    "Both peers Playing, matching native inactive tutorials and shared session"
+  ],
+  "frames": {
+    "host": {
+      "path": "_drafts\\media\\tutorial-load-start-host.bmp",
+      "pixel_sha256": "c5cd0c9ab5ea2c1d580ca2981391dd9464f72db23846b9f1104daa31b5dfae45",
+      "viewed": true
+    },
+    "client-1": {
+      "path": "_drafts\\media\\tutorial-load-start-client-1.bmp",
+      "pixel_sha256": "3c147ab96a39c55ff54b49729750e8c1ddead5a8c3edc7779cd51617a97adcfc",
+      "viewed": true
+    }
+  },
+  "followup": {
+    "placement": "artifacts/acceptance/e37b793f-5449-4a66-9b54-0d382776d00a/summary.json",
+    "placement_action": "b66a1a82-3d84-4ed0-a2cd-8cd8133d1941",
+    "placement_result": "One genuine Client QuestGiver request, Host order/ACK3, exactly one additional actor on both peers, valid generated quests",
+    "simulation": "artifacts/acceptance/707be0f1-66bb-440b-8146-c431e8de3a0c/summary.json",
+    "native_failure": "Client live state Unknown: actual Subscriber/Loan/Day full readback Unknown original=NPC pose/counters differ; no replay; actual Day already committed; no replay",
+    "failure_time": "12:22:49.027",
+    "host_readback": "test/mcp/evidence/leveltwo-failure-host_20261015T102618321049Z.json",
+    "client_readback": "test/mcp/evidence/leveltwo-failure-client_20261015T102632706505Z.json",
+    "leveltwo": "Not observed within180s; selected subscriber56 stayed level1/XP399/quests2. Host paused once.",
+    "failed_client_leave": "artifacts/acceptance/3e066010-abca-46af-865a-9560a2bee3a3/summary.json",
+    "leave_cause": "native Leave failed: live snapshot suspend locked/pending/unbound",
+    "host_leave": "test/mcp/evidence/leveltwo-host-leave_20261015T102816883089Z.json",
+    "client_still_in_world": "test/mcp/evidence/leveltwo-client-retired_20261015T102831024132Z.json",
+    "host_native_exit": "artifacts/acceptance/2e50bf23-22e1-4973-861c-60998948c3fe/summary.json",
+    "host_exit_code": 0,
+    "client_exit": "Exact owned stop_local_test after blocked native Leave; forced exit1, not a graceful-exit acceptance",
+    "mutation_replayed": false,
+    "installed_version": "0.1.0-beta.7",
+    "beta8": "Remains draft; no new release delivered"
+  },
+  "limits": [
+    "XP-only copied boundary input does not prove full natural new-world tutorial",
+    "Accepted load repair does not close the later independent NPC live-state and locked Leave failures"
+  ]
+}
