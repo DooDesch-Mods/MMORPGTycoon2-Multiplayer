@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  source-tests:
     runs-on: windows-2022
     timeout-minutes: 30
     defaults:
@@ -52,6 +52,16 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test -p test_loader_separation.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+  compile:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
       - name: Restore SDL import library
         id: sdl_import
         uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -89,3 +99,17 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build .ci-build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar wsock32 --parallel 2
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+  build:
+    if: always()
+    needs: [source-tests, compile]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require all Windows checks
+        env:
+          SOURCE_TESTS_RESULT: ${{ needs.source-tests.result }}
+          COMPILE_RESULT: ${{ needs.compile.result }}
+        run: |
+          if [ "$SOURCE_TESTS_RESULT" != success ] || [ "$COMPILE_RESULT" != success ]; then
+            echo "::error::Windows checks failed: source-tests=$SOURCE_TESTS_RESULT compile=$COMPILE_RESULT"
+            exit 1
+          fi
