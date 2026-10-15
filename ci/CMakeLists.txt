@@ -153,3 +153,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/developer_movement_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/snapshot_capture_policy_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/buildings_tab_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/building_remove_restore_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")

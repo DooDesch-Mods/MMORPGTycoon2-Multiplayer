@@ -57,6 +57,8 @@ public:
     // Redo of one confirmed building uses its original ID and a fresh local native binding.
     bool restore_native_building(const Origin&,uint64_t revision,const std::string& action_uuid,
                                  const std::string& original_action_uuid,const LocalBinding&,std::string&);
+    bool restore_native_building_key(const Origin&,uint64_t revision,const std::string& action_uuid,
+                                     const std::string& object_key,const LocalBinding&,std::string&);
     bool resolve_current(const Origin&,const std::string& object_key,RegistryReader&,LocalBinding&,std::string&) const;
     const std::map<std::string,Row>& rows() const {return rows_;}
     uint64_t revision() const {return revision_;}

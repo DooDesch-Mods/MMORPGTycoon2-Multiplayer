@@ -246,7 +246,7 @@ bool valid_request(const Request& r) {
             r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)
         return uuid(r.action_uuid)&&uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&
-            r.canonical_record_key=="action:"+r.target_action_uuid&&r.building==BuildingState{}&&
+            key(r.canonical_record_key)&&r.building==BuildingState{}&&
             r.region==RegionIntent{}&&r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&
             r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(!r.target_action_uuid.empty())return false;
@@ -272,8 +272,7 @@ bool object_effect(const Request& r,const Evidence& e) {
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding) {
         auto other=e.object_before;other.alive=!other.alive;
         return e.object_after==other&&e.object_before.type==e.object_after.type&&
-            e.object_before.variant==e.object_after.variant&&
-            (r.action==Action::UndoBuilding?e.object_before.alive:!e.object_before.alive);
+            e.object_before.variant==e.object_after.variant;
     }
     if(r.action==Action::RemoveSnapshotBuilding) {
         if(e.object_before==BuildingState{}&&e.object_after==BuildingState{})return !r.canonical_record_key.starts_with("action:");
@@ -364,7 +363,7 @@ bool execution(const Request& r,const Evidence& e) {
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)
         return valid_building(e.object_before)&&valid_building(e.object_after)&&
             object_effect(r,e)&&e.undo_confirmed&&!e.selection_confirmed&&
-            e.target_retired==(r.action==Action::UndoBuilding)&&
+            e.target_retired==!e.object_after.alive&&
             e.region_before==RegionState{}&&e.region_after==RegionState{}&&
             e.terrain_before==TerrainState{}&&e.terrain_after==TerrainState{}&&
             e.path_before==PathState{}&&e.path_after==PathState{}&&
@@ -771,9 +770,12 @@ void Controller::remember(const std::string& id,Cached value) {
     if(history_order_.size()>history_limit){history_.erase(history_order_.front());history_order_.pop_front();}
 }
 bool Controller::submit_building_history(Action action,const std::string& id,const std::string& target,uint64_t now,std::string& error) {
+    return submit_building_history(action,id,target,"action:"+target,now,error);
+}
+bool Controller::submit_building_history(Action action,const std::string& id,const std::string& target,const std::string& object_key,uint64_t now,std::string& error) {
     if(action!=Action::UndoBuilding&&action!=Action::RedoBuilding)return fail("building history action invalid",error);
     Request request;request.action=action;request.action_uuid=id;request.target_action_uuid=target;
-    request.canonical_record_key="action:"+target;return submit(std::move(request),now,error);
+    request.canonical_record_key=object_key;return submit(std::move(request),now,error);
 }
 bool Controller::submit_remove(const std::string& id,const std::string& record,uint64_t now,std::string& error) {
     Request request;request.action_uuid=id;request.canonical_record_key=record;return submit(std::move(request),now,error);

@@ -23,6 +23,7 @@
 #include "ui_remove_runtime.h"
 #include "ui_build_runtime.h"
 #include "building_history_slice/native_bridge.h"
+#include "building_history_slice/cash_effect.h"
 #include "ui_move_runtime.h"
 #include "ui_region_runtime.h"
 #include "ui_price_runtime.h"
@@ -52,7 +53,7 @@ bool read_ledger(action::Ledger& out,std::string& error) {
     return true;
 }
 class NativeEngine final:public action::Engine {
-    struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;};
+    struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false,history_ready=false;int32_t refund=0;};
     std::map<std::string,Operation> operations_;
     struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;developer_staff::construction::LocalJob construction_job;bool construction_confirmed=false;};
     std::map<std::string,BuildOperation> buildings_;
@@ -164,12 +165,12 @@ class NativeEngine final:public action::Engine {
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(operations_.contains(request.action_uuid)){error="typed native action token already attempted; no replay";return action::Outcome::Unknown;}
         action::Ledger before;if(!read_ledger(before,error))return action::Outcome::RejectedNoEffect;
-        action::BuildingState object_before;uint64_t local_uid=0;
-        if(request.canonical_record_key.starts_with("action:")) {
+        action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false;
+        {
             remove_diagnostics::LocalTarget target;native::BuildingState actual;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
                !scenery_kiss::read_action_prop(target.uid,actual,error))return action::Outcome::RejectedNoEffect;
-            object_before=world_state::building_state(actual);local_uid=target.uid;
+            object_before=world_state::building_state(actual);local_uid=target.uid;normal_scenery=target.normal_scenery;
             world_state::LocalBinding settled;
             if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,settled,error)||
                !world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error))return action::Outcome::RejectedNoEffect;
@@ -189,6 +190,7 @@ class NativeEngine final:public action::Engine {
         if(captured&&!ui_remove_runtime::make_replay(request.snapshot_uuid,request.canonical_record_key,request.action_uuid,purpose,replay,error))
             return action::Outcome::RejectedNoEffect;
         auto& operation=operations_.emplace(request.action_uuid,Operation{request,binding,before,{},{},object_before,local_uid}).first->second;
+        operation.normal_scenery=normal_scenery;
         const json args={{"token",request.action_uuid},{"snapshot_id",request.snapshot_uuid},{"record_key",request.canonical_record_key},
             {"expected_world_epoch",binding.native_epoch},{"expected_world_generation",binding.native_generation}};
         const auto native_call=[&](std::string& cause){return remove_diagnostics::remove(args,operation.removal,cause);};
@@ -218,8 +220,15 @@ public:
             auto job=op.construction_job;job.target_alive=row->second.state.alive;
             job.target_restored=false;
             if(job.target_alive)for(const auto& [history_id,history]:history_){
-                if(history.confirmed&&history.request.action==action::Action::RedoBuilding&&
-                   history.request.action_uuid==history_id&&history.request.target_action_uuid==id&&
+                const auto removed=operations_.find(history.request.target_action_uuid);
+                const bool original_place=history.request.action==action::Action::RedoBuilding&&history.request.target_action_uuid==id;
+                const bool original_remove=history.request.action==action::Action::UndoBuilding&&removed!=operations_.end()&&
+                    removed->second.history_ready&&removed->second.request.action_uuid==history.request.target_action_uuid&&
+                    removed->second.binding==binding&&removed->second.local_uid==job.building_uid&&
+                    removed->second.request.action==action::Action::RemoveSnapshotBuilding&&
+                    removed->second.request.snapshot_uuid==snapshot&&removed->second.request.canonical_record_key==job.building_key;
+                if(history.confirmed&&!history.object_before.alive&&(original_place||original_remove)&&
+                   history.request.action_uuid==history_id&&
                    history.binding==binding&&history.request.snapshot_uuid==snapshot&&
                    history.request.canonical_record_key==job.building_key&&history.uid==job.building_uid&&history.object_after.alive){
                     job.target_restored=true;break;
@@ -322,19 +331,37 @@ public:
         if(history_.contains(request.action_uuid)) {
             error="building history action already attempted; no replay";return action::Outcome::Unknown;
         }
-        const auto original=buildings_.find(request.target_action_uuid);
-        if(original==buildings_.end()||original->second.request.action!=action::Action::PlaceBuilding||
-           original->second.request.canonical_record_key!=request.canonical_record_key||
-           !original->second.receipt.value("confirmed",false)||!original->second.retired||
-           original->second.normal_scenery) {
-            error="building history target has no confirmed normal building placement";
-            return action::Outcome::RejectedNoEffect;
+        action::BuildingState* source_state=nullptr;uint64_t uid=0;int32_t amount=0;bool source_remove=false;
+        const auto placed=buildings_.find(request.target_action_uuid);
+        const auto removed=operations_.find(request.target_action_uuid);
+        if(placed!=buildings_.end()&&removed!=operations_.end()) {
+            error="building history target mutation is ambiguous";return action::Outcome::RejectedNoEffect;
         }
+        if(placed!=buildings_.end()) {
+            auto& source=placed->second;
+            if(source.request.action!=action::Action::PlaceBuilding||source.request.action_uuid!=request.target_action_uuid||source.binding!=binding||
+               source.request.snapshot_uuid!=request.snapshot_uuid||source.request.canonical_record_key!=request.canonical_record_key||
+               !source.receipt.value("confirmed",false)||!source.retired||source.normal_scenery) {
+                error="building history target has no confirmed current normal building placement";return action::Outcome::RejectedNoEffect;
+            }
+            source_state=&source.state;uid=source.receipt.at("native_uid").get<uint64_t>();amount=source.receipt.at("cost").get<int32_t>();
+        } else if(removed!=operations_.end()) {
+            auto& source=removed->second;
+            if(source.request.action!=action::Action::RemoveSnapshotBuilding||source.request.action_uuid!=request.target_action_uuid||source.binding!=binding||
+               source.request.snapshot_uuid!=request.snapshot_uuid||source.request.canonical_record_key!=request.canonical_record_key||
+               !source.history_ready||source.normal_scenery||!source.removal.value("confirmed",false)||
+               !source.retirement.value("confirmed",false)) {
+                error="building history target has no confirmed retired normal building removal";return action::Outcome::RejectedNoEffect;
+            }
+            source_remove=true;source_state=&source.object_before;uid=source.local_uid;amount=source.refund;
+        } else {
+            error="building history target confirmed mutation missing";return action::Outcome::RejectedNoEffect;
+        }
+        if(!uid||amount<0||!source_state->alive){error="building history original UID/amount/state invalid";return action::Outcome::RejectedNoEffect;}
+        const bool destroying=(request.action==action::Action::UndoBuilding)!=source_remove;
+        auto alive=*source_state;auto dead=alive;dead.alive=false;
         const auto row=world_.rows().find(request.canonical_record_key);
-        const bool undo=request.action==action::Action::UndoBuilding;
-        auto alive=original->second.state;
-        auto dead=alive;dead.alive=false;
-        if(row==world_.rows().end()||row->second.state!=(undo?alive:dead)) {
+        if(row==world_.rows().end()||row->second.state!=(destroying?alive:dead)) {
             error="building history target full shared state differs";return action::Outcome::RejectedNoEffect;
         }
         const auto controller=typed_action_runtime::status();
@@ -343,58 +370,43 @@ public:
             error="building history lacks exact pending Controller request";return action::Outcome::RejectedNoEffect;
         }
         const auto revision=controller.at("host_revision").get<uint64_t>();
-        if(revision<=world_.revision()) {error="building history shared revision stale";return action::Outcome::RejectedNoEffect;}
-        action::Ledger before;
-        if(!read_ledger(before,error))return action::Outcome::RejectedNoEffect;
-        const auto uid=original->second.receipt.at("native_uid").get<uint64_t>();
-        const auto cost=original->second.receipt.at("cost").get<int32_t>();
-        if(!uid||cost<0){error="building history original UID/cost invalid";return action::Outcome::RejectedNoEffect;}
-        if(undo) {
+        if(revision<=world_.revision()){error="building history shared revision stale";return action::Outcome::RejectedNoEffect;}
+        action::Ledger before;if(!read_ledger(before,error))return action::Outcome::RejectedNoEffect;
+        if(destroying) {
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding settled;
-            if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)) {
-                error="building history Undo target resolution failed: "+error;return action::Outcome::RejectedNoEffect;
-            }
-            if(target.uid!=uid) {
-                error="building history Undo local UID differs actual="+std::to_string(target.uid)+" required="+std::to_string(uid);
-                return action::Outcome::RejectedNoEffect;
-            }
-            if(!scenery_kiss::read_action_prop(uid,actual,error)) {
-                error="building history Undo native readback failed uid="+std::to_string(uid)+" cause="+error;
-                return action::Outcome::RejectedNoEffect;
-            }
+            if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
+               !scenery_kiss::read_action_prop(uid,actual,error))return action::Outcome::RejectedNoEffect;
+            if(target.uid!=uid||!target.normal_building||target.normal_scenery){error="building history destructive target UID/family differs";return action::Outcome::RejectedNoEffect;}
             if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,settled,error)||
                !world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error))return action::Outcome::RejectedNoEffect;
-            // Native Undo records its inverse from the current settled transform.
-            // Keep that exact pose for the tombstone, Host evidence and later Redo.
-            alive=settled.state;dead=alive;dead.alive=false;original->second.state=alive;
-        }
-        if(authority&&(authority->before!=before||authority->object_before!=(undo?alive:dead))) {
-            error="building history Client before state differs from Host";return action::Outcome::RejectedNoEffect;
+            alive=settled.state;dead=alive;dead.alive=false;*source_state=alive;
+        } else if(!remove_diagnostics::history_target_absent(request.snapshot_uuid,request.canonical_record_key,uid,error))
+            return action::Outcome::RejectedNoEffect;
+        action::Ledger expected;
+        if(!building_history_slice::cash_effect(before,destroying?amount:-amount,expected,error))return action::Outcome::RejectedNoEffect;
+        if(authority&&(authority->before!=before||authority->object_before!=(destroying?alive:dead)||
+                       authority->object_after!=(destroying?dead:alive)||authority->after!=expected)) {
+            error="building history Client before/effect/full Ledger differs from Host";return action::Outcome::RejectedNoEffect;
         }
         auto& operation=history_.emplace(request.action_uuid,HistoryOperation{request,binding,before,{},
-            undo?alive:dead,undo?dead:alive,uid,false}).first->second;
+            destroying?alive:dead,destroying?dead:alive,uid,false}).first->second;
         const auto outcome=building_history_slice::perform(request.action,request.target_action_uuid,error);
         if(outcome!=action::Outcome::Confirmed)return outcome;
         if(!read_ledger(operation.after,error))return action::Outcome::Unknown;
-        const auto expected_cash=int64_t(before.cash)+(undo?int64_t(cost):-int64_t(cost));
-        if(expected_cash<INT32_MIN||expected_cash>INT32_MAX||operation.after.cash!=expected_cash||
-           (authority&&operation.after!=authority->after)) {
-            error="building history actual cash/Host ledger differs";return action::Outcome::Unknown;
-        }
-        if(undo) {
+        if(operation.after!=expected){error="building history actual full Ledger differs from original cash inverse";return action::Outcome::Unknown;}
+        if(destroying) {
             if(!remove_diagnostics::retire_undone_building(request.snapshot_uuid,request.canonical_record_key,uid,error)||
-               !world_.retire_native_effects(world_.origin(),revision,request.action_uuid,
-                                             {request.canonical_record_key},error))return action::Outcome::Unknown;
+               !world_.retire_native_effects(world_.origin(),revision,request.action_uuid,{request.canonical_record_key},error))return action::Outcome::Unknown;
         } else {
-            if(!remove_diagnostics::restore_redone_building(request.snapshot_uuid,request.canonical_record_key,uid,error))
-                return action::Outcome::Unknown;
+            if(!remove_diagnostics::restore_redone_building(request.snapshot_uuid,request.canonical_record_key,uid,error))return action::Outcome::Unknown;
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
-               target.uid!=uid||!scenery_kiss::read_action_prop(uid,actual,error)||
+               target.uid!=uid||!target.normal_building||target.normal_scenery||!scenery_kiss::read_action_prop(uid,actual,error)||
                world_state::building_state(actual)!=alive||
                !world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error)||
-               !world_.restore_native_building(world_.origin(),revision,request.action_uuid,
-                                               request.target_action_uuid,observed,error))return action::Outcome::Unknown;
+               !world_.restore_native_building_key(world_.origin(),revision,request.action_uuid,request.canonical_record_key,observed,error)) {
+                if(error.empty())error="building history restored native UID/family/full state differs";return action::Outcome::Unknown;
+            }
         }
         operation.confirmed=true;error.clear();return action::Outcome::Confirmed;
     }
@@ -585,7 +597,7 @@ public:
             if(row==world_.rows().end()||row->second.state!=operation.object_after) {
                 error="building history shared object state changed";return false;
             }
-            if(request.action==action::Action::RedoBuilding) {
+            if(operation.object_after.alive) {
                 remove_diagnostics::LocalTarget target;native::BuildingState native_state;
                 if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
                    target.uid!=operation.uid||!scenery_kiss::read_action_prop(target.uid,native_state,error)||
@@ -593,7 +605,8 @@ public:
             }
             out={};out.before=operation.before;out.after=operation.after;
             out.object_before=operation.object_before;out.object_after=operation.object_after;
-            out.undo_confirmed=true;out.target_retired=request.action==action::Action::UndoBuilding;
+            if(!operation.object_after.alive&&!remove_diagnostics::history_target_absent(request.snapshot_uuid,request.canonical_record_key,operation.uid,error))return false;
+            out.undo_confirmed=true;out.target_retired=!operation.object_after.alive;
             out.retirement_confirmed=operation.retired;return true;
         }
 
@@ -770,6 +783,18 @@ public:
                 request.action_uuid,request.canonical_record_key,found->second.object_before,after};
             world_state::LocalBinding observed{world_.origin(),request.canonical_record_key,found->second.local_uid,after};
             if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return false;
+            if(!found->second.normal_scenery) {
+                action::Ledger after_ledger,expected;if(!read_ledger(after_ledger,error))return false;
+                const int64_t refund=int64_t(after_ledger.cash)-found->second.before.cash;
+                if(refund<0||refund>INT32_MAX){error="building history Remove refund outside native int32 domain";return false;}
+                if(!building_history_slice::cash_effect(found->second.before,int32_t(refund),expected,error)||expected!=after_ledger) {
+                    if(error.empty())error="building history Remove refund full Ledger/category differs";return false;
+                }
+                uintptr_t graph=0;
+                if(!remove_diagnostics::confirmed_remove_graph(request.action_uuid,request.snapshot_uuid,request.canonical_record_key,
+                    found->second.local_uid,graph,error)||!building_history_slice::remember_remove(request.action_uuid,request.canonical_record_key,graph,error))return false;
+                found->second.refund=int32_t(refund);found->second.history_ready=true;
+            }
         }
         return true;
     }
@@ -946,11 +971,12 @@ bool submit_move(const std::string& id,const std::string& key,const action::Buil
     if(runtime->lobby_retiring){error="native lobby owner retiring; action not attempted";return false;}
     return runtime->controller.submit_move(id,key,state,GetTickCount64(),error);
 }
-bool submit_building_history(action::Action action,const std::string& id,const std::string& target,std::string& error) {
+bool submit_building_history(action::Action action,const std::string& id,const std::string& target,std::string& error) {return submit_building_history(action,id,target,"action:"+target,error);}
+bool submit_building_history(action::Action action,const std::string& id,const std::string& target,const std::string& key,std::string& error) {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="building history requires started game-thread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; building history not attempted";return false;}
-    return runtime->controller.submit_building_history(action,id,target,GetTickCount64(),error);
+    return runtime->controller.submit_building_history(action,id,target,key,GetTickCount64(),error);
 }
 bool submit_network_pipe(const std::string& id,const action::NetworkPipeIntent& intent,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);

@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "state": "confirmed-native-building-remove-undo-redo-two",
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "One normal dynamic SmallInn Remove followed by Client UndoRemove and Host RedoRemove on two local native instances",
+  "runtime_run_id": "a0b69c15-30f4-4ab7-baa4-bb10d0f8dee3",
+  "dll_sha256": "0ec46fe03da8b2e3f83723a7561d584f30c861a58b18142f05c3c7f63c4deed3",
+  "acceptance": {
+    "path": "artifacts/acceptance/3e2dd571-e1a1-4cc7-9921-023e192612be/summary.json",
+    "sha256": "a54d4089eff09e7dce15cd8ef9d663542068f090f1227523d745de1ce6d863a9"
+  },
+  "actions": {
+    "remove_action_uuid": "57c596ca-9c1b-4f17-8e2d-7eefd0343a81",
+    "building_key": "action:ec17d52a-6c57-4656-a75b-a47ad17b9b27",
+    "undo_action_uuid": "8ce04838-11b8-4523-bc3c-4a5bb102f81e",
+    "redo_action_uuid": "468383c7-7e9b-47c3-8b70-86c51e423fe8",
+    "refund": 400
+  },
+  "confirmed_behavior": [
+    "Each inverse uses the original native history entry once; both peers confirm the same Host-ordered action with ACK mask 3.",
+    "Undo restores the same canonical Building key, local UID and complete saved pose. Redo removes it again.",
+    "The signed category-6 refund inverse and all 20 ledger groups match on both peers.",
+    "Both complete local native saves contain SmallInn:base, active=false, powered=true and the same transform after Undo.",
+    "The original paused expired construction Job is retained without repair; both weak-reference fields can be cleared by the original GetJobRegion route.",
+    "No clock advance, snapshot distribution or load is used for this ongoing state transition."
+  ],
+  "ack_masks": {
+    "undo": 3,
+    "redo": 3
+  },
+  "restored_native_saves": {
+    "host": {
+      "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\host\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-1e6ada07-2a4c-4e22-bf56-682411f6f79c.vrz",
+      "sha256": "38e0cdc099635eb88f38aeb550d3640470367e529ef55b8a44103d66315f423d",
+      "bytes": 240589,
+      "fully_consumed": true,
+      "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+      "fields": {
+        "type": [
+          "SmallInn"
+        ],
+        "variant": [
+          "base"
+        ],
+        "active": [
+          "false"
+        ],
+        "powered": [
+          "true"
+        ],
+        "state": [
+          "online"
+        ],
+        "linkId": [
+          282
+        ]
+      },
+      "transform": {
+        "translation": [
+          8020.0,
+          70.83831787109375,
+          8550.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    },
+    "client-1": {
+      "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\client-1\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-0b057c32-3c7e-457e-acbe-7b0181aba942.vrz",
+      "sha256": "816a636a0eed63d538a2dc4457d40d9f110878ad0b206b9c21b9190b455d505b",
+      "bytes": 256629,
+      "fully_consumed": true,
+      "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+      "fields": {
+        "type": [
+          "SmallInn"
+        ],
+        "variant": [
+          "base"
+        ],
+        "active": [
+          "false"
+        ],
+        "powered": [
+          "true"
+        ],
+        "state": [
+          "online"
+        ],
+        "linkId": [
+          282
+        ]
+      },
+      "transform": {
+        "translation": [
+          8020.0,
+          70.83831787109375,
+          8550.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      }
+    }
+  },
+  "frames": {
+    "host": {
+      "path": "_drafts/media/building-remove-redo-host.bmp",
+      "sha256": "41c72ddc3dbd09da4f7a1ebb4bb86baa5d3fde0c464069a6fbf7a775b75e2d70",
+      "captured_after": "confirmed RedoRemove; the restored building has been removed again"
+    },
+    "client-1": {
+      "path": "_drafts/media/building-remove-redo-client-1.bmp",
+      "sha256": "3e5c35eb8e2a4003acb6da5cb393ec462545de495bb26ac8c8eff5f3979c9bce",
+      "captured_after": "confirmed RedoRemove; the restored building has been removed again"
+    }
+  },
+  "limits": [
+    "Native acceptance covers this dynamic SmallInn only. Saved-key restoration and other object or action families remain open.",
+    "The frames show the site after Redo deletion, not the intermediate restored building.",
+    "This candidate is not yet delivered as a new tester beta. Full ongoing simulation and online acceptance remain open."
+  ]
+}

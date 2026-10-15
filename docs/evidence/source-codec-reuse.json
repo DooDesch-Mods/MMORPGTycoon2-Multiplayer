@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "scope": "Reuse two unchanged pure codecs in existing source-only test binaries",
+  "targets": {
+    "ci/CMakeLists.txt": "59bafd610316d97a291cdb5730443bd773ffb3342445c8e91befde29e51680a0",
+    "ci/shared_codec_checks.cmake": "07e891f8e0dfe6914727eaf129aff6d7c0f99a6550fd1bb1d432c8fcdd572bd7"
+  },
+  "previous_ci": {
+    "run_id": "38795370856",
+    "commit": "8969a4a621cae7b2d0a355f4f4358af755b99aaa",
+    "source_tests_seconds": 1489,
+    "source_build_and_tests_step_seconds": 1443,
+    "ctest_seconds": 4.68,
+    "compile_job_seconds": 804
+  },
+  "codec_compilations": {
+    "before": 47,
+    "after": 4
+  },
+  "unchanged_test_registrations": 111,
+  "local_clean_same_seven_targets": {
+    "before_seconds": 152.692,
+    "after_seconds": 116.962,
+    "reduction_percent": 23.4,
+    "tests_passed_each": 7,
+    "parallel": 2,
+    "configuration": "Release"
+  },
+  "measurement_scope": "The focused local result is not a measured full GitHub speedup.",
+  "canonical_source_checks": "artifacts/ci-codec-reuse-canonical/status.json",
+  "github_speedup_measured": false,
+  "production_dll_or_gameplay_changed": false,
+  "existing_tests_or_workflows_removed": false,
+  "canonical_result": {
+    "build_exit_code": 0,
+    "ctest_passed": 111,
+    "ctest_failed": 0,
+    "status_sha256": "979bc75cff4ae83329aeb5f67884f4c81c4cf036a13feb6957df438009e421bb",
+    "build_log_sha256": "f044a273899e4c8bd957a0814953d3cc28821ddd4a603032cfd6784accb92a30",
+    "ctest_log_sha256": "ebbbc09c6480b01c0b91aef53a1fb76ee52284a6775f8b17169105b4255b13f3"
+  }
+}

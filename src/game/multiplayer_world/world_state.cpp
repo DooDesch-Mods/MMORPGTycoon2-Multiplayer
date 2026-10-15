@@ -124,9 +124,13 @@ bool Table::retire_native_effects(const Origin& origin,uint64_t revision,const s
 }
 
 bool Table::restore_native_building(const Origin& origin,uint64_t revision,const std::string& action,
-                                    const std::string& original,const LocalBinding& actual,std::string& error) {
-    const auto key="action:"+original;
-    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||!uuid(original)||action==original||
+    const std::string& original,const LocalBinding& actual,std::string& error) {
+    if(!uuid(original)||action==original)return fail(error,"world_building_redo_original_action_invalid");
+    return restore_native_building_key(origin,revision,action,"action:"+original,actual,error);
+}
+bool Table::restore_native_building_key(const Origin& origin,uint64_t revision,const std::string& action,
+                                    const std::string& key,const LocalBinding& actual,std::string& error) {
+    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||!valid_object_key(key)||
        revision<=revision_||actual.origin!=origin_||actual.object_key!=key||!actual.local_uid||!actual.state.alive)
         return fail(error,"world_building_redo_origin_revision_or_binding_invalid");
     const auto row=rows_.find(key);

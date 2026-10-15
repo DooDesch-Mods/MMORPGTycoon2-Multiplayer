@@ -7,6 +7,7 @@
 namespace mt2mp::game::building_history_slice {
 bool enable(uintptr_t image,uint32_t main_thread,std::string& error);
 bool remember_place(const std::string& original_action_uuid,uintptr_t graph,std::string& error);
+bool remember_remove(const std::string& original_action_uuid,const std::string& object_key,uintptr_t graph,std::string& error);
 action_session::Outcome perform(action_session::Action direction,const std::string& original_action_uuid,
                                 std::string& error);
 bool invoke_ui(const nlohmann::json& args,nlohmann::json& out,std::string& error);

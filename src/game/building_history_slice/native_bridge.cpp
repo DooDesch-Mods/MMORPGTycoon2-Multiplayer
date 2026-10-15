@@ -1,5 +1,6 @@
 #include "native_bridge.h"
 #include "stack_transition.h"
+#include "multiplayer_world/world_state.h"
 #include "typed_action_runtime.h"
 #include "session_provider.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
@@ -22,7 +23,7 @@ namespace action=action_session;
 namespace witness=build_actions::private_native;
 namespace host=build_actions::private_native::host;
 using Original=bool(__fastcall*)(void*);
-struct Graphs {uintptr_t undo=0,redo=0;};
+struct Graphs {uintptr_t undo=0,redo=0;std::string object_key;};
 struct Runtime {
     uintptr_t image=0;
     uint32_t thread=0;
@@ -85,7 +86,7 @@ bool submit_ui(void* receiver,action::Action direction,std::string& error) {
     if(target.empty()){error="building history UI stack top has no confirmed shared action";return false;}
     const auto id=new_uuid(error);
     if(id.empty())return false;
-    if(!typed_action_runtime::submit_building_history(direction,id,target,error))return false;
+    if(!typed_action_runtime::submit_building_history(direction,id,target,runtime->buildings.at(target).object_key,error))return false;
     ++runtime->ui_queued;runtime->last_action_uuid=id;runtime->last_target_uuid=target;
     runtime->last_direction=direction==action::Action::UndoBuilding?"undo":"redo";
     runtime->last_error.clear();return true;
@@ -263,22 +264,24 @@ bool invoke_ui(const nlohmann::json& args,nlohmann::json& out,std::string& error
     error.clear();return true;
 }
 
-bool remember_place(const std::string& original,uintptr_t graph,std::string& error) {
+static bool remember_graph(const std::string& original,const std::string& object_key,uintptr_t graph,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
-    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||!graph) {
-        error="building history place graph binding invalid";return false;
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||!world_state::valid_object_key(object_key)||!graph) {
+        error="building history mutation graph binding invalid";return false;
     }
     if(!bind_current_snapshot(*runtime,error))return false;
-    if(runtime->buildings.contains(original)){error="building history duplicate place graph binding";return false;}
+    if(runtime->buildings.contains(original)){error="building history duplicate mutation graph binding";return false;}
     host::ProcessMemory memory;witness::UndoWitness state;witness::GraphWitness checked;
     if(!witness::read_undo(memory,runtime->image,state,error))return false;
     if(state.active_graph||state.undo.empty()||state.undo.back()!=graph) {
-        error="building history placed graph not current Undo top";return false;
+        error="building history mutation graph not current Undo top";return false;
     }
     if(!witness::read_graph(memory,runtime->image,graph,checked,error))return false;
-    if(!checked.locked||checked.pending_delete){error="building history placed graph not drained/locked";return false;}
-    runtime->buildings.emplace(original,Graphs{graph,0});error.clear();return true;
+    if(!checked.locked||checked.pending_delete){error="building history mutation graph not drained/locked";return false;}
+    runtime->buildings.emplace(original,Graphs{graph,0,object_key});error.clear();return true;
 }
+bool remember_place(const std::string& original,uintptr_t graph,std::string& error) {return remember_graph(original,"action:"+original,graph,error);}
+bool remember_remove(const std::string& original,const std::string& key,uintptr_t graph,std::string& error) {return remember_graph(original,key,graph,error);}
 
 action::Outcome perform(action::Action direction,const std::string& original,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
@@ -315,8 +318,8 @@ action::Outcome perform(action::Action direction,const std::string& original,std
         if(error.empty())error="building history native original/stack readback failed exception="+std::to_string(exception);
         return action::Outcome::Unknown;
     }
-    if(direction==action::Action::UndoBuilding)found->second={0,inverse.graph};
-    else found->second={inverse.graph,0};
+    if(direction==action::Action::UndoBuilding){found->second.undo=0;found->second.redo=inverse.graph;}
+    else {found->second.undo=inverse.graph;found->second.redo=0;}
     error.clear();return action::Outcome::Confirmed;
 }
 }

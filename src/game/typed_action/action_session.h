@@ -173,6 +173,7 @@ public:
     bool submit_place(const std::string& action_uuid,const BuildingState&,uint64_t now_ms,std::string& cause);
     bool submit_move(const std::string& action_uuid,const std::string& object_key,const BuildingState&,uint64_t now_ms,std::string& cause);
     bool submit_building_history(Action action,const std::string& action_uuid,const std::string& target_action_uuid,uint64_t now_ms,std::string& cause);
+    bool submit_building_history(Action action,const std::string& action_uuid,const std::string& target_action_uuid,const std::string& object_key,uint64_t now_ms,std::string& cause);
     bool submit_network_pipe(const std::string& action_uuid,const NetworkPipeIntent&,uint64_t now_ms,std::string& cause);
     bool submit_network(const std::string& action_uuid,const NetworkIntent&,uint64_t now_ms,std::string& cause);
     bool submit_path_delete(const std::string& action_uuid,const PathDeleteIntent&,uint64_t now_ms,std::string& cause);

@@ -43,6 +43,8 @@ world_state::Admission commit(const world_state::Origin&,const world_state::Chan
 };
 struct NativeEngine {
 #include "construction_build_operation.inc"
+#include "construction_operation.inc"
+std::map<std::string,Operation> operations_;
 #include "construction_history_operation.inc"
 std::map<std::string,HistoryOperation> history_;
 std::map<std::string,BuildOperation> buildings_;World world_;
@@ -82,4 +84,19 @@ need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"live o
 runtime.engine.history_[redo.request.action_uuid]=redo;need(construction_jobs(context,binding,jobs,e)&&jobs[0].target_restored,"confirmed exact original Redo not projected");
 runtime.engine.world_.rows_[request.canonical_record_key].state.alive=false;need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"later tombstone retained live restoration");runtime.engine.world_.rows_[request.canonical_record_key].state.alive=true;
 for(int wrong=0;wrong<9;++wrong){auto changed=redo;if(wrong==0)changed.confirmed=false;if(wrong==1)changed.request.action=action::Action::UndoBuilding;if(wrong==2)changed.request.action_uuid="different";if(wrong==3)changed.request.target_action_uuid="different";if(wrong==4)changed.binding.native_epoch++;if(wrong==5)changed.request.snapshot_uuid="different";if(wrong==6)changed.request.canonical_record_key="different";if(wrong==7)changed.uid++;if(wrong==8)changed.object_after.alive=false;runtime.engine.history_[redo.request.action_uuid]=changed;need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"unconfirmed/foreign Redo projected restoration");}
+runtime.engine.history_.clear();
+NativeEngine::Operation removed;removed.request=request;removed.request.action=action::Action::RemoveSnapshotBuilding;
+removed.request.action_uuid="55555555-5555-4555-8555-555555555555";removed.binding=binding;removed.local_uid=500;removed.history_ready=true;
+runtime.engine.operations_[removed.request.action_uuid]=removed;
+auto restore=redo;restore.request.action=action::Action::UndoBuilding;restore.request.target_action_uuid=removed.request.action_uuid;
+runtime.engine.history_[restore.request.action_uuid]=restore;
+need(construction_jobs(context,binding,jobs,e)&&jobs[0].target_restored&&jobs[0].job==0x1234,
+    "confirmed Remove Undo did not preserve original expired Job occurrence");
+for(int wrong=0;wrong<7;++wrong){auto changed=removed;if(wrong==0)changed.history_ready=false;if(wrong==1)changed.binding.native_epoch++;
+if(wrong==2)changed.local_uid++;if(wrong==3)changed.request.action=action::Action::PlaceBuilding;if(wrong==4)changed.request.snapshot_uuid="foreign";
+if(wrong==5)changed.request.canonical_record_key="foreign";if(wrong==6)changed.request.action_uuid="foreign";
+runtime.engine.operations_[removed.request.action_uuid]=changed;
+need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"foreign/unconfirmed Remove history projected restoration");}
+runtime.engine.operations_[removed.request.action_uuid]=removed;restore.object_before.alive=true;runtime.engine.history_[restore.request.action_uuid]=restore;
+need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"destructive inverse was called a restored lifetime");
 std::cout<<"PASS "<<checks<<" actual placement/accessor checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

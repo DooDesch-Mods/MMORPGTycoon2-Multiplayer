@@ -114,5 +114,25 @@ int main(){try{using namespace mt2mp::game::developer_staff::construction;size_t
     {Work w;std::string e;require(!retire(w,link(3000,5000),e)&&!w.attempted,"fresh receiver accepted without confirmed Redo");++cases;}
     reset();{Work w;std::string e;auto old=link(3000,5000);old.target_restored=true;
         require(!retire(w,old,e)&&!w.attempted,"restored target silently bound to old live Job proxy");++cases;}
+    reset();{Work w;std::string e;auto old=link(3000,5000,false);auto& j=fixture::model.jobs.at(3000);j.building=0;j.building_proxy=0;
+        fixture::model.fail_proxy=true;
+        require(retire(w,old,e)&&fixture::model.destroy_calls==1&&fixture::model.building_calls==0&&fixture::model.cached_reads==0,
+                "fully cleared original weak pair did not retire without old target/proxy reads");++cases;}
+    reset();fixture::model.fresh_building=9000;fixture::model.fresh_active=0;
+    {Work w;std::string e;auto old=link(3000,5000);old.target_restored=true;auto& j=fixture::model.jobs.at(3000);j.building=0;j.building_proxy=0;
+        fixture::model.fail_proxy=true;
+        require(retire(w,old,e)&&fixture::model.destroy_calls==1&&fixture::model.fresh_active==0,
+                "cleared original pair rebound or activated separate restored target");++cases;}
+    for(int wrong=0;wrong<8;++wrong){reset();Work w;std::string e;auto old=link(3000,5000,false);auto& j=fixture::model.jobs.at(3000);
+        j.building=0;j.building_proxy=0;
+        if(wrong==0)j.building=old.building;if(wrong==1)j.building_proxy=old.building_proxy;
+        if(wrong==2)j.building=9999;if(wrong==3)j.region++;if(wrong==4)j.type=2;if(wrong==5)j.valid=2;
+        if(wrong==6)old.retired=true;if(wrong==7)old.target_alive=true;
+        require(!retire(w,old,e)&&!w.attempted&&fixture::model.destroy_calls==0,
+                "partial/foreign/live-original cleared occurrence retired");++cases;}
+    {reset();auto old=link(3000,5000,false);auto j=fixture::model.jobs.at(3000);j.building=0;j.building_proxy=0;j.pointer++;
+        std::string e;size_t reads=0;
+        const job_census::Read never=[&](uintptr_t,void*,size_t,std::string&){++reads;return false;};
+        require(!occurrence(old,j,0,0,never,e)&&reads==0,"foreign cleared Job pointer reached proxy read");++cases;}
     std::cout<<"PASS "<<cases<<" actual selected retirement cases\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

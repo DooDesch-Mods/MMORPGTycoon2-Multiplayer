@@ -68,5 +68,24 @@
     "fresh_large_lobby_then_ordinary_history_confirmed": true,
     "affected_tests_passed": 5,
     "source_receipt": "artifacts/mcp_lobby_promotion/20261015T190421665858Z/receipt.json"
+  },
+  "native_camera_followup": {
+    "runtime_reader_sha256": "eeaac0bbc5c8c7934e6b002a43d1d8e46ba503cf0ff75d7f7de22f970d0ce8e3",
+    "native_evidence": "artifacts/acceptance/f8213fb0-0153-4344-865c-a2014e8419b5/summary.json",
+    "native_evidence_sha256": "13f3a8ee52ec5f65da08dcc9c5ae1724323871a50e10e921a6244ff31fb16a9d",
+    "retained_initial_failure": "artifacts/acceptance/2dcd882c-5325-419b-9c12-006d8c0e4452/summary.json",
+    "original_response": {
+      "bytes": 509831,
+      "sha256": "96d44de1cbad9245704710b62d507b86545391a72eba6c495850aca82b1e1f10"
+    },
+    "request_id": "35cdc768-0be7-423d-8956-e12da9b9872f",
+    "cause": "The original native camera operation had applied successfully, but its full-engine response exceeded the ordinary JSON ceiling.",
+    "response_limit_bytes": 20971520,
+    "ordinary_response_and_input_limit_bytes": 262144,
+    "original_pending_acknowledged_without_replay": true,
+    "client_native_frame_captured_after_acknowledgement": true,
+    "affected_camera_regressions_passed": 3,
+    "regression_scope": "Large matching camera response, pending exact response without request publication, above-ceiling rejection retaining lock",
+    "gameplay_dll_rebuild_required": false
   }
 }

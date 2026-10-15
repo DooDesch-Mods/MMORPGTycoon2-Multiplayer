@@ -21,6 +21,8 @@ bool admit_created_building(const std::string& snapshot,const std::string& share
 bool refresh_moved_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
 bool retire_undone_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
 bool restore_redone_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
+bool history_target_absent(const std::string& snapshot,const std::string& key,uint64_t local_uid,std::string&);
+bool confirmed_remove_graph(const std::string& token,const std::string& snapshot,const std::string& key,uint64_t local_uid,uintptr_t& graph,std::string&);
 bool remove(const nlohmann::json&,nlohmann::json&,std::string&);
 bool retire(const nlohmann::json&,nlohmann::json&,std::string&);
 }

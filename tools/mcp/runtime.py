@@ -658,7 +658,7 @@ class Runtime:
             self._response_absence_count = 0
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
-        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby"} else MAX_JSON
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "focus_test_camera"} else MAX_JSON
         if response_bytes > max_bytes:
             raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:

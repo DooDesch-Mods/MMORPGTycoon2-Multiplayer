@@ -78,6 +78,17 @@ public:
     }
 };
 RegistryRetirement retirement_provider;
+bool history_retirement(const Bound& saved,std::string& error) {
+    if(!saved.sequence)return true;
+    const auto* journal=rt::Runtime::instance().private_retirement_status(saved.sequence);
+    const auto* record=journal?journal->record():nullptr;
+    if(!record||!journal->effects().confirmed||journal->effects().unknown||record->request.full_uid!=saved.uid||
+       record->request.world!=saved.world||record->request.object!=saved.object||record->root.entry_id!=saved.entry||
+       record->root.registry_generation!=saved.generation||record->request.snapshot_binding!=binding_id(saved.snapshot,saved.key)) {
+        error="building history original native holder retirement unconfirmed";return false;
+    }
+    error.clear();return true;
+}
 bool classify_normal_building(host::ProcessMemory& memory,uintptr_t image,const prop_lease::Prop& prop,
     const native::BuildingState& building,bool& supported,bool& scenery,std::string& cause,std::string& error) {
     supported=false;scenery=false;cause.clear();
@@ -354,7 +365,7 @@ bool admit_created_building(const std::string& snapshot,const std::string& key,u
 }
 bool retire_undone_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
     if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()||
-       key.size()!=43||key.compare(0,7,"action:")) {error="building undo current owner or key invalid";return false;}
+       (!snapshot_building_key::valid(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building undo current owner or key invalid";return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.uid!=uid) {
         error="building undo exact live binding missing";return false;
@@ -374,18 +385,62 @@ bool retire_undone_building(const std::string& snapshot,const std::string& key,u
 }
 bool restore_redone_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
     if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()||
-       key.size()!=43||key.compare(0,7,"action:")) {error="building redo current owner or key invalid";return false;}
+       (!snapshot_building_key::valid(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building redo current owner or key invalid";return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||!found->second.revoked||found->second.unknown||found->second.uid!=uid) {
         error="building redo exact tombstone binding missing";return false;
     }
+    if(!history_retirement(found->second,error))return false;
     host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,ap=0;
     if(!read_registered_building(uid,opened,building,object,ap,error))return false;
     auto& saved=found->second;
     if(saved.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}||
        saved.metadata!=building_metadata(building)) {error="building redo UID/world/full native state differs";return false;}
-    saved.object=object;saved.class_addresspoint=ap;saved.revoked=false;error.clear();return true;
+    saved.object=object;saved.class_addresspoint=ap;saved.sequence=0;saved.revocation_key.clear();saved.revoked=false;error.clear();return true;
 }
+bool history_target_absent(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
+    if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()) {
+        error="building history absence requires current snapshot/Mainthread";return false;
+    }
+    const auto found=registry.find(registry_id(snapshot,key));
+    if(found==registry.end()||!found->second.revoked||found->second.unknown||found->second.uid!=uid) {
+        error="building history absence exact tombstone binding missing";return false;
+    }
+    host::opened::CurrentWorld opened;uintptr_t image=0;uint32_t thread=0;std::string hash;
+    if(!current(opened,error)||!native::read_resolver_receipt(image,thread,hash,error))return false;
+    if(thread!=GetCurrentThreadId()||hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||
+       found->second.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}) {
+        error="building history absence actual world/resolver differs";return false;
+    }
+    if(!history_retirement(found->second,error))return false;
+    host::ProcessMemory memory;host::LookupApi api;void* object=nullptr;uint32_t seh=0;
+    if(!host::resolve_lookup(memory,image,hash,api,error)||!lookup(api,uid,object,seh)) {
+        if(error.empty())error="building history absence UID lookup SEH="+std::to_string(seh);return false;
+    }
+    if(object){error="building history restoration UID already live";return false;}
+    error.clear();return true;
+}
+bool confirmed_remove_graph(const std::string& token,const std::string& snapshot,const std::string& key,
+                            uint64_t uid,uintptr_t& graph,std::string& error) {
+    graph=0;
+    if(!history_target_absent(snapshot,key,uid,error))return false;
+    const auto attempt=attempts.find(token),retired=retirements.find(token);
+    if(attempt==attempts.end()||retired==retirements.end()||!attempt->second.receipt.value("confirmed",false)||
+       !retired->second.receipt.value("confirmed",false)||attempt->second.arguments.at("snapshot_id")!=snapshot||
+       attempt->second.arguments.at("record_key")!=key) {error="building history confirmed Remove/retirement receipt missing";return false;}
+    const auto sequence=attempt->second.receipt.at("sequence").get<uint64_t>();
+    const auto* journal=rt::Runtime::instance().private_retirement_status(sequence);
+    const auto* record=journal?journal->record():nullptr;
+    const auto found=registry.find(registry_id(snapshot,key));
+    if(!record||!journal->effects().confirmed||journal->effects().unknown||!record->committed_graph||
+       found==registry.end()||found->second.sequence!=sequence||record->request.full_uid!=uid||
+       record->request.snapshot_binding!=binding_id(snapshot,key)||!record->commit.confirmed||record->commit.unknown_locked) {
+        error="building history actual committed Remove graph/ownership differs";return false;
+    }
+    if(!retirement_provider.verify_actual_revocation(record->request,record->root,error))return false;
+    graph=record->committed_graph;error.clear();return true;
+}
+
 bool refresh_moved_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
     error.clear();host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,addresspoint=0;
     if(snapshot!=net::current_snapshot_id()){error="moved building snapshot differs from current session";return false;}
