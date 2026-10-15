@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.8",
+  "scope": "Shared Initial tutorial version transition and completion",
+  "native_evidence": [
+    "docs/evidence/beta7-native.json",
+    "docs/evidence/tutorial-completion-native.json"
+  ],
+  "latest_mod_sha256": "dda6d50c27d9c14a0a77599993d930f65c0a9a47b6222a865ea76e1ee0f94695",
+  "latest_build": "artifacts/build_history/20261015T090952510715Z",
+  "acceptance": "In an owned copied boundary world, ordinary Uplink/Cable actions and one Client StartingPoint request confirm once on both peers. Normal Host simulation reaches version0.0.100 and allDone on both. Original Host OK completes and removes Initial once on both peers. Full ledgers match, Client Clock remains0, and both games exit0 without a dump.",
+  "limits": [
+    "Prepared boundary input does not prove a complete natural new-world tutorial",
+    "LevelTwo creation has focused source tests; natural native trigger remains open",
+    "Hiring/firing, other technologies, remaining action families and Undo/Redo remain open",
+    "Four players, large saves and separate-account Steam acceptance remain open",
+    "Local candidate differs from future cloud binaries; delivery startup is separate"
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

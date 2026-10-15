@@ -269,13 +269,40 @@ class TutorialObserverTests(unittest.TestCase):
         self.assertFalse(tool.annotations.readOnlyHint)
         self.assertTrue(tool.annotations.destructiveHint)
 
+    def test_finish_close_preserves_native_receipt_and_fixed_index(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6",
+              "snapshot_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"current_step_index":103}
+        receipt={"attempted":True,"confirmed":False,"unknown":True,"cause":"original Show exception"}
+        runtime=Mock();runtime.request.return_value=receipt
+        self.assertIs(dispatch(runtime,"game_tutorial_finish_ok",args),receipt)
+        runtime.request.assert_called_once_with("tutorial_finish_ok",args)
+        runtime.available.return_value={"tutorial_finish_ok"}
+        tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_finish_ok")
+        self.assertIn("tutorial_finish_ok",OPS)
+        self.assertIn("tutorial_finish_ok",MUTATIONS)
+        self.assertFalse(tool.annotations.readOnlyHint)
+        self.assertEqual(tool.inputSchema["properties"]["current_step_index"]["const"],103)
+
+    def test_finish_close_rejects_other_messages_and_arbitrary_calls(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6",
+              "snapshot_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"current_step_index":103}
+        for bad in ({**args,"current_step_index":4},{**args,"current_step_index":104},
+                    {**args,"current_step_index":True},{**args,"world_epoch":0},
+                    {**args,"window":42},{**args,"command":"TutorialComplete"}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_finish_ok",bad)
+            runtime.request.assert_not_called()
+
     def test_welcome_bad_guards_never_reach_native_mailbox(self):
         valid={"token":"b473438a-510a-4f85-8337-b4e154ea15d6",
                "snapshot_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
                "world_epoch":1,"world_generation":1,"current_step_index":4}
         bad=[{}, {**valid,"extra":True}, {**valid,"token":"replay"},
              {**valid,"world_epoch":0}, {**valid,"world_generation":True},
-             {**valid,"current_step_index":35}, {**valid,"current_step_index":True},
+             {**valid,"current_step_index":35}, {**valid,"current_step_index":103}, {**valid,"current_step_index":True},
              {**valid,"current_step_index":4294967300}]
         for arguments in bad:
             runtime=Mock()

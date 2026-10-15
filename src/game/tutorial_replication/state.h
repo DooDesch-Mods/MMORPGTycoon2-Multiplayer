@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include <optional>
+#include <array>
 
 namespace mt2mp::game::tutorial_replication {
 struct MessageProgress {
@@ -27,6 +28,13 @@ struct State {
     bool initial_complete=false,leveltwo_complete=false;
     std::optional<startingpoint::Row> startingpoint;
     std::optional<staff_display::State> staff_display;
+    // Terminal cursors survive the native ScenarioLog's immediate destruction.
+    std::vector<Cursor> terminal;
+    std::optional<startingpoint::Row> terminal_startingpoint;
+    std::optional<std::array<int32_t,3>> version,terminal_version;
+    // Fixed Initial/LevelTwo birth and end serials. Zero birth means loaded.
+    std::array<std::array<uint32_t,2>,2> lifecycle_order{};
+    int32_t leveltwo_initial_next=-1;
     bool operator==(const State&)const=default;
 };
 bool valid(const State&,std::string&);

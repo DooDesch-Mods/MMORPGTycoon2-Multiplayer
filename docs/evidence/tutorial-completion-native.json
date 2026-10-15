@@ -1,0 +1,485 @@
+{
+  "schema": 1,
+  "scope": "Native Initial tutorial version transition and terminal removal in two owned local peers",
+  "mod_sha256": "dda6d50c27d9c14a0a77599993d930f65c0a9a47b6222a865ea76e1ee0f94695",
+  "build": "artifacts/build_history/20261015T090952510715Z",
+  "runtime_run_id": "1df96056-ec1a-4f67-9c5c-6fe21b738596",
+  "proofs": {
+    "network_tab": {
+      "path": "artifacts/acceptance/ad6bda49-4eb0-45f6-ba10-7423bd14922a/summary.json",
+      "sha256": "3b9f8a68725c037d9d81b2ca52aa258b387873e28c035fd703d1be9d84ba3820"
+    },
+    "shared_admission": {
+      "path": "artifacts/acceptance/a5e83c3c-b8c8-4125-b05d-5c74c9218fb9/summary.json",
+      "sha256": "d0c27a0cf710ef0fc2a10ece49429307f08d26b7741e6f07840d56ea23ad603b"
+    },
+    "shared_network_tab": {
+      "path": "artifacts/acceptance/054bbacb-9be8-4d1f-ac32-b87c601f3d2a/summary.json",
+      "sha256": "903d44b374d7d0056d348d7476b5a677c54d73a40a7a301aebb02468cb5afff8"
+    },
+    "uplink": {
+      "path": "artifacts/acceptance/6114708b-eb98-43c8-b18a-95535bf1e95f/summary.json",
+      "sha256": "505f9cb7e87cb90c73190f818345545633125feb65becb95ce71f2a43c179598"
+    },
+    "cable": {
+      "path": "artifacts/acceptance/ba2fb790-4ab7-4b24-ab28-6db68ef87784/summary.json",
+      "sha256": "ad6157369d8dc643f7961bcdea3688dcc01a2d8bf6803e1af5540c6acd79185b"
+    },
+    "graduation_input_load": {
+      "path": "artifacts/acceptance/072362c6-5ea1-43cb-bca6-652663c5c4ed/summary.json",
+      "sha256": "7dc6b2b597f9297e124e963cde231f7507107aa19d886f486505ae60f031923f"
+    },
+    "client_startingpoint_and_version": {
+      "path": "artifacts/acceptance/ad85e578-4964-45f3-93ff-028945a83c39/summary.json",
+      "sha256": "f1dbef72a09f8cc68efb02c9f07587e8ff3730f91b55a619d4a08cc2408339d0"
+    },
+    "final_observation": {
+      "path": "artifacts/acceptance/c9c4ade3-55d1-481a-b3e8-77e767442614/summary.json",
+      "sha256": "184a40c67fea8b6264b408694c84e65569dee2f5065731513a9b63c236365293"
+    },
+    "retirement": {
+      "path": "artifacts/acceptance/71c06327-14b1-41ed-8ae2-20a165fd5b59/summary.json",
+      "sha256": "9c344e38144b9f9accc3b21baf6f6c24a6361c7963e99899b8827389aeaac730"
+    },
+    "shutdown": {
+      "path": "artifacts/acceptance/076c57fc-4f91-42f6-bccd-f04ab9bdc45e/summary.json",
+      "sha256": "9ae799f3d0bd3f2c4f08779116fe2dd1272ee5212acb9f767b5b33dde93da138"
+    }
+  },
+  "fixture": {
+    "preparation_receipt": "artifacts/tutorial_completion_graduation_input.json",
+    "source_sha256": "75581221b6be906efb35f1b9e7d94fc51b7027d187dc9f384c97588ed58a1065",
+    "prepared_sha256": "76682b2a50371929b2dec6871479dbe1aef9bf497e37c0b43880de0771fd7997",
+    "changed": "Only Initial completedStep history atoms in an owned copied input; all other decoded bytes preserved",
+    "completed_flags_version_profile_unchanged": true,
+    "full_natural_tutorial_proven": false
+  },
+  "native_actions": {
+    "host_uplink": {
+      "action_uuid": "3f5b19a8-b271-4e94-8843-bf221c5d32d2",
+      "job": {
+        "action_uuid": "3f5b19a8-b271-4e94-8843-bf221c5d32d2",
+        "attempted": 3,
+        "captured": true,
+        "cause": "",
+        "confirmed": true,
+        "cost": 5000,
+        "key": "item_uplink",
+        "outcome": 1,
+        "position": [
+          3906.952880859375,
+          38.42215347290039,
+          5972.08154296875
+        ],
+        "returned": 3,
+        "submitted": true,
+        "terminal": true,
+        "token": "70c0b8ae-fc28-452f-ad41-796480efeada",
+        "type": "Uplink"
+      },
+      "operations": [
+        {
+          "after": "fa76cb07828c963d86aae3b2e5e96a3155ff67826a1f7fd39d0d51b1103fbe44",
+          "attempted": true,
+          "before": "e28732a4e2633667d7f1e000b15f44e35d15444a672b8eea437112cddab6033f",
+          "cause": "",
+          "confirmed": true,
+          "native_calls": 3,
+          "retired": true,
+          "returned": true
+        },
+        {
+          "after": "fa76cb07828c963d86aae3b2e5e96a3155ff67826a1f7fd39d0d51b1103fbe44",
+          "attempted": true,
+          "before": "e28732a4e2633667d7f1e000b15f44e35d15444a672b8eea437112cddab6033f",
+          "cause": "",
+          "confirmed": true,
+          "native_calls": 3,
+          "retired": true,
+          "returned": true
+        }
+      ]
+    },
+    "host_cable": {
+      "action_uuid": "cd460971-a0bd-4493-951d-8876122c87b2",
+      "job": {
+        "action_uuid": "cd460971-a0bd-4493-951d-8876122c87b2",
+        "attempted": 6,
+        "captured": true,
+        "cause": "",
+        "confirmed": true,
+        "cost": 150,
+        "end": [
+          3919.04736328125,
+          44.18431854248047,
+          5825.5576171875
+        ],
+        "end_node": -1,
+        "length": 146.60162353515625,
+        "outcome": 1,
+        "returned": 6,
+        "start": [
+          3906.952880859375,
+          38.42215347290039,
+          5972.08154296875
+        ],
+        "start_node": 0,
+        "submitted": true,
+        "terminal": true,
+        "token": "31165994-dfac-4ed3-a33a-cf7441267148"
+      },
+      "operations": [
+        {
+          "after": "7395aa5937acdc6f175011ada9e4364e077a890aac59079255932d06487ae4b0",
+          "attempted": true,
+          "before": "fa76cb07828c963d86aae3b2e5e96a3155ff67826a1f7fd39d0d51b1103fbe44",
+          "cause": "",
+          "confirmed": true,
+          "inverse_cost": 150,
+          "native_calls": 5,
+          "retired": true,
+          "returned": true,
+          "settled_end": [
+            3919.04736328125,
+            44.18431854248047,
+            5825.5576171875
+          ]
+        },
+        {
+          "after": "7395aa5937acdc6f175011ada9e4364e077a890aac59079255932d06487ae4b0",
+          "attempted": true,
+          "before": "fa76cb07828c963d86aae3b2e5e96a3155ff67826a1f7fd39d0d51b1103fbe44",
+          "cause": "",
+          "confirmed": true,
+          "inverse_cost": 150,
+          "native_calls": 5,
+          "retired": true,
+          "returned": true,
+          "settled_end": [
+            3919.04736328125,
+            44.18431854248047,
+            5825.5576171875
+          ]
+        }
+      ]
+    },
+    "client_startingpoint": {
+      "action_uuid": "374d8b90-d611-4a22-b606-a95bd1b371a8",
+      "building": {
+        "type": "StartingPoint",
+        "variant": "base",
+        "x": 3913.52880859375,
+        "y": 45.66487503051758,
+        "z": 5892.4140625,
+        "rotation": [
+          0,
+          0,
+          0,
+          1
+        ],
+        "scale": [
+          1,
+          1,
+          1
+        ],
+        "alive": true
+      }
+    },
+    "client_startingpoint_ledger": {
+      "clock_day": 1,
+      "cash": 88850,
+      "record_present": true,
+      "record_day": 1,
+      "record_cash": 88850,
+      "record_income": 150000,
+      "record_expense": 11150,
+      "line_counts": [
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        3,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "line_income": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -6150,
+        -5000,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        150000,
+        0,
+        0,
+        0,
+        0,
+        0
+      ]
+    },
+    "version": [
+      0,
+      0,
+      100
+    ],
+    "completion": {
+      "active": [],
+      "initial_complete": true,
+      "leveltwo_complete": false,
+      "leveltwo_initial_next": -1,
+      "lifecycle_order": [
+        [
+          0,
+          1
+        ],
+        [
+          0,
+          0
+        ]
+      ],
+      "staff_display": null,
+      "startingpoint": null,
+      "terminal": [
+        {
+          "complete": true,
+          "count": 107,
+          "history": [
+            "welcome",
+            "wasd",
+            "zoom",
+            "rotate",
+            "zoomout",
+            "mainheader",
+            "pregrid",
+            "actionbar",
+            "tech",
+            "assigndev",
+            "assigndev_addendum",
+            "hiredev",
+            "zone",
+            "zone_2",
+            "postzone",
+            "ungrid",
+            "terrain",
+            "respawn",
+            "respawn_02",
+            "uplink",
+            "cable",
+            "inn",
+            "inn_2",
+            "blacksmith",
+            "shop",
+            "landmark",
+            "monsters",
+            "monsters_2",
+            "monsters_3",
+            "questgiver",
+            "questgiver_2",
+            "roads",
+            "graduation",
+            "graduationtwo"
+          ],
+          "last": "allDone",
+          "message_progress": null,
+          "next": 107,
+          "scenario": "initial_tutorial"
+        }
+      ],
+      "terminal_startingpoint": {
+        "bugs_known": 0,
+        "bugs_total": 0,
+        "commit_bugs": null,
+        "custom": false,
+        "deployed": true,
+        "desired_workers": 0,
+        "inventory_count": 1,
+        "lines": 0,
+        "project_present": false,
+        "purchased": true,
+        "release_change_count": 1,
+        "release_counter": 0,
+        "release_feature_count": 1,
+        "work": 0.0
+      },
+      "terminal_version": [
+        0,
+        0,
+        100
+      ],
+      "version": null
+    }
+  },
+  "final_observations": {
+    "host": {
+      "active_scenario_count": 1,
+      "completed_scenario_count": 1,
+      "initial_tutorial_complete": true,
+      "leveltwo_tutorial_complete": false,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "1769603e-11b6-4ff8-b71c-85126c0118eb",
+      "state": "inactive",
+      "tutorials": [],
+      "world_epoch": 5,
+      "world_generation": 5
+    },
+    "client-1": {
+      "active_scenario_count": 1,
+      "completed_scenario_count": 1,
+      "initial_tutorial_complete": true,
+      "leveltwo_tutorial_complete": false,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "e4f0e467-30e1-44d9-aeb1-2630e2a900b1",
+      "state": "inactive",
+      "tutorials": [],
+      "world_epoch": 2,
+      "world_generation": 2
+    }
+  },
+  "final_ledger": {
+    "clock_day": 1,
+    "cash": 88850,
+    "record_present": true,
+    "record_day": 1,
+    "record_cash": 88850,
+    "record_income": 150000,
+    "record_expense": 11150,
+    "line_counts": [
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      3,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "line_income": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -6150,
+      -5000,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      150000,
+      0,
+      0,
+      0,
+      0,
+      0
+    ]
+  },
+  "next_input": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 77212,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLifecycleGraduation\\snapshot-9198608f-2b86-4d27-b968-365fafa073f6.vrz",
+    "run_id": "1df96056-ec1a-4f67-9c5c-6fe21b738596",
+    "sha256": "e6fb02eac4136b4f7416d3af6b0b44c7f33c4959609ab988c143b111dcfb39b8",
+    "snapshot_id": "9198608f-2b86-4d27-b968-365fafa073f6",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLifecycleGraduation"
+  },
+  "frames_inspected": {
+    "allDone-host": {
+      "path": "_drafts/media/tutorial-allDone-host.bmp",
+      "file_sha256": "4b121e70af09f38dc72e0da9aa6399a98c2829ec5f246805093721fadeaa5d66",
+      "pixel_sha256": "321ede2de911fb0e455734b570954e63a77ab3373db89c36fb39250e06da92cb"
+    },
+    "allDone-client-1": {
+      "path": "_drafts/media/tutorial-allDone-client-1.bmp",
+      "file_sha256": "30315e009898428ca8d9b73b9f92fc64e128c52973bcba187cc234b771109472",
+      "pixel_sha256": "7a0b7627f0bb9e2a3de49d2983fd762ee4b18e1f91bcb4193213c17bb21fb81c"
+    },
+    "completed-host": {
+      "path": "_drafts/media/tutorial-completed-host.bmp",
+      "file_sha256": "5972d4adbaaa2ec3792fc59121cd0551103413f4126c8a12d75d09de915df41a",
+      "pixel_sha256": "9a25a1f51effd4fc5ca733efe9b74756bad4b1e9c17550b7ef941132859bfe24"
+    },
+    "completed-client-1": {
+      "path": "_drafts/media/tutorial-completed-client-1.bmp",
+      "file_sha256": "eb69b3089d5e1923f10c8ba477004a1deeae8ae13c461614537d69940a0096a9",
+      "pixel_sha256": "175f3f1b6866647982fce776a78f7fc98dca2e2e19f1c9f9f6f7ef0e9a270e7c"
+    }
+  },
+  "checks": [
+    "114 lifecycle cases and eight affected canonical CTest groups",
+    "24 actual Network tab reader/once/Unknown cases",
+    "14 SDK adapter cases",
+    "28 existing tutorial MCP adapter cases",
+    "16 actual welcome/final message pin cases",
+    "Full guarded build; both games and both crash monitors exit0; no dump"
+  ],
+  "retained_tooling_failures": [
+    {
+      "path": "artifacts/build_history/20261015T090813636321Z/build-1.log",
+      "cause": "Message pin fixture lacked two native stubs after the included Network adapter was added; corrected only test linkage"
+    },
+    {
+      "path": "artifacts/acceptance/b6bc5cda-a1fe-401d-b91b-1e25a1403ab7/summary.json",
+      "cause": "Runner attempted the Desktop entry while in world; rejected before effect. Corrected preparation returns to Title"
+    },
+    {
+      "path": "artifacts/acceptance/1f9b7a99-9d08-4d43-846c-985a0e1ee447/summary.json",
+      "cause": "Final OK was confirmed, but runner expected a returned field absent from this API. Original receipt retained; no click replay"
+    },
+    {
+      "path": "artifacts/acceptance/5c0021a8-efab-4548-8f87-0db5c423ef6e/summary.json",
+      "cause": "Observer expected active version after terminal removal. Both original terminal receipts already matched. Corrected assertion uses terminal_version; observation only"
+    }
+  ],
+  "limits": [
+    "Prepared boundary input does not prove a complete natural new-world tutorial",
+    "LevelTwo creation has focused source tests; natural native trigger remains open",
+    "Hiring/firing, other technologies, remaining action families and Undo/Redo remain open",
+    "Four players, large saves and separate-account Steam acceptance remain open",
+    "Local candidate differs from future cloud binaries; delivery startup is separate"
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

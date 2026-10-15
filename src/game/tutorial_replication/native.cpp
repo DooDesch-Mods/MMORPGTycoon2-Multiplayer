@@ -1,4 +1,7 @@
 #include "native.h"
+#include "lifecycle.h"
+#include "owned_scenario_start_entry.h"
+#include "owned_advance_entry.h"
 #include "owned_sequence_entry.h"
 #include "owned_staff_display_entry.h"
 #include "mt2mp/core/hash.h"
@@ -41,12 +44,13 @@ using World=building_mixed_identity::opened_file::CurrentWorld;
 using Call=void(*)(void*);using Update=void(*)(void*,float);
 Call original_postload=nullptr,original_command=nullptr,original_save=nullptr,original_tech=nullptr;
 Update original_update=nullptr,original_display=nullptr;
-Call original_commit=nullptr;
+Call original_commit=nullptr,original_advance=nullptr;
+void(*original_scenario_start)(void*,void*,void*)=nullptr;
 bool(*original_pay)(void*)=nullptr;
 void(*original_allocate)(void*,int32_t)=nullptr;
 placement_ui_probe::ProcessMemory memory;
 uintptr_t image=0;uint32_t mainthread=0;
-tutorial_sync::OwnedSequenceEntry owned,owned_commit,owned_pay,owned_staff,owned_display;
+tutorial_sync::OwnedSequenceEntry owned,owned_commit,owned_pay,owned_staff,owned_display,owned_scenario_start,owned_advance;
 void allocate_current(void*,int32_t);
 bool pay_current(void*);
 bool intent_uuid(std::string&,std::string&);
@@ -58,11 +62,12 @@ bool client_commit_submitted=false;
 bool submit_client_commit(void* lounge,std::string&);
 void commit_current(void* lounge);
 bool same_world(const World&,const World&);
-struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;} load;
+struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;std::set<uintptr_t> quarantined;} load;
 std::string fault;
 thread_local uintptr_t scoped_sequence=0;
 thread_local bool restoring=false;
-thread_local uintptr_t scoped_startingpoint_step=0;
+thread_local uintptr_t scoped_startingpoint_step=0,scoped_version_step=0;
+namespace lifecycle_native {void remember_terminal(uintptr_t);}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 void block(const std::string& cause){if(fault.empty()){fault=cause;LOG_ERROR("[Tutorial] native operation blocked cause={}",cause);}}
 template<class T>bool at(uintptr_t p,size_t offset,T& value,std::string& e){if(!p||p>UINTPTR_MAX-offset)return fail(e,"tutorial native address overflow");return memory.copy(p+offset,&value,sizeof(value),e);}
@@ -73,9 +78,9 @@ bool supported(const std::string& id){return id=="initial_tutorial"||id=="levelt
 bool type(uintptr_t p,uintptr_t rva,std::string& e){uintptr_t actual=0;return at(p,0,actual,e)&&(actual==image+rva||fail(e,"tutorial native vtable differs"));}
 bool step_member(uintptr_t sequence,uintptr_t step,std::string& e){uintptr_t data=0;int32_t count=0;if(!at(sequence,0x20,data,e)||!at(sequence,0x28,count,e))return false;if(count<1||count>2048)return fail(e,"tutorial step count outside1..2048");size_t found=0;for(int32_t i=0;i<count;++i){uintptr_t entry=0;if(!at(data,size_t(i)*8,entry,e))return false;if(entry==step)++found;}return found==1||fail(e,"tutorial scoped step is not uniquely owned");}
 struct Scope {
-    uintptr_t previous,previous_tech;bool was_restoring;
-    Scope(uintptr_t sequence,bool restore,uintptr_t tech_step=0):previous(scoped_sequence),previous_tech(scoped_startingpoint_step),was_restoring(restoring){scoped_sequence=sequence;restoring=restore;scoped_startingpoint_step=tech_step;}
-    ~Scope(){scoped_sequence=previous;restoring=was_restoring;scoped_startingpoint_step=previous_tech;}
+    uintptr_t previous,previous_tech,previous_version;bool was_restoring;
+    Scope(uintptr_t sequence,bool restore,uintptr_t tech_step=0,uintptr_t version_step=0):previous(scoped_sequence),previous_tech(scoped_startingpoint_step),previous_version(scoped_version_step),was_restoring(restoring){scoped_sequence=sequence;restoring=restore;scoped_startingpoint_step=tech_step;scoped_version_step=version_step;}
+    ~Scope(){scoped_sequence=previous;restoring=was_restoring;scoped_startingpoint_step=previous_tech;scoped_version_step=previous_version;}
 };
 bool skip(void* step,bool save,bool tech){
     if(!scoped_sequence)return false;
@@ -86,7 +91,7 @@ bool skip(void* step,bool save,bool tech){
         if(p!=scoped_startingpoint_step){block("unadmitted scoped tutorial CompleteTech");return true;}
         suppress=true;
     }
-    if(!save&&!tech){std::string command;if(!str(p,0x40,command,e)){block(e);return true;}const auto policy=command_policy(command,restoring);suppress=policy!=Start::Native;if(policy==Start::Reject)block("unsupported scoped tutorial command: "+command);}
+    if(!save&&!tech){std::string command;if(!str(p,0x40,command,e)){block(e);return true;}const auto policy=(p==scoped_version_step&&command=="MessageTo SoftwareStatus TutorialLevelUp")?Start::Skip:command_policy(command,restoring);suppress=policy!=Start::Native;if(policy==Start::Reject)block("unsupported scoped tutorial command: "+command);}
     if(suppress&&!put(p,0x18,uint8_t(1),e))block(e);
     return suppress;
 }
@@ -95,13 +100,14 @@ void save_start(void* step){if(!skip(step,true,false))original_save(step);}
 void tech_start(void* step){if(!skip(step,false,true))original_tech(step);}
 void sequence_update(void* sequence,float delta){
     const auto p=reinterpret_cast<uintptr_t>(sequence);
-    if(load.armed&&load.sequences.contains(p)){
+    if(load.armed&&(load.sequences.contains(p)||load.quarantined.contains(p))){
         if(GetCurrentThreadId()!=mainthread)block("Client tutorial Update thread differs");
         // The old sequence stays fenced until explicit snapshot/session retirement.
         // Native Instance Update still owns completion/history bookkeeping.
         return;
     }
     original_update(sequence,delta);
+    lifecycle_native::remember_terminal(p);
 }
 void postload(void* instance){
     if(!load.armed){original_postload(instance);return;}
@@ -119,6 +125,8 @@ bool origin(const action_session::Context& c,const action_session::Binding& b,Wo
     if(c.role==action_session::Role::Client&&(!load.armed||!load.ready||load.uuid!=w.uuid||load.generation!=w.generation))return fail(e,"tutorial Client joined-load scope differs from local origin");
     if(!fault.empty())return fail(e,fault);return true;
 }
+#include "lifecycle_owner.inc"
+#include "lifecycle_code.inc"
 #include "staff_display_owner.inc"
 #include "staff_display_values.inc"
 #include "staff_display_ui.inc"
@@ -133,6 +141,7 @@ bool native_state(const action_session::Context& c,const action_session::Binding
         n.value.scenario=id;if(!at(n.instance,0x58,n.sequence,e)||!at(n.sequence,0x20,n.steps,e)||!at(n.sequence,0x28,n.value.count,e)||!at(n.sequence,0x50,n.value.next,e)||!at(n.sequence,0x54,complete,e)||!str(n.instance,0x60,n.value.last,e)||!at(n.instance,0x48,history,e)||!at(n.instance,0x50,history_count,e))return false;
         n.value.complete=complete!=0;if(history_count<0||history_count>512)return fail(e,"tutorial history count outside0..512");
         for(int32_t j=0;j<history_count;++j){std::string entry;if(!str(history,size_t(j)*32,entry,e))return false;n.value.history.push_back(std::move(entry));}
+        if(c.role==action_session::Role::Client&&load.quarantined.contains(n.sequence))return fail(e,"Client tutorial constructor remains unconfirmed");
         if(c.role==action_session::Role::Client&&!load.sequences.contains(n.sequence))return fail(e,"Client tutorial was not fenced during joined PostLoad");
         message_progress::Binding meter;if(!message_progress::read(memory,image,n.sequence,n.value.next,meter,e))return false;
         n.value.message_progress=meter.values;
@@ -149,10 +158,12 @@ bool native_state(const action_session::Context& c,const action_session::Binding
             out.startingpoint->commit_bugs=commit_receipt.bugs;
     }
     World after;if(!origin(c,b,after,e)||after.game!=w.game||after.mode!=w.mode||after.state!=w.state||after.world!=w.world||after.map!=w.map||after.uuid!=w.uuid||after.sha256!=w.sha256||after.bytes!=w.bytes||after.world_epoch!=w.world_epoch||after.generation!=w.generation)return fail(e,e.empty()?"tutorial origin changed during capture":e);
+    if(!lifecycle_native::decorate(w,c,out,e))return false;
     return valid(out,e);
 }
+#include "lifecycle_hook.inc"
 bool interval(const NativeCursor& n,const Cursor& target,const std::optional<startingpoint::Row>& technology,std::string& e){
-    if(n.value.count!=target.count||n.value.next>target.next||n.value.complete!=target.complete)return fail(e,"tutorial backward/count/completion transition unsupported in current slice");
+    if(n.value.count!=target.count||n.value.next>target.next||(n.value.complete&&!target.complete))return fail(e,"tutorial backward/count/completion transition differs");
     std::set<std::string> ids;
     for(int32_t i=0;i<target.count;++i){uintptr_t step=0;std::string id;if(!at(n.steps,size_t(i)*8,step,e)||!str(step,0x20,id,e))return false;if(!id.empty())ids.insert(id);
         if(i<n.value.next||i>=target.next)continue;uintptr_t vt=0;if(!at(step,0,vt,e))return false;
@@ -160,7 +171,7 @@ bool interval(const NativeCursor& n,const Cursor& target,const std::optional<sta
             if(!startingpoint::accepts_complete_tech(n.value.scenario,i,key,technology))return fail(e,"tutorial CompleteTech index="+std::to_string(i)+" requires supported authoritative Startingpoint state");
             continue;
         }
-        if(vt==image+0x16fd930){std::string command;if(!str(step,0x40,command,e))return false;if(command_policy(command,false)==Start::Reject)return fail(e,"tutorial command requires unsupported authoritative state: "+command);}
+        if(vt==image+0x16fd930){std::string command;if(!str(step,0x40,command,e))return false;if(command_policy(command,false)==Start::Reject&&!(n.value.scenario=="initial_tutorial"&&i==100&&command=="MessageTo SoftwareStatus TutorialLevelUp"))return fail(e,"tutorial command requires unsupported authoritative state: "+command);}
         else if(vt!=image+0x16fda00&&vt!=image+0x17091e0&&vt!=image+0x1725e70&&vt!=image+0x171c5a0&&vt!=image+0x16dc000&&vt!=image+0x16dbf30)return fail(e,"tutorial forward step type unsupported");
     }
     for(const auto& id:target.history)if(!ids.contains(id))return fail(e,"Host tutorial history ID absent from local sequence");
@@ -197,6 +208,7 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 #include "start_action_native.inc"
 #include "start_capture_native.inc"
 #include "staff_native.inc"
+#include "lifecycle_apply.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -220,7 +232,9 @@ bool initialize(uintptr_t base,std::string& e){
     std::array<unsigned char,16> staff_entry{};
     if(!memory.copy(image+staff::allocate_rva,staff_entry.data(),staff_entry.size(),e)||staff_entry!=staff::allocate_entry)
         return fail(e,e.empty()?"Startingpoint original AllocateTechWorkers entry differs":e);
-    if(!display_native::verify_code(e))return false;
+    if(!display_native::verify_code(e)||!lifecycle_native::verify_code(e))return false;
+    owned_scenario_start={image+0x4f3b00,reinterpret_cast<uintptr_t>(&lifecycle_native::scenario_start),0,true,false};
+    owned_advance={image+0x4fceb0,reinterpret_cast<uintptr_t>(&lifecycle_native::advance),0,true,false};
     owned_display={image+0x6c6660,reinterpret_cast<uintptr_t>(&display_update),0,true,false};
     owned_staff={image+staff::allocate_rva,reinterpret_cast<uintptr_t>(&allocate_current),0,true,false};
     owned_pay.target=image+start_intent::pay_rva;owned_pay.detour=reinterpret_cast<uintptr_t>(&pay_current);owned_pay.original_verified=true;
@@ -228,6 +242,8 @@ bool initialize(uintptr_t base,std::string& e){
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {0x4f3b00,reinterpret_cast<void*>(&lifecycle_native::scenario_start),reinterpret_cast<void**>(&original_scenario_start)},
+        {0x4fceb0,reinterpret_cast<void*>(&lifecycle_native::advance),reinterpret_cast<void**>(&original_advance)},
         {0x6c6660,reinterpret_cast<void*>(&display_update),reinterpret_cast<void**>(&original_display)},
         {staff::allocate_rva,reinterpret_cast<void*>(&allocate_current),reinterpret_cast<void**>(&original_allocate)},
         {start_intent::pay_rva,reinterpret_cast<void*>(&pay_current),reinterpret_cast<void**>(&original_pay)},
@@ -238,15 +254,17 @@ bool initialize(uintptr_t base,std::string& e){
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
+    owned_scenario_start.trampoline=reinterpret_cast<uintptr_t>(original_scenario_start);
+    owned_advance.trampoline=reinterpret_cast<uintptr_t>(original_advance);
     owned_display.trampoline=reinterpret_cast<uintptr_t>(original_display);
     owned_staff.trampoline=reinterpret_cast<uintptr_t>(original_allocate);
     owned_pay.trampoline=reinterpret_cast<uintptr_t>(original_pay);
     owned.trampoline=reinterpret_cast<uintptr_t>(original_update);owned_commit.trampoline=reinterpret_cast<uintptr_t>(original_commit);return true;
 }
 bool hooks_enabled(std::string& e){
-    owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=true;
-    if(!staff_display::verify_owned_display_entry(owned_display,owned_display.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
-        owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=false;return false;
+    owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=true;
+    if(!tutorial_sync::verify_owned_scenario_start_entry(owned_scenario_start,owned_scenario_start.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!tutorial_sync::verify_owned_advance_entry(owned_advance,owned_advance.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff_display::verify_owned_display_entry(owned_display,owned_display.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
+        owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=false;return false;
     }return true;
 }
 bool verify_pay_entry(uintptr_t address,std::string& e){
@@ -264,7 +282,7 @@ bool verify_commit_entry(uintptr_t address,std::string& e){
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
-    display_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
+    display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
     commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
@@ -303,8 +321,8 @@ bool finish_client_load(bool& pending,std::string& e){
     if(load.waiting_postload)LOG_INFO("[Tutorial] Client load recovered native ScenarioLog PostLoad; tutorial fences confirmed");
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
-void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;display_native::clear();}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;display_native::clear();lifecycle_native::clear();}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -334,39 +352,40 @@ bool read_progress(nlohmann::json& out,std::string& e){
 }
 bool preflight(const action_session::Context& c,const action_session::Binding& b,const State& target,std::string& e){
     if(!message_progress::verify_code(memory,image,e))return false;
-    if(c.role!=action_session::Role::Client||!valid(target,e))return fail(e,e.empty()?"tutorial apply requires Client":e);State local;std::vector<NativeCursor> native;if(!native_state(c,b,local,native,e))return false;
-    if(local.active.size()!=target.active.size()||local.initial_complete!=target.initial_complete||local.leveltwo_complete!=target.leveltwo_complete)return fail(e,"tutorial creation/completion requires next native synchronization slice");
-    for(size_t i=0;i<native.size();++i){if(native[i].value.scenario!=target.active[i].scenario)return fail(e,"tutorial scenario order differs");if(!interval(native[i],target.active[i],target.startingpoint,e))return false;
-        const auto& wanted=target.active[i];
-        if(native[i].value.next==wanted.next&&native[i].value.message_progress.has_value()!=wanted.message_progress.has_value())return fail(e,"tutorial Host/local current Meter presence differs");
-        if(wanted.message_progress){uintptr_t step=0,ap=0;if(!at(native[i].steps,size_t(wanted.next-1)*8,step,e)||!at(step,0,ap,e))return false;if(ap!=image+0x16fda00)return fail(e,"tutorial Host progress target is not a native Message step");}
-    }
-    if(!local.startingpoint&&target.startingpoint&&target.startingpoint->project_present){
-        tutorial_development::StartingpointSnapshot snapshot;nlohmann::json diagnostic;
-        if(!tutorial_development::read_startingpoint(snapshot,diagnostic,e))return false;
-        if(!snapshot.record)return fail(e,"startingpoint creation native TechRecord absent from owned SoftwareStatus");
-        if(snapshot.project)return fail(e,"startingpoint creation cannot replace a different current native project");
-    }
-    startingpoint::Plan operation;if(!startingpoint::plan(local.startingpoint,target.startingpoint,operation,e))return false;
-    if(operation!=startingpoint::Plan::None){StartingpointCalls calls{c,b,{}};if(!calls.pin(*local.startingpoint,operation==startingpoint::Plan::Deploy,e))return false;}
+    if(c.role!=action_session::Role::Client||!valid(target,e))return fail(e,e.empty()?"tutorial apply requires Client":e);
+    State local;std::vector<NativeCursor> native;if(!native_state(c,b,local,native,e))return false;
+    lifecycle::Plan plan;std::optional<startingpoint::Row> local_technology;
+    if(!lifecycle_native::prepare(c,b,local,target,plan,local_technology,e))return false;
     return display_native::admit(c,b,target.staff_display,e,false);
 }
 bool apply(const action_session::Context& c,const action_session::Binding& b,const State& target,bool& attempted,bool& unknown,std::string& e){
-    attempted=unknown=false;if(!preflight(c,b,target,e))return false;State before;std::vector<NativeCursor> native;if(!native_state(c,b,before,native,e))return false;if(before==target)return true;
+    attempted=unknown=false;if(!preflight(c,b,target,e))return false;
+    State before;std::vector<NativeCursor> native;if(!native_state(c,b,before,native,e))return false;if(before==target)return true;
     try{
-    StartingpointCalls calls{c,b,{}};
-    if(!startingpoint::apply(before.startingpoint,target.startingpoint,calls,attempted,unknown,e))throw std::runtime_error(e);
-    if(before.startingpoint&&target.startingpoint&&!before.startingpoint->deployed&&target.startingpoint->deployed)
-        commit_receipt={calls.before.origin,calls.before.tech,calls.before.record,target.startingpoint->commit_bugs,{}};
-    for(size_t i=0;i<native.size();++i){auto& n=native[i];const auto& wanted=target.active[i];uintptr_t tech_step=0;
-        if(n.value.scenario=="initial_tutorial"&&n.value.next<=93&&wanted.next>93&&target.startingpoint){if(!at(n.steps,93*8,tech_step,e))throw std::runtime_error(e);}
-        Scope scope(n.sequence,false,tech_step);
-        for(auto index=n.value.next;index<wanted.next;++index){attempted=true;const auto code=advance_call(n.sequence);if(code)throw std::runtime_error("tutorial Advance exception="+std::to_string(code));if(!fault.empty())throw std::runtime_error(fault);int32_t actual=0;if(!at(n.sequence,0x50,actual,e)||actual!=index+1)throw std::runtime_error(e.empty()?"tutorial Advance index readback differs":e);}
-        if(n.value.history!=wanted.history||n.value.last!=wanted.last){attempted=true;if(!history(n,wanted,e))throw std::runtime_error(e);}
-        ProgressCalls presentation;if(!message_progress::apply(memory,image,n.sequence,wanted.next,wanted.message_progress,presentation,attempted,e))throw std::runtime_error(e);
-    }
-    if(!display_native::admit(c,b,target.staff_display,e,true))throw std::runtime_error(e);
-    State observed;std::vector<NativeCursor> rows;if(!native_state(c,b,observed,rows,e)||observed!=target)throw std::runtime_error(e.empty()?"tutorial full cursor/history readback differs":e);return true;
+        World world;if(!origin(c,b,world,e))throw std::runtime_error(e);
+        lifecycle::Plan plan;std::optional<startingpoint::Row> local_technology;
+        if(!lifecycle_native::prepare(c,b,before,target,plan,local_technology,e))throw std::runtime_error(e);
+        const auto target_technology=lifecycle::technology(target);StartingpointCalls calls{c,b,{}};
+        if(!startingpoint::apply(local_technology,target_technology,calls,attempted,unknown,e))throw std::runtime_error(e);
+        if(local_technology&&target_technology&&!local_technology->deployed&&target_technology->deployed)
+            commit_receipt={calls.before.origin,calls.before.tech,calls.before.record,target_technology->commit_bugs,{}};
+        for(const auto& operation:plan.operations){
+            bool success=false;
+            if(operation.kind==lifecycle::Kind::Create)success=lifecycle_native::create(c,b,world,operation.index,target,attempted,e);
+            else if(operation.kind==lifecycle::Kind::Retire)success=lifecycle_native::complete(c,b,world,operation.index,target,attempted,e);
+            else success=lifecycle_native::forward(c,b,world,operation.index,operation.next,target,false,attempted,e);
+            if(!success)throw std::runtime_error(e);
+        }
+        if(!lifecycle_native::bind_cache(world,c,e))throw std::runtime_error(e);
+        // Metadata is adopted only after native starts/removals and all owner
+        // readbacks. It never supplies a world completion flag or version value.
+        auto& proof=lifecycle_native::cache->proof;
+        proof.terminal=target.terminal;proof.terminal_startingpoint=target.terminal_startingpoint;
+        proof.terminal_version=target.terminal_version;proof.lifecycle_order=target.lifecycle_order;proof.leveltwo_initial_next=target.leveltwo_initial_next;
+        if(!display_native::admit(c,b,target.staff_display,e,true))throw std::runtime_error(e);
+        State observed;std::vector<NativeCursor> rows;
+        if(!native_state(c,b,observed,rows,e)||observed!=target)throw std::runtime_error(e.empty()?"tutorial full cursor/history/lifecycle readback differs":e);
+        return true;
     }catch(const std::exception& x){unknown=attempted;e=std::string("tutorial native Apply failed: ")+x.what();block(e);return false;}
 }
 #include "startingpoint_commit_intent.inc"

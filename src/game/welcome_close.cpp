@@ -43,6 +43,8 @@ bool world(const Request& request,World& out,std::string& e){
 }
 struct Pin {uintptr_t state=0,log=0,instance=0,sequence=0,step=0,window=0,show=0;bool operator==(const Pin&)const=default;};
 bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
+    const char* message=request.index==4?"welcome":request.index==103?"allDone":nullptr;
+    if(!message)return fail(e,"tutorial close supports only welcome4 or allDone103");
     World current;if(!world(request,current,e))return false;p.state=reinterpret_cast<uintptr_t>(current.state);
     uintptr_t singleton=0,active=0;int32_t count=0;
     if(!at(p.state,0x1e8,p.log,e)||!at(image,0x13df330,singleton,e)||!at(p.log,0x20,active,e)||!at(p.log,0x28,count,e))return false;
@@ -54,12 +56,14 @@ bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
         if(std::memcmp(id.data(),"initial_tutorial",17))continue;
         if(p.instance)return fail(e,"welcome duplicate tutorial owner");p.instance=candidate;
     }
-    uintptr_t type=0,steps=0,indexed=0,window_type=0,logic=0;int32_t next=0;uint8_t complete=0,target=0,locked=0;
+    uintptr_t type=0,steps=0,indexed=0,window_type=0,logic=0;int32_t next=0,step_count=0;uint8_t complete=0,target=0,locked=0,instance_complete=0,sequence_complete=0;
     if(!p.instance)return fail(e,"welcome tutorial absent");
     if(!at(p.instance,0,type,e)||type!=image+0x173ce70)return fail(e,e.empty()?"welcome instance type differs":e);
-    if(!at(p.instance,0x58,p.sequence,e)||!at(p.sequence,0x48,p.step,e)||!at(p.sequence,0x50,next,e)||!at(p.sequence,0x20,steps,e)||!at(steps,32,indexed,e))return false;
-    if(next!=5||p.step!=indexed)return fail(e,"welcome current index/pointer differs required=4");
-    if(!at(p.step,0,type,e)||!at(p.step,0x18,complete,e)||!literal(p.step,0x20,"welcome",e)||!at(p.step,0x1a8,p.window,e))return false;
+    if(!at(p.instance,0x38,instance_complete,e)||!at(p.instance,0x58,p.sequence,e)||!at(p.sequence,0,type,e)||!at(p.sequence,0x54,sequence_complete,e)||!at(p.sequence,0x48,p.step,e)||!at(p.sequence,0x50,next,e)||!at(p.sequence,0x28,step_count,e)||!at(p.sequence,0x20,steps,e))return false;
+    if(instance_complete||sequence_complete||type!=image+0x16dbd80||step_count!=107||next!=request.index+1)return fail(e,"tutorial close active sequence/count/index differs required="+std::to_string(request.index));
+    if(!at(steps,size_t(request.index)*8,indexed,e))return false;
+    if(p.step!=indexed)return fail(e,"tutorial close current indexed pointer differs");
+    if(!at(p.step,0,type,e)||!at(p.step,0x18,complete,e)||!literal(p.step,0x20,message,e)||!at(p.step,0x1a8,p.window,e))return false;
     if(type!=image+0x16fda00||complete||!p.window)return fail(e,"welcome step type/completion/window differs");
     if(!at(p.window,0,window_type,e)||!at(window_type,0x1d0,p.show,e)||!at(p.window,0x45f,target,e)||!at(p.window,0x377,locked,e)||!at(p.window,0x318,logic,e))return false;
     if(p.show!=image+0x81ec20||target!=1||locked)return fail(e,"welcome Show slot/visible target/close lock differs");
@@ -77,7 +81,7 @@ DWORD hide(const Pin& p){
 bool close(const Request& request,nlohmann::json& receipt,std::string& e){
     receipt={{"attempted",false},{"confirmed",false},{"unknown",false}};e.clear();
     try{
-        if(request.index!=4||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"welcome request requires exact origin/index4 and bounded token");
+        if((request.index!=4&&request.index!=103)||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"tutorial close requires exact origin/index4 or103 and bounded token");
         // Mainthread serializes this operation. Keep used tokens for the process lifetime,
         // including failed calls, so a lost receipt cannot replay an uncertain mutation.
         static std::set<std::string> used;
@@ -100,8 +104,10 @@ bool close(const Request& request,nlohmann::json& receipt,std::string& e){
             receipt["unknown"]=true;if(e.empty())e="welcome origin changed after call";return false;
         }
         if(target!=0){receipt["unknown"]=true;return fail(e,"welcome native hide target readback differs required=0");}
-        receipt["confirmed"]=true;receipt["effect"]="welcome_window_hide_requested";
+        receipt["confirmed"]=true;receipt["effect"]=request.index==4?"welcome_window_hide_requested":"allDone_window_hide_requested";
         receipt["progression"]="await_normal_native_update";receipt["before"]=std::move(observed);return true;
     }catch(const std::exception& exception){receipt["unknown"]=receipt.value("attempted",false);return fail(e,std::string("welcome close exception: ")+exception.what());}
 }
 }
+
+#include "tutorial_network_tab.inc"

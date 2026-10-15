@@ -10,6 +10,7 @@ struct Request {
     int32_t index=4;
 };
 // Call only from the existing guarded native mutation mailbox on Mainthread.
-// This hides only initial_tutorial/welcome. Normal game Update owns progression.
+// This hides only initial_tutorial/welcome or allDone. Normal Update owns progression.
 bool close(const Request&,nlohmann::json& receipt,std::string& error);
+bool network_tab(const Request&,nlohmann::json& receipt,std::string& error);
 }

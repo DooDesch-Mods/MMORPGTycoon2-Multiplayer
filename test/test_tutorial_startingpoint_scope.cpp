@@ -7,7 +7,7 @@
 #include <vector>
 using namespace mt2mp::game::tutorial_replication;
 namespace {
-uintptr_t image=0x140000000,scoped_sequence=0,scoped_startingpoint_step=0;
+uintptr_t image=0x140000000,scoped_sequence=0,scoped_startingpoint_step=0,scoped_version_step=0;
 bool restoring=false;
 std::string fault;
 std::map<uintptr_t,unsigned char> bytes;
@@ -33,7 +33,7 @@ struct NativeCursor {uintptr_t instance=0,sequence=0,steps=0;Cursor value;};
 constexpr uintptr_t sequence=0x200000,array=0x210000;
 uintptr_t step(int32_t index){return 0x300000+uintptr_t(index)*0x100;}
 NativeCursor setup(){
-    bytes.clear();strings.clear();fault.clear();originals=0;unreadable=unwritable=0;scoped_sequence=scoped_startingpoint_step=0;restoring=false;
+    bytes.clear();strings.clear();fault.clear();originals=0;unreadable=unwritable=0;scoped_sequence=scoped_startingpoint_step=scoped_version_step=0;restoring=false;
     NativeCursor n;n.sequence=sequence;n.steps=array;n.value.scenario="initial_tutorial";n.value.count=107;n.value.next=90;
     seed(sequence+0x20,array);seed<int32_t>(sequence+0x28,107);
     for(int32_t i=0;i<107;++i){seed(array+size_t(i)*8,step(i));seed(step(i),image+0x16fda00);strings[step(i)+0x20]="";strings[step(i)+0x40]="";seed<uint8_t>(step(i)+0x18,0);}
@@ -54,5 +54,7 @@ int main(){try{
     {setup();{Scope outer(sequence,false,step(93));{Scope restore(sequence,true);tech_start(reinterpret_cast<void*>(step(94)));}require(scoped_sequence==sequence&&!restoring&&scoped_startingpoint_step==step(93),"nested PostLoad scope lost outer ownership");}require(!scoped_sequence&&!restoring&&!scoped_startingpoint_step&&completed(94)&&!originals&&fault.empty(),"PostLoad suppression or scope restoration changed");pass("PostLoad keeps existing suppression and restores exact outer scope");}
     {auto n=setup();Cursor target=n.value;target.next=96;std::string error;require(!interval(n,target,std::nullopt,error)&&error.find("requires supported authoritative Startingpoint")!=std::string::npos,"coalesced Step93 lacked authoritative Row");pass("coalesced interval without a Host technology Row is rejected");}
     {auto n=setup();strings[step(93)+0x40]="inn";Cursor target=n.value;target.next=96;std::string error;require(!interval(n,target,project(),error),"foreign tech key inherited Step93 admission");pass("coalesced foreign technology key is rejected");}
+    {setup();strings[step(100)+0x40]="MessageTo SoftwareStatus TutorialLevelUp";{Scope outer(sequence,false,step(93),step(100));{Scope inner(sequence,true);}require(scoped_version_step==step(100),"nested scope lost exact version step");require(skip(reinterpret_cast<void*>(step(100)),false,false),"admitted Step100 was not suppressed");require(completed(100)&&fault.empty(),"admitted Step100 missing completion");}require(!scoped_version_step,"version step leaked outside scope");pass("exact Step100 presentation scope suppresses command and restores ownership");}
+    {setup();strings[step(100)+0x40]="MessageTo SoftwareStatus TutorialLevelUp";Scope scope(sequence,false,step(93));require(skip(reinterpret_cast<void*>(step(100)),false,false)&&!fault.empty(),"unadmitted Step100 effect passed");pass("unadmitted Step100 remains visibly blocked");}
     std::cout<<tests<<" actual native scope scenarios passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

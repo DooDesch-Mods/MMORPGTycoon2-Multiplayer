@@ -214,6 +214,14 @@ OP_SCHEMAS = {
         "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
         "current_step_index": {"type": "integer", "const": 4}},
         ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
+    "tutorial_finish_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
+        "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
+        "current_step_index": {"type": "integer", "const": 103}},
+        ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
+    "tutorial_network_tab": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
+        "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
+        "current_step_index": {"type": "integer", "const": 56}},
+        ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
     "read_time_ui": EMPTY,
     "read_time_acceptance": EMPTY,
     "native_time_key": object_schema({"key": {"type": "string", "enum": list(TIME_KEYS)},
@@ -307,6 +315,8 @@ OP_DESCRIPTIONS = {
     "tutorial_movement_focus": "Ask SDL once to raise the exact owned local Host window. Read focus and native input admission before the fixed W fixture. No global input or focus APIs.",
     "tutorial_movement": "Queue one fixed W down/up pair to the owned local Host window at tutorial step6. Read its receipt for native input, progress and release confirmation. No replay.",
     "tutorial_welcome_ok": "Hide only the current native Host welcome message once through its original window Show path. Requires exact local origin and index4; read tutorial afterward to confirm native progression. Never replay an unknown result.",
+    "tutorial_network_tab": "Press only the actual current Host Network ActionBar tab at Initial step56 once. Uses its existing authored command and original Press. Requires exact owned local origin. Confirm view readback, then observe normal tutorial progression; never replay Unknown.",
+    "tutorial_finish_ok": "Hide only the current native Host initial_tutorial/allDone message at index103 through its original window Show path. Requires exact local origin; normal Host Update owns completion. Read both tutorials afterward. Never replay an unknown result.",
     "read_time_ui": "Read the four owned native time-button states and authoritative presentation revision from the shared host/client runtime.",
     "read_time_acceptance": "Read owned native time-input guards, bindings, actor states and authoritative receipt counters; this does not prove calendar or economy authority.",
     "native_time_key": "Queue one guarded SPACE or F1-F4 diagnostic input in the owned test world. Preserve its token and inspect its receipt; never replay a partial or unknown input.",
@@ -420,7 +430,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
         if op == "tutorial_movement_focus":
             if not isinstance(arguments, dict) or set(arguments) != {"native_origin_uuid"} or not isinstance(arguments["native_origin_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["native_origin_uuid"]) is None:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement focus requires exact lowercase native origin UUID")
-        if op == "tutorial_welcome_ok":
+        if op in {"tutorial_welcome_ok", "tutorial_finish_ok", "tutorial_network_tab"}:
+            expected_index = 4 if op == "tutorial_welcome_ok" else 103 if op == "tutorial_finish_ok" else 56
             required = {"token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index"}
             if not isinstance(arguments, dict) or set(arguments) != required:
                 raise RuntimeErrorDetail("invalid_args", "tutorial welcome requires exact token/origin/index fields")
@@ -428,8 +439,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                    for key in ("token", "snapshot_uuid")):
                 raise RuntimeErrorDetail("invalid_args", "tutorial welcome token and local snapshot require canonical UUIDs")
             if any(type(arguments[key]) is not int or not 1 <= arguments[key] <= 18446744073709551615
-                   for key in ("world_epoch", "world_generation")) or type(arguments["current_step_index"]) is not int or arguments["current_step_index"] != 4:
-                raise RuntimeErrorDetail("invalid_args", "tutorial welcome requires positive local origin and index4")
+                   for key in ("world_epoch", "world_generation")) or type(arguments["current_step_index"]) is not int or arguments["current_step_index"] != expected_index:
+                raise RuntimeErrorDetail("invalid_args", "tutorial close requires positive local origin and index" + str(expected_index))
         if op == "read_chat" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "read_chat requires empty object arguments")
         if op == "read_chat_ui" and (not isinstance(arguments, dict) or arguments):

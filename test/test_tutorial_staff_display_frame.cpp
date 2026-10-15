@@ -31,7 +31,7 @@ int main(){try{
     need(!decode(raw,actual,e)&&actual==economy::State{}&&e.find("Staff display")!=std::string::npos,
         "malformed Staff ID bypassed the real complete-frame decoder or lost its cause: "+e);
     std::cout<<"PASS malformed Staff payload rejects through complete decoder without partial output\n";
-    auto old=tutorial::encode(*state.day.frame.tutorial);old.erase("staff_display");tutorial::State legacy;
+    auto old=tutorial::encode(*state.day.frame.tutorial);old.erase("staff_display");for(const auto* key:{"terminal","terminal_startingpoint","version","terminal_version","lifecycle_order","leveltwo_initial_next"})old.erase(key);tutorial::State legacy;
     need(tutorial::decode(old,legacy,e)&&!legacy.staff_display&&legacy.startingpoint==state.day.frame.tutorial->startingpoint,
         "legacy tutorial receipt fabricated Staff data or lost Startingpoint: "+e);
     std::cout<<"PASS legacy tutorial state has no invented Staff presentation\n";
