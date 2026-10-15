@@ -1,0 +1,163 @@
+{
+  "schema": 1,
+  "scope": "Initial Starting Points Staff presentation after fresh ordinary Client Research and worker allocation",
+  "mod_sha256": "d9f46072377804aad797ff89ef5d77fad87ef034aa1bf39af5f6c05364faa4c3",
+  "build": "artifacts/build_history/20261015T065247859936Z",
+  "runtime_run_id": "00e47aa1-0a17-43e4-a537-2da41526d0a1",
+  "proofs": {
+    "admission": {
+      "path": "artifacts/acceptance/2d387815-e677-48a9-a060-439b22b2f06f/summary.json",
+      "sha256": "a915aeb63b67f30b463de8231601a8f3ac294e6376d80ec4899d876c36029b81"
+    },
+    "research_setup": {
+      "path": "artifacts/acceptance/0f90a88d-786e-49ba-803b-6749e2aa18d3/summary.json",
+      "sha256": "6cbc1c1b7de13cb33ab19b4ca093d841b2330b2c75cb2f105d7b92de910294f3"
+    },
+    "allocation_setup": {
+      "path": "artifacts/acceptance/5da61b89-9299-4c88-b7a8-9aabccdabd97/summary.json",
+      "sha256": "f476df8a992c5582ca5d35379f3c758b4e3dc48bd645d1b063eccf5a1e4de645"
+    },
+    "display": {
+      "path": "artifacts/acceptance/30402004-3718-4ff9-9dd3-47ea52a5ecaa/summary.json",
+      "sha256": "7ef7889eb4e3135569f577ca5fb516ba809b724ae7d8f6528bd36bb28895ab15"
+    },
+    "retirement": {
+      "path": "artifacts/acceptance/605e22db-a3f7-4092-b0b8-1b14b9148cd6/summary.json",
+      "sha256": "c0b9142ece3776f9d319955db1a5c2b0c964bcb4a4c095847aa2e51413a589a9"
+    },
+    "shutdown": {
+      "path": "artifacts/acceptance/bc7dbeaf-d869-4deb-8048-89f09cc705c1/summary.json",
+      "sha256": "71df49cc4b2a5717f8dc3aeac8c6eda469143ab9de8689cc71221d57e2c180c8"
+    }
+  },
+  "visible_cells": {
+    "active_developers": 1,
+    "active_value": {
+      "args": [
+        {
+          "name": "value",
+          "type": 1,
+          "value": 1
+        }
+      ],
+      "key": "{value}"
+    },
+    "developers": [
+      {
+        "activity": {
+          "args": [
+            {
+              "name": "techname",
+              "type": 0,
+              "value": {
+                "args": [],
+                "key": "{tech_startingpoint_displayname}"
+              }
+            }
+          ],
+          "key": "{dev_state_tech_develop}"
+        },
+        "id": 0,
+        "row": 0
+      }
+    ],
+    "project_state": {
+      "args": [],
+      "key": "-- {dev_tech_state_implementing} --"
+    },
+    "project_state_key": "-- {dev_tech_state_implementing} --"
+  },
+  "host_actual_developers": [
+    {
+      "activity": {
+        "args": [
+          {
+            "name": "techname",
+            "type": 0,
+            "value": {
+              "args": [],
+              "key": "{tech_startingpoint_displayname}"
+            }
+          }
+        ],
+        "key": "{dev_state_tech_develop}"
+      },
+      "id": 0,
+      "job": 6,
+      "on_map": false
+    }
+  ],
+  "client_actual_developers_before": [
+    {
+      "activity": {
+        "args": [],
+        "key": "{dev_state_idle}"
+      },
+      "id": 0,
+      "job": 0,
+      "on_map": false
+    }
+  ],
+  "client_actual_developers_after": [
+    {
+      "activity": {
+        "args": [],
+        "key": "{dev_state_idle}"
+      },
+      "id": 0,
+      "job": 0,
+      "on_map": false
+    }
+  ],
+  "client_jobs_unchanged": true,
+  "client_simulation_clock_zero": true,
+  "full_ledger_unchanged": true,
+  "frames_inspected": {
+    "host": {
+      "bytes": 3686454,
+      "height": 720,
+      "path": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\host\\diagnostics\\frame-249a5e5c-7f65-4bcb-b6f5-712f78233dcd.bmp",
+      "pixel_sha256": "8e8e0bfc7902d5d6ecbe06c7fb5ad3c207656598d0621fde4b4faa52e0a57021",
+      "width": 1280,
+      "retained_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\_drafts\\media\\staff-display-host.bmp",
+      "file_sha256": "01b424c2d8ef6c9d19e2b3d7e03048cd6df886523172d3743e1f102b293254d4"
+    },
+    "client-1": {
+      "bytes": 3686454,
+      "height": 720,
+      "path": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\client-1\\diagnostics\\frame-f81f451c-adb4-4472-b833-62bd73be5d08.bmp",
+      "pixel_sha256": "de7b65c4737bf77f098872bbc7ce8a26cb7620a0c67258915363bc048b787400",
+      "width": 1280,
+      "retained_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\_drafts\\media\\staff-display-client-1.bmp",
+      "file_sha256": "c0fc43ead9a323c5d287b6bcb893deff611b853e62e7778df950ae43d592378f"
+    }
+  },
+  "performance": {
+    "path": "artifacts/staff_display_fps.json",
+    "sha256": "1f60046e4a571b0e238aa150a253ce47590f5b4a2e8c0b36a02127c2f63452b6",
+    "scope": "10-second paused small-world sample, both Development windows visible, both games in background",
+    "render_fps": {
+      "host": 55.051731597680174,
+      "client-1": 59.014329940923425
+    }
+  },
+  "checks": [
+    "26 model/render scenarios",
+    "22 actual native cache/UI/posthook scenarios",
+    "3 complete Economy/Day/Host/Tutorial codec cases",
+    "9 physical hook verifier cases",
+    "actual hooks_enabled success and all five owner failure rollbacks",
+    "production translation units /W4 /WX; guarded full build",
+    "both games exit0, both monitors exit0, no crash dump"
+  ],
+  "limits": [
+    "Native display acceptance covers one Developer and the initial Starting Points project.",
+    "Ready-label precedence and retirement/cache clearing have actual-body regression coverage; the prior native Commit proof is carried.",
+    "Other Developer jobs, hiring/firing and other technologies remain open. Unsupported display jobs defer while original UI continues.",
+    "The FPS sample is paused, small and short; it does not establish large-world or running-simulation performance.",
+    "This local binary differs from future CI release binaries. Delivered-payload startup remains a separate check.",
+    "Separate-account Steam gameplay and the complete natural tutorial remain open."
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

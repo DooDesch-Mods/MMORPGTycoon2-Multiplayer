@@ -1,6 +1,7 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
 #include "startingpoint.h"
+#include "staff_display.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -25,6 +26,7 @@ struct State {
     std::vector<Cursor> active;
     bool initial_complete=false,leveltwo_complete=false;
     std::optional<startingpoint::Row> startingpoint;
+    std::optional<staff_display::State> staff_display;
     bool operator==(const State&)const=default;
 };
 bool valid(const State&,std::string&);

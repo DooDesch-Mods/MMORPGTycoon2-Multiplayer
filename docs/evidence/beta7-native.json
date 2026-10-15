@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.7",
+  "scope": "Shared initial Starting Points developer allocation, natural work and native Staff display",
+  "native_evidence": [
+    "docs/evidence/beta6-native.json",
+    "docs/evidence/tutorial-client-staff-native.json",
+    "docs/evidence/tutorial-staff-activity-native.json",
+    "docs/evidence/tutorial-staff-display-native.json"
+  ],
+  "latest_mod_sha256": "d9f46072377804aad797ff89ef5d77fad87ef034aa1bf39af5f6c05364faa4c3",
+  "latest_build": "artifacts/build_history/20261015T065247859936Z",
+  "acceptance": "Fresh ordinary Client Research and Staff allocation confirm once on both peers. Host work advances naturally; actual Client cells show the matching active count, project state and localized activity. Real Client jobs, Clock0 and full ledger remain unchanged. Both games leave and exit0 without a dump.",
+  "limits": [
+    "Native display acceptance covers one Developer and the initial Starting Points project.",
+    "Ready-label precedence and retirement/cache clearing have actual-body regression coverage; the prior native Commit proof is carried.",
+    "Other Developer jobs, hiring/firing and other technologies remain open. Unsupported display jobs defer while original UI continues.",
+    "The FPS sample is paused, small and short; it does not establish large-world or running-simulation performance.",
+    "This local binary differs from future CI release binaries. Delivered-payload startup remains a separate check.",
+    "Separate-account Steam gameplay and the complete natural tutorial remain open."
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

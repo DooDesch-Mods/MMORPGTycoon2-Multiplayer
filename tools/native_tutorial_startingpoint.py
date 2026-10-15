@@ -10,7 +10,7 @@ from lobby_ui.native_local_acceptance import button, observe, left, ready
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'client-staff', 'staff-activity', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'client-staff', 'staff-activity', 'staff-display', 'retire'), required=True)
 parser.add_argument('--host-running', action='store_true', help='Run the Host through the existing native clock MCP during Client Research')
 parser.add_argument('--natural-work', action='store_true', help='Let the assigned Host developer complete Startingpoint before ordinary Client Commit')
 parser.add_argument('--resume-start-from', type=Path, help='Reuse a confirmed open Research view after a recorded no-effect hidden-HUD time rejection')
@@ -33,6 +33,8 @@ if args.phase == 'client-staff':
     runner.summary['scope'] = 'ordinary Client Staff pip orders one native worker allocation, followed by natural Host work and matching Client state'
 if args.phase == 'staff-activity':
     runner.summary['scope'] = 'read original Developer activity, counts and native project formatters on a paused joined pair; no Staff UI replication claim'
+if args.phase == 'staff-display':
+    runner.summary['scope'] = 'actual Client Staff cells display Host activity after fresh Research and allocation, with unchanged real Client jobs and Clock0'
 
 
 def shared_state(name, expected):
@@ -164,6 +166,77 @@ def staff_activity():
     runner.summary.update(activity=values, native_activity_formatters_proven=True,
                           original_developer_getter_proven=True, ledger_unchanged=True,
                           client_activity_ui_replicated=False)
+
+
+def staff_display():
+    baseline = runner.single('display-baseline', 'host', 'game_read_tutorial_development')
+    project = baseline['project']
+    if (not project.get('present') or project.get('desired_workers') != 1
+            or not 0 < project.get('work', 0) < 7200):
+        raise AcceptanceError('Staff display requires a naturally advancing unfinished one-worker project')
+    shared_state('display-baseline', baseline)
+    ledger_before = compare_ledgers(runner.inspect('display-before-host', 'host'),
+                                    runner.inspect('display-before-client', 'client-1'))
+
+    def activity(peer, label):
+        local = runner.single(label + '-project', peer, 'game_read_tutorial_development')
+        request = {'token': str(uuid.uuid4()), 'native_origin_uuid': local['snapshot_uuid'],
+                   'world_epoch': local['world_epoch'], 'world_generation': local['world_generation'],
+                   'operation': 'staff_activity_state', 'expected_development': local}
+        result = runner.single(label + '-probe', peer, 'game_tutorial_startingpoint', request)
+        if (result.get('read_only') is not True or result.get('attempted') is not False
+                or result.get('confirmed') is not True or result.get('unknown') is not False
+                or result.get('development') != local):
+            raise AcceptanceError('Staff display native activity observation failed on ' + peer + '; no replay')
+        runner.checked(label, result)
+        return result
+
+    host = activity('host', 'display-host-activity')
+    client_before = activity('client-1', 'display-client-before')
+    if host.get('active_tech_workers') != 1 or client_before.get('active_tech_workers') != 0:
+        raise AcceptanceError('Fresh display proof requires real Host worker active and actual Client worker idle')
+    fixed_operation('host', 'show', baseline)
+    deadline, sample = time.monotonic() + 45, 0
+    while True:
+        sample += 1
+        progress = runner.single('display-readback-' + str(sample), 'client-1', 'game_read_tutorial_progress')
+        display = progress.get('staff_display', {})
+        if display.get('unknown') is True:
+            raise AcceptanceError('Staff display native effect unknown; no replay: ' + str(display.get('cause')))
+        if display.get('adopted') is True and display.get('rendered') is True and display.get('deferred') is False:
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Client Staff visible render not confirmed within45s: ' + str(display))
+    visible = display['visible']
+    if visible.get('active_developers') != host['active_developers']:
+        raise AcceptanceError('Actual Client active-developer cell differs from Host')
+    if 'dev_tech_state_implementing' not in visible.get('project_state_key', ''):
+        raise AcceptanceError('Actual Client project-state cell does not say implementing')
+    expected = {dev['id']: dev['activity'] for dev in host['developers']}
+    rows = visible.get('developers', [])
+    actual = {dev['id']: dev['activity'] for dev in rows}
+    if len(actual) != len(rows) or actual != expected:
+        raise AcceptanceError('Actual Client Staff activity cells differ from Host by Developer ID')
+    if any(type(dev.get('row')) is not int or dev['row'] < 0 for dev in rows):
+        raise AcceptanceError('Client Staff cell lacks a confirmed local row')
+    if display.get('confirmed_renders', 0) < 1 or display.get('original_calls', 0) < 1:
+        raise AcceptanceError('Client Staff original UI and successful native render were not observed')
+    runner.checked('display-visible', display)
+    client_after = activity('client-1', 'display-client-after')
+    if client_after['developers'] != client_before['developers']:
+        raise AcceptanceError('Staff presentation changed actual Client worker jobs')
+    engine = runner.inspect('display-client-clock', 'client-1')
+    if engine['clock']['scale'] != 0:
+        raise AcceptanceError('Staff presentation enabled Client simulation')
+    ledger_after = compare_ledgers(runner.inspect('display-after-host', 'host'), engine)
+    if ledger_after != ledger_before:
+        raise AcceptanceError('Staff presentation changed full ledger')
+    shared_state('display-final', baseline)
+    for peer in ('host', 'client-1'):
+        runner.checked('display-frame-' + peer, runner.single('display-frame-' + peer, peer, 'game_capture_frame'))
+    runner.summary.update(visible=visible, host_activity=host, client_activity_before=client_before,
+                          client_activity_after=client_after, client_staff_display_proven=True,
+                          client_jobs_unchanged=True, client_clock_zero=True, ledger_unchanged=True)
 
 
 def prior_result(prior, step, tool):
@@ -700,6 +773,8 @@ try:
         client_staff()
     elif args.phase == 'staff-activity':
         staff_activity()
+    elif args.phase == 'staff-display':
+        staff_display()
     elif args.phase == 'begin':
         begin_project()
     elif args.phase == 'prove':
