@@ -32,6 +32,24 @@ int main(){try{
     need(decode(old,actual,e)&&!actual.day.frame.developers,"schema9 compatibility fabricated pool ownership");
     old["day"]["frame"]["developers"]=nullptr;
     need(!decode(old,actual,e),"mixed schema9/new pool shape accepted");
+    auto extended=state;auto& pool=*extended.day.frame.developers;staff::construction::State extension;
+    for(const auto& row:pool.rows)extension.actors.push_back({row.id,-1,{0,0,0,1},{1,1,1}});
+    extension.jobs.push_back({"action:11111111-1111-4111-8111-111111111111",true,false,-1});pool.construction=extension;
+    need(economy::encode(extended,bytes,e),"construction full encode: "+e);
+    need(economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"construction complete Economy11/Day/HostState10 roundtrip: "+e);
+    need(bytes.size()<live::max_frame_payload,"construction full frame exceeds bound");
+    bad=nlohmann::json::parse(bytes);bad["day"]["frame"]["developers"]["construction"]["actors"][0][0]=0;
+    need(!decode(bad,actual,e),"full decoder accepted construction Actor ID/order mismatch");
+    pool.construction->jobs[0].present=false;
+    need(economy::encode(extended,bytes,e)&&economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"restored inactive Building row lost from full frame: "+e);
+    bad=nlohmann::json::parse(bytes);bad["day"]["frame"]["developers"]["construction"]["jobs"][0][2]=true;
+    need(!decode(bad,actual,e),"completed active row accepted instead of omission");
+    bad=nlohmann::json::parse(bytes);bad["day"]["frame"]["developers"]["construction"]["jobs"][0][3]=49;
+    need(!decode(bad,actual,e),"restored row admitted an absent assigned Job");
+    pool.construction->jobs.clear();
+    need(economy::encode(extended,bytes,e)&&economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"empty pending Job set lost explicit construction frame: "+e);
+    for(int i=0;i<65;++i){auto key=std::string("action:11111111-1111-4111-8111-111111111111");key.replace(key.size()-3,3,std::to_string(100+i));pool.construction->jobs.push_back({key,true,false,-1});}
+    need(economy::encode(extended,bytes,e)&&economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"full frame retained unproven64 lifetime limit: "+e);
     auto c=mt2mp::action_session::Context{};c.role=mt2mp::action_session::Role::Client;c.local_peer=2;c.host_peer=1;c.peer_mask=3;c.session=41;c.snapshot_uuid=state.day.frame.snapshot;
     auto before=state.day.frame;before.base_action_revision=4;before.for_action="22222222-2222-4222-8222-222222222222";
     mt2mp::action_session::Message result;result.session=41;result.kind=mt2mp::action_session::Kind::HostResult;result.outcome=mt2mp::action_session::Outcome::Confirmed;result.revision=5;

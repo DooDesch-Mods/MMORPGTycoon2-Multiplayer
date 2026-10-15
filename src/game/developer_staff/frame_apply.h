@@ -5,6 +5,7 @@ namespace mt2mp::game::developer_staff {
 struct FieldChange {size_t slot=0;scalar::Field field=scalar::Field::State;int32_t value=0;bool operator==(const FieldChange&)const=default;};
 inline bool frame_plan(const PoolState& before,const PoolState& target,std::vector<FieldChange>& changes,std::string& error){
     changes.clear();if(!valid(before,error)||!valid(target,error))return false;
+    if(before.construction||target.construction){error="Developer construction frame requires bound native construction route";return false;}
     if(before.count!=target.count||before.indoor!=target.indoor||before.outdoor!=target.outdoor){error="Developer frame count/ordered native manager membership differs; ordered Hire/Fire or original map closure required";return false;}
     for(size_t slot=0;slot<50;++slot){const auto& a=before.rows[slot];const auto& b=target.rows[slot];
         if(a.id!=b.id||a.employed!=b.employed||a.position!=b.position){error="Developer frame fixed native ID/employment/pose differs";return false;}

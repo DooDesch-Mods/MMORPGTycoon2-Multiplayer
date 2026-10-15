@@ -7,6 +7,7 @@
 #include "action_native.h"
 #include "action_calls.h"
 #include "frame_apply.h"
+#include "construction_native.h"
 #include "tutorial_replication/native.h"
 #include "owned_ui_entry.h"
 #include "entry_fingerprints.h"
@@ -76,7 +77,14 @@ bool read(Runtime& r,const action::Context& expected,const action::Binding& bind
     native::WorldStatus world;if(!native::read_world_status(world,e))return false;
     if(world.active_mode_index!=3||world.in_game_state!=4||world.quitting||!world.world_present||world.title_transition_pending||world.map_task_pending||world.saves_in_progress>0||world.edit_operations)
         return fail(e,"Developer operation requires actual idle loaded native World");
-    return project(c,out,e);
+    if(!project(c,out,e))return false;
+    std::vector<construction::LocalJob> jobs;
+    if(!typed_action_runtime::construction_jobs(context,binding,jobs,e))return false;
+    if(!jobs.empty()){
+        construction::State extra;if(!construction::capture(c,jobs,extra,e))return false;
+        out.construction=std::move(extra);if(!valid(out,e))return false;
+    }
+    return true;
 }
 struct FrameCalls {
     Runtime& runtime;const action::Context& context;const action::Binding& binding;Capture before;
@@ -174,6 +182,11 @@ bool preflight_frame(const action::Context& c,const action::Binding& b,const Poo
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready)return fail(e,"Developer frame native owner unavailable");
     if(r->frame_locked)return fail(e,r->frame_cause);
     Capture actual;PoolState before;if(!read(*r,c,b,actual,before,e))return false;
+    if(before.construction||target.construction){
+        if(!target.construction)return fail(e,"Developer construction frame cannot discard retained Job ownership");
+        std::vector<construction::LocalJob> jobs;if(!typed_action_runtime::construction_jobs(c,b,jobs,e))return false;
+        return construction::preflight(c,b,actual,target,jobs,e);
+    }
     std::vector<FieldChange> changes;if(!frame_plan(before,target,changes,e))return false;
     FrameCalls calls{*r,c,b};return calls.pin(before,e);
 }
@@ -182,7 +195,13 @@ bool adopt_frame(const action::Context& c,const action::Binding& b,const PoolSta
     if(!r||!r->ready)return fail(e,"Developer frame native owner unavailable");
     if(r->frame_locked)return fail(e,r->frame_cause);
     Capture actual;PoolState before;if(!read(*r,c,b,actual,before,e))return false;
-    FrameCalls calls{*r,c,b};const bool ok=apply_frame(before,target,calls,attempted,unknown,e);
+    bool ok=false;
+    if(before.construction||target.construction){
+        if(!target.construction)return fail(e,"Developer construction frame cannot discard retained Job ownership");
+        std::vector<construction::LocalJob> jobs;if(!typed_action_runtime::construction_jobs(c,b,jobs,e))return false;
+        ok=construction::apply(c,b,actual,target,jobs,attempted,unknown,e);
+        if(ok&&attempted&&!tutorial_replication::invalidate_developer_pool(c,b,e)){ok=false;unknown=true;}
+    }else{FrameCalls calls{*r,c,b};ok=apply_frame(before,target,calls,attempted,unknown,e);}
     if(unknown||(attempted&&!ok)){r->frame_locked=true;r->frame_cause=e.empty()?"Developer frame original property attempt unconfirmed; no replay":e;unknown=true;e=r->frame_cause;}
     return ok;
 }

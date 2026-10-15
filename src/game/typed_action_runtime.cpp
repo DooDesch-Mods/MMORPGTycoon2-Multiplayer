@@ -27,6 +27,7 @@
 #include "ui_region_runtime.h"
 #include "ui_price_runtime.h"
 #include "developer_staff/action_native.h"
+#include "developer_staff/construction_native.h"
 #include "npc_probe.h"
 #include "monster_zone_action_runtime.h"
 #include "ui_terrain_runtime.h"
@@ -53,7 +54,7 @@ bool read_ledger(action::Ledger& out,std::string& error) {
 class NativeEngine final:public action::Engine {
     struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;};
     std::map<std::string,Operation> operations_;
-    struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;};
+    struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;developer_staff::construction::LocalJob construction_job;bool construction_confirmed=false;};
     std::map<std::string,BuildOperation> buildings_;
     struct HistoryOperation {action::Request request;action::Binding binding;action::Ledger before,after;
         action::BuildingState object_before,object_after;uint64_t uid=0;bool confirmed=false,retired=false;};
@@ -203,6 +204,31 @@ class NativeEngine final:public action::Engine {
         return action::Outcome::Confirmed;
     }
 public:
+    bool construction_jobs(const action::Binding& binding,const std::string& snapshot,
+                           std::vector<developer_staff::construction::LocalJob>& out,std::string& error){
+        out.clear();if(!current(binding,snapshot,error))return false;
+        std::vector<developer_staff::construction::LocalJob> result;
+        for(const auto& [id,op]:buildings_){
+            if(!op.construction_job.job)continue;
+            if(op.binding!=binding||op.request.snapshot_uuid!=snapshot||op.request.action!=action::Action::PlaceBuilding||
+               op.request.action_uuid!=id||op.request.canonical_record_key!=op.construction_job.building_key||!op.construction_confirmed){
+                error="Construction local Job does not belong to confirmed current PlaceBuilding";return false;}
+            const auto row=world_.rows().find(op.construction_job.building_key);
+            if(row==world_.rows().end()){error="Construction local Job has no current ordered Building row";return false;}
+            auto job=op.construction_job;job.target_alive=row->second.state.alive;
+            job.target_restored=false;
+            if(job.target_alive)for(const auto& [history_id,history]:history_){
+                if(history.confirmed&&history.request.action==action::Action::RedoBuilding&&
+                   history.request.action_uuid==history_id&&history.request.target_action_uuid==id&&
+                   history.binding==binding&&history.request.snapshot_uuid==snapshot&&
+                   history.request.canonical_record_key==job.building_key&&history.uid==job.building_uid&&history.object_after.alive){
+                    job.target_restored=true;break;
+                }
+            }
+            result.push_back(std::move(job));
+        }
+        out=std::move(result);error.clear();return true;
+    }
     action::Outcome perform_place(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& error) {
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
@@ -216,6 +242,14 @@ public:
         world_state::Change change{world_state::Kind::Create,controller.at("host_revision").get<uint64_t>(),
             request.action_uuid,request.canonical_record_key,{},request.building};
         if(world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
+        developer_staff::construction::PlacementBefore construction_before;
+        if(!developer_staff::construction::capture_placement(construction_before,error))return action::Outcome::RejectedNoEffect;
+        for(auto& [prior_id,prior]:buildings_){
+            (void)prior_id;
+            if(!prior.construction_confirmed||!prior.construction_job.job||prior.construction_job.retired)continue;
+            bool present=false;for(const auto& job:construction_before.queue.jobs)if(job.pointer==prior.construction_job.job){present=true;break;}
+            if(!present)prior.construction_job.retired=true;
+        }
         auto& operation=buildings_.emplace(request.action_uuid,BuildOperation{request,binding,before,{},{}}).first->second;
         if(!ui_build_runtime::place(request,operation.state,operation.receipt,error))
             return operation.receipt.value("attempted",false)?action::Outcome::Unknown:action::Outcome::RejectedNoEffect;
@@ -226,6 +260,8 @@ public:
         remove_diagnostics::LocalTarget target;native::BuildingState actual;
         if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
            !scenery_kiss::read_action_prop(uid,actual,error))return action::Outcome::Unknown;
+        if(!developer_staff::construction::finish_placement(construction_before,request.snapshot_uuid,
+                request.canonical_record_key,uid,operation.construction_job,error))return action::Outcome::Unknown;
         operation.normal_scenery=target.normal_scenery;
         world_state::LocalBinding observed;
         if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error))return action::Outcome::Unknown;
@@ -233,6 +269,7 @@ public:
         if(authority&&operation.state!=authority->object_after){error="native client building differs from Host result";return action::Outcome::Unknown;}
         change.after=operation.state;
         if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        operation.construction_confirmed=true;
         return action::Outcome::Confirmed;
     }
     action::Outcome perform_move(const action::Binding& binding,const action::Request& request,
@@ -786,6 +823,15 @@ bool enable_live_state(std::string& error) {
     runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!runtime->day_state->bootstrap(error))return false;runtime->live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);runtime->live_state->bind_economy(*runtime->economy_state);if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return true;
 }
 bool live_state_active() {auto* runtime=published_runtime.load(std::memory_order_acquire);return runtime&&runtime->live_state!=nullptr;}
+bool construction_jobs(const action::Context& expected,const action::Binding& binding,
+                       std::vector<developer_staff::construction::LocalJob>& out,std::string& error){
+    out.clear();auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring){error="Construction local Jobs require current bound Mainthread owner";return false;}
+    action::Context context;if(!runtime->session.current(context,error))return false;
+    if(context!=expected||context!=runtime->controller.bound_context()||binding!=runtime->controller.bound_binding()){
+        error="Construction local Jobs current Session/Controller Binding differs";return false;}
+    return runtime->engine.construction_jobs(binding,context.snapshot_uuid,out,error);
+}
 bool network_binding(const std::string& snapshot,action::Binding& out,std::string& error){
     out={};auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="network admission requires bound Controller Mainthread";return false;}

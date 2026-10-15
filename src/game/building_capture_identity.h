@@ -31,7 +31,7 @@ struct Status {
 };
 bool initialize(std::string& error);
 void* capture_entrypoint();
-bool begin(const std::string& capture_uuid, uint64_t session_epoch, std::string& error, const std::string& world_name="MPTestSession");
+bool begin(const std::string& capture_uuid, uint64_t session_epoch, std::string& error, const std::string& world_name="MPTestSession", bool bind_snapshot_identities=true);
 // Hook invokes original exactly once between these callbacks, even if the ticket is zero.
 Ticket capture_before(const void* array, void* writer, void* save_context) noexcept;
 void capture_after(Ticket ticket, const void* array, void* writer, void* save_context) noexcept;

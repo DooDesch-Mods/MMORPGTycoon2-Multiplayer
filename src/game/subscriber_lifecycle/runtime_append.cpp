@@ -1,3 +1,4 @@
+#include "developer_staff/construction_links.h"
 #include "runtime_append.h"
 #include "building_reference_pins.h"
 #include "append_calls.h"
@@ -598,5 +599,7 @@ bool probe(const std::filesystem::path& root,const std::string& basename,const s
         return apply_graph(Json::parse(content),origin,result,e);
     }catch(const std::exception& x){return fail(e,std::string("Subscriber artifact read original=")+x.what());}
 }
+
+#include "developer_staff/construction_links.inc"
 
 }

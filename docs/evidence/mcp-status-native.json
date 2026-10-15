@@ -50,5 +50,23 @@
   "ci": "The three affected suites run in both source and beta workflows.",
   "private_fixture_content_committed": false,
   "gameplay_dll_rebuild_required": false,
-  "full_coop_proven": false
+  "full_coop_proven": false,
+  "native_lobby_followup": {
+    "runtime_reader_sha256": "0a8d4a170c3853fb4bb19ff5c22610004646ce1160cffd4c803ca08e247721de",
+    "native_evidence": "artifacts/acceptance/f4b3f156-ca46-4412-b6df-8089bd362b48/summary.json",
+    "native_evidence_sha256": "88dd38019626f171efc9c07d190249f56af3308c6518b2d723b97d37c0fa9ea3",
+    "original_response_bytes": 284552,
+    "request_id": "e8413e58-4b79-4d5a-87b9-d5f456c70f58",
+    "known_large_operations": [
+      "status",
+      "inspect_engine",
+      "read_native_lobby"
+    ],
+    "response_limit_bytes": 20971520,
+    "ordinary_response_and_input_limit_bytes": 262144,
+    "original_pending_acknowledged_without_replay": true,
+    "fresh_large_lobby_then_ordinary_history_confirmed": true,
+    "affected_tests_passed": 5,
+    "source_receipt": "artifacts/mcp_lobby_promotion/20261015T190421665858Z/receipt.json"
+  }
 }

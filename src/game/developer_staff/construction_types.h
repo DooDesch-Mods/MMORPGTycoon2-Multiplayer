@@ -1,0 +1,37 @@
+#pragma once
+#include <array>
+#include <cstdint>
+#include <string>
+#include <vector>
+namespace mt2mp::game::developer_staff::construction {
+struct ActorPose {
+    int32_t id=-1,region_id=-1;
+    std::array<float,4> orientation{0,0,0,1};
+    std::array<float,3> scale{1,1,1};
+    bool operator==(const ActorPose&)const=default;
+};
+// The key is the existing ordered PlaceBuilding action's Building key.
+// The local Job occurrence is recorded during that original creation, not
+// discovered later from a queue index or an untrusted native Job ID.
+struct JobState {
+    std::string building_key;
+    bool present=false,active=false;
+    int32_t developer_id=-1;
+    bool operator==(const JobState&)const=default;
+};
+struct State {
+    std::vector<ActorPose> actors;
+    std::vector<JobState> jobs;
+    bool operator==(const State&)const=default;
+};
+struct LocalJob {
+    std::string building_key;
+    uintptr_t job=0;
+    uint64_t building_uid=0;
+    bool target_alive=true;
+    bool retired=false;
+    uintptr_t building=0,building_proxy=0,region=0;
+    bool target_restored=false;
+    bool operator==(const LocalJob&)const=default;
+};
+}

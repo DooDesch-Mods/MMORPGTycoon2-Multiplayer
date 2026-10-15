@@ -141,9 +141,13 @@ include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_retirement_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/developer_job_census_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_gameplay_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/developer_construction_portable_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/developer_construction_native_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/monster_zone_action_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_job_target_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_movement_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/snapshot_capture_policy_checks.cmake")

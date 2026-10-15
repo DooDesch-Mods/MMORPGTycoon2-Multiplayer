@@ -2,6 +2,7 @@
 #include "developer_staff/probe.h"
 #include "developer_staff/shared_state.h"
 #include "developer_staff/frame_apply.h"
+#include "developer_staff/construction_native.h"
 #include "developer_staff/ui_capture.h"
 #include "developer_staff/owned_ui_entry.h"
 #include "session_provider.h"
@@ -15,6 +16,7 @@ namespace action=mt2mp::action_session;
 namespace staff=mt2mp::game::developer_staff;
 namespace fixture {
 unsigned checks=0,ui_calls=0,count_calls=0,reads=0;
+unsigned construction_preflights=0,construction_applies=0;bool jobs_ok=true,construction_ok=true,construction_partial=false;
 bool code_ok=true,window_ok=true,before_ok=true,after_ok=true,immediate_ok=true;
 bool ui_accepted=true,ui_returned=true,ui_clean=true,ui_label=true,ui_effect=true;
 bool wrong_owner=false,wrong_immediate_actor=false,wrong_final_actor=false,count_fault=false;
@@ -35,6 +37,7 @@ namespace mt2mp {struct Config {bool local_test=true;static Config& instance(){s
 namespace mt2mp::action_session {Session& selected_session(){return fixture::session;}}
 namespace mt2mp::game::typed_action_runtime {
 nlohmann::json controller_status(){return fixture::controller;}
+bool construction_jobs(const action::Context&,const action::Binding&,std::vector<staff::construction::LocalJob>& out,std::string& e){out.clear();if(!fixture::jobs_ok){e="actual local Job owner changed";return false;}return true;}
 bool network_binding(const std::string&,action::Binding& out,std::string& e){if(!fixture::network_ok){e="original ready binding failure";return false;}out=fixture::binding;return true;}
 }
 namespace mt2mp::game::hud_time_runtime {bool verify_window_show_hook(uintptr_t,std::string&){return true;}}
@@ -56,6 +59,10 @@ bool apply(const Read&,uintptr_t,uintptr_t actor,Field field,int32_t value,Recei
     if(fixture::scalar_ledger_change)++fixture::current.pin.ledger.line_counts[19];
     return true;
 }
+}
+namespace construction {
+bool preflight(const action::Context&,const action::Binding&,const Capture&,const PoolState&,const std::vector<LocalJob>&,std::string& e){++fixture::construction_preflights;if(!fixture::construction_ok)e="actual construction preflight cause";return fixture::construction_ok;}
+bool apply(const action::Context&,const action::Binding&,const Capture&,const PoolState& target,const std::vector<LocalJob>&,bool& attempted,bool& unknown,std::string& e){++fixture::construction_applies;attempted=true;unknown=fixture::construction_partial;if(unknown){e="actual construction partial native effect";return false;}fixture::pool=target;return true;}
 }
 namespace action_runtime {
 using json=nlohmann::json;
@@ -104,7 +111,7 @@ namespace runtime=staff::action_runtime;
 constexpr const char* id="11111111-1111-4111-8111-111111111111";
 constexpr const char* snapshot="22222222-2222-4222-8222-222222222222";
 void reset(runtime::Runtime& owner,bool hire=true){
-    using namespace fixture;ui_calls=count_calls=reads=0;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
+    using namespace fixture;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
     ui_accepted=ui_returned=ui_clean=ui_label=ui_effect=true;wrong_owner=wrong_immediate_actor=wrong_final_actor=count_fault=false;
     session_ok=role_ok=display_ok=true;carried=scalar_ledger_change=false;scalar_calls=fail_scalar=display_calls=0;cause.clear();context={};context.role=action::Role::Host;context.snapshot_uuid=snapshot;
     controller={{"pending",true},{"action_uuid",id}};current={};pool={};pool.count=hire?1:2;
@@ -163,6 +170,18 @@ int main(){try{
         need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&attempted&&unknown&&owner.frame_locked&&!cause.empty(),"actual frame partial failure was not locked Unknown");
         const auto original=cause;need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&!attempted&&scalar_calls==1&&cause==original,"locked frame replayed a native property or replaced original cause");
         need(!runtime::preflight_frame(context,binding,target,cause)&&cause==original,"locked frame preflight hid its retained original cause");}
+    const auto construction_target=[&](){auto x=pool;staff::construction::State extension;for(const auto& row:x.rows)extension.actors.push_back({row.id,-1,{0,0,0,1},{1,1,1}});extension.jobs.push_back({"action:11111111-1111-4111-8111-111111111111",true,false,-1});x.construction=extension;return x;};
+    reset(owner);context.role=action::Role::Client;target=construction_target();
+    need(runtime::preflight_frame(context,binding,target,cause)&&construction_preflights==1&&!scalar_calls,"construction preflight missed native route");
+    need(runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&attempted&&!unknown&&construction_applies==1&&display_calls==1&&!scalar_calls,"construction apply missed native route or used scalar fallback");
+    auto dropped=pool;dropped.construction.reset();need(!runtime::adopt_frame(context,binding,dropped,attempted,unknown,cause)&&!attempted&&construction_applies==1,"retained construction silently dropped");
+    reset(owner);context.role=action::Role::Client;target=construction_target();jobs_ok=false;
+    need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&!attempted&&!construction_applies&&cause=="actual local Job owner changed","binding failure lost original cause");
+    reset(owner);context.role=action::Role::Client;target=construction_target();construction_partial=true;
+    need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&attempted&&unknown&&owner.frame_locked,"construction partial effect did not lock");
+    const auto construction_cause=cause;need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&!attempted&&construction_applies==1&&cause==construction_cause,"construction Unknown replayed or cause replaced");
+    reset(owner);context.role=action::Role::Client;target=construction_target();display_ok=false;
+    need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&attempted&&unknown&&owner.frame_locked&&construction_applies==1,"construction cache failure not Unknown");
     const auto ui_args=[](const std::string& command="Hire"){return nlohmann::json{{"command",command},{"token",id},{"native_origin_uuid",snapshot},{"epoch",uint64_t(7)},{"generation",uint64_t(9)},{"expected_count",1}};};
     const auto ui_ready=[&](){reset(owner);context.role=action::Role::Client;controller={{"initialized",true},{"started",true},{"pending",false},{"locked",false}};};
     nlohmann::json ui;

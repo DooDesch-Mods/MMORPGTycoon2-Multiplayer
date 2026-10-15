@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "scope": "One normal shared SmallInn placement, original Host construction assignment and natural completion adopted by the paused Client",
+  "passed": true,
+  "full_coop_proven": false,
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "c52efe62e7c48a48b5ccfaa3507a612cb4be9e6832537488e72d9232476ac98d",
+  "runtime_run_id": "de51e8c3-fb96-4807-b1cb-2558f60da72a",
+  "source_base_commit": "020f636f46bc25d5ee1a1a708a918d580e58c93b",
+  "build": "artifacts/build_history/20261015T180646457204Z",
+  "source_receipt": "artifacts/construction_promotion/20261015T180643054905Z/receipt.json",
+  "native_evidence": {
+    "placement": {
+      "path": "artifacts/acceptance/287d2381-63cc-45a5-8435-878c35e75cb3/summary.json",
+      "sha256": "b0ca0c64ace92493294c7cac23e0cf71558d2bc82f77cb19c45c8d1e09e3603c"
+    },
+    "assignment": {
+      "path": "artifacts/acceptance/e9685cd5-02c9-404d-8b38-ddc4921543ed/summary.json",
+      "sha256": "b9b5776a195ee2577da05d82c20db513bf7abba9a3fc492332474902960690b8"
+    },
+    "completion": {
+      "path": "artifacts/acceptance/de150380-05c3-412c-b587-0242c99f8232/summary.json",
+      "sha256": "ad4fa878df8cb42ef9f417909924fd91145432576a1c562133d9bb14ddd95966"
+    }
+  },
+  "placement": {
+    "action_uuid": "b30e8217-5656-41bb-920a-7a146a44bde7",
+    "origin": "client-1",
+    "type": "SmallInn",
+    "variant": "base",
+    "x": 8020,
+    "z": 8550,
+    "executions_per_peer": 1,
+    "host_ack_mask": 3
+  },
+  "assignment": {
+    "ordinary_host_scale": 1,
+    "developer_id": 0,
+    "queue_count_each_peer": 1,
+    "both_reciprocal_job_links": true,
+    "both_developers_outdoor": true,
+    "all_50_actor_state_pose_and_membership_equal": true,
+    "full_ordered_developer_pool_equal": true,
+    "all_20_ledger_groups_equal": true
+  },
+  "completion": {
+    "ordinary_host_scale": 9,
+    "queue_count_each_peer": 0,
+    "all_50_actor_state_pose_and_membership_equal": true,
+    "full_ordered_developer_pool_equal": true,
+    "all_20_ledger_groups_equal": true,
+    "client_clock_scale": 0,
+    "forced_job_callback": false,
+    "saved_buildings": {
+      "host": {
+        "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\host\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-f1d52d96-d887-4125-979a-9a032431231c.vrz",
+        "sha256": "36228bcfcdd1f9722240d80cb2edfcacbd6650bfca7ae48cfe53a0004a34a03d",
+        "bytes": 241201,
+        "fully_consumed": true,
+        "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+        "transform": {
+          "translation": [
+            8020.0,
+            70.83831787109375,
+            8550.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "fields": {
+          "type": [
+            "SmallInn"
+          ],
+          "variant": [
+            "base"
+          ],
+          "state": [
+            "online"
+          ],
+          "active": [
+            "true"
+          ],
+          "powered": [
+            "true"
+          ],
+          "shard": [
+            2
+          ],
+          "region": [
+            33
+          ]
+        }
+      },
+      "client-1": {
+        "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\client-1\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-91554f16-cd40-45ac-8653-16653e01bc06.vrz",
+        "sha256": "1833c2270893578b577a6bcdb43c4a997256be988fa332f84176a7f846d39305",
+        "bytes": 241495,
+        "fully_consumed": true,
+        "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+        "transform": {
+          "translation": [
+            8020.0,
+            70.83831787109375,
+            8550.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "fields": {
+          "type": [
+            "SmallInn"
+          ],
+          "variant": [
+            "base"
+          ],
+          "state": [
+            "online"
+          ],
+          "active": [
+            "true"
+          ],
+          "powered": [
+            "true"
+          ],
+          "shard": [
+            2
+          ],
+          "region": [
+            33
+          ]
+        }
+      }
+    },
+    "saves_distributed": false,
+    "both_native_record_streams_fully_consumed": true
+  },
+  "affected_tests": [
+    "developer_pool",
+    "developer_controller",
+    "developer_frame",
+    "developer_action",
+    "developer_interop",
+    "developer_frame_apply",
+    "developer_construction_pool",
+    "developer_construction_placement",
+    "developer_construction_plan",
+    "developer_construction_retire",
+    "developer_construction_links"
+  ],
+  "media": [
+    {
+      "peer": "host",
+      "draft_path": "_drafts/media/construction-completed-host.bmp",
+      "file_sha256": "4d81ce92ceec8d2baa18943814babd592af12f3974612350dbcba5beb4e7d793",
+      "native_pixel_sha256": "d5f7f16c1f1f362903a4f6b45e892b9b0b6187f8506693409647151f2f185c01",
+      "width": 1280,
+      "height": 720,
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "draft_path": "_drafts/media/construction-completed-client-1.bmp",
+      "file_sha256": "1f879ae24296ab9222f7e27e940b754391084281968dbd7684202a710684825f",
+      "native_pixel_sha256": "461aef329d565e88e5381f07557db57941bec2e76188ed93f4abd69a8c077495",
+      "width": 1280,
+      "height": 720,
+      "visually_inspected": true
+    }
+  ],
+  "limits": [
+    "This evidence covers the normal SmallInn/type1 construction path and normal pending Remove in the observed root Region.",
+    "Placement Undo/Redo lifetimes still need native replica acceptance on the current candidate.",
+    "Other Job families and cross-Region worker changes remain unfinished.",
+    "The ordinary Bug payload is not yet authoritative across peers; separate native save evidence records the divergence.",
+    "Four players, large-world and separate-account online acceptance remain open.",
+    "This development candidate has not been released as a new beta."
+  ],
+  "media_evidence": {
+    "path": "artifacts/acceptance/440c0894-f794-4c74-b261-060daa2b5cc7/summary.json",
+    "sha256": "69dda5a43d0007b3133f1ab1ecd7067a63be7e5704cb6dbe81e0d84bff1dfbf0"
+  },
+  "normal_remove_and_retirement": {
+    "mod_sha256": "7ac7a6ea6a6d19ceca31a12d55488abcfbb39c4c38d30df8414516249afbb96b",
+    "runtime_run_id": "41842bdf-ef76-4c27-94c8-abc240e2a3b7",
+    "building_key": "action:3d93ab6c-3421-40f8-9b1d-52c04bb754b2",
+    "remove_action_uuid": "3d3f35d0-8675-4401-8c39-e778b87e5e00",
+    "native_evidence": {
+      "remove": {
+        "path": "artifacts/acceptance/7a31e581-0aa2-4b92-9d8f-934a99be1c9a/summary.json",
+        "sha256": "9a351b3c9518252b106733002bc85a38069e04f3a65540fd963fe6eea103f6ab"
+      },
+      "cleanup": {
+        "path": "artifacts/acceptance/61bb1837-056f-46de-bf20-70bbcd573ff0/summary.json",
+        "sha256": "48ffa595e523e77c205d341dd8b95022626e43e7c3dcab829b1f93aed47b893e"
+      }
+    },
+    "original_client_remove_once_each_peer": true,
+    "host_ack_mask": 3,
+    "refund_each_peer": 400,
+    "paused_original_expired_queue_count_each_peer": 1,
+    "original_host_start_read_pause_once": true,
+    "forced_job_callback": false,
+    "final_queue_count_each_peer": 0,
+    "all_50_actor_state_pose_membership_equal": true,
+    "full_ordered_developer_pool_equal": true,
+    "full_20_ledger_groups_equal": true,
+    "cached_dead_building_receiver_dereferenced": false,
+    "client_selected_retirement_confirmed": true
+  }
+}

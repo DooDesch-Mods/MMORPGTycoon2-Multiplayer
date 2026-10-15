@@ -174,6 +174,49 @@ class StatusPublicationTests(unittest.TestCase):
         published.assert_called_once()
         self.assertFalse((self.diagnostics/'request.lock').exists())
 
+    def test_large_native_lobby_response_is_accepted_once(self):
+        request_id='01234567-89ab-cdef-0123-456789abcdef'
+        self.status['capabilities']['read_native_lobby']=True
+        atomic_json(self.diagnostics/'status.json',self.status)
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        payload=self.sized_json(response,400832)
+        (self.diagnostics/'response.json').write_bytes(payload)
+        with patch('runtime.uuid.uuid4',return_value=request_id),patch('runtime.atomic_json',wraps=atomic_json) as published:
+            self.assertEqual(dispatch(self.runtime,'game_read_native_lobby',{}),json.loads(payload))
+        published.assert_called_once()
+        self.assertFalse((self.diagnostics/'request.lock').exists())
+
+    def test_large_pending_native_lobby_response_observes_without_replay(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='read_native_lobby'))
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        payload=self.sized_json(response,400832)
+        (self.diagnostics/'response.json').write_bytes(payload)
+        with patch('runtime.atomic_json') as published:
+            self.assertEqual(self.runtime.observe_pending(),{'pending':False,'response':json.loads(payload)})
+        published.assert_not_called()
+        self.assertFalse((self.diagnostics/'request.lock').exists())
+
+    def test_native_lobby_above_ceiling_retains_error_and_lock(self):
+        request_id='01234567-89ab-cdef-0123-456789abcdef'
+        self.status['capabilities']['read_native_lobby']=True
+        atomic_json(self.diagnostics/'status.json',self.status)
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        (self.diagnostics/'response.json').write_bytes(self.sized_json(response,MAX_STATUS_JSON+1))
+        with patch('runtime.uuid.uuid4',return_value=request_id),patch('runtime.atomic_json',wraps=atomic_json) as published:
+            with self.assertRaises(RuntimeErrorDetail) as caught:
+                dispatch(self.runtime,'game_read_native_lobby',{})
+        self.assertEqual(caught.exception.code,'oversize_json')
+        self.assertIn(str(MAX_STATUS_JSON),str(caught.exception))
+        self.assertTrue((self.diagnostics/'request.lock').exists())
+        published.assert_called_once()
+        with patch('runtime.atomic_json') as replay:
+            with self.assertRaises(RuntimeErrorDetail) as caught:
+                self.runtime.observe_pending()
+        self.assertEqual(caught.exception.code,'oversize_json')
+        replay.assert_not_called()
+        self.assertTrue((self.diagnostics/'request.lock').exists())
+
     def test_status_ceiling_exact_and_one_byte_over_preserve_error(self):
         payload=self.sized_json(self.status,MAX_STATUS_JSON)
         with patch('runtime.shared_open',side_effect=self.reader([payload])):

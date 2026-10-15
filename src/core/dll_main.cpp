@@ -2047,7 +2047,8 @@ static void diagnostics_tick() {
             if(!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
             snapshot_path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,id);
             std::filesystem::create_directories(snapshot_path.parent_path());
-            if(!game::building_capture_identity::begin(id,Config::instance().session_id,error,world_name)) throw std::runtime_error("building capture begin failed before native save: "+error);
+            const bool bind_snapshot_identities=distribute||net::current_snapshot_id().empty()||!net::current_world_epoch();
+            if(!game::building_capture_identity::begin(id,Config::instance().session_id,error,world_name,bind_snapshot_identities)) throw std::runtime_error("building capture begin failed before native save: "+error);
             snapshot_observer_begun=true;
             building_capture_original_start=building_original_attempted.load();
             building_capture_return_start=building_original_returned.load();

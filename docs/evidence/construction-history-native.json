@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "scope": "Original queued construction Job lifetime across one Client placement Undo, Host Redo and ordinary Host cleanup",
+  "passed": true,
+  "construction_replica_proven": false,
+  "full_coop_proven": false,
+  "mod_sha256": "c786fd81525f89d105d384a4629de1f0b9017e067cd2ad68c911f8e19a89e276",
+  "runtime_run_id": "a63eb93e-c09e-4ae4-960f-c721b13ae788",
+  "fixture_load": "artifacts/acceptance/f2e4af1f-1306-4181-a713-6d44ebc65005/summary.json",
+  "placement": "artifacts/acceptance/692f077f-88c4-4003-a6eb-f95c637a1747/summary.json",
+  "native_history": "artifacts/acceptance/fb6cc009-2102-4c53-bbb4-5f4d99692fef/summary.json",
+  "actions": {
+    "place": "bf8f904b-e165-4390-acee-fe132438c349",
+    "undo": "0e0fda2d-f445-4568-9f83-701244f53f48",
+    "redo": "2164e307-9aee-4ed0-bf85-df6e04825ddc",
+    "each_original_history_action_once_per_peer": true,
+    "host_ack_mask_each": 3,
+    "canonical_key": "action:bf8f904b-e165-4390-acee-fe132438c349",
+    "native_uid_each_phase": {"host": 7436, "client-1": 3725},
+    "binding_revoked_each_phase": [false, true, false],
+    "full_pose_and_20_ledger_groups_checked": true
+  },
+  "actual_jobs_each_peer": {
+    "after_place": {"queue_count": 1, "live_building_targets": 1, "expired_building_targets": 0},
+    "after_undo": {"queue_count": 1, "live_building_targets": 0, "expired_building_targets": 1},
+    "after_redo": {"queue_count": 1, "live_building_targets": 0, "expired_building_targets": 1},
+    "clock_scale": 0,
+    "new_job_created_by_redo": false,
+    "old_weak_target_repaired_by_redo": false,
+    "note": "The cached Building receiver and proxy remain present; the lifetime proxy target is null. Numeric UID restoration does not prove the original receiver lifetime survived."
+  },
+  "restored_building": {
+    "native_local_saves": "artifacts/acceptance/216d8cf4-6ea0-46eb-bf75-54aff03390a7/summary.json",
+    "complete_decode": "artifacts/acceptance/216d8cf4-6ea0-46eb-bf75-54aff03390a7/redone-active.json",
+    "unique_record_match": "SmallInn/base at x8110/z8610 in each owned native save",
+    "active_each_peer": false,
+    "state_each_peer": "online",
+    "powered_each_peer": true,
+    "saved_translation_each_peer": [8110.0, 78.82322692871094, 8610.0],
+    "live_placement_y_is_distinct": 79.79767608642578,
+    "host": {
+      "snapshot_id": "d7d26ec1-e590-4210-840f-e647707065a6",
+      "bytes": 241307,
+      "sha256": "0b67d3372ba8a0baeba9d19ac40ffa69f1fcce07f6cdb2a8387224709b31714f",
+      "record_stream_fully_consumed": true
+    },
+    "client-1": {
+      "snapshot_id": "ecb01a2b-2678-4850-9ee4-cfad885febef",
+      "bytes": 241246,
+      "sha256": "7b10b4843a243b98c551548ec18025ad8defb26a718fb9e5427d3d990519be40",
+      "record_stream_fully_consumed": true
+    },
+    "saves_distributed_or_loaded": false
+  },
+  "ordinary_host_cleanup": {
+    "evidence": "artifacts/acceptance/270b802f-bf49-4b0e-8d81-90668adf5499/summary.json",
+    "sequence": ["normal scale1", "read original Developer and Job census", "pause0"],
+    "during_and_after_queue_count": 0,
+    "new_work_created": false,
+    "developer0": {"state": 0, "active": true, "employed": true, "on_map": false, "job_link": false},
+    "forced_cleanup_executed": false,
+    "fully_decoded_host_save": {
+      "snapshot_id": "2fc4d4e9-cacb-45db-96f3-50f13501d708",
+      "bytes": 241182,
+      "sha256": "06d044c7918b40965cdc0fdf424bc536333fbb87efdb611c398eac6d9d0ab7ad",
+      "restored_building_active": false,
+      "report": "artifacts/acceptance/270b802f-bf49-4b0e-8d81-90668adf5499/redone-active.json"
+    }
+  },
+  "replica_requirement": "Preserve the confirmed restored inactive Building after the expired Job disappears. Do not infer activation, recreate a Job or rebind the expired weak target from numeric UID equality. Confirmed history provenance can identify the restored target without a new registry.",
+  "limits": [
+    "This measures the original engine behavior for an unfinished SmallInn. It does not fix that original inactive Redo result.",
+    "Native construction state adoption is still a separate pending acceptance.",
+    "Undo restoration of an explicit Remove remains unfinished."
+  ]
+}

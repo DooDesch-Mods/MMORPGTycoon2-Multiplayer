@@ -1,5 +1,7 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
+#include "construction_types.h"
+#include <optional>
 #include <array>
 #include <cstdint>
 #include <string>
@@ -15,6 +17,7 @@ struct PoolState {
     int32_t count=0;
     std::vector<PoolRow> rows;
     std::vector<int32_t> indoor,outdoor;
+    std::optional<construction::State> construction;
     bool operator==(const PoolState&)const=default;
 };
 bool valid(const PoolState&,std::string&);

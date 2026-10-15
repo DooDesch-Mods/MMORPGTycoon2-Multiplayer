@@ -63,6 +63,8 @@ std::vector<Item> sealing;
 std::vector<Binding> sealed_readbacks;
 size_t seal_cursor = 0;
 bool armed = false;
+// Undistributed diagnostic saves must not replace the active shared NPC/Quest keys.
+bool capture_snapshot_identities = true;
 std::atomic<bool> emergency_failure = false;
 struct WorldWitness {
     void* game = nullptr;
@@ -317,7 +319,7 @@ bool initialize(std::string& error) {
     error.clear(); return true;
 }
 void* capture_entrypoint() { std::lock_guard lock(mutex); return image ? reinterpret_cast<void*>(image + entry_rva) : nullptr; }
-bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const std::string& world_name) {
+bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const std::string& world_name, bool bind_snapshot_identities) {
     std::lock_guard lock(mutex);
     if (!image || armed || !valid_uuid(uuid) || !net::snapshot_world_path::valid_folder(world_name)) { error = "begin requires ready resolver, valid UUID and no active capture"; LOG_ERROR("[BuildingCapture] {}", error); return false; }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
@@ -341,11 +343,14 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const st
     WorldWitness candidate_world;
     if (!read_world_witness(candidate_world, error)) { LOG_ERROR("[BuildingCapture] begin world witness rejected: {}", error); return false; }
     clear_private(); current = {}; emergency_failure = false; current.state = "armed"; current.capture_uuid = uuid; current.session_epoch = epoch;
+    capture_snapshot_identities = bind_snapshot_identities;
     bound_world = candidate_world; current.world_witness_bound = true; current.world_witness_current = true;
     current.game_thread_id = GetCurrentThreadId(); filename = net::snapshot_world_path::capture(world_name, uuid); armed = true;
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if (!npc_quest_target_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; return fail(error,"Quest target capture arm failed: "+error); }
-    if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }
+    if (capture_snapshot_identities) {
+        if (!npc_quest_target_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; return fail(error,"Quest target capture arm failed: "+error); }
+        if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }
+    }
 #endif
     error.clear(); LOG_INFO("[BuildingCapture] Armed capture={} epoch={} game_thread={}", uuid, epoch, current.game_thread_id); return true;
 }
@@ -486,8 +491,10 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
         sealed_readbacks[index].building = std::move(building); ++current.final_readbacks_checked;
     }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if (!npc_quest_target_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("Quest target snapshot seal failed: "+error);
-    if (!npc_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("NPC identity snapshot seal failed: "+error);
+    if (capture_snapshot_identities) {
+        if (!npc_quest_target_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("Quest target snapshot seal failed: "+error);
+        if (!npc_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("NPC identity snapshot seal failed: "+error);
+    }
 #endif
     current.buildings = std::move(sealed_readbacks);
     current.state = "confirmed"; current.bindings_confirmed = true; armed = false; clear_private(); result = current; error.clear();
@@ -497,8 +504,10 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
 }
 void cancel(const std::string& reason) {
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    npc_quest_target_runtime::cancel(reason);
-    npc_saved_identity_runtime::cancel(reason);
+    if (capture_snapshot_identities) {
+        npc_quest_target_runtime::cancel(reason);
+        npc_saved_identity_runtime::cancel(reason);
+    }
 #endif
     std::lock_guard lock(mutex); armed = false; clear_private(); bound_world = {}; current.world_witness_bound = false; current.world_witness_current = false; current.state = "cancelled"; current.error = reason; current.buildings.clear(); current.bindings_confirmed = false; LOG_INFO("[BuildingCapture] Cancelled capture={} reason={}", current.capture_uuid, reason); }
 bool stream_owner(void* writer,StreamOwner& result,bool& own,std::string& error) {

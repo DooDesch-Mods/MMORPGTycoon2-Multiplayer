@@ -1,0 +1,88 @@
+{
+  "schema_version": 1,
+  "scope": "Undistributed native snapshots preserve current shared NPC and Quest identities",
+  "passed": true,
+  "full_coop_proven": false,
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "7ac7a6ea6a6d19ceca31a12d55488abcfbb39c4c38d30df8414516249afbb96b",
+  "runtime_run_id": "41842bdf-ef76-4c27-94c8-abc240e2a3b7",
+  "cause": "Local BuildingCapture armed and sealed SavedNPC and QuestTargets with a new local UUID/SHA while the active network snapshot retained its old UUID.",
+  "change": "Preserve existing shared observers during undistributed captures of an active network world. First capture, distributed capture and all native identity guards remain unchanged.",
+  "source_receipt": "artifacts/local_capture_promotion/20261015T184242013923Z/receipt.json",
+  "build": "artifacts/build_history/20261015T184259063719Z",
+  "automated_check": {
+    "name": "snapshot_capture_policy",
+    "canonical_passed": true,
+    "msvc_w4_wx": true,
+    "release_assertions_enabled": true,
+    "covered": [
+      "local success and cancellation preserve both observers",
+      "distributed and first capture still bind observers",
+      "original arm and seal failure causes remain visible"
+    ]
+  },
+  "native_evidence": {
+    "continuity": {
+      "path": "artifacts/acceptance/5d5a79d6-70c7-4ee5-be99-32fd9ea875fd/summary.json",
+      "sha256": "44ee782291b00f531d2a9ac91ed907917e219f7fb2334e9710de8ff1ddcdf8ba"
+    },
+    "post_capture_placement": {
+      "path": "artifacts/acceptance/d411f8a1-90f7-479d-b031-98c88382d668/summary.json",
+      "sha256": "5f4583c80002a2761e296e14cadc8b371dd1918ec358809d533f53ad32c21cbc"
+    }
+  },
+  "both_local_saves": {
+    "host": {
+      "snapshot_id": "d78ee2d0-8982-4e93-9150-20a61b48cf95",
+      "sha256": "8b7c43bfc4ead4367a875f2a2a1cdc4a9532c47251a42b903583cef75bf25938",
+      "bytes": 241114,
+      "distribution_requested": false
+    },
+    "client-1": {
+      "snapshot_id": "7912cbff-b775-4a20-9f63-a8c6e62f3689",
+      "sha256": "3b7177656b9e6953bc5236290fd87b3902ccb68353a9fa018a27a5cf3b3c0e59",
+      "bytes": 241040,
+      "distribution_requested": false
+    }
+  },
+  "confirmed_after_each_save": [
+    "same active snapshot UUID and SHA",
+    "same NPC canonical keys and local lifetime IDs",
+    "same Quest target pool SHA and canonical destinations",
+    "same complete observed NPC identity and Quest fields",
+    "strict native NPC and Quest current-world guards succeeded",
+    "admitted Playing state and usable Host-state capture"
+  ],
+  "post_capture_normal_action": {
+    "type": "SmallInn",
+    "origin": "client-1",
+    "action_uuid": "3d93ab6c-3421-40f8-9b1d-52c04bb754b2",
+    "executions_per_peer": 1,
+    "host_ack_mask": 3,
+    "one_original_construction_job_each_peer": true
+  },
+  "saves_replayed": false,
+  "retained_failures": [
+    {
+      "acceptance": "b2cd7209-6832-4e8d-8a9f-ccf37689522f",
+      "cause": "Original identity mismatch after local saves; next placement rejected before mutation."
+    },
+    {
+      "acceptance": "0750c703-8770-4a87-94af-2b00fd4d27bb",
+      "cause": "Preparation exceeded the harness60s observation bound. Native loading completed and Playing was later confirmed; no load replay."
+    },
+    {
+      "acceptance": "7998ebc8-1ae0-478b-918c-d2dbf2f07a1b",
+      "cause": "Pre-save harness incorrectly interpreted the pause multiplier as actual time scale. No save executed; actual Clock0 was read directly in the next test."
+    },
+    {
+      "acceptance": "e223068b-d45f-44d8-ad6d-ec2d0c25e8da",
+      "cause": "Both saves and strict identity reads succeeded. Harness compared asynchronous NPC poses as an identity invariant. Retained acknowledgements were finalized without replay; pose changes remain in the evidence."
+    }
+  ],
+  "limits": [
+    "This proves the diagnostic capture path, not full persistence or continuous simulation acceptance.",
+    "Normal autosaves do not arm these capture observers.",
+    "Asynchronous NPC pose changes are retained separately; existing NPC pose acceptance remains scoped to its own evidence."
+  ]
+}
