@@ -16,12 +16,30 @@ class TutorialObserverTests(unittest.TestCase):
         self.assertIs(dispatch(runtime,"game_tutorial_startingpoint",args),receipt)
         runtime.request.assert_called_once_with("tutorial_startingpoint",args)
 
+    def test_staff_state_preserves_effectless_pending_details(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"client_staff_state","expected_development":{"project":{"present":True}}}
+        receipt={"attempted":False,"returned":True,"confirmed":True,"unknown":False,"read_only":True,"ready":False,
+                 "cause":"pips owner=null","ui":{"pips_owner":"null","button_toggle":1,"available_workers":1}}
+        runtime=Mock();runtime.request.return_value=receipt
+        self.assertIs(dispatch(runtime,"game_tutorial_startingpoint",args),receipt)
+        runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+
+    def test_staff_has_no_arbitrary_worker_or_button_argument(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"client_staff_one","expected_development":{"project":{"present":True}}}
+        for bad in ({**args,"desired_workers":2},{**args,"button":42},{**args,"operation":"client_staff_two"}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_startingpoint",bad)
+            runtime.request.assert_not_called()
+
     def test_startingpoint_client_ui_preserves_submission_not_completion(self):
         good={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"client_commit","expected_development":{"project":{"present":True}}}
         receipt={"attempted":True,"returned":True,"confirmed":True,"unknown":False,"submitted":True,
                  "action_uuid":"f473438a-510a-4f85-8337-b4e154ea15d6","host_completion_confirmed":False}
-        for operation in ("client_show","client_commit","client_research_show","client_research"):
+        for operation in ("client_show","client_commit","client_research_show","client_research","client_staff_show","client_staff_one"):
             with self.subTest(operation=operation):
                 runtime=Mock();runtime.request.return_value=receipt
                 args={**good,"operation":operation}
@@ -39,7 +57,7 @@ class TutorialObserverTests(unittest.TestCase):
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}

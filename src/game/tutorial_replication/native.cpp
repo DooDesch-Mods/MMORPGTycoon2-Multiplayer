@@ -2,6 +2,8 @@
 #include "owned_sequence_entry.h"
 #include "owned_commit_entry.h"
 #include "start_capture.h"
+#include "staff_apply.h"
+#include "owned_staff_entry.h"
 #include "start_apply.h"
 #include "start_window.h"
 #include "start_presentation.h"
@@ -39,9 +41,11 @@ Call original_postload=nullptr,original_command=nullptr,original_save=nullptr,or
 Update original_update=nullptr;
 Call original_commit=nullptr;
 bool(*original_pay)(void*)=nullptr;
+void(*original_allocate)(void*,int32_t)=nullptr;
 placement_ui_probe::ProcessMemory memory;
 uintptr_t image=0;uint32_t mainthread=0;
-tutorial_sync::OwnedSequenceEntry owned,owned_commit,owned_pay;
+tutorial_sync::OwnedSequenceEntry owned,owned_commit,owned_pay,owned_staff;
+void allocate_current(void*,int32_t);
 bool pay_current(void*);
 bool intent_uuid(std::string&,std::string&);
 struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;};
@@ -185,6 +189,7 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 #include "startingpoint_native.inc"
 #include "start_action_native.inc"
 #include "start_capture_native.inc"
+#include "staff_native.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -205,11 +210,16 @@ bool initialize(uintptr_t base,std::string& e){
     if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
     if(!start_intent::verify_pay(nullptr,image+start_intent::pay_rva,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||
        !start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
+    std::array<unsigned char,16> staff_entry{};
+    if(!memory.copy(image+staff::allocate_rva,staff_entry.data(),staff_entry.size(),e)||staff_entry!=staff::allocate_entry)
+        return fail(e,e.empty()?"Startingpoint original AllocateTechWorkers entry differs":e);
+    owned_staff={image+staff::allocate_rva,reinterpret_cast<uintptr_t>(&allocate_current),0,true,false};
     owned_pay.target=image+start_intent::pay_rva;owned_pay.detour=reinterpret_cast<uintptr_t>(&pay_current);owned_pay.original_verified=true;
     owned_commit.target=image+0x25fb10;owned_commit.detour=reinterpret_cast<uintptr_t>(&commit_current);owned_commit.original_verified=true;
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {staff::allocate_rva,reinterpret_cast<void*>(&allocate_current),reinterpret_cast<void**>(&original_allocate)},
         {start_intent::pay_rva,reinterpret_cast<void*>(&pay_current),reinterpret_cast<void**>(&original_pay)},
         {0x25fb10,reinterpret_cast<void*>(&commit_current),reinterpret_cast<void**>(&original_commit)},
         {0x4fc4a0,reinterpret_cast<void*>(&sequence_update),reinterpret_cast<void**>(&original_update)},
@@ -218,13 +228,14 @@ bool initialize(uintptr_t base,std::string& e){
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
+    owned_staff.trampoline=reinterpret_cast<uintptr_t>(original_allocate);
     owned_pay.trampoline=reinterpret_cast<uintptr_t>(original_pay);
     owned.trampoline=reinterpret_cast<uintptr_t>(original_update);owned_commit.trampoline=reinterpret_cast<uintptr_t>(original_commit);return true;
 }
 bool hooks_enabled(std::string& e){
-    owned.enabled=owned_commit.enabled=owned_pay.enabled=true;
-    if(!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
-        owned.enabled=owned_commit.enabled=owned_pay.enabled=false;return false;
+    owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=true;
+    if(!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
+        owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=false;return false;
     }return true;
 }
 bool verify_pay_entry(uintptr_t address,std::string& e){
@@ -242,7 +253,7 @@ bool verify_commit_entry(uintptr_t address,std::string& e){
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
-    pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();
+    pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
     commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
@@ -282,7 +293,7 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -298,6 +309,8 @@ bool read_progress(nlohmann::json& out,std::string& e){
         out={{"schema",1},{"mainthread_confirmed",true},{"lifetime_confirmed",true},
              {"snapshot_uuid",before.uuid},{"world_epoch",before.world_epoch},{"world_generation",before.generation},
              {"client_sequence_fenced",context.role==action_session::Role::Client},{"tutorial",encode(state)},
+             {"client_staff_suppressed",client_staff_receipt.suppressed},{"client_staff_submitted",client_staff_receipt.submitted},
+             {"client_staff_action_uuid",client_staff_receipt.action_uuid},{"client_staff_cause",client_staff_receipt.cause},{"client_staff_desired_workers",client_staff_receipt.desired},
              {"client_start_suppressed",client_start_receipt.suppressed},
              {"client_start_submitted",client_start_receipt.submitted},{"client_start_action_uuid",client_start_receipt.action_uuid},
              {"client_start_cause",client_start_receipt.cause},
@@ -348,6 +361,10 @@ bool apply(const action_session::Context& c,const action_session::Binding& b,con
 }
 
 namespace mt2mp::game::tutorial_replication {
+bool set_startingpoint_workers(const action_session::Context& c,const action_session::Binding& b,
+    const startingpoint::Row& expected,int32_t desired,bool& attempted,std::string& e){
+    StaffCalls calls{c,b};return staff::apply(expected,desired,calls,attempted,e);
+}
 bool start_startingpoint(const action_session::Context& c,const action_session::Binding& b,
     const action_session::Ledger& before,const startingpoint::Row& row,
     action_session::Ledger& after,startingpoint::Row& result,bool& attempted,std::string& e){

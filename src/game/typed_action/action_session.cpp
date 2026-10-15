@@ -1,4 +1,5 @@
 #include "../tutorial_replication/start_ledger.h"
+#include "../tutorial_replication/staff_action.h"
 #include "action_session.h"
 #include "../snapshot_building_key.h"
 #include "../snapshot_zone_key.h"
@@ -192,6 +193,8 @@ bool valid_npc_target(const Request& r) {
         r.canonical_record_key=="action:"+r.target_action_uuid;
 }
 bool valid_request(const Request& r) {
+    if(r.action==Action::SetStartingpointWorkers){auto base=r;base.action=Action::StartStartingpoint;base.desired_workers=0;return game::tutorial_replication::staff::value(r.desired_workers)&&valid_request(base);}
+    if(r.desired_workers)return false;
     if(r.action==Action::CommitStartingpoint||r.action==Action::StartStartingpoint)return uuid(r.action_uuid)&&r.target_action_uuid.empty()&&
         r.canonical_record_key=="tech:startingpoint"&&r.building==BuildingState{}&&r.region==RegionIntent{}&&
         r.region_property==RegionPropertyIntent{}&&r.price==PriceIntent{}&&r.terrain==TerrainIntent{}&&
@@ -271,6 +274,12 @@ bool object_effect(const Request& r,const Evidence& e) {
     return e.object_before.alive&&e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant;
 }
 bool execution(const Request& r,const Evidence& e) {
+    if(r.action==Action::SetStartingpointWorkers){std::string cause;
+        return e.startingpoint_before&&e.startingpoint_after&&
+            game::tutorial_replication::staff::rows(*e.startingpoint_before,*e.startingpoint_after,r.desired_workers,cause)&&
+            e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed&&
+            e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    }
     if(r.action==Action::StartStartingpoint){
         namespace start=game::tutorial_replication::start_intent;std::string cause;
         return e.startingpoint_before&&e.startingpoint_after&&
@@ -399,7 +408,7 @@ bool same_action(const Message& a,const Message& b) {return a.session==b.session
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
 bool valid_message(const Message& m,std::string& error) {
-    if(m.request.action!=Action::CommitStartingpoint&&m.request.action!=Action::StartStartingpoint&&(m.evidence.startingpoint_before||m.evidence.startingpoint_after)){
+    if(m.request.action!=Action::CommitStartingpoint&&m.request.action!=Action::StartStartingpoint&&m.request.action!=Action::SetStartingpointWorkers&&(m.evidence.startingpoint_before||m.evidence.startingpoint_after)){
         error="startingpoint evidence outside fixed tutorial action";return false;
     }
     if(m.evidence.startingpoint_before.has_value()!=m.evidence.startingpoint_after.has_value()){
@@ -471,13 +480,14 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t(r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t(r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(r.action==Action::CommitStartingpoint||r.action==Action::StartStartingpoint){
+        if(r.action==Action::CommitStartingpoint||r.action==Action::StartStartingpoint||r.action==Action::SetStartingpointWorkers){
+            if(r.action==Action::SetStartingpointWorkers)j["request"]["desired_workers"]=r.desired_workers;
             namespace sp=game::tutorial_replication::startingpoint;
             j["evidence"]["startingpoint_before"]=e.startingpoint_before?sp::encode(*e.startingpoint_before):json(nullptr);
             j["evidence"]["startingpoint_after"]=e.startingpoint_after?sp::encode(*e.startingpoint_after):json(nullptr);
@@ -539,7 +549,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>21)throw std::runtime_error("unsupported action schema");
+        const auto schema=u64(j.at("schema"));if(schema<1||schema>22)throw std::runtime_error("unsupported action schema");
         if(schema!=19&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
@@ -551,6 +561,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             else if(action==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
             else if(action==17)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","building"});
             else throw std::runtime_error("Quest schema action invalid");}
+        else if(schema==22)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","desired_workers"});
         else if(schema==18)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","building"});
         else if(schema==17)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
         else if(schema==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc"});
@@ -565,14 +576,15 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));if(action<1||action>19||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));if(action<1||action>20||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
         if(schema==10||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
         const auto& e=j.at("evidence");
-        if(schema==20||schema==21){
+        if(schema==20||schema==21||schema==22){
+            if(schema==22){const auto desired=u64(r.at("desired_workers"));if(desired>50)throw std::runtime_error("Startingpoint desired workers exceeds50");m.request.desired_workers=int32_t(desired);}
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","startingpoint_before","startingpoint_after"});
             const auto read=[](const json& j,std::optional<game::tutorial_replication::startingpoint::Row>& out){
                 if(j.is_null())return;
@@ -783,6 +795,10 @@ bool Controller::submit_move_npc(const std::string& id,const std::string& target
 }
 bool Controller::submit_commit_startingpoint(const std::string& id,uint64_t now,std::string& error){
     Request request;request.action=Action::CommitStartingpoint;request.action_uuid=id;
+    request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
+}
+bool Controller::submit_startingpoint_workers(const std::string& id,int32_t desired,uint64_t now,std::string& error){
+    Request request;request.action=Action::SetStartingpointWorkers;request.action_uuid=id;request.desired_workers=desired;
     request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
 }
 bool Controller::submit_start_startingpoint(const std::string& id,uint64_t now,std::string& error){

@@ -7,6 +7,8 @@ bool hooks_enabled(std::string&);
 bool verify_sequence_entry(uintptr_t address,std::string&);
 bool verify_commit_entry(uintptr_t address,std::string&);
 bool verify_pay_entry(uintptr_t address,std::string&);
+bool set_startingpoint_workers(const action_session::Context&,const action_session::Binding&,
+    const startingpoint::Row& expected,int32_t desired,bool& attempted,std::string&);
 bool start_startingpoint(const action_session::Context&,const action_session::Binding&,
     const action_session::Ledger&,const startingpoint::Row&,action_session::Ledger&,startingpoint::Row&,bool&,std::string&);
 bool apply_startingpoint_start(const action_session::Context&,const action_session::Binding&,const std::string& action,

@@ -1,4 +1,4 @@
-"""Prove the original Starting Point completion and Commit in an isolated Host."""
+"""Prove native Startingpoint actions in an owned Host and Client pair."""
 import argparse
 from pathlib import Path
 import time
@@ -10,8 +10,9 @@ from lobby_ui.native_local_acceptance import button, observe, left, ready
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'client-prove', 'client-start', 'client-staff', 'retire'), required=True)
 parser.add_argument('--host-running', action='store_true', help='Run the Host through the existing native clock MCP during Client Research')
+parser.add_argument('--natural-work', action='store_true', help='Let the assigned Host developer complete Startingpoint before ordinary Client Commit')
 parser.add_argument('--resume-start-from', type=Path, help='Reuse a confirmed open Research view after a recorded no-effect hidden-HUD time rejection')
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
 parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
@@ -28,6 +29,8 @@ if args.phase == 'client-prove':
     runner.summary['scope'] = 'ordinary Client Commit button submits one Host-ordered action and both peers confirm actual deployment and retirement'
 if args.phase == 'client-start':
     runner.summary['scope'] = 'ordinary Client Research button submits one Host-ordered purchase and project creation with actual native ledger equality'
+if args.phase == 'client-staff':
+    runner.summary['scope'] = 'ordinary Client Staff pip orders one native worker allocation, followed by natural Host work and matching Client state'
 
 
 def shared_state(name, expected):
@@ -72,6 +75,8 @@ def fixed_operation(peer, operation, current):
 
 
 def host_time(scale):
+    if scale not in (0, 1, 3, 9):
+        raise AcceptanceError('Clock setup requires the existing game UI scales0/1/3/9; no native attempt')
     engine = runner.inspect('start-time-' + str(scale) + '-before', 'host')
     runtime = engine['shared_time']['runtime']
     controller = runtime['controller']
@@ -289,6 +294,130 @@ def client_start():
                           ledger_equality_proven=True, native_purchase_price=price, host_running_proven=args.host_running)
 
 
+def client_staff():
+    baseline = runner.single('staff-baseline-host', 'host', 'game_read_tutorial_development')
+    project = baseline['project']
+    if (project.get('present') is not True or project.get('tech_key') != 'startingpoint'
+            or project.get('desired_workers') != 0 or baseline['startingpoint'].get('purchased') is not True
+            or baseline['startingpoint'].get('deployed') is not False):
+        raise AcceptanceError('Staff requires the current purchased Startingpoint project with desired workers0')
+    runner.checked('staff-baseline', baseline)
+    shared_state('staff-baseline', baseline)
+    ledger_before = compare_ledgers(runner.inspect('staff-ledger-before-host', 'host'),
+                                    runner.inspect('staff-ledger-before-client', 'client-1'))
+    before = {}
+    for peer in ('host', 'client-1'):
+        context = runner.single('before-client-staff-' + peer, peer, 'game_read_native_lobby')
+        if not ready(context) or context['controller'].get('pending') is not False:
+            raise AcceptanceError('Staff requires both peers Playing with an idle Controller')
+        before[peer] = context['controller']
+    client = runner.single('staff-baseline-client', 'client-1', 'game_read_tutorial_development')
+    shown = fixed_operation('client-1', 'client_staff_show', client)
+    if shown.get('page_requested') is not True or shown.get('desired_workers') != 0:
+        raise AcceptanceError('Staff Show lacks the confirmed page request and initial desired workers0')
+    deadline, sample = time.monotonic() + 30, 0
+    while True:
+        sample += 1
+        request = {'token': str(uuid.uuid4()), 'native_origin_uuid': client['snapshot_uuid'],
+                   'world_epoch': client['world_epoch'], 'world_generation': client['world_generation'],
+                   'operation': 'client_staff_state', 'expected_development': client}
+        state = runner.single('staff-layout-state-' + str(sample), 'client-1', 'game_tutorial_startingpoint', request)
+        if (state.get('read_only') is not True or state.get('attempted') is not False
+                or state.get('confirmed') is not True or state.get('unknown') is not False):
+            raise AcceptanceError('Staff state lacks effectless observation acknowledgement')
+        runner.checked('staff-layout-state-' + str(sample), state)
+        if state.get('ready') is True:
+            break
+        if state.get('ready') is not False or time.monotonic() >= deadline:
+            raise AcceptanceError('Staff native page/layout not ready required<30s; no input replay: ' + str(state))
+    runner.checked('client-staff-before-frame', runner.single('client-staff-before-frame', 'client-1', 'game_capture_frame'))
+    submitted = fixed_operation('client-1', 'client_staff_one', client)
+    if (submitted.get('activation_attempted') is not True or submitted.get('desired_workers') != 1
+            or submitted.get('host_completion_confirmed') is not False
+            or submitted.get('before') != client or submitted.get('after') != client):
+        raise AcceptanceError('Staff lacks original pip activation or changed native project before Host result')
+    for field in ('ledger_before', 'ledger_after'):
+        if any(submitted.get(field, {}).get(key) != value for key, value in ledger_before.items()):
+            raise AcceptanceError('Staff changed local ledger before Host result: ' + field)
+    action_id = submitted.get('action_uuid')
+    try:
+        if submitted.get('submitted') is not True or str(uuid.UUID(action_id)) != action_id:
+            raise ValueError('actual action UUID missing')
+    except (ValueError, TypeError, AttributeError) as error:
+        raise AcceptanceError('Staff lacks confirmed intent submission; no replay: ' + str(error)) from error
+    runner.checked('staff-submitted', {'action_uuid': action_id, 'submitted': True, 'host_completion_confirmed': False})
+    deadline, sample = time.monotonic() + 60, 0
+    while True:
+        sample += 1
+        final = {peer: runner.single('staff-result-' + peer + '-' + str(sample), peer, 'game_read_native_lobby')
+                 for peer in ('host', 'client-1')}
+        for peer, context in final.items():
+            state = context['controller']
+            if state.get('locked') or state.get('failed') != before[peer]['failed']:
+                raise AcceptanceError('Staff failed peer=' + peer + ' cause=' + str(state.get('cause')))
+            if state.get('pending') is True and state.get('outcome') == 0:
+                if (context['prepare'].get('playing') is not True or context['prepare'].get('error')
+                        or context['snapshot'].get('world_authority_valid') is not True):
+                    raise AcceptanceError('Pending Staff lost actual world/session on ' + peer)
+            elif not ready(context):
+                raise AcceptanceError('Peer lost Playing during Staff: ' + peer)
+        if all(context['controller'].get('action_uuid') == action_id
+               and context['controller'].get('pending') is False and context['controller'].get('outcome') == 1
+               and context['controller'].get('confirmed') == before[peer]['confirmed'] + 1
+               for peer, context in final.items()):
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Staff result timeout required<60s; no replay: ' + str(final))
+    for peer, context in final.items():
+        state = context['controller']
+        if (state.get('attempted') != before[peer]['attempted'] + 1
+                or state.get('host_revision') != before[peer]['host_revision'] + 1):
+            raise AcceptanceError('Staff native attempt/revision delta differs from1 on ' + peer)
+        runner.checked('staff-confirmed-controller-' + peer, state)
+    if final['host']['controller']['ack_mask'] != final['host']['controller']['required_mask']:
+        raise AcceptanceError('Staff Host lacks the complete Client adoption ACK mask')
+    allocated = runner.single('staff-allocated-host', 'host', 'game_read_tutorial_development')
+    expected_project = {**baseline['project'], 'desired_workers': 1}
+    if (allocated['project'] != expected_project or allocated['startingpoint'] != baseline['startingpoint']
+            or allocated['startingpoint_release'] != baseline['startingpoint_release']):
+        raise AcceptanceError('Staff native result differs outside desired workers1')
+    shared_state('staff-allocated', allocated)
+    ledger_after = compare_ledgers(runner.inspect('staff-ledger-after-host', 'host'),
+                                   runner.inspect('staff-ledger-after-client', 'client-1'))
+    if ledger_after != ledger_before:
+        raise AcceptanceError('Staff action changed full native ledger')
+    progress = runner.single('staff-capture-progress', 'client-1', 'game_read_tutorial_progress')
+    if (progress.get('client_staff_suppressed') is not True or progress.get('client_staff_submitted') is not True
+            or progress.get('client_staff_action_uuid') != action_id or progress.get('client_staff_cause')
+            or progress.get('client_staff_desired_workers') != 1):
+        raise AcceptanceError('Staff hook capture receipt differs from confirmed action')
+    runner.checked('staff-capture', progress)
+    runner.summary.update(action_uuid=action_id, ordinary_client_staff_proven=True,
+                          two_peer_action_confirmation_proven=True, ledger_equality_proven=True)
+    host_time(1)
+    deadline, sample = time.monotonic() + 60, 0
+    while True:
+        sample += 1
+        work = runner.single('staff-natural-work-' + str(sample), 'host', 'game_read_tutorial_development')
+        row = work['project']
+        if row.get('present') is not True or row.get('desired_workers') != 1:
+            raise AcceptanceError('Natural Staff work lost current project/desired workers1')
+        if row.get('work', 0) > allocated['project']['work'] or row.get('lines', 0) > allocated['project']['lines']:
+            break
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Natural Host work did not advance required<60s; actual=' + str(row))
+    runner.checked('staff-natural-work-observed', work)
+    host_time(0)
+    after = runner.single('staff-natural-work-paused-host', 'host', 'game_read_tutorial_development')
+    shared_state('staff-natural-work', after)
+    ledger = compare_ledgers(runner.inspect('staff-work-ledger-host', 'host'),
+                             runner.inspect('staff-work-ledger-client', 'client-1'))
+    runner.checked('staff-work-ledger', ledger)
+    runner.checked('staff-host-frame', runner.single('staff-host-frame', 'host', 'game_capture_frame'))
+    runner.summary.update(before=baseline, allocated=allocated, after=after, natural_host_work_proven=True,
+                          client_adoption_proven=True, diagnostic_completion_used=False)
+
+
 def client_commit():
     baseline = runner.single('client-commit-baseline', 'host', 'game_read_tutorial_development')
     runner.checked('client-commit-baseline', baseline)
@@ -298,7 +427,32 @@ def client_commit():
             or baseline['startingpoint_release'].get('change_count') != 0):
         raise AcceptanceError('Client Commit requires the current unowned initial Startingpoint project')
     shared_state('client-commit-baseline', baseline)
-    fixed_operation('host', 'complete', baseline)
+    if args.natural_work:
+        already_complete = baseline['project'].get('work', 0) >= 7200 and all(
+            baseline['project'].get(key) == 0 for key in ('bugs_total', 'bugs_known', 'bugs_unknown'))
+        if not already_complete and baseline['project'].get('desired_workers') != 1:
+            raise AcceptanceError('Natural completion requires the accepted one-worker project')
+        if not already_complete:
+            host_time(9)
+        deadline, sample = time.monotonic() + 180, 0
+        while not already_complete:
+            sample += 1
+            development = runner.single('natural-completion-' + str(sample), 'host', 'game_read_tutorial_development')
+            project = development['project']
+            if project.get('present') is not True or project.get('tech_key') != 'startingpoint':
+                raise AcceptanceError('Natural completion lost the current Startingpoint project')
+            runner.checked('natural-completion-' + str(sample), project)
+            if project.get('work', 0) >= 7200 and all(project.get(key) == 0 for key in ('bugs_total', 'bugs_known', 'bugs_unknown')):
+                break
+            if time.monotonic() >= deadline:
+                host_time(0)
+                raise AcceptanceError('Natural Startingpoint completion not ready required<180s work>=7200/bugs0; actual=' + str(project))
+        if not already_complete:
+            host_time(0)
+        runner.summary.update(natural_host_completion_observed=True, completion_diagnostic_used=False,
+                              already_complete_at_entry=already_complete)
+    else:
+        fixed_operation('host', 'complete', baseline)
     completed = runner.single('host-completed-project', 'host', 'game_read_tutorial_development')
     runner.checked('host-completed-project', completed)
     shared_state('client-complete', completed)
@@ -481,6 +635,8 @@ try:
         client_commit()
     elif args.phase == 'client-start':
         client_start()
+    elif args.phase == 'client-staff':
+        client_staff()
     elif args.phase == 'begin':
         begin_project()
     elif args.phase == 'prove':

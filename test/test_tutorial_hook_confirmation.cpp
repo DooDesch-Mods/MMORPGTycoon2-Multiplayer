@@ -4,7 +4,7 @@
 #include <vector>
 namespace {
 using Owner=mt2mp::game::tutorial_sync::OwnedSequenceEntry;
-Owner owned,owned_commit,owned_pay;
+Owner owned,owned_commit,owned_pay,owned_staff;
 int failed_physical=0,public_resolver_calls=0;
 volatile bool game_thread_available=false;
 std::vector<int> physical_calls;
@@ -19,7 +19,7 @@ struct Memory {
 bool check_owner(const Owner& owner,const Owner& expected,uintptr_t target,int kind,std::string& error){
     physical_calls.push_back(kind);
     if(&owner!=&expected||owner.target!=target||!target||!owner.detour||!owner.trampoline||
-       !owner.original_verified||!owned.enabled||!owned_commit.enabled||!owned_pay.enabled){
+       !owner.original_verified||!owned.enabled||!owned_commit.enabled||!owned_pay.enabled||!owned_staff.enabled){
         error="physical verifier requires its exact enabled owner";return false;}
     if(failed_physical==kind){error="physical verifier failure "+std::to_string(kind);return false;}
     return true;
@@ -47,10 +47,17 @@ template<class Copy>bool verify_owned_commit_entry(const Owner& owner,uintptr_t 
     unsigned char byte=0;return copy(target,&byte,size_t(1),error);
 }
 }
+namespace staff {
+template<class Copy>bool verify_owned_allocate(const Owner& owner,uintptr_t target,Copy&& copy,std::string& error){
+    if(!check_owner(owner,owned_staff,target,4,error))return false;
+    unsigned char byte=0;return copy(target,&byte,size_t(1),error);
+}
+}
 #include "tutorial_hook_confirmation.inc"
 void need(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);}
 void reset(int physical_failure=0){
     owned={0x100,0x200,0x300,true,false};owned_commit={0x400,0x500,0x600,true,false};owned_pay={0x700,0x800,0x900,true,false};
+    owned_staff={0xa00,0xb00,0xc00,true,false};
     failed_physical=physical_failure;public_resolver_calls=0;physical_calls.clear();memory.reads=0;game_thread_available=false;
 }
 void check(){
@@ -58,17 +65,17 @@ void check(){
     const bool confirmed=hooks_enabled(error);
     need(confirmed,"loader-thread hook confirmation failed: "+error);
     need(public_resolver_calls==0,"hook confirmation called public game-thread resolver");
-    need(owned.enabled&&owned_commit.enabled&&owned_pay.enabled,"confirmed owner flags not enabled");
-    need(physical_calls==std::vector<int>({1,2,3})&&memory.reads==3,"physical verification order or raw memory callback differs");
-    for(int kind=1;kind<=3;++kind){
+    need(owned.enabled&&owned_commit.enabled&&owned_pay.enabled&&owned_staff.enabled,"confirmed owner flags not enabled");
+    need(physical_calls==std::vector<int>({1,2,3,4})&&memory.reads==4,"physical verification order or raw memory callback differs");
+    for(int kind=1;kind<=4;++kind){
         reset(kind);error.clear();
         need(!hooks_enabled(error),"physical failure falsely confirmed");
         need(error=="physical verifier failure "+std::to_string(kind),"physical failure cause lost: "+error);
-        need(!owned.enabled&&!owned_commit.enabled&&!owned_pay.enabled,"physical failure retained an enabled owner");
+        need(!owned.enabled&&!owned_commit.enabled&&!owned_pay.enabled&&!owned_staff.enabled,"physical failure retained an enabled owner");
         need(public_resolver_calls==0,"physical failure path called public resolver");
         need(physical_calls.size()==size_t(kind)&&memory.reads==kind-1,"verification continued after physical failure");
     }
 }
 }
-int main(){try{check();std::cout<<"PASS actual hooks_enabled: loader success and Pay/Sequence/Commit rollback\n";return 0;}
+int main(){try{check();std::cout<<"PASS actual hooks_enabled: loader success and Pay/Sequence/Commit/Staff rollback\n";return 0;}
     catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

@@ -174,6 +174,9 @@ struct Busy {Busy(){busy=true;}~Busy(){busy=false;}};
 #include "research_ui_native.inc"
 #include "research_ui_read.inc"
 #include "client_research_fixture.inc"
+#include "staff_ui_native.inc"
+#include "staff_ui_read.inc"
+#include "client_staff_fixture.inc"
 }
 UpdateScope::UpdateScope(void* game) noexcept:outer_(update_depth==0){if(outer_)update_game=game;++update_depth;}
 UpdateScope::~UpdateScope(){if(update_depth)--update_depth;if(outer_)update_game=nullptr;}
@@ -182,18 +185,20 @@ bool run(const Request& request,json& result,std::string& e){
     std::string key;Progress* phase=nullptr;
     try{
         if(request.token.empty()||request.token.size()>64||request.origin_uuid.empty()||!request.epoch||!request.generation||
-           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"))return fail(e,"startingpoint fixture fixed request invalid");
+           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"&&request.operation!="client_staff_show"&&request.operation!="client_staff_state"&&request.operation!="client_staff_one"))return fail(e,"startingpoint fixture fixed request invalid");
         // No shared receipt state is touched outside the bound update thread.
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,e))return false;
         if(thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
             return fail(e,"startingpoint fixture requires owned GameUpdate/Mainthread before receipt access");
+        if(request.operation=="client_staff_state")return client_staff_state(request,result,e);
         if(request.operation=="client_research_state")return client_research_state(request,result,e);
         if(receipts.contains(request.token)){result=receipts.at(request.token);result["replay_rejected"]=true;return fail(e,"startingpoint fixture token consumed; no replay");}
         if(busy||receipts.size()>=64||worlds.size()>=64)return fail(e,"startingpoint fixture busy or receipt bound reached");
         Busy scope;
         if(request.operation=="client_show"||request.operation=="client_commit")return client_ui(request,result,phase,key,e);
         if(request.operation=="client_research_show"||request.operation=="client_research")return client_research(request,result,phase,key,e);
+        if(request.operation=="client_staff_show"||request.operation=="client_staff_one")return client_staff(request,result,phase,key,e);
         if(request.operation=="begin")return begin_project(request,result,phase,key,e);
         Pin p;if(!pin(request,p,e)||!before(p,e))return false;
         if(p.development!=request.expected_development)return fail(e,"startingpoint fixture expected development readback differs");
