@@ -599,4 +599,9 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
 }
 #include "npc_remove_runtime.inc"
 #include "npc_move_runtime.inc"
+bool bug_parent(const action::Context& context,const action::Binding& binding,const std::string& key,uintptr_t& object,std::string& error){
+    object=0;ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
+    if(!target_binding(npc_target_key::argument(key),binding,context.snapshot_uuid,local,region,census,error))return false;
+    object=local.object;return true;
+}
 }

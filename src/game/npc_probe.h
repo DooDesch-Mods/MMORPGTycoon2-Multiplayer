@@ -29,6 +29,7 @@ bool state_owners(const action_session::Context&,const action_session::Binding&,
 bool resolve_state_link(const std::vector<StateOwner>&,const std::string& key,
     int32_t sequence_id,uintptr_t& npc,uintptr_t& quest,std::string&);
 bool local_key(uintptr_t object,uint64_t uid,std::string& key,std::string& error);
+bool bug_parent(const action_session::Context&,const action_session::Binding&,const std::string& key,uintptr_t&,std::string&);
 bool enable(std::string& error);
 void tick();
 nlohmann::json status();

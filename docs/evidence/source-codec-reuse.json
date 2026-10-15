@@ -26,7 +26,7 @@
     "parallel": 2,
     "configuration": "Release"
   },
-  "measurement_scope": "The focused local result is not a measured full GitHub speedup.",
+  "measurement_scope": "The local seven-target comparison uses matched scope. Completed GitHub job durations are retained separately with their differing test counts.",
   "canonical_source_checks": "artifacts/ci-codec-reuse-canonical/status.json",
   "github_speedup_measured": false,
   "production_dll_or_gameplay_changed": false,
@@ -38,5 +38,16 @@
     "status_sha256": "979bc75cff4ae83329aeb5f67884f4c81c4cf036a13feb6957df438009e421bb",
     "build_log_sha256": "f044a273899e4c8bd957a0814953d3cc28821ddd4a603032cfd6784accb92a30",
     "ctest_log_sha256": "ebbbc09c6480b01c0b91aef53a1fb76ee52284a6775f8b17169105b4255b13f3"
+  },
+  "github_job_observation": {
+    "run_id": "38804147781",
+    "commit": "ef2f347891b042f705eddfdd817eefe3bfebaa39",
+    "conclusion": "success",
+    "url": "https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/actions/runs/38804147781",
+    "receipt": "artifacts/ci-codec-reuse-canonical/github-run-38804147781.json",
+    "source_tests_seconds": 1257,
+    "compile_job_seconds": 809,
+    "observed_source_job_reduction_seconds": 232,
+    "comparison_limit": "The current source suite has 111 registrations versus 105 in the earlier run. This is an observed job duration change, not a controlled estimate of codec-only GitHub speedup."
   }
 }

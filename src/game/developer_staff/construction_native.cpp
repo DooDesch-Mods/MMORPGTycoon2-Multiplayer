@@ -82,9 +82,12 @@ bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
     if(!remove_diagnostics::resolve_record_target(context.snapshot_uuid,link.building_key,by_key,e)||
        !remove_diagnostics::resolve_local_target(selection,by_key.object,out.binding,e))return false;
     const auto& b=out.binding;
-    if(!b.normal_building||b.type!="SmallInn"||b.manager!=selection||b.object!=by_key.object||b.uid!=link.building_uid||
-       b.record_key!=link.building_key||b.snapshot_id!=context.snapshot_uuid||b.world_epoch!=c.pin.origin.world_epoch||
-       b.world_generation!=c.pin.origin.generation)return fail(e,"Construction existing SmallInn binding/UID/native Origin differs");
+    if(!b.normal_building||b.normal_scenery)return fail(e,b.kind_cause.empty()?
+        "Construction target is not a supported native Building":b.kind_cause);
+    if(b.manager!=selection||b.object!=by_key.object||b.uid!=link.building_uid||
+       b.type!=by_key.type||b.variant!=by_key.variant||b.record_key!=link.building_key||
+       b.snapshot_id!=context.snapshot_uuid||b.world_epoch!=c.pin.origin.world_epoch||
+       b.world_generation!=c.pin.origin.generation)return fail(e,"Construction existing Building binding/UID/type/variant/native Origin differs");
     if(!at(b.object,0x178,out.region,e)||!at(b.object,0x170,out.shard,e)||!at(b.object,0x7e1,out.active,e)||!at(b.object,0x7a8,out.state,e))return false;
     if(out.shard!=reinterpret_cast<uintptr_t>(c.pin.origin.map)+0x1c0||out.state!=2||out.active>1)
         return fail(e,"Construction target requires actual online root-shard Building and Boolean active field");

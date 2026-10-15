@@ -20,7 +20,7 @@ bool decode(const nlohmann::json& raw,economy::State& out,std::string& e){const 
 int main(){try{
     const auto state=frame();std::string e;std::vector<uint8_t> bytes;economy::State actual;
     need(economy::encode(state,bytes,e),"complete Economy encode: "+e);
-    need(economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==state,"complete Economy11/Day/HostState10 full50 roundtrip: "+e);
+    need(economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==state,"complete Economy11/Day/HostState11 full50 roundtrip: "+e);
     need(bytes.size()<live::max_frame_payload,"full50 pool exceeded the existing Channel9 bound");
     auto raw=nlohmann::json::parse(bytes);auto bad=raw;bad["day"]["frame"]["developers"]["rows"][0][0]=-1;
     need(!decode(bad,actual,e)&&actual==economy::State{}&&e.find("Developer")!=std::string::npos,"malformed inner Developer row produced a complete frame");
@@ -29,6 +29,8 @@ int main(){try{
     bad=raw;bad["day"]["frame"]["developers"]["rows"][1][0]=bad["day"]["frame"]["developers"]["rows"][0][0];
     need(!decode(bad,actual,e),"duplicate persisted ID passed complete decoder");
     auto old=raw;old["day"]["frame"]["schema"]=9;old["day"]["frame"].erase("developers");
+    need(!decode(old,actual,e),"mixed schema9/new Bug shape accepted");
+    old["day"]["frame"].erase("bugs");
     need(decode(old,actual,e)&&!actual.day.frame.developers,"schema9 compatibility fabricated pool ownership");
     old["day"]["frame"]["developers"]=nullptr;
     need(!decode(old,actual,e),"mixed schema9/new pool shape accepted");
@@ -36,7 +38,7 @@ int main(){try{
     for(const auto& row:pool.rows)extension.actors.push_back({row.id,-1,{0,0,0,1},{1,1,1}});
     extension.jobs.push_back({"action:11111111-1111-4111-8111-111111111111",true,false,-1});pool.construction=extension;
     need(economy::encode(extended,bytes,e),"construction full encode: "+e);
-    need(economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"construction complete Economy11/Day/HostState10 roundtrip: "+e);
+    need(economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==extended,"construction complete Economy11/Day/HostState11 roundtrip: "+e);
     need(bytes.size()<live::max_frame_payload,"construction full frame exceeds bound");
     bad=nlohmann::json::parse(bytes);bad["day"]["frame"]["developers"]["construction"]["actors"][0][0]=0;
     need(!decode(bad,actual,e),"full decoder accepted construction Actor ID/order mismatch");

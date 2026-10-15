@@ -1,0 +1,23 @@
+add_executable(test_bug_authority_lifetime "${MT2MP_SOURCE_ROOT}/test/test_bug_authority_lifetime.cpp")
+target_compile_features(test_bug_authority_lifetime PRIVATE cxx_std_20)
+target_include_directories(test_bug_authority_lifetime PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+if(MSVC)
+    target_compile_options(test_bug_authority_lifetime PRIVATE /W4 /WX /EHsc)
+endif()
+add_test(NAME bug_authority_lifetime COMMAND test_bug_authority_lifetime)
+if(WIN32)
+    foreach(group runtime hooks creation)
+        add_executable(test_bug_authority_${group} "${MT2MP_SOURCE_ROOT}/test/test_bug_authority_${group}.cpp")
+        target_compile_features(test_bug_authority_${group} PRIVATE cxx_std_20)
+        target_compile_options(test_bug_authority_${group} PRIVATE /W4 /WX /EHsc /bigobj)
+        target_compile_definitions(test_bug_authority_${group} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+        target_include_directories(test_bug_authority_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game"
+            "${MT2MP_SOURCE_ROOT}/include" "${MT2MP_SOURCE_ROOT}/include/vendor/minhook/include")
+        add_test(NAME bug_authority_${group} COMMAND test_bug_authority_${group})
+        set_tests_properties(bug_authority_${group} PROPERTIES TIMEOUT 60)
+    endforeach()
+    target_sources(test_bug_authority_runtime PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/runtime.cpp")
+    target_sources(test_bug_authority_creation PRIVATE
+        "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/creation/adapter.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/creation/read.cpp")
+endif()

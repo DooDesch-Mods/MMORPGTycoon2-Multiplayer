@@ -1,0 +1,187 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "full_world_equal": false,
+  "scope": "One real saved Blacksmith Bug survives the original normal shared session load with identical snapshot identity and all nine authority properties",
+  "runtime_run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+  "dll_sha256": "d09f45c4d78fccb629a5499ab682796fc2d04cbbed8fbb5564b649a352ced79e",
+  "normal_load": {
+    "path": "artifacts/acceptance/8d13edf6-d43c-41f2-90ae-26c37d09eebb/summary.json",
+    "sha256": "db056a23e7778607d79f59e329864ac5bb759e1856c48f8f07eb80d039caade3"
+  },
+  "native_bug_readback": {
+    "path": "artifacts/acceptance/4c6a6b00-1925-4381-a33b-908a5f7195b9/summary.json",
+    "sha256": "7b2ee432813e8d85ba276c814912cdf91d8d5283f6bd403af1380e0b19307bd1"
+  },
+  "shared_snapshot": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 241770,
+    "distribution_requested": true,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-81c7bf25-80aa-44a7-bb4f-3dd1a37918a9.vrz",
+    "run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+    "sha256": "877a1e2496b408d7dab57610777ec915d56231a6687653b9a6263955c7814ee5",
+    "snapshot_id": "81c7bf25-80aa-44a7-bb4f-3dd1a37918a9",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "canonical_bug_row": [
+    0,
+    "877a1e2496b408d7dab57610777ec915d56231a6687653b9a6263955c7814ee5:world:building:263",
+    0,
+    "877a1e2496b408d7dab57610777ec915d56231a6687653b9a6263955c7814ee5",
+    0,
+    0,
+    0,
+    1,
+    -1,
+    0,
+    0,
+    0.14788949489593506,
+    false,
+    false,
+    false
+  ],
+  "saved_bug_authority": {
+    "type": "c",
+    "createdFlatDay": 1,
+    "discoveredFlatDay": -1,
+    "toonsAffected": 0,
+    "reproducibility": 0.14788949489593506,
+    "variantId": 0,
+    "known": "false",
+    "manualJob": "false",
+    "beingDebugged": "false"
+  },
+  "local_saves": {
+    "host": {
+      "building_bindings_confirmed": true,
+      "building_identity_error": "",
+      "bytes": 240193,
+      "distribution_requested": false,
+      "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-5e415bbd-7daf-40fb-87ff-2b70b6e04c3b.vrz",
+      "run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+      "sha256": "fb135100cc081961eaa1b21e1bc7c0c8e8b70fc5081e2fd6a8b88e66e7610a11",
+      "snapshot_id": "5e415bbd-7daf-40fb-87ff-2b70b6e04c3b",
+      "state": "snapshot_file_complete",
+      "world_name": "MPTestLevelTwoBoundary"
+    },
+    "client-1": {
+      "building_bindings_confirmed": true,
+      "building_identity_error": "",
+      "bytes": 240261,
+      "distribution_requested": false,
+      "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/client-1/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-db73ae48-126a-4e53-9603-917199e0b97c.vrz",
+      "run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+      "sha256": "1cfdddcf43b963da941a3b363bda373a974c5bc231180720dbb7db61a3e82b56",
+      "snapshot_id": "db73ae48-126a-4e53-9603-917199e0b97c",
+      "state": "snapshot_file_complete",
+      "world_name": "MPTestLevelTwoBoundary"
+    }
+  },
+  "confirmed_behavior": [
+    "Normal native Host/Join and original snapshot load reach Playing on both peers.",
+    "Both existing schema11 frames contain the same nonempty serialized Bug birth, original snapshot digest, parent Building key and zero-based child ordinal0.",
+    "The nine Bug values match the earlier Action-born construction antecedent and both complete local native saves.",
+    "No replayed placement, artificial Bug setter or full-world reload per action is used."
+  ],
+  "all_parent_comparison": {
+    "path": "tools/bug_saved_comparison/evidence/blacksmith-loaded.json",
+    "sha256": "10b24b1897ee4d90066ab387af7c392205acfb3c471cdb9dd25aafc636b48ad5",
+    "passed": false,
+    "state": "mismatch",
+    "parent_count_each": 6,
+    "bug_count_each": 1,
+    "differences": [
+      {
+        "kind": "missing_or_ambiguous_parent",
+        "parent": {
+          "class": "mmoNPC",
+          "container_labels": "$/mmoGameState/world/mmoWorld/map/mmoMap/region/mmoRegion/npcManager/mmoNPCManager/type/QuestGiver",
+          "transform": {
+            "rotation": [
+              0.0,
+              -0.03832744434475899,
+              0.0,
+              -0.9992653131484985
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "translation": [
+              8072.173828125,
+              69.48700714111328,
+              8578.0185546875
+            ]
+          },
+          "type": "QuestGiver",
+          "variant": null
+        },
+        "locations": {
+          "host": [
+            "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/npcManager[26]/mmoNPCManager[0]/type[0]/QuestGiver[0]/mmoNPC[0]"
+          ],
+          "client-1": []
+        }
+      },
+      {
+        "kind": "missing_or_ambiguous_parent",
+        "parent": {
+          "class": "mmoNPC",
+          "container_labels": "$/mmoGameState/world/mmoWorld/map/mmoMap/region/mmoRegion/npcManager/mmoNPCManager/type/QuestGiver",
+          "transform": {
+            "rotation": [
+              0.0,
+              -0.7076300382614136,
+              0.0,
+              -0.7065832018852234
+            ],
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "translation": [
+              8072.18701171875,
+              69.4675521850586,
+              8577.7138671875
+            ]
+          },
+          "type": "QuestGiver",
+          "variant": null
+        },
+        "locations": {
+          "host": [],
+          "client-1": [
+            "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/npcManager[26]/mmoNPCManager[0]/type[0]/QuestGiver[0]/mmoNPC[0]"
+          ]
+        }
+      }
+    ],
+    "cause": "One empty QuestGiver parent has different actual transform on Host and Client after loading. The strict all-parent comparison remains failed."
+  },
+  "test_helper_correction": {
+    "retained_initial_result": {
+      "path": "artifacts/acceptance/400c59b6-68cb-4d94-baf3-00e193759414/summary.json",
+      "sha256": "8fc002e0db643ea04ac94f9c4ba8da83e14f111f3dfa2a123ece08ff7b21fd98"
+    },
+    "cause": "The first read-only assertion incorrectly required a positive serialized occurrence. The existing native original-serde index starts at zero.",
+    "reused_observations": true,
+    "load_replayed_for_correction": false
+  },
+  "limits": [
+    "The accepted scope is the nonempty Bug snapshot load. Complete world equality is contradicted by the retained QuestGiver pose mismatch.",
+    "Known/debug transitions, Bug-fixing Jobs and selected retirement remain separate unfinished requirements.",
+    "Warm replacement inside an already Playing session remains unsupported by the current native lifecycle.",
+    "This development candidate is not delivered as a new tester beta. Online acceptance remains open."
+  ],
+  "npc_boundary_diagnostic": {
+    "path": "tools/bug_saved_comparison/evidence/npc-save-diagnostic.json",
+    "sha256": "b109f785efc1e99127871288c2c5238bc0960c62a4a0dd0277d5693559db2af8",
+    "finding": "Both retained fresh native reads contain identical full canonical NPC34 and NPC39 state on Host and Client. The differing pose first appears later in the sequentially captured Client save. Initial-Load drift or concurrent replicated NPC divergence is not established.",
+    "source_change_from_these_inputs": false
+  }
+}

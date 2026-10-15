@@ -1,3 +1,4 @@
+#include "bug_authority/runtime.h"
 #include "mt2mp/game/normal_load_identity.h"
 #include "mt2mp/core/logger.h"
 #include "root_building_load.h"
@@ -443,6 +444,7 @@ bool begin(const std::string& sha, const std::string& uuid, std::string& error) 
     if (!root_building_load::begin(sha, uuid, error)) return fail(error, "native array load identity arm failed: " + error);
     if (!npc_quest_target_runtime::arm_client(uuid,sha,error)) { root_building_load::cancel(error); return fail(error,"Quest target load arm failed: "+error); }
     if (!npc_saved_identity_runtime::arm_client(uuid,sha,error)) { root_building_load::cancel(error); npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity load arm failed: "+error); }
+    if (!bug_authority::arm_snapshot(uuid,sha,false,error)) { root_building_load::cancel(error); npc_quest_target_runtime::cancel(error); npc_saved_identity_runtime::cancel(error); return fail(error,"Bug load arm failed: "+error); }
 #endif
     contexts.clear();
     negative_classes.clear();
@@ -557,6 +559,7 @@ bool finalize(Status& result, std::string& error) {
         fail_capture("Quest target native load identity incomplete: "+error);result=current;return false;
     }
     if (!npc_saved_identity_runtime::seal_client(error)) { fail_capture("NPC native load identity incomplete: "+error);result=current;return false; }
+    if (!bug_authority::seal_snapshot(current.snapshot_uuid,current.snapshot_sha256,error)) { fail_capture("Bug native load identity incomplete: "+error);result=current;return false; }
     current.buildings = std::move(native_arrays);
     current.state = "confirmed"; error.clear(); result = current;
     LOG_INFO("[LoadIdentity] Complete native array building map confirmed snapshot={} buildings={}", current.snapshot_uuid, current.buildings.size());

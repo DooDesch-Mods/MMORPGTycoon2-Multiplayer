@@ -156,4 +156,10 @@ include("${CMAKE_CURRENT_LIST_DIR}/buildings_tab_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/building_remove_restore_checks.cmake")
 
+include("${CMAKE_CURRENT_LIST_DIR}/bug_authority_portable_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/bug_authority_native_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/building_types_checks.cmake")
+
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")

@@ -1,3 +1,5 @@
+#include <iostream>
+#include "snapshot_building_key.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -60,7 +62,76 @@ static void reset(){
         {"baseline_snapshot_id",uuid},{"baseline_sha256",sha},{"bindings",json::array()}};
 }
 static bool run(Engine& engine,std::string& error){action::Binding binding;return engine.bind(uuid,binding,error);}
-int main(){
+namespace source_fixture {
+struct Binding {int32_t link_id=44;uint64_t local_uid=9;std::string record_key;};
+struct Status {
+    bool bindings_confirmed=true,world_witness_current=true,load_pending=false;
+    std::string capture_uuid=uuid,snapshot_uuid=uuid,snapshot_sha256=sha,state="confirmed";
+    uint64_t snapshot_bytes=400,session_epoch=41;
+    std::vector<Binding> buildings{Binding{}};
+};
+Status captured,fixture_load,fixture_sealed;
+int seals=0,imports=0;bool import_ok=true;
+std::string imported_snapshot,seal_cause;
+namespace building_capture_identity {
+using Status=source_fixture::Status;
+enum class SealResult {Pending,Confirmed,Failed};
+SealResult outcome=SealResult::Confirmed;
+Status status(){return captured;}
+SealResult seal(const std::string& id,const std::string& digest,uint64_t bytes,uint64_t epoch,Status& out,std::string& error){
+    ++seals;
+    need(id==captured.capture_uuid&&digest==captured.snapshot_sha256&&bytes==captured.snapshot_bytes&&epoch==captured.session_epoch,"capture seal arguments changed");
+    out=fixture_sealed;error=seal_cause;return outcome;
+}
+}
+namespace normal_load_identity {Status status(){return fixture_load;}}
+namespace snapshot_building_key {bool valid(const std::string& key){return mt2mp::game::snapshot_building_key::valid(key);}}
+struct World {std::string uuid=::uuid,sha256=sha;};
+int actual=1;
+bool import_bindings(const std::vector<Binding>& rows,const std::string& snapshot,const std::string& digest,int world,json& out,std::string& error){
+    ++imports;imported_snapshot=snapshot;
+    need(world==actual&&digest==sha,"import lost actual world/digest");
+    if(!import_ok){error="actual native building import failed";return false;}
+    for(const auto& row:rows)out.push_back({{"key",row.record_key},{"uid",row.local_uid}});
+    return true;
+}
+bool select([[maybe_unused]] const std::string& session_snapshot,const World& world,json& out,std::string& error){
+#include "snapshot_binding_source_body.inc"
+    out={{"snapshot",baseline_snapshot},{"sha",baseline_sha},{"bindings",list}};return true;
+}
+void reset(){captured={};fixture_load={};fixture_sealed={};seals=imports=0;import_ok=true;seal_cause.clear();imported_snapshot.clear();building_capture_identity::outcome=building_capture_identity::SealResult::Confirmed;}
+void checks(){
+    json out;std::string error;World world;
+    reset();captured.capture_uuid="11111111-1111-4111-8111-111111111111";seal_cause="native Game/Mode/GameState/World/Map receiver changed since begin";
+    building_capture_identity::outcome=building_capture_identity::SealResult::Failed;
+    need(select(uuid,world,out,error)&&seals==0&&imports==1&&imported_snapshot==uuid,"prior session capture blocked confirmed new load");
+    need(out["snapshot"]==uuid&&out["bindings"][0]["key"]==sha+":world:building:44","new load canonical identity lost");
+    reset();need(select(uuid,world,out,error)&&seals==1&&imports==1,"current session capture did not seal/import exactly once");
+    reset();seal_cause="original current-world witness failure";building_capture_identity::outcome=building_capture_identity::SealResult::Failed;
+    need(!select(uuid,world,out,error)&&error==seal_cause&&seals==1&&imports==0,"current capture seal failure silently fell back to load");
+    reset();building_capture_identity::outcome=building_capture_identity::SealResult::Pending;
+    need(!select(uuid,world,out,error)&&error=="fresh native capture world binding unavailable"&&imports==0,"pending current capture fabricated complete load authority");
+    for(int kind=0;kind<5;++kind){
+        reset();if(kind==0)fixture_sealed.bindings_confirmed=false;if(kind==1)fixture_sealed.world_witness_current=false;if(kind==2)fixture_sealed.capture_uuid="foreign";if(kind==3)fixture_sealed.snapshot_sha256=std::string(64,'b');if(kind==4)++fixture_sealed.snapshot_bytes;
+        need(!select(uuid,world,out,error)&&imports==0&&error=="fresh native capture identity differs","current capture changed sealed identity accepted");
+    }
+    for(int kind=0;kind<3;++kind){
+        reset();if(kind==0)captured.bindings_confirmed=false;if(kind==1)captured.world_witness_current=false;if(kind==2)captured.capture_uuid.clear();
+        need(select(uuid,world,out,error)&&seals==0&&imports==1,"incomplete capture blocked independently confirmed load");
+    }
+    for(int kind=0;kind<4;++kind){
+        reset();captured.capture_uuid="old";if(kind==0)fixture_load.state="failed";if(kind==1)fixture_load.load_pending=true;if(kind==2)fixture_load.snapshot_uuid="foreign";if(kind==3)fixture_load.snapshot_sha256=std::string(64,'b');
+        need(!select(uuid,world,out,error)&&seals==0&&imports==0&&error=="current complete NativeSnapshot building binding unavailable","unverified current load admitted after stale capture");
+    }
+    reset();import_ok=false;need(!select(uuid,world,out,error)&&seals==1&&error=="actual native building import failed","current capture import cause lost");
+    reset();captured.capture_uuid="old";import_ok=false;need(!select(uuid,world,out,error)&&seals==0&&error=="actual native building import failed","new load import cause lost");
+    reset();captured.capture_uuid="old";fixture_load.buildings.clear();need(select(uuid,world,out,error)&&out["bindings"].empty()&&out["snapshot"]==uuid,"confirmed empty current load lost baseline");
+    reset();captured.capture_uuid="old";fixture_load.buildings[0].link_id=-1;need(!select(uuid,world,out,error)&&imports==0&&error=="loaded native building linkID is negative","invalid fixture_load link admitted");
+    reset();captured.capture_uuid="old";fixture_load.buildings[0].record_key="foreign";need(!select(uuid,world,out,error)&&imports==0&&error=="loaded native building record key differs from native linkID","foreign saved key admitted");
+}
+}
+
+int main(){try{
     std::string error;Engine engine;
     reset();need(run(engine,error),"confirmed zero-building Host capture rejected");
     need(engine.world_.bound&&engine.world_.objects.empty()&&engine.world_.origin.sha256==sha,"empty baseline origin lost");
@@ -82,5 +153,8 @@ int main(){
     need(!run(engine,error)&&!engine.world_.bound,"revoked-only baseline accepted");
     reset();engine={};remove_diagnostics::source.erase("baseline_sha256");
     need(!run(engine,error)&&!engine.world_.bound,"missing SHA authority accepted");
+    source_fixture::checks();
+    std::cout << "PASS " << assertions << " actual binding/identity assertions\n";
     return assertions<12?1:0;
+}catch(const std::exception& failure){std::cerr << failure.what() << "\n";return 1;}
 }

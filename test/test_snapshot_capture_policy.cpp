@@ -23,7 +23,7 @@ struct Port {
         digest=value; return true;
     }
     void cancel(const std::string& cause) { ++cancels; failure=cause; bound.clear(); }
-} quest, npc;
+} quest, npc, bugs;
 namespace npc_quest_target_runtime {
 bool arm_host(const std::string& id, World, std::string& e) { return quest.arm(id,e); }
 bool seal_host(const std::string&, const std::string& value, World, std::string& e) { return quest.seal(value,e); }
@@ -33,6 +33,15 @@ namespace npc_saved_identity_runtime {
 bool arm_host(const std::string& id, World, std::string& e) { return npc.arm(id,e); }
 bool seal_host(const std::string&, const std::string& value, World, std::string& e) { return npc.seal(value,e); }
 void cancel(const std::string& cause) { npc.cancel(cause); }
+}
+namespace bug_authority {
+bool arm_snapshot(const std::string& id, const std::string& digest, bool host, std::string& e) {
+    assert(digest.empty() && host); return bugs.arm(id,e);
+}
+bool seal_snapshot(const std::string& id, const std::string& value, std::string& e) {
+    assert(id==uuid); return bugs.seal(value,e);
+}
+void cancel_snapshot(const std::string& cause) { bugs.cancel(cause); }
 }
 bool fail(std::string& e, const std::string& cause) { e=cause; return false; }
 bool rejected(const std::string& cause) { error=cause; return false; }
@@ -45,29 +54,33 @@ uint64_t current_world_epoch() { return epoch; }
 
 #include "snapshot_capture_policy_body.inc"
 
-void reset(bool bind) { quest={}; npc={}; error.clear(); armed=true; capture_snapshot_identities=bind; }
+void reset(bool bind) { quest={}; npc={}; bugs={}; error.clear(); armed=true; capture_snapshot_identities=bind; }
 int main() {
     assert(!routing(false)); assert(routing(true));
     net::id.clear(); assert(routing(false)); net::id="network";
     net::epoch=0; assert(routing(false)); net::epoch=1;
     reset(routing(false));
     assert(actual_arm()); assert(actual_seal()); actual_cancel();
-    for (const auto* p : {&quest,&npc}) {
+    for (const auto* p : {&quest,&npc,&bugs}) {
         assert(p->bound=="network" && p->digest=="network-sha");
         assert(p->arms==0 && p->seals==0 && p->cancels==0);
     }
     reset(routing(true)); assert(actual_arm()); assert(actual_seal());
-    assert(quest.bound==uuid && npc.bound==uuid && quest.digest==sha && npc.digest==sha);
-    actual_cancel(); assert(quest.failure==reason && npc.failure==reason);
+    for (const auto* p : {&quest,&npc,&bugs}) assert(p->bound==uuid && p->digest==sha && p->arms==1 && p->seals==1);
+    actual_cancel(); assert(quest.failure==reason && npc.failure==reason && bugs.failure==reason);
     reset(true); quest.arm_ok=false; assert(!actual_arm());
-    assert(error=="Quest target capture arm failed: original arm failure" && npc.arms==0 && !armed);
+    assert(error=="Quest target capture arm failed: original arm failure" && npc.arms==0 && bugs.arms==0 && !armed);
     reset(true); npc.arm_ok=false; assert(!actual_arm());
-    assert(error=="NPC identity capture arm failed: original arm failure" && quest.cancels==1 && !armed);
+    assert(error=="NPC identity capture arm failed: original arm failure" && quest.cancels==1 && bugs.arms==0 && !armed);
+    reset(true); bugs.arm_ok=false; assert(!actual_arm());
+    assert(error=="Bug capture arm failed: original arm failure" && quest.cancels==1 && npc.cancels==1 && !armed);
     reset(true); quest.seal_ok=false; assert(!actual_seal());
-    assert(error=="Quest target snapshot seal failed: original seal failure" && npc.seals==0);
+    assert(error=="Quest target snapshot seal failed: original seal failure" && npc.seals==0 && bugs.seals==0);
     reset(true); npc.seal_ok=false; assert(!actual_seal());
-    assert(error=="NPC identity snapshot seal failed: original seal failure");
-    reset(false); quest.failure="prior binding failure"; actual_cancel();
-    assert(quest.failure=="prior binding failure");
+    assert(error=="NPC identity snapshot seal failed: original seal failure" && bugs.seals==0);
+    reset(true); bugs.seal_ok=false; assert(!actual_seal());
+    assert(error=="Bug snapshot seal failed: original seal failure");
+    reset(false); quest.failure=bugs.failure="prior binding failure"; actual_cancel();
+    assert(quest.failure=="prior binding failure" && bugs.failure=="prior binding failure");
     std::cout << "PASS actual capture routing and arm/seal/cancel boundaries\n";
 }

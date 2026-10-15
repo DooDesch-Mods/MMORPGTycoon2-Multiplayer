@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Normal Leave and rehost in the same two native processes after retaining completed local captures",
+  "runtime_run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+  "dll_sha256": "d09f45c4d78fccb629a5499ab682796fc2d04cbbed8fbb5564b649a352ced79e",
+  "evidence": {
+    "failed_original": {
+      "path": "artifacts/acceptance/32fda3c9-4154-45a7-80c0-7ae2d0242fb7/summary.json",
+      "sha256": "0e922a2a854cb2ac6e6004a3cd4e659ca5c381c33809d049c6038a3b91f1be09"
+    },
+    "initial_load": {
+      "path": "artifacts/acceptance/8d13edf6-d43c-41f2-90ae-26c37d09eebb/summary.json",
+      "sha256": "db056a23e7778607d79f59e329864ac5bb759e1856c48f8f07eb80d039caade3"
+    },
+    "local_captures": {
+      "path": "artifacts/acceptance/4c6a6b00-1925-4381-a33b-908a5f7195b9/summary.json",
+      "sha256": "7b2ee432813e8d85ba276c814912cdf91d8d5283f6bd403af1380e0b19307bd1"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/888b3086-91cf-4ae5-92f1-88d6268ec5b0/summary.json",
+      "sha256": "2ca3e2cf1c27ee1dda350705ef17f8a16fc23f852ad77d5b92e2379d06f72638"
+    },
+    "rehost": {
+      "path": "artifacts/acceptance/fad01c14-463a-482b-b627-7d179784345c/summary.json",
+      "sha256": "ce776c34ee6f1c7d90558b12d02a15d914e24070911b602170cfab1ce1419abc"
+    }
+  },
+  "final_contexts": {
+    "host": {
+      "path": "F:\\Projects\\Mods\\MMORPGTycoon2\\test\\mcp\\evidence\\afad01c14463a-19-session-cont_20261015T214340149081Z.json",
+      "sha256": "3ec811cced96294d6f4184d008e815209e318c4c5687a6307344ab1a54cd3830"
+    },
+    "client-1": {
+      "path": "F:\\Projects\\Mods\\MMORPGTycoon2\\test\\mcp\\evidence\\afad01c14463a-20-session-cont_20261015T214345978882Z.json",
+      "sha256": "be1c3990b7383122b00871790f38720ba13e37e8ca38db7d3886a8ec50987d22"
+    }
+  },
+  "source_fix": {
+    "path": "src/game/remove_diagnostics.cpp",
+    "sha256": "6aa33a7d60b77f636002b1f0eb3086f71c7f1c94994559acf70b8a61a0d2fde2",
+    "behavior": "Only a capture from the current session snapshot can select the Capture branch. A prior capture does not block the separately verified current NativeLoad."
+  },
+  "unit_regression": {
+    "target": "empty_world_bind",
+    "assertions": 51,
+    "passed": true,
+    "canonical_log": {
+      "path": "artifacts/rehost_binding_promotion/20261015T213310869851Z/canonical-ctest.log",
+      "sha256": "92240620283d288f12a074c732efb2e086e8c8ef0550e20a9c0d02dbe4d125b6"
+    },
+    "original_code_result": "The same test compiles and fails at prior session capture blocked confirmed new load",
+    "stage_manifest": {
+      "path": "tools/bug_saved_comparison/rehost_stage/manifest.json",
+      "sha256": "c289886fef19dbdf2364462de4c3859a55cadfd8fffc153b3c98e5d693633b38"
+    }
+  },
+  "confirmed_behavior": [
+    "Both existing native processes leave the first corrected-build session and return to idle Title.",
+    "The same processes open, Host and Join a new lobby, load the retained original fixture once and reach Playing.",
+    "Both current controllers and live authority owners are started and unlocked with no cause; Client live adoption is confirmed.",
+    "The earlier Client local-capture UUID differs from the new shared snapshot and no longer blocks the verified current Load identity.",
+    "Current-session captures still use the original seal and propagate its errors; no fallback after a current seal failure is added."
+  ],
+  "limits": [
+    "This proves normal Leave/rehost, not warm replacement inside an already Playing session.",
+    "Full ongoing gameplay and online acceptance remain open. This development candidate is not delivered as a new tester beta."
+  ]
+}

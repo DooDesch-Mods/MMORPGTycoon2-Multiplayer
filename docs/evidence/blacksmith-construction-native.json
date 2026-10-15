@@ -1,0 +1,203 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Normal Client Blacksmith/base placement, original Host assignment and natural construction completion; one real matching Action-born Bug",
+  "runtime_run_id": "bc1eefde-688b-4cc2-9beb-4acaed29d11d",
+  "dll_sha256": "51a20c8d550ce646a34dffdfe64321bbac4cca812e6f5cbce35156c482054603",
+  "placement": {
+    "path": "artifacts/acceptance/80e28670-2a85-48ac-9ad0-13802aba94bd/summary.json",
+    "sha256": "3112c3684456417388011172b9d2878d505f408ba5246ef6ff76ac641db96408"
+  },
+  "assignment": {
+    "path": "artifacts/acceptance/129ad5f2-c3bd-4b54-9cf4-8af1b3e810be/summary.json",
+    "sha256": "85aacc1d3b28ae91f32130eee8a9358ce33f6c28713c06e1cc299d553fc21b59"
+  },
+  "completion": {
+    "path": "artifacts/acceptance/24ff17da-15eb-4b26-9d5f-68e507c2eda0/summary.json",
+    "sha256": "1c3b1ba85c03a0e3d83bef666c388135d503bb351a33ee1d7d3e97cec6626ac7"
+  },
+  "camera": {
+    "path": "artifacts/acceptance/a9dd4168-48b4-47c8-b2ce-70838edda18e/summary.json",
+    "sha256": "116ce819b1a8ca1cff7b4739e8d057eaa74da97ba73f0c9ed425a39f3c3e9730"
+  },
+  "building_action_uuid": "a077f513-0886-43e1-b84e-c0453ec33315",
+  "canonical_building_key": "action:a077f513-0886-43e1-b84e-c0453ec33315",
+  "saved_buildings": {
+    "host": {
+      "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\host\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-cd75efb3-02bf-4b83-bee6-2f7ac1e0c2fe.vrz",
+      "sha256": "d5811b3ce8f9a16c875611c2905960f0f2608e50a2e8681e8f07ead09adf23f5",
+      "bytes": 240423,
+      "fully_consumed": true,
+      "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+      "transform": {
+        "translation": [
+          8020.0,
+          70.83831787109375,
+          8550.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "fields": {
+        "linkId": [
+          263
+        ],
+        "type": [
+          "Blacksmith"
+        ],
+        "variant": [
+          "base"
+        ],
+        "state": [
+          "online"
+        ],
+        "active": [
+          "true"
+        ],
+        "powered": [
+          "true"
+        ],
+        "shard": [
+          2
+        ],
+        "region": [
+          33
+        ]
+      }
+    },
+    "client-1": {
+      "source": "F:\\Projects\\Mods\\MMORPGTycoon2\\_MPTest\\tutorial-two\\_MPTest\\client-1\\data\\76561198013473990\\save\\MPTestLevelTwoBoundary\\snapshot-f954cfc0-5805-4337-8edf-e6d99872853b.vrz",
+      "sha256": "a565d4a998e6c6a5a103eb96ce92913940236ea9ca317001e8dba56439a8945d",
+      "bytes": 256528,
+      "fully_consumed": true,
+      "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+      "transform": {
+        "translation": [
+          8020.0,
+          70.83831787109375,
+          8550.0
+        ],
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "fields": {
+        "type": [
+          "Blacksmith"
+        ],
+        "variant": [
+          "base"
+        ],
+        "state": [
+          "online"
+        ],
+        "active": [
+          "true"
+        ],
+        "powered": [
+          "true"
+        ],
+        "shard": [
+          2
+        ],
+        "region": [
+          33
+        ]
+      }
+    }
+  },
+  "confirmed_behavior": [
+    "The original Client build button creates one Host-ordered Blacksmith and one original type1 construction Job per peer.",
+    "One normal Host speed window assigns the same Developer; ordinary construction then completes on both peers.",
+    "Both original complete saves contain Blacksmith/base active=true, powered=true, state=online and the same full transform.",
+    "All 50 Developers, queue completion and all 20 ledger groups match. Client simulation Clock stays paused.",
+    "The existing schema11 Host frame carries one matching Action-born Bug row on both peers.",
+    "Full saved Building/NPC collections match immediately after placement and after completion: six parents and one Bug per peer, all nine authority values equal.",
+    "Local saves are undistributed and do not replace the shared identity or replay gameplay actions."
+  ],
+  "bug": {
+    "canonical_row": [
+      0,
+      "action:a077f513-0886-43e1-b84e-c0453ec33315",
+      1,
+      "a077f513-0886-43e1-b84e-c0453ec33315",
+      0,
+      72057594037927937,
+      0,
+      1,
+      -1,
+      0,
+      0,
+      0.14788949489593506,
+      false,
+      false,
+      false
+    ],
+    "saved_authority": {
+      "type": "c",
+      "createdFlatDay": 1,
+      "discoveredFlatDay": -1,
+      "toonsAffected": 0,
+      "reproducibility": 0.14788949489593506,
+      "variantId": 0,
+      "known": "false",
+      "manualJob": "false",
+      "beingDebugged": "false"
+    },
+    "all_parent_comparisons": {
+      "immediate": {
+        "path": "tools/bug_saved_comparison/evidence/blacksmith-immediate.json",
+        "sha256": "28feede4340d92b17c62d42ce8a21a37fbe3eee8ccdcd25c496eb9111f9e5f28",
+        "parents_per_peer": 6,
+        "bugs_per_peer": 1,
+        "differences": 0,
+        "full_single_stream_and_records_consumed": true
+      },
+      "completed": {
+        "path": "tools/bug_saved_comparison/evidence/blacksmith-completed.json",
+        "sha256": "352a73023c69a170965d961e87e2d6842cf39d94b559508279a3a1dea369d480",
+        "parents_per_peer": 6,
+        "bugs_per_peer": 1,
+        "differences": 0,
+        "full_single_stream_and_records_consumed": true
+      }
+    }
+  },
+  "frames": {
+    "host": {
+      "path": "_drafts/media/blacksmith-completed-host.bmp",
+      "sha256": "e00ac547667c4b23dda05771637ac04e2a6f2e5eba19cc67bdab68ebed7f081e",
+      "visual_inspection": "Completed Blacksmith visible at the same focused site; both paused with cash 87400"
+    },
+    "client-1": {
+      "path": "_drafts/media/blacksmith-completed-client-1.bmp",
+      "sha256": "54997918402eb402669860dc3c3f2aee1bbb7483a29b3bd02a245c90186c1fe9",
+      "visual_inspection": "Completed Blacksmith visible at the same focused site; both paused with cash 87400"
+    }
+  },
+  "limits": [
+    "This native construction acceptance covers Blacksmith/base; the earlier SmallInn evidence remains separate.",
+    "Continued equality of this same Bug is not a second birth. Known/debug transitions, Bug-fixing Jobs and individual retirement remain open.",
+    "The offline comparator matches saved parent locations and value multisets only; live identity is proved separately by the existing native Action occurrence row.",
+    "Nonempty snapshot load and replacement of an already Playing world are separate acceptance cases.",
+    "This development candidate is not delivered as a tester beta. Full ongoing simulation and online acceptance remain open."
+  ]
+}

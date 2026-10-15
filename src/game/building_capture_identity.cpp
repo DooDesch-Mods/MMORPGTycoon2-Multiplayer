@@ -1,3 +1,4 @@
+#include "bug_authority/runtime.h"
 #include "building_capture_identity.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "npc_quest_target_runtime.h"
@@ -350,6 +351,7 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const st
     if (capture_snapshot_identities) {
         if (!npc_quest_target_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; return fail(error,"Quest target capture arm failed: "+error); }
         if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }
+        if (!bug_authority::arm_snapshot(uuid,{},true,error)) { armed=false; npc_saved_identity_runtime::cancel(error); npc_quest_target_runtime::cancel(error); return fail(error,"Bug capture arm failed: "+error); }
     }
 #endif
     error.clear(); LOG_INFO("[BuildingCapture] Armed capture={} epoch={} game_thread={}", uuid, epoch, current.game_thread_id); return true;
@@ -494,6 +496,7 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
     if (capture_snapshot_identities) {
         if (!npc_quest_target_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("Quest target snapshot seal failed: "+error);
         if (!npc_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("NPC identity snapshot seal failed: "+error);
+        if (!bug_authority::seal_snapshot(uuid,sha,error)) return rejected("Bug snapshot seal failed: "+error);
     }
 #endif
     current.buildings = std::move(sealed_readbacks);
@@ -507,6 +510,7 @@ void cancel(const std::string& reason) {
     if (capture_snapshot_identities) {
         npc_quest_target_runtime::cancel(reason);
         npc_saved_identity_runtime::cancel(reason);
+        bug_authority::cancel_snapshot(reason);
     }
 #endif
     std::lock_guard lock(mutex); armed = false; clear_private(); bound_world = {}; current.world_witness_bound = false; current.world_witness_current = false; current.state = "cancelled"; current.error = reason; current.buildings.clear(); current.bindings_confirmed = false; LOG_INFO("[BuildingCapture] Cancelled capture={} reason={}", current.capture_uuid, reason); }

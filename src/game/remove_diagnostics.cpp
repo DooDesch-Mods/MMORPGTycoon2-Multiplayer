@@ -218,7 +218,7 @@ bool bindings(json& out,std::string& error) {
     const auto loaded=normal_load_identity::status();
     json list=json::array();
     std::string baseline_snapshot,baseline_sha;
-    if(capture.bindings_confirmed&&capture.world_witness_current&&!capture.capture_uuid.empty()) {
+    if(capture.bindings_confirmed&&capture.world_witness_current&&!capture.capture_uuid.empty()&&capture.capture_uuid==session_snapshot) {
         building_capture_identity::Status fresh;
         if(building_capture_identity::seal(capture.capture_uuid,capture.snapshot_sha256,capture.snapshot_bytes,
             capture.session_epoch,fresh,error)!=building_capture_identity::SealResult::Confirmed) {

@@ -30,6 +30,7 @@ bool submit_move_npc(const std::string& action_uuid,const std::string& target_ac
     const action_session::BuildingState& transform,std::string&);
 bool observe_startingpoint_submission(const action_session::Context& expected_context,
     const action_session::Binding& expected_binding,const std::string& action_uuid,std::string&);
+bool bug_context(action_session::Context&,action_session::Binding&,uint64_t& publication,bool& active,std::string&);
 bool network_binding(const std::string& snapshot,action_session::Binding&,std::string&);
 bool construction_jobs(const action_session::Context&,const action_session::Binding&,
     std::vector<developer_staff::construction::LocalJob>&,std::string&);

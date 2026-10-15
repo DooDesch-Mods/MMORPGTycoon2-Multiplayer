@@ -1,3 +1,4 @@
+#include "../game/bug_authority/runtime_internal.h"
 #include "mt2mp/core/dll_main.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/core/installed_profile.h"
@@ -479,6 +480,7 @@ static int32_t building_reader_children(void* reader) {
     const auto result=original_building_reader_children(reader);
     game::npc_quest_target_runtime::children_after(caller_rva,reader,result);
     game::npc_saved_identity_runtime::children_after(caller_rva,reader,result);
+    game::bug_authority::original_children(caller_rva,reader,result);
     game::root_building_load::children(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,reader,result);
     return result;
 }
@@ -487,6 +489,7 @@ static void inline_building(void* context,void* object) {
     original_inline_building(context,object);
     game::npc_quest_target_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
     game::npc_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
+    game::bug_authority::original_registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
     game::root_building_load::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
 }
 static game::normal_load_identity::AddObjectFn original_add_object=nullptr;
@@ -540,6 +543,7 @@ static void add_object(void* context,int32_t link_id,void* object) {
     game::root_building_load::registered(caller_rva,context,link_id,object);
     game::npc_quest_target_runtime::registered(caller_rva,context,link_id,object);
     game::npc_saved_identity_runtime::registered(caller_rva,context,link_id,object);
+    game::bug_authority::original_registered(caller_rva,context,link_id,object);
 }
 static void software_rating(void* receiver) {
     if(game::native::software_calculation_should_forward(receiver,game::native::SoftwareCalcLeaf::Rating)) {
@@ -2221,6 +2225,7 @@ bool initialize(HMODULE module) {
                !hooks::create_hook(game::npc_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_npc_property),reinterpret_cast<void**>(&original_load_npc_property)))
                 throw std::runtime_error("native NPC property observation hooks failed");
             if(!game::npc_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
+            if(!game::bug_authority::initialize(native_error))throw std::runtime_error(native_error);
             if(!hooks::create_hook(game::building_capture_identity::capture_entrypoint(),reinterpret_cast<void*>(&save_building_array),reinterpret_cast<void**>(&original_save_building_array))) throw std::runtime_error("native building save array observation hook failed");
             if(!game::network_identity::initialize(native_error)) throw std::runtime_error(native_error);
             if(!game::subscriber_lifecycle_append::initialize(native_image_begin,native_error)) throw std::runtime_error(native_error);

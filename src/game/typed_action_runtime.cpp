@@ -1,3 +1,4 @@
+#include "bug_authority/runtime.h"
 #include "typed_action_runtime.h"
 #include "time_integration.h"
 #include "mt2mp/net/steam_matchmaking.h"
@@ -542,7 +543,12 @@ public:
     void bind_live_state(live_host_state::Bridge& state,live_host_state::NativePort& port) {live_state_=&state;live_port_=&port;}
     action::Outcome execute_action(const action::Binding& binding,const action::Request& request,std::string& error)override {
         if(live_state_&&live_host_state::economic_fence().locked()){error=live_host_state::economic_fence().cause();return action::Outcome::RejectedNoEffect;}
-        const auto outcome=execute_action_native(binding,request,error);
+        action::Context bug_context;if(live_state_&&(!action::selected_session().current(bug_context,error)||!bug_authority::begin_action(bug_context,binding,request.action_uuid,error)))return action::Outcome::RejectedNoEffect;
+        action::Outcome outcome=action::Outcome::Unknown;
+        try{outcome=execute_action_native(binding,request,error);}
+        catch(const std::exception& e){error=std::string("Original ordered action: ")+e.what();}
+        catch(...){error="Original ordered action nonstandard exception";}
+        if(live_state_){std::string bug_error;if(!bug_authority::end_action(outcome==action::Outcome::Confirmed,bug_error)){error=bug_error+" original="+error;return action::Outcome::Unknown;}}
         if(live_state_&&live_host_state::economic_fence().locked()){error=live_host_state::economic_fence().cause();return action::Outcome::Unknown;}return outcome;
     }
     bool receive_authority_state(uint64_t sender,const uint8_t* bytes,size_t size,bool& handled,std::string& error)override {
@@ -566,9 +572,12 @@ public:
         live_host_state::Pin pin;auto& fence=live_host_state::economic_fence();
         if(!live_port_->read(pin,error)||!fence.begin_action(*live_result_,pin,error))return action::Outcome::RejectedNoEffect;
         const auto authority=*live_result_;live_result_.reset();action::Outcome outcome=action::Outcome::Unknown;
-        try {outcome=apply_action_native(binding,request,host,error);}
+        action::Context bug_context;bool bug_scope=false;
+        if(action::selected_session().current(bug_context,error))bug_scope=bug_authority::begin_action(bug_context,binding,request.action_uuid,error);
+        try {if(bug_scope)outcome=apply_action_native(binding,request,host,error);}
         catch(const std::exception& failure){error="live native action original exception: "+std::string(failure.what());}
         catch(...){error="live native action original nonstandard exception";}
+        if(bug_scope){std::string bug_error;if(!bug_authority::end_action(outcome==action::Outcome::Confirmed,bug_error)){error=bug_error+" original="+error;outcome=action::Outcome::Unknown;}}
         const auto original=error;std::string readback;
         if(!fence.end_action(readback)){error="live native cash scope: "+readback+" original="+original;return action::Outcome::Unknown;}
         if(outcome==action::Outcome::Confirmed&&!live_state_->after_action(authority,readback)){error="live actual Day after-action receipt: "+readback+" original="+original;return action::Outcome::Unknown;}
@@ -856,6 +865,19 @@ bool construction_jobs(const action::Context& expected,const action::Binding& bi
     if(context!=expected||context!=runtime->controller.bound_context()||binding!=runtime->controller.bound_binding()){
         error="Construction local Jobs current Session/Controller Binding differs";return false;}
     return runtime->engine.construction_jobs(binding,context.snapshot_uuid,out,error);
+}
+bool bug_context(action::Context& context,action::Binding& binding,uint64_t& publication,bool& active,std::string& error){
+    active=false;context={};binding={};publication=0;
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||!runtime->live_state||runtime->lobby_retiring)return true;
+    if(runtime->thread!=GetCurrentThreadId()){error="Bug authority requires Controller Mainthread";return false;}
+    if(!runtime->session.current(context,error))return false;
+    if(context!=runtime->controller.bound_context()){error="Bug authority current Session differs from Controller";return false;}
+    binding=runtime->controller.bound_binding();
+    if(!runtime->engine.current(binding,context.snapshot_uuid,error))return false;
+    publication=runtime->live_state->next_publication_revision();
+    if(!publication){error="Bug authority publication revision overflow";return false;}
+    active=true;return true;
 }
 bool network_binding(const std::string& snapshot,action::Binding& out,std::string& error){
     out={};auto* runtime=published_runtime.load(std::memory_order_acquire);

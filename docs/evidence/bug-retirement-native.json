@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "The one real Snapshot-born Bug disappears on both peers when the Client normally deletes its Blacksmith parent",
+  "runtime_run_id": "bdf8c982-9b7c-43a1-8b88-a2c63daadbe7",
+  "dll_sha256": "d09f45c4d78fccb629a5499ab682796fc2d04cbbed8fbb5564b649a352ced79e",
+  "normal_ui_removal": {
+    "path": "artifacts/acceptance/187a244e-b2c3-47df-b35a-d96cd70b705b/summary.json",
+    "sha256": "6f5e8e1b566e7511db0377e2bdde294db4012f1f59681317a9d55a9588979a1a"
+  },
+  "native_after": {
+    "path": "artifacts/acceptance/2d208c56-d85e-450d-87ef-07744fc19a84/summary.json",
+    "sha256": "3af2877f75ae5484c582216438f64088bc3ec30ab1a2a0eb7355eb6acea72dea"
+  },
+  "all_parent_saved_after": {
+    "path": "tools/bug_saved_comparison/evidence/blacksmith-retired.json",
+    "sha256": "105fca95830c7df8ca948c9ca3ee7fce33e1af6c36d8683f41de7c55f2957954",
+    "parents_per_peer": 5,
+    "bugs_per_peer": 0,
+    "differences": 0,
+    "empty_result_interpretation": "The comparator correctly does not claim a new birth from an empty set. The actual retirement transition is tied separately to the exact prior nonempty Bug and confirmed parent removal."
+  },
+  "prior_bug_row": [
+    0,
+    "09e791bde664dca5cc04bfe310deef5d3c030d6b58cbda7d1960562602a4bccb:world:building:263",
+    0,
+    "09e791bde664dca5cc04bfe310deef5d3c030d6b58cbda7d1960562602a4bccb",
+    0,
+    0,
+    0,
+    1,
+    -1,
+    0,
+    0,
+    0.14788949489593506,
+    false,
+    false,
+    false
+  ],
+  "remove_action_uuid": "a71f6035-5b62-4bad-8d4c-a4926e4eb2f6",
+  "confirmed_behavior": [
+    "The original Client BuildingInfoWindow Remove command passes through normal capture and the common Host-ordered action once.",
+    "Both native building removals and holder retirements are acknowledged; original refund and all 20 ledger groups agree.",
+    "Both active unlocked schema11 authority frames advance to action revision1 and contain no Bugs.",
+    "Both complete original local saves contain zero Bugs across all five remaining Building/NPC parents. The strict full-parent comparison also matches at this boundary.",
+    "No replayed gameplay action, whole-world reload or global Bug-array repair is used."
+  ],
+  "limits": [
+    "This proves Bug lifetime when its parent is removed. Retirement of an individual Bug while its parent survives remains separate.",
+    "Known/debug transitions and Developer Bug-fixing Jobs remain unfinished.",
+    "The earlier sequential-load save mismatch remains preserved in bug-snapshot-native.json; this later match does not erase it.",
+    "This development candidate is not delivered as a new tester beta. Full ongoing gameplay and online acceptance remain open."
+  ]
+}

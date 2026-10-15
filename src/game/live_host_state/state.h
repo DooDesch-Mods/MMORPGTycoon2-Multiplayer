@@ -6,6 +6,7 @@
 #include <optional>
 #include "network/node_state.h"
 #include "tutorial_replication/state.h"
+#include "bug_authority/codec.h"
 namespace mt2mp::game::live_host_state {
 constexpr size_t scalar_count=52;
 constexpr size_t max_frame_payload=action_session::max_transport_payload;
@@ -26,6 +27,7 @@ struct Frame {
     std::optional<network::State> network;
     std::optional<tutorial_replication::State> tutorial;
     std::optional<developer_staff::PoolState> developers;
+    std::optional<bug_authority::State> bugs;
     bool operator==(const Frame&)const=default;
 };
 struct Pin {

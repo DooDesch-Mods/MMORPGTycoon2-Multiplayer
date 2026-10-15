@@ -68,6 +68,7 @@ public:
         std::chrono::steady_clock::time_point now=std::chrono::steady_clock::now());
     bool before_result(uint64_t sender,const action_session::Message&,uint64_t previous,std::string&);
     action_session::AuthorityReadiness before_ready(uint64_t sender,const action_session::Message&,uint64_t previous,std::string&);
+    uint64_t next_publication_revision()const{return host_revision_==UINT64_MAX?0:host_revision_+1;}
     bool locked()const{return locked_;}
     const ApplyReceipt& receipt()const{return receipt_;}
     const network::Receipt& network_receipt()const{return network_receipt_;}
