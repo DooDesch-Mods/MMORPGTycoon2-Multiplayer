@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "scope": "Read-only native Job census and a normal Host technology completion; shared worker state adoption is not accepted",
+  "runtime_run_id": "a170508f-d765-44da-8033-27faf8a01170",
+  "dll_sha256": "9d171b8a2972643dbcd57da2c55c8da359c84d03ba7a0053fccc36a7b85c8b30",
+  "native_census": {
+    "passed": true,
+    "paired_baseline": "artifacts/acceptance/487b188a-ce35-4cd1-8941-768209926672/summary.json",
+    "developer_slots_per_peer": 50,
+    "queue_count": {
+      "host": 0,
+      "client-1": 0
+    },
+    "developer_job_link_count": {
+      "host": 0,
+      "client-1": 0
+    },
+    "carried_links_per_peer": 0,
+    "pointer_free": true,
+    "diagnostic_only": true,
+    "shared_job_identity_proven": false
+  },
+  "normal_technology_completion": {
+    "measurement_passed": true,
+    "worker_replication_passed": false,
+    "evidence": "artifacts/acceptance/8b141d7c-e19b-4f49-a506-4fd156e30c1e/summary.json",
+    "actual_states": {
+      "host": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 0,
+        "state": 0
+      },
+      "client-1": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "slot": 0,
+        "state": 6
+      }
+    },
+    "host_scale": 9,
+    "pause_confirmed": true,
+    "full_ledger_equal": true,
+    "forced_completion": false,
+    "direct_job_mutation": false,
+    "cause": "The Host reaches indoor idle state 0; the Client remains in TechDevelop state 6. No native Job links exist in this measured case. The existing live frame does not adopt this worker scalar transition."
+  },
+  "retained_prior_wait": {
+    "evidence": "artifacts/acceptance/57a3fcbb-aff8-4ede-8723-5ebe4c721870/summary.json",
+    "state": "normal-speed wait reached its 60 second bound before technology completion; pause confirmed",
+    "required_work": 7200,
+    "observed_work": 893.1625366210938,
+    "data_source": "Installed Data/MMORPG.zip, techs/base.vrt, startingpoint devHours 2"
+  },
+  "reusable_completed_host_snapshot": {
+    "evidence": "test/mcp/evidence/developer-completed-save_20261015T143338094167Z.json",
+    "snapshot_id": "fd728c76-a8d1-457e-8321-1e567ccc1c1e",
+    "world_name": "MPTestSession",
+    "bytes": 76285,
+    "sha256": "acd7ff18075b32363b2f0101e21721e3b6b0ee1986175cc73bb9bd82f1abd321",
+    "distribution_requested": false
+  },
+  "checks": {
+    "build": "artifacts/build_history/20261015T140632023546Z",
+    "canonical_ctest": "artifacts/developer_jobs_canonical_ctest.log",
+    "canonical_ctest_passed": 2,
+    "census_cases": 17,
+    "extracted_endpoint_cases": 13
+  },
+  "shutdown": {
+    "retire": "artifacts/acceptance/eea4d4af-262b-4320-b5a4-6c2602666143/summary.json",
+    "native_exit": "artifacts/acceptance/c09fe244-5d93-44a8-9f94-44cca9b4b909/summary.json",
+    "both_exit_codes": 0,
+    "dumps": 0,
+    "monitor_directory": "artifacts/tutorial_completion_monitors/a170508f-d765-44da-8033-27faf8a01170"
+  },
+  "source_sha256": {
+    "ci/CMakeLists.txt": "3e0578867755b51fc21a6ad90fb8caeb5153f584ed679833b3a75676c7e1007a",
+    "ci/developer_job_census_checks.cmake": "cf04a3c83d425e40bcb03bc19415e4a2779387a69dea032e83c885c1831c9bd2",
+    "src/game/developer_staff/job_census.h": "091184dfbcd033e068aac5a58cbbb36dcf89f5f3e9a22c54f4b975976e37c0ea",
+    "src/game/developer_staff/job_census.cpp": "6f2ed7ebd9d292b9b67207c16feba49f7c93c426319da31ad2aa820e827ad085",
+    "src/game/developer_staff/probe_process.cpp": "b15bf86bb3c7e584d9ce66a0e1db025daf89d81494b588e8829e4f02dd8eb44c",
+    "test/extract_developer_job_observe.py": "1a16664fdff0380d9c58373ad209f70b4222a2bca37e0432970ab791036f2735",
+    "test/test_developer_job_census.cpp": "060b2bcb124061c56058262bd95173a751f94088043f361a41de58b11cb7d94c",
+    "test/test_developer_job_observe.cpp": "b6cd783c97cdddfa8da29cc1f6620ae7a71796551287ced511c8a5eb8ad097ac"
+  },
+  "full_coop_proven": false,
+  "next_action": "Apply the existing Host state frame's no-job worker scalar state through original engine property calls, then prove shared Hire/Fire and the measured technology-to-idle transition. Native Job graph identity remains separate unfinished work."
+}

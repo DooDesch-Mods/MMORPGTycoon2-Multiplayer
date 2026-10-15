@@ -1,4 +1,5 @@
 #include "probe.h"
+#include "job_census.h"
 #include "entry_fingerprints.h"
 #include "window.h"
 #include "hud_time_runtime.h"
@@ -87,7 +88,13 @@ FixtureUpdateScope::~FixtureUpdateScope(){if(update_depth)--update_depth;if(oute
 bool authorize_fixture(Capture& c,uintptr_t& window,std::string& e){ProcessProbe port;return port.authorize(c,window,e);}
 bool observe_fixture(nlohmann::json& out,std::string& e){
     out={{"observed",false}};if(!thread(e))return false;Capture c;if(!read_process(c,e))return false;
-    out=encode(c);out["observed"]=true;out["fixture_locked"]=probe.locked();out["fixture_cause"]=probe.cause();out["receipts"]=nlohmann::json::array();
+    job_census::Census jobs;
+    if(!job_census::read([](auto p,auto target,auto n,auto& cause){return memory.copy(p,target,n,cause);},c,jobs,e))return false;
+    Capture after;if(!read_process(after,e))return false;
+    if(!same_origin(c.pin.origin,after.pin.origin)||c.pin.ledger!=after.pin.ledger||c.pin.time_scale!=after.pin.time_scale||
+       c.pin.pause_scale!=after.pin.pause_scale||c.image!=after.image||c.thread!=after.thread||c.state!=after.state||c.local!=after.local)
+        return fail(e,"Developer Job observation changed actual Origin/ledger/Clock/fixed50/local owners");
+    out=encode(c);out["jobs"]=job_census::encode(jobs);out["observed"]=true;out["fixture_locked"]=probe.locked();out["fixture_cause"]=probe.cause();out["receipts"]=nlohmann::json::array();
     for(const auto& [token,r]:probe.retained()){(void)token;out["receipts"].push_back(encode(r));}return true;
 }
 bool run_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){
