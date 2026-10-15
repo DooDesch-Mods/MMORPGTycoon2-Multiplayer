@@ -8,6 +8,7 @@
 #include "network_action.h"
 #include "network_pipe_action.h"
 #include "npc_action.h"
+#include "zone_action.h"
 #include "../tutorial_replication/startingpoint.h"
 #include "../developer_staff/shared_state.h"
 #include <array>
@@ -24,7 +25,7 @@ namespace mt2mp::action_session {
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=16384, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -50,6 +51,7 @@ struct Request {
     NetworkIntent network;
     NetworkPipeIntent network_pipe;
     NpcIntent npc;
+    ZoneIntent zone;
     int32_t desired_workers=0;
     bool operator==(const Request&) const = default;
 };
@@ -71,6 +73,7 @@ struct Evidence {
     PathState path_before,path_after;
     NetworkState network_before,network_after;
     NpcState npc_before,npc_after;
+    ZoneState zone_before,zone_after;
     std::optional<game::tutorial_replication::startingpoint::Row> startingpoint_before,startingpoint_after;
     std::optional<game::developer_staff::PoolState> developers_before,developers_after;
     std::string region_retired_sha256;
@@ -178,6 +181,7 @@ public:
     bool submit_region(const std::string& action_uuid,const RegionIntent&,uint64_t now_ms,std::string& cause);
     bool submit_region_property(const std::string& action_uuid,const RegionPropertyIntent&,uint64_t now_ms,std::string& cause);
     bool submit_prices(const std::string& action_uuid,const PriceIntent&,uint64_t now_ms,std::string& cause);
+    bool submit_zone(const std::string& action_uuid,const ZoneIntent&,uint64_t now_ms,std::string& cause);
     bool submit_npc(const std::string& action_uuid,const NpcIntent&,uint64_t now_ms,std::string& cause);
     // NPC targets accept a confirmed Place UUID or a canonical saved-record key.
     bool submit_remove_npc(const std::string& action_uuid,const std::string& target,uint64_t now_ms,std::string& cause);

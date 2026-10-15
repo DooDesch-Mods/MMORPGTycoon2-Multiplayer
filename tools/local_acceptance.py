@@ -173,6 +173,19 @@ def extract_result(receipt, tool):
     return result
 
 
+def validate_job_results(receipt, calls):
+    observed = receipt.get("calls", [])
+    if len(observed) != len(calls) + 1:
+        raise AcceptanceError(f"MCP job call count actual={len(observed)} required={len(calls) + 1}")
+    for index, planned in enumerate(calls, 1):
+        actual = observed[index]
+        if actual.get("index") != index or actual.get("tool") != planned["tool"]:
+            raise AcceptanceError(f"MCP job call order differs at index={index} required={planned['tool']}")
+        # A batch can intentionally use the same tool at different positions,
+        # such as Start/read/Pause. Validate each original acknowledgement.
+        extract_result({"calls": [actual]}, planned["tool"])
+
+
 class AcceptanceRunner:
     def __init__(self, args, workspace=ROOT):
         self.args, self.workspace = args, Path(workspace).resolve()
@@ -299,8 +312,7 @@ class AcceptanceRunner:
             self.persist()
             raise AcceptanceError(f"runtime identity changed during acceptance step={name}")
         try:
-            for call in calls:
-                extract_result(receipt, call["tool"])
+            validate_job_results(receipt, calls)
         except AcceptanceError as error:
             record["state"], record["cause"] = "failed-native-acknowledgement", str(error)
             self.persist()

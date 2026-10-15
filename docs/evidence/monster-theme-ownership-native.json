@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "scope": "Read-only original Monster brush window ownership after ordinary UI setup",
+  "shared_monster_placement_proven": false,
+  "stroke_attempted": false,
+  "acceptance": "3b3ff355-0b99-4d88-ac46-ab761d44115d",
+  "runtime_run_id": "05a50817-680c-43db-9fb7-d7d1d1c39327",
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "542f2ee4556ce9206f9791dd308645c93424e0e30da75898f271785b91a38a9e",
+  "brush_window": {
+    "class_rva": "0x17321a0",
+    "name": "character_theme"
+  },
+  "mode_windows": {
+    "count": 25,
+    "capacity": 32,
+    "brush_members": 0,
+    "named_members": 0,
+    "same_class_windows": [{"index": 14, "name": "monster_placement", "is_brush_window": false}]
+  },
+  "global_registry": {
+    "count": 459,
+    "capacity": 512,
+    "brush_members": 1,
+    "named_members": 1,
+    "same_class_windows": [
+      {"index": 88, "name": "character_theme", "is_brush_window": true},
+      {"index": 429, "name": "monster_placement", "is_brush_window": false}
+    ]
+  },
+  "confirmation": {
+    "full_bounded_arrays_and_headers_read_twice": true,
+    "actual_brush_pointer_relationship_checked_locally": true,
+    "raw_pointers_exported": false,
+    "full_world_state_ledger_rng_undo_unchanged": true,
+    "action_counters_unchanged_each_peer": true,
+    "clock_scale_each_peer": 0
+  },
+  "retained_failures": [
+    {"acceptance": "85b7686b-b1d1-4d80-bef4-1ab9bf3b2389", "cause": "The scan incorrectly rejected the different same-class monster_placement window before any effect."},
+    {"acceptance": "3e695ee2-ee1f-4a14-9ecb-8fbacbbe497e", "cause": "Skipping the other name was insufficient: character_theme does not belong to the Mode-owned array."}
+  ],
+  "next_action": "Use the original Window::Find route with exact function guards, native string lifetime, type/name, brush-link and current Origin checks. Native shared stroke acceptance remains required."
+}

@@ -53,6 +53,7 @@ struct SavedPool {
     Origin origin;
     int32_t saved_region = -1;
     Array array;
+    std::map<uintptr_t,std::string> action_keys;
 };
 struct Pools { std::vector<std::string> buildings, monster_zones; };
 
@@ -71,6 +72,10 @@ inline std::string zone_key(const std::string& sha, int32_t region, const Zone& 
     const auto suffix = zone.link_id > 0 ? std::to_string(zone.link_id) :
         snapshot_zone_key::root_suffix(region, static_cast<int32_t>(zone.saved_child));
     return sha + ":world:zone:" + suffix;
+}
+inline std::string zone_key(const SavedPool& saved,const Zone& zone) {
+    const auto action=saved.action_keys.find(zone.pointer);
+    return action==saved.action_keys.end()?zone_key(saved.origin.sha256,saved.saved_region,zone):action->second;
 }
 template<class Memory, class T>
 bool at(Memory& memory, uintptr_t object, size_t offset, T& out, std::string& error) {
@@ -216,7 +221,7 @@ bool read(Memory& memory, const World& world, const SavedPool& saved, const Budg
         out.buildings.push_back(std::move(key));
     }
     if (!unchanged(memory, manager + 0x408, budget.buildings, initial, error)) return false;
-    for (const auto& zone : saved.array.zones) out.monster_zones.push_back(zone_key(saved.origin.sha256, saved.saved_region, zone));
+    for (const auto& zone : saved.array.zones) out.monster_zones.push_back(zone_key(saved, zone));
     error.clear(); return true;
 }
 template<class Memory, class BuildingKey>
@@ -229,7 +234,7 @@ bool destination(Memory& memory, const World& world, const SavedPool& saved, con
     if (ap == world.image + 0x1745ce0) {
         if (!validate_saved(memory, world, saved, budget, error)) return false;
         for (const auto& zone : saved.array.zones) if (zone.pointer == pointer) {
-            key = zone_key(saved.origin.sha256, saved.saved_region, zone); error.clear(); return true;
+            key = zone_key(saved, zone); error.clear(); return true;
         }
         return fail(error, "quest destination Zone is not bound to the saved Monster pool");
     }

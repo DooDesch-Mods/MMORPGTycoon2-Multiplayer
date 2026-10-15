@@ -1,4 +1,5 @@
 #pragma once
+#include "npc_quest_targets.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -14,6 +15,12 @@ struct CurrentTargets {
 // Vectors preserve the original RNG pool order; no pointer enters this result.
 bool read_current(int32_t saved_region, CurrentTargets&, std::string& error);
 bool bind_destination(int32_t saved_region, uintptr_t destination, std::string& key, std::string& error);
+
+// The existing Controller brackets one original new-zone action with these calls.
+// No key is published until the exact native append and old members are checked.
+bool begin_zone_append(int32_t saved_region, const std::string& action_uuid, std::string& error);
+bool finish_zone_append(int32_t saved_region, const std::string& action_uuid, uintptr_t created,
+    uint64_t uid, const npc_quest_targets::Content& required, std::string& key, std::string& error);
 
 using PropertyCall = bool(*)(const void*, void*, void*, void*);
 using Ticket = uint64_t;

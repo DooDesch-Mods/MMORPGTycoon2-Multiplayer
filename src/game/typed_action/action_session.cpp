@@ -183,6 +183,7 @@ RegionPropertyState property_state_read(const json& j) {
 }
 float scalar(const json&);
 #include "terrain_codec.inc"
+#include "zone_codec.inc"
 #include "path_codec.inc"
 #include "network_codec.inc"
 #include "network_pipe_codec.inc"
@@ -193,6 +194,12 @@ bool valid_npc_target(const Request& r) {
         r.canonical_record_key=="action:"+r.target_action_uuid;
 }
 bool valid_request(const Request& r) {
+    if(r.action==Action::PlaceMonsterZone)return uuid(r.action_uuid)&&r.target_action_uuid.empty()&&
+        r.canonical_record_key=="action:"+r.action_uuid&&valid_zone_intent(r.zone)&&!r.desired_workers&&
+        r.building==BuildingState{}&&r.region==RegionIntent{}&&r.region_property==RegionPropertyIntent{}&&
+        r.price==PriceIntent{}&&r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&r.path_delete==PathDeleteIntent{}&&
+        r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{}&&r.npc==NpcIntent{};
+    if(r.zone!=ZoneIntent{})return false;
     if(r.action==Action::HireDeveloper||r.action==Action::FireDeveloper){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
         return r.canonical_record_key=="staff:developers"&&r.desired_workers==0&&valid_request(base);
@@ -278,6 +285,9 @@ bool object_effect(const Request& r,const Evidence& e) {
     return e.object_before.alive&&e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant;
 }
 bool execution(const Request& r,const Evidence& e) {
+    if(r.action==Action::PlaceMonsterZone)return zone_transition(e.zone_before,e.zone_after)&&
+        e.before==e.after&&e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed&&
+        e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     if(r.action==Action::HireDeveloper||r.action==Action::FireDeveloper){std::string cause;
         return e.developers_before&&e.developers_after&&
             game::developer_staff::count_effect(r.action==Action::HireDeveloper,*e.developers_before,*e.developers_after,cause)&&
@@ -387,6 +397,14 @@ bool execution(const Request& r,const Evidence& e) {
     return r.action==Action::RemoveSnapshotBuilding?e.target_retired&&e.undo_confirmed&&e.selection_confirmed:
         !e.target_retired&&e.undo_confirmed;
 }
+bool authority_evidence(const Request& request,const Evidence& local,const Evidence& host){
+    if(request.action!=Action::PlaceMonsterZone)return local==host;
+    if(!zone_transition(local.zone_before,local.zone_after)||!zone_transition(host.zone_before,host.zone_after)||
+       !zone_shared_state(local.zone_before,host.zone_before)||!zone_shared_state(local.zone_after,host.zone_after))return false;
+    // Compare every remaining field without replacing the actual per-peer receipt.
+    auto left=local,right=host;left.zone_before={};left.zone_after={};right.zone_before={};right.zone_after={};
+    return left==right;
+}
 bool complete(const Request& r,const Evidence& e) {return execution(r,e)&&e.retirement_confirmed;}
 bool extended(const Message& m) {
     return m.request.action!=Action::RemoveSnapshotBuilding||m.request.canonical_record_key.starts_with("action:")||
@@ -418,6 +436,10 @@ bool same_action(const Message& a,const Message& b) {return a.session==b.session
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
 bool valid_message(const Message& m,std::string& error) {
+    if((m.request.action!=Action::PlaceMonsterZone&&(m.evidence.zone_before!=ZoneState{}||m.evidence.zone_after!=ZoneState{}))||
+       !valid_zone_state(m.evidence.zone_before)||!valid_zone_state(m.evidence.zone_after)){
+        error="Zone evidence outside action domain";return false;
+    }
     if(m.request.action!=Action::HireDeveloper&&m.request.action!=Action::FireDeveloper&&(m.evidence.developers_before||m.evidence.developers_after)){
         error="Developer pool evidence outside Hire/Fire action";return false;}
     if(m.evidence.developers_before.has_value()!=m.evidence.developers_after.has_value()){
@@ -496,13 +518,16 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t(r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t(r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(r.action==Action::HireDeveloper||r.action==Action::FireDeveloper){
+        if(r.action==Action::PlaceMonsterZone){
+            j["request"]["zone"]=zone_intent_json(r.zone);
+            j["evidence"]["zone_before"]=zone_state_json(e.zone_before);j["evidence"]["zone_after"]=zone_state_json(e.zone_after);
+        }else if(r.action==Action::HireDeveloper||r.action==Action::FireDeveloper){
             j["evidence"]["developers_before"]=e.developers_before?game::developer_staff::encode(*e.developers_before):json(nullptr);
             j["evidence"]["developers_after"]=e.developers_after?game::developer_staff::encode(*e.developers_after):json(nullptr);
         } else if(r.action==Action::CommitStartingpoint||r.action==Action::StartStartingpoint||r.action==Action::SetStartingpointWorkers){
@@ -568,14 +593,15 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>24)throw std::runtime_error("unsupported action schema");
+        const auto schema=u64(j.at("schema"));if(schema<1||schema>25)throw std::runtime_error("unsupported action schema");
         if(schema!=19&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
         m.kind=Kind(k);m.outcome=Outcome(o);m.session=u64(j.at("session"));m.revision=u64(j.at("revision"));
         m.ack_peer=u64(j.at("ack_peer"));m.required_mask=u64(j.at("required_mask"));m.cause=j.at("cause").get<std::string>();
         const auto& r=j.at("request");
-        if(schema==19){const auto action=u64(r.at("action"));
+        if(schema==25)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","zone"});
+        else if(schema==19){const auto action=u64(r.at("action"));
             if(action==15)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc"});
             else if(action==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
             else if(action==17)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","building"});
@@ -595,14 +621,17 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));if(action<1||action>22||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));if(action<1||action>23||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
         if(schema==10||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
         const auto& e=j.at("evidence");
-        if(schema==23||schema==24){
+        if(schema==25){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","zone_before","zone_after"});
+            m.request.zone=zone_intent_read(r.at("zone"));m.evidence.zone_before=zone_state_read(e.at("zone_before"));m.evidence.zone_after=zone_state_read(e.at("zone_after"));
+        }else if(schema==23||schema==24){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","developers_before","developers_after"});
             const auto read=[](const json& j,std::optional<game::developer_staff::PoolState>& out){
                 if(j.is_null())return;game::developer_staff::PoolState pool;std::string cause;
@@ -802,6 +831,10 @@ bool Controller::submit_prices(const std::string& id,const PriceIntent& intent,u
     request.canonical_record_key="business:prices";request.price=intent;
     return submit(std::move(request),now,error);
 }
+bool Controller::submit_zone(const std::string& id,const ZoneIntent& intent,uint64_t now,std::string& error) {
+    Request request;request.action=Action::PlaceMonsterZone;request.action_uuid=id;
+    request.canonical_record_key="action:"+id;request.zone=intent;return submit(std::move(request),now,error);
+}
 bool Controller::submit_npc(const std::string& id,const NpcIntent& intent,uint64_t now,std::string& error) {
     Request request;request.action=Action::PlaceNPC;request.action_uuid=id;
     request.canonical_record_key="action:"+id;request.npc=intent;
@@ -856,6 +889,7 @@ bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidenc
     if(!invoke([&]{return engine_.retire(binding_,r,error);},error))return fail("native receipt retirement: "+error,error,true);
     Evidence retired;
     if(!invoke([&]{return engine_.observe_action(binding_,r,retired,error);},error)||!complete(r,retired)||retired.before!=evidence.before||retired.after!=evidence.after||
+       retired.zone_before!=evidence.zone_before||retired.zone_after!=evidence.zone_after||
        retired.object_before!=evidence.object_before||retired.object_after!=evidence.object_after||
        retired.region_before!=evidence.region_before||retired.region_after!=evidence.region_after||
        retired.property_before!=evidence.property_before||retired.property_after!=evidence.property_after||
@@ -947,7 +981,7 @@ bool Controller::result(const Message& m,std::string& error) {
         if(applied!=Outcome::Confirmed){ack.outcome=Outcome::Unknown;ack.cause="client native apply: "+error;}
         else {
             Evidence local;
-            if(!observe(m.request,before,local,error)||local!=m.evidence){ack.outcome=Outcome::Unknown;ack.cause="client after ledger/native receipt differs from authority: "+error;}
+            if(!observe(m.request,before,local,error)||!authority_evidence(m.request,local,m.evidence)){ack.outcome=Outcome::Unknown;ack.cause="client after ledger/native receipt differs from authority: "+error;}
             else ack.evidence=local;
         }
     }
@@ -970,7 +1004,7 @@ bool Controller::ack(const Message& m,uint64_t sender,std::string& error) {
     if(!pending_||!same_action(*pending_,m))return fail("native ACK has no matching pending action",error);
     old->second.peer_acks[sender]=m;
     if(m.outcome!=Outcome::Confirmed)return finish(Outcome::Unknown,"peer="+std::to_string(sender)+" native application: "+m.cause,error);
-    if(m.evidence!=old->second.result.evidence)return finish(Outcome::Unknown,"peer="+std::to_string(sender)+" ledger/native receipt differs from Host",error);
+    if(!authority_evidence(m.request,m.evidence,old->second.result.evidence))return finish(Outcome::Unknown,"peer="+std::to_string(sender)+" ledger/native receipt differs from Host",error);
     if(status_.ack_mask&bit(sender)){++status_.duplicates;error.clear();return true;}
     status_.ack_mask|=bit(sender);
     if(status_.ack_mask==status_.required_mask)return finish(Outcome::Confirmed,"",error);

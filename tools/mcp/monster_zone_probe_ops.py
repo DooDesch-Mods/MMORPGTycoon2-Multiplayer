@@ -19,3 +19,6 @@ def validate(op,a):
         if not isinstance(point,list) or len(point)!=3:fail('zone probe requires XYZ points')
         for v in point:
             if type(v) not in (int,float) or not math.isfinite(v) or abs(v)>3.4028234663852886e38:fail('zone probe point outside finite float32')
+
+SCHEMAS["native_monster_zone_ui"] = SCHEMAS["native_monster_zone_probe"]
+DESCRIPTIONS["native_monster_zone_ui"] = "Drive the fixed owned MonsterZone UI through its ordinary hooked capture on an idle admitted Controller. Submission is not Host completion; read ui_monster_zone.ui_jobs for the unique action receipt."

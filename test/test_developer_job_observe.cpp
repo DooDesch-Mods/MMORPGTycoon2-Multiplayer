@@ -5,7 +5,7 @@
 namespace staff=mt2mp::game::developer_staff;
 namespace fixture {
 unsigned checks=0,reads=0,censuses=0,copies=0;bool thread_ok=true,read_ok=true,jobs_ok=true,locked=false;
-int changed=0;staff::Capture base;
+unsigned movement_reads=0;bool movement_ok=true;int changed=0;unsigned target_reads=0;bool targets_ok=true,second_queue_ok=true,change_queue=false;staff::Capture base;
 void need(bool v,const char* e){++checks;if(!v)throw std::runtime_error(e);}
 }
 namespace mt2mp::game::developer_staff {
@@ -18,7 +18,9 @@ bool read_process(Capture& out,std::string& e){++fixture::reads;if(!fixture::rea
 nlohmann::json encode(const Capture&){return {{"current_native",true}};}
 nlohmann::json encode(const Receipt& r){return {{"cause",r.cause},{"unknown",r.unknown}};}
 namespace job_census {
-bool read(const Read& copy,const Capture&,Census&,std::string& e){++fixture::censuses;if(!fixture::jobs_ok){e="original queue read failure";return false;}int value=0;return copy(1,&value,sizeof value,e);}
+bool read(const Read& copy,const Capture&,Census& out,std::string& e){++fixture::censuses;if(fixture::censuses==2&&!fixture::second_queue_ok){e="original second queue failure";return false;}if(fixture::censuses==2&&fixture::change_queue)++out.capacity;if(!fixture::jobs_ok){e="original queue read failure";return false;}int value=0;return copy(1,&value,sizeof value,e);}
+bool observe_building_targets(const Read&,const Capture&,const Census&,nlohmann::json& out,std::string& e){++fixture::target_reads;if(!fixture::targets_ok){e="original target binding failure";return false;}out={{"observed",true},{"building_key","action:actual-test-key"},{"job_identity_proven",false}};return true;}
+bool observe_movement(const Read&,const Capture&,const Census&,nlohmann::json& out,std::string& e){++fixture::movement_reads;if(!fixture::movement_ok){e="original movement failure";return false;}out={{"observed",true},{"actors",50}};return true;}
 nlohmann::json encode(const Census&){return {{"diagnostic_only",true},{"identity_proven",false}};}
 }
 namespace {
@@ -30,14 +32,18 @@ bool fail(std::string& e,const std::string& why){e=why;return false;}
 #include "developer_job_observe.inc"
 }
 namespace {
-void reset(){using namespace fixture;reads=censuses=copies=0;thread_ok=read_ok=jobs_ok=true;changed=0;locked=false;base={};base.state.rows.resize(50);}
+void reset(){using namespace fixture;reads=censuses=copies=target_reads=movement_reads=0;movement_ok=true;targets_ok=second_queue_ok=true;change_queue=false;thread_ok=read_ok=jobs_ok=true;changed=0;locked=false;base={};base.state.rows.resize(50);}
 }
 int main(){try{using namespace fixture;nlohmann::json out;std::string e;
-    reset();need(staff::observe_fixture(out,e)&&out.at("observed")==true&&out.at("jobs").at("identity_proven")==false&&reads==2&&censuses==1&&copies==1,"actual observation did not bind both pool reads and diagnostic census");
+    reset();need(staff::observe_fixture(out,e)&&out.at("observed")==true&&out.at("jobs").at("identity_proven")==false&&reads==2&&censuses==2&&copies==2&&target_reads==1&&movement_reads==1&&out.at("developer_movement").at("actors")==50&&out.at("job_building_targets").at("building_key")=="action:actual-test-key","actual observation did not bind both pool reads and diagnostic census");
     reset();locked=true;need(staff::observe_fixture(out,e)&&out.at("fixture_locked")==true&&out.at("fixture_cause")=="retained original failure","read-only census erased the retained mutation failure");
     reset();thread_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original Mainthread guard"&&!reads&&!censuses,"thread failure was hidden or read unauthorized memory");
     reset();read_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original pool read failure"&&!censuses,"first native pool read failure was hidden");
     reset();jobs_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original queue read failure"&&reads==1,"queue error was hidden or success-shaped");
+    reset();targets_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original target binding failure"&&reads==1&&censuses==1,"target binding failure was hidden or returned success");
+    reset();second_queue_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original second queue failure"&&reads==1,"second queue read failure was hidden");
+    reset();change_queue=true;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e.find("actual queue/actor graph")!=std::string::npos&&reads==1,"changed queue graph returned success");
+    reset();movement_ok=false;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e=="original movement failure"&&reads==1&&censuses==1,"movement failure was hidden or returned success");
     for(int field=1;field<=8;++field){reset();changed=field;need(!staff::observe_fixture(out,e)&&out.at("observed")==false&&e.find("Origin/ledger/Clock/fixed50/local")!=std::string::npos,"outer native binding mutation produced observed success");}
     std::cout<<"PASS "<<checks<<" actual read-only census endpoint checks\n";return 0;
 }catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

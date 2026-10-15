@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "scope": "Bound runtime status and exact-request response readback after normal native actions",
+  "runtime_run_id": "592ea0e1-17eb-4adc-9d42-430cdd45df42",
+  "native_evidence": "artifacts/acceptance/a8e6a67e-e8f6-4ac5-8d0a-efa57757e98f/summary.json",
+  "native_evidence_sha256": "d5d08ead80e0722ad6d88328a7cf5bedf09cc4cf02ec93159ae8affa1edbc6dd",
+  "runtime_reader_sha256": "b7e3454d979da2814e66ff1ff548ca2bca7982856c35b655df11fb6ea7adea96",
+  "actual_status_bytes": 397258,
+  "actual_sequence": [
+    "game_inspect_engine",
+    "game_read_building_history_ui"
+  ],
+  "both_native_acknowledgements_confirmed": true,
+  "gameplay_mutation_executed": false,
+  "causes": [
+    "A valid schema1 Client status exceeded the generic262144-byte JSON read ceiling.",
+    "After allowing large status responses, a following ordinary request could encounter the preceding large response before its own response was published. The old reader applied the new operation size ceiling before rejecting the stale UUID."
+  ],
+  "resolution": {
+    "bound_status_and_status_response_ceiling_bytes": 20971520,
+    "ceiling_source": "Existing tools/mcp/run_job.py local evidence bound",
+    "response_order": "Read a bounded envelope, reject a foreign UUID or run, then enforce the matching operation size ceiling and validate its schema.",
+    "ordinary_matched_response_ceiling_bytes": 262144,
+    "generic_json_request_manifest_lock_bounds_unchanged": true,
+    "oversize_or_unconfirmed_response_retains_lock": true,
+    "native_request_ceiling_unchanged_bytes": 65536
+  },
+  "canonical_tests": {
+    "status_publication": 22,
+    "runtime": 31,
+    "read_retry": 7,
+    "all_passed": true
+  },
+  "regression_coverage": [
+    "Generated exact400832-byte valid status and dispatch response",
+    "Exact20-MiB acceptance and one-byte-over rejection",
+    "Stale process identity rejection and unchanged generic limits",
+    "Exact pending status response recovery without publication",
+    "Large stale prior inspect response followed by an ordinary small response in the real request loop",
+    "Matching oversized ordinary response rejection and mailbox retention",
+    "Foreign UUID and run rejected before the ordinary response ceiling"
+  ],
+  "retained_native_failures": [
+    "artifacts/acceptance/42662f62-05c8-4d70-a763-866224790187/summary.json",
+    "artifacts/acceptance/5403e12b-7ddc-44d4-ac78-a77b7df4c4ec/summary.json",
+    "artifacts/acceptance/cb358e01-e91b-46c8-a308-35b5ef7be963/summary.json"
+  ],
+  "recovery": "The already completed native actions were not replayed. The original exact pending History read response was acknowledged by observe_pending.",
+  "ci": "The three affected suites run in both source and beta workflows.",
+  "private_fixture_content_committed": false,
+  "gameplay_dll_rebuild_required": false,
+  "full_coop_proven": false
+}

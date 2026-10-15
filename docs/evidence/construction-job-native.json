@@ -1,0 +1,145 @@
+{
+  "schema_version": 1,
+  "scope": "Original construction Job creation, natural Host assignment and completion; diagnostic evidence for the missing Client adoption",
+  "full_coop_proven": false,
+  "client_job_adoption_proven": false,
+  "job_identity_proven": false,
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "cd4c5c6957ebb656a5cd9605c4a279f59eaa6f315f3f4fcb3180f82aaf0fddde",
+  "runtime_run_id": "6e623ba6-75cd-4d9c-9c69-d6bf61d5a739",
+  "fixture_snapshot": "1a268382-10af-4400-93f2-3a904a83775b",
+  "paired_load_acceptance": "4a04f8e0-8add-44b3-92c6-1d876b79758d",
+  "normal_placement": {
+    "acceptance": "e6e265f1-9350-402d-8c80-6df447801a7b",
+    "action_uuid": "35f9c9e0-8c96-4bf4-8383-cead2369d21b",
+    "type": "SmallInn",
+    "variant": "base",
+    "position": [8020.0, 70.57789611816406, 8550.0],
+    "original_client_ui": true,
+    "each_peer_attempted_and_confirmed_once": true,
+    "host_ack_mask": 3,
+    "native_queue_count_each_peer": [0, 1],
+    "job_type_each_peer": 1,
+    "job_unassigned_each_peer": true,
+    "target_key_each_peer": "action:35f9c9e0-8c96-4bf4-8383-cead2369d21b",
+    "shared_binding_and_local_origin_domains_checked": true,
+    "full_native_ledger_equal": true
+  },
+  "natural_assignment": {
+    "acceptance": "93c412fa-5642-49a4-a02f-4f354646a415",
+    "ordinary_host_scale": 1,
+    "host_developer_id": 0,
+    "host_state": 1,
+    "host_on_map": true,
+    "host_reciprocal_job_link": true,
+    "host_position": [8131.10888671875, 87.8735122680664, 8550.0],
+    "client_state": 0,
+    "client_on_map": false,
+    "client_job_unassigned": true,
+    "both_final_clock_scale": 0,
+    "client_frame_cause": "Developer frame count/ordered native manager membership differs; ordered Hire/Fire or original map closure required",
+    "client_frame_locked": false
+  },
+  "expanded_movement_observation": {
+    "acceptance": "bbe55bc7-5b9a-44a0-8091-de4ccb264875",
+    "runtime_run_id": "05a50817-680c-43db-9fb7-d7d1d1c39327",
+    "mod_sha256": "542f2ee4556ce9206f9791dd308645c93424e0e30da75898f271785b91a38a9e",
+    "all_50_actors_observed_each_peer": true,
+    "host_developer_0": {
+      "state": 1,
+      "on_map": true,
+      "reciprocal_job_link": true,
+      "shard_is_root": true,
+      "region_saved_id": 67,
+      "region_matches_job": true,
+      "current_and_destination_buildings_present": false,
+      "has_destination": true,
+      "movement_destination": [8020.0, 70.57789611816406, 8550.0],
+      "orientation": [0.0, -0.7024955749511719, 0.0, 0.7112628817558289],
+      "scale": [1.0, 1.0, 1.0],
+      "path_active": false,
+      "path_task_present_or_pending": false,
+      "road_or_path_node_present": false,
+      "travel_step_count": 1,
+      "travel_step_index": 0,
+      "quadtree_present": true,
+      "quadtree_dirty": true
+    },
+    "client_developer_0": {
+      "state": 0,
+      "on_map": false,
+      "job_link": false,
+      "shard_is_root": true,
+      "region_saved_id": 67,
+      "current_and_destination_buildings_present": false,
+      "has_destination": false,
+      "path_active": false,
+      "path_task_present_or_pending": false,
+      "road_or_path_node_present": false,
+      "travel_step_count": 0,
+      "quadtree_present": false
+    },
+    "ordinary_start_read_pause_original_batch_confirmed": true,
+    "both_final_clock_scale": 0,
+    "client_job_adoption_proven": false
+  },
+  "natural_completion": {
+    "acceptance": "6357d3d1-c66b-430a-b02e-e18593ca784d",
+    "ordinary_host_scale": 9,
+    "host_queue_count": 0,
+    "host_developer_state": 0,
+    "host_developer_on_map": false,
+    "host_developer_job_link": false,
+    "client_queue_count": 1,
+    "both_final_clock_scale": 0,
+    "local_saves_distributed": false,
+    "host_local_save": {
+      "snapshot_id": "8489bb3f-b133-4114-b56c-74c4d279ccb2",
+      "bytes": 240232,
+      "sha256": "a13d972be6a36cd12e568b8ee8bd32b48b6693c848e10275bda6b0b4ca41fe7f"
+    },
+    "client_local_save": {
+      "snapshot_id": "7af20bc4-9bd8-41f4-af88-4ecb525b11b3",
+      "bytes": 242756,
+      "sha256": "7ca1868f677eb81aab7a988207130e428b560c37f8d50e32529031955d6fe9a7"
+    },
+    "building_activation_after_queue_removal": {
+      "source": "Both hash-pinned native saves fully decoded with the existing RecordReader",
+      "unique_building_match": "New SmallInn/base at x8020/z8550 in saved Region33/root shard2",
+      "host_active": true,
+      "client_active": false,
+      "both_saved_state": "online",
+      "both_saved_powered": true,
+      "both_saved_translation": [8020.0, 70.83831787109375, 8550.0],
+      "saved_translation_is_distinct_from_live_native_placement_position": true,
+      "reports": [
+        "tools/developer_staff_slice/astra_lifecycle/job_completed_host.json",
+        "tools/developer_staff_slice/astra_lifecycle/job_completed_client.json"
+      ]
+    }
+  },
+  "retained_test_failures": [
+    {
+      "acceptance": "4fde455b-2ea5-4dd6-b8b6-73d4f0113f58",
+      "cause": "The test supplied a wrong ground height. The native preflight rejected it before job reservation or original UI callbacks.",
+      "correction": "Use the existing read-only native placement probe for the actual ground height."
+    },
+    {
+      "acceptance": "1cdd486a-a4aa-490e-9d49-bbdad308884a",
+      "cause": "The runner expected exactly one result per tool name and rejected the two time-scale results after the native batch had fully completed.",
+      "original_mcp_evidence": "test/mcp/evidence/a1cdd486aa4aa-02-one-normal-h_20261015T160715355226Z.json",
+      "all_original_calls_confirmed": true,
+      "recovery_acceptance": "93c412fa-5642-49a4-a02f-4f354646a415",
+      "time_mutations_replayed": false
+    }
+  ],
+  "cleanup": {
+    "retirement_acceptance": "149970a0-d30a-4e57-82d1-d6897d6eda63",
+    "native_exit_acceptance": "dbcfdea4-b4c8-49fe-b1d0-5992ad71e479",
+    "both_exit_codes": 0,
+    "both_full_shutdown_paths": true,
+    "both_monitors_exit_codes": 0,
+    "owned_helpers_stopped": true
+  },
+  "next_action": "Observe the actual Developer movement and local Job ownership fields, then implement Host-state adoption through existing native ownership and property paths. Do not replay simulation or replace the complete Job array."
+}

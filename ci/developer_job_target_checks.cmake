@@ -1,0 +1,8 @@
+add_executable(test_developer_job_targets "${MT2MP_SOURCE_ROOT}/test/test_developer_job_targets.cpp")
+target_include_directories(test_developer_job_targets PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/src/game/developer_staff" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_developer_job_targets PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(test_developer_job_targets PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME developer_job_targets COMMAND test_developer_job_targets)
+set_tests_properties(developer_job_targets PROPERTIES TIMEOUT 60)

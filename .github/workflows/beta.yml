@@ -49,17 +49,27 @@ jobs:
           python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tools/mcp'
+          python -X utf8 -m unittest discover -s test/mcp -p test_status_publication.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 -m unittest discover -s test/mcp -p test_runtime.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 -m unittest discover -s test/mcp -p test_read_retry.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/mcp -p test_tutorial_observer.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_tutorial_network_tab.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_monster_zone_probe.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_monster_zone_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_developer_staff.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_developer_retirement.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_developer_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/local_acceptance_test.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/e2e -p test_building_history.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }

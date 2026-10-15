@@ -1,4 +1,10 @@
 #include "npc_probe.h"
+#include "monster_zone_action_runtime.h"
+#include "monster_zone_selection.h"
+#include "monster_zone_effect.h"
+#include "monster_zone_shared_ui.h"
+#include "monster_zone_action_codes.h"
+#include "monster_zone_theme_find.h"
 #include "monster_zone_read.h"
 #include "monster_zone_stroke.h"
 #include "monster_zone_probe_guards.h"
@@ -284,4 +290,5 @@ bool query(int32_t region_id,json& result,std::string& error) {
 #include "npc_place_probe.inc"
 #include "monster_zone_probe.inc"
 #include "npc_action_runtime.inc"
+#include "monster_zone_action_runtime.inc"
 }

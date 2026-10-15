@@ -18,5 +18,6 @@ inline constexpr Code code[]{
 {0x293520,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48}},
 {0x456c00,{0x41,0x57,0xb8,0xa8,0x2f,0x00,0x00,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56}},
 };
-template<class Memory> bool verify(Memory& m,uintptr_t image,std::string& e){for(const auto& v:code){std::array<unsigned char,16> actual{};if(!m.copy(image+v.rva,actual.data(),actual.size(),e))return false;if(actual!=v.bytes){e="monster probe original entry differs rva="+std::to_string(v.rva);return false;}}return true;}
+template<class Memory,class Owned> bool verify(Memory& m,uintptr_t image,Owned&& owned,std::string& e){for(const auto& v:code){std::array<unsigned char,16> actual{};if(!m.copy(image+v.rva,actual.data(),actual.size(),e))return false;if(actual!=v.bytes&&!owned(v.rva,e)){if(e.empty())e="monster probe original entry differs rva="+std::to_string(v.rva);return false;}}return true;}
+template<class Memory> bool verify(Memory& m,uintptr_t image,std::string& e){return verify(m,image,[](uintptr_t,std::string&){return false;},e);}
 }

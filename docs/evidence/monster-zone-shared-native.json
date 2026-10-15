@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "scope": "One original Client MonsterZone brush stroke, ordered by the Host and executed exactly once on each peer",
+  "passed": true,
+  "full_coop_proven": false,
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "02164b096d19473c5c19e523c4f23d225b6fc80c2e99b8710408a0926cf049e9",
+  "runtime_run_id": "820edce1-ea25-4f87-81de-1621571e4a0a",
+  "native_evidence": "artifacts/acceptance/d450ceca-1b88-4e0f-9c16-381b9b5a6027/summary.json",
+  "native_evidence_sha256": "a98b71eb82930acbc6aa7fc38bf778c2773e6b9408578d84ad7392be1ba3f2a1",
+  "original_execution_evidence": "artifacts/acceptance/3c49420b-c368-48fa-af1d-098c872e020e/summary.json",
+  "action_uuid": "9a62a2d7-1c4d-4497-b6ec-b3dab98e049c",
+  "origin": "client-1",
+  "zones_created_each_peer": 1,
+  "monsters_created_each_peer": 1,
+  "host_ack_mask": 3,
+  "executions_per_peer": 1,
+  "stroke_replayed": false,
+  "confirmed_equal": [
+    "zone polygon and sections",
+    "character, level and rank",
+    "monster pose and membership",
+    "canonical Quest pool prefix and appended action key",
+    "all 20 ledger groups"
+  ],
+  "content_sha256": "73bf37b9a81eb2fd4b781a74b5f0a1f63627d7b97927768c41f3a8e8baf725c0",
+  "cash_before_and_after": [
+    88400,
+    88400
+  ],
+  "undo": {
+    "closed_original_graph_each_peer": true,
+    "undo_count": [
+      0,
+      1
+    ],
+    "redo_count": 0,
+    "release_edits_index5_delta": 1,
+    "undo_execution_proven": false
+  },
+  "random_state": {
+    "native_commit_comparison": "Exact native perform/observe/retire/ACK; later paused UI samples retained separately",
+    "unused_region_rng_unchanged_per_peer": true,
+    "later_process_rng_samples": {
+      "host": [
+        17382485603744259717,
+        4518373390362084983,
+        1259508967211846625,
+        3867283028210641574
+      ],
+      "client-1": [
+        14819992468708210621,
+        9965502580901688949,
+        6084675392016213579,
+        3951065274912940770
+      ]
+    },
+    "later_sample_limit": "This process RNG is also consumed by paused UI. The exact consumer between these reads was not traced. Native perform/observe/retire and Controller ACK retain strict RNG validation."
+  },
+  "engine_fix": {
+    "cause": "The real character_theme window belongs to the global registry, not the current Mode window array.",
+    "ownership_evidence": "docs/evidence/monster-theme-ownership-native.json",
+    "resolution": "Call original Window::Find with original GNU String construction and disposal; retain exact full-body, ID, type, brush, thread and origin checks."
+  },
+  "build": "artifacts/build_history/20261015T164126130133Z",
+  "affected_checks": [
+    "monster_zone_action_native",
+    "monster_zone_action_owned",
+    "monster_zone_theme_owner"
+  ],
+  "retained_failures": [
+    {
+      "acceptance": "2944004d-2bdf-45d1-aff2-870f2fc2e276",
+      "cause": "Test setup had not opened the Host theme window; stopped before selection or stroke. Resume executed only previously unexecuted setup and stroke."
+    },
+    {
+      "acceptance": "3c49420b-c368-48fa-af1d-098c872e020e",
+      "cause": "The stroke completed and both peers acknowledged. The harness incorrectly assumed the original reference seed always produces four monsters. Actual native result was one."
+    },
+    {
+      "acceptance": "56ab8fb1-1b08-42de-b238-b70be258a71d",
+      "cause": "A later asynchronous process RNG equality assumption failed. All content was equal. Final readback preserves those samples and uses the already strict native commit validation; no stroke replay."
+    }
+  ],
+  "media": [
+    {
+      "peer": "host",
+      "draft_path": "_drafts/media/monster-zone-shared-host.bmp",
+      "file_sha256": "3c49ec035ffbafe5f22f23b1ff8f6a09b33a948c3773ab572838104e5f226e3e",
+      "native_pixel_sha256": "f27adaeaa373a8441da3944eaea55e3f5594fc4f426f0416b207f62bb21f3607",
+      "width": 1280,
+      "height": 720,
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "draft_path": "_drafts/media/monster-zone-shared-client-1.bmp",
+      "file_sha256": "8fa9f45476dea0319bc0839ed6ac41caf4b324366af80350c13c41175089b11c",
+      "native_pixel_sha256": "9117bbdf7fabc17bc78b51061694a975eec157aff6687c0f09a39a3b203a8bd1",
+      "width": 1280,
+      "height": 720,
+      "visually_inspected": true
+    }
+  ],
+  "limits": [
+    "Continuous Monster AI replication remains unfinished.",
+    "Zone edits, movement, deletion and Undo/Redo execution are not proven by this placement.",
+    "Four players, large-world and separate-account online acceptance remain open."
+  ],
+  "cleanup": {
+    "owned_process_manifest_stopped": true,
+    "monitor_exit_codes": [
+      0,
+      0
+    ],
+    "native_retire_and_exit_test_executed": false,
+    "note": "After the later original Remove measurement, only exact owned local test process identities were stopped. Private Steam processes and saves were preserved."
+  }
+}

@@ -1,4 +1,5 @@
 #include "npc_quest_target_runtime.h"
+#include "npc_zone_append.h"
 #include "npc_quest_building_key.h"
 #include "building_capture_identity.h"
 #include "native_open_runtime.h"
@@ -37,6 +38,7 @@ std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Array> observed;
 std::map<int32_t, q::SavedPool> pools;
+std::map<std::string, npc_zone_append::Receipt> zone_appends;
 #ifdef MT2MP_QUEST_TARGET_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
 using TestLink = bool(*)(uintptr_t, uintptr_t, int32_t&, std::string&);
@@ -70,7 +72,7 @@ bool same_world(const opened::CurrentWorld& a, const opened::CurrentWorld& b) {
 }
 void reset(const std::string& id, const std::string& digest) {
     uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
+    load_stack.clear(); observed.clear(); pools.clear(); zone_appends.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
     if (!actual || (bound_context && bound_context != actual)) return reject(error, "Zone property save/load context differs");
@@ -226,7 +228,7 @@ bool seal_client(std::string& error) {
         return reject(error, "Quest Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false; return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); }
+void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); zone_appends.clear(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
@@ -316,6 +318,30 @@ void load_after(Ticket ticket, const void* property, void* manager, void* reader
 void original_failed(Ticket ticket, const std::string& cause) noexcept try {
     if (!ticket) return; std::lock_guard lock(gate); std::string error; reject(error, "original Zone property failed: " + cause);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("original failure reporting exception"); }
+bool begin_zone_append(int32_t id, const std::string& action_uuid, std::string& error) {
+    std::lock_guard lock(gate); q::World world; const q::SavedPool* saved = nullptr;
+    if (!current(id, world, saved, error)) return false;
+    if (zone_appends.contains(action_uuid)) return q::fail(error, "Zone append action already attempted; no replay");
+    if (zone_appends.size() >= 4096) return q::fail(error, "Zone append retained action budget exceeded");
+    npc_zone_append::Receipt receipt;
+    if (!npc_zone_append::begin(memory, world, *saved, budget, action_uuid, receipt, error)) return false;
+    zone_appends.emplace(action_uuid, std::move(receipt)); return true;
+}
+bool finish_zone_append(int32_t id, const std::string& action_uuid, uintptr_t created,
+    uint64_t uid, const npc_quest_targets::Content& required, std::string& key, std::string& error) {
+    std::lock_guard lock(gate); key.clear();
+    const auto held = zone_appends.find(action_uuid);
+    if (held == zone_appends.end()) return q::fail(error, "Zone append has no bound before receipt");
+    if (held->second.consumed) return q::fail(error, "Zone append receipt already consumed; no replay");
+    q::World world; const q::SavedPool* saved = nullptr;
+    if (!current(id, world, saved, error)) { held->second.consumed = true; return false; }
+    auto found = pools.find(id);
+    if (found == pools.end() || &found->second != saved) {
+        held->second.consumed = true; return q::fail(error, "Zone append current pool changed");
+    }
+    return npc_zone_append::finish(memory, world, found->second, budget, held->second,
+        created, uid, required, key, error);
+}
 bool read_current(int32_t id, CurrentTargets& out, std::string& error) {
     std::lock_guard lock(gate); out = {}; q::World world; const q::SavedPool* saved = nullptr;
     if (!current(id, world, saved, error)) return false;

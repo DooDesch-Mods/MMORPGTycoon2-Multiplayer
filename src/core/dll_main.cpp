@@ -819,6 +819,7 @@ static json status() {
     result["capabilities"]["read_region_preset"]=game::ui_region_runtime::enabled();
     result["capabilities"]["read_npc_region"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_npc_tool_ui"]=cfg.local_test&&game::native::in_game();
+    result["capabilities"]["native_monster_zone_ui"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_monster_zone_probe"]=cfg.local_test&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["native_npc_place_probe"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_npc_place_ui"]=cfg.local_test&&game::native::in_game()&&
@@ -1693,6 +1694,11 @@ static void diagnostics_tick() {
                 a.at("tool").get<std::string>(),a.at("phase").get<std::string>(),int32_t(slot),int32_t(type),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_TOOL_UI_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_monster_zone_ui") {
+            json result;std::string error;
+            response["ok"]=game::npc_probe::monster_zone_ui(request.at("args"),result,error);
+            response["result"]=std::move(result);if(!response["ok"].get<bool>())response["error"]={{"code","MONSTER_ZONE_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="native_monster_zone_probe") {
             std::string error;json result;

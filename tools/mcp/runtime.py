@@ -15,6 +15,8 @@ import uuid
 
 LOG = logging.getLogger("mt2_mcp")
 MAX_JSON = 262144
+# Match the existing saved MCP evidence ceiling; input files keep MAX_JSON.
+MAX_STATUS_JSON = 20 * 1024 * 1024
 INSTALLED_PROOF_ROOT = Path(__file__).resolve().parents[2] / "_MPTest" / "dropin-proof"
 INSTALLED_EXE_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
 JSON_SHARING_WAIT_SECONDS = 0.25
@@ -68,6 +70,8 @@ OPS.add("read_prices")
 OPS.add("read_npc_region")
 OPS.add("native_npc_tool_ui")
 MUTATIONS.add("native_npc_tool_ui")
+OPS.add("native_monster_zone_ui")
+MUTATIONS.add("native_monster_zone_ui")
 OPS.add("native_monster_zone_probe")
 MUTATIONS.add("native_monster_zone_probe")
 OPS.add("native_npc_place_probe")
@@ -147,7 +151,7 @@ def shared_open(path: Path) -> io.BufferedReader:
         raise
 
 
-def read_json(path: Path) -> dict:
+def _read_json(path: Path, max_bytes: int) -> tuple[dict, int]:
     started = time.monotonic()
     sharing_failures = 0
     previous_error = None
@@ -156,7 +160,7 @@ def read_json(path: Path) -> dict:
         while True:
             try:
                 with shared_open(path) as stream:
-                    raw = stream.read(MAX_JSON + 1)
+                    raw = stream.read(max_bytes + 1)
                 break
             except OSError as exc:
                 error = getattr(exc, "winerror", None)
@@ -182,14 +186,18 @@ def read_json(path: Path) -> dict:
         if sharing_failures:
             LOG.info("JSON read sharing recovered target=%s failures=%s elapsed_ms=%.1f original_cause=%s",
                      path, sharing_failures, (time.monotonic() - started) * 1000, first_cause)
-        if len(raw) > MAX_JSON:
-            raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {MAX_JSON} bytes")
+        if len(raw) > max_bytes:
+            raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         value = json.loads(raw)
         if not isinstance(value, dict):
             raise ValueError("expected JSON object")
-        return value
+        return value, len(raw)
     except (OSError, ValueError) as exc:
         raise RuntimeErrorDetail("read_failed", f"Read {path}: {exc}") from exc
+
+
+def read_json(path: Path, max_bytes: int = MAX_JSON) -> dict:
+    return _read_json(path, max_bytes)[0]
 
 
 def atomic_json(path: Path, value: dict, max_bytes: int = MAX_JSON) -> None:
@@ -565,7 +573,7 @@ class Runtime:
                     bound = self._current()
                     target = self._within(self._diagnostics() / "status.json", self._diagnostics())
                     reading_status = True
-                    status = read_json(target)
+                    status = read_json(target, MAX_STATUS_JSON)
                     reading_status = False
                     if status.get("schema_version") != 1 or status.get("run_id") != bound["run_id"] or status.get("pid") != bound["pid"]:
                         raise RuntimeErrorDetail("stale_status", "Runtime status identity does not match bound process")
@@ -627,7 +635,7 @@ class Runtime:
             except OSError as exc:
                 raise RuntimeErrorDetail("log_read_failed", f"Read log {path}: {exc}") from exc
 
-    def _matching_response(self, request_id: str) -> dict | None:
+    def _matching_response(self, request_id: str, operation: str | None = None) -> dict | None:
         if self._response_absence_request != request_id:
             self._response_absence_request = request_id
             self._response_absence_count = 0
@@ -635,7 +643,7 @@ class Runtime:
         if not path.exists():
             return None
         try:
-            response = read_json(path)
+            response, response_bytes = _read_json(path, MAX_STATUS_JSON)
         except RuntimeErrorDetail as exc:
             cause = exc.__cause__
             if exc.code != 'read_failed' or not isinstance(cause, OSError) or getattr(cause, 'winerror', None) != 2:
@@ -650,6 +658,9 @@ class Runtime:
             self._response_absence_count = 0
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine"} else MAX_JSON
+        if response_bytes > max_bytes:
+            raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:
             raise RuntimeErrorDetail("invalid_response", f"Response id={request_id} has invalid schema")
         if response["ok"] and not isinstance(response.get("result"), dict):
@@ -682,7 +693,7 @@ class Runtime:
                 uuid.UUID(record.get("id"))
             except (ValueError, TypeError, AttributeError) as exc:
                 raise RuntimeErrorDetail("invalid_lock", "Mailbox lock lacks valid request UUID; retained") from exc
-            response = self._matching_response(record.get("id"))
+            response = self._matching_response(record.get("id"), record.get("op"))
             if response is not None:
                 self._release(lock, record["id"])
                 LOG.info("Pending request resolved id=%s ok=%s", record["id"], response["ok"])
@@ -760,7 +771,7 @@ class Runtime:
                 LOG.info("Game-thread request attempted id=%s op=%s run_id=%s", request_id, op, self.bound["run_id"])
                 deadline = time.monotonic() + self.timeout
                 while True:
-                    response = self._matching_response(request_id)
+                    response = self._matching_response(request_id, op)
                     if response is not None:
                         self._release(lock, request_id)
                         if not response["ok"]:

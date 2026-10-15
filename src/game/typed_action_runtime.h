@@ -3,7 +3,7 @@
 #include <string>
 #include <cstdint>
 namespace mt2mp::action_session::ui_capture {struct Replay;}
-namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
+namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct ZoneIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
 
 namespace mt2mp::game::typed_action_runtime {
 bool start(std::string&);
@@ -20,6 +20,7 @@ bool submit_developer(bool hire,const std::string& id,std::string& error);
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error);
 bool submit_start_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_prices(const std::string& action_uuid,const action_session::PriceIntent&,std::string&);
+bool submit_zone(const std::string&,const action_session::ZoneIntent&,std::string&);
 bool submit_npc(const std::string& action_uuid,const action_session::NpcIntent&,std::string&);
 bool submit_remove_npc(const std::string& action_uuid,const std::string& target_action_uuid,std::string&);
 bool submit_move_npc(const std::string& action_uuid,const std::string& target_action_uuid,

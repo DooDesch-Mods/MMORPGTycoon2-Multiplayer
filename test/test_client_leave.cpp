@@ -126,6 +126,7 @@ namespace ui_move_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
 namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
+namespace npc_probe::zone_action_runtime {bool pending_ui(){return fixture::captures.value("zone_pending",false);}}
 namespace developer_staff::action_runtime {
 bool pending_ui(){return fixture::captures.value("staff_pending",false);}
 bool retire_lobby(std::string& e){
@@ -333,6 +334,10 @@ void locked_live_departure(){
 void developer_lifetime_delta(){
     Pair pair;fixture::reset();std::string error;bool ready=true;
     auto* owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    fixture::captures["zone_pending"]=true;
+    require(!runtime::begin_lobby_leave(error)&&error=="native lobby Leave blocked by retained active/pending UI capture intent"&&
+        !fixture::suspended&&!owner->lobby_retiring&&!fixture::invalidated,"pending MonsterZone intent crossed Leave boundary");
+    fixture::captures["zone_pending"]=false;
     fixture::captures["staff_pending"]=true;
     require(!runtime::begin_lobby_leave(error)&&error=="native lobby Leave blocked by retained active/pending UI capture intent"&&
         !fixture::suspended&&!owner->lobby_retiring&&!fixture::invalidated,"pending Developer intent crossed Leave boundary");

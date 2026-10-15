@@ -1,6 +1,8 @@
 #include "action_native.h"
 #include "probe.h"
 #include "job_census.h"
+#include "job_target_observation.h"
+#include "movement_observation.h"
 #include "entry_fingerprints.h"
 #include "window.h"
 #include "hud_time_runtime.h"
@@ -91,12 +93,20 @@ bool authorize_fixture(Capture& c,uintptr_t& window,std::string& e){ProcessProbe
 bool observe_fixture(nlohmann::json& out,std::string& e){
     out={{"observed",false}};if(!thread(e))return false;Capture c;if(!read_process(c,e))return false;
     job_census::Census jobs;
-    if(!job_census::read([](auto p,auto target,auto n,auto& cause){return memory.copy(p,target,n,cause);},c,jobs,e))return false;
+    const job_census::Read copy=[](auto p,auto target,auto n,auto& cause){return memory.copy(p,target,n,cause);};
+    if(!job_census::read(copy,c,jobs,e))return false;
+    nlohmann::json targets;
+    if(!job_census::observe_building_targets(copy,c,jobs,targets,e))return false;
+    nlohmann::json movement;
+    if(!job_census::observe_movement(copy,c,jobs,movement,e))return false;
+    job_census::Census jobs_after;
+    if(!job_census::read(copy,c,jobs_after,e))return false;
+    if(jobs!=jobs_after)return fail(e,"Developer Job target read changed the actual queue/actor graph");
     Capture after;if(!read_process(after,e))return false;
     if(!same_origin(c.pin.origin,after.pin.origin)||c.pin.ledger!=after.pin.ledger||c.pin.time_scale!=after.pin.time_scale||
        c.pin.pause_scale!=after.pin.pause_scale||c.image!=after.image||c.thread!=after.thread||c.state!=after.state||c.local!=after.local)
         return fail(e,"Developer Job observation changed actual Origin/ledger/Clock/fixed50/local owners");
-    out=encode(c);out["jobs"]=job_census::encode(jobs);out["observed"]=true;out["fixture_locked"]=probe.locked();out["fixture_cause"]=probe.cause();out["receipts"]=nlohmann::json::array();
+    out=encode(c);out["jobs"]=job_census::encode(jobs);out["job_building_targets"]=std::move(targets);out["developer_movement"]=std::move(movement);out["observed"]=true;out["fixture_locked"]=probe.locked();out["fixture_cause"]=probe.cause();out["receipts"]=nlohmann::json::array();
     for(const auto& [token,r]:probe.retained()){(void)token;out["receipts"].push_back(encode(r));}return true;
 }
 bool run_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){

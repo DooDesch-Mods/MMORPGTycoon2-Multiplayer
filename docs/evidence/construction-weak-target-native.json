@@ -1,0 +1,68 @@
+{
+  "schema_version": 1,
+  "scope": "Normal Client Building removal at Clock0 and the original unassigned Job weak target on both local peers",
+  "passed": true,
+  "client_construction_adoption_proven": false,
+  "full_coop_proven": false,
+  "game_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "mod_sha256": "c786fd81525f89d105d384a4629de1f0b9017e067cd2ad68c911f8e19a89e276",
+  "build": "artifacts/build_history/20261015T172110234401Z",
+  "runtime_run_id": "592ea0e1-17eb-4adc-9d42-430cdd45df42",
+  "paired_fixture_load": "artifacts/acceptance/85163829-8dc4-4658-aa08-af5e5cde06c0/summary.json",
+  "original_placement": "artifacts/acceptance/cce4eb59-4d7f-42e5-b7e9-fa6d0d874fca/summary.json",
+  "original_remove": {
+    "evidence": "artifacts/acceptance/5403e12b-7ddc-44d4-ac78-a77b7df4c4ec/summary.json",
+    "action_uuid": "558cea3f-97e6-4036-a1df-68f7f2472ea8",
+    "origin": "client-1",
+    "original_execution_each_peer": 1,
+    "host_ack_mask": 3,
+    "cash_before_and_after": [88000, 88400],
+    "full_20_ledger_groups_equal": true,
+    "observation_error_after_confirmed_action": "The Client status exceeded the generic262144-byte reader bound; the original Remove was not replayed."
+  },
+  "actual_final_readback": {
+    "evidence": "artifacts/acceptance/e3e55ce7-ba4b-483e-99db-2066dce1b1dd/summary.json",
+    "clock_scale_each_peer": 0,
+    "queue_count_each_peer": 1,
+    "queue_capacity_each_peer": 4,
+    "job_type": 1,
+    "job_valid": true,
+    "developer_present": false,
+    "cached_building_receiver_present": true,
+    "weak_proxy_present": true,
+    "weak_proxy_target_alive": false,
+    "live_building_binding_observed": false,
+    "expired_targets_each_peer": 1,
+    "job_position": [8110.0, 79.79767608642578, 8610.0],
+    "all_50_developers_observed": true,
+    "all_developers_without_job_or_map_membership": true,
+    "forced_cleanup_executed": false,
+    "clock_advanced": false
+  },
+  "diagnostic_fix": {
+    "original_failure": "remove_prop_class_membership_unimplemented image_rva=23999968",
+    "original_failure_evidence": "artifacts/acceptance/af017286-2445-44e0-9c39-186ab6eff5c5/summary.json",
+    "cause": "Job+68 can retain a destroyed Building receiver. The previous observation resolved it before checking the weak lifetime proxy.",
+    "resolution": "Read Job+70 proxy target first. A null target is reported as expired without reading or resolving the cached Building receiver. A live target must equal Building+20.",
+    "read_only": true,
+    "new_endpoint_added": false,
+    "canonical_test": "developer_job_targets",
+    "canonical_test_passed": true,
+    "actual_helper_cases": 15
+  },
+  "post_remove_undo_admission": {
+    "evidence": "artifacts/acceptance/f4f7e8b7-cddd-4138-b7a8-2f2cf33fe7e6/summary.json",
+    "undo_depth_each_peer": 2,
+    "redo_depth_each_peer": 0,
+    "active_graph": false,
+    "shared_undo_target_action_uuid": "",
+    "undo_invoked": false,
+    "finding": "The existing shared Building history tracks placement graphs. The current Remove graph has no registered shared target. Restoring a deleted Building is not implemented by this path.",
+    "retained_observation_failure": "cb358e01-e91b-46c8-a308-35b5ef7be963: a large stale inspect_engine response was rejected before its UUID was checked. The exact completed742-byte native read response was acknowledged through observe_pending; no history call was replayed."
+  },
+  "limits": [
+    "The natural later Host cleanup of this expired Job was not measured here.",
+    "Client construction assignment, movement and completion adoption remain unfinished.",
+    "Undo restoration after Remove remains a separate full-coop requirement."
+  ]
+}
