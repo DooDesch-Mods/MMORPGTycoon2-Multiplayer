@@ -201,6 +201,10 @@ OP_SCHEMAS = {
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
     "read_tutorial_progress": EMPTY,
+    "read_tutorial_movement": EMPTY,
+    "read_tutorial_movement_focus": EMPTY,
+    "tutorial_movement_focus": object_schema({"native_origin_uuid": TIME_TOKEN}, ("native_origin_uuid",)),
+    "tutorial_movement": object_schema({"acceptance_token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN}, ("acceptance_token", "native_origin_uuid")),
     "tutorial_welcome_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
         "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
         "current_step_index": {"type": "integer", "const": 4}},
@@ -292,6 +296,10 @@ OP_DESCRIPTIONS = {
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
+    "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
+    "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",
+    "tutorial_movement_focus": "Ask SDL once to raise the exact owned local Host window. Read focus and native input admission before the fixed W fixture. No global input or focus APIs.",
+    "tutorial_movement": "Queue one fixed W down/up pair to the owned local Host window at tutorial step6. Read its receipt for native input, progress and release confirmation. No replay.",
     "tutorial_welcome_ok": "Hide only the current native Host welcome message once through its original window Show path. Requires exact local origin and index4; read tutorial afterward to confirm native progression. Never replay an unknown result.",
     "read_time_ui": "Read the four owned native time-button states and authoritative presentation revision from the shared host/client runtime.",
     "read_time_acceptance": "Read owned native time-input guards, bindings, actor states and authoritative receipt counters; this does not prove calendar or economy authority.",
@@ -357,7 +365,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -386,8 +394,18 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "building history UI requires exact direction and guards")
             if any(not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None for key in ("snapshot_uuid", "target_action_uuid")) or type(arguments["expected_host_revision"]) is not int or not 0 <= arguments["expected_host_revision"] <= 18446744073709551615:
                 raise RuntimeErrorDetail("invalid_args", "building history UI snapshot, target or revision invalid")
-        if op in {"read_tutorial", "read_tutorial_development", "read_tutorial_progress"} and (not isinstance(arguments, dict) or arguments):
+        if op in {"read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement"} and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", op + " requires empty object arguments")
+        if op == "tutorial_movement":
+            if not isinstance(arguments, dict) or set(arguments) != {"acceptance_token", "native_origin_uuid"}:
+                raise RuntimeErrorDetail("invalid_args", "tutorial movement requires exact token/origin")
+            if any(not isinstance(value, str) or re.fullmatch(TIME_TOKEN_PATTERN, value) is None for value in arguments.values()):
+                raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
+        if op == "read_tutorial_movement_focus" and (not isinstance(arguments, dict) or arguments):
+            raise RuntimeErrorDetail("invalid_args", "tutorial movement focus read requires empty arguments")
+        if op == "tutorial_movement_focus":
+            if not isinstance(arguments, dict) or set(arguments) != {"native_origin_uuid"} or not isinstance(arguments["native_origin_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["native_origin_uuid"]) is None:
+                raise RuntimeErrorDetail("invalid_args", "tutorial movement focus requires exact lowercase native origin UUID")
         if op == "tutorial_welcome_ok":
             required = {"token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index"}
             if not isinstance(arguments, dict) or set(arguments) != required:

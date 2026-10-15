@@ -1,0 +1,152 @@
+{
+  "schema": 1,
+  "scope": "Real Host W input and exact joined Client WASD Meter increase",
+  "released": false,
+  "dynamic_movement_progress_proven": true,
+  "full_tutorial_proven": false,
+  "native_tested_mod_sha256": "dd713a128fde2ad63e58cbcff2fd3c89dc08f5aca7ff46fc04ed56d3fd4823bd",
+  "native_tested_build": "artifacts/build_history/20261015T005725144525Z",
+  "native": {
+    "input_attempt": "artifacts/acceptance/06906b5f-c92b-4773-b08f-cca581d4c8db/summary.json",
+    "shared_result": "artifacts/acceptance/fb34287c-92e3-4308-90f0-1841ec0e59ce/summary.json",
+    "leave": "artifacts/acceptance/6f7e8d2d-e517-4b04-9a18-d776e4879b94/summary.json",
+    "exit_zero": "artifacts/acceptance/97e96989-7f4b-435c-ad55-c553c8ef6512/summary.json",
+    "crash_monitor": "artifacts/tutorial_crash/42d7fc7a-03e9-48c4-adcf-f279d3881b2a/monitor-result.json"
+  },
+  "input_receipt_with_original_failure": {
+    "after": {
+      "axis": 0.0,
+      "key_down": false,
+      "native_origin_uuid": "9a2f1b54-1a59-49d8-aab3-46619c00ac8a",
+      "progress": 4.3394999504089355,
+      "world_epoch": 2,
+      "world_generation": 2
+    },
+    "axis_down": true,
+    "axis_released": true,
+    "before": {
+      "axis": 0.0,
+      "key_down": false,
+      "native_origin_uuid": "9a2f1b54-1a59-49d8-aab3-46619c00ac8a",
+      "progress": 0.0,
+      "world_epoch": 2,
+      "world_generation": 2
+    },
+    "down_attempted": true,
+    "down_events": 1,
+    "down_frame": 7360,
+    "down_polled": true,
+    "down_queued": true,
+    "down_unknown": false,
+    "error": "tutorial movement down/progress not confirmed in bounded native frame",
+    "phase": "failed",
+    "progress_changed": false,
+    "release_error": "",
+    "schema": 1,
+    "token": "0c832cb4-0cf8-4c27-af3f-e40e68de1015",
+    "up_attempted": true,
+    "up_events": 1,
+    "up_frame": 7361,
+    "up_polled": true,
+    "up_queued": true
+  },
+  "actual_worlds": {
+    "host": {
+      "client_sequence_fenced": false,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "9a2f1b54-1a59-49d8-aab3-46619c00ac8a",
+      "tutorial": {
+        "active": [
+          {
+            "complete": false,
+            "count": 107,
+            "history": [
+              "welcome"
+            ],
+            "last": "wasd",
+            "message_progress": {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "shown": true,
+              "value": 4.3394999504089355
+            },
+            "next": 7,
+            "scenario": "initial_tutorial"
+          }
+        ],
+        "initial_complete": false,
+        "leveltwo_complete": false
+      },
+      "world_epoch": 2,
+      "world_generation": 2
+    },
+    "client-1": {
+      "client_sequence_fenced": true,
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "schema": 1,
+      "snapshot_uuid": "df072887-eb32-4cbc-aaa1-f60bb53449fd",
+      "tutorial": {
+        "active": [
+          {
+            "complete": false,
+            "count": 107,
+            "history": [
+              "welcome"
+            ],
+            "last": "wasd",
+            "message_progress": {
+              "maximum": 100.0,
+              "minimum": 0.0,
+              "shown": true,
+              "value": 4.3394999504089355
+            },
+            "next": 7,
+            "scenario": "initial_tutorial"
+          }
+        ],
+        "initial_complete": false,
+        "leveltwo_complete": false
+      },
+      "world_epoch": 1,
+      "world_generation": 1
+    }
+  },
+  "frames": {
+    "frame-host": {
+      "path": "_drafts\\media\\tutorial-movement-host.bmp",
+      "sha256": "c7b95c8ee7a7d26c966fbb481f29facaedb523e88050afbadcab6d466469265f"
+    },
+    "frame-client-1": {
+      "path": "_drafts\\media\\tutorial-movement-client-1.bmp",
+      "sha256": "35ee8e6e1cf33bd44219404e4214b5bc8a4a6b5232dc053339ae4f908304fe96"
+    }
+  },
+  "scope_notes": [
+    "One fixed W down/up pair was sent through the actual owned HWND and SDL path. No axis, accumulator or completion memory was written.",
+    "Both native Meters increased from 0 to 4.3394999504089355 and both captured frames show Progress 4/100.",
+    "The Client Sequence stayed fenced and both peers stayed Playing. Camera movement remained local.",
+    "The input diagnostic incorrectly failed when the Meter was still zero in the first completed input frame. The original failure is retained.",
+    "The observed positive native Meter appeared in the following frame after Up. The input was not replayed.",
+    "The prior incomplete heap-corruption investigation remains documented in tutorial-development-native.json.",
+    "CompleteTech 93, later scenario transitions and full tutorial completion remain unproved."
+  ],
+  "receipt_timing_fix": {
+    "scope": "Pure diagnostic scheduling correction; gameplay bridge and native input path unchanged",
+    "native_input_replayed": false,
+    "native_runtime_acceptance_of_new_receipt": false,
+    "new_mod_sha256": "91fde44048ba1a2daa4312b9751f1f32f3483cd1f19d2097722539799bff4683",
+    "build": "artifacts/build_history/20261015T011325781855Z",
+    "source_sha256": "b45661fa16a7b58bd683425ae98062938b41a204f886295ed033adaab5d989ff",
+    "canonical_compile_passed": true,
+    "source_ci_target_compile_passed": true,
+    "input_focus_cases": 31,
+    "late_progress_cases": 10,
+    "ctest_seconds": 0.13,
+    "ctest_log": "artifacts\\tutorial_movement\\20261015T011325781855Z\\ctest.log",
+    "ctest_log_sha256": "3f9fa1156e0bcd7aa52dc7d08372babbf746418ea7504d0221e744dccbc76263",
+    "mcp_contract_tests": 15
+  }
+}

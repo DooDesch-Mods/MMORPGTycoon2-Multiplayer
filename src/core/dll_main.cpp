@@ -45,6 +45,7 @@
 #include "../game/tutorial_observer.h"
 #include "../game/tutorial_development.h"
 #include "../game/tutorial_replication/native.h"
+#include "../game/tutorial_movement/movement_input.h"
 #include "../game/welcome_close.h"
 #include "../game/native_free_diagnostics.h"
 #include "../game/remove_diagnostics.h"
@@ -106,6 +107,22 @@ static std::string runtime_root,run_id,last_request,last_mailbox_request;
 static std::string loaded_dll_sha256;
 static json installed_proof_receipt;
 static uint64_t completed_game_updates=0;
+static bool tutorial_movement_ready=false;
+static json tutorial_movement_receipt() {
+    const auto& r=game::tutorial_movement::receipt();
+    const char* phases[]={"idle","down_queued","up_queued","confirmed","failed"};
+    auto snapshot=[](const game::tutorial_movement::Snapshot& s) {
+        return json{{"native_origin_uuid",s.origin},{"world_epoch",s.epoch},{"world_generation",s.generation},
+                    {"axis",s.axis},{"progress",s.progress},{"key_down",s.key_down}};
+    };
+    return {{"schema",1},{"phase",phases[static_cast<size_t>(r.phase)]},{"token",r.token},
+            {"error",r.error},{"release_error",r.release_error},{"before",snapshot(r.before)},{"after",snapshot(r.after)},
+            {"down_attempted",r.down_attempted},{"down_queued",r.down_queued},{"down_unknown",r.down_unknown},
+            {"down_polled",r.down_polled},{"axis_down",r.axis_down},{"up_attempted",r.up_attempted},
+            {"up_queued",r.up_queued},{"up_polled",r.up_polled},{"axis_released",r.axis_released},
+            {"progress_changed",r.progress_changed},{"down_events",r.down_events},{"up_events",r.up_events},
+            {"down_frame",r.down_frame},{"up_frame",r.up_frame}};
+}
 // Bound game-thread aggregates attribute CPU-side wall time without per-frame logging.
 struct FrameTimingTotals { uint64_t count=0,total_ns=0,max_ns=0; };
 enum class FrameTimingPart : size_t { Update,Original,Lobby,Typed,Transport,Time,Hud,Diagnostics,Prepare,Count };
@@ -278,7 +295,14 @@ static void initialize_time_hooks() {
             time_activate_suppressed,time_activate_original,time_last_caller_rva};};
         if(!game::time_mouse_diagnostics::initialize(native_image_begin,GetCurrentThreadId(),hud_time_reader,hud_time_activation,
             std::move(mouse_diagnostics),error))throw std::runtime_error("native mouse diagnostics initialization failed: "+error);
-        hooks::set_input_event_observer([](void* event){game::time_input_diagnostics::poll(event,completed_game_updates+1);});
+        if(Config::instance().local_test) {
+            tutorial_movement_ready=game::tutorial_movement::initialize(native_image_begin,GetCurrentThreadId(),run_id,loaded_dll_sha256,error);
+            if(!tutorial_movement_ready)LOG_ERROR("[TutorialMovement] Initialization failed cause={}; no retry",error);
+        }
+        hooks::set_input_event_observer([](void* event){
+            game::time_input_diagnostics::poll(event,completed_game_updates+1);
+            if(tutorial_movement_ready)game::tutorial_movement::poll(event,completed_game_updates+1);
+        });
         if(!hooks::create_hook(reinterpret_cast<void*>(native_image_begin+game::time_integration::activate_rva),
             reinterpret_cast<void*>(&time_activate),reinterpret_cast<void**>(&original_time_activate)))
             throw std::runtime_error("native time Activate hook creation failed");
@@ -301,6 +325,7 @@ static void initialize_time_hooks() {
     }
 }
 static bool suspend_time(const std::string& reason,std::string& error) {
+    if(tutorial_movement_ready)game::tutorial_movement::suspend(reason);
     game::time_input_diagnostics::suspend(reason);
     if(!game::node_observer::suspend_if_prepared(reason,error))return false;
     if(!time_initialization_attempted&&!time_initialized){error.clear();return true;}
@@ -619,6 +644,7 @@ static void game_update(void* game,float dt) {
     struct LiveScope {bool active;void close(){if(active){game::live_host_state::economic_fence().leave_game_update();active=false;}}~LiveScope(){close();}} scope{live_scope};
     {FrameTimingScope measured(FrameTimingPart::Original);original_game_update(game,dt);}
     game::time_input_diagnostics::frame(completed_game_updates+1);
+    if(tutorial_movement_ready)game::tutorial_movement::frame(completed_game_updates+1);
     ++completed_game_updates;
     game::placement_ui_diagnostics::after_game_update(completed_game_updates,dt);
     if(!game::native::bind_game_thread()) return;
@@ -947,6 +973,10 @@ static json status() {
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
+    result["capabilities"]["tutorial_movement"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
+    result["capabilities"]["read_tutorial_movement"]=tutorial_movement_ready;
+    result["capabilities"]["tutorial_movement_focus"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
+    result["capabilities"]["read_tutorial_movement_focus"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["tutorial_welcome_ok"]=owned_native_profile&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_time_ui"]=owned_native_profile&&time_hooks_ready&&game::native::in_game();
     const bool native_time_input_ready=owned_native_profile&&time_hooks_ready&&game::time_input_diagnostics::ready()&&game::native::in_game();
@@ -1265,6 +1295,10 @@ static void diagnostics_tick() {
         if(!internal_request)last_mailbox_request=id;
         auto operation=request.at("op").get<std::string>();
         json response={{"schema_version",1},{"id",id},{"run_id",run_id}};
+        if(game::tutorial_movement::receipt().down_attempted&&!game::tutorial_movement::receipt().axis_released&&
+           (game::tutorial_movement::receipt().down_queued||game::tutorial_movement::receipt().down_unknown)&&
+           operation!="read_tutorial_movement"&&operation!="read_tutorial_progress"&&operation!="status"&&operation!="capture_frame")
+            throw std::runtime_error("tutorial_movement_release_unresolved; competing operation rejected");
         if(game::ui_network_runtime::unresolved()&&operation!="read_node_observer"&&operation!="read_network_placement"&&operation!="read_network_state"&&operation!="read_tutorial"&&operation!="read_tutorial_development"&&operation!="read_tutorial_progress"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("network_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_path_runtime::unresolved()&&operation!="read_path"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
@@ -1743,6 +1777,40 @@ static void diagnostics_tick() {
             response["ok"]=game::native_free_diagnostics::probe(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_HOLDER_REJECTED"},{"message",error}};
+        }
+        else if(operation=="tutorial_movement_focus"||operation=="read_tutorial_movement_focus") {
+            if(!tutorial_movement_ready||!owned_native_profile||!Config::instance().local_test||!Config::instance().is_host)
+                throw std::runtime_error("tutorial movement focus requires initialized owned local Host");
+            const auto& args=request.at("args");std::string error;bool ok=true;
+            if(operation=="tutorial_movement_focus") {
+                if(!args.is_object()||args.size()!=1||!args.at("native_origin_uuid").is_string())
+                    throw std::runtime_error("tutorial movement focus requires exact native origin");
+                ok=game::tutorial_movement::request_focus(args.at("native_origin_uuid").get<std::string>(),error);
+            } else if(!args.is_object()||!args.empty())throw std::runtime_error("tutorial movement focus read requires empty arguments");
+            game::tutorial_movement::FocusReceipt focus;
+            std::string read_error;const bool read=game::tutorial_movement::read_focus(focus,read_error);
+            if(!read){if(error.empty())error=read_error;else error+="; readback: "+read_error;}
+            response["ok"]=ok&&read;
+            response["result"]={{"requested",focus.requested},{"attempted",focus.attempted},{"returned",focus.returned},
+                {"native_origin_uuid",focus.origin},{"keyboard_focus",focus.keyboard_focus},{"input_enabled",focus.input_enabled},
+                {"ready",focus.ready},{"error",focus.error}};
+            if(!ok||!read)response["error"]={{"code","TUTORIAL_MOVEMENT_FOCUS_REJECTED"},{"message",error}};
+        }
+        else if(operation=="tutorial_movement"||operation=="read_tutorial_movement") {
+            if(!tutorial_movement_ready||!owned_native_profile||!Config::instance().local_test)
+                throw std::runtime_error("tutorial movement requires initialized owned local test");
+            const auto& args=request.at("args");
+            if(operation=="read_tutorial_movement") {
+                if(!args.is_object()||!args.empty())throw std::runtime_error("tutorial movement read requires empty arguments");
+                response["ok"]=true;
+            } else {
+                if(!Config::instance().is_host||!args.is_object()||args.size()!=2||!args.at("acceptance_token").is_string()||!args.at("native_origin_uuid").is_string())
+                    throw std::runtime_error("tutorial movement requires Host and exact token/origin fields");
+                std::string error;
+                response["ok"]=game::tutorial_movement::start(args.at("acceptance_token").get<std::string>(),args.at("native_origin_uuid").get<std::string>(),completed_game_updates,error);
+                if(!response["ok"].get<bool>())response["error"]={{"code","TUTORIAL_MOVEMENT_REJECTED"},{"message",error}};
+            }
+            response["result"]=tutorial_movement_receipt();
         }
         else if(operation=="tutorial_welcome_ok") {
             if(!owned_native_profile||!Config::instance().is_host)throw std::runtime_error("tutorial welcome diagnostic requires owned Host profile");

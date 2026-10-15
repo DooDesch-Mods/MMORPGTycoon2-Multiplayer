@@ -7,6 +7,54 @@ from server import dispatch, tools_for
 
 
 class TutorialObserverTests(unittest.TestCase):
+    def test_focus_request_and_readback_keep_distinct_contracts(self):
+        runtime=Mock()
+        runtime.available.return_value={"tutorial_movement_focus", "read_tutorial_movement_focus"}
+        listed={tool.name:tool for tool in tools_for(runtime)}
+        self.assertIn("tutorial_movement_focus",MUTATIONS)
+        self.assertNotIn("read_tutorial_movement_focus",MUTATIONS)
+        self.assertFalse(listed["game_tutorial_movement_focus"].annotations.readOnlyHint)
+        self.assertTrue(listed["game_read_tutorial_movement_focus"].annotations.readOnlyHint)
+        valid={"native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2"}
+        runtime.request.return_value={"requested":True,"ready":False}
+        self.assertEqual(dispatch(runtime,"game_tutorial_movement_focus",valid),{"requested":True,"ready":False})
+        runtime.request.assert_called_once_with("tutorial_movement_focus",valid)
+        for bad in ({}, {**valid,"hwnd":42}, {**valid,"native_origin_uuid":"other"}, None):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_movement_focus",bad)
+            runtime.request.assert_not_called()
+        runtime=Mock()
+        with self.assertRaises(RuntimeErrorDetail):
+            dispatch(runtime,"game_read_tutorial_movement_focus",valid)
+        runtime.request.assert_not_called()
+
+    def test_movement_is_fixed_serialized_mutation_with_separate_readback(self):
+        runtime=Mock()
+        runtime.available.return_value={"tutorial_movement", "read_tutorial_movement"}
+        listed={tool.name:tool for tool in tools_for(runtime)}
+        self.assertIn("tutorial_movement",MUTATIONS)
+        self.assertNotIn("read_tutorial_movement",MUTATIONS)
+        self.assertFalse(listed["game_tutorial_movement"].annotations.readOnlyHint)
+        self.assertTrue(listed["game_read_tutorial_movement"].annotations.readOnlyHint)
+        self.assertEqual(set(listed["game_tutorial_movement"].inputSchema["required"]), {"acceptance_token", "native_origin_uuid"})
+        args={"acceptance_token":"b473438a-510a-4f85-8337-b4e154ea15d6", "native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2"}
+        runtime.request.return_value={"phase":"down_queued"}
+        self.assertEqual(dispatch(runtime,"game_tutorial_movement",args),{"phase":"down_queued"})
+        runtime.request.assert_called_once_with("tutorial_movement",args)
+
+    def test_movement_invalid_inputs_never_reach_native(self):
+        good={"acceptance_token":"b473438a-510a-4f85-8337-b4e154ea15d6", "native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2"}
+        for bad in (None, [], {}, {**good,"key":"A"}, {**good,"duration":5}, {**good,"acceptance_token":"replay"}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_movement",bad)
+            runtime.request.assert_not_called()
+        runtime=Mock()
+        with self.assertRaises(RuntimeErrorDetail):
+            dispatch(runtime,"game_read_tutorial_movement",{"key":"W"})
+        runtime.request.assert_not_called()
+
     def test_progress_read_is_read_only_and_preserves_the_receipt(self):
         runtime=Mock()
         runtime.available.return_value={"read_tutorial_progress"}

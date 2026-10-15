@@ -5,12 +5,14 @@
 
 void check(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 bool time_initialization_attempted=false,time_initialized=false;
+bool tutorial_movement_ready=false;
 std::string time_initialization_error;
 std::vector<std::string> calls;
 bool observer_ok=true,hud_ok=true,calendar_ok=true,facade_ok=true,facade_forbidden=false;
 std::string expected_reason="verified snapshot replaces world";
 void called(const char* operation,const std::string& reason){check(reason==expected_reason,"retirement reason changed");calls.emplace_back(operation);}
 namespace game {
+namespace tutorial_movement {void suspend(const std::string& reason){called("movement",reason);}}
 namespace time_input_diagnostics {void suspend(const std::string& reason){called("input",reason);}}
 namespace node_observer {
 bool suspend_if_prepared(const std::string& reason,std::string& error){called("node",reason);if(!observer_ok)error="original node observer failure";return observer_ok;}
@@ -30,6 +32,7 @@ Facade& instance(){check(!facade_forbidden,"cold/failed initialization touched a
 }
 #include "cold_time_retire_body.inc"
 void reset(bool attempted=false,bool initialized=false){
+    tutorial_movement_ready=false;
     time_initialization_attempted=attempted;time_initialized=initialized;time_initialization_error.clear();calls.clear();
     observer_ok=hud_ok=calendar_ok=facade_ok=true;facade_forbidden=!initialized;
 }
@@ -60,5 +63,9 @@ int main(){
     check(!suspend_time(expected_reason,error)&&error=="original calendar failure","active calendar failure changed");sequence({"input","node","hud","calendar"});
     reset(true,true);facade_ok=false;
     check(!suspend_time(expected_reason,error)&&error=="original facade retirement failure","active facade failure changed");sequence({"input","node","hud","calendar","instance","facade"});
+    reset();tutorial_movement_ready=true;
+    check(suspend_time(expected_reason,error),"ready movement blocked cold Time retirement");sequence({"movement","input","node"});
+    reset(true,true);tutorial_movement_ready=true;observer_ok=false;
+    check(!suspend_time(expected_reason,error)&&error=="original node observer failure","movement cleanup hid original retirement failure");sequence({"movement","input","node"});
     std::cout<<"PASS actual suspend_time body: cold diagnostics-only retirement, attempted failure retained, existing owner and active retirement order/causes unchanged\n";
 }
