@@ -151,3 +151,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/developer_job_target_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/developer_movement_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/snapshot_capture_policy_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/buildings_tab_checks.cmake")

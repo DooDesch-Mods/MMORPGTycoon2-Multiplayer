@@ -842,6 +842,8 @@ static json status() {
     result["capabilities"]["read_move_ui"]=true;
     result["capabilities"]["native_cancel_tool"]=game::typed_action_runtime::status().value("started",false);
     result["capabilities"]["read_cancel_tool"]=true;
+    result["capabilities"]["native_buildings_tab"]=game::typed_action_runtime::status().value("started",false);
+    result["capabilities"]["read_buildings_tab"]=true;
                 result["capabilities"]["native_build_button"]=game::ui_build_runtime::enabled();
                 result["capabilities"]["read_build_ui"]=true;
                 result["capabilities"]["native_building_history_ui"]=game::ui_build_runtime::enabled();
@@ -1322,7 +1324,7 @@ static void diagnostics_tick() {
             throw std::runtime_error("path_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_terrain_runtime::unresolved()&&operation!="read_terrain"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("terrain_ui_previous_effect_unresolved; competing native operation rejected");
-        if(game::native_tool_prepare::unresolved() && operation!="read_cancel_tool" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
+        if(game::native_tool_prepare::unresolved() && operation!="read_cancel_tool" && operation!="read_buildings_tab" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("native_tool_prepare_previous_effect_unresolved; competing native operation rejected");
         if(game::move_ui_probe::unresolved() && operation!="read_move_ui" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("move_ui_previous_effect_unresolved; competing native operation rejected");
@@ -1569,9 +1571,11 @@ static void diagnostics_tick() {
             response["ok"]=okay;response["result"]=std::move(result);
             if(!okay)response["error"]={{"code","BUILDING_HISTORY_UI_REJECTED"},{"message",error}};
         }
-        else if(operation=="native_cancel_tool"||operation=="read_cancel_tool") {
+        else if(operation=="native_cancel_tool"||operation=="read_cancel_tool"||operation=="native_buildings_tab"||operation=="read_buildings_tab") {
             std::string error;json result;
-            response["ok"]=operation=="native_cancel_tool"?game::native_tool_prepare::invoke(request.at("args"),result,error):game::native_tool_prepare::read(request.at("args"),result,error);
+            response["ok"]=operation=="native_buildings_tab"?game::native_tool_prepare::prepare_buildings_tab(request.at("args"),result,error):
+                operation=="read_buildings_tab"?game::native_tool_prepare::read_buildings_tab(request.at("args"),result,error):
+                operation=="native_cancel_tool"?game::native_tool_prepare::invoke(request.at("args"),result,error):game::native_tool_prepare::read(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_TOOL_PREPARE_FAILED"},{"message",error}};
         }

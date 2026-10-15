@@ -10,5 +10,7 @@ bool clean(bool build,const Readback&,std::string&,bool prior_tool=true);
 bool unresolved_effect(uint32_t attempted,bool confirmed)noexcept;
 bool invoke(const nlohmann::json&,nlohmann::json&,std::string&);
 bool read(const nlohmann::json&,nlohmann::json&,std::string&);
+bool prepare_buildings_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_buildings_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool unresolved() noexcept;
 }

@@ -820,3 +820,6 @@ class Runtime:
 
 OPS.add("native_developer_ui")
 MUTATIONS.add("native_developer_ui")
+
+OPS.update({"native_buildings_tab", "read_buildings_tab"})
+MUTATIONS.add("native_buildings_tab")

@@ -1,4 +1,6 @@
 #include "tool_cancel.h"
+#include "buildings_tab.h"
+#include "mt2mp/core/config.h"
 #include "scenery_kiss/lifecycle_native.h"
 #include "codeguards.h"
 #include "placement_ui_probe/ui_probe.h"
@@ -52,7 +54,8 @@ bool observe(Job& j,std::string& e){Readback out;uintptr_t current=0,ap=0,manage
     if(j.scenery&&!scenery_kiss::cancel_after(scene_memory,j.old,e))return false;j.confirmed=true;j.observed=GetTickCount64();j.cause.clear();return true;
 }
 }
-bool unresolved()noexcept{for(const auto& [token,j]:jobs){(void)token;if(unresolved_effect(j.attempted,j.confirmed))return true;}return false;}
+#include "buildings_tab_runtime.inc"
+bool unresolved()noexcept{if(buildings_unresolved())return true;for(const auto& [token,j]:jobs){(void)token;if(unresolved_effect(j.attempted,j.confirmed))return true;}return false;}
 bool invoke(const json& args,json& out,std::string& e)try{active_job=nullptr;out=json::object();Context q;if(!parse(args,q,e))return false;if(jobs.contains(q.token)||unresolved())return fail(e,"tool_prepare_token_used_or_previous_effect_unresolved_no_replay");
     if(jobs.size()>=32)return fail(e,"tool_prepare_receipt_capacity_reached measured=32 required_less_than=32");
     Job initial;initial.context=q;if(!world(initial,e))return false;const auto controller=typed_action_runtime::status();if(!controller.value("started",false)||controller.value("pending",true)||controller.value("locked",true))return fail(e,"tool_prepare_actual_Controller_not_idle");

@@ -128,6 +128,7 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
         for(int i=0;i<bar_count;++i){std::uintptr_t bar=0;if(!at(m,bars,std::size_t(i)*8,bar,e))return false;if(bar==current_bar)++matches;}
         if(matches!=1){e="error: native Scenery current ActionBar registry membership actual="+std::to_string(matches)+" required=1";return false;}
     }
+    unsigned matched_buttons=0,disabled_buttons=0,active_items=0,other_item_states=0;
     for(int bi=0;bi<bar_count;++bi){std::uintptr_t bar=0,contents=0;std::int32_t content_count=0;if(!at(m,bars,std::size_t(bi)*8,bar,e))return false;
         // Other action bars retain their docked items while another UI mode is active.
         if(r.family!=Family::Building&&bar!=current_bar)continue;
@@ -149,12 +150,13 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
                     report+="; observed_button280_nonnull="+std::string(owner?"1":"0")+"; observed_slot278_content="+(slot_parent==content?"1":"0")+"; observed_ctor_null_context="+(constructor_context?"1":"0");
                     return fail(e,report.c_str());
                 }std::uintptr_t type_proxy=0;if(!weak_type(m,item,type,type_proxy,e))return false;
-                unsigned char enabled=0;int item_state=-1;if(!at(m,button,0x381,enabled,e)||!at(m,item,0x38,item_state,e))return false;if(enabled!=1||item_state!=1)continue;
+                unsigned char enabled=0;int item_state=-1;if(!at(m,button,0x381,enabled,e)||!at(m,item,0x38,item_state,e))return false;++matched_buttons;if(enabled!=1)++disabled_buttons;if(item_state==2)++active_items;else if(item_state!=1)++other_item_states;if(enabled!=1||item_state!=1)continue;
                 if(b.button&&b.button!=button)return fail(e,r.family==Family::Scenery?"error: multiple enabled inactive Scenery buttons in current ActionBar are ambiguous":"error: multiple enabled inactive normal building buttons are ambiguous");b.bar=bar;b.content=content;b.slot=slot;b.button=button;b.item=item;b.item_proxy=proxy;b.type_proxy=type_proxy;
             }
         }
     }
-    return b.button!=0||fail(e,"error: actual normal building UI button is missing or not enabled/inactive");
+    if(!b.button){e="error: actual normal building UI button is missing or not enabled/inactive; owned_matches="+std::to_string(matched_buttons)+" disabled="+std::to_string(disabled_buttons)+" item_state2="+std::to_string(active_items)+" other_noninactive_states="+std::to_string(other_item_states);return false;}
+    return true;
 }
 }
 bool read_existing_tool(Memory& m,const Context& c,const Request& r,Binding& b,std::string& e){BoundedMemory bounded(m);Binding a,again;if(!scan_once(bounded,c,r,a,e)||!scan_once(bounded,c,r,again,e))return false;if(a!=again)return fail(e,"error: actual inventory/actionbar binding changed between reads");b=a;return true;}

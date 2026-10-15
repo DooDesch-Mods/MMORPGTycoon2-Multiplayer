@@ -224,5 +224,126 @@
     "full_20_ledger_groups_equal": true,
     "cached_dead_building_receiver_dereferenced": false,
     "client_selected_retirement_confirmed": true
+  },
+  "placement_history_followup": {
+    "scope": "Original Client UndoPlace and Host RedoPlace; ordinary Host time retires the expired original construction Job on both peers while preserving the restored inactive Building",
+    "runtime_run_id": "fc63179c-1e67-4dfa-ab42-bb00a404b676",
+    "dll_sha256": "b02903db776791a04c3116a2a6cfe697cd7359c7a183d5017ab9f5e210438b22",
+    "history_summary": "artifacts/acceptance/901820f5-3c80-49ed-85de-e3917a3eba2e/summary.json",
+    "history_summary_sha256": "bfb7f0a864d31e8029107bc16c459fa20251d2cc731d104e29629317b9a03220",
+    "retirement_summary": "artifacts/acceptance/135279ab-1e38-449b-b843-4acdd4a74c82/summary.json",
+    "retirement_summary_sha256": "176beebb4d055ca11c2a61bc9c3cc6531b8a23828f5d14fc3c4cd145102233e9",
+    "placement_action_uuid": "6634b3ae-65da-4db9-b810-002c11b67404",
+    "undo_action_uuid": "10ca74e1-899c-4e15-9f37-d7540714fbf1",
+    "redo_action_uuid": "a855516b-c8e1-4902-85af-400835c3ef5c",
+    "original_history_once_and_ack3": true,
+    "final_queue_count_both": 0,
+    "full50_poses_and_ordered_manager_pool_equal": true,
+    "full20_ledger_equal": true,
+    "restored_active_both": false,
+    "saved_buildings": {
+      "host": {
+        "sha256": "b375897e08e80f366a33b941adba7a317619e6a331144716fd666b840af4f880",
+        "bytes": 240999,
+        "fully_consumed": true,
+        "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+        "transform": {
+          "translation": [
+            8020.0,
+            70.83831787109375,
+            8550.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "fields": {
+          "linkId": [
+            282
+          ],
+          "type": [
+            "SmallInn"
+          ],
+          "variant": [
+            "base"
+          ],
+          "state": [
+            "online"
+          ],
+          "active": [
+            "false"
+          ],
+          "powered": [
+            "true"
+          ],
+          "shard": [
+            2
+          ],
+          "region": [
+            33
+          ]
+        }
+      },
+      "client-1": {
+        "sha256": "879f92bafb52bae26ac33e6dbf179bd9e2e82d5c7941caa514001bb6ad8e575b",
+        "bytes": 256430,
+        "fully_consumed": true,
+        "record_path": "$/mmoGameState[0]/world[3]/mmoWorld[0]/map[0]/mmoMap[0]/region[5]/mmoRegion[67]/buildingManager[23]/mmoBuildingManager[0]/building[0]/mmoBuilding[3]",
+        "transform": {
+          "translation": [
+            8020.0,
+            70.83831787109375,
+            8550.0
+          ],
+          "rotation": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "scale": [
+            1.0,
+            1.0,
+            1.0
+          ]
+        },
+        "fields": {
+          "type": [
+            "SmallInn"
+          ],
+          "variant": [
+            "base"
+          ],
+          "state": [
+            "online"
+          ],
+          "active": [
+            "false"
+          ],
+          "powered": [
+            "true"
+          ],
+          "shard": [
+            2
+          ],
+          "region": [
+            33
+          ]
+        }
+      }
+    },
+    "no_forced_job_callback": true,
+    "no_snapshot_distribution_for_state_updates": true,
+    "limits": [
+      "This proves placement Undo/Redo, not Undo restoration of a separately removed Building or other action families."
+    ]
   }
 }

@@ -1,0 +1,68 @@
+{
+  "schema": 1,
+  "scope": "Fixed original Buildings tab setup in the owned native test MCP; normal placement remains the existing gameplay action path",
+  "runtime_run_id": "fc63179c-1e67-4dfa-ab42-bb00a404b676",
+  "game_exe_sha256": "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+  "dll_sha256": "b02903db776791a04c3116a2a6cfe697cd7359c7a183d5017ab9f5e210438b22",
+  "candidate_manifest_sha256": "fb47f09fff82e9f79bfd2bacc299a1ed0b59a14bb9c4a1c92212ddc2ce0667ea",
+  "build": {
+    "directory": "artifacts/build_history/20261015T192702122023Z",
+    "result": "passed"
+  },
+  "source_checks": {
+    "ctest_directory": ".ci-build/tests",
+    "tests": [
+      "buildings_tab",
+      "buildings_tab_sdk"
+    ],
+    "result": "passed",
+    "total_seconds": 1.15,
+    "native_reader_orchestration_cases": 36,
+    "sdk_cases": 3
+  },
+  "native": {
+    "summary": "artifacts/acceptance/a74656c5-842a-45dc-96e8-d82d40569b24/summary.json",
+    "summary_sha256": "823cd504b151ab34bbfff1195a14385904138ead28ed788dadb6ebfbec513376",
+    "tab_receipt": {
+      "acceptance_token": "f9dc1dc7-41ff-4d88-b408-dc0d6ba59c50",
+      "attempted": true,
+      "cause": "",
+      "confirmed": true,
+      "exception": 0,
+      "host_ordered_action": false,
+      "returned": true,
+      "snapshot_uuid": "214881e0-13c3-43fc-8362-495ef6316cf8",
+      "tab": "Buildings",
+      "tab_cause": "",
+      "tab_pending": false,
+      "tab_ready": true,
+      "tab_requested": true,
+      "unknown": false
+    },
+    "normal_placement_action_uuid": "6634b3ae-65da-4db9-b810-002c11b67404",
+    "common_snapshot": "214881e0-13c3-43fc-8362-495ef6316cf8",
+    "one_original_placement_per_peer": true,
+    "full_ledger_equal": true,
+    "both_actual_clocks": 0,
+    "one_native_construction_job_per_peer": true,
+    "immediate_local_saves": {
+      "host": {
+        "snapshot_id": "e47263ea-67ad-4a0a-b2c9-8cae4be6c825",
+        "bytes": 241151,
+        "sha256": "f30669063ccd5807fd8b3463bd877abd54da2b3e179f6eeffc5398c3a8febb61",
+        "distribution_requested": false
+      },
+      "client-1": {
+        "snapshot_id": "e31f536e-efff-41a6-b416-05769c452cf6",
+        "bytes": 256439,
+        "sha256": "1c0af84e0f46862d0191fedf3b9cd6cb7d5e626caf6147f745163eb20c73916b",
+        "distribution_requested": false
+      }
+    }
+  },
+  "limits": [
+    "This is test-input preparation, not an additional gameplay synchronization mechanism.",
+    "The retained original Press is never replayed after an attempted or unknown result.",
+    "Construction history and authoritative Bug payload adoption require their own native acceptance."
+  ]
+}
