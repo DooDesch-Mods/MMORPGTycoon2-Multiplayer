@@ -5,18 +5,48 @@ import time
 import uuid
 
 from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, hash_file, read_json, utc
-from lobby_ui.native_local_acceptance import button, observe, left
+from lobby_ui.native_local_acceptance import button, observe, left, ready
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
 parser.add_argument('--phase', choices=('prepare', 'prove', 'retire'), required=True)
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
+parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
 args = parser.parse_args()
 args.players, args.cleanup = 2, False
 args.step_timeout, args.ready_timeout, args.wait_seconds = 45, 60, 60
 runner = AcceptanceRunner(args)
 runner.summary['scope'] = 'isolated Host original Starting Point completion and ordinary Commit; no peer replication claim'
+if args.require_client:
+    runner.summary['scope'] = 'joined Host Starting Point completion and ordinary Commit with actual Client project, inventory and Release adoption'
+
+
+def shared_state(name, expected):
+    deadline = time.monotonic() + 60
+    sample = 0
+    while True:
+        sample += 1
+        contexts = {peer: runner.single(name + '-context-' + peer + '-' + str(sample), peer, 'game_read_native_lobby')
+                    for peer in ('host', 'client-1')}
+        if not all(ready(state) for state in contexts.values()):
+            raise AcceptanceError('Both peers must remain Playing during ' + name)
+        if contexts['host']['prepare']['snapshot_id'] != contexts['client-1']['prepare']['snapshot_id']:
+            raise AcceptanceError('Shared session snapshot differs during ' + name)
+        actual = runner.single(name + '-client-' + str(sample), 'client-1', 'game_read_tutorial_development')
+        fields = ('project', 'startingpoint', 'startingpoint_release')
+        if all(actual[field] == expected[field] for field in fields):
+            engine = runner.inspect(name + '-client-clock', 'client-1')
+            if engine.get('clock', {}).get('scale') != 0:
+                raise AcceptanceError('Client actual simulation Clock must remain0')
+            runner.checked(name + '-shared', actual)
+            runner.checked(name + '-client-clock', engine['clock'])
+            runner.checked(name + '-client-frame', runner.single(name + '-client-frame', 'client-1', 'game_capture_frame'))
+            return
+        if time.monotonic() >= deadline:
+            differences = {field: {'host': expected[field], 'client': actual[field]}
+                           for field in fields if actual[field] != expected[field]}
+            raise AcceptanceError('Client adoption timeout required<60s during ' + name + ': ' + str(differences))
 
 try:
     runner.load_manifests()
@@ -49,6 +79,8 @@ try:
         release = baseline['startingpoint_release']
         if release['feature_count'] != 0 or release['feature_present'] is not False:
             raise AcceptanceError('Starting Point Release feature must be absent before Commit')
+        if args.require_client:
+            shared_state('baseline', baseline)
         current = baseline
         for operation in ('show', 'complete', 'commit'):
             request = {'token': str(uuid.uuid4()), 'native_origin_uuid': current['snapshot_uuid'],
@@ -64,12 +96,15 @@ try:
             current = runner.single('after-' + operation, 'host', 'game_read_tutorial_development')
             runner.checked('after-' + operation, current)
             runner.checked('frame-' + operation, runner.single('frame-' + operation, 'host', 'game_capture_frame'))
+            if args.require_client:
+                shared_state(operation, current)
         actual = current['startingpoint_release']
         if actual['feature_count'] != 1 or actual['feature_present'] is not True:
             raise AcceptanceError('Original Commit did not insert exactly one native Starting Point Release feature')
         if actual['mutation_counter'] != (release['mutation_counter'] + 1) % (1 << 32):
             raise AcceptanceError('Original Commit Release mutation counter delta differs from1')
-        runner.summary.update(before=baseline, after=current, native_host_commit_proven=True)
+        runner.summary.update(before=baseline, after=current, native_host_commit_proven=True,
+                              client_adoption_proven=args.require_client)
     else:
         previous = {}
         for peer in ('client-1', 'host'):

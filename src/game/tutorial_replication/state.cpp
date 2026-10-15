@@ -13,6 +13,7 @@ bool valid(const MessageProgress& p,std::string& e){
     e.clear();return true;
 }
 bool valid(const State& s,std::string& e){
+    if(s.startingpoint&&!startingpoint::valid(*s.startingpoint,e))return false;
     if(s.active.size()>2){e="tutorial active state exceeds2";return false;}
     std::set<std::string> ids;
     for(const auto& c:s.active){
@@ -25,9 +26,10 @@ bool valid(const State& s,std::string& e){
     }
     e.clear();return true;
 }
-nlohmann::json encode(const State& s){nlohmann::json rows=nlohmann::json::array();for(const auto& c:s.active)rows.push_back({{"scenario",c.scenario},{"count",c.count},{"next",c.next},{"complete",c.complete},{"history",c.history},{"last",c.last},{"message_progress",c.message_progress?nlohmann::json{{"shown",c.message_progress->shown},{"value",c.message_progress->value},{"minimum",c.message_progress->minimum},{"maximum",c.message_progress->maximum}}:nlohmann::json(nullptr)}});return {{"active",rows},{"initial_complete",s.initial_complete},{"leveltwo_complete",s.leveltwo_complete}};}
+nlohmann::json encode(const State& s){nlohmann::json rows=nlohmann::json::array();for(const auto& c:s.active)rows.push_back({{"scenario",c.scenario},{"count",c.count},{"next",c.next},{"complete",c.complete},{"history",c.history},{"last",c.last},{"message_progress",c.message_progress?nlohmann::json{{"shown",c.message_progress->shown},{"value",c.message_progress->value},{"minimum",c.message_progress->minimum},{"maximum",c.message_progress->maximum}}:nlohmann::json(nullptr)}});return {{"active",rows},{"initial_complete",s.initial_complete},{"leveltwo_complete",s.leveltwo_complete},{"startingpoint",s.startingpoint?startingpoint::encode(*s.startingpoint):nlohmann::json(nullptr)}};}
 bool decode(const nlohmann::json& j,State& out,std::string& e){out={};try{
-    fields(j,{"active","initial_complete","leveltwo_complete"});if(!j.at("active").is_array()||j.at("active").size()>2||!j.at("initial_complete").is_boolean()||!j.at("leveltwo_complete").is_boolean())throw std::runtime_error("tutorial state types differ");State s;
+    if(j.contains("startingpoint"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint"});else fields(j,{"active","initial_complete","leveltwo_complete"});if(!j.at("active").is_array()||j.at("active").size()>2||!j.at("initial_complete").is_boolean()||!j.at("leveltwo_complete").is_boolean())throw std::runtime_error("tutorial state types differ");State s;
+    if(j.contains("startingpoint")&&!j.at("startingpoint").is_null()){startingpoint::Row r;if(!startingpoint::decode(j.at("startingpoint"),r,e))return false;s.startingpoint=r;}
     s.initial_complete=j.at("initial_complete").get<bool>();s.leveltwo_complete=j.at("leveltwo_complete").get<bool>();
     for(const auto& row:j.at("active")){if(row.contains("message_progress"))fields(row,{"scenario","count","next","complete","history","last","message_progress"});else fields(row,{"scenario","count","next","complete","history","last"});if(!row.at("complete").is_boolean()||!row.at("history").is_array()||row.at("history").size()>512)throw std::runtime_error("tutorial cursor types/history bound differ");Cursor c;c.scenario=row.at("scenario").get<std::string>();c.count=integer(row.at("count"));c.next=integer(row.at("next"));c.complete=row.at("complete").get<bool>();c.history=row.at("history").get<std::vector<std::string>>();c.last=row.at("last").get<std::string>();if(row.contains("message_progress")&&!row.at("message_progress").is_null()){
         const auto& progress=row.at("message_progress");fields(progress,{"shown","value","minimum","maximum"});

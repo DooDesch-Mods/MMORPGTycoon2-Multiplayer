@@ -300,7 +300,7 @@ OP_DESCRIPTIONS = {
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
-    "tutorial_startingpoint": "Fixed isolated Host Starting Point proof: show the owned native Development window, complete the existing project, or activate its real Commit button. Requires no Controller, Clock0 and exact current native development readback. Keep each token; never replay an unknown effect.",
+    "tutorial_startingpoint": "Fixed isolated Host Starting Point proof: show the owned native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Keep each token; never replay an unknown effect.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
     "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
     "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",

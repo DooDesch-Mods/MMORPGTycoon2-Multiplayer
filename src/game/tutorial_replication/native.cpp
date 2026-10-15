@@ -1,7 +1,12 @@
 #include "native.h"
 #include "owned_sequence_entry.h"
+#include "owned_commit_entry.h"
 #include "message_progress.h"
 #include "message_progress_contract.h"
+#include "startingpoint_native_code.h"
+#include "tutorial_development.h"
+#include <algorithm>
+#include <cmath>
 #include "tutorial_observer.h"
 #include "native_open_runtime.h"
 #include "session_provider.h"
@@ -21,13 +26,20 @@ using World=building_mixed_identity::opened_file::CurrentWorld;
 using Call=void(*)(void*);using Update=void(*)(void*,float);
 Call original_postload=nullptr,original_command=nullptr,original_save=nullptr,original_tech=nullptr;
 Update original_update=nullptr;
+Call original_commit=nullptr;
 placement_ui_probe::ProcessMemory memory;
 uintptr_t image=0;uint32_t mainthread=0;
-tutorial_sync::OwnedSequenceEntry owned;
+tutorial_sync::OwnedSequenceEntry owned,owned_commit;
+struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;};
+CommitReceipt commit_receipt;
+bool client_commit_suppressed=false;
+void commit_current(void* lounge);
+bool same_world(const World&,const World&);
 struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;} load;
 std::string fault;
 thread_local uintptr_t scoped_sequence=0;
 thread_local bool restoring=false;
+thread_local uintptr_t scoped_startingpoint_step=0;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 void block(const std::string& cause){if(fault.empty()){fault=cause;LOG_ERROR("[Tutorial] native operation blocked cause={}",cause);}}
 template<class T>bool at(uintptr_t p,size_t offset,T& value,std::string& e){if(!p||p>UINTPTR_MAX-offset)return fail(e,"tutorial native address overflow");return memory.copy(p+offset,&value,sizeof(value),e);}
@@ -37,12 +49,20 @@ bool str(uintptr_t p,size_t offset,std::string& value,std::string& e){uintptr_t 
 bool supported(const std::string& id){return id=="initial_tutorial"||id=="leveltwo_tutorial";}
 bool type(uintptr_t p,uintptr_t rva,std::string& e){uintptr_t actual=0;return at(p,0,actual,e)&&(actual==image+rva||fail(e,"tutorial native vtable differs"));}
 bool step_member(uintptr_t sequence,uintptr_t step,std::string& e){uintptr_t data=0;int32_t count=0;if(!at(sequence,0x20,data,e)||!at(sequence,0x28,count,e))return false;if(count<1||count>2048)return fail(e,"tutorial step count outside1..2048");size_t found=0;for(int32_t i=0;i<count;++i){uintptr_t entry=0;if(!at(data,size_t(i)*8,entry,e))return false;if(entry==step)++found;}return found==1||fail(e,"tutorial scoped step is not uniquely owned");}
-struct Scope {uintptr_t previous;bool was_restoring;Scope(uintptr_t sequence,bool restore):previous(scoped_sequence),was_restoring(restoring){scoped_sequence=sequence;restoring=restore;}~Scope(){scoped_sequence=previous;restoring=was_restoring;}};
+struct Scope {
+    uintptr_t previous,previous_tech;bool was_restoring;
+    Scope(uintptr_t sequence,bool restore,uintptr_t tech_step=0):previous(scoped_sequence),previous_tech(scoped_startingpoint_step),was_restoring(restoring){scoped_sequence=sequence;restoring=restore;scoped_startingpoint_step=tech_step;}
+    ~Scope(){scoped_sequence=previous;restoring=was_restoring;scoped_startingpoint_step=previous_tech;}
+};
 bool skip(void* step,bool save,bool tech){
     if(!scoped_sequence)return false;
     std::string e;const auto p=reinterpret_cast<uintptr_t>(step);
     if(!step_member(scoped_sequence,p,e)){block(e);return true;}
     bool suppress=save||(tech&&restoring);
+    if(tech&&!restoring){
+        if(p!=scoped_startingpoint_step){block("unadmitted scoped tutorial CompleteTech");return true;}
+        suppress=true;
+    }
     if(!save&&!tech){std::string command;if(!str(p,0x40,command,e)){block(e);return true;}const auto policy=command_policy(command,restoring);suppress=policy!=Start::Native;if(policy==Start::Reject)block("unsupported scoped tutorial command: "+command);}
     if(suppress&&!put(p,0x18,uint8_t(1),e))block(e);
     return suppress;
@@ -91,15 +111,27 @@ bool native_state(const action_session::Context& c,const action_session::Binding
         n.value.message_progress=meter.values;
         out.active.push_back(n.value);cursors.push_back(std::move(n));
     }
-    World after;if(!origin(c,b,after,e)||after.state!=w.state||after.world!=w.world||after.uuid!=w.uuid)return fail(e,e.empty()?"tutorial origin changed during capture":e);
+    for(const auto& cursor:out.active)if(cursor.scenario=="initial_tutorial"){
+        tutorial_development::StartingpointSnapshot snapshot;nlohmann::json diagnostic;
+        if(!tutorial_development::read_startingpoint(snapshot,diagnostic,e))return false;
+        if(snapshot.origin.game!=w.game||snapshot.origin.mode!=w.mode||snapshot.origin.state!=w.state||snapshot.origin.world!=w.world||snapshot.origin.map!=w.map||snapshot.origin.uuid!=w.uuid||snapshot.origin.sha256!=w.sha256||snapshot.origin.bytes!=w.bytes||snapshot.origin.world_epoch!=w.world_epoch||snapshot.origin.generation!=w.generation)
+            return fail(e,"tutorial development full Origin differs during capture");
+        out.startingpoint=snapshot.row;
+        if(out.startingpoint&&out.startingpoint->deployed&&commit_receipt.bugs&&same_world(w,commit_receipt.origin)&&snapshot.tech==commit_receipt.tech&&snapshot.record==commit_receipt.record)
+            out.startingpoint->commit_bugs=commit_receipt.bugs;
+    }
+    World after;if(!origin(c,b,after,e)||after.game!=w.game||after.mode!=w.mode||after.state!=w.state||after.world!=w.world||after.map!=w.map||after.uuid!=w.uuid||after.sha256!=w.sha256||after.bytes!=w.bytes||after.world_epoch!=w.world_epoch||after.generation!=w.generation)return fail(e,e.empty()?"tutorial origin changed during capture":e);
     return valid(out,e);
 }
-bool interval(const NativeCursor& n,const Cursor& target,std::string& e){
+bool interval(const NativeCursor& n,const Cursor& target,const std::optional<startingpoint::Row>& technology,std::string& e){
     if(n.value.count!=target.count||n.value.next>target.next||n.value.complete!=target.complete)return fail(e,"tutorial backward/count/completion transition unsupported in current slice");
     std::set<std::string> ids;
     for(int32_t i=0;i<target.count;++i){uintptr_t step=0;std::string id;if(!at(n.steps,size_t(i)*8,step,e)||!str(step,0x20,id,e))return false;if(!id.empty())ids.insert(id);
         if(i<n.value.next||i>=target.next)continue;uintptr_t vt=0;if(!at(step,0,vt,e))return false;
-        if(vt==image+0x17206c0)return fail(e,"tutorial CompleteTech index="+std::to_string(i)+" requires authoritative development/technology state; current modules replicate neither");
+        if(vt==image+0x17206c0){std::string key;if(!str(step,0x40,key,e))return false;
+            if(!startingpoint::accepts_complete_tech(n.value.scenario,i,key,technology))return fail(e,"tutorial CompleteTech index="+std::to_string(i)+" requires supported authoritative Startingpoint state");
+            continue;
+        }
         if(vt==image+0x16fd930){std::string command;if(!str(step,0x40,command,e))return false;if(command_policy(command,false)==Start::Reject)return fail(e,"tutorial command requires unsupported authoritative state: "+command);}
         else if(vt!=image+0x16fda00&&vt!=image+0x17091e0&&vt!=image+0x1725e70&&vt!=image+0x171c5a0&&vt!=image+0x16dc000&&vt!=image+0x16dbf30)return fail(e,"tutorial forward step type unsupported");
     }
@@ -133,6 +165,7 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
     for(size_t i=0;i<target.history.size();++i)assign(data+i*32,target.history[i]);
     assign(n.instance+0x60,target.last);return put(n.instance,0x50,int32_t(target.history.size()),e);
 }
+#include "startingpoint_native.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -148,22 +181,38 @@ bool initialize(uintptr_t base,std::string& e){
         {0x11bfce0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x30,0x48,0x89}}};
     for(const auto& expected:entries){std::array<unsigned char,12> actual{};if(!memory.copy(image+expected.rva,actual.data(),actual.size(),e))return false;if(actual!=expected.bytes)return fail(e,"tutorial native entry guard differs RVA="+std::to_string(expected.rva));}
     if(!message_progress::verify_code(memory,image,e))return false;
+    std::array<unsigned char,16> commit_bytes{};
+    if(!memory.copy(image+0x25fb10,commit_bytes.data(),commit_bytes.size(),e))return false;
+    if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
+    owned_commit.target=image+0x25fb10;owned_commit.detour=reinterpret_cast<uintptr_t>(&commit_current);owned_commit.original_verified=true;
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {0x25fb10,reinterpret_cast<void*>(&commit_current),reinterpret_cast<void**>(&original_commit)},
         {0x4fc4a0,reinterpret_cast<void*>(&sequence_update),reinterpret_cast<void**>(&original_update)},
         {0x4f5900,reinterpret_cast<void*>(&postload),reinterpret_cast<void**>(&original_postload)},
         {0x4fd410,reinterpret_cast<void*>(&command_start),reinterpret_cast<void**>(&original_command)},
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
-    owned.trampoline=reinterpret_cast<uintptr_t>(original_update);return true;
+    owned.trampoline=reinterpret_cast<uintptr_t>(original_update);owned_commit.trampoline=reinterpret_cast<uintptr_t>(original_commit);return true;
 }
-bool hooks_enabled(std::string& e){owned.enabled=true;if(!verify_sequence_entry(owned.target,e)){owned.enabled=false;return false;}return true;}
+bool hooks_enabled(std::string& e){
+    owned.enabled=owned_commit.enabled=true;
+    if(!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
+        owned.enabled=owned_commit.enabled=false;return false;
+    }return true;
+}
+bool verify_commit_entry(uintptr_t address,std::string& e){
+    uintptr_t base=0;uint32_t thread=0;std::string sha;
+    if(!native::read_resolver_receipt(base,thread,sha,e))return false;
+    if(base!=image||thread!=GetCurrentThreadId())return fail(e,"tutorial Commit verifier requires actual Mainthread/image");
+    return tutorial_sync::verify_owned_commit_entry(owned_commit,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);
+}
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
-    load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
+    commit_receipt={};client_commit_suppressed=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
     pending=false;
@@ -202,7 +251,7 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();commit_receipt={};client_commit_suppressed=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -217,7 +266,10 @@ bool read_progress(nlohmann::json& out,std::string& e){
             return fail(e,"tutorial progress observation local origin changed");
         out={{"schema",1},{"mainthread_confirmed",true},{"lifetime_confirmed",true},
              {"snapshot_uuid",before.uuid},{"world_epoch",before.world_epoch},{"world_generation",before.generation},
-             {"client_sequence_fenced",context.role==action_session::Role::Client},{"tutorial",encode(state)}};
+             {"client_sequence_fenced",context.role==action_session::Role::Client},{"tutorial",encode(state)},
+             {"client_commit_suppressed",client_commit_suppressed},
+             {"client_commit_cause",client_commit_suppressed?"Client tech-action routing pending; original Client Commit was not executed":""},
+             {"host_commit_receipt_cause",commit_receipt.cause}};
         e.clear();return true;
     }catch(const std::exception& cause){out=nullptr;return fail(e,std::string("tutorial progress read: ")+cause.what());}
 }
@@ -225,15 +277,25 @@ bool preflight(const action_session::Context& c,const action_session::Binding& b
     if(!message_progress::verify_code(memory,image,e))return false;
     if(c.role!=action_session::Role::Client||!valid(target,e))return fail(e,e.empty()?"tutorial apply requires Client":e);State local;std::vector<NativeCursor> native;if(!native_state(c,b,local,native,e))return false;
     if(local.active.size()!=target.active.size()||local.initial_complete!=target.initial_complete||local.leveltwo_complete!=target.leveltwo_complete)return fail(e,"tutorial creation/completion requires next native synchronization slice");
-    for(size_t i=0;i<native.size();++i){if(native[i].value.scenario!=target.active[i].scenario)return fail(e,"tutorial scenario order differs");if(!interval(native[i],target.active[i],e))return false;
+    for(size_t i=0;i<native.size();++i){if(native[i].value.scenario!=target.active[i].scenario)return fail(e,"tutorial scenario order differs");if(!interval(native[i],target.active[i],target.startingpoint,e))return false;
         const auto& wanted=target.active[i];
         if(native[i].value.next==wanted.next&&native[i].value.message_progress.has_value()!=wanted.message_progress.has_value())return fail(e,"tutorial Host/local current Meter presence differs");
         if(wanted.message_progress){uintptr_t step=0,ap=0;if(!at(native[i].steps,size_t(wanted.next-1)*8,step,e)||!at(step,0,ap,e))return false;if(ap!=image+0x16fda00)return fail(e,"tutorial Host progress target is not a native Message step");}
-    }return true;
+    }
+    startingpoint::Plan operation;if(!startingpoint::plan(local.startingpoint,target.startingpoint,operation,e))return false;
+    if(operation!=startingpoint::Plan::None){StartingpointCalls calls{c,b,{}};if(!calls.pin(*local.startingpoint,operation==startingpoint::Plan::Deploy,e))return false;}
+    return true;
 }
 bool apply(const action_session::Context& c,const action_session::Binding& b,const State& target,bool& attempted,bool& unknown,std::string& e){
     attempted=unknown=false;if(!preflight(c,b,target,e))return false;State before;std::vector<NativeCursor> native;if(!native_state(c,b,before,native,e))return false;if(before==target)return true;
-    try{for(size_t i=0;i<native.size();++i){auto& n=native[i];const auto& wanted=target.active[i];Scope scope(n.sequence,false);
+    try{
+    StartingpointCalls calls{c,b,{}};
+    if(!startingpoint::apply(before.startingpoint,target.startingpoint,calls,attempted,unknown,e))throw std::runtime_error(e);
+    if(before.startingpoint&&target.startingpoint&&!before.startingpoint->deployed&&target.startingpoint->deployed)
+        commit_receipt={calls.before.origin,calls.before.tech,calls.before.record,target.startingpoint->commit_bugs,{}};
+    for(size_t i=0;i<native.size();++i){auto& n=native[i];const auto& wanted=target.active[i];uintptr_t tech_step=0;
+        if(n.value.scenario=="initial_tutorial"&&n.value.next<=93&&wanted.next>93&&target.startingpoint){if(!at(n.steps,93*8,tech_step,e))throw std::runtime_error(e);}
+        Scope scope(n.sequence,false,tech_step);
         for(auto index=n.value.next;index<wanted.next;++index){attempted=true;const auto code=advance_call(n.sequence);if(code)throw std::runtime_error("tutorial Advance exception="+std::to_string(code));if(!fault.empty())throw std::runtime_error(fault);int32_t actual=0;if(!at(n.sequence,0x50,actual,e)||actual!=index+1)throw std::runtime_error(e.empty()?"tutorial Advance index readback differs":e);}
         if(n.value.history!=wanted.history||n.value.last!=wanted.last){attempted=true;if(!history(n,wanted,e))throw std::runtime_error(e);}
         ProgressCalls presentation;if(!message_progress::apply(memory,image,n.sequence,wanted.next,wanted.message_progress,presentation,attempted,e))throw std::runtime_error(e);

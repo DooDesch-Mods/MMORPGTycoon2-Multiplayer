@@ -1,8 +1,11 @@
 #include "startingpoint_fixture.h"
+#include "controller_admission.h"
 #include "tutorial_development.h"
+#include "tutorial_replication/native.h"
 #include "tutorial_observer.h"
 #include "native_open_runtime.h"
 #include "typed_action_runtime.h"
+#include "session_provider.h"
 #include "hud_time_runtime.h"
 #include "placement_ui_probe/ui_probe.h"
 #include "mt2mp/core/config.h"
@@ -58,8 +61,7 @@ bool pin(const Request& request,Pin& p,std::string& e){
         return fail(e,"startingpoint fixture requires exact EXE/owned GameUpdate/Mainthread");
     if(!Config::instance().local_test||!Config::instance().is_host)return fail(e,"startingpoint fixture requires isolated local-test Host");
     const auto controller=typed_action_runtime::status();
-    if(!controller.contains("initialized")||!controller.at("initialized").is_boolean()||controller.at("initialized").get<bool>()||controller.contains("error"))
-        return fail(e,"startingpoint fixture requires uninitialized Controller");
+    if(!controller_admission(controller,e))return false;
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.edit_operations||status.saves_in_progress||status.quitting||status.title_transition_pending||status.map_task_pending)
         return fail(e,"startingpoint fixture requires idle InGame without edit/save/transition");
@@ -68,8 +70,17 @@ bool pin(const Request& request,Pin& p,std::string& e){
     if(!native_open_runtime::read_current_world(p.world,e)||!tutorial_development::read(p.development,e)||!tutorial_observer::read(p.tutorial,e))return false;
     if(p.world.game!=update_game||p.world.uuid!=request.origin_uuid||p.world.world_epoch!=request.epoch||p.world.generation!=request.generation)
         return fail(e,"startingpoint fixture expected local Origin differs");
+    if(controller.at("initialized").get<bool>()){
+        action_session::Context context;action_session::Binding binding;
+        if(!action_session::selected_session().current(context,e)||
+           !typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
+        if(context.role!=action_session::Role::Host||binding.native_epoch!=p.world.world_epoch||binding.native_generation!=p.world.generation)
+            return fail(e,"startingpoint fixture actual Host session binding differs from native Origin");
+    }
     if(!hud_time_runtime::verify_window_show_hook(p.image+0x81ec20,e))return false;
-    for(const auto& entry:entries){std::vector<unsigned char> actual(entry.size);
+    for(const auto& entry:entries){
+        if(entry.rva==0x25fb10){if(!tutorial_replication::verify_commit_entry(p.image+entry.rva,e))return false;continue;}
+        std::vector<unsigned char> actual(entry.size);
         if(!memory.copy(p.image+entry.rva,actual.data(),actual.size(),e))return false;
         if(mt2mp::sha256(actual)!=entry.sha256)return fail(e,"startingpoint fixture entry differs RVA="+std::to_string(entry.rva));}
     const auto state=uintptr_t(p.world.state);

@@ -1,5 +1,6 @@
 #include "tutorial_development.h"
 #include "initial_release/startingpoint_read.h"
+#include "tutorial_replication/admission_read.h"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -127,8 +128,8 @@ bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::
     }return true;
 }
 }
-bool observe(Port& port,nlohmann::json& result,std::string& error){
-    result=nullptr;
+bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot){
+    result=nullptr;if(snapshot)*snapshot={};
     try{
         Origin before;if(!port.current(before,error))return false;
         if(!before.game||!before.mode||!before.state||!before.world||!before.map||!before.generation||!before.world_epoch||!before.bytes||before.uuid.empty()||before.sha256.empty())return fail(error,"development current world origin incomplete");
@@ -146,13 +147,43 @@ bool observe(Port& port,nlohmann::json& result,std::string& error){
         nlohmann::json dev,tech;int32_t item_count=0;uintptr_t startingpoint=0;
         initial_release::StartingpointRelease release;
         if(!project(r,image,lounge,dev,error)||!technology(r,image,software,startingpoint,tech,error)||
-           !inventory(r,image,player,item_count,error)||!initial_release::read_startingpoint_release(r,image,state,startingpoint,release,error)||!r.stable(error))return false;
+           !inventory(r,image,player,item_count,error)||!initial_release::read_startingpoint_release(r,image,state,startingpoint,release,error))return false;
+        if(snapshot){
+            snapshot->origin=before;snapshot->image=image;snapshot->lounge=lounge;snapshot->tech=startingpoint;snapshot->player=player;
+            if(!r.at(lounge,0xa8,snapshot->project,error)||!r.at(startingpoint,0x1e8,snapshot->record,error)||
+               !r.at(player,0x1d0,snapshot->inventory,error)||!r.at(snapshot->inventory,8,snapshot->slots,error)||
+               !r.bytes(snapshot->slots,snapshot->items.data(),sizeof(snapshot->items),error))return false;
+            const bool fixed_project=dev.at("present")==true&&dev.at("kind")==0&&dev.at("tech_key")=="startingpoint";
+            const bool retired=!fixed_project&&tech.at("deployed")==true;
+            if(tech.at("record_present")==true&&(fixed_project||retired)){
+                tutorial_replication::startingpoint::Row row;
+                row.project_present=fixed_project;
+                // This row describes only the current Startingpoint project.
+                // Later unrelated projects remain in the ordinary diagnostic.
+                if(fixed_project){row.work=dev.at("work").get<float>();row.lines=dev.at("lines").get<int32_t>();
+                    row.desired_workers=dev.at("desired_workers").get<int32_t>();row.bugs_total=dev.at("bugs_total").get<int32_t>();row.bugs_known=dev.at("bugs_known").get<int32_t>();}
+                row.purchased=tech.at("purchased").get<bool>();row.deployed=tech.at("deployed").get<bool>();row.custom=tech.at("custom").get<bool>();
+                row.inventory_count=item_count;row.release_change_count=release.change_count;row.release_feature_count=release.feature_count;row.release_counter=release.mutation_counter;
+                snapshot->row=row;
+            }
+            startingpoint_adoption::Admission admission;
+            snapshot->admitted=startingpoint_adoption::read_admission(r,image,state,startingpoint,admission,snapshot->admission_cause);
+            snapshot->release=admission.release;
+            nlohmann::json listeners=nlohmann::json::array();
+            auto rva=[&](uintptr_t address)->nlohmann::json{return address>=image&&address-image<0x1b00000?nlohmann::json(address-image):nlohmann::json(nullptr);};
+            for(const auto& listener:admission.listeners)listeners.push_back({{"class_rva",rva(listener.address_point)},{"handler_rva",rva(listener.handler)}});
+            snapshot->admission={{"accepted",snapshot->admitted},{"cause",snapshot->admission_cause},{"event38_listener_count",admission.listeners.size()},
+                {"events_enabled",admission.events_enabled},{"repeatable",admission.repeatable},{"modifiers",admission.modifiers},
+                {"art_pack_bytes",admission.art_pack_bytes},{"item_feature",admission.item_feature},{"listeners",listeners}};
+        }
+        if(!r.stable(error))return false;
         Origin after;if(!port.current(after,error))return false;if(!same(before,after))return fail(error,"development current world origin changed during read");
         tech["inventory_count"]=item_count;tech["inventory_present"]=item_count!=0;
         result={{"schema",1},{"mainthread_confirmed",true},{"lifetime_confirmed",true},{"snapshot_uuid",before.uuid},
             {"world_epoch",before.world_epoch},{"world_generation",before.generation},{"project",std::move(dev)},{"startingpoint",std::move(tech)},
             {"startingpoint_release",{{"change_count",release.change_count},{"mutation_counter",release.mutation_counter},
                 {"feature_count",release.feature_count},{"feature_present",release.feature_count!=0}}}};
+        if(snapshot)result["startingpoint_adoption"]=snapshot->admission;
         error.clear();return true;
     }catch(const std::exception& x){result=nullptr;return fail(error,std::string("development read exception: ")+x.what());}
 }

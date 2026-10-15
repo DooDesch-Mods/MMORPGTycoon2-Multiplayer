@@ -1,6 +1,8 @@
 add_executable(test_tutorial_development
     "${MT2MP_SOURCE_ROOT}/test/test_tutorial_development.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_development_read.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/admission_read.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/initial_release/startingpoint_read.cpp")
 target_include_directories(test_tutorial_development PRIVATE
     "${MT2MP_SOURCE_ROOT}/src/game"

@@ -1,5 +1,6 @@
 #include "vendor/nlohmann/json.hpp"
 #include "native_open_runtime.h"
+#include "tutorial_startingpoint_fixture/controller_admission.h"
 #include <algorithm>
 #include <array>
 #include <iostream>
@@ -14,6 +15,26 @@ int main(){
     unsigned checks=0;
     const auto check=[&](bool pass,const char* name){++checks;if(!pass)throw std::runtime_error(name);};
     try{
+        using mt2mp::game::tutorial_startingpoint_fixture::controller_admission;
+        std::string admission_error;
+        const json idle={{"initialized",true},{"started",true},{"locked",false},{"pending",false},{"lobby_retiring",false},{"cause",""},
+                         {"live_state",{{"active",true},{"locked",false},{"unknown",false},{"cause",""}}}};
+        check(controller_admission(json{{"initialized",false}},admission_error),"isolated uninitialized Host rejected");
+        check(controller_admission(idle,admission_error),"idle authoritative Host rejected");
+        for(const char* field:{"locked","pending","lobby_retiring"}){
+            auto changed=idle;changed[field]=true;
+            check(!controller_admission(changed,admission_error),"busy Controller admitted");
+        }
+        for(const char* field:{"locked","unknown"}){
+            auto changed=idle;changed["live_state"][field]=true;
+            check(!controller_admission(changed,admission_error),"uncertain live authority admitted");
+        }
+        auto changed=idle;changed["started"]=false;check(!controller_admission(changed,admission_error),"unstarted Controller admitted");
+        changed=idle;changed["live_state"]["active"]=false;check(!controller_admission(changed,admission_error),"inactive live authority admitted");
+        changed=idle;changed["cause"]="original failure";check(!controller_admission(changed,admission_error)&&admission_error.find("original failure")!=std::string::npos,"Controller failure admitted or hidden");
+        changed=idle;changed["live_state"]["cause"]="original live failure";check(!controller_admission(changed,admission_error)&&admission_error.find("original live failure")!=std::string::npos,"live failure admitted or hidden");
+        changed=idle;changed["error"]="read failed";check(!controller_admission(changed,admission_error)&&admission_error.find("read failed")!=std::string::npos,"Controller read cause discarded");
+        changed=idle;changed.erase("pending");check(!controller_admission(changed,admission_error),"missing Controller field admitted");
         Pin baseline;baseline.development=native_baseline;baseline.project=1;
         baseline.player=10;baseline.inventory=20;baseline.slots=30;baseline.items[0]=40;
         std::string error;

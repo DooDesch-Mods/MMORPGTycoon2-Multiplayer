@@ -104,3 +104,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_development_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_progress_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_movement_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_startingpoint_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_startingpoint_client_checks.cmake")

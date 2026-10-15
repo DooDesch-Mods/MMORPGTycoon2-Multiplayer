@@ -1,5 +1,6 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
+#include "startingpoint.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -23,6 +24,7 @@ struct Cursor {
 struct State {
     std::vector<Cursor> active;
     bool initial_complete=false,leveltwo_complete=false;
+    std::optional<startingpoint::Row> startingpoint;
     bool operator==(const State&)const=default;
 };
 bool valid(const State&,std::string&);

@@ -5,6 +5,7 @@ namespace mt2mp::game::tutorial_replication {
 bool initialize(uintptr_t image,std::string&);
 bool hooks_enabled(std::string&);
 bool verify_sequence_entry(uintptr_t address,std::string&);
+bool verify_commit_entry(uintptr_t address,std::string&);
 bool arm_client_load(const std::string& local_uuid,uint64_t generation,std::string&);
 bool finish_client_load(bool& pending,std::string&);
 void invalidate(const std::string& cause);

@@ -1,0 +1,333 @@
+{
+  "schema": 1,
+  "scope": "Existing Starting Point project: Host completion and Commit adopted by the joined Client",
+  "released": false,
+  "existing_project_adoption_proven": true,
+  "project_creation_proven": false,
+  "client_commit_intent_proven": false,
+  "full_tutorial_proven": false,
+  "build": "artifacts/build_history/20261015T021620020941Z",
+  "mod_sha256": "f98ee5c444362ba4c834f9b0d21e2a83d44d7c27bd32eba260deba2fb55d0742",
+  "runtime_run_id": "3d033a0c-4bdd-41e3-8eea-cd5f6a39ec9a",
+  "native": {
+    "admission": {
+      "path": "artifacts/acceptance/3d3b567f-0ec7-4a2e-9c50-d0e999a5af2e/summary.json",
+      "sha256": "4843ee42e5aea3495fd5921ab22704dea35d3482eca797483b0a4118e949fe73"
+    },
+    "completion_and_commit": {
+      "path": "artifacts/acceptance/a1f42639-34f4-47db-b15e-c5f0eef99fec/summary.json",
+      "sha256": "f092f157e89858afe2fb0cc4b10d008a99347d13e2921c11565571801277851a"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/a1e38336-ebdd-4733-a20f-e94bcca3ee96/summary.json",
+      "sha256": "8abfd1d077019332d5cba81ef6963149877f513b90a05fd02de3f80fedf9b302"
+    },
+    "native_exit": {
+      "path": "artifacts/acceptance/07df79d9-3f11-4745-a1de-232831d9f9cf/summary.json",
+      "sha256": "b8e092fe4dc78ac8a2e29a96f429c071256f67fa962281e0ddc385a469d0d67e"
+    }
+  },
+  "before": {
+    "lifetime_confirmed": true,
+    "mainthread_confirmed": true,
+    "project": {
+      "bugs_known": 0,
+      "bugs_total": 0,
+      "bugs_unknown": 0,
+      "desired_workers": 1,
+      "kind": 0,
+      "lines": 182,
+      "present": true,
+      "tech_key": "startingpoint",
+      "work": 78.88058471679688
+    },
+    "schema": 1,
+    "snapshot_uuid": "612c1517-f689-462d-aa23-7c94e0bb1b3a",
+    "startingpoint": {
+      "custom": false,
+      "deployed": false,
+      "inventory_count": 0,
+      "inventory_present": false,
+      "item_type_name": "@StartingPoints",
+      "key": "startingpoint",
+      "owned": false,
+      "purchased": true,
+      "record_present": true
+    },
+    "startingpoint_adoption": {
+      "accepted": true,
+      "art_pack_bytes": 0,
+      "cause": "",
+      "event38_listener_count": 1,
+      "events_enabled": 1,
+      "item_feature": 10,
+      "listeners": [
+        {
+          "class_rva": 23860080,
+          "handler_rva": 5131504
+        }
+      ],
+      "modifiers": 0,
+      "repeatable": 0
+    },
+    "startingpoint_release": {
+      "change_count": 0,
+      "feature_count": 0,
+      "feature_present": false,
+      "mutation_counter": 0
+    },
+    "world_epoch": 2,
+    "world_generation": 2
+  },
+  "host_after": {
+    "lifetime_confirmed": true,
+    "mainthread_confirmed": true,
+    "project": {
+      "bugs_known": 0,
+      "bugs_total": 0,
+      "bugs_unknown": 0,
+      "desired_workers": 0,
+      "kind": null,
+      "lines": 0,
+      "present": false,
+      "tech_key": null,
+      "work": 0.0
+    },
+    "schema": 1,
+    "snapshot_uuid": "612c1517-f689-462d-aa23-7c94e0bb1b3a",
+    "startingpoint": {
+      "custom": false,
+      "deployed": true,
+      "inventory_count": 1,
+      "inventory_present": true,
+      "item_type_name": "@StartingPoints",
+      "key": "startingpoint",
+      "owned": true,
+      "purchased": true,
+      "record_present": true
+    },
+    "startingpoint_adoption": {
+      "accepted": true,
+      "art_pack_bytes": 0,
+      "cause": "",
+      "event38_listener_count": 1,
+      "events_enabled": 1,
+      "item_feature": 10,
+      "listeners": [
+        {
+          "class_rva": 23860080,
+          "handler_rva": 5131504
+        }
+      ],
+      "modifiers": 0,
+      "repeatable": 0
+    },
+    "startingpoint_release": {
+      "change_count": 1,
+      "feature_count": 1,
+      "feature_present": true,
+      "mutation_counter": 1
+    },
+    "world_epoch": 2,
+    "world_generation": 2
+  },
+  "client_after": {
+    "lifetime_confirmed": true,
+    "mainthread_confirmed": true,
+    "project": {
+      "bugs_known": 0,
+      "bugs_total": 0,
+      "bugs_unknown": 0,
+      "desired_workers": 0,
+      "kind": null,
+      "lines": 0,
+      "present": false,
+      "tech_key": null,
+      "work": 0.0
+    },
+    "schema": 1,
+    "snapshot_uuid": "faafe9fb-3bd6-4e52-9d4b-cf590e804962",
+    "startingpoint": {
+      "custom": false,
+      "deployed": true,
+      "inventory_count": 1,
+      "inventory_present": true,
+      "item_type_name": "@StartingPoints",
+      "key": "startingpoint",
+      "owned": true,
+      "purchased": true,
+      "record_present": true
+    },
+    "startingpoint_adoption": {
+      "accepted": true,
+      "art_pack_bytes": 0,
+      "cause": "",
+      "event38_listener_count": 1,
+      "events_enabled": 1,
+      "item_feature": 10,
+      "listeners": [
+        {
+          "class_rva": 23860080,
+          "handler_rva": 5131504
+        }
+      ],
+      "modifiers": 0,
+      "repeatable": 0
+    },
+    "startingpoint_release": {
+      "change_count": 1,
+      "feature_count": 1,
+      "feature_present": true,
+      "mutation_counter": 1
+    },
+    "world_epoch": 1,
+    "world_generation": 1
+  },
+  "client_clock": {
+    "day": 1,
+    "pause_scale": 1.0,
+    "paused": true,
+    "scale": 0.0,
+    "seconds": 801
+  },
+  "native_admission": {
+    "host": {
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "project": {
+        "bugs_known": 0,
+        "bugs_total": 0,
+        "bugs_unknown": 0,
+        "desired_workers": 1,
+        "kind": 0,
+        "lines": 182,
+        "present": true,
+        "tech_key": "startingpoint",
+        "work": 78.88058471679688
+      },
+      "schema": 1,
+      "snapshot_uuid": "612c1517-f689-462d-aa23-7c94e0bb1b3a",
+      "startingpoint": {
+        "custom": false,
+        "deployed": false,
+        "inventory_count": 0,
+        "inventory_present": false,
+        "item_type_name": "@StartingPoints",
+        "key": "startingpoint",
+        "owned": false,
+        "purchased": true,
+        "record_present": true
+      },
+      "startingpoint_adoption": {
+        "accepted": true,
+        "art_pack_bytes": 0,
+        "cause": "",
+        "event38_listener_count": 1,
+        "events_enabled": 1,
+        "item_feature": 10,
+        "listeners": [
+          {
+            "class_rva": 23860080,
+            "handler_rva": 5131504
+          }
+        ],
+        "modifiers": 0,
+        "repeatable": 0
+      },
+      "startingpoint_release": {
+        "change_count": 0,
+        "feature_count": 0,
+        "feature_present": false,
+        "mutation_counter": 0
+      },
+      "world_epoch": 2,
+      "world_generation": 2
+    },
+    "client-1": {
+      "lifetime_confirmed": true,
+      "mainthread_confirmed": true,
+      "project": {
+        "bugs_known": 0,
+        "bugs_total": 0,
+        "bugs_unknown": 0,
+        "desired_workers": 1,
+        "kind": 0,
+        "lines": 182,
+        "present": true,
+        "tech_key": "startingpoint",
+        "work": 78.88058471679688
+      },
+      "schema": 1,
+      "snapshot_uuid": "faafe9fb-3bd6-4e52-9d4b-cf590e804962",
+      "startingpoint": {
+        "custom": false,
+        "deployed": false,
+        "inventory_count": 0,
+        "inventory_present": false,
+        "item_type_name": "@StartingPoints",
+        "key": "startingpoint",
+        "owned": false,
+        "purchased": true,
+        "record_present": true
+      },
+      "startingpoint_adoption": {
+        "accepted": true,
+        "art_pack_bytes": 0,
+        "cause": "",
+        "event38_listener_count": 1,
+        "events_enabled": 1,
+        "item_feature": 10,
+        "listeners": [
+          {
+            "class_rva": 23860080,
+            "handler_rva": 5131504
+          }
+        ],
+        "modifiers": 0,
+        "repeatable": 0
+      },
+      "startingpoint_release": {
+        "change_count": 0,
+        "feature_count": 0,
+        "feature_present": false,
+        "mutation_counter": 0
+      },
+      "world_epoch": 1,
+      "world_generation": 1
+    }
+  },
+  "frames": {
+    "host": "_drafts/media/startingpoint-shared-host.bmp",
+    "client-1": "_drafts/media/startingpoint-shared-client-1.bmp"
+  },
+  "crash_monitors": [
+    "artifacts/tutorial_crash/3d033a0c-4bdd-41e3-8eea-cd5f6a39ec9a/monitor-result.json",
+    "artifacts/tutorial_crash/3d033a0c-4bdd-41e3-8eea-cd5f6a39ec9a/peer-2/monitor-result.json"
+  ],
+  "tests": {
+    "new_actual_body_scenarios": 76,
+    "new_ctest_entries": 8,
+    "affected_ctest_entries": 12,
+    "affected_ctest_seconds": 1.7,
+    "log": "artifacts/startingpoint_native/20261015T021620020941Z/ctest.log"
+  },
+  "candidate": {
+    "original_manifest_sha256": "2be46d09ac45b4bcb291dae7afc686926155fa65c17cdf2f35de1ce7fbbfa194",
+    "corrected_manifest_sha256": "7257cfc20d74679ffa2bf7e159a1aa071c7786199cfb1a1486f40381270b69ce",
+    "corrected_startingpoint_sha256": "9223216c9f50ce2187186ed3df501401fc65f8152df8c441b731d03a0ed5be6c"
+  },
+  "retained_build_failure": {
+    "path": "artifacts/build_history/20261015T021228050630Z/build-1.log",
+    "cause": "The existing State and Progress test targets lacked the new Startingpoint object before their staged CI linkage changes were integrated",
+    "native_attempted_from_failed_build": false
+  },
+  "limits": [
+    "Both peers start from the same retained snapshot with an existing purchased Startingpoint project. Native project creation is not proved.",
+    "The fixed diagnostic calls the original tutorial completion effect on the Host, then the actual original Development Commit button. Production live frames carry the changes.",
+    "The Client calls original DevProject Deploy and its native deleting destructor, verifies the actual item/Release effects and applies the proved zero-bug Commit tail.",
+    "This bounded Deploy requires an empty first Release, counter0 and a bound original Host pre-Commit receipt with zero bugs. Nonzero Map effects remain open.",
+    "The Client ordinary Commit click is suppressed and exposed as pending functionality; Host intent routing remains open.",
+    "Both post-Commit frames show the Grid instruction, Starting Points inventory icon and changelog. Cameras and Development window remain individual.",
+    "No new four-player, large-save or separate-account Steam acceptance was performed."
+  ]
+}

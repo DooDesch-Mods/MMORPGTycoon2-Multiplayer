@@ -16,5 +16,6 @@ public:
     bool copy(uintptr_t address,void* out,size_t count,std::string& error)override{return memory_.copy(address,out,count,error);}
 };
 }
-bool read(nlohmann::json& result,std::string& error){NativePort port;return detail::observe(port,result,error);}
+bool read(nlohmann::json& result,std::string& error){NativePort port;StartingpointSnapshot snapshot;return detail::observe(port,result,error,&snapshot);}
+bool read_startingpoint(StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error){NativePort port;return detail::observe(port,result,error,&snapshot);}
 }
