@@ -1,0 +1,418 @@
+{
+  "schema": 1,
+  "scope": "One original Client Undo and original Host Redo of a newly placed SmallInn",
+  "source_commit": "b811632ae642484912c23598e412282a44f66266",
+  "dll_sha256": "70ee3596ade0f56087a2dc7fb1d5f4c1e550afbc8dae04188753efd3c2b96b9a",
+  "build": "artifacts/build_history/20261015T114529372649Z",
+  "shared_world_admission": "artifacts/acceptance/3d2bde72-6510-41e6-a0bc-b9e987dba08f/summary.json",
+  "necessary_new_placement": "artifacts/acceptance/415d82bb-9f5f-4d7b-91b2-9e3a5cca548a/summary.json",
+  "native_acceptance": "artifacts/acceptance/2be7dadb-b116-4ec7-9fee-c0c82b315f42/summary.json",
+  "original_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+  "undo_action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+  "redo_action_uuid": "2958c8b4-81d9-4a35-bf62-088cc648f7a0",
+  "undo_receipt": {
+    "action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+    "target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+    "host_revision": 2,
+    "host_ack_mask": 3,
+    "confirmed_delta_each": 1,
+    "ledger": {
+      "clock_day": 1,
+      "cash": 88400,
+      "record_present": true,
+      "record_day": 1,
+      "record_cash": 88400,
+      "record_income": 2530,
+      "record_expense": 8730,
+      "line_counts": [
+        53,
+        0,
+        0,
+        0,
+        0,
+        0,
+        10,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "line_income": [
+        2120,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -7360,
+        0,
+        -10,
+        0,
+        0,
+        -500,
+        -300,
+        0,
+        0,
+        0,
+        -150,
+        0,
+        0,
+        0
+      ]
+    },
+    "bindings": {
+      "host": {
+        "entry_id": 4,
+        "local_uid": 7436,
+        "native_refund": {
+          "attempted": false,
+          "cause": "retired or Unknown binding; refund getter skipped",
+          "confirmed": false,
+          "returned": false
+        },
+        "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "registry_generation": 1,
+        "revoked": true,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "type": "SmallInn",
+        "unknown": false,
+        "variant": "base",
+        "x": 8020.0,
+        "y": 70.83831787109375,
+        "z": 8550.0
+      },
+      "client-1": {
+        "entry_id": 4,
+        "local_uid": 3725,
+        "native_refund": {
+          "attempted": false,
+          "cause": "retired or Unknown binding; refund getter skipped",
+          "confirmed": false,
+          "returned": false
+        },
+        "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "registry_generation": 1,
+        "revoked": true,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "type": "SmallInn",
+        "unknown": false,
+        "variant": "base",
+        "x": 8020.0,
+        "y": 70.83831787109375,
+        "z": 8550.0
+      }
+    },
+    "ui": {
+      "host": {
+        "active_graph": false,
+        "controller": {
+          "action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+          "failed": 0,
+          "host_revision": 2,
+          "locked": false,
+          "outcome": 1,
+          "pending": false,
+          "started": true
+        },
+        "last_action_uuid": "",
+        "last_direction": "",
+        "last_error": "",
+        "last_target_action_uuid": "",
+        "redo_depth": 1,
+        "redo_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "snapshot_uuid": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "ui_hook_calls": 0,
+        "ui_intents_queued": 0,
+        "undo_depth": 0,
+        "undo_target_action_uuid": ""
+      },
+      "client-1": {
+        "active_graph": false,
+        "controller": {
+          "action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+          "failed": 0,
+          "host_revision": 2,
+          "locked": false,
+          "outcome": 1,
+          "pending": false,
+          "started": true
+        },
+        "last_action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+        "last_direction": "undo",
+        "last_error": "",
+        "last_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "redo_depth": 1,
+        "redo_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "snapshot_uuid": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "ui_hook_calls": 1,
+        "ui_intents_queued": 1,
+        "undo_depth": 0,
+        "undo_target_action_uuid": ""
+      }
+    }
+  },
+  "redo_receipt": {
+    "action_uuid": "2958c8b4-81d9-4a35-bf62-088cc648f7a0",
+    "target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+    "host_revision": 3,
+    "host_ack_mask": 3,
+    "confirmed_delta_each": 1,
+    "ledger": {
+      "clock_day": 1,
+      "cash": 88000,
+      "record_present": true,
+      "record_day": 1,
+      "record_cash": 88000,
+      "record_income": 2130,
+      "record_expense": 8730,
+      "line_counts": [
+        53,
+        0,
+        0,
+        0,
+        0,
+        0,
+        11,
+        0,
+        1,
+        0,
+        0,
+        1,
+        1,
+        0,
+        0,
+        0,
+        1,
+        0,
+        0,
+        0
+      ],
+      "line_income": [
+        2120,
+        0,
+        0,
+        0,
+        0,
+        0,
+        -7760,
+        0,
+        -10,
+        0,
+        0,
+        -500,
+        -300,
+        0,
+        0,
+        0,
+        -150,
+        0,
+        0,
+        0
+      ]
+    },
+    "bindings": {
+      "host": {
+        "entry_id": 4,
+        "local_uid": 7436,
+        "native_refund": {
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "getter_rva": 13833456,
+          "local_uid": 7436,
+          "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+          "returned": true,
+          "seh": 0,
+          "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+          "value": 400,
+          "world_epoch": 2,
+          "world_generation": 2
+        },
+        "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "registry_generation": 1,
+        "revoked": false,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "type": "SmallInn",
+        "unknown": false,
+        "variant": "base",
+        "x": 8020.0,
+        "y": 70.83831787109375,
+        "z": 8550.0
+      },
+      "client-1": {
+        "entry_id": 4,
+        "local_uid": 3725,
+        "native_refund": {
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "getter_rva": 13833456,
+          "local_uid": 3725,
+          "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+          "returned": true,
+          "seh": 0,
+          "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+          "value": 400,
+          "world_epoch": 1,
+          "world_generation": 1
+        },
+        "record_key": "action:7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "registry_generation": 1,
+        "revoked": false,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "snapshot_id": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "type": "SmallInn",
+        "unknown": false,
+        "variant": "base",
+        "x": 8020.0,
+        "y": 70.83831787109375,
+        "z": 8550.0
+      }
+    },
+    "ui": {
+      "host": {
+        "active_graph": false,
+        "controller": {
+          "action_uuid": "2958c8b4-81d9-4a35-bf62-088cc648f7a0",
+          "failed": 0,
+          "host_revision": 3,
+          "locked": false,
+          "outcome": 1,
+          "pending": false,
+          "started": true
+        },
+        "last_action_uuid": "2958c8b4-81d9-4a35-bf62-088cc648f7a0",
+        "last_direction": "redo",
+        "last_error": "",
+        "last_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "redo_depth": 0,
+        "redo_target_action_uuid": "",
+        "snapshot_uuid": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "ui_hook_calls": 1,
+        "ui_intents_queued": 1,
+        "undo_depth": 1,
+        "undo_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042"
+      },
+      "client-1": {
+        "active_graph": false,
+        "controller": {
+          "action_uuid": "2958c8b4-81d9-4a35-bf62-088cc648f7a0",
+          "failed": 0,
+          "host_revision": 3,
+          "locked": false,
+          "outcome": 1,
+          "pending": false,
+          "started": true
+        },
+        "last_action_uuid": "444f3cb5-5126-4607-ac37-892b46c06aef",
+        "last_direction": "undo",
+        "last_error": "",
+        "last_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042",
+        "redo_depth": 0,
+        "redo_target_action_uuid": "",
+        "snapshot_uuid": "21739a10-23aa-4408-b5c5-cb79bf69c82f",
+        "ui_hook_calls": 1,
+        "ui_intents_queued": 1,
+        "undo_depth": 1,
+        "undo_target_action_uuid": "7f5d2ddc-83b0-468f-a374-78a82ea8c042"
+      }
+    }
+  },
+  "cash": {
+    "before_placement": 88400,
+    "placed": 88000,
+    "undone": 88400,
+    "redone": 88000
+  },
+  "full_native_economy_equal": true,
+  "client_live_confirmed": true,
+  "final_readbacks": {
+    "host": "test/mcp/evidence/history-final-host_20261015T121320566786Z.json",
+    "client-1": "test/mcp/evidence/history-final-client_20261015T121339000633Z.json"
+  },
+  "frames": {
+    "host": {
+      "path": "_drafts/media/building-history-restored-host.bmp",
+      "viewed": true,
+      "visible_scope": "Matching cash, clock and native Undo label; Host building info. The building model is too distant for a visual pose claim."
+    },
+    "client-1": {
+      "path": "_drafts/media/building-history-restored-client-1.bmp",
+      "viewed": true,
+      "visible_scope": "Matching cash, clock and native Undo label; Host building info. The building model is too distant for a visual pose claim."
+    }
+  },
+  "offline_e2e_cases": 8,
+  "runner_sha256": {
+    "tools/e2e/building_history.py": "69efceba807ef16b1f45880139f705b7bd0ae70888eb6d074aa479a26d26c9d4",
+    "tools/placement_ui_acceptance.py": "925efee217fd6fb608d76399476a29dffc822233dfe7ed3c4e86f453d288e21c"
+  },
+  "retirement": "artifacts/acceptance/6fca9dce-05e5-4697-bfc7-75f00ea6f0b1/summary.json",
+  "native_exit": "artifacts/acceptance/c17186da-3839-4e5f-9a74-28c59c97d1cc/summary.json",
+  "both_exit_codes": 0,
+  "crash_dumps": 0,
+  "retained_observation": {
+    "cause": "network complete non-Node graph differs",
+    "behavior": "One live frame apply rejected after the history action; original log reports recovery. Final whole economy is equal and Client live application is confirmed without lock or Unknown.",
+    "cause_proven": false,
+    "log": "artifacts\\acceptance\\c17186da-3839-4e5f-9a74-28c59c97d1cc\\client-1-shutdown.log"
+  },
+  "limits": [
+    "Only this newly placed building history pair is proven; shared Undo/Redo for other action families remains open",
+    "The completed LevelTwo input was loaded unchanged; no tutorial or Quest action was repeated",
+    "Four players, large worlds and separate-account online acceptance remain open"
+  ],
+  "durable_runner_note": "The accepted shared_ready function is copied unchanged from the ignored legacy runner; AST body equality was checked. The canonical history runner has no dependency on that legacy tree."
+}
