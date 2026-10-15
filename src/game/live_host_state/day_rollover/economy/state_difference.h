@@ -5,6 +5,38 @@ namespace mt2mp::game::live_host_state::day::economy {
 template<class T>inline std::string difference(const std::string& field,const T& actual,const T& required){
     return field+" actual="+nlohmann::json(actual).dump()+" required="+nlohmann::json(required).dump();
 }
+inline std::string daily_difference(const std::string& path,const npc_quest_records::DailyCount& actual,const npc_quest_records::DailyCount& required){
+    if(actual.today!=required.today)return difference(path+".today",actual.today,required.today);
+    if(actual.total!=required.total)return difference(path+".total",actual.total,required.total);
+    if(actual.history.size()!=required.history.size())return difference(path+".history.count",actual.history.size(),required.history.size());
+    for(size_t i=0;i<actual.history.size();++i)if(actual.history[i]!=required.history[i])return difference(path+".history["+std::to_string(i)+"]",actual.history[i],required.history[i]);
+    return {};
+}
+inline std::string npc_difference(const std::vector<subscriber_quest_state::Npc>& actual,const std::vector<subscriber_quest_state::Npc>& required){
+    if(actual.size()!=required.size())return difference("npc.count",actual.size(),required.size());
+    for(size_t i=0;i<actual.size();++i){
+        const auto& a=actual[i];const auto& b=required[i];const auto key="npc["+b.key+"].";
+        if(a.key!=b.key)return difference("npc["+std::to_string(i)+"].key",a.key,b.key);
+        if(a.type!=b.type)return difference(key+"type",a.type,b.type);
+        if(a.level!=b.level)return difference(key+"level",a.level,b.level);
+        if(a.pose.region!=b.pose.region)return difference(key+"pose.region",a.pose.region,b.pose.region);
+        if(a.pose.position!=b.pose.position)return difference(key+"pose.position",a.pose.position,b.pose.position);
+        if(a.pose.orientation!=b.pose.orientation)return difference(key+"pose.orientation",a.pose.orientation,b.pose.orientation);
+        if(a.pose.scale!=b.pose.scale)return difference(key+"pose.scale",a.pose.scale,b.pose.scale);
+        if(a.accepted!=b.accepted)return daily_difference(key+"accepted",a.accepted,b.accepted);
+        if(a.completed!=b.completed)return daily_difference(key+"completed",a.completed,b.completed);
+        if(a.highest_cache!=b.highest_cache)return difference(key+"highest_cache",a.highest_cache,b.highest_cache);
+        if(a.quests.size()!=b.quests.size())return difference(key+"quests.count",a.quests.size(),b.quests.size());
+        for(size_t q=0;q<a.quests.size();++q){
+            const auto& x=a.quests[q];const auto& y=b.quests[q];const auto path=key+"quest["+std::to_string(y.sequence_id)+"].";
+            if(x.sequence_id!=y.sequence_id)return difference(key+"quests["+std::to_string(q)+"].sequence_id",x.sequence_id,y.sequence_id);
+            if(x.accepted!=y.accepted)return daily_difference(path+"accepted",x.accepted,y.accepted);
+            if(x.completed!=y.completed)return daily_difference(path+"completed",x.completed,y.completed);
+            if(x.highest_cache!=y.highest_cache)return difference(path+"highest_cache",x.highest_cache,y.highest_cache);
+        }
+    }
+    return "NPC difference unavailable";
+}
 inline std::string state_difference(const State& actual,const State& required){
     if(actual.day!=required.day){
         if(actual.day.frame.values!=required.day.frame.values)return difference("day.scalars",scalars(actual.day.frame.values),scalars(required.day.frame.values));
@@ -54,7 +86,7 @@ inline std::string state_difference(const State& actual,const State& required){
             return key+"ordered Quest progress differs";
         }
     }
-    if(actual.npcs!=required.npcs)return "NPC pose/counters differ";
+    if(actual.npcs!=required.npcs)return "NPC pose/counters differ: "+npc_difference(actual.npcs,required.npcs);
     if(actual.loans!=required.loans)return "Loan values differ";
     if(actual.offers!=required.offers)return "Offer values differ";
     return "economy state difference unavailable";

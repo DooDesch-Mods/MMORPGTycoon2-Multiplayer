@@ -136,7 +136,7 @@ struct Adapter {
 Adapter& instance(){static Adapter value;return value;}
 }
 namespace live_host_state {
-struct Fence{bool suspend_snapshot(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}};
+struct Fence{bool suspend_lobby(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}};
 Fence& economic_fence(){static Fence value;return value;}
 bool retire_lobby_fence(std::string& e){if(!fixture::fence_ok)e="fence Unknown";return fixture::fence_ok;}
 namespace day {void bind_host_journal(void*){}}
@@ -149,7 +149,7 @@ void retire(const std::string& cause){
 }
 }
 namespace typed_action_runtime {
-struct Live{bool suspend_snapshot(std::string& e){if(!fixture::live_ok)e="live Unknown";return fixture::live_ok;}};
+struct Live{bool suspend_lobby(std::string& e){if(!fixture::live_ok)e="live Unknown";return fixture::live_ok;}};
 struct Runtime {
     action_session::Controller& controller;
     uint32_t thread=7;bool lobby_retiring=false;
@@ -303,8 +303,25 @@ void other_guards(){
     require(!runtime::begin_lobby_leave(p.error),"partial retirement replayed");
     runtime::published_runtime.store(nullptr);delete owner;
 }
+void locked_live_departure(){
+    Pair pair;fixture::reset();std::string error;bool ready=false;
+    auto* owner=new runtime::Runtime(pair.client);owner->live_state=std::make_unique<runtime::Live>();owner->live_port=true;
+    owner->live_error="retained actual Economy Unknown original NPC pose mismatch";const auto original=owner->live_error;
+    runtime::published_runtime.store(owner);
+    require(runtime::begin_lobby_leave(error)&&owner->lobby_retiring&&owner->live_error==original,"idle live Unknown could not start Leave or its cause was cleared");
+    require(pair.ce.applies==0&&pair.he.executions==0&&pair.packets.empty(),"Leave repeated a failed native/transport action");
+    require(!runtime::begin_lobby_leave(error)&&owner->live_error==original&&fixture::suspended==1,"repeated Leave re-entered suspension");
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&!fixture::deleted&&owner->live_error==original,"active World deleted Unknown evidence");
+    fixture::title=true;require(runtime::finish_lobby_leave(ready,error)&&ready&&fixture::deleted==1&&fixture::native_retired==1&&fixture::wire_retired==1,"actual idle Title did not complete explicit Leave");
+    fixture::reset();owner=new runtime::Runtime(pair.client);owner->live_state=std::make_unique<runtime::Live>();owner->live_error=original;fixture::live_ok=false;
+    runtime::published_runtime.store(owner);
+    require(!runtime::begin_lobby_leave(error)&&error=="live Unknown"&&owner->live_error==original&&!fixture::invalidated,"new suspension error replaced original Unknown or admitted native Leave");
+    runtime::published_runtime.store(nullptr);delete owner;
+    std::cout<<"PASS locked live Leave: original cause retained, no action replay, exact Title retirement, distinct suspension failure\n";
+}
 int main(){
     try{
+        locked_live_departure();
 #ifndef TUTORIAL_LEAVE_DELTA_ONLY
 #ifndef NAMED_WORLD_LEAVE_DELTA_ONLY
         idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();

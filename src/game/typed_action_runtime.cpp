@@ -844,7 +844,7 @@ json status() {
         {"economy_receipt",runtime->economy_state?nlohmann::json{{"attempted",runtime->economy_state->receipt().attempted},{"confirmed",runtime->economy_state->receipt().confirmed},{"unknown",runtime->economy_state->receipt().unknown},{"attempted_stores",runtime->economy_state->receipt().attempted_stores},{"completed_stores",runtime->economy_state->receipt().stores},{"cause",runtime->economy_state->receipt().cause}}:nlohmann::json::object()},
         {"live_state",{{"requested",runtime->live_attempted},{"active",runtime->live_state!=nullptr},{"locked",(runtime->live_state&&runtime->live_state->locked())||live_host_state::economic_fence().locked()},
             {"day_record_sequence",runtime->day_state?runtime->day_state->sequence():0},{"day_receipt",runtime->day_state?nlohmann::json{{"attempted",runtime->day_state->day_receipt().attempted},{"confirmed",runtime->day_state->day_receipt().confirmed},{"unknown",runtime->day_state->day_receipt().unknown},{"created",runtime->day_state->day_receipt().created_records},{"appended",runtime->day_state->day_receipt().appended_records},{"pruned",runtime->day_state->day_receipt().pruned_records},{"cause",runtime->day_state->day_receipt().cause}}:nlohmann::json::object()},
-            {"economic_fence_locked",live_host_state::economic_fence().locked()},{"economic_fence_cause",live_host_state::economic_fence().cause()},{"economic_suppressed",live_host_state::economic_fence().suppressed()},
+            {"economic_fence_locked",live_host_state::economic_fence().locked()},{"economic_fence_cause",live_host_state::economic_fence().cause()},{"economic_retired_cause",live_host_state::economic_fence().retired_cause()},{"economic_suppressed",live_host_state::economic_fence().suppressed()},
             {"attempted",receipt.attempted},{"confirmed",receipt.confirmed},{"unknown",receipt.unknown},{"attempted_stores",receipt.attempted_stores},{"completed_stores",receipt.completed_stores},
             {"cause",runtime->live_error.empty()?receipt.cause:runtime->live_error}}}};
 }
@@ -1016,8 +1016,8 @@ bool begin_lobby_leave(std::string& e){
     auto* r=published_runtime.load(std::memory_order_acquire);
     if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
         r->lobby_retiring=true;net::session_wire::suspend_actions();
-        if(r->live_state&&!r->live_state->suspend_snapshot(e)){r->live_error=e;return false;}
-        if(r->live_port&&!live_host_state::economic_fence().suspend_snapshot(e)){r->live_error=e;return false;}
+        if(r->live_state&&!r->live_state->suspend_lobby(e)){if(r->live_error.empty())r->live_error=e;return false;}
+        if(r->live_port&&!live_host_state::economic_fence().suspend_lobby(e)){if(r->live_error.empty())r->live_error=e;return false;}
     }else net::session_wire::suspend_actions();
     time_integration::Status time;
     if(time_integration::instance().status(time,e)){

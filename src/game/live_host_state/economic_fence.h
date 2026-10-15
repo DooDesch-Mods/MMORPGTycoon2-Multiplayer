@@ -5,14 +5,14 @@ namespace mt2mp::game::live_host_state {
 enum class EconomicLeaf:uint8_t {AddCash,SubtractCash,TakeLoan,MakeDay,Event,RepayLoan,Pay,NextDay,SubscriberDay};
 class EconomicFence final:public EconomicBoundary {
     Context context_;Binding binding_;Pin pin_,action_pin_;
-    bool suspended_=false;
+    bool suspended_=false,lobby_retiring_=false;
     bool armed_=false,locked_=false,prepared_=false;
     uint32_t frame_depth_=0;
     std::optional<action_session::Message> action_;
     uint32_t action_cash_calls_=0;
     std::function<void(const char*,const std::string&)> logger_;
     std::array<uint64_t,9> suppressed_{};
-    std::string cause_;
+    std::string cause_,retired_cause_;
     uintptr_t existing_day_=0,existing_subscriber_day_=0;
     bool routes_ready(std::string&);
 public:
@@ -21,6 +21,7 @@ public:
     bool can_arm(std::string& e){if(!prepared_||armed_||locked_){e="live economic installation unprepared/armed/locked";return false;}return routes_ready(e);}
     bool arm(const Context&,const Binding&,std::function<void(const char*,const std::string&)>,std::string&);
     bool suspend_snapshot(std::string&);
+    bool suspend_lobby(std::string&);
     bool retire_lobby(std::string&);
     bool rebind_snapshot(const Context&,const Binding&,std::string&);
     bool adopt_day_commit(std::string&);
@@ -35,6 +36,7 @@ public:
     bool read_current_fence(const Pin&,std::string&)override;
     bool locked()const{return locked_;}
     const std::string& cause()const{return cause_;}
+    const std::string& retired_cause()const{return retired_cause_;}
     const std::array<uint64_t,9>& suppressed()const{return suppressed_;}
 };
 EconomicFence& economic_fence();

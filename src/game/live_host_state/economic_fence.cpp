@@ -98,16 +98,23 @@ namespace mt2mp::game::live_host_state {
 void EconomicFence::journal_failed(const std::string& e){locked_=true;cause_=e;if(logger_)logger_("error",cause_);}
 bool EconomicFence::adopt_day_commit(std::string& e){if(suspended_||!armed_||locked_||action_||frame_depth_!=1||GetCurrentThreadId()!=pin_.thread)return fail(e,"Day fence adoption requires actual idle GameUpdate");NativePort reader(context_,binding_,nullptr);Pin actual;if(!reader.read(actual,e)||actual.world!=pin_.world||actual.clock!=pin_.clock||actual.business!=pin_.business||actual.image!=pin_.image||actual.common_epoch!=pin_.common_epoch||actual.selected!=0||!routes_ready(e))return fail(e,e.empty()?"Day actual fence owner/readback differs":e);pin_=actual;e.clear();return true;}
 bool EconomicFence::suspend_snapshot(std::string& e){if(!armed_||locked_||suspended_||action_||GetCurrentThreadId()!=pin_.thread)return fail(e,"live snapshot fence requires actual idle bound owner");suspended_=true;e.clear();return true;}
-bool EconomicFence::rebind_snapshot(const Context& c,const Binding& b,std::string& e){if(!suspended_||locked_||action_||c.session!=context_.session||c.role!=context_.role||c.local_peer!=context_.local_peer||c.host_peer!=context_.host_peer||c.peer_mask!=context_.peer_mask||GetCurrentThreadId()!=pin_.thread)return fail(e,"live snapshot fence rebind requires suspended same Controller");NativePort reader(c,b,nullptr);Pin actual;if(!reader.read(actual,e)||actual.image!=pin_.image||(c.role==action_session::Role::Client&&actual.selected!=0)||!routes_ready(e))return fail(e,e.empty()?"live snapshot actual new World/Time/Clock0 unavailable":e);time_integration::Status time_state;if(!time_integration::instance().status(time_state,e)||!day::matches_rebound_time(time_state,actual.common_epoch,e))return false;uint64_t time=0;if(!read_time_authority(c,time,e))return false;context_=c;binding_=b;pin_=actual;suspended_=false;e.clear();return true;}
+bool EconomicFence::suspend_lobby(std::string& e){
+    if(!armed_||suspended_||action_||frame_depth_>1||GetCurrentThreadId()!=pin_.thread)
+        return fail(e,"live lobby fence suspension requires actual idle bound owner");
+    suspended_=lobby_retiring_=true;e.clear();return true;
+}
+bool EconomicFence::rebind_snapshot(const Context& c,const Binding& b,std::string& e){if(lobby_retiring_||!suspended_||locked_||action_||c.session!=context_.session||c.role!=context_.role||c.local_peer!=context_.local_peer||c.host_peer!=context_.host_peer||c.peer_mask!=context_.peer_mask||GetCurrentThreadId()!=pin_.thread)return fail(e,"live snapshot fence rebind requires suspended same Controller");NativePort reader(c,b,nullptr);Pin actual;if(!reader.read(actual,e)||actual.image!=pin_.image||(c.role==action_session::Role::Client&&actual.selected!=0)||!routes_ready(e))return fail(e,e.empty()?"live snapshot actual new World/Time/Clock0 unavailable":e);time_integration::Status time_state;if(!time_integration::instance().status(time_state,e)||!day::matches_rebound_time(time_state,actual.common_epoch,e))return false;uint64_t time=0;if(!read_time_authority(c,time,e))return false;context_=c;binding_=b;pin_=actual;suspended_=false;e.clear();return true;}
 }
 
 namespace mt2mp::game::live_host_state {
 bool EconomicFence::retire_lobby(std::string& e){
     if(!armed_){e.clear();return true;}
-    if(!suspended_||locked_||action_||frame_depth_||GetCurrentThreadId()!=pin_.thread)return fail(e,"lobby fence retirement requires suspended idle owner, no Unknown/action/frame");
+    if(!suspended_||(!lobby_retiring_&&locked_)||action_||frame_depth_||GetCurrentThreadId()!=pin_.thread)return fail(e,"lobby fence retirement requires suspended idle owner, no active action/frame or unscoped Unknown");
     native::WorldStatus actual;if(!native::read_world_status(actual,e))return false;
     if(actual.active_mode_index!=2||actual.title_transition_pending||actual.saves_in_progress>0){return fail(e,"lobby fence retirement requires actual idle Title after old World end");}
-    const auto image=pin_.image;context_={};binding_={};pin_={};pin_.image=image;action_pin_={};armed_=suspended_=false;
+    retired_cause_=cause_;
+    if(logger_&&!retired_cause_.empty())logger_("warn","live lobby retired after actual Title; retained original="+retired_cause_);
+    const auto image=pin_.image;context_={};binding_={};pin_={};pin_.image=image;action_pin_={};armed_=suspended_=lobby_retiring_=locked_=false;
     action_cash_calls_=0;suppressed_={};logger_={};cause_.clear();e.clear();return true;
 }
 bool retire_lobby_fence(std::string& e){return economic_fence().retire_lobby(e);}

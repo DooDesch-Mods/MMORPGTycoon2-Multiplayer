@@ -124,3 +124,6 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_completion_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_network_tab_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_load_start_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/npc_economy_difference_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/locked_lobby_leave_checks.cmake")

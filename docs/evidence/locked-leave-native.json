@@ -1,0 +1,52 @@
+{
+  "schema": 1,
+  "scope": "Explicit native Leave after an actual live-state Unknown; subsequent native lobby creation and join",
+  "stage_seal": "69fd1754b9c9c9f699b12a0a1f8da5a9348a2a8eb35a03820538687b0c6509c4",
+  "build": "artifacts/build_history/20261015T103944801974Z",
+  "dll_sha256": "72763e526e1b474e386d0041b505477d1ab22126e349817f907ef1a0dacaa1fd",
+  "focused_checks": "artifacts/live_diagnostics_leave_canonical_ctest.log",
+  "passed_test_groups": [
+    "client_leave",
+    "locked_lobby_leave",
+    "test_npc_economy_difference"
+  ],
+  "failed_before": "artifacts/acceptance/3e066010-abca-46af-865a-9560a2bee3a3/summary.json",
+  "actual_unknown_after": "artifacts/acceptance/40bea8a3-2de5-4bbb-aca2-609fae0dca77/summary.json",
+  "first_native_cause": "economy native scalar/readback Unknown original=actual NPC state Unknown original=NPC state prior canonical owner/value changed; no replay; actual Day already committed; no replay",
+  "first_native_cause_time": "12:46:38.664",
+  "prior_readbacks": [
+    "test/mcp/evidence/npc-prior-failure-host_20261015T104748160602Z.json",
+    "test/mcp/evidence/npc-prior-failure-client_20261015T104804143115Z.json"
+  ],
+  "accepted_after": "artifacts/acceptance/b0b4c389-bb79-42b2-a9be-8a006ba9c142/summary.json",
+  "acceptance": [
+    "Actual Client live Unknown and idle typed action verified before any Leave",
+    "One fresh native Client Leave and Host Leave returned without handler failure",
+    "Both peers reached actual idle native Title with old preparation/controller retired",
+    "Native Host creation and Client join admitted both peers in a new lobby",
+    "Both peers left the new lobby and reached actual idle Title again",
+    "Both native exits confirmed, process exit0 and full shutdown markers, no crash dump"
+  ],
+  "frames": {
+    "host": {
+      "path": "_drafts\\media\\locked-leave-new-lobby-host.bmp",
+      "pixel_sha256": "9f379f68b73db50b774b7c3e0f5e4bf31edc2f1f873a449d189e36ab9966431b",
+      "viewed": true
+    },
+    "client-1": {
+      "path": "_drafts\\media\\locked-leave-new-lobby-client-1.bmp",
+      "pixel_sha256": "687ce9b64b7ae502e796cb3e1dd36ec9cd2d70cd5dcf6abcf034536fa8aa47a1",
+      "viewed": true
+    }
+  },
+  "native_exit": "artifacts/acceptance/ac3d45e2-de91-48b8-8991-4b24d91bae80/summary.json",
+  "old_failed_token_replayed": false,
+  "failed_frame_replayed": false,
+  "limits": [
+    "This closes retirement after live Unknown, not the underlying NPC synchronization failure",
+    "The next diagnostic slice must identify the exact NPC prior-value field before a cause fix",
+    "A new lobby is admitted here; no second world was loaded in this retirement acceptance",
+    "Separate-account Steam acceptance remains manual and open"
+  ],
+  "delivery": "Installed Beta7; withdrawn Beta8 remains draft; no new package delivered"
+}

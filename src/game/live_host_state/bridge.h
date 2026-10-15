@@ -36,7 +36,7 @@ class Bridge {
     day::economy::Coupling* economy_=nullptr;
     std::optional<day::economy::State> captured_economy_,queued_economy_,before_economy_,last_economy_;
     std::optional<day::Target> captured_day_,queued_day_,before_day_,last_day_;
-    bool suspended_=false;
+    bool suspended_=false,lobby_retiring_=false;
     Context context_;Binding binding_;Port& port_;
     std::function<bool(uint64_t& revision,std::string&)> time_;
     action_session::Transport& transport_;
@@ -58,6 +58,7 @@ public:
     void bind_economy(day::economy::Coupling& value){economy_=&value;}
     bool after_action(const action_session::Message&,std::string&);
     bool suspend_snapshot(std::string&);
+    bool suspend_lobby(std::string&);
     bool rebind_snapshot(const Context&,const Binding&,uint64_t common_epoch,std::string&);
     bool capture_before(const action_session::Request&,const action_session::Ledger&,uint64_t previous,std::string&);
     bool publish_before(const action_session::Message&,std::string&);
