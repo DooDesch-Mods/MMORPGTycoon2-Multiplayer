@@ -21,11 +21,13 @@ from runtime import Runtime, RuntimeErrorDetail, OPS, MUTATIONS
 import placement_ui_ops
 import move_ui_ops
 import live_ops
+import monster_zone_probe_ops
 import native_tool_prepare_ops
 import terrain_height_ops
 import lobby_ops
 import loan_ops
 import release_ops
+import developer_staff_ops
 import subscriber_capture_ops
 import subscriber_append_ops
 import node_observer_ops
@@ -359,6 +361,8 @@ OP_DESCRIPTIONS.update(subscriber_append_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(subscriber_capture_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(loan_ops.SCHEMAS)
 OP_SCHEMAS.update(release_ops.SCHEMAS)
+OP_SCHEMAS.update(developer_staff_ops.SCHEMAS)
+OP_DESCRIPTIONS.update(developer_staff_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(release_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(loan_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(lobby_ops.SCHEMAS)
@@ -368,6 +372,8 @@ OP_SCHEMAS.update(move_ui_ops.SCHEMAS)
 OP_SCHEMAS.update(live_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(live_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(move_ui_ops.DESCRIPTIONS)
+OP_SCHEMAS.update(monster_zone_probe_ops.SCHEMAS)
+OP_DESCRIPTIONS.update(monster_zone_probe_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(native_tool_prepare_ops.SCHEMAS)
 OP_SCHEMAS.update(terrain_height_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(native_tool_prepare_ops.DESCRIPTIONS)
@@ -386,7 +392,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -480,6 +486,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             subscriber_append_ops.validate(op, arguments)
         if op in release_ops.SCHEMAS:
             release_ops.validate(op, arguments)
+        if op in developer_staff_ops.SCHEMAS:
+            developer_staff_ops.validate(op, arguments)
         if op in loan_ops.SCHEMAS:
             loan_ops.validate(op, arguments)
         if op in lobby_ops.SCHEMAS:
@@ -488,6 +496,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             live_ops.validate(op, arguments)
         if op in terrain_height_ops.SCHEMAS:
             terrain_height_ops.validate(op,arguments)
+        if op in monster_zone_probe_ops.SCHEMAS:
+            monster_zone_probe_ops.validate(op,arguments)
         if op in native_tool_prepare_ops.SCHEMAS:
             native_tool_prepare_ops.validate(op, arguments)
         if op in move_ui_ops.SCHEMAS:

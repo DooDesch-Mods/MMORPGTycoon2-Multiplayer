@@ -1,0 +1,23 @@
+if(WIN32)
+    foreach(group read probe)
+        set(staff_sources "${MT2MP_SOURCE_ROOT}/test/test_developer_staff_${group}.cpp" "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/read.cpp")
+        if(group STREQUAL "probe")
+            list(APPEND staff_sources "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/probe.cpp")
+        endif()
+        add_executable(test_developer_staff_${group} ${staff_sources})
+        target_include_directories(test_developer_staff_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+        if(MSVC)
+            target_compile_options(test_developer_staff_${group} PRIVATE /W4 /WX /utf-8 /EHsc)
+        endif()
+        add_test(NAME developer_staff_${group} COMMAND test_developer_staff_${group})
+        set_tests_properties(developer_staff_${group} PROPERTIES TIMEOUT 60)
+    endforeach()
+    add_library(developer_staff_native_compile OBJECT
+        "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/native_read.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/probe_process.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/probe_calls.cpp")
+    target_include_directories(developer_staff_native_compile PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+    if(MSVC)
+        target_compile_options(developer_staff_native_compile PRIVATE /W4 /WX /utf-8 /EHsc)
+    endif()
+endif()

@@ -1,0 +1,6 @@
+add_executable(test_monster_zone_read "${MT2MP_SOURCE_ROOT}/test/test_monster_zone_read.cpp")
+target_include_directories(test_monster_zone_read PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_monster_zone_read PRIVATE cxx_std_20)
+target_compile_definitions(test_monster_zone_read PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+target_compile_options(test_monster_zone_read PRIVATE /W4 /WX /utf-8 /EHsc)
+add_test(NAME monster_zone_read COMMAND test_monster_zone_read)

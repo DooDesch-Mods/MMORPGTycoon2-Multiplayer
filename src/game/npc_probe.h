@@ -15,6 +15,7 @@ bool query(int32_t region_id, nlohmann::json& result, std::string& error);
 bool tool_ui(const std::string& token, int32_t region_id, const std::string& tool,
              const std::string& phase, int32_t character_slot, int32_t character_type,
              nlohmann::json& result, std::string& error);
+bool monster_zone_probe(const nlohmann::json&, nlohmann::json&, std::string&);
 bool place_probe(const nlohmann::json& args, nlohmann::json& result, std::string& error);
 namespace action_runtime {
 struct StateOwner {

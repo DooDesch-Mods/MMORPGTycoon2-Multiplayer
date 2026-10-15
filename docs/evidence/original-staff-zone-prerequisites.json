@@ -1,0 +1,142 @@
+{
+  "schema": 1,
+  "scope": "Original isolated Host engine prerequisites for Developer employment and MonsterZone creation",
+  "base_commit": "d405bf0758047b2f4ba53f9a0a6ecbf644ac2258",
+  "build": "artifacts/build_history/20261015T125306764194Z",
+  "dll_sha256": "eb22faf5ebd838c9a851d373d16d63a3e90e39ba6c475b05d907b1df70a98da5",
+  "source_sha256": {
+    ".github/workflows/beta.yml": "88b1537b99322f6cdbca22f0abad054077c7f3886ca1c4824964ffe7c0593022",
+    ".github/workflows/windows.yml": "9646995cd4a4f9669e7eafd27505050ccb6411ea7229ff8903393a15ebcf5d51",
+    "ci/CMakeLists.txt": "9a09222c4678c7b26abc712f65e7c3964070c3488c63a3d3014c5c3db74243ea",
+    "ci/developer_staff_checks.cmake": "37a0e71b55a7d9dd055582eb79d44f7292f660e6359656b448a865d9f8d355bc",
+    "ci/monster_zone_probe_checks.cmake": "5a2a1cf3babb79c3cc6fc1fc8966c461e9ea8d3fff3a996a27dc3fc974fe2586",
+    "src/core/dll_main.cpp": "b6d0f63f0ba60929a5927f03624372002bf97a1c62b83682d9008bc35e1f19a6",
+    "src/game/developer_staff/entry_fingerprints.h": "a1ab092e0e1deca28a9fd7a21e44710d97a42735c6c60ed3cc3f9c28495bdbab",
+    "src/game/developer_staff/native_read.cpp": "d023c823b2454d8cf89da1278de36e03f1822910b32a736b0076732c8e3df7ff",
+    "src/game/developer_staff/probe.cpp": "2c91580ec4c6326a0af3bcb130309752048bdf027fffc6b34a232c094e689c1c",
+    "src/game/developer_staff/probe.h": "83d4c89b3c1a60db95604fef29c7278d1796e8eb8e1da4ac0baeeb8fad112e6a",
+    "src/game/developer_staff/probe_calls.cpp": "c09cafd18c597463b9fea2fc6f93698b4ff5786729f20a7ac08f80efd0206412",
+    "src/game/developer_staff/probe_process.cpp": "588f6cdbb7b6ed4e29d0fbab68c705cebda381c950dafa17813fb8a144d77258",
+    "src/game/developer_staff/read.cpp": "b5539ee8fdf48a213c79e696c03ea7ad5525e518d320dd6d108e6fb573beec4e",
+    "src/game/developer_staff/read.h": "643bbf42319f3d392d15db2f532ea0582d603b8bce39698a598320f610ef22e4",
+    "src/game/developer_staff/window.h": "65216a83282623a1a765700a0b1520529f4b289fb2c9563c081ed0a367ed1a73",
+    "src/game/monster_zone_probe.inc": "e076515fef837cf5bc5663af80373aaea310073b5744dff3bdd5eb6762438ce5",
+    "src/game/monster_zone_probe_guards.h": "55941f1dec2b0720c91fdbcf8396dbcf125fcb6d89823d813ee438fec4edc238",
+    "src/game/monster_zone_read.h": "412f4eeb462a1aa05e99824860bfbb6e66e852f03c2584543760261757349503",
+    "src/game/monster_zone_stroke.h": "0a832b7cd31714e3763746ce0b73fb55b2acb874c3f700701c0c8af6c4ce9202",
+    "src/game/npc_probe.cpp": "42b24b36d263286349782bb3ef304e6527550a080a374bad157068daf851b075",
+    "src/game/npc_probe.h": "72f937a57b5aeae70ba0b0ff11dfe91e661b4e2fe232a8ff72bf390d6b06c0ce",
+    "src/game/placement_ui_probe/tool_reader.cpp": "b020761516934c7b7c91b30086b32123a39d4b179d8100a1db4c1a820deace89",
+    "src/game/placement_ui_probe/ui_probe.h": "e61b6b99eca25d5c3e49a6e786aea05b79029bc7f035c50c5cc9ae7a45475548",
+    "test/mcp/test_developer_staff.py": "7ddb975ab9ede76d65b1eb131196d93b30238b470740343e1ffc6dd2c5d3dee8",
+    "test/mcp/test_monster_zone_probe.py": "833ee0840a5d270290e820fa1126eaab4c4fcbec89f7f08c5c10683488ef37f3",
+    "test/test_developer_staff_probe.cpp": "8b4531311e90e5f7d3730548bbb669e7706e8b2061a8e9d0a72a7f7e1c292859",
+    "test/test_developer_staff_read.cpp": "67c3031998ab5dc57589f6b63a8b1876df61f70830f703fd5bb5ff1e5dc8c316",
+    "test/test_monster_zone_read.cpp": "fcc93e8c58d01ce128417468d3566e8835146b5a340e98064c5815539b711cf7",
+    "tools/mcp/developer_staff_ops.py": "bb9cd27a359c3a1939f8ebed477b907b7c6cbed8713ea552675fdeda6c8e5160",
+    "tools/mcp/monster_zone_probe_ops.py": "481123640eed3120dfd10b29eb0916175d36f80ebb0bdf71abd7a465a56c3b3b",
+    "tools/mcp/runtime.py": "5c6adff20be17e4ff23558abf6c4a53a0e38a7d046335bb8a8130ed823bb9ef7",
+    "tools/mcp/server.py": "96c03fb9675c3d9948df6635b25cbb19bd9ae7189bde20e58b900bc7169dd91d"
+  },
+  "checks": {
+    "canonical_ctest": "artifacts/zone_staff_probe_canonical_ctest.log",
+    "monster_reader_sequence_guard_cases": 31,
+    "developer_reader_cases": 31,
+    "developer_probe_cases": 37,
+    "monster_sdk_cases": 33,
+    "developer_sdk_groups": 6
+  },
+  "runtime_run_id": "dd2dda79-f4fd-48b2-b45b-b2dc7e5d1074",
+  "native_world": "1a268382-10af-4400-93f2-3a904a83775b",
+  "host_clock_scale": 0,
+  "controller_initialized": false,
+  "lobby_admitted": false,
+  "host_developer_acceptance": "artifacts/acceptance/029337da-c777-40df-9d18-e87caf95eafb/summary.json",
+  "developers": {
+    "before_count": 1,
+    "after_hire_count": 2,
+    "after_fire_count": 1,
+    "affected_slot": 1,
+    "affected_id": 1,
+    "cash_before": 88400,
+    "cash_after_hire": 87900,
+    "cash_after_fire": 87900,
+    "hire_category": 10,
+    "fire_ledger_unchanged": true,
+    "final_native_actor": {
+      "active": true,
+      "employed": false,
+      "id": 1,
+      "job_link": false,
+      "on_map": false,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "slot": 1,
+      "state": 0
+    },
+    "natural_active_retired": false,
+    "client_retirement_accepted": false
+  },
+  "monster_zone": {
+    "open_acceptance": "artifacts/acceptance/74408da9-7a25-46a8-9017-9155829a9a84/summary.json",
+    "state_acceptance": "artifacts/acceptance/8412e991-115b-4a48-89c0-299956b8c69f/summary.json",
+    "original_item_press_confirmed": true,
+    "catalogue_options": [
+      [
+        1,
+        0
+      ],
+      [
+        1,
+        1
+      ],
+      [
+        1,
+        2
+      ],
+      [
+        1,
+        3
+      ]
+    ],
+    "before_zones": 0,
+    "before_monsters": 0,
+    "camera_focus_acceptance": "artifacts/acceptance/bab62567-98b3-46e1-92f5-022bb41ca5b6/summary.json",
+    "brush_region_matches": false,
+    "painting_mode": 0,
+    "select_attempted": false,
+    "stroke_attempted": false,
+    "next_required_effect": "Original NPCs tab selection to establish the native edit-region request"
+  },
+  "retirement": "artifacts/acceptance/1c0ddaf9-cae1-42ef-949b-7079e03f43c6/summary.json",
+  "native_exit": "artifacts/acceptance/3f292634-e790-4293-a617-7a0f9917cf5e/summary.json",
+  "both_exit_codes": 0,
+  "crash_dumps": [],
+  "frames": {
+    "developer-original-host": {
+      "path": "_drafts/media/developer-original-host.bmp",
+      "viewed": true
+    },
+    "monster-zone-selection-host": {
+      "path": "_drafts/media/monster-zone-selection-host.bmp",
+      "viewed": true
+    }
+  },
+  "retained_failure": {
+    "acceptance": "artifacts/acceptance/af902bc0-6ee4-4542-b611-a909d9952cfa/summary.json",
+    "cause": "Read-only ground lookup at8100,8550 found no native island; camera was never attempted there",
+    "actual_x": 8100,
+    "actual_z": 8550,
+    "mutations": 0
+  },
+  "limits": [
+    "No shared Hire/Fire or MonsterZone action acceptance is claimed",
+    "Paused native Fire clears employment but leaves active lifetime true; Client retirement is required",
+    "Full Developer job/map/movement closure and Host-authoritative live replication remain open",
+    "MonsterZone stroke awaits the fixed original NPCs tab preparation",
+    "No private saves or installed Beta9 payload changed"
+  ]
+}

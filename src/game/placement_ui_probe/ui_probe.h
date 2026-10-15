@@ -4,7 +4,7 @@
 #include <string>
 #include <vector>
 namespace placement_ui_probe {
-enum class Family { Building,Scenery,Terrain,Path,NetworkNode,NetworkPipe,TerrainHeight,RegionLevel,NPC };
+enum class Family { Building,Scenery,Terrain,Path,NetworkNode,NetworkPipe,TerrainHeight,RegionLevel,NPC,MonsterZone };
 struct Request { std::string token,type="SmallInn",variant; std::array<float,3> position{}; Family family{Family::Building}; std::int32_t category{-1},variant_hash{},terrain_style{-1}; };
 struct Context { std::uintptr_t image{},world{}; std::uint64_t epoch{},generation{}; std::uint32_t thread{}; bool operator==(const Context&) const=default; };
 struct Binding { Context context; std::uintptr_t player{},inventory{},inventory_item{},type{},behaviour{},cursor{},bar{},content{},slot{},button{},item{},item_proxy{},type_proxy{}; Family family{Family::Building}; std::int32_t category{-1},variant_hash{},terrain_style{-1}; bool operator==(const Binding&) const=default; };

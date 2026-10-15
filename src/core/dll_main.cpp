@@ -23,6 +23,7 @@
 #include "../game/native_lobby.h"
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
+#include "../game/developer_staff/probe.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
 #include "../game/subscriber_lifecycle/runtime_append.h"
 #include "mt2mp/net/snapshot_sync.h"
@@ -640,6 +641,7 @@ static void game_update(void* game,float dt) {
     if(previous_frame_start!=std::chrono::steady_clock::time_point{})record_frame_timing(frame_intervals,uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(measured_update.started-previous_frame_start).count()));
     previous_frame_start=measured_update.started;
     game::initial_release::FixtureUpdateScope release_fixture_scope(game);
+    game::developer_staff::FixtureUpdateScope developer_fixture_scope(game);
     game::tutorial_startingpoint_fixture::UpdateScope startingpoint_fixture_scope(game);
     bool live_scope=false;
     if(game::typed_action_runtime::live_state_active()) {std::string error;live_scope=game::live_host_state::economic_fence().enter_game_update(error);report_live_scope_entry(live_scope,error);}
@@ -815,6 +817,7 @@ static json status() {
     result["capabilities"]["read_region_preset"]=game::ui_region_runtime::enabled();
     result["capabilities"]["read_npc_region"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_npc_tool_ui"]=cfg.local_test&&game::native::in_game();
+    result["capabilities"]["native_monster_zone_probe"]=cfg.local_test&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["native_npc_place_probe"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_npc_place_ui"]=cfg.local_test&&game::native::in_game()&&
         game::npc_probe::action_runtime::status().value("enabled",false);
@@ -882,6 +885,8 @@ static json status() {
     result["capabilities"]["read_native_lobby"]=owned_native_profile;
     result["capabilities"]["read_native_loans"]=owned_native_profile;
     result["capabilities"]["read_native_release"]=owned_native_profile;
+    result["capabilities"]["read_native_developers"]=owned_native_profile;
+    result["capabilities"]["native_developer_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_initial_release_fixture"]=owned_native_profile;
     result["capabilities"]["native_take_loan_fixture"]=owned_native_profile;
     result["capabilities"]["native_loan_payment"]=owned_native_profile;
@@ -1321,7 +1326,16 @@ static void diagnostics_tick() {
             operation!="read_time_mouse"&&operation!="read_time_input"&&operation!="read_time_acceptance"&&
             operation!="status"&&operation!="inspect_engine"&&operation!="read_time_ui")
             throw std::runtime_error("time_input_previous_effect_unresolved; competing native operation rejected");
-        if(operation=="read_native_release"||operation=="native_initial_release_fixture") {
+        if(operation=="read_native_developers"||operation=="native_developer_fixture") {
+            json observed;std::string error;
+            if(operation=="read_native_developers") {
+                if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("Developer read requires empty arguments");
+                response["ok"]=game::developer_staff::observe_fixture(observed,error);
+            }else response["ok"]=game::developer_staff::run_fixture(request.at("args"),observed,error);
+            response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_FIXTURE_FAILED"},{"message",error}};
+        }
+        else if(operation=="read_native_release"||operation=="native_initial_release_fixture") {
             json observed;std::string error;
             if(operation=="read_native_release") {
                 if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("InitialRelease read requires empty arguments");
@@ -1659,6 +1673,12 @@ static void diagnostics_tick() {
                 a.at("tool").get<std::string>(),a.at("phase").get<std::string>(),int32_t(slot),int32_t(type),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_TOOL_UI_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_monster_zone_probe") {
+            std::string error;json result;
+            response["ok"]=game::npc_probe::monster_zone_probe(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","MONSTER_ZONE_PROBE_REJECTED"},{"message",error}};
         }
         else if(operation=="native_npc_place_probe") {
             std::string error;json result;
