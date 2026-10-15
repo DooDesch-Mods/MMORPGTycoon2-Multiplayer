@@ -342,36 +342,71 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     if(!quest_toon(p,owners,subscriber,actual,e)||actual!=target)return fail(e,e.empty()?"Quest apply complete Toon state readback differs":e);
     return true;
 }
+namespace {
+void npc_transform(uintptr_t image,uintptr_t npc,const subscriber_motion::Pose& target){
+    alignas(4) std::array<std::byte,0x6c> transform{};
+    const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(image+0x9ff370);
+    const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(image+0xc67c80);
+    construct(transform.data(),target.orientation.data(),target.position.data(),target.scale.data());
+    set(npc+0x30,transform.data());
+}
+}
 bool NativePort::store_npc_state(const Owners& before,size_t index,const quest_state::Npc& old,
                                  const quest_state::Npc& target,std::string& e){
-    if(scalar_before_||index>=before.state.npcs.size()||old.key!=target.key||old.type!=target.type)
-        return fail(e,"NPC state owner/key/type differs or scalar phase active");
+    if(scalar_before_)return fail(e,"NPC state owner/key/type differs or scalar phase active: scalar phase active");
+    if(index>=before.state.npcs.size())return fail(e,"NPC state owner/key/type differs or scalar phase active: index="+std::to_string(index)+" before.count="+std::to_string(before.state.npcs.size()));
+    if(old.key!=target.key)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc.key",old.key,target.key));
+    if(old.type!=target.type)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc["+target.key+"].type",old.type,target.type));
     if(!current(before,0,true,e))return false;
     const auto& p=before.history.pin;std::vector<QuestOwner> owners;std::vector<quest_state::Npc> actual;
     if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
-    if(index>=actual.size()||actual[index]!=old||owners[index].key!=old.key)return fail(e,"NPC state prior canonical owner/value changed");
+    if(index>=actual.size()||index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size())+" owners.count="+std::to_string(owners.size()));
+    if(owners[index].key!=old.key)return fail(e,"NPC state prior canonical owner/value changed: "+difference("npc.owner.key",owners[index].key,old.key));
+    if(!same_npc_non_pose(actual[index],old))return fail(e,"NPC state prior canonical owner/value changed: "+npc_non_pose_difference(actual[index],old));
     const auto npc=owners[index].npc;
     if(!store_npc_counters(p,owners[index],old,target,[&](std::string& error){return fence_.read_current_fence(p,error);},e))return false;
+    if(old.level!=target.level&&!compare_fixed_i32(npc+0x6f8,old.level,target.level,e))return false;
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
+    if(index>=actual.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size()));
+    if(!same_npc_non_pose(actual[index],target))return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_non_pose_difference(actual[index],target));
+    return true;
+}
+bool NativePort::store_npc_pose(const Owners& before,size_t index,const quest_state::Npc& old,
+                                 const quest_state::Npc& target,std::string& e){
+    if(scalar_before_)return fail(e,"NPC state owner/key/type differs or scalar phase active: scalar phase active");
+    if(index>=before.state.npcs.size())return fail(e,"NPC state owner/key/type differs or scalar phase active: index="+std::to_string(index)+" before.count="+std::to_string(before.state.npcs.size()));
+    if(old.key!=target.key)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc.key",old.key,target.key));
+    if(old.type!=target.type)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc["+target.key+"].type",old.type,target.type));
+    if(!current(before,0,true,e))return false;
+    const auto& p=before.history.pin;std::vector<QuestOwner> owners;std::vector<quest_state::Npc> actual;
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
+    if(index>=actual.size()||index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size())+" owners.count="+std::to_string(owners.size()));
+    if(owners[index].key!=old.key)return fail(e,"NPC state prior canonical owner/value changed: "+difference("npc.owner.key",owners[index].key,old.key));
+    if(actual[index]!=old)return fail(e,"NPC state prior canonical owner/value changed: "+npc_difference({actual[index]},{old}));
+    const auto npc=owners[index].npc;
+    if(!same_npc_non_pose(old,target))return fail(e,"NPC final pose requires settled exact non-pose state: "+npc_non_pose_difference(old,target));
     if(old.pose!=target.pose){
         uintptr_t render=0,callback=0,region=0;uint8_t follows=1;
         std::array<uint32_t,3> spawn{},spawn_after{};
-        if(old.pose.region!=target.pose.region||!at(npc,0x30,render,e)||render!=p.image+0x1742e58||
-           !at(render,0x38,callback,e)||callback!=p.image+0x3c2de0||
-           !at(npc,0x178,region,e)||!at(npc,0x490,follows,e)||follows||
-           !memory.copy(npc+0x818,spawn.data(),sizeof spawn,e))
-            return fail(e,e.empty()?"NPC simulation transform fixed Region/callback differs":e);
-        alignas(4) std::array<std::byte,0x6c> transform{};
-        const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(p.image+0x9ff370);
-        const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(p.image+0xc67c80);
-        construct(transform.data(),target.pose.orientation.data(),target.pose.position.data(),target.pose.scale.data());
-        set(npc+0x30,transform.data());
+        if(old.pose.region!=target.pose.region)return fail(e,"NPC simulation transform fixed Region/callback differs: "+difference("npc["+old.key+"].pose.region",old.pose.region,target.pose.region));
+        if(!at(npc,0x30,render,e))return false;
+        if(render!=p.image+0x1742e58)return fail(e,"NPC simulation transform fixed Region/callback differs: render class differs");
+        if(!at(render,0x38,callback,e))return false;
+        if(callback!=p.image+0x3c2de0)return fail(e,"NPC simulation transform fixed Region/callback differs: callback differs");
+        if(!at(npc,0x178,region,e)||!at(npc,0x490,follows,e))return false;
+        if(follows)return fail(e,"NPC simulation transform fixed Region/callback differs: "+difference("npc["+old.key+"].follows_region",follows,uint8_t(0)));
+        if(!memory.copy(npc+0x818,spawn.data(),sizeof spawn,e))return false;
+        npc_transform(p.image,npc,target.pose);
         uintptr_t after_region=0;uint8_t after_follows=1;
-        if(!at(npc,0x178,after_region,e)||after_region!=region||!at(npc,0x490,after_follows,e)||after_follows!=follows||
-           !memory.copy(npc+0x818,spawn_after.data(),sizeof spawn_after,e)||spawn!=spawn_after)
-            return fail(e,e.empty()?"NPC simulation transform changed spawn point or owner Region; no replay":e);
+        if(!at(npc,0x178,after_region,e))return false;
+        if(after_region!=region)return fail(e,"NPC simulation transform changed spawn point or owner Region; no replay: Region owner changed");
+        if(!at(npc,0x490,after_follows,e))return false;
+        if(after_follows!=follows)return fail(e,"NPC simulation transform changed spawn point or owner Region; no replay: "+difference("npc["+old.key+"].follows_region",after_follows,follows));
+        if(!memory.copy(npc+0x818,spawn_after.data(),sizeof spawn_after,e))return false;
+        if(spawn!=spawn_after)return fail(e,"NPC simulation transform changed spawn point or owner Region; no replay: "+difference("npc["+old.key+"].spawn_bits",spawn_after,spawn));
     }
-    if(old.level!=target.level&&!compare_fixed_i32(npc+0x6f8,old.level,target.level,e))return false;
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e)||
-       index>=actual.size()||actual[index]!=target)return fail(e,e.empty()?"NPC pose/counters full readback differs; no replay":e);
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
+    if(index>=actual.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size()));
+    if(actual[index]!=target)return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_difference({actual[index]},{target}));
     return true;
 }

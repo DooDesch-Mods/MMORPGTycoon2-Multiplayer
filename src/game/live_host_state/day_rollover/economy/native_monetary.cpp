@@ -1,4 +1,5 @@
 #include "native_monetary.h"
+#include "state_difference.h"
 #include "live_host_state/apply_timing.h"
 #include "live_host_state/native_bulk_read.h"
 #include "subscriber_store_owner.h"

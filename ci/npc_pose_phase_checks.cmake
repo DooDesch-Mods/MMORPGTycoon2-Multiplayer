@@ -1,0 +1,13 @@
+# Existing NPC guard fragment provides the exact native body extraction.
+add_executable(test_npc_pose_native "${MT2MP_SOURCE_ROOT}/test/test_npc_pose_native.cpp")
+add_executable(test_npc_pose_phase "${MT2MP_SOURCE_ROOT}/test/test_npc_pose_phase.cpp" ${npc_difference_sources})
+foreach(target test_npc_pose_native test_npc_pose_phase)
+ target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${CMAKE_CURRENT_BINARY_DIR}/npc_state_guard_extracted")
+ target_compile_features(${target} PRIVATE cxx_std_20)
+ if(MSVC)
+  target_compile_options(${target} PRIVATE /W4 /WX /utf-8 /EHsc /Gy)
+  target_link_options(${target} PRIVATE /OPT:REF /INCREMENTAL:NO)
+ endif()
+ add_test(NAME ${target} COMMAND ${target})
+ set_tests_properties(${target} PROPERTIES TIMEOUT 60)
+endforeach()

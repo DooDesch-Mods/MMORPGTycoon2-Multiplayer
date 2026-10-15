@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.8",
-  "summary": "Keep both players synchronized through the initial tutorial version transition and completion.",
-  "native_evidence": "docs/evidence/beta8-native.json"
+  "version": "0.1.0-beta.9",
+  "summary": "Keep NPC motion synchronized during ordinary play, share native tutorial transitions, and restore lobby use after a sync failure.",
+  "native_evidence": "docs/evidence/beta9-native.json"
 }

@@ -127,3 +127,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_load_start_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/npc_economy_difference_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/locked_lobby_leave_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/npc_state_guard_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/npc_pose_phase_checks.cmake")

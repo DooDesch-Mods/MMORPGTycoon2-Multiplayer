@@ -37,6 +37,11 @@ inline std::string npc_difference(const std::vector<subscriber_quest_state::Npc>
     }
     return "NPC difference unavailable";
 }
+inline std::string npc_non_pose_difference(const subscriber_quest_state::Npc& actual,const subscriber_quest_state::Npc& required){
+    auto observed=actual;
+    observed.pose.orientation=required.pose.orientation;observed.pose.position=required.pose.position;observed.pose.scale=required.pose.scale;
+    return npc_difference({observed},{required});
+}
 inline std::string state_difference(const State& actual,const State& required){
     if(actual.day!=required.day){
         if(actual.day.frame.values!=required.day.frame.values)return difference("day.scalars",scalars(actual.day.frame.values),scalars(required.day.frame.values));

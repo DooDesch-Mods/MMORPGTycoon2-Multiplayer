@@ -38,6 +38,8 @@ public:
         const std::optional<subscriber_quest_state::Toon>&,std::string&)override;
     bool store_npc_state(const Owners&,size_t,const subscriber_quest_state::Npc&,
         const subscriber_quest_state::Npc&,std::string&)override;
+    bool store_npc_pose(const Owners&,size_t,const subscriber_quest_state::Npc&,
+        const subscriber_quest_state::Npc&,std::string&)override;
     bool store_need(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string&)override;
     bool store_next_id(const Owners&,int32_t,std::string&)override;
     bool store_subscriber(const Owners&,size_t,size_t,int32_t,int32_t,std::string&)override;

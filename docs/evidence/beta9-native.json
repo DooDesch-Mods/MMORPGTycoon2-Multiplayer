@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.9",
+  "scope": "Shared tutorial lifecycle, joined loading, explicit Leave after sync failure and stable NPC motion",
+  "native_evidence": [
+    "docs/evidence/tutorial-completion-native.json",
+    "docs/evidence/tutorial-load-start-native.json",
+    "docs/evidence/locked-leave-native.json",
+    "docs/evidence/npc-pose-native.json"
+  ],
+  "latest_mod_sha256": "6a6f4ef8f6b34901aa72c6e6bee68d62cbd08d1a714e0e81742841f1ac3ab9b6",
+  "latest_build": "artifacts/build_history/20261015T111029334934Z",
+  "acceptance": "Both peers complete the prepared Initial ending, load an existing world, recover native lobby use after a real sync failure, and retain exact economy/NPC/subscriber state through a natural Host quest reward and native LevelTwo creation. Client Clock stays0; both games exit0.",
+  "limits": [
+    "Prepared boundary worlds do not prove a complete natural new-world tutorial",
+    "Full LevelTwo tutorial, hiring/firing, other technologies, remaining action families and Undo/Redo remain open",
+    "Four players, large worlds and separate-account Steam acceptance remain open"
+  ],
+  "delivery": "Local native source acceptance; exact cloud package validation and installation recorded separately",
+  "base_commit": "7d9d4d0cc4256fb830151589854665b055c8e7a9",
+  "source_sha256": {
+    "ci/CMakeLists.txt": "7af5c5b32427ca07bc79e17980e37161657b4e4b5076e7363404a862df161d8f",
+    "ci/npc_state_guard_checks.cmake": "a1b1f86777816b2c40d994d17c93f66166fa7844f7db5369abcf4787e2854981",
+    "src/game/live_host_state/day_rollover/economy/native_monetary.cpp": "42ad1c18bbad81dcae7911b265fb715a38abed3cd46c5527807d845f2187cb44",
+    "src/game/live_host_state/day_rollover/economy/native_quest_state.inc": "6488d9937b5982a665845977f4032714aabeeb558af036c832c9f64e508cfa33",
+    "test/extract_npc_state_guard.py": "7c56214178ce78c2610349bf0f8984d8ba24127a527f79689ca98d62ad0a4bfb",
+    "test/test_npc_state_guard.cpp": "2168bb139081f873045eae7d1b2b9886dd8a5aa8aff4878d6cdaef4275d5821a",
+    "ci/npc_pose_phase_checks.cmake": "5777182bed8115d18c681a53cf084f54c684e21842d8420db58d1dcdadee2699",
+    "src/game/live_host_state/day_rollover/economy/monetary.cpp": "911e3f932f05faff9716b604bd971911f0d9346a8b9c7ac011015f51898ca325",
+    "src/game/live_host_state/day_rollover/economy/monetary.h": "489be447f671eb6d9a5dc5475b5e0253ab5f484c9974d17d93313001c9daca97",
+    "src/game/live_host_state/day_rollover/economy/native_monetary.h": "229d0c9241349e54c018fd78975efd4b280a9a17e32f29723c334b0a73880a82",
+    "src/game/live_host_state/day_rollover/economy/state_difference.h": "5e474b2d558f5ce9eab45ac27b9488ab34a2b6f04002d37cf3755d74c6a2fd4d",
+    "test/test_npc_economy_difference.cpp": "4852af7b7e4292252193f8326d95a6c531c6d8c1b89b32097c1bb98bd2308d90",
+    "test/test_npc_pose_native.cpp": "08ac44f5f81dab629f60084bdf4ed81f949c59975c95e2526d2aae702ae878df",
+    "test/test_npc_pose_phase.cpp": "5bb00a2cd5b5f265a0e925ec321aadb93b8e6143fcb2292b222ec9686b6921c2"
+  }
+}

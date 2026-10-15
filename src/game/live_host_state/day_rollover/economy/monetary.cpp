@@ -143,7 +143,7 @@ static Receipt apply_existing_body(Port& port,const Owners& expected,const State
         }
         for(size_t i=0;i<before.npcs.size();++i){
             const auto& old=before.npcs[i];const auto& after=target.npcs[i];
-            if(old==after)continue;receipt.attempted=true;++receipt.attempted_stores;
+            if(same_npc_non_pose(old,after))continue;receipt.attempted=true;++receipt.attempted_stores;
             if(!port.store_npc_state(expected,i,old,after,receipt.cause)){stop("actual NPC state Unknown");return receipt;}
             ++receipt.stores;
         }
@@ -173,7 +173,27 @@ static Receipt apply_existing_body(Port& port,const Owners& expected,const State
         {apply_timing::Scope measured(apply_timing::Part::FullFinal);
         if(!port.read(actual,receipt.cause)){stop("actual Subscriber/Loan/Day full readback Unknown");return receipt;}
         if(!same_owners(actual,expected)){receipt.cause=owner_difference(actual,expected);stop("actual Subscriber/Loan/Day full readback Unknown");return receipt;}
-        if(actual.state!=target){receipt.cause=state_difference(actual.state,target);stop("actual Subscriber/Loan/Day full readback Unknown");return receipt;}}
+        if(actual.state!=target){
+            // No SaveScope or Subscriber setter follows this pose phase. A fresh
+            // complete read must already match every other authoritative value.
+            State settled=actual.state;
+            if(settled.npcs.size()!=target.npcs.size()){receipt.cause=state_difference(actual.state,target);stop("actual NPC final pose membership Unknown");return receipt;}
+            for(size_t i=0;i<settled.npcs.size();++i){
+                if(!same_npc_non_pose(settled.npcs[i],target.npcs[i])){receipt.cause=npc_non_pose_difference(settled.npcs[i],target.npcs[i]);stop("actual NPC final non-pose readback Unknown");return receipt;}
+                settled.npcs[i].pose=target.npcs[i].pose;
+            }
+            if(settled!=target){receipt.cause=state_difference(settled,target);stop("actual Subscriber/Loan/Day full readback Unknown");return receipt;}
+            const auto poses=actual.state.npcs;
+            for(size_t i=0;i<poses.size();++i){
+                if(poses[i].pose==target.npcs[i].pose)continue;
+                receipt.attempted=true;++receipt.attempted_stores;
+                if(!port.store_npc_pose(expected,i,poses[i],target.npcs[i],receipt.cause)){stop("actual NPC final pose Unknown");return receipt;}
+                ++receipt.stores;
+            }
+            if(!port.read(actual,receipt.cause)){stop("actual NPC final pose full readback Unknown");return receipt;}
+            if(!same_owners(actual,expected)){receipt.cause=owner_difference(actual,expected);stop("actual NPC final pose full readback Unknown");return receipt;}
+            if(actual.state!=target){receipt.cause=state_difference(actual.state,target);stop("actual NPC final pose full readback Unknown");return receipt;}
+        }}
         receipt.confirmed=true;receipt.cause.clear();return receipt;
     }catch(const std::exception& x){receipt.unknown=receipt.attempted;receipt.cause=std::string("economic native apply exception original=")+x.what();return receipt;}
     catch(...){receipt.unknown=receipt.attempted;receipt.cause="economic native apply nonstandard exception";return receipt;}

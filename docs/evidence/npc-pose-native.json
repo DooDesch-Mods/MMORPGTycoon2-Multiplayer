@@ -1,0 +1,340 @@
+{
+  "schema": 1,
+  "scope": "NPC final pose phase during ordinary Host simulation and native LevelTwo creation",
+  "source_stage_seal": "2566621391f3f5de6c8a49010802d26afa2717ff77064d8e95b6980b8c6ee8b9",
+  "build": "artifacts/build_history/20261015T111029334934Z",
+  "dll_sha256": "6a6f4ef8f6b34901aa72c6e6bee68d62cbd08d1a714e0e81742841f1ac3ab9b6",
+  "focused_cases": 66,
+  "canonical_checks": "artifacts/npc_pose_phase_canonical_ctest.log",
+  "failure_before": "artifacts/npc_position_failure.json",
+  "shared_world_admission": "artifacts/acceptance/16e1026f-93c4-4d8e-a8d0-3edc78376ea9/summary.json",
+  "placement": "artifacts/acceptance/f02328a3-9f5e-445e-abc2-1bdfff9c09f8/summary.json",
+  "placement_action": "07c18c1e-8d93-4cfe-8d4d-ff8b26a35d6f",
+  "simulation": "artifacts/acceptance/f3652db0-e4f3-4ee0-8e50-0c927f1dae9a/summary.json",
+  "observed_normal_time_seconds": 79.260691,
+  "healthy_client_observations": 7,
+  "paused_final_readbacks": {
+    "host": "test/mcp/evidence/npc-pose-accepted-host_20261015T112406639759Z.json",
+    "client-1": "test/mcp/evidence/npc-pose-accepted-client_20261015T112421576228Z.json"
+  },
+  "full_economy_schema11_equal": true,
+  "full_economy_sections": [
+    "additions",
+    "day",
+    "kind",
+    "loans",
+    "npcs",
+    "offers",
+    "schema",
+    "subscribers"
+  ],
+  "full_ledger": {
+    "clock_day": 1,
+    "cash": 88400,
+    "record_present": true,
+    "record_day": 1,
+    "record_cash": 88400,
+    "record_income": 2130,
+    "record_expense": 8330,
+    "line_counts": [
+      53,
+      0,
+      0,
+      0,
+      0,
+      0,
+      8,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "line_income": [
+      2120,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -7360,
+      0,
+      -10,
+      0,
+      0,
+      -500,
+      -300,
+      0,
+      0,
+      0,
+      -150,
+      0,
+      0,
+      0
+    ]
+  },
+  "clock": {
+    "day": 1,
+    "pause_scale": 1.0,
+    "paused": true,
+    "scale": 0.0,
+    "seconds": 42901
+  },
+  "npc_pose_and_counter_rows": [
+    {
+      "accepted": {
+        "history": [],
+        "today": 11,
+        "total": 11
+      },
+      "completed": {
+        "history": [],
+        "today": 5,
+        "total": 5
+      },
+      "highest_cache": [
+        11,
+        5
+      ],
+      "key": "action:07c18c1e-8d93-4cfe-8d4d-ff8b26a35d6f",
+      "level": 11,
+      "pose": {
+        "orientation": [
+          0.0,
+          0.5227555632591248,
+          0.0,
+          0.8524826169013977
+        ],
+        "position": [
+          8131.33056640625,
+          85.70109558105469,
+          8537.3359375
+        ],
+        "region": 67,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "quests": [
+        {
+          "accepted": {
+            "history": [],
+            "today": 7,
+            "total": 7
+          },
+          "completed": {
+            "history": [],
+            "today": 5,
+            "total": 5
+          },
+          "highest_cache": [
+            7,
+            5
+          ],
+          "sequence_id": 0
+        },
+        {
+          "accepted": {
+            "history": [],
+            "today": 4,
+            "total": 4
+          },
+          "completed": {
+            "history": [],
+            "today": 0,
+            "total": 0
+          },
+          "highest_cache": [
+            4,
+            0
+          ],
+          "sequence_id": 1
+        }
+      ],
+      "type": 0
+    },
+    {
+      "accepted": {
+        "history": [],
+        "today": 14,
+        "total": 14
+      },
+      "completed": {
+        "history": [],
+        "today": 14,
+        "total": 14
+      },
+      "highest_cache": [
+        0,
+        0
+      ],
+      "key": "d0d3c106074fcfe9ae39339f88bf91939de6cbed0e582de226e6407e844de1d5:world:npc:34",
+      "level": 11,
+      "pose": {
+        "orientation": [
+          0.0,
+          0.9477150440216064,
+          0.0,
+          -0.31911787390708923
+        ],
+        "position": [
+          8072.9443359375,
+          69.22476196289062,
+          8570.55859375
+        ],
+        "region": 67,
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ]
+      },
+      "quests": [
+        {
+          "accepted": {
+            "history": [],
+            "today": 7,
+            "total": 7
+          },
+          "completed": {
+            "history": [],
+            "today": 7,
+            "total": 7
+          },
+          "highest_cache": [
+            0,
+            0
+          ],
+          "sequence_id": 0
+        },
+        {
+          "accepted": {
+            "history": [],
+            "today": 7,
+            "total": 7
+          },
+          "completed": {
+            "history": [],
+            "today": 7,
+            "total": 7
+          },
+          "highest_cache": [
+            0,
+            0
+          ],
+          "sequence_id": 1
+        }
+      ],
+      "type": 0
+    }
+  ],
+  "selected_subscriber": {
+    "id": 56,
+    "before": {
+      "level": 1,
+      "xp": 399,
+      "gold": 20,
+      "quests_completed": 2
+    },
+    "after": {
+      "level": 2,
+      "xp": 39,
+      "gold": 30,
+      "quests_completed": 3
+    }
+  },
+  "native_tutorial": {
+    "active": [
+      {
+        "complete": false,
+        "count": 17,
+        "history": [],
+        "last": "welcome",
+        "message_progress": null,
+        "next": 3,
+        "scenario": "leveltwo_tutorial"
+      }
+    ],
+    "initial_complete": false,
+    "leveltwo_complete": false,
+    "leveltwo_initial_next": -1,
+    "lifecycle_order": [
+      [
+        0,
+        0
+      ],
+      [
+        1,
+        0
+      ]
+    ],
+    "staff_display": null,
+    "startingpoint": null,
+    "terminal": [],
+    "terminal_startingpoint": null,
+    "terminal_version": null,
+    "version": null
+  },
+  "client_sequence_fenced": true,
+  "frames": {
+    "host": {
+      "path": "_drafts\\media\\leveltwo-birth-host.bmp",
+      "pixel_sha256": "233b1b778ac9ef9c61469638d4efc88b790ca85f5aa2a1e51a9ff4dda777d616",
+      "viewed": true
+    },
+    "client-1": {
+      "path": "_drafts\\media\\leveltwo-birth-client-1.bmp",
+      "pixel_sha256": "b938ada050ad68701a3dbe48a5ab7872c92836e232a7074ede1b2ecb6c8bf257",
+      "viewed": true
+    }
+  },
+  "next_saved_input": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 241204,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-0975c55f-86e4-4060-bd45-1b37148d7889.vrz",
+    "run_id": "f73e2621-975e-4d21-9fa1-f3309874e825",
+    "sha256": "26063fe4b29ed3eb990c6acb9328ba7e7cc77da0a9be51e1883809199b0a3f4e",
+    "snapshot_id": "0975c55f-86e4-4060-bd45-1b37148d7889",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "next_saved_input_receipt": "test/mcp/evidence/leveltwo-checkpoint_20261015T112744361519Z.json",
+  "retirement": "artifacts/acceptance/d63c7e6a-599c-437c-94ba-eb10754eeed6/summary.json",
+  "native_exit": "artifacts/acceptance/71ae85da-78f6-45b5-a627-990ce5d849b0/summary.json",
+  "both_exit_codes": 0,
+  "limits": [
+    "Copied boundary input changes only XP80->399; this does not prove a full natural new-world tutorial",
+    "LevelTwo creation and welcome are proven; its complete17-step traversal remains open",
+    "No duplicate save/load or forced XP/level/scenario/completion/profile write was used during the native run",
+    "Four players, large worlds and separate-account Steam acceptance remain open"
+  ],
+  "base_commit": "7d9d4d0cc4256fb830151589854665b055c8e7a9",
+  "source_sha256": {
+    "ci/CMakeLists.txt": "7af5c5b32427ca07bc79e17980e37161657b4e4b5076e7363404a862df161d8f",
+    "ci/npc_state_guard_checks.cmake": "a1b1f86777816b2c40d994d17c93f66166fa7844f7db5369abcf4787e2854981",
+    "src/game/live_host_state/day_rollover/economy/native_monetary.cpp": "42ad1c18bbad81dcae7911b265fb715a38abed3cd46c5527807d845f2187cb44",
+    "src/game/live_host_state/day_rollover/economy/native_quest_state.inc": "6488d9937b5982a665845977f4032714aabeeb558af036c832c9f64e508cfa33",
+    "test/extract_npc_state_guard.py": "7c56214178ce78c2610349bf0f8984d8ba24127a527f79689ca98d62ad0a4bfb",
+    "test/test_npc_state_guard.cpp": "2168bb139081f873045eae7d1b2b9886dd8a5aa8aff4878d6cdaef4275d5821a",
+    "ci/npc_pose_phase_checks.cmake": "5777182bed8115d18c681a53cf084f54c684e21842d8420db58d1dcdadee2699",
+    "src/game/live_host_state/day_rollover/economy/monetary.cpp": "911e3f932f05faff9716b604bd971911f0d9346a8b9c7ac011015f51898ca325",
+    "src/game/live_host_state/day_rollover/economy/monetary.h": "489be447f671eb6d9a5dc5475b5e0253ab5f484c9974d17d93313001c9daca97",
+    "src/game/live_host_state/day_rollover/economy/native_monetary.h": "229d0c9241349e54c018fd78975efd4b280a9a17e32f29723c334b0a73880a82",
+    "src/game/live_host_state/day_rollover/economy/state_difference.h": "5e474b2d558f5ce9eab45ac27b9488ab34a2b6f04002d37cf3755d74c6a2fd4d",
+    "test/test_npc_economy_difference.cpp": "4852af7b7e4292252193f8326d95a6c531c6d8c1b89b32097c1bb98bd2308d90",
+    "test/test_npc_pose_native.cpp": "08ac44f5f81dab629f60084bdf4ed81f949c59975c95e2526d2aae702ae878df",
+    "test/test_npc_pose_phase.cpp": "5bb00a2cd5b5f265a0e925ec321aadb93b8e6143fcb2292b222ec9686b6921c2"
+  }
+}

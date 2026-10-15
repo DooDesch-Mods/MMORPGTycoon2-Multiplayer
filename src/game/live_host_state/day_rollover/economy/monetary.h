@@ -65,6 +65,12 @@ struct MotionRead {
     std::vector<Row> rows;
     int32_t next_id=-1;
 };
+// Actor transforms can be flushed by native SaveScopes. Region membership and
+// every non-pose value remain exact while transforms await their final phase.
+inline bool same_npc_non_pose(const subscriber_quest_state::Npc& a,const subscriber_quest_state::Npc& b){
+    return a.key==b.key&&a.type==b.type&&a.level==b.level&&a.pose.region==b.pose.region&&
+        a.accepted==b.accepted&&a.completed==b.completed&&a.quests==b.quests&&a.highest_cache==b.highest_cache;
+}
 struct Receipt {bool attempted=false,confirmed=false,unknown=false;uint32_t attempted_stores=0,stores=0;std::string cause;};
 class Coupling;
 class Apply;
@@ -123,7 +129,9 @@ public:
     virtual bool store_activity(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string& e){e="native Subscriber activity CAS unavailable";return false;}
     virtual bool store_rewards(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string& e){e="native Subscriber reward CAS unavailable";return false;}
     virtual bool store_quest_state(const Owners&,size_t,const std::optional<subscriber_quest_state::Toon>&,const std::optional<subscriber_quest_state::Toon>&,std::string& e){e="native Toon Quest state apply unavailable";return false;}
+    // Counter/level phase. Authoritative transforms are applied after all native scopes.
     virtual bool store_npc_state(const Owners&,size_t,const subscriber_quest_state::Npc&,const subscriber_quest_state::Npc&,std::string& e){e="native NPC simulation state apply unavailable";return false;}
+    virtual bool store_npc_pose(const Owners&,size_t,const subscriber_quest_state::Npc&,const subscriber_quest_state::Npc&,std::string& e){e="native NPC final pose apply unavailable";return false;}
     virtual bool store_need(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string& e){e="native Subscriber Needs CAS unavailable";return false;}
     virtual bool store_next_id(const Owners&,int32_t,std::string& e){e="native Subscriber nextID store unavailable";return false;}
     virtual bool store_subscriber(const Owners&,size_t owner,size_t field,int32_t before,int32_t after,std::string&)=0;
