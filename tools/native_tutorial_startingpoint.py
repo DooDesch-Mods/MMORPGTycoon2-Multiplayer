@@ -4,13 +4,13 @@ from pathlib import Path
 import time
 import uuid
 
-from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, hash_file, read_json, utc
+from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, compare_ledgers, hash_file, read_json, utc
 from lobby_ui.native_local_acceptance import button, observe, left, ready
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, required=True)
-parser.add_argument('--phase', choices=('prepare', 'prove', 'retire'), required=True)
+parser.add_argument('--phase', choices=('prepare', 'begin', 'prove', 'retire'), required=True)
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
 parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
 args = parser.parse_args()
@@ -20,6 +20,8 @@ runner = AcceptanceRunner(args)
 runner.summary['scope'] = 'isolated Host original Starting Point completion and ordinary Commit; no peer replication claim'
 if args.require_client:
     runner.summary['scope'] = 'joined Host Starting Point completion and ordinary Commit with actual Client project, inventory and Release adoption'
+if args.phase == 'begin':
+    runner.summary['scope'] = 'joined Host original Starting Point Pay and project creation with Client adoption and full native ledger equality'
 
 
 def shared_state(name, expected):
@@ -48,6 +50,75 @@ def shared_state(name, expected):
                            for field in fields if actual[field] != expected[field]}
             raise AcceptanceError('Client adoption timeout required<60s during ' + name + ': ' + str(differences))
 
+
+def begin_project():
+    baseline = runner.single('begin-baseline', 'host', 'game_read_tutorial_development')
+    runner.checked('begin-baseline', baseline)
+    if (baseline.get('schema') != 1 or baseline.get('mainthread_confirmed') is not True
+            or baseline.get('lifetime_confirmed') is not True):
+        raise AcceptanceError('Begin requires confirmed native development observation')
+    project, technology = baseline['project'], baseline['startingpoint']
+    if project.get('present') is not False or any(project.get(field) != 0 for field in
+            ('work', 'lines', 'desired_workers', 'bugs_total', 'bugs_known')):
+        raise AcceptanceError('Begin requires no current project and reset native counters; no mutation attempted')
+    if (technology.get('record_present') is not True or any(technology.get(field) is not False
+            for field in ('purchased', 'deployed', 'custom', 'owned'))
+            or technology.get('inventory_count') != 0 or baseline['startingpoint_release'].get('feature_count') != 0):
+        raise AcceptanceError('Begin requires an existing unpurchased unowned record and no item/feature; no mutation attempted')
+    shared_state('begin-baseline', baseline)
+    before = compare_ledgers(runner.inspect('begin-before-host', 'host'),
+                             runner.inspect('begin-before-client', 'client-1'))
+    runner.checked('begin-ledger-before', before)
+    request = {'token': str(uuid.uuid4()), 'native_origin_uuid': baseline['snapshot_uuid'],
+               'world_epoch': baseline['world_epoch'], 'world_generation': baseline['world_generation'],
+               'operation': 'begin', 'expected_development': baseline}
+    runner.checked('begin-request', request)
+    result = runner.single('begin-once', 'host', 'game_tutorial_startingpoint', request)
+    for field in ('attempted', 'returned', 'confirmed', 'payment_accepted', 'set_current_attempted'):
+        if result.get(field) is not True:
+            raise AcceptanceError('Begin lacks native ' + field + '; no replay')
+    if (result.get('unknown') is not False or result.get('pay_exception') != 0
+            or result.get('set_current_exception') != 0 or result.get('token') != request['token']
+            or result.get('operation') != 'begin' or result.get('before') != baseline):
+        raise AcceptanceError('Begin native outcome/token/baseline differs; no replay')
+    runner.checked('begin', result)
+    after = runner.single('after-begin', 'host', 'game_read_tutorial_development')
+    runner.checked('after-begin', after)
+    if any(after.get(field) != baseline.get(field) for field in
+           ('schema', 'mainthread_confirmed', 'lifetime_confirmed', 'snapshot_uuid', 'world_epoch', 'world_generation')):
+        raise AcceptanceError('Begin changed native observation/origin; no replay')
+    if result.get('after') != after:
+        raise AcceptanceError('Begin current native development differs from original receipt; no replay')
+    project, technology = after['project'], after['startingpoint']
+    if (project.get('present') is not True or project.get('kind') != 0 or project.get('tech_key') != 'startingpoint'
+            or technology.get('record_present') is not True or technology.get('purchased') is not True
+            or any(technology.get(field) is not False for field in ('deployed', 'custom', 'owned'))
+            or technology.get('inventory_count') != baseline['startingpoint']['inventory_count']
+            or after['startingpoint_release'] != baseline['startingpoint_release']):
+        raise AcceptanceError('Begin did not produce the purchased, unowned current Startingpoint project; no replay')
+    shared_state('begin', after)
+    after_ledger = compare_ledgers(runner.inspect('begin-after-host', 'host'),
+                                   runner.inspect('begin-after-client', 'client-1'))
+    price = result.get('price')
+    if type(price) is not int or price < 0:
+        raise AcceptanceError('Begin native price is absent/invalid; no replay')
+    expected = {**before, 'line_counts': list(before['line_counts']), 'line_income': list(before['line_income'])}
+    expected['cash'] -= price
+    expected['record_cash'] -= price
+    expected['record_expense'] += price
+    expected['line_counts'][3] += 1
+    expected['line_income'][3] -= price
+    if after_ledger != expected:
+        raise AcceptanceError('Begin full ledger differs from exactly one category3 purchase; no replay: '
+                              + str({'expected': expected, 'actual': after_ledger}))
+    for field in before:
+        if result.get('ledger_before', {}).get(field) != before[field] or result.get('ledger_after', {}).get(field) != after_ledger[field]:
+            raise AcceptanceError('Begin original native ledger receipt differs for ' + field + '; no replay')
+    runner.checked('begin-ledger-after', after_ledger)
+    runner.checked('begin-host-frame', runner.single('begin-host-frame', 'host', 'game_capture_frame'))
+    runner.summary.update(before=baseline, after=after, native_host_begin_proven=True,
+                          client_adoption_proven=True, ledger_equality_proven=True, native_purchase_price=price)
+
 try:
     runner.load_manifests()
     if runner.summary['runtime_run_id'] != args.expected_run_id:
@@ -73,6 +144,8 @@ try:
             if time.monotonic() >= deadline:
                 raise AcceptanceError('Host load did not reach idle mode3/state4 within60s; no replay')
         runner.checked('loaded-development', runner.single('loaded-development', 'host', 'game_read_tutorial_development'))
+    elif args.phase == 'begin':
+        begin_project()
     elif args.phase == 'prove':
         baseline = runner.single('baseline', 'host', 'game_read_tutorial_development')
         runner.checked('baseline', baseline)

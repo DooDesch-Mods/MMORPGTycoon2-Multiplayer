@@ -1,5 +1,7 @@
 #include "startingpoint_fixture.h"
 #include "controller_admission.h"
+#include "begin_guards.h"
+#include "tutorial_replication/startingpoint_creation_native.h"
 #include "tutorial_development.h"
 #include "tutorial_replication/native.h"
 #include "tutorial_observer.h"
@@ -31,7 +33,7 @@ using World=building_mixed_identity::opened_file::CurrentWorld;
 thread_local void* update_game=nullptr;
 thread_local unsigned update_depth=0;
 placement_ui_probe::ProcessMemory memory;
-struct Progress {bool shown=false,completed=false,committed=false,locked=false;std::string cause;};
+struct Progress {bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;
 std::map<std::string,json> receipts;
 bool busy=false;
@@ -157,6 +159,7 @@ DWORD activate(uintptr_t image,uintptr_t button){__try{reinterpret_cast<void(*)(
 DWORD show(uintptr_t image,uintptr_t window){__try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x81ec20)(reinterpret_cast<void*>(window),true,false);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 DWORD complete_state(uintptr_t image,uintptr_t lounge,bool& result){__try{result=reinterpret_cast<bool(*)(void*)>(image+0x25ed50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Busy {Busy(){busy=true;}~Busy(){busy=false;}};
+#include "begin_fixture.inc"
 }
 UpdateScope::UpdateScope(void* game) noexcept:outer_(update_depth==0){if(outer_)update_game=game;++update_depth;}
 UpdateScope::~UpdateScope(){if(update_depth)--update_depth;if(outer_)update_game=nullptr;}
@@ -165,7 +168,7 @@ bool run(const Request& request,json& result,std::string& e){
     std::string key;Progress* phase=nullptr;
     try{
         if(request.token.empty()||request.token.size()>64||request.origin_uuid.empty()||!request.epoch||!request.generation||
-           (request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"))return fail(e,"startingpoint fixture fixed request invalid");
+           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"))return fail(e,"startingpoint fixture fixed request invalid");
         // No shared receipt state is touched outside the bound update thread.
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,e))return false;
@@ -173,7 +176,9 @@ bool run(const Request& request,json& result,std::string& e){
             return fail(e,"startingpoint fixture requires owned GameUpdate/Mainthread before receipt access");
         if(receipts.contains(request.token)){result=receipts.at(request.token);result["replay_rejected"]=true;return fail(e,"startingpoint fixture token consumed; no replay");}
         if(busy||receipts.size()>=64||worlds.size()>=64)return fail(e,"startingpoint fixture busy or receipt bound reached");
-        Busy scope;Pin p;if(!pin(request,p,e)||!before(p,e))return false;
+        Busy scope;
+        if(request.operation=="begin")return begin_project(request,result,phase,key,e);
+        Pin p;if(!pin(request,p,e)||!before(p,e))return false;
         if(p.development!=request.expected_development)return fail(e,"startingpoint fixture expected development readback differs");
         key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation);
         phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);

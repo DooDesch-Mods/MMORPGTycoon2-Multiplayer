@@ -13,12 +13,36 @@ class TutorialObserverTests(unittest.TestCase):
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["show","complete","commit"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}
         self.assertEqual(dispatch(runtime,"game_tutorial_startingpoint",args),runtime.request.return_value)
         runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+
+    def test_startingpoint_begin_preserves_original_payment_and_unknown_receipts(self):
+        args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"begin",
+              "expected_development":{"project":{"present":False},"startingpoint":{"record_present":True,"purchased":False}}}
+        receipts=({"operation":"begin","attempted":True,"returned":True,"payment_accepted":True,"confirmed":True,"unknown":False,"price":100},
+                  {"operation":"begin","attempted":True,"returned":False,"confirmed":False,"unknown":True,
+                   "cause":"startingpoint begin original Pay exception=5"})
+        for receipt in receipts:
+            with self.subTest(receipt=receipt):
+                runtime=Mock()
+                runtime.request.return_value=receipt
+                self.assertIs(dispatch(runtime,"game_tutorial_startingpoint",args),receipt)
+                runtime.request.assert_called_once_with("tutorial_startingpoint",args)
+
+    def test_startingpoint_begin_requires_existing_native_origin_and_readback_guards(self):
+        good={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
+              "world_epoch":1,"world_generation":2,"operation":"begin","expected_development":{"project":{"present":False}}}
+        for bad in ({**good,"world_epoch":0},{**good,"native_origin_uuid":"other"},
+                    {**good,"expected_development":{}},{**good,"price":0}):
+            runtime=Mock()
+            with self.subTest(arguments=bad),self.assertRaises(RuntimeErrorDetail):
+                dispatch(runtime,"game_tutorial_startingpoint",bad)
+            runtime.request.assert_not_called()
 
     def test_startingpoint_invalid_fields_never_reach_native(self):
         good={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",

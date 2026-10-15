@@ -20,6 +20,7 @@ struct Calls {
     sp::Row actual=before();std::vector<std::string> effects,order;
     std::string fail_at;bool changed_owner=false,wrong_readback=false,throw_deploy=false;
     bool pin(const sp::Row& expected,bool deploying,std::string& error){order.push_back(deploying?"pin_deploy":"pin_project");if(changed_owner||actual!=expected){error="original project owner/readback changed";return false;}return true;}
+    bool create(std::string& error){error="unexpected creation in deployment-only regression";return false;}
     bool project(const sp::Row& target,std::string& error){order.push_back("project");effects.push_back("project");actual=target;if(fail_at=="project"){error="original project apply partial";return false;}return true;}
     bool deploy(std::string& error){order.push_back("deploy");effects.push_back("deploy");if(throw_deploy)throw std::runtime_error("original native Deploy exception");actual.deployed=true;actual.inventory_count=1;++actual.release_change_count;++actual.release_feature_count;++actual.release_counter;if(fail_at=="deploy"){error="original native Deploy partial";return false;}return true;}
     bool retire(std::string& error){order.push_back("retire");effects.push_back("retire");actual.project_present=false;actual.work=0;actual.lines=0;actual.desired_workers=0;actual.bugs_total=0;actual.bugs_known=0;actual.commit_bugs=sp::CommitBugs{};if(fail_at=="retire"){error="original project delete partial";return false;}return true;}

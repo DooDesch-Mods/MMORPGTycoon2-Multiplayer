@@ -1,6 +1,7 @@
 #include "tutorial_development.h"
 #include "initial_release/startingpoint_read.h"
 #include "tutorial_replication/admission_read.h"
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -127,8 +128,44 @@ bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::
         if(type==target)++matches;
     }return true;
 }
+bool source(Reader& r,uintptr_t image,uintptr_t address,ProjectSource& out,std::string& error){
+    out.address=address;
+    if(!r.type(address,image+0x16e48c0,"catalogue DevProject",error)||!r.at(address,0x18,out.kind,error)||
+       !r.string(address,0x20,out.key,error)||!r.string(address,0x40,out.art,error)||!r.at(address,0x60,out.statistic,error))return false;
+    return out.kind>=0&&out.kind<=3||fail(error,"development catalogue project kind outside0..3");
 }
-bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot){
+bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& error){
+    if(!snapshot.record)return fail(error,"startingpoint creation native TechRecord absent from owned SoftwareStatus");
+    CreationOwners out;const auto lounge=snapshot.lounge,image=snapshot.image;
+    std::vector<uintptr_t> catalogue,developers;
+    if(!r.array(lounge,0xd8,catalogue,error)||!r.at(lounge,0xd8,out.catalogue_data,error)||!r.at(lounge,0xe4,out.catalogue_capacity,error)||
+       !r.array(lounge,0x70,developers,error)||!r.at(lounge,0x70,out.developer_data,error)||!r.at(lounge,0x7c,out.developer_capacity,error)||
+       !r.at(lounge,0x57,out.automatic_workers,error)||!r.at(lounge,0x310,out.total_workers,error)||!r.at(snapshot.tech,0xb4,out.max_workers,error))return false;
+    if(!owner(r,image,reinterpret_cast<uintptr_t>(snapshot.origin.state),0x190,0x13df4f0,0x1714ed0,"ReleaseManager",out.release_manager,error)||
+       !r.at(out.release_manager,0x38,out.release_owner,error)||!r.type(out.release_owner,image+0x16c12b0,"Release",error)||
+       !r.array(out.release_owner,0x150,out.release_changes,error)||!r.at(out.release_owner,0x150,out.release_data,error)||
+       !r.at(out.release_owner,0x15c,out.release_capacity,error))return false;
+    if(out.automatic_workers>1||(out.automatic_workers&&(out.total_workers<0||out.max_workers<0)))
+        return fail(error,"startingpoint creation native automatic worker policy invalid");
+    for(auto address:catalogue){ProjectSource entry;if(!source(r,image,address,entry,error))return false;
+        if(entry.kind==0&&entry.key=="startingpoint"){
+            if(out.source)return fail(error,"startingpoint creation catalogue key duplicated");out.source=address;
+        }
+        out.catalogue.push_back(std::move(entry));
+    }
+    if(!out.source)return fail(error,"startingpoint creation catalogue project absent");
+    for(auto address:developers){DeveloperState entry;entry.address=address;
+        if(!r.type(address,image+0x17422e0,"Dev",error)||!r.at(address,0x4c4,entry.job,error))return false;
+        out.developers.push_back(entry);
+    }
+    if(snapshot.project){
+        if(std::find(catalogue.begin(),catalogue.end(),snapshot.project)!=catalogue.end())return fail(error,"startingpoint current project aliases owned catalogue member");
+        ProjectSource current;if(!source(r,image,snapshot.project,current,error))return false;out.current=std::move(current);
+    }
+    snapshot.creation=std::move(out);return true;
+}
+}
+bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot,bool creation){
     result=nullptr;if(snapshot)*snapshot={};
     try{
         Origin before;if(!port.current(before,error))return false;
@@ -155,17 +192,19 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
                !r.bytes(snapshot->slots,snapshot->items.data(),sizeof(snapshot->items),error))return false;
             const bool fixed_project=dev.at("present")==true&&dev.at("kind")==0&&dev.at("tech_key")=="startingpoint";
             const bool retired=!fixed_project&&tech.at("deployed")==true;
-            if(tech.at("record_present")==true&&(fixed_project||retired)){
+            const bool baseline=!snapshot->project&&tech.at("deployed")==false&&tech.at("custom")==false;
+            if(tech.at("record_present")==true&&(fixed_project||retired||baseline)){
                 tutorial_replication::startingpoint::Row row;
                 row.project_present=fixed_project;
                 // This row describes only the current Startingpoint project.
                 // Later unrelated projects remain in the ordinary diagnostic.
-                if(fixed_project){row.work=dev.at("work").get<float>();row.lines=dev.at("lines").get<int32_t>();
+                if(fixed_project||baseline){row.work=dev.at("work").get<float>();row.lines=dev.at("lines").get<int32_t>();
                     row.desired_workers=dev.at("desired_workers").get<int32_t>();row.bugs_total=dev.at("bugs_total").get<int32_t>();row.bugs_known=dev.at("bugs_known").get<int32_t>();}
                 row.purchased=tech.at("purchased").get<bool>();row.deployed=tech.at("deployed").get<bool>();row.custom=tech.at("custom").get<bool>();
                 row.inventory_count=item_count;row.release_change_count=release.change_count;row.release_feature_count=release.feature_count;row.release_counter=release.mutation_counter;
                 snapshot->row=row;
             }
+            if(creation&&!creation_owners(r,*snapshot,error))return false;
             startingpoint_adoption::Admission admission;
             snapshot->admitted=startingpoint_adoption::read_admission(r,image,state,startingpoint,admission,snapshot->admission_cause);
             snapshot->release=admission.release;

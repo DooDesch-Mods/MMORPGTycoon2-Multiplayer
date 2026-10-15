@@ -4,6 +4,8 @@
 #include "message_progress.h"
 #include "message_progress_contract.h"
 #include "startingpoint_native_code.h"
+#include "startingpoint_creation_native.h"
+#include "live_host_state/native_port.h"
 #include "tutorial_development.h"
 #include <algorithm>
 #include <cmath>
@@ -281,6 +283,12 @@ bool preflight(const action_session::Context& c,const action_session::Binding& b
         const auto& wanted=target.active[i];
         if(native[i].value.next==wanted.next&&native[i].value.message_progress.has_value()!=wanted.message_progress.has_value())return fail(e,"tutorial Host/local current Meter presence differs");
         if(wanted.message_progress){uintptr_t step=0,ap=0;if(!at(native[i].steps,size_t(wanted.next-1)*8,step,e)||!at(step,0,ap,e))return false;if(ap!=image+0x16fda00)return fail(e,"tutorial Host progress target is not a native Message step");}
+    }
+    if(!local.startingpoint&&target.startingpoint&&target.startingpoint->project_present){
+        tutorial_development::StartingpointSnapshot snapshot;nlohmann::json diagnostic;
+        if(!tutorial_development::read_startingpoint(snapshot,diagnostic,e))return false;
+        if(!snapshot.record)return fail(e,"startingpoint creation native TechRecord absent from owned SoftwareStatus");
+        if(snapshot.project)return fail(e,"startingpoint creation cannot replace a different current native project");
     }
     startingpoint::Plan operation;if(!startingpoint::plan(local.startingpoint,target.startingpoint,operation,e))return false;
     if(operation!=startingpoint::Plan::None){StartingpointCalls calls{c,b,{}};if(!calls.pin(*local.startingpoint,operation==startingpoint::Plan::Deploy,e))return false;}

@@ -1,6 +1,7 @@
 #include "vendor/nlohmann/json.hpp"
 #include "native_open_runtime.h"
 #include "tutorial_startingpoint_fixture/controller_admission.h"
+#include "tutorial_startingpoint_fixture/begin_guards.h"
 #include <algorithm>
 #include <array>
 #include <iostream>
@@ -65,6 +66,69 @@ int main(){
         altered=baseline;altered.items[0]=0;check(!one_inventory_insert(baseline,altered,error),"removal confirmed");
         altered=baseline;altered.items[1]=50;altered.inventory=21;
         check(!one_inventory_insert(baseline,altered,error),"foreign inventory confirmed");
+        using mt2mp::game::tutorial_startingpoint_fixture::before_begin;
+        using mt2mp::game::tutorial_startingpoint_fixture::begin_payment;
+        auto unstarted=native_baseline;
+        unstarted["project"].update({{"present",false},{"work",0.0f},{"lines",0},{"desired_workers",0},{"bugs_total",0},{"bugs_known",0}});
+        unstarted["startingpoint"].update({{"record_present",true},{"purchased",false},{"deployed",false},{"custom",false},{"owned",false},{"inventory_count",0}});
+        unstarted["startingpoint_release"]["feature_count"]=0;
+        error="stale";
+        check(before_begin(unstarted,0,error)&&error.empty(),"owned unpurchased no-project baseline rejected");
+        check(!before_begin(unstarted,1,error)&&!error.empty(),"native current project pointer admitted for begin");
+        auto begin_changed=unstarted;begin_changed["project"]["present"]=true;
+        check(!before_begin(begin_changed,0,error),"present project diagnostic admitted for begin");
+        for(const auto* field:{"work","lines","desired_workers","bugs_total","bugs_known"}){
+            begin_changed=unstarted;begin_changed["project"][field]=1;
+            check(!before_begin(begin_changed,0,error),"unreset native project counters admitted for begin");
+        }
+        for(const auto* field:{"purchased","deployed","custom","owned"}){
+            begin_changed=unstarted;begin_changed["startingpoint"][field]=true;
+            check(!before_begin(begin_changed,0,error),"already bought or owned record admitted for begin");
+        }
+        begin_changed=unstarted;begin_changed["startingpoint"]["record_present"]=false;
+        check(!before_begin(begin_changed,0,error),"missing owned TechRecord admitted for begin");
+        begin_changed=unstarted;begin_changed["startingpoint"]["inventory_count"]=1;
+        check(!before_begin(begin_changed,0,error),"existing native item admitted for begin");
+        begin_changed=unstarted;begin_changed["startingpoint_release"]["feature_count"]=1;
+        check(!before_begin(begin_changed,0,error),"existing native feature admitted for begin");
+        mt2mp::game::native::SimulationState ledger;
+        ledger.cash=1000;ledger.record_present=true;ledger.record_day=9;ledger.record_cash=1000;
+        ledger.record_income=37;ledger.record_expense=20;ledger.logged_in_subscribers=4;
+        ledger.clock.flat_day=9;ledger.clock.seconds=123;ledger.clock.time_scale=0;ledger.clock.pause_scale=3;ledger.clock.paused=true;
+        for(size_t i=0;i<20;++i){ledger.line_counts[i]=int32_t(i+1);ledger.line_income[i]=int32_t(i+100);}
+        const json original_ledger={{"cash",1000},{"record_present",true},{"record_day",9},{"record_cash",1000},
+            {"record_income",37},{"record_expense",20},{"line_counts",ledger.line_counts},{"line_income",ledger.line_income},
+            {"subscribers",4},{"clock_day",9},{"clock_seconds",123},{"clock_scale",0.0f},{"pause_scale",3.0f},{"paused",true}};
+        json expected;
+        error="stale";
+        check(begin_payment(ledger,0,expected,error)&&error.empty(),"zero-price original payment rejected");
+        auto desired=original_ledger;desired["line_counts"][3]=5;
+        check(expected==desired,"zero price must increment category3 only, including all20 ledger groups");
+        check(begin_payment(ledger,200,expected,error),"affordable original payment rejected");
+        desired=original_ledger;desired["cash"]=800;desired["record_cash"]=800;desired["record_expense"]=220;
+        desired["line_counts"][3]=5;desired["line_income"][3]=-97;
+        check(expected==desired,"positive payment changed wrong cash/current record/category or unrelated native state");
+        check(!begin_payment(ledger,-1,expected,error)&&expected.is_null()&&!error.empty(),"negative price accepted or stale expected ledger retained");
+        check(!begin_payment(ledger,1001,expected,error)&&expected.is_null(),"unaffordable price accepted");
+        for(unsigned field=0;field<5;++field){
+            auto invalid=ledger;
+            if(field==0)invalid.record_present=false;
+            if(field==1)invalid.record_day=8;
+            if(field==2)invalid.record_cash=999;
+            if(field==3)invalid.clock.time_scale=1;
+            if(field==4)invalid.clock.paused=false;
+            check(!begin_payment(invalid,1,expected,error)&&expected.is_null()&&error.find("paused matching current ledger")!=std::string::npos,"unpaused or stale current ledger admitted");
+        }
+        for(unsigned field=0;field<3;++field){
+            auto invalid=ledger;
+            if(field==0)invalid.line_counts[3]=INT32_MAX;
+            if(field==1)invalid.record_expense=INT32_MAX;
+            if(field==2)invalid.line_income[3]=INT32_MIN;
+            check(!begin_payment(invalid,1,expected,error)&&expected.is_null()&&error=="startingpoint begin category3 ledger would overflow","native payment overflow accepted or cause hidden");
+        }
+        auto boundary=ledger;boundary.line_counts[3]=INT32_MAX-1;boundary.record_expense=INT32_MAX-1;boundary.line_income[3]=INT32_MIN+1;
+        check(begin_payment(boundary,1,expected,error)&&expected["line_counts"][3]==INT32_MAX&&
+              expected["record_expense"]==INT32_MAX&&expected["line_income"][3]==INT32_MIN,"exact signed category3 arithmetic boundary rejected");
         std::cout<<"checks="<<checks<<" status=PASS\n";
         return 0;
     }catch(const std::exception& x){std::cerr<<"checks="<<checks<<" error="<<x.what()<<'\n';return 1;}

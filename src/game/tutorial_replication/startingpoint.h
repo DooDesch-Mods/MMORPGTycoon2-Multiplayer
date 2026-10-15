@@ -15,7 +15,7 @@ struct Row {
     std::optional<CommitBugs> commit_bugs;
     bool operator==(const Row&)const=default;
 };
-enum class Plan {None,Project,Deploy};
+enum class Plan {None,Project,Deploy,Create};
 bool valid(const Row&,std::string&);
 nlohmann::json encode(const Row&);
 bool decode(const nlohmann::json&,Row&,std::string&);
@@ -33,7 +33,10 @@ bool apply(const std::optional<Row>& local,const std::optional<Row>& target,Call
     attempted=true;unknown=true;
     if(operation==Plan::Deploy){
         if(!calls.deploy(error)||!calls.retire(error))return false;
-    }else if(!calls.project(*target,error))return false;
+    }else{
+        if(operation==Plan::Create&&!calls.create(error))return false;
+        if(!calls.project(*target,error))return false;
+    }
     if(!calls.readback(*target,error))return false;
     unknown=false;return true;
 }

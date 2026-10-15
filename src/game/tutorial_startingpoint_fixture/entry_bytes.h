@@ -4,6 +4,7 @@
 namespace mt2mp::game::tutorial_startingpoint_fixture {
 inline constexpr char exact_sha[]="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
 struct Entry {uintptr_t rva;size_t size;const char* sha256;};
+inline constexpr Entry host_begin_pay_entry{0x262ec0,0x10,"fc49725b7197e68a74987ec8d36dbab9dd98ff8b88c788b228a86993f01f422f"};
 inline constexpr Entry entries[]={
 {0x25ec50,0x10,"cc4e402cb0146ba76474fe7f05c7bec7eafa9675187e5e54b4190d1c5c2dfb63"},
 {0x25ed50,0x10,"4b43567bf3359cff608bb04a5de1af65e583922cb44b96bbcaeeb2d74535576f"},

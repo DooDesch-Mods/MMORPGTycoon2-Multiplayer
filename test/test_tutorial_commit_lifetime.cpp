@@ -31,7 +31,7 @@ bool verify_commit_entry(uintptr_t target,std::string& e){if(!entry_valid||targe
 void original_commit(void*){++originals;if(original_effect)original_effect();}
 }
 namespace mt2mp::game::tutorial_development {
-bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e){
+bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e,bool){
     ++read_calls;if(int(read_calls)==fail_read){e="original Startingpoint read failed";return false;}
     if(read_calls>samples.size()){e="fixture snapshot absent";return false;}out=samples[read_calls-1];return true;
 }

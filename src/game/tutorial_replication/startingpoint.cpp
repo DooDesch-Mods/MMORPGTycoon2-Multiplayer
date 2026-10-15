@@ -14,14 +14,16 @@ int32_t number(const nlohmann::json& j){
 }
 }
 bool valid(const Row& r,std::string& e){
-    if(r.commit_bugs&&(r.project_present||r.commit_bugs->total<0||r.commit_bugs->known<0||r.commit_bugs->known>r.commit_bugs->total))return fail(e,"startingpoint native Commit receipt invalid");
+    if(r.commit_bugs&&(!r.deployed||r.project_present||r.commit_bugs->total<0||r.commit_bugs->known<0||r.commit_bugs->known>r.commit_bugs->total))return fail(e,"startingpoint native Commit receipt invalid");
     if(!std::isfinite(r.work)||r.work<0||r.lines<0||r.desired_workers<0||r.bugs_total<0||r.bugs_known<0||r.bugs_known>r.bugs_total||
        r.inventory_count<0||r.inventory_count>200||r.release_change_count<0||r.release_change_count>4096||
        r.release_feature_count<0||r.release_feature_count>r.release_change_count)
         return fail(e,"startingpoint row numeric bounds invalid");
-    if(!r.purchased||r.custom||r.project_present==r.deployed)
-        return fail(e,"startingpoint row requires purchased native project or deployed non-custom record");
-    if(!r.project_present&&(r.work!=0||r.lines||r.desired_workers||r.bugs_total||r.bugs_known))
+    if(r.custom||(r.project_present&&r.deployed)||((r.project_present||r.deployed)&&!r.purchased))
+        return fail(e,"startingpoint row requires native unowned record, purchased project or deployed record");
+    if(!r.project_present&&!r.deployed&&(r.inventory_count||r.release_feature_count))
+        return fail(e,"startingpoint no-project baseline already has native deployment effects");
+    if(r.deployed&&(r.work!=0||r.lines||r.desired_workers||r.bugs_total||r.bugs_known))
         return fail(e,"startingpoint retired project counters differ from native Commit tail");
     e.clear();return true;
 }
@@ -55,8 +57,14 @@ bool plan(const std::optional<Row>& local,const std::optional<Row>& target,Plan&
     out=Plan::None;
     if(local&&!valid(*local,e))return false;if(target&&!valid(*target,e))return false;
     if(local==target){e.clear();return true;}
-    if(!local||!target)return fail(e,"startingpoint native project creation/removal outside fixed adoption slice");
+    if(!local||!target)return fail(e,"startingpoint adoption requires explicit owned native record on both sides");
     const auto& a=*local;const auto& b=*target;
+    if(!a.project_present&&!a.deployed){
+        if(!b.project_present||!b.purchased||b.deployed)return fail(e,"startingpoint creation requires Host purchased current project");
+        if(b.inventory_count!=a.inventory_count||b.release_change_count!=a.release_change_count||b.release_feature_count!=a.release_feature_count||b.release_counter!=a.release_counter)
+            return fail(e,"startingpoint creation frame changed native deployment effects");
+        out=Plan::Create;e.clear();return true;
+    }
     if(!a.project_present||a.deployed||a.inventory_count||a.release_feature_count)
         return fail(e,"startingpoint adoption requires current unowned project");
     if(b.project_present){
@@ -75,6 +83,7 @@ bool plan(const std::optional<Row>& local,const std::optional<Row>& target,Plan&
     e.clear();return true;
 }
 bool accepts_complete_tech(const std::string& scenario,int32_t index,const std::string& key,const std::optional<Row>& target){
-    std::string e;return scenario=="initial_tutorial"&&index==93&&key=="startingpoint"&&target&&valid(*target,e);
+    std::string e;return scenario=="initial_tutorial"&&index==93&&key=="startingpoint"&&target&&target->purchased&&
+        (target->project_present||target->deployed)&&valid(*target,e);
 }
 }

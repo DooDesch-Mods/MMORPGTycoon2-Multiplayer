@@ -1,0 +1,71 @@
+{
+  "schema": 1,
+  "scope": "Joined no-project Startingpoint purchase, native project creation and new allocation lifetime",
+  "released": false,
+  "project_creation_proven": true,
+  "client_commit_intent_proven": false,
+  "full_tutorial_proven": false,
+  "build": "artifacts/build_history/20261015T024419187539Z",
+  "mod_sha256": "08da6b263e8addaac6f11dadfe07301a085d00058322677613ed023f0d00f56f",
+  "runtime_run_id": "6f4b5456-2338-44d2-8bc0-c4233bf2c677",
+  "native": {
+    "admission": {
+      "path": "artifacts/acceptance/3298e0b0-a064-4c57-bdb5-2e484193bf2e/summary.json",
+      "sha256": "5347afc68edcc10fc62219f9ec9df237bf70a1e12f78c8ae722b1c8845b57105"
+    },
+    "creation": {
+      "path": "artifacts/acceptance/25eee48e-b0b6-4a4d-a4d0-7f1ec0106b6a/summary.json",
+      "sha256": "846e3ab12d41533bd7ae8a23441466beec9226f5b7d8ae028bcac2f6556a1b03"
+    },
+    "new_project_lifetime": {
+      "path": "artifacts/acceptance/d323dc25-c210-4bb0-92b4-20a7d7fa3991/summary.json",
+      "sha256": "c679ceff25067f055b72d66ed218eca4a04bacfeb0eeafdac37869bd1270bff1"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/52d8159a-4d04-42b4-b1f5-3dd540f018f0/summary.json",
+      "sha256": "b8325644a4a5892bd5d37537a9d6aee33c2fd53ddef98b3e5666cf8f2bb47ef0"
+    },
+    "native_exit": {
+      "path": "artifacts/acceptance/a4d54bbd-17fa-4090-8b3e-a12f950b2a12/summary.json",
+      "sha256": "2bf6fd99395ae912633774b92164594554b69e7408ce88672b4e9a76dab9dfc2"
+    }
+  },
+  "frames": {
+    "host": "_drafts/media/startingpoint-created-host.bmp",
+    "client-1": "_drafts/media/startingpoint-created-client-1.bmp"
+  },
+  "crash_monitors": [
+    "artifacts/tutorial_crash/6f4b5456-2338-44d2-8bc0-c4233bf2c677/monitor-result.json",
+    "artifacts/tutorial_crash/6f4b5456-2338-44d2-8bc0-c4233bf2c677/peer-2/monitor-result.json"
+  ],
+  "source_manifest_sha256": "d634ab0a1533e9060cef476b297254501cd07121ffcb7c0f56152f00a88dd754",
+  "test_manifest_sha256": "226d830e5a8e34c0ad3d41a313f5daec01c9c556d27b50e6dd96bf6c5e14aa6b",
+  "checks": [
+    "Both peers reached Playing with an existing unpurchased native TechRecord and no current project.",
+    "The fixed Host diagnostic called original Pay and SetCurrentDevProject once using the unique owned catalogue project.",
+    "The Client created a separate engine-owned project with original PurchaseForFree and SetCurrentDevProject, then adopted Host progress.",
+    "Full native cash, current-day record, income, expense and all20 ledger lines agree; purchase category3 increments exactly once.",
+    "Both newly allocated projects completed, deployed one inventory item and one Release feature, and retired after original Host UI Commit.",
+    "Both actual Client readbacks kept Clock0; the new owned project copies and stable catalogue/Developer/Release membership were checked.",
+    "Both games left and exited normally with code0; both exception monitors ended without a dump."
+  ],
+  "tests": {
+    "canonical_ctest_groups": 4,
+    "seconds": 0.51,
+    "creation_scenarios": 41,
+    "host_fixture_checks": 61,
+    "affected_existing_scenarios_carried": 64,
+    "mcp_begin_dispatch_tests": 5,
+    "native_begin_offline_cases": 12,
+    "log": "artifacts/build_history/20261015T024419187539Z/creation-test-details.log"
+  },
+  "native_price": 0,
+  "limits": [
+    "The pre-purchase snapshot is an early tutorial fixture. This is not a proof of the complete natural new-world tutorial flow.",
+    "Host project creation used the original engine route through a fixed MCP diagnostic, not a click on the Research button. Commit used its actual native button.",
+    "Startingpoint costs0 in this native fixture. Positive-price and overflow accounting are unit-covered; no positive-price native technology purchase is claimed.",
+    "Only Startingpoint creation is supported by this slice. Other technology families, Client research/start requests and nonzero Map bug effects remain open.",
+    "Client Commit intent remains staged and unintegrated. There is no new four-player, large-save or separate-account Steam proof.",
+    "The installed and published tester version remains Beta5; this source slice has no new release marker."
+  ]
+}

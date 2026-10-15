@@ -17,5 +17,5 @@ public:
 };
 }
 bool read(nlohmann::json& result,std::string& error){NativePort port;StartingpointSnapshot snapshot;return detail::observe(port,result,error,&snapshot);}
-bool read_startingpoint(StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error){NativePort port;return detail::observe(port,result,error,&snapshot);}
+bool read_startingpoint(StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error,bool creation){NativePort port;return detail::observe(port,result,error,&snapshot,creation);}
 }
