@@ -2,6 +2,7 @@
 #include "monster_zone_read.h"
 #include "monster_zone_stroke.h"
 #include "monster_zone_probe_guards.h"
+#include "monster_zone_tab.h"
 #include "npc_saved_identity_runtime.h"
 #include "npc_target_key.h"
 #include "npc_host_state_binding.h"

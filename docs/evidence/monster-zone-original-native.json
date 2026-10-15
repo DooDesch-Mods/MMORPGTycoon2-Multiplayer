@@ -1,0 +1,314 @@
+{
+  "schema": 1,
+  "scope": "Original isolated Host MonsterZone brush creation; not multiplayer action acceptance",
+  "base_commit": "6da22be157e23a6db90e5971e40d5492715a2100",
+  "build": "artifacts/build_history/20261015T132648295595Z",
+  "dll_sha256": "075a9ef3ee950e5d752aea53be6c3be190e9d03c390c158e97bf51ab2c3d094e",
+  "runtime_run_id": "4b06ee04-0a45-440c-b0b7-384392b8cbcb",
+  "world_snapshot": "1a268382-10af-4400-93f2-3a904a83775b",
+  "host_clock_scale": 0,
+  "controller_initialized": false,
+  "lobby_admitted": false,
+  "source_sha256": {
+    "ci/monster_zone_probe_checks.cmake": "453f3f0053edfb1c62be3b150be325f48cd0da6a1d4f2d040b63bd85e299ae0c",
+    "src/game/monster_zone_probe.inc": "3d144f22ce64642d5fede100194d329e5c7e7e5f54c9ed47b4d0581901fd269b",
+    "src/game/monster_zone_tab.h": "fbecc044bb506647c7462cb2c7b81f8157808e17578b6e6cbb8d5c8ab2ef5b33",
+    "src/game/npc_probe.cpp": "c86281748592b363a7b256f0856f23ddd7a51e137ad57d4850cb7d29b234ff24",
+    "test/mcp/test_monster_zone_probe.py": "ea20f6d7baf0c2fbe433f26cfa2c72f5af7e538c83229cb04360b0a8b10aa5f4",
+    "test/test_monster_zone_tab.cpp": "4e2b48aa1e85f15db4a816ab5b481d8726f784ee5f3a0ef5726d8f79e06117ac",
+    "tools/mcp/monster_zone_probe_ops.py": "b58422c9fcd4d0c67d57531609d4f65a90954e723a2e93584b11c17216fc5688"
+  },
+  "focused_checks": {
+    "cpp_tab_cases": 40,
+    "sdk_zone_cases": 36,
+    "canonical_ctest": "artifacts/native_gate_canonical_ctest.log"
+  },
+  "camera": "artifacts/acceptance/bce355eb-4e19-4874-aab6-5b165ed76079/summary.json",
+  "original_npcs_tab": "artifacts/acceptance/fa01852d-a830-474c-a247-586427abe428/summary.json",
+  "inactive_state_before_open": "artifacts/acceptance/da30d84e-8ca4-42de-982f-00b4790df8fa/summary.json",
+  "original_monster_item": "artifacts/acceptance/808c18d0-9eda-42f5-b264-90ecc1b5b701/summary.json",
+  "ready_brush_state": "artifacts/acceptance/6cd2d970-6ae4-47bf-afb9-e4ff5c5a2f51/summary.json",
+  "original_monster_selection": "artifacts/acceptance/5e16acd3-498f-4a1b-96b8-ff9945fe1260/summary.json",
+  "native_stroke": "artifacts/acceptance/752694c7-dde3-47f0-b1b5-660afef14f2e/summary.json",
+  "calls": [
+    {
+      "attempted": true,
+      "exception": 0,
+      "name": "MouseOver",
+      "returned": true
+    },
+    {
+      "attempted": true,
+      "exception": 0,
+      "name": "Press_Left",
+      "returned": true
+    },
+    {
+      "attempted": true,
+      "exception": 0,
+      "name": "Drag_Left",
+      "returned": true
+    },
+    {
+      "attempted": true,
+      "exception": 0,
+      "name": "Release_Left",
+      "returned": true
+    }
+  ],
+  "selected": [
+    1,
+    0
+  ],
+  "before_counts": {
+    "zones": 0,
+    "monsters": 0
+  },
+  "after_press_counts": {
+    "zones": 1,
+    "monsters": 0
+  },
+  "after_release_counts": {
+    "zones": 1,
+    "monsters": 0
+  },
+  "created_zone": {
+    "constructed_day": 1,
+    "density": 2,
+    "level": 1,
+    "local_uid": 3713,
+    "monster_local_uids": [],
+    "monster_type": 0,
+    "sections": [
+      [
+        [
+          1174095903,
+          0,
+          1174741777
+        ],
+        [
+          1174117951,
+          0,
+          1174749786
+        ],
+        [
+          1174131575,
+          0,
+          1174761586
+        ],
+        [
+          1174131098,
+          0,
+          1174780256
+        ],
+        [
+          1174126004,
+          0,
+          1174788096
+        ],
+        [
+          1174107769,
+          0,
+          1174798222
+        ],
+        [
+          1174082873,
+          0,
+          1174803764
+        ],
+        [
+          1174039237,
+          0,
+          1174803764
+        ],
+        [
+          1174014343,
+          0,
+          1174798222
+        ],
+        [
+          1173996108,
+          0,
+          1174788096
+        ],
+        [
+          1173987686,
+          0,
+          1174775137
+        ],
+        [
+          1173990535,
+          0,
+          1174761586
+        ],
+        [
+          1174004161,
+          0,
+          1174749786
+        ],
+        [
+          1174026207,
+          0,
+          1174741777
+        ],
+        [
+          1174052864,
+          0,
+          1174738944
+        ],
+        [
+          1174069248,
+          0,
+          1174738944
+        ]
+      ]
+    ],
+    "shape": [
+      [
+        [
+          8041015,
+          8520767
+        ],
+        [
+          8051781,
+          8528588
+        ],
+        [
+          8058433,
+          8540111
+        ],
+        [
+          8058200,
+          8558344
+        ],
+        [
+          8055713,
+          8566000
+        ],
+        [
+          8046809,
+          8575889
+        ],
+        [
+          8034653,
+          8581301
+        ],
+        [
+          8013346,
+          8581301
+        ],
+        [
+          8001191,
+          8575889
+        ],
+        [
+          7992287,
+          8566000
+        ],
+        [
+          7988175,
+          8553345
+        ],
+        [
+          7989566,
+          8540111
+        ],
+        [
+          7996219,
+          8528588
+        ],
+        [
+          8006984,
+          8520767
+        ],
+        [
+          8020000,
+          8518000
+        ],
+        [
+          8028000,
+          8518000
+        ]
+      ]
+    ],
+    "type": 1
+  },
+  "ledger_unchanged": true,
+  "undo_before": {
+    "active_graph": false,
+    "redo_count": 0,
+    "undo_count": 0
+  },
+  "undo_after": {
+    "active_graph": false,
+    "redo_count": 0,
+    "undo_count": 1
+  },
+  "release_edits_before": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    2,
+    0
+  ],
+  "release_edits_after": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    2,
+    0
+  ],
+  "random_before": {
+    "global_random": [
+      14518785189737715816,
+      4269546471465028596,
+      7066741934898540240,
+      745637101911865977
+    ],
+    "region_random": [
+      15986357097635698173,
+      7268236269998567511,
+      7650805773846877261,
+      12553594250070911298
+    ]
+  },
+  "random_after": {
+    "global_random": [
+      10595329361127947997,
+      2895824853250852374,
+      16503239154106499896,
+      3694642779029215317
+    ],
+    "region_random": [
+      15986357097635698173,
+      7268236269998567511,
+      7650805773846877261,
+      12553594250070911298
+    ]
+  },
+  "created_monsters_before": 0,
+  "created_monsters_after": 0,
+  "frame": {
+    "evidence": "test/mcp/evidence/monster-zone-created-frame_20261015T134013059820Z.json",
+    "path": "_drafts/media/monster-zone-created-host.bmp",
+    "pixel_sha256": "66b0e3f3c8019f1353eeca879634f0abd194915ad4e83e6367d66228af74b7ae",
+    "viewed": true
+  },
+  "retirement": "artifacts/acceptance/2236a6e8-705f-4e4f-8c11-fed745806cd3/summary.json",
+  "native_exit": "artifacts/acceptance/4b86b2de-21f3-4acf-868a-be9d32974e6f/summary.json",
+  "both_exit_codes": 0,
+  "crash_dumps": 0,
+  "limits": [
+    "One original local Zone creation and closed Undo graph are proven",
+    "This small stroke spawned no Monsters; no Monster birth or spawn determinism claim",
+    "Host-ordered Action23, dynamic Quest-pool membership and Client application remain open",
+    "No normal simulation time was advanced for this measurement",
+    "The separate Developer Record preflight failure did not enter an actor or property call"
+  ]
+}

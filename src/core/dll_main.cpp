@@ -24,6 +24,7 @@
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
 #include "../game/developer_staff/probe.h"
+#include "../game/developer_staff/retirement/retire.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
 #include "../game/subscriber_lifecycle/runtime_append.h"
 #include "mt2mp/net/snapshot_sync.h"
@@ -886,6 +887,8 @@ static json status() {
     result["capabilities"]["read_native_loans"]=owned_native_profile;
     result["capabilities"]["read_native_release"]=owned_native_profile;
     result["capabilities"]["read_native_developers"]=owned_native_profile;
+    result["capabilities"]["read_native_developer_retirement"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
+    result["capabilities"]["native_developer_retirement_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_developer_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_initial_release_fixture"]=owned_native_profile;
     result["capabilities"]["native_take_loan_fixture"]=owned_native_profile;
@@ -1326,7 +1329,16 @@ static void diagnostics_tick() {
             operation!="read_time_mouse"&&operation!="read_time_input"&&operation!="read_time_acceptance"&&
             operation!="status"&&operation!="inspect_engine"&&operation!="read_time_ui")
             throw std::runtime_error("time_input_previous_effect_unresolved; competing native operation rejected");
-        if(operation=="read_native_developers"||operation=="native_developer_fixture") {
+        if(operation=="read_native_developer_retirement"||operation=="native_developer_retirement_fixture") {
+            json observed;std::string error;
+            if(operation=="read_native_developer_retirement") {
+                if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("Developer retirement read requires empty arguments");
+                response["ok"]=game::developer_staff::retirement::observe_fixture(observed,error);
+            }else response["ok"]=game::developer_staff::retirement::run_fixture(request.at("args"),observed,error);
+            response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_RETIREMENT_FAILED"},{"message",error}};
+        }
+        else if(operation=="read_native_developers"||operation=="native_developer_fixture") {
             json observed;std::string error;
             if(operation=="read_native_developers") {
                 if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("Developer read requires empty arguments");

@@ -135,3 +135,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/npc_pose_phase_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/monster_zone_probe_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/developer_staff_retirement_checks.cmake")

@@ -25,15 +25,38 @@ DESCRIPTIONS = {
 }
 
 
+SCHEMAS["read_native_developer_retirement"] = SCHEMAS["read_native_developers"]
+SCHEMAS["native_developer_retirement_fixture"] = {
+    "type": "object", "properties": {
+        **{k: v for k, v in SCHEMAS["native_developer_fixture"]["properties"].items() if k != "command"},
+        "slot": {"type": "integer", "minimum": 0, "maximum": 49},
+        "id": {"type": "integer", "minimum": 0, "maximum": 49},
+    },
+    "required": ["token", "native_origin_uuid", "epoch", "generation", "expected_count", "slot", "id"],
+    "additionalProperties": False,
+}
+DESCRIPTIONS["read_native_developer_retirement"] = "Read actual fixed50 Developer closure details and retained retirement receipts on isolated Host/Clock0 before Controller initialization. No mutation or lock reset."
+DESCRIPTIONS["native_developer_retirement_fixture"] = "Run one fixed original active-property/arrival closure for an actual fired-active no-job/no-carried Developer on isolated Host/Clock0 before Controller initialization. Requires exact actual Origin/count/slot/persisted ID. Diagnostic fixture only; no peer ACK. Token consumed before native call; no replay."
+
+
 def validate(op, args):
     def bad(cause):
         raise RuntimeErrorDetail("invalid_args", cause)
 
     if not isinstance(args, dict):
         bad("Developer operation requires an exact argument object")
-    if op == "read_native_developers":
+    if op in {"read_native_developers", "read_native_developer_retirement"}:
         if args:
             bad("Developer read requires empty arguments")
+        return
+    if op == "native_developer_retirement_fixture":
+        required = {"token", "native_origin_uuid", "epoch", "generation", "expected_count", "slot", "id"}
+        if set(args) != required:
+            bad("Developer retirement fixture requires exact seven fields")
+        validate("native_developer_fixture", {**{k: args[k] for k in required - {"slot", "id"}}, "command": "Fire"})
+        for key in ("slot", "id"):
+            if type(args[key]) is not int or not 0 <= args[key] <= 49:
+                bad("Developer retirement slot/persisted ID must be exact int0..49")
         return
     required = {"command", "token", "native_origin_uuid", "epoch", "generation", "expected_count"}
     if op != "native_developer_fixture" or set(args) != required:

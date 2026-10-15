@@ -1,0 +1,648 @@
+{
+  "schema": 1,
+  "scope": "Original isolated Host Developer scalar retirement and MonsterZone four-Monster creation prerequisites",
+  "base_commit": "6da22be157e23a6db90e5971e40d5492715a2100",
+  "build": "artifacts/build_history/20261015T134540383099Z",
+  "dll_sha256": "fb439e0246f47b4c01840f4c470f3c8726e8c8f8fffc7e4ca62cf1609c685dc3",
+  "source_sha256": {
+    ".github/workflows/beta.yml": "dade026cd2ae79a6c92f3d68ef7ca628758d0f05fcbd599365c149672c181552",
+    ".github/workflows/windows.yml": "4f5dbf490ba3f8f0f9859b513883e9d49de6c8f45cbb63dd9e715b574c5d00d9",
+    "ci/CMakeLists.txt": "a30dc52e2f454149461abeecc55b88ecda27aa33f472c6d6764f1d702b627e54",
+    "ci/developer_staff_retirement_checks.cmake": "c4caecd65a1ad499d87f617880b8e5fe8bb79dc28ce952de9e0d0df2c6c533a8",
+    "ci/monster_zone_probe_checks.cmake": "453f3f0053edfb1c62be3b150be325f48cd0da6a1d4f2d040b63bd85e299ae0c",
+    "src/core/dll_main.cpp": "4edbb9c0be9b79fd5bb0060326c2c72931ec0855f7117ac2b37e7a9aa69003a7",
+    "src/game/developer_staff/retirement/retire.cpp": "bc8b98f9017781dc79f4f114db91ad37abed133fb8af9c0f10aec0b41e84a4bc",
+    "src/game/developer_staff/retirement/retire.h": "e7b27721f38a06a644342c3ad09c496155e89ae0b29630adeaee4f98c06e76a1",
+    "src/game/developer_staff/retirement/retire_calls.cpp": "2005e251be7d629dd772816c7ffc90831fa470ec462c7e72077cff60bf65a495",
+    "src/game/developer_staff/retirement/retire_process.cpp": "e53963ad1f2771e4c8698f3fb7f6195181c3ffedbf5cdd7c76a938e94c51139e",
+    "src/game/monster_zone_probe.inc": "3d144f22ce64642d5fede100194d329e5c7e7e5f54c9ed47b4d0581901fd269b",
+    "src/game/monster_zone_tab.h": "fbecc044bb506647c7462cb2c7b81f8157808e17578b6e6cbb8d5c8ab2ef5b33",
+    "src/game/npc_probe.cpp": "c86281748592b363a7b256f0856f23ddd7a51e137ad57d4850cb7d29b234ff24",
+    "test/mcp/test_developer_retirement.py": "674234312681d2640dac13597472609ff1f50ab853fa198243b5a6a21d3fcfd2",
+    "test/mcp/test_monster_zone_probe.py": "ea20f6d7baf0c2fbe433f26cfa2c72f5af7e538c83229cb04360b0a8b10aa5f4",
+    "test/test_developer_retirement.cpp": "f1998827be897512f6be8e8b00379264bf4c03cd18b62db2c4337fdf39d8ebcd",
+    "test/test_monster_zone_tab.cpp": "4e2b48aa1e85f15db4a816ab5b481d8726f784ee5f3a0ef5726d8f79e06117ac",
+    "tools/mcp/developer_staff_ops.py": "09693ef6674d4efd674716618352554cb252393ada9df3904c6c83fa7455568d",
+    "tools/mcp/monster_zone_probe_ops.py": "b58422c9fcd4d0c67d57531609d4f65a90954e723a2e93584b11c17216fc5688",
+    "tools/mcp/runtime.py": "5f2bad5e5a1730e0481af2b7e169e231576af44ac022199f700d76b88f52d435",
+    "tools/mcp/server.py": "5bd5b32651210ecd47d8b3530880cd77da11b0f1b137855820bcda455bfe4869"
+  },
+  "runtime_run_id": "33a82aca-cb37-42c2-a395-d81d20cb1ebf",
+  "world_snapshot": "1a268382-10af-4400-93f2-3a904a83775b",
+  "controller_initialized": false,
+  "lobby_admitted": false,
+  "host_clock_scale": 0,
+  "checks": {
+    "canonical_ctest": "artifacts/native_gate_canonical_ctest.log",
+    "tab_cpp_cases": 40,
+    "retirement_cpp_cases": 28,
+    "zone_sdk_cases": 36,
+    "retirement_sdk_groups": 4,
+    "affected_staff_sdk_groups": 6,
+    "carried_cpp_note": "Retirement effect/read code and tests unchanged by the native record comparison correction"
+  },
+  "developer": {
+    "native_acceptance": "artifacts/acceptance/60e31b87-78bc-4e6b-b58c-5beee5946957/summary.json",
+    "original_hire_fire_fixture": "artifacts/acceptance/eccbf76e-4d4f-44cd-99d8-1cf38e39bf2b/summary.json",
+    "route": "indoor_idle",
+    "slot": 1,
+    "persisted_id": 1,
+    "before_actor": {
+      "active": true,
+      "employed": false,
+      "id": 1,
+      "job_link": false,
+      "on_map": false,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "slot": 1,
+      "state": 0
+    },
+    "after_actor": {
+      "active": false,
+      "employed": false,
+      "id": 1,
+      "job_link": false,
+      "on_map": false,
+      "position": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "slot": 1,
+      "state": 0
+    },
+    "other49_exact": true,
+    "extended_details_before": {
+      "carried_present": false,
+      "current_index": -1,
+      "current_present": false,
+      "destination_index": 0,
+      "destination_present": false,
+      "job_present": false,
+      "moving": 0,
+      "quadtree_present": false,
+      "tick_delay": 0.0
+    },
+    "extended_details_after": {
+      "carried_present": false,
+      "current_index": -1,
+      "current_present": false,
+      "destination_index": 0,
+      "destination_present": false,
+      "job_present": false,
+      "moving": 0,
+      "quadtree_present": false,
+      "tick_delay": 0.0
+    },
+    "ledger_unchanged": true,
+    "genuine_record_and_cleanup_confirmed": true,
+    "property_accepted_returned": true,
+    "unknown": false,
+    "peer_ack": false
+  },
+  "retained_failed_attempt": {
+    "acceptance": "artifacts/acceptance/64d86c22-755e-4239-af42-e26d43fd3dfc/summary.json",
+    "readback": "test/mcp/evidence/retirement-cause-read_20261015T133341686638Z.json",
+    "native_actor_attempted": false,
+    "record_cleanup_confirmed": true,
+    "cause": "RecordEquals compares the full token record; active false was compared against active",
+    "fix": "Compare the complete active false record and preserve exact token checks",
+    "old_token_replayed": false
+  },
+  "monster_spawn": {
+    "native_acceptance": "artifacts/acceptance/74a8c6d8-4ba3-4108-8a99-44cb8ee70091/summary.json",
+    "points": [
+      [
+        8020,
+        70.57682800292969,
+        8550
+      ],
+      [
+        8084,
+        70.57682800292969,
+        8550
+      ]
+    ],
+    "calls": [
+      {
+        "attempted": true,
+        "exception": 0,
+        "name": "MouseOver",
+        "returned": true
+      },
+      {
+        "attempted": true,
+        "exception": 0,
+        "name": "Press_Left",
+        "returned": true
+      },
+      {
+        "attempted": true,
+        "exception": 0,
+        "name": "Drag_Left",
+        "returned": true
+      },
+      {
+        "attempted": true,
+        "exception": 0,
+        "name": "Release_Left",
+        "returned": true
+      }
+    ],
+    "before_counts": {
+      "zones": 0,
+      "monsters": 0
+    },
+    "after_press_counts": {
+      "zones": 1,
+      "monsters": 0
+    },
+    "after_release_counts": {
+      "zones": 1,
+      "monsters": 4
+    },
+    "zone": {
+      "constructed_day": 1,
+      "density": 2,
+      "level": 1,
+      "local_uid": 3713,
+      "monster_local_uids": [
+        3714,
+        3720,
+        3726,
+        3732
+      ],
+      "monster_type": 0,
+      "sections": [
+        [
+          [
+            1174210591,
+            0,
+            1174741777
+          ],
+          [
+            1174232639,
+            0,
+            1174749786
+          ],
+          [
+            1174246263,
+            0,
+            1174761586
+          ],
+          [
+            1174249112,
+            0,
+            1174775137
+          ],
+          [
+            1174240692,
+            0,
+            1174788096
+          ],
+          [
+            1174222457,
+            0,
+            1174798222
+          ],
+          [
+            1174197561,
+            0,
+            1174803764
+          ],
+          [
+            1174039237,
+            0,
+            1174803764
+          ],
+          [
+            1174014343,
+            0,
+            1174798222
+          ],
+          [
+            1173996108,
+            0,
+            1174788096
+          ],
+          [
+            1173987686,
+            0,
+            1174775137
+          ],
+          [
+            1173990535,
+            0,
+            1174761586
+          ],
+          [
+            1174004161,
+            0,
+            1174749786
+          ],
+          [
+            1174026207,
+            0,
+            1174741777
+          ],
+          [
+            1174052864,
+            0,
+            1174738944
+          ],
+          [
+            1174183936,
+            0,
+            1174738944
+          ]
+        ],
+        [
+          [
+            1174131098,
+            0,
+            1174762943
+          ],
+          [
+            1174131098,
+            0,
+            1174780621
+          ],
+          [
+            1174179635,
+            0,
+            1174780621
+          ],
+          [
+            1174179635,
+            0,
+            1174762938
+          ],
+          [
+            1174150074,
+            0,
+            1174760346
+          ]
+        ],
+        [
+          [
+            1174194790,
+            0,
+            1174769903
+          ],
+          [
+            1174194790,
+            0,
+            1174773527
+          ],
+          [
+            1174210030,
+            0,
+            1174779802
+          ],
+          [
+            1174223174,
+            0,
+            1174779802
+          ],
+          [
+            1174238413,
+            0,
+            1174773527
+          ],
+          [
+            1174238413,
+            0,
+            1174769903
+          ],
+          [
+            1174223184,
+            0,
+            1174763520
+          ],
+          [
+            1174210019,
+            0,
+            1174763520
+          ]
+        ]
+      ],
+      "shape": [
+        [
+          [
+            8097015,
+            8520767
+          ],
+          [
+            8107781,
+            8528588
+          ],
+          [
+            8114433,
+            8540111
+          ],
+          [
+            8115824,
+            8553345
+          ],
+          [
+            8111713,
+            8566000
+          ],
+          [
+            8102809,
+            8575889
+          ],
+          [
+            8090653,
+            8581301
+          ],
+          [
+            8013346,
+            8581301
+          ],
+          [
+            8001191,
+            8575889
+          ],
+          [
+            7992287,
+            8566000
+          ],
+          [
+            7988175,
+            8553345
+          ],
+          [
+            7989566,
+            8540111
+          ],
+          [
+            7996219,
+            8528588
+          ],
+          [
+            8006984,
+            8520767
+          ],
+          [
+            8020000,
+            8518000
+          ],
+          [
+            8084000,
+            8518000
+          ]
+        ],
+        [
+          [
+            8058200,
+            8541437
+          ],
+          [
+            8058200,
+            8558700
+          ],
+          [
+            8081900,
+            8558700
+          ],
+          [
+            8081900,
+            8541432
+          ],
+          [
+            8067466,
+            8538900
+          ]
+        ],
+        [
+          [
+            8089300,
+            8548233
+          ],
+          [
+            8089300,
+            8551772
+          ],
+          [
+            8096741,
+            8557900
+          ],
+          [
+            8103159,
+            8557900
+          ],
+          [
+            8110600,
+            8551772
+          ],
+          [
+            8110600,
+            8548233
+          ],
+          [
+            8103164,
+            8542000
+          ],
+          [
+            8096736,
+            8542000
+          ]
+        ]
+      ],
+      "type": 1
+    },
+    "monsters": [
+      {
+        "character_id": [
+          1,
+          0
+        ],
+        "level": 1,
+        "local_tag": 0,
+        "local_uid": 3714,
+        "position": [
+          8069.9443359375,
+          67.71649169921875,
+          8538.0244140625
+        ],
+        "rank": 0,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "status": 3,
+        "zone_local_uid": 3713
+      },
+      {
+        "character_id": [
+          1,
+          0
+        ],
+        "level": 1,
+        "local_tag": 1,
+        "local_uid": 3720,
+        "position": [
+          8087.28857421875,
+          72.1676254272461,
+          8543.2177734375
+        ],
+        "rank": 0,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "status": 3,
+        "zone_local_uid": 3713
+      },
+      {
+        "character_id": [
+          1,
+          0
+        ],
+        "level": 1,
+        "local_tag": 2,
+        "local_uid": 3726,
+        "position": [
+          8075.08154296875,
+          69.23562622070312,
+          8566.8505859375
+        ],
+        "rank": 0,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "status": 3,
+        "zone_local_uid": 3713
+      },
+      {
+        "character_id": [
+          1,
+          0
+        ],
+        "level": 1,
+        "local_tag": 3,
+        "local_uid": 3732,
+        "position": [
+          8088.7421875,
+          72.21263885498047,
+          8566.8857421875
+        ],
+        "rank": 0,
+        "rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "status": 3,
+        "zone_local_uid": 3713
+      }
+    ],
+    "created_count": 4,
+    "next_tag": 4,
+    "ledger_unchanged": true,
+    "undo_before": {
+      "active_graph": false,
+      "redo_count": 0,
+      "undo_count": 0
+    },
+    "undo_after": {
+      "active_graph": false,
+      "redo_count": 0,
+      "undo_count": 1
+    },
+    "release_edits_before": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+    ],
+    "release_edits_after": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      2,
+      0
+    ],
+    "global_random_before": [
+      10260572791848543616,
+      2947600871174047089,
+      1233330229739625497,
+      6662968583601890325
+    ],
+    "global_random_after": [
+      7457226372810541746,
+      10094553993750272702,
+      4574692717762990744,
+      16054546420923844025
+    ],
+    "region_random_before": [
+      3376187777596782070,
+      6337604674771746798,
+      16264086697398030070,
+      367825091920364288
+    ],
+    "region_random_after": [
+      3376187777596782070,
+      6337604674771746798,
+      16264086697398030070,
+      367825091920364288
+    ],
+    "small_zero_spawn_case": "docs/evidence/monster-zone-original-native.json"
+  },
+  "frame": {
+    "path": "_drafts/media/monster-zone-spawn-host.bmp",
+    "pixel_sha256": "0afd59d13e260b4a9e0dcfce448b9687d1cf5a610afd3f59795ca203e61677a0",
+    "viewed": true
+  },
+  "retirement": "artifacts/acceptance/b613289e-1b0f-47f1-b6e4-8f2334730415/summary.json",
+  "native_exit": "artifacts/acceptance/444af30f-8862-45c9-8181-8db5ce0b7298/summary.json",
+  "both_exit_codes": 0,
+  "crash_dumps": 0,
+  "limits": [
+    "Native original prerequisites only; no shared Hire/Fire or MonsterZone peer acknowledgement",
+    "Indoor no-job scalar retirement is proven; returning arrival and jobful Client adoption remain open",
+    "MonsterZone Action23, private brush execution, dynamic target membership and Client application remain open",
+    "Zero spawns on a small added area remain valid; the larger added area produced four",
+    "No normal simulation time was advanced and installed Beta9/private saves remain unchanged"
+  ]
+}

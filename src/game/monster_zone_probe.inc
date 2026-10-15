@@ -91,6 +91,13 @@ uint32_t input(uintptr_t image,unsigned step,uintptr_t brush,uintptr_t cursor,co
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+struct TabAttempt {host::opened::CurrentWorld origin;uintptr_t root=0;monster_zone_tab::Pin pin;};
+std::optional<TabAttempt> tab_attempt;
+uint32_t press_tab(uintptr_t image,const monster_zone_tab::Pin& p)noexcept{
+    const float position[2]{};
+    __try{reinterpret_cast<void(*)(void*,void*,const void*)>(image+0x57c950)(reinterpret_cast<void*>(p.tab),reinterpret_cast<void*>(p.cursor),position);return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
 std::map<std::string,json> attempts;
 std::string fault;
 }
@@ -105,11 +112,11 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error){
     const auto token=args.at("token").get<std::string>(),phase=args.at("phase").get<std::string>();
     const auto region_id=args.at("region_id").get<int64_t>(),type=args.at("character_type").get<int64_t>();
     if(!token_valid(token)||!token_valid(args.at("snapshot_uuid").get<std::string>())||region_id<0||region_id>INT32_MAX||type< -1||type>INT32_MAX||
-       (phase!="open"&&phase!="select"&&phase!="state"&&phase!="stroke")||args.at("points").size()>8)return fail(error,"zone probe request values differ");
+       (phase!="open"&&phase!="select"&&phase!="state"&&phase!="stroke"&&phase!="prepare_tab")||args.at("points").size()>8)return fail(error,"zone probe request values differ");
     std::vector<std::array<float,3>> points;
     for(const auto& p:args.at("points")){if(!p.is_array()||p.size()!=3)return fail(error,"zone probe point requires XYZ");std::array<float,3> value{};
         for(size_t n=0;n<3;++n){if(!p[n].is_number())return fail(error,"zone probe point is not numeric");const auto v=p[n].get<double>();if(!std::isfinite(v)||std::abs(v)>(std::numeric_limits<float>::max)())return fail(error,"zone probe point is not finite float32");value[n]=float(v);}points.push_back(value);}
-    if((phase=="stroke"?(points.size()<2||type<0):!points.empty())||((phase=="open"||phase=="state")&&type!=-1)||(phase=="select"&&type<0))return fail(error,"zone probe phase payload differs");
+    if((phase=="stroke"?(points.size()<2||type<0):!points.empty())||((phase=="open"||phase=="state"||phase=="prepare_tab")&&type!=-1)||(phase=="select"&&type<0))return fail(error,"zone probe phase payload differs");
     if(d::attempts.contains(token)){result=d::attempts.at(token);return fail(error,"zone probe token already attempted - no replay");}
     if(phase!="state"&&!d::fault.empty())return fail(error,"zone probe previous Unknown blocks new input: "+d::fault);
     if(d::attempts.size()>=64)return fail(error,"zone probe token limit reached");
@@ -130,19 +137,73 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error){
     d::Sample before,after;if(!d::sample(memory,world,before,error))return false;
     if(before.undo.active_graph||(!before.money.clock.paused&&before.money.clock.time_scale!=0))return fail(error,"zone probe requires idle Undo and paused actual Clock");
     result["token"]=token;result["operation"]=phase;result["before"]=d::sample_json(before);result["calls"]=json::array();
+    const auto observe_tab=[&](monster_zone_tab::Pin& pin,monster_zone_tab::Status& status,std::string& e){
+        d::ReadMemory m{memory};
+        if(!monster_zone_tab::inspect(m,image,uintptr_t(before_world.origin.world),pin,e)||
+           !monster_zone_tab::status(m,pin,status,e))return false;
+        if(d::tab_attempt&&(!host::same_world(d::tab_attempt->origin,before_world.origin)||
+           d::tab_attempt->root!=before_world.root||!monster_zone_tab::same_owner(d::tab_attempt->pin,pin)))return fail(e,"zone NPCs tab retained owner changed");
+        return true;
+    };
+    const auto publish_tab=[&](const monster_zone_tab::Pin& pin,const monster_zone_tab::Status& status){
+        result["tab_requested"]=d::tab_attempt.has_value();result["tab_ready"]=status.ready;
+        result["tab_pending"]=!status.ready;result["tab_cause"]=status.cause;
+        result["tab_active"]=pin.active==1;result["view_mode"]=pin.view;result["required_view_mode"]=pin.edit;
+    };
+    if(phase=="prepare_tab"){
+        if(d::tab_attempt)return fail(error,"zone NPCs tab already attempted - read state; no replay");
+        d::ReadMemory m{memory};if(!monster_zone_tab::verify(m,image,error))return false;
+        int32_t painting=0;uintptr_t graph=0;
+        if(!field(memory,brush,0x6fc,painting,error)||painting||!field(memory,brush,0x740,graph,error)||graph)return fail(error,error.empty()?"zone NPCs tab requires idle brush":error);
+        struct Calls {
+            Memory& memory;host::Reader& reader;const host::WorldState& before_world;
+            uintptr_t image,brush,cursor;const d::q::World& world;const d::Sample& before;
+            const std::string& token;json& result;
+            bool pin(monster_zone_tab::Pin& p,std::string& e){
+                host::WorldState current;uintptr_t actual_brush=0,actual_cursor=0;d::ReadMemory m{memory};
+                if(!reader.current(current,true,e)||!host::same_world(current.origin,before_world.origin)||current.root!=before_world.root||
+                   !d::tool(memory,image,actual_brush,actual_cursor,e)||actual_brush!=brush||actual_cursor!=cursor)return fail(e,e.empty()?"zone NPCs tab full Origin/tool changed":e);
+                return monster_zone_tab::inspect(m,image,uintptr_t(current.origin.world),p,e);
+            }
+            bool reserve(const monster_zone_tab::Pin& p,std::string&){
+                d::tab_attempt=d::TabAttempt{before_world.origin,before_world.root,p};
+                result["attempted"]=true;d::attempts.emplace(token,result);return true;
+            }
+            bool press(const monster_zone_tab::Pin& p,std::string& e){
+                result["calls"].push_back({{"name","ActionBarTab::Press"},{"attempted",true},{"returned",false},{"exception",0}});
+                d::attempts.at(token)=result;const auto code=d::press_tab(image,p);
+                result["calls"].back()["exception"]=code;result["calls"].back()["returned"]=code==0;d::attempts.at(token)=result;
+                return !code||fail(e,"zone NPCs original Press exception="+std::to_string(code));
+            }
+            bool status(const monster_zone_tab::Pin& p,monster_zone_tab::Status& out,std::string& e){d::ReadMemory m{memory};return monster_zone_tab::status(m,p,out,e);}
+            bool unchanged(std::string& e){d::Sample after;if(!d::sample(memory,world,after,e))return false;
+                result["after"]=d::sample_json(after);return d::sample_json(before)==d::sample_json(after)||fail(e,"zone NPCs tab changed world/ledger/RNG/Undo/Release");}
+        } calls{memory,reader,before_world,image,brush,cursor,world,before,token,result};
+        monster_zone_tab::Receipt receipt;const bool ok=monster_zone_tab::prepare(calls,receipt,error);
+        result["attempted"]=receipt.attempted;result["returned"]=receipt.returned;result["confirmed"]=receipt.confirmed;result["unknown"]=receipt.unknown;
+        result["tab_requested"]=receipt.returned;result["tab_ready"]=receipt.state.ready;result["tab_pending"]=receipt.confirmed&&!receipt.state.ready;result["tab_cause"]=receipt.state.cause;
+        result["host_ordered_action"]=false;result["cause"]=error;
+        if(receipt.unknown&&d::fault.empty())d::fault=error;
+        if(receipt.attempted)d::attempts.at(token)=result;
+        return ok;
+    }
     placement_ui_probe::Binding binding;std::vector<Option> available;json selected;
     if(phase=="open"){
         placement_ui_probe::Request request;request.family=placement_ui_probe::Family::MonsterZone;request.type="MonsterZone";
         placement_ui_probe::Context context{image,uintptr_t(before_world.origin.state),before_world.origin.world_epoch,before_world.origin.generation,thread};placement_ui_probe::ProcessMemory ui_memory;
         if(!placement_ui_probe::read_existing_tool(ui_memory,context,request,binding,error)||binding.behaviour!=brush)return fail(error,error.empty()?"zone probe original ItemButton binding differs":error);
     }else{
-        uintptr_t active=0;if(!field(memory,cursor,0x190,active,error)||active!=brush||!d::options(memory,image,brush,window,available,selected,error))return fail(error,error.empty()?"zone probe active tool differs":error);
+        uintptr_t active=0;if(!field(memory,cursor,0x190,active,error))return false;
+        result["tool_active"]=active==brush;
+        if(!monster_zone_tab::read_active_options(phase=="state",active,brush,[&](std::string& e){return d::options(memory,image,brush,window,available,selected,e);},error))return false;
         if(type>=0){const auto it=std::find_if(available.begin(),available.end(),[&](const Option& o){return o.id==std::array<int32_t,2>{1,int32_t(type)};});if(it==available.end())return fail(error,"zone probe requested Monster absent from catalogue");chosen=it->character;}
     }
     if(phase=="state"){
         result["read_only"]=true;result["selected"]=selected;result["options"]=json::array();for(const auto& o:available)result["options"].push_back(o.id);
         uintptr_t actual_region=0;int32_t painting=0;if(!field(memory,brush,0x170,actual_region,error)||!field(memory,brush,0x6fc,painting,error))return false;
         result["brush_region_matches"]=actual_region==region;result["painting_mode"]=painting;
+        monster_zone_tab::Pin tab;monster_zone_tab::Status tab_status;
+        if(!observe_tab(tab,tab_status,error))return false;publish_tab(tab,tab_status);
         if(!d::sample(memory,world,after,error)||!reader.current(after_world,true,error)||
            !host::same_world(before_world.origin,after_world.origin)||before_world.root!=after_world.root||
            d::sample_json(before)!=d::sample_json(after))return fail(error,error.empty()?"zone probe read-only state changed during readback":error);
