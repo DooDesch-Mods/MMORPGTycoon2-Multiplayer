@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.11",
-  "summary": "Keep shared actions flowing beside live world updates, and let Clients schedule or cancel repairs through the original game controls.",
-  "native_evidence": "docs/evidence/beta11-native.json"
+  "version": "0.1.0-beta.12",
+  "summary": "Natural repairs now finish on both players. Keep synchronization running when the save process logs out a simulated player.",
+  "native_evidence": "docs/evidence/beta12-native.json"
 }

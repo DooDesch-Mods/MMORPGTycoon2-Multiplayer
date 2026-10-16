@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "passed": true,
+  "scope": "Retire the old aborted assigned Job and adopt the new natural repair assignment on both peers",
+  "runtime_run_id": "d471e4be-fc6c-45ad-ab7b-d3ac2a3ae3ea",
+  "dll_sha256": "9c7d427d6916cf0fd78118f54040c1c55ed93463c4a39fb776b8918c136b216e",
+  "build": "artifacts/build_history/20261016T105755505832Z",
+  "regression": {
+    "test": "bug_type7_work_retirement",
+    "cases": 9,
+    "passed": true
+  },
+  "native_evidence": "artifacts/acceptance/cce4760f-c0b9-4942-8b81-19c126d072a8/summary.json",
+  "previous_failure": "docs/evidence/bug-natural-repair-failure.json",
+  "selected": {
+    "bug": [
+      0,
+      "13a3e7b9665106a181780283f01f42ff2efa00a6b34092d39d0692260afe55eb:world:building:286",
+      0,
+      "13a3e7b9665106a181780283f01f42ff2efa00a6b34092d39d0692260afe55eb",
+      0,
+      0
+    ],
+    "job": [
+      0,
+      "13a3e7b9665106a181780283f01f42ff2efa00a6b34092d39d0692260afe55eb",
+      0,
+      34
+    ],
+    "local_ids": {
+      "host": 1,
+      "client-1": 0
+    },
+    "fixed": [
+      0,
+      0,
+      0,
+      1,
+      0
+    ]
+  },
+  "confirmed": [
+    "Original shared unpause and pause",
+    "Old aborted Job removed on both peers",
+    "One shared Type7 Job assigned to Developer0 with reciprocal links",
+    "Both peers observe the selected Bug being debugged",
+    "Final complete frames, all50 physical staff, ordered Job semantics and ledger equal"
+  ],
+  "completion_observer": {
+    "passed": false,
+    "cause": "Natural repair observation bound reached without selected completion",
+    "bound_seconds": 180,
+    "scale": 1,
+    "receipt_retained": true
+  },
+  "limits": [
+    "Natural repair completion is not accepted by this record",
+    "Continue the existing assigned Job; do not repeat the accepted old-Job transition"
+  ]
+}

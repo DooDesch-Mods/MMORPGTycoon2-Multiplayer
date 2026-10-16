@@ -199,7 +199,8 @@ bool set_job_pose(const Capture& capture,uintptr_t job,const JobRow& target,bool
     return true;
 }
 bool erase_aborted(const Capture& capture,uintptr_t pointer,bool& attempted,std::string& e){
-    census::Census before;if(!census::read(reader(),capture,before,e))return false;
+    Capture current;if(!fresh(capture,e)||!capture_current(current,e))return false;
+    census::Census before;if(!census::read(reader(),current,before,e))return false;
     const auto found=std::find_if(before.jobs.begin(),before.jobs.end(),[&](const auto& j){return j.pointer==pointer;});
     if(found==before.jobs.end()||found->type||found->valid||found->developer||found->bug.pointer||found->building||found->building_proxy||found->monster||found->monster_proxy)
         return fail(e,"Bug Job selected invalid retirement still has target/Developer references");

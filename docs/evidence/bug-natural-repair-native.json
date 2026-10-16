@@ -1,0 +1,77 @@
+{
+  "schema": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Natural completion of one already assigned original Type7 repair on two peers",
+  "runtime_run_id": "d4788d0b-3ba1-40be-9e0f-33f7a62beebe",
+  "dll_sha256": "95dfc61d7f77e94952abe05a66317e7296312046838e99cdb22d452a8a43d9a3",
+  "acceptance": "artifacts/acceptance/a8e59166-6ce8-494d-b4f1-fee2b67c00b1/summary.json",
+  "acceptance_sha256": "ae34dec7bd29b1eb632c1ba694c8d5f127c39b7b9ee064a5964ae20549d3e9b0",
+  "confirmed": [
+    "One original scale9 and one original pause",
+    "Selected Bug and Job removed on both peers",
+    "Selected parent online and actual Tracker entry absent",
+    "Developer0 idle with no physical Job link",
+    "All50 physical staff, complete tracked Frames, full ledger and physical Job graph equal"
+  ],
+  "counter_semantics": "Original Bug destruction aborts the Job before JobCompleted checks type7, so an unchanged job_fixed counter is expected",
+  "result": {
+    "job_fixed_before": [
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    "job_fixed_after": [
+      0,
+      0,
+      0,
+      1,
+      0
+    ],
+    "counter_is_completion_requirement": false,
+    "selected_retired": true,
+    "parent_online": true
+  },
+  "media": [
+    {
+      "peer": "host",
+      "path": "_drafts/media/bug-repaired-host.bmp",
+      "sha256": "b722d1d82546bb0ee83722d4d4651fa55a3ad786f6601a8e5273e4c2d0bd1306",
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "path": "_drafts/media/bug-repaired-client-1.bmp",
+      "sha256": "6edabdff3d61f52eddcd01a6da4cc07af9a16df07478b0cf28c13b4fa73ec3f2",
+      "visually_inspected": true
+    }
+  ],
+  "retained_next_world": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 246206,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-8131b032-9be5-4235-a1b3-9c999e58d381.vrz",
+    "run_id": "d4788d0b-3ba1-40be-9e0f-33f7a62beebe",
+    "sha256": "7a77008687e979b910d746f20bc8ebcd0509009baede2869e42584aa749ef3c2",
+    "snapshot_id": "8131b032-9be5-4235-a1b3-9c999e58d381",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "prior_failures": [
+    "docs/evidence/bug-natural-repair-failure.json",
+    "docs/evidence/subscriber-save-transition-failure.json",
+    "artifacts/acceptance/deb8e6c8-78c0-472e-9f61-db3334da4a2f/summary.json"
+  ],
+  "regressions": {
+    "actual_old_job_retirement_cases": 9,
+    "read_only_completion_tests": 3,
+    "assigned_runner_tests": 9
+  },
+  "limits": [
+    "Other Bug types and natural discovery remain open",
+    "Full tutorial and remaining action families remain open"
+  ]
+}

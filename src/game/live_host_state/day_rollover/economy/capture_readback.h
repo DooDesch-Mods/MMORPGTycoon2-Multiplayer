@@ -27,6 +27,13 @@ inline bool capture_readback(const Owners& before,const Owners& after,std::strin
                 }
             }
             if(i<before.state.subscribers.size()){
+                const auto& old=before.state.subscribers[i];
+                const uint32_t changed_days=old.play_days^row.play_days;
+                // Original DoLogOut adjusts one schedule bit in native days 1..7.
+                // Only the comparison copy changes; publication keeps the fresh mask.
+                if(old.serialized_id==row.serialized_id&&old.motion&&!row.motion&&
+                   changed_days&&!(changed_days&~uint32_t{0xfe})&&!(changed_days&(changed_days-1)))
+                    stable.subscribers[i].play_days=old.play_days;
                 stable.subscribers[i].rewards=before.state.subscribers[i].rewards;
                 if(row.quest_state&&before.state.subscribers[i].quest_state)
                     stable.subscribers[i].quest_state=before.state.subscribers[i].quest_state;

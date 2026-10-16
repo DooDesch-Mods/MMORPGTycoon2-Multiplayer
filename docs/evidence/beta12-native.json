@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.12",
+  "scope": "Finish shared natural repairs and keep source capture running through simulated player logout",
+  "latest_mod_sha256": "95dfc61d7f77e94952abe05a66317e7296312046838e99cdb22d452a8a43d9a3",
+  "latest_build": "artifacts/build_history/20261016T113141448638Z",
+  "native_evidence": [
+    "docs/evidence/bug-work-retirement-native.json",
+    "docs/evidence/bug-natural-repair-native.json",
+    "docs/evidence/subscriber-save-transition-native.json"
+  ],
+  "acceptance": "Natural Bug repair completes on both peers; physical staff/Job graph, full tracked Frames, ledger and Subscriber rows agree after pause",
+  "base_commit": "2900c3933a88f2462680797a7b01639e33e5d87e",
+  "delivery": "Local native acceptance; CI package delivery is checked separately",
+  "limits": [
+    "Natural discovery, other Bug types, remaining action families and full tutorial remain open",
+    "Four players, large private worlds and separate-account online acceptance remain open"
+  ]
+}

@@ -1,0 +1,99 @@
+{
+  "schema": 1,
+  "passed": true,
+  "scope": "Keep actual fresh Subscriber schedule state during original logout capture refresh",
+  "dll_sha256": "95dfc61d7f77e94952abe05a66317e7296312046838e99cdb22d452a8a43d9a3",
+  "acceptance": "artifacts/acceptance/a8e59166-6ce8-494d-b4f1-fee2b67c00b1/summary.json",
+  "previous_failure": "docs/evidence/subscriber-save-transition-failure.json",
+  "source_regression": {
+    "existing_cases": 30,
+    "new_cases": 31,
+    "total": 61,
+    "actual_coupling_body_and_codecs": true,
+    "log": "artifacts/build_history/20261016T113141448638Z/affected-ctest.log"
+  },
+  "native": {
+    "subscriber_id": 64,
+    "schedule_before": 204,
+    "schedule_after": 200,
+    "online_before": true,
+    "online_after": false,
+    "all_peer_subscriber_rows_equal": true,
+    "automatic_additions_confirmed": 11,
+    "host_pending_graphs": 0,
+    "host_pending_graph_bytes": 0,
+    "last_client_creation": {
+      "attempted": true,
+      "confirmed": true,
+      "created_ids": [
+        78
+      ],
+      "frame_committed": true,
+      "frame_revision": 664,
+      "native_receipts": [
+        {
+          "actual_client_origin_sha256": "5d5bbb5cad650081b014fa7ccd8d1f58c0ffa0a961631936bf4a6f82e1e5827e",
+          "business_unchanged": true,
+          "closed_world_readback_confirmed": true,
+          "full_cohort_replication": false,
+          "native_calls": {
+            "array_load_attempted": true,
+            "array_load_returned": true,
+            "context_constructed": true,
+            "context_resolve_destroy_attempted": true,
+            "context_resolve_destroy_returned": true,
+            "external_lookup_hits": 5,
+            "lookup_cause": "",
+            "lookup_failed": false,
+            "lookup_original_calls": 22,
+            "next_id_returned": true,
+            "notify_login_returned": true
+          },
+          "native_record_cleanup_confirmed": true,
+          "needs": [
+            100.0,
+            18.352764129638672,
+            4.3372578620910645,
+            0.0,
+            -23.825607299804688,
+            21.586620330810547,
+            100.0
+          ],
+          "next_subscriber_id": 79,
+          "online": true,
+          "original_cohort_unchanged": true,
+          "private_owners_retained": false,
+          "private_record_root_owners_retained": 0,
+          "save_scope": {
+            "body_attempted": true,
+            "body_cause": "",
+            "cleanup_cause": "",
+            "enter_returned": true,
+            "exit_guard_confirmed": true,
+            "leave_attempted": true,
+            "leave_returned": true,
+            "unknown": false
+          },
+          "serialized_subscriber_id": 78,
+          "shared_frame_binding": true,
+          "source_needs_bitwise_confirmed": true,
+          "source_record_sha256": "b3607862d195f7313aac608c112df774981cb09a2f0bed16d5cbdfe7217e6b26",
+          "source_snapshot_sha256": "e5b45b922beb017f821bf89a4833676ff1025c33b28031baa9d0897132880380",
+          "state": "confirmed",
+          "subscriber_count_after": 70,
+          "subscriber_count_before": 69,
+          "subscriber_creation_attempted": true,
+          "toon_local_uid_registry_confirmed": true,
+          "toon_region_registered": true
+        }
+      ],
+      "retired_ids": [],
+      "skipped_retired_ids": [],
+      "unknown": false
+    }
+  },
+  "data_preservation": "Only the comparison copy permits the native single day1..7 mask bit change; actual refreshed State remains the publication source",
+  "limits": [
+    "Actual logout state delivery and automatic capture ACKs are observed; the precise within-SaveScope dynamic caller is an inference, not an instruction trace"
+  ]
+}

@@ -11,3 +11,10 @@ foreach(target test_npc_pose_native test_npc_pose_phase)
  add_test(NAME ${target} COMMAND ${target})
  set_tests_properties(${target} PROPERTIES TIMEOUT 60)
 endforeach()
+
+target_sources(test_npc_pose_phase PRIVATE
+ "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/codec.cpp"
+ "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+ "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/coupling.cpp"
+ "${MT2MP_SOURCE_ROOT}/test/extract_npc_state_guard.py")

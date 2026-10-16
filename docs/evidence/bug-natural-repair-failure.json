@@ -1,0 +1,977 @@
+{
+  "schema": 1,
+  "passed": false,
+  "scope": "Natural retirement of an aborted assigned Job before repairing the selected scheduled Bug",
+  "runtime_run_id": "9034ae8f-58a1-4f14-b60e-8dc4de31f38b",
+  "dll_sha256": "b8781845b588adbfdcdbcbb034236e5e711956dd06956ba2fd356d8a221f6153",
+  "acceptance": "artifacts/acceptance/e3b8816b-ccd5-4575-8347-4f02c38fb1d3/summary.json",
+  "failed_condition": "Job census Developer changed from authorized pool",
+  "cause": "Client detaches the old aborted Developer link, then compares the new native census against the pre-transition pool",
+  "partial_effects": "Client completed six live stores before the census guard rejected the changed Developer",
+  "compensation": "One original pause confirmed on both peers; owned runtime stopped after readback",
+  "mutation_retries": 0,
+  "actual_states": {
+    "host": {
+      "developer0": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": true,
+        "on_map": true,
+        "position": [
+          8000.056640625,
+          81.06477355957031,
+          8561.1416015625
+        ],
+        "slot": 0,
+        "state": 2
+      },
+      "physical_jobs": {
+        "developers": [
+          {
+            "carried_present": false,
+            "id": 0,
+            "job_index": 0,
+            "job_present": true,
+            "reciprocal": true
+          },
+          {
+            "carried_present": false,
+            "id": 1,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 2,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 3,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 4,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 5,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 6,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 7,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 8,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 9,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 10,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 11,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 12,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 13,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 14,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 15,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 16,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 17,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 18,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 19,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 20,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 21,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 22,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 23,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 24,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 25,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 26,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 27,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 28,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 29,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 30,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 31,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 32,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 33,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 34,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 35,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 36,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 37,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 38,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 39,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 40,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 41,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 42,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 43,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 44,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 45,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 46,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 47,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 48,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 49,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          }
+        ],
+        "diagnostic_only": true,
+        "identity_proven": false,
+        "jobs": [
+          {
+            "bug": {
+              "anchor_present": true,
+              "created": 1,
+              "debugged": 1,
+              "discovered": 1,
+              "job_reciprocal": true,
+              "known": 1,
+              "manual": 1,
+              "present": true,
+              "reproducibility": 0.14788949489593506,
+              "runtime_id_local": 1,
+              "toons": 1,
+              "type": 0,
+              "variant": 0
+            },
+            "building_present": false,
+            "building_proxy_present": false,
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "developer_id": 0,
+            "developer_present": true,
+            "developer_reciprocal": true,
+            "monster_present": false,
+            "monster_proxy_present": false,
+            "position": [
+              8020.0,
+              70.83831787109375,
+              8550.0
+            ],
+            "queue_index": 0,
+            "raw_id_untrusted": 0,
+            "region_present": true,
+            "type": 7,
+            "valid": true
+          }
+        ],
+        "queue_capacity": 4,
+        "queue_count": 1,
+        "schema": 1
+      },
+      "live_state": {
+        "active": true,
+        "attempted": false,
+        "attempted_stores": 0,
+        "cause": "",
+        "completed_stores": 0,
+        "confirmed": false,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "",
+        "economic_fence_locked": false,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": false,
+        "requested": true,
+        "unknown": false
+      }
+    },
+    "client-1": {
+      "developer0": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": true,
+        "position": [
+          8020.0,
+          71.17257690429688,
+          8550.0
+        ],
+        "slot": 0,
+        "state": 0
+      },
+      "physical_jobs": {
+        "developers": [
+          {
+            "carried_present": false,
+            "id": 0,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 1,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 2,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 3,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 4,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 5,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 6,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 7,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 8,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 9,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 10,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 11,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 12,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 13,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 14,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 15,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 16,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 17,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 18,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 19,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 20,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 21,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 22,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 23,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 24,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 25,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 26,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 27,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 28,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 29,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 30,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 31,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 32,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 33,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 34,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 35,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 36,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 37,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 38,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 39,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 40,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 41,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 42,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 43,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 44,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 45,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 46,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 47,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 48,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 49,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          }
+        ],
+        "diagnostic_only": true,
+        "identity_proven": false,
+        "jobs": [
+          {
+            "bug": {
+              "anchor_present": false,
+              "created": 0,
+              "debugged": 0,
+              "discovered": 0,
+              "job_reciprocal": false,
+              "known": 0,
+              "manual": 0,
+              "present": false,
+              "reproducibility": 0.0,
+              "runtime_id_local": 0,
+              "toons": 0,
+              "type": 0,
+              "variant": 0
+            },
+            "building_present": false,
+            "building_proxy_present": false,
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "developer_id": -1,
+            "developer_present": false,
+            "developer_reciprocal": false,
+            "monster_present": false,
+            "monster_proxy_present": false,
+            "position": [
+              8020.0,
+              70.83831787109375,
+              8550.0
+            ],
+            "queue_index": 0,
+            "raw_id_untrusted": 0,
+            "region_present": true,
+            "type": 0,
+            "valid": false
+          },
+          {
+            "bug": {
+              "anchor_present": true,
+              "created": 1,
+              "debugged": 0,
+              "discovered": 1,
+              "job_reciprocal": true,
+              "known": 1,
+              "manual": 1,
+              "present": true,
+              "reproducibility": 0.14788949489593506,
+              "runtime_id_local": 0,
+              "toons": 1,
+              "type": 0,
+              "variant": 0
+            },
+            "building_present": false,
+            "building_proxy_present": false,
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "developer_id": -1,
+            "developer_present": false,
+            "developer_reciprocal": false,
+            "monster_present": false,
+            "monster_proxy_present": false,
+            "position": [
+              8020.0,
+              70.83831787109375,
+              8550.0
+            ],
+            "queue_index": 1,
+            "raw_id_untrusted": 0,
+            "region_present": true,
+            "type": 7,
+            "valid": true
+          }
+        ],
+        "queue_capacity": 4,
+        "queue_count": 2,
+        "schema": 1
+      },
+      "live_state": {
+        "active": true,
+        "attempted": true,
+        "attempted_stores": 6,
+        "cause": "Job census Developer changed from authorized pool",
+        "completed_stores": 6,
+        "confirmed": false,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "Job census Developer changed from authorized pool",
+        "economic_fence_locked": true,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": true,
+        "requested": true,
+        "unknown": true
+      }
+    }
+  },
+  "original_receipts": [
+    "test/mcp/evidence/bug-natural-failure-host_20261016T104941360394Z.json",
+    "test/mcp/evidence/bug-natural-failure-client-1_20261016T104947125379Z.json"
+  ],
+  "media": [
+    {
+      "peer": "host",
+      "path": "_drafts/media/bug-natural-failure-host.bmp",
+      "sha256": "b477f00b834d4166bb9bfe77e6d5dccaae572105386d30a36af0a47fb537fe22",
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "path": "_drafts/media/bug-natural-failure-client-1.bmp",
+      "sha256": "9639fb79cdb0efe5971d9ead8005a89439f258ef89afc1c34f3b57d558a6a278",
+      "visually_inspected": true
+    }
+  ],
+  "limits": [
+    "Natural repair completion is not accepted; previous manual Cancel Fix and Schedule Fix acceptance remains separate"
+  ]
+}

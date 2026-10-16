@@ -1,5 +1,6 @@
 #include "live_host_state/day_rollover/economy/state_difference.h"
 #include "live_host_state/day_rollover/economy/capture_pause_restore.h"
+#include "live_host_state/day_rollover/economy/codec.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -71,7 +72,9 @@ void capture_motion(){
  need(!failed&&restored==1&&reads==0&&error.find("original pause setter exception")!=std::string::npos,"capture pause failure lost original cause or replayed");
 }
 }
+#include "subscriber_save_transition_checks.inc"
 int main(){try{
+ subscriber_save_transition::run();
  capture_motion();
  const auto base=baseline();auto target=desired(base);auto p=fixture(base);const auto before=p.value;Apply a;auto result=a.run(p,before,target);
  need(result.confirmed&&!result.unknown&&p.value.state==target&&p.counters==2&&p.poses==2,"two NPC/Subscriber scopes did not settle: "+result.cause);

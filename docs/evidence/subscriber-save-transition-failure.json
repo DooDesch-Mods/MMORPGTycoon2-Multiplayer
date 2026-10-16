@@ -1,0 +1,268 @@
+{
+  "schema": 1,
+  "passed": false,
+  "full_coop_proven": false,
+  "scope": "Natural repair continuation followed by an automatic Subscriber capture failure",
+  "runtime_run_id": "d471e4be-fc6c-45ad-ab7b-d3ac2a3ae3ea",
+  "dll_sha256": "9c7d427d6916cf0fd78118f54040c1c55ed93463c4a39fb776b8918c136b216e",
+  "acceptance": "artifacts/acceptance/e2b0e35f-2f98-4ca5-b0d0-ce667edcbbe0/summary.json",
+  "original_error": {
+    "step": "paused-final-host",
+    "cause": "host Controller/live state failed:  {'active': True, 'attempted': False, 'attempted_stores': 0, 'cause': 'automatic Subscriber capture changed actual Frame cohort/scalars id=104 save_scope_closed=1 original=capture readback differs {\"additions_changed\":false,\"day_changed\":false,\"first_subscriber_difference\":{\"activity_bits_after\":[5,3,1146280430],\"activity_bits_before\":[5,3,1146195381],\"id_after\":79,\"id_before\":79,\"index\":71,\"motion_after\":null,\"motion_before\":{\"orientation\":[0.0,-0.6613168716430664,0.0,-0.7501066327095032],\"orientation_bits\":[0,3207154704,0,3208644349],\"position\":[8070.0,67.71649169921875,8550.0],\"position_bits\":[1174155264,1116171992,1174771712],\"region\":67,\"scale\":[1.0,1.0,1.0],\"scale_bits\":[1065353216,1065353216,1065353216]},\"needs_bits_after\":[1120403456,1120050856,1114620505,3267887104,1101519774,3228854628,1120403456],\"needs_bits_before\":[1120403456,1120050856,1114620505,3267887104,1101519774,3238337113,1120403456],\"online_after\":false,\"online_before\":true,\"pay_after\":[2,0,149,0,40],\"pay_before\":[2,0,149,0,40],\"play_days_after\":22,\"play_days_before\":86},\"loans_changed\":false,\"native_owner_parts\":{\"history_owner_count_after\":2,\"history_owner_count_before\":2,\"history_owners_changed\":false,\"history_record_count_after\":2,\"history_record_count_before\":2,\"history_records_changed\":false,\"loan_array_changed\":false,\"loan_owners_changed\":false,\"offer_array_changed\":false,\"offer_owners_changed\":false,\"pin_binding_changed\":false,\"pin_business_changed\":false,\"pin_clock_changed\":false,\"pin_common_epoch_changed\":false,\"pin_context_changed\":false,\"pin_current_record_changed\":false,\"pin_history_array_changed\":false,\"pin_history_capacity_after\":4,\"pin_history_capacity_before\":4,\"pin_history_count_after\":2,\"pin_history_count_before\":2,\"pin_image_changed\":false,\"pin_pause_after\":0.0,\"pin_pause_before\":0.0,\"pin_pause_bits_after\":0,\"pin_pause_bits_before\":0,\"pin_selected_after\":9.0,\"pin_selected_before\":9.0,\"pin_selected_bits_after\":1091567616,\"pin_selected_bits_before\":1091567616,\"pin_thread_changed\":false,\"pin_values_changed\":false,\"pin_world_changed\":false,\"subscriber_array_changed\":false,\"subscriber_manager_changed\":false},\"native_owners_changed\":false,\"next_id_after\":105,\"next_id_before\":105,\"non_motion_state_changed\":true,\"offers_changed\":false,\"owner_count_after\":97,\"owner_count_before\":97,\"state_changed\":true,\"state_difference\":\"subscriber[79].play_days actual=22 required=86\",\"subscriber_count_after\":97,\"subscriber_count_before\":97,\"subscriber_needs_owners_changed\":false,\"subscriber_owners_changed\":false,\"subscriber_slots_changed\":false}', 'completed_stores': 0, 'confirmed': False, 'day_receipt': {'appended': 0, 'attempted': False, 'cause': '', 'confirmed': False, 'created': 0, 'pruned': 0, 'unknown': False}, 'day_record_sequence': 2, 'economic_fence_cause': '', 'economic_fence_locked': False, 'economic_retired_cause': '', 'economic_suppressed': [0, 0, 0, 0, 0, 0, 0, 0, 0], 'locked': False, 'requested': True, 'unknown': False}"
+  },
+  "actual_effects_before_failure": "Both selected Bug and Type7 Job disappear and the selected parent returns online; both physical Developer0 Job links are absent",
+  "counter_oracle_correction": "Original Bug destruction aborts the Job to type0 before JobCompleted; unchanged job_fixed is expected on this path",
+  "failed_capture": "During capture, Subscriber79 changes online to offline, play_days86 to22, activity time and one needs value; the full non-motion guard rejects it",
+  "compensation": "Original pause confirmed once on both peers; owned processes stopped after readback; no crash",
+  "mutation_retries": 0,
+  "actual_states": {
+    "host": {
+      "clock": {
+        "day": 1,
+        "pause_scale": 1.0,
+        "paused": true,
+        "scale": 0.0,
+        "seconds": 75098
+      },
+      "ledger": {
+        "cash": 89320,
+        "flat_day": 1,
+        "line_counts": [
+          101,
+          0,
+          0,
+          0,
+          0,
+          0,
+          9,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "line_income": [
+          4040,
+          0,
+          0,
+          0,
+          0,
+          0,
+          -8360,
+          0,
+          -10,
+          0,
+          0,
+          -500,
+          -300,
+          0,
+          0,
+          0,
+          -150,
+          0,
+          0,
+          0
+        ],
+        "record_cash": 89320,
+        "record_day": 1,
+        "record_expense": 9330,
+        "record_income": 4050,
+        "record_present": 1
+      },
+      "job_count": 0,
+      "developer0": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          8140.0,
+          86.74398040771484,
+          8550.0
+        ],
+        "slot": 0,
+        "state": 0
+      },
+      "published_bugs": [],
+      "live_state": {
+        "active": true,
+        "attempted": false,
+        "attempted_stores": 0,
+        "cause": "automatic Subscriber capture changed actual Frame cohort/scalars id=104 save_scope_closed=1 original=capture readback differs {\"additions_changed\":false,\"day_changed\":false,\"first_subscriber_difference\":{\"activity_bits_after\":[5,3,1146280430],\"activity_bits_before\":[5,3,1146195381],\"id_after\":79,\"id_before\":79,\"index\":71,\"motion_after\":null,\"motion_before\":{\"orientation\":[0.0,-0.6613168716430664,0.0,-0.7501066327095032],\"orientation_bits\":[0,3207154704,0,3208644349],\"position\":[8070.0,67.71649169921875,8550.0],\"position_bits\":[1174155264,1116171992,1174771712],\"region\":67,\"scale\":[1.0,1.0,1.0],\"scale_bits\":[1065353216,1065353216,1065353216]},\"needs_bits_after\":[1120403456,1120050856,1114620505,3267887104,1101519774,3228854628,1120403456],\"needs_bits_before\":[1120403456,1120050856,1114620505,3267887104,1101519774,3238337113,1120403456],\"online_after\":false,\"online_before\":true,\"pay_after\":[2,0,149,0,40],\"pay_before\":[2,0,149,0,40],\"play_days_after\":22,\"play_days_before\":86},\"loans_changed\":false,\"native_owner_parts\":{\"history_owner_count_after\":2,\"history_owner_count_before\":2,\"history_owners_changed\":false,\"history_record_count_after\":2,\"history_record_count_before\":2,\"history_records_changed\":false,\"loan_array_changed\":false,\"loan_owners_changed\":false,\"offer_array_changed\":false,\"offer_owners_changed\":false,\"pin_binding_changed\":false,\"pin_business_changed\":false,\"pin_clock_changed\":false,\"pin_common_epoch_changed\":false,\"pin_context_changed\":false,\"pin_current_record_changed\":false,\"pin_history_array_changed\":false,\"pin_history_capacity_after\":4,\"pin_history_capacity_before\":4,\"pin_history_count_after\":2,\"pin_history_count_before\":2,\"pin_image_changed\":false,\"pin_pause_after\":0.0,\"pin_pause_before\":0.0,\"pin_pause_bits_after\":0,\"pin_pause_bits_before\":0,\"pin_selected_after\":9.0,\"pin_selected_before\":9.0,\"pin_selected_bits_after\":1091567616,\"pin_selected_bits_before\":1091567616,\"pin_thread_changed\":false,\"pin_values_changed\":false,\"pin_world_changed\":false,\"subscriber_array_changed\":false,\"subscriber_manager_changed\":false},\"native_owners_changed\":false,\"next_id_after\":105,\"next_id_before\":105,\"non_motion_state_changed\":true,\"offers_changed\":false,\"owner_count_after\":97,\"owner_count_before\":97,\"state_changed\":true,\"state_difference\":\"subscriber[79].play_days actual=22 required=86\",\"subscriber_count_after\":97,\"subscriber_count_before\":97,\"subscriber_needs_owners_changed\":false,\"subscriber_owners_changed\":false,\"subscriber_slots_changed\":false}",
+        "completed_stores": 0,
+        "confirmed": false,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "",
+        "economic_fence_locked": false,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": false,
+        "requested": true,
+        "unknown": false
+      }
+    },
+    "client-1": {
+      "clock": {
+        "day": 1,
+        "pause_scale": 1.0,
+        "paused": true,
+        "scale": 0.0,
+        "seconds": 74441
+      },
+      "ledger": {
+        "cash": 89200,
+        "flat_day": 1,
+        "line_counts": [
+          98,
+          0,
+          0,
+          0,
+          0,
+          0,
+          9,
+          0,
+          1,
+          0,
+          0,
+          1,
+          1,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0
+        ],
+        "line_income": [
+          3920,
+          0,
+          0,
+          0,
+          0,
+          0,
+          -8360,
+          0,
+          -10,
+          0,
+          0,
+          -500,
+          -300,
+          0,
+          0,
+          0,
+          -150,
+          0,
+          0,
+          0
+        ],
+        "record_cash": 89200,
+        "record_day": 1,
+        "record_expense": 9330,
+        "record_income": 3930,
+        "record_present": 1
+      },
+      "job_count": 0,
+      "developer0": {
+        "active": true,
+        "employed": true,
+        "id": 0,
+        "job_link": false,
+        "on_map": false,
+        "position": [
+          8140.0,
+          86.74398040771484,
+          8550.0
+        ],
+        "slot": 0,
+        "state": 0
+      },
+      "published_bugs": [],
+      "live_state": {
+        "active": true,
+        "attempted": true,
+        "attempted_stores": 179,
+        "cause": "",
+        "completed_stores": 179,
+        "confirmed": true,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "",
+        "economic_fence_locked": false,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": false,
+        "requested": true,
+        "unknown": false
+      }
+    }
+  },
+  "original_receipts": [
+    "test/mcp/evidence/bug-completion-failure-host_20261016T111633562170Z.json",
+    "test/mcp/evidence/bug-completion-failure-client_20261016T111639383058Z.json"
+  ],
+  "media": [
+    {
+      "peer": "host",
+      "path": "_drafts/media/bug-completion-source-failure-host.bmp",
+      "sha256": "292e5120f080921e04e12906cb1c40d124ae465f49a5bbf774f3268d857a660e",
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "path": "_drafts/media/bug-completion-source-failure-client-1.bmp",
+      "sha256": "d3f6be47856a518d3194e97c1a2822c13d731ff5d4ac4aa11c3bff8046ff3891",
+      "visually_inspected": true
+    }
+  ],
+  "limits": [
+    "Full completion acceptance failed: Host and Client clocks and ledger diverge after the source capture stalls",
+    "The corrected read-only finalizer retains strict healthy-Controller and complete-state requirements"
+  ]
+}

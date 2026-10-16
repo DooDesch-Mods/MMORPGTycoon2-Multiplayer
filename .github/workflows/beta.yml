@@ -73,6 +73,10 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_bug_fix_ui.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_bug_completion_readback.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_bug_repair_acceptance.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_subscriber.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/local_acceptance_test.py

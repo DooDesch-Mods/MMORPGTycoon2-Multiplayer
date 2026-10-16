@@ -1,21 +1,21 @@
-# Shared actions and repair controls
+# Shared repair completion
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
 ## Highlights
 
-- **Keep actions flowing.** Fixed a shared packet classifier that rejected build and management actions while live world updates were active, including deeper Quest NPC results.
-- **Control repairs together.** Clients can use the original **Schedule Fix** and **Cancel Fix** buttons. The Host executes each request once and both players see the same repair queue.
-- **Cut duplicate CI compilation.** Shared source checks now reuse compiled code across test programs.
+- Natural repairs now remove the completed Bug and Job on both players, free the developer and bring the building back online.
+- Fixed a sync stop during automatic capture when a simulated player logs out and changes one day in their weekly schedule. The Client receives the current state.
+- Added automatic checks for repair completion, loaded assigned jobs and the original logout capture path.
 
-## Install and play
+## Install
 
-1. Close the game. Copy `WSOCK32.dll`, `MT2_Multiplayer.dll` and `mt2mp_ui` from the ZIP into the folder containing `MT2.exe`.
-2. Both players use this beta and launch through Steam. The Host opens a lobby; the Client selects its public lobby row to join.
-3. The Host creates or opens a small world, or selects a save and presses **Load world and start**. Wait for both players to reach the ready state before building.
+1. Close the game. Copy `WSOCK32.dll`, `MT2_Multiplayer.dll` and `mt2mp_ui` from the ZIP beside `MT2.exe`.
+2. Both players use this beta and launch through Steam.
+3. Host a lobby, join it, then create or load a small world together.
 
-**Updating from beta.2?** Follow the [legacy upgrade steps](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md#migrate-a-legacy-proxy-copied-into-the-game-directory) first. Keep your saves and test folders.
+Updating from beta.2? Follow the [legacy upgrade steps](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md#migrate-a-legacy-proxy-copied-into-the-game-directory) first.
 
 ## Beta status
 
-The repair controls passed local two-instance checks. Natural repair completion, full action coverage, the complete tutorial, four players and large worlds remain open. The online test with separate Steam accounts is still manual.
+This repair path passed a local two-player test. Full tutorial and action coverage, other Bug types, four players and large worlds remain open. The separate-account online test remains manual.
