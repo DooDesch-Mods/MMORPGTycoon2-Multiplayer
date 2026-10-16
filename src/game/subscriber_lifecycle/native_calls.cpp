@@ -60,4 +60,10 @@ bool next_id_original(const Api& api, const void* property, void* manager, void*
     out.seh = property_seh(api.int_load, property, manager, record, context, &out);
     return result(out, "native nextSubscriberId Property.Load", error);
 }
+bool load_scalar_property(PropertyLoad load, const void* property, void* object, void* record, CallReceipt& out, std::string& error) {
+    out = {};
+    if (!load || !property || !object || !record) { error = "native scalar Property.Load arguments incomplete"; return false; }
+    out.seh = property_seh(load, property, object, record, nullptr, &out);
+    return result(out, "native scalar Property.Load", error);
+}
 }

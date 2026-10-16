@@ -1,0 +1,125 @@
+{
+  "passed": false,
+  "scope": "Running Economy frame outgrows current Channel9 single-packet bound during original Host simulation",
+  "runtime_run_id": "df2b0369-2a29-4c0c-8890-3099904f092f",
+  "acceptance_id": "1198867e-faea-4d70-839e-4c03eeddc6c3",
+  "dll_sha256": "ef2a0b3be9c55dbb16124cb67a52191012d6ceda396f1e22b4b9198924b35b5d",
+  "failed_operation": {
+    "step": "natural-job-host-17",
+    "cause": "host Controller/live authority failed:  {'active': True, 'attempted': False, 'attempted_stores': 0, 'cause': 'economy frame exceeds 65536-byte Channel9 transport bound bytes=90895', 'completed_stores': 0, 'confirmed': False, 'day_receipt': {'appended': 0, 'attempted': False, 'cause': '', 'confirmed': False, 'created': 0, 'pruned': 0, 'unknown': False}, 'day_record_sequence': 2, 'economic_fence_cause': '', 'economic_fence_locked': False, 'economic_retired_cause': '', 'economic_suppressed': [0, 0, 0, 0, 0, 0, 0, 0, 0], 'locked': False, 'requested': True, 'unknown': False}"
+  },
+  "logical_frame_bytes": 90895,
+  "single_packet_limit_bytes": 65536,
+  "last_confirmed_observation": {
+    "utc": "2026-10-16T02:38:44.027865+00:00",
+    "poll": 16,
+    "clock": {
+      "day": 1,
+      "pause_scale": 1.0,
+      "paused": false,
+      "scale": 9.0,
+      "seconds": 63614
+    },
+    "subscriber_count": 70,
+    "frame_revision": 1017,
+    "added_ids": [
+      66,
+      67,
+      69,
+      70,
+      71,
+      72,
+      73,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81
+    ]
+  },
+  "clock_compensation": "confirmed-paused-once",
+  "mutations_retried": false,
+  "retained_grown_fixture": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 249618,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-5a700de0-6685-497e-9613-49626a97616b.vrz",
+    "run_id": "df2b0369-2a29-4c0c-8890-3099904f092f",
+    "sha256": "be0dd1d36a4f98b84a32c00eeef3f56e48098564ebfc3749a39131470c60040d",
+    "snapshot_id": "5a700de0-6685-497e-9613-49626a97616b",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "fixture_evidence": "test/mcp/evidence/economy-bound-fixture_20261016T024030403464Z.json",
+  "separately_confirmed_scope": "New original Client Actor81 reaches owned equipment hook without RNG change; this unarmed hook did not attach a weapon model.",
+  "new_actor_hook": {
+    "attachments": [],
+    "attack": 13,
+    "attempted": false,
+    "bone": -1,
+    "cache": {
+      "attempted": false,
+      "exception": 0,
+      "returned": false
+    },
+    "category": "",
+    "cause": "",
+    "confirmed": true,
+    "deferred": false,
+    "forwarded": false,
+    "hook": true,
+    "ilvl": 0,
+    "matrix": {
+      "attempted": false,
+      "exception": 0,
+      "returned": false
+    },
+    "model_id": -1,
+    "owned": true,
+    "random": {
+      "after": [
+        13950576489745807301,
+        891676111314750240,
+        13783005572067498579,
+        10910751339191228020
+      ],
+      "after_cause": "",
+      "after_observed": true,
+      "before": [
+        13950576489745807301,
+        891676111314750240,
+        13783005572067498579,
+        10910751339191228020
+      ],
+      "before_cause": "",
+      "before_observed": true,
+      "cause": "",
+      "observed": true,
+      "unchanged": true
+    },
+    "remove": {
+      "attempted": false,
+      "exception": 0,
+      "returned": false
+    },
+    "scene": {
+      "attempted": true,
+      "exception": 0,
+      "returned": true
+    },
+    "subscriber_id": 81,
+    "toon_address": 2692758035936,
+    "unknown": false,
+    "variant": 0
+  },
+  "next_action": "Support logical Economy frames split across bounded transport packets in the common Channel9 path, then load retained fixture directly for native acceptance.",
+  "crash_monitors": {
+    "host_exit": 0,
+    "client_exit": 0,
+    "native_crash_observed": false
+  },
+  "current_runtime": "All owned test games/helpers stopped after retained reads and complete local snapshot capture."
+}

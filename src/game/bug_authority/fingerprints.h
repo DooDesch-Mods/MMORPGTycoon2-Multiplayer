@@ -3,7 +3,7 @@
 #include <cstdint>
 namespace mt2mp::game::bug_authority {
 struct Body {uintptr_t rva;size_t size;const char* sha;};
-inline constexpr std::array<Body,28> original_bodies={{
+inline constexpr std::array<Body,33> original_bodies={{
     {0xd0f770,304,"5e1ece4af50fb04308d66e42967ef123d4b80cebfb17c4d7824011ffa4c4e5ed"},
     {0x59a00,544,"4b2820f9676004d961ce9983d9794f27273375a4ef58ae62a394466d68dd648a"},
     {0x58a20,224,"7f12166f5d5a6e324c848d5bf5edcf089ac272df13fb6e301e67306885ccef4f"},
@@ -32,5 +32,10 @@ inline constexpr std::array<Body,28> original_bodies={{
     {0x8acc80,3696,"ddcae456a0803e0dfd1e28a49586da7a9ccb0a25295070eee048bd20e1c74e00"},
     {0xbaded0,1648,"7f4ad4cbe5b0e9ab932b9a6f4329b670f206a844af2e887619741434d3fbc892"},
     {0xbae540,1376,"b0ccff32a5f434a38977e5062bdee7057ba071c098160fc16637298f45bdc892"},
+    {0x58da0,128,"0b7534867c92225751337ed35d91ab8a9a4c980302e6aaf5366ff0a8e9b748c0"},
+    {0xc2e810,176,"9aa893e96fc125d33f182e51dd1ff11ec5164ed30cbd1cd62c2765da01cb20e2"},
+    {0x89e690,224,"cc316b4b35c337a7e2a10e1d1de32d8aaae779b577c97637817ee9246079e96a"},
+    {0x10ebba0,336,"7f6f9d77e31ffba02410550117d9503ea0c3048b6337aaf76964a2cb99b840d6"},
+    {0xbafd10,1072,"d94f6d604d2d4825211dc0118b4ab0d3c79fc64c14f8b0b76acf11c7903e666d"},
 }};
 }

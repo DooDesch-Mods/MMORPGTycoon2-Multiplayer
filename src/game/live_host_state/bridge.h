@@ -1,5 +1,6 @@
 #pragma once
 #include "state.h"
+#include "frame_fragments.h"
 #include "day_rollover/sync.h"
 #include "day_rollover/economy/coupling.h"
 #include <functional>
@@ -35,6 +36,7 @@ class Bridge {
     day::Sync* day_=nullptr;
     day::economy::Coupling* economy_=nullptr;
     std::optional<day::economy::State> captured_economy_,queued_economy_,before_economy_,last_economy_;
+    const day::economy::State* applying_economy_=nullptr;
     std::optional<day::Target> captured_day_,queued_day_,before_day_,last_day_;
     bool suspended_=false,lobby_retiring_=false;
     Context context_;Binding binding_;Port& port_;
@@ -46,6 +48,8 @@ class Bridge {
     uint64_t host_revision_=0,common_epoch_=0,source_generation_=0;
     bool locked_=false;
     ApplyReceipt receipt_;
+    fragments::Assembly fragments_;
+    nlohmann::json sent_frame_transport_,received_frame_transport_;
     network::Receipt network_receipt_;
     NetworkActivationReceipt network_activation_receipt_;
     bool capture(uint64_t action_revision,Frame&,std::string&);
@@ -70,9 +74,12 @@ public:
     action_session::AuthorityReadiness before_ready(uint64_t sender,const action_session::Message&,uint64_t previous,std::string&);
     uint64_t next_publication_revision()const{return host_revision_==UINT64_MAX?0:host_revision_+1;}
     bool locked()const{return locked_;}
+    nlohmann::json frame_transport_status()const{return {{"sent",sent_frame_transport_},{"received",received_frame_transport_},{"partial",fragments_.pending()}};}
     const ApplyReceipt& receipt()const{return receipt_;}
     const network::Receipt& network_receipt()const{return network_receipt_;}
     const NetworkActivationReceipt& network_activation_receipt()const{return network_activation_receipt_;}
     const std::optional<Frame>& last()const{return last_;}
+    const day::economy::State* committed_economy()const{return last_economy_?&*last_economy_:nullptr;}
+    const day::economy::State* weapon_economy()const{return applying_economy_?applying_economy_:committed_economy();}
 };
 }

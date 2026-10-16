@@ -19,6 +19,13 @@ uint32_t unary(uintptr_t image,Unary command,uintptr_t object,Call* out){
     }__except(EXCEPTION_EXECUTE_HANDLER){out->exception=GetExceptionCode();}
     return out->exception;
 }
+uint32_t stop_loaded_movement(uintptr_t image,uintptr_t actor,Call* out){
+    __try{out->attempted=true;
+        reinterpret_cast<void(*)(void*)>(image+0x3b3740)(reinterpret_cast<void*>(actor));
+        reinterpret_cast<void(*)(void*)>(image+0xc406b0)(reinterpret_cast<void*>(actor+0x318));
+        out->returned=true;
+    }__except(EXCEPTION_EXECUTE_HANDLER){out->exception=GetExceptionCode();}return out->exception;
+}
 uint32_t membership(uintptr_t image,uintptr_t lounge,uintptr_t actor,bool outside,Call* out){
     __try{out->attempted=true;reinterpret_cast<void(*)(void*,void*)>(image+(outside?0x25eb30:0x25eb00))(
         reinterpret_cast<void*>(lounge),reinterpret_cast<void*>(actor));out->returned=true;

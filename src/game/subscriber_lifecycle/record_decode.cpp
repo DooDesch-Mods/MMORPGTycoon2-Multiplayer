@@ -147,4 +147,13 @@ bool decode_integer_record(const DecodeApi& a,Memory& memory,const char* label,i
     if(!create(a,memory,record,tree.root,tree,r,e))return false;
     r.complete=true;e.clear();return true;
 }
+bool decode_string_record(const DecodeApi& a,Memory& memory,const char* label,const std::string& value,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};
+    if(tree.root||!tree.detached.empty())return fail(e,"string Record output already owns objects");
+    if(!label||!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.set_label||
+       !a.token_count||!a.set_string||!a.string_construct)return fail(e,"string Record API incomplete");
+    tree.detached.reserve(1);Record record;record.label={1,0,label};record.tokens.push_back({2,0,value});
+    if(!create(a,memory,record,tree.root,tree,r,e))return false;
+    r.complete=true;e.clear();return true;
+}
 }

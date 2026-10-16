@@ -17,6 +17,7 @@
 #include "prepare_flow.h"
 #include "lobby_operations.h"
 #include "mt2mp/net/session_wire.h"
+#include "mt2mp/net/local_session.h"
 #include "vendor/minhook/include/MinHook.h"
 #include <windows.h>
 #include <array>
@@ -46,6 +47,7 @@ bool current_host_world=false;
 std::string current_host_world_error;
 bool choosing=false,pending=false,load_attempted=false,append_attempted=false;
 bool playing_close_attempted=false;
+std::string departed_host_attempt, departed_host_error;
 uint64_t owner=0,generation=0,last_leave_confirmed=0;
 uint64_t command_count=0;std::string last_command;
 uint64_t command_failures=0;
@@ -596,6 +598,27 @@ bool initialize(const std::filesystem::path& assets,uintptr_t base,std::string& 
 
     error.clear();return true;
 }
+bool retire_departed_host(const nlohmann::json& preparation,std::string& error) {
+    if(Config::instance().is_host||preparation.value("leaving",false)){error.clear();return true;}
+    std::string identity;
+    if(Config::instance().local_test){
+        const auto snapshot=preparation.value("snapshot_id",std::string{});
+        if(!local_admitted||!net::local_host_left(snapshot)){error.clear();return true;}
+        identity="local:"+std::to_string(net::session_wire::session_id())+":"+snapshot;
+    }else{
+        auto& mm=net::SteamMatchmaking::instance();
+        if(!owner||mm.host_steam_id()==owner){error.clear();return true;}
+        identity="steam:"+std::to_string(owner)+":"+std::to_string(generation);
+    }
+    if(departed_host_attempt==identity){error=departed_host_error;return error.empty();}
+    departed_host_attempt=identity;
+    std::string detail;
+    if(!lobby_prepare::leave(detail)){
+        departed_host_error="Host connection lost; native retirement failed: "+detail;
+        error=departed_host_error;return fail(error);
+    }
+    ui_status="Host hat die Sitzung beendet";error.clear();return true;
+}
 bool tick(std::string& error) {
     if(!image){error="native lobby not initialized";return false;}
     if(!thread)thread=GetCurrentThreadId();
@@ -605,8 +628,9 @@ bool tick(std::string& error) {
     if(!Config::instance().local_test&&mm.in_lobby()&&!owner){owner=mm.host_steam_id();Config::instance().is_host=owner!=0&&owner==net::SteamNetworking::instance().local_steam_id();}
     const auto preparation=lobby_prepare::status();
     const auto left=preparation.value("leave_confirmed",uint64_t{});
-    if(left!=last_leave_confirmed){last_leave_confirmed=left;playing_close_attempted=false;local_admitted=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
+    if(left!=last_leave_confirmed){last_leave_confirmed=left;playing_close_attempted=false;departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
     if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Sitzung nicht verfügbar"));
+    if(!retire_departed_host(preparation,error))return false;
     native::WorldStatus world;
     if(!native::read_world_status(world,error))return false;
     const bool title_active=world.active_mode_index==2&&!world.title_transition_pending;
@@ -632,7 +656,6 @@ bool tick(std::string& error) {
         LOG_INFO("[NativeLobby] Native panels registered on mode-owned window array mode={}",ui_mode);
     }
     if(!close_playing_panel_once(ingame_active,preparation,error))return false;
-    if(!Config::instance().local_test&&owner&&mm.host_steam_id()!=owner&&!preparation.value("leaving",false)){std::string detail;if(!lobby_prepare::leave(detail))fail("Host connection lost; native retirement failed: "+detail);else ui_status="Hostverbindung verloren";}
     if(!Config::instance().local_test&&!publication_failed&&mm.in_lobby()&&mm.is_host()){
         const std::string state=preparation.value("leaving",false)?"leaving":preparation.value("playing",false)?"playing":
             (net::session_wire::connected()||(load_attempted&&mm.get_lobby_members().size()>1))?"preparing":"open";

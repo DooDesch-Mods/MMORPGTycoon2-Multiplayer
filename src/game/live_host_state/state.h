@@ -1,5 +1,6 @@
 #pragma once
 #include "typed_action/action_session.h"
+#include "frame_limits.h"
 #include <array>
 #include <string>
 #include <vector>
@@ -9,7 +10,6 @@
 #include "bug_authority/codec.h"
 namespace mt2mp::game::live_host_state {
 constexpr size_t scalar_count=52;
-constexpr size_t max_frame_payload=action_session::max_transport_payload;
 using Context=action_session::Context;
 using Binding=action_session::Binding;
 struct Values {

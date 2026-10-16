@@ -17,6 +17,8 @@ using RecordLoad=void(*)(uintptr_t,uintptr_t,uintptr_t);
 using Random=uintptr_t(*)(uintptr_t);
 using Specific=uintptr_t(*)(uintptr_t,int,float);
 using Remove=void(*)(uintptr_t,uintptr_t);
+using UnaryJob=void(*)(uintptr_t);
+UnaryJob original_make_job=nullptr,original_destroy_job=nullptr;
 Property original_save=nullptr,original_load=nullptr;
 Save original_rtti=nullptr;RecordLoad original_record=nullptr;
 Random original_random=nullptr;Specific original_specific=nullptr;
@@ -28,6 +30,25 @@ struct Scoped {Scope value;Scoped(){value.previous=scope;scope=&value;}~Scoped()
 struct Hook {uintptr_t rva=0,detour=0,trampoline=0;size_t size=0;std::vector<unsigned char> installed;std::array<unsigned char,64> relocated{};};
 std::vector<Hook> hooks;
 void caught(const std::string& cause){std::string error;reject(cause,error);}
+void make_job(uintptr_t bug){
+    uintptr_t previous=0;std::string error;bool observed=false;
+    try{auto& r=runtime();std::lock_guard lock(r.gate);Context context;Binding binding;uint64_t revision=0;bool active=false;
+        if(!active_world(context,binding,revision,active,error))caught(error);
+        else if(active){if(context.role==action_session::Role::Client){caught("Client original automatic Bug job creation was suppressed");return;}
+            observed=field(bug,0x48,previous,error);if(!observed)caught(error);}
+    }catch(const std::exception& e){caught(std::string("Original Bug.MakeJob admission: ")+e.what());}
+    catch(...){caught("Original Bug.MakeJob admission nonstandard exception");}
+    original_make_job(bug);
+    if(observed)try{std::lock_guard lock(runtime().gate);uintptr_t job=0;
+        if(previous||!field(bug,0x48,job,error)||!work_birth(bug,job,error))caught(error.empty()?"Original Bug.MakeJob prior link was non-null":error);
+    }catch(const std::exception& e){caught(std::string("Original Bug.MakeJob witness: ")+e.what());}
+    catch(...){caught("Original Bug.MakeJob witness nonstandard exception");}
+}
+void destroy_job(uintptr_t job){
+    {std::lock_guard lock(runtime().gate);runtime().jobs.destroyed(job);
+        for(auto& saved:runtime().saved_jobs)if(saved.job==job)saved.job=0;}
+    original_destroy_job(job);
+}
 bool world_collection(uintptr_t collection,std::string& error){
     auto& r=runtime();uintptr_t parent=0,shard=0,ap=0;
     building_mixed_identity::opened_file::CurrentWorld world;
@@ -109,7 +130,21 @@ void saved_child(uintptr_t caller,uintptr_t object,uintptr_t writer,uintptr_t co
     }
 }
 void save_rtti(uintptr_t type,uintptr_t object,uintptr_t writer,uintptr_t context){
-    saved_child(reinterpret_cast<uintptr_t>(_ReturnAddress())-runtime().image,object,writer,context);
+    const auto caller=reinterpret_cast<uintptr_t>(_ReturnAddress())-runtime().image;
+    if(caller==0x10ebc6e&&runtime().snapshot_armed&&runtime().snapshot_host){
+        try{auto& r=runtime();std::lock_guard lock(r.gate);building_capture_identity::StreamOwner owner;bool owned=false;std::string error;int32_t link=0,job_type=0;uintptr_t developer=0;uint8_t valid=0;
+            if(!building_capture_identity::stream_owner(reinterpret_cast<void*>(writer),owner,owned,error))caught(error);
+            else if(owned){
+                if(!field(object,0x18,job_type,error)||!field(object,0xb8,developer,error)||!field(object,0xc4,valid,error))caught(error);
+                else if(job_type==7||(job_type==0&&!valid&&developer)){
+                    const bool present=reinterpret_cast<bool(*)(uintptr_t,uintptr_t,int32_t*)>(r.image+0x89e690)(context,object,&link);
+                    if(owner.capture_uuid!=r.snapshot_uuid||!present||!work_saved(object,context,link,error))caught(error.empty()?"Original serialized Job linkId/owned writer differs":error);
+                }
+            }
+        }catch(const std::exception& e){caught(std::string("Original Job SaveStream witness: ")+e.what());}
+        catch(...){caught("Original Job SaveStream witness nonstandard exception");}
+    }
+    saved_child(caller,object,writer,context);
     original_rtti(type,object,writer,context);
 }
 bool load_property(uintptr_t property,uintptr_t collection,uintptr_t reader,uintptr_t context){
@@ -144,6 +179,11 @@ void original_children(uintptr_t caller,void* reader,int32_t count)noexcept try{
     scope->children.declared=count;
 }catch(const std::exception& e){caught(std::string("Bug original child count: ")+e.what());}catch(...){caught("Bug original child count nonstandard exception");}
 void original_registered(uintptr_t caller,void* context,int32_t id,void* object)noexcept try{
+    if(caller==0xbaffcb&&runtime().snapshot_armed&&!runtime().snapshot_host){
+        std::lock_guard lock(runtime().gate);std::string error;
+        if(!work_saved(reinterpret_cast<uintptr_t>(object),reinterpret_cast<uintptr_t>(context),id,error))caught(error);
+        return;
+    }
     if(!scope||scope->save)return;
     const bool linked=scope->record?caller==0xbae1df:caller==0xbae8b5;
     const bool inline_child=scope->record?caller==0xbae470:caller==0xbaea15;
@@ -177,6 +217,8 @@ bool install_native(std::string& error){
         if(mt2mp::sha256(bytes)!=body.sha)return fail(error,"Bug original complete body unsupported RVA="+std::to_string(body.rva));}
     struct Install {uintptr_t rva,detour;void** original;};
     const Install entries[]={
+        {0x58da0,reinterpret_cast<uintptr_t>(&make_job),reinterpret_cast<void**>(&original_make_job)},
+        {0xc2e810,reinterpret_cast<uintptr_t>(&destroy_job),reinterpret_cast<void**>(&original_destroy_job)},
         {0x59fb0,reinterpret_cast<uintptr_t>(&add_random),reinterpret_cast<void**>(&original_random)},
         {0x59a00,reinterpret_cast<uintptr_t>(&add_specific),reinterpret_cast<void**>(&original_specific)},
         {0x58740,reinterpret_cast<uintptr_t>(&set_anchor),reinterpret_cast<void**>(&original_anchor)},

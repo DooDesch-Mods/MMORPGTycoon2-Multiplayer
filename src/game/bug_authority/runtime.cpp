@@ -1,5 +1,7 @@
 #include "runtime_internal.h"
 #include "codec.h"
+#include "work_runtime.h"
+#include "job_codec.h"
 #include "typed_action_runtime.h"
 #include "remove_diagnostics.h"
 #include "npc_probe.h"
@@ -144,19 +146,22 @@ bool prepare(const Context& context,const Binding& binding,uint64_t publication,
         if(local&&(local->parent!=parent||local->collection!=collection))return fail(error,"Bug authority identity resolves to a replacement parent");
         if(!local&&row.birth.kind==BirthKind::Snapshot)return fail(error,"Bug original shared snapshot child is missing locally");
         if(local){uintptr_t job=0;if(!field(local->bug,0x48,job,error))return false;
-            if(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& j){return j.bug.pointer==local->bug;}))return fail(error,"Bug Client occurrence has an unreplicated native Job link");
+            if(!r.frame_work&&(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& j){return j.bug.pointer==local->bug;})))return fail(error,"Bug Client occurrence has an unreplicated native Job link");
             const auto old=std::find_if(current.rows.begin(),current.rows.end(),[&](const Row& x){return same_identity(x,row);});
             if(old==current.rows.end())return fail(error,"Bug witnessed occurrence is absent from current state");
         }
-        if(row.value.manual||row.value.debugged)return fail(error,"Bug manual/debug activity requires the pending Type7 closure");
+        if(!r.frame_work&&(row.value.manual||row.value.debugged))return fail(error,"Bug manual/debug activity lacks authoritative Work state");
     }
     for(const auto& local:r.lifetimes.rows())if(!local.retired&&std::none_of(target.rows.begin(),target.rows.end(),[&](const Row& x){return same_identity(x,local.row);})){
         uintptr_t job=0;if(!field(local.bug,0x48,job,error))return false;
-        if(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& j){return j.bug.pointer==local.bug;}))return fail(error,"Bug retirement still has native Job references");
+        if(!r.frame_work&&(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& j){return j.bug.pointer==local.bug;})))return fail(error,"Bug retirement still has native Job references");
     }
     return untouched(before,error);
 }
 }
+bool work_parent(const Row& row,uintptr_t& parent,uintptr_t& collection,std::string& error){return resolve_parent(row,parent,collection,error);}
+bool work_pin(const Context& context,const Binding& binding,developer_staff::Capture& capture,std::string& error){return pin(context,binding,capture,error);}
+bool work_bindings(std::string& error){return complete_bindings(error);}
 bool witness_birth(uintptr_t collection,uintptr_t bug,unsigned lane,std::string& error){
     if(!bug)return true;auto& r=runtime();Context context;Binding binding;uint64_t publication=0;bool active=false;
     if(!active_world(context,binding,publication,active,error))return false;if(!active)return true;
@@ -179,8 +184,10 @@ bool capture(const Context& context,const Binding& binding,uint64_t publication,
     if(context.role!=action_session::Role::Host||!publication)return fail(error,"Bug capture requires Host publication");
     return pin(context,binding,before,error)&&observe(out,error)&&untouched(before,error);
 }
-bool preflight_frame(const Context& context,const Binding& binding,uint64_t publication,const State& target,std::string& error){
+bool preflight_frame(const Context& context,const Binding& binding,uint64_t publication,const State& target,std::string& error,const WorkState* work){
     auto& r=runtime();std::lock_guard lock(r.gate);developer_staff::Capture before;State current;
+    r.frame_work=work?std::optional<WorkState>(*work):std::nullopt;r.frame_bugs=target;r.frame_publication=publication;
+    if(work&&!work_codec::valid(*work,error))return false;
     return prepare(context,binding,publication,target,before,current,error);
 }
 bool adopt_frame(const Context& context,const Binding& binding,uint64_t publication,const State& target,bool& attempted,bool& unknown,std::string& error){
@@ -194,33 +201,56 @@ bool adopt_frame(const Context& context,const Binding& binding,uint64_t publicat
             return (parent==expected.parent&&collection==expected.collection&&expected.snapshot==context.snapshot_uuid&&expected.epoch==binding.native_epoch&&expected.generation==binding.native_generation)||fail(cause,"Bug original call lease changed");};
         creation::NativeServices services(reader(),authorize,anchor_original());
         std::vector<Local> removed;for(const auto& local:r.lifetimes.rows())if(!local.retired&&std::none_of(target.rows.begin(),target.rows.end(),[&](const Row& x){return same_identity(x,local.row);}))removed.push_back(local);
-        for(const auto& local:removed){bool call_attempted=false;const bool ok=native_remove(local.collection,local.bug,call_attempted,error);attempted=attempted||call_attempted;if(!ok)throw std::runtime_error(error);}
+        if(!r.frame_work)for(const auto& local:removed){bool call_attempted=false;const bool ok=native_remove(local.collection,local.bug,call_attempted,error);attempted=attempted||call_attempted;if(!ok)throw std::runtime_error(error);}
         for(const auto& row:target.rows){
             auto* local=r.lifetimes.identity(row);uintptr_t parent=0,collection=0;if(!resolve_parent(row,parent,collection,error))throw std::runtime_error(error);
             auto owner=lease(row,parent,collection);
             if(!local){creation::CollectionReceipt attached;if(!services.ensure_collection(owner,attached)){attempted=attempted||attached.attempted;throw std::runtime_error(attached.cause);}attempted=attempted||attached.attempted;
                 owner.collection=attached.collection;creation::Receipt born;
-                const bool ok=create_replica(services,owner,value(row.value),born);attempted=attempted||born.attempted;
+                auto initial=value(row.value);initial.manual=false;initial.debugged=false;
+                const bool ok=create_replica(services,owner,initial,born);attempted=attempted||born.attempted;
                 if(!ok)throw std::runtime_error(born.cause);
                 if(!r.lifetimes.born({row,born.bug,parent,owner.collection,false},error))throw std::runtime_error(error);
+                if(row.value.manual||row.value.debugged){attempted=true;
+                    if(!services.scalars(owner,born.bug,value(row.value),error)||!services.anchor(owner,born.bug,error))throw std::runtime_error(error);}
             }else{
                 const auto old=std::find_if(current.rows.begin(),current.rows.end(),[&](const Row& x){return same_identity(x,row);});
                 if(old->value==row.value)continue;
                 attempted=true;if(!services.scalars(owner,local->bug,value(row.value),error)||!services.anchor(owner,local->bug,error))throw std::runtime_error(error);
             }
         }
-        State actual;if(!observe(actual,error)||actual!=target||!untouched(before,error)){
+        State actual;if(!observe(actual,error))throw std::runtime_error(error);
+        if(r.frame_work){for(const auto& row:target.rows){const auto found=std::find_if(actual.rows.begin(),actual.rows.end(),[&](const auto& x){return same_identity(x,row);});
+            if(found==actual.rows.end()||*found!=row)throw std::runtime_error("Bug prepared scalar/birth readback differs");}}
+        if((!r.frame_work&&actual!=target)||!untouched(before,error)){
             if(error.empty())error="Bug full authoritative state readback differs";throw std::runtime_error(error);}
         return true;
     }catch(const std::exception& ex){if(error.empty())error=ex.what();}
     catch(...){if(error.empty())error="Bug authority native apply nonstandard exception";}
     unknown=attempted;if(unknown)return reject(error,error);return false;
 }
+bool finish_frame(const Context& context,const Binding& binding,uint64_t publication,const State& target,bool& attempted,bool& unknown,std::string& error){
+    attempted=unknown=false;auto& r=runtime();std::lock_guard lock(r.gate);
+    if(!r.frame_work)return true;
+    developer_staff::Capture before;if(r.frame_bugs!=target||r.frame_publication!=publication||!pin(context,binding,before,error))return fail(error,error.empty()?"Bug finish lost its prepared publication":error);
+    try{
+        std::vector<Local> removed;for(const auto& local:r.lifetimes.rows())if(!local.retired&&std::none_of(target.rows.begin(),target.rows.end(),[&](const auto& row){return same_identity(row,local.row);}))removed.push_back(local);
+        developer_staff::job_census::Census jobs;if(!developer_staff::job_census::read(reader(),before,jobs,error))throw std::runtime_error(error);
+        for(const auto& local:removed){uintptr_t job=0;if(!field(local.bug,0x48,job,error))throw std::runtime_error(error);
+            if(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& x){return x.bug.pointer==local.bug;}))throw std::runtime_error("Bug finish still has a native Job reference");
+            bool called=false;const bool ok=native_remove(local.collection,local.bug,called,error);attempted|=called;if(!ok)throw std::runtime_error(error);
+        }
+        State actual;if(!observe(actual,error)||actual!=target||!untouched(before,error))throw std::runtime_error(error.empty()?"Bug final authoritative state differs":error);
+        return true;
+    }catch(const std::exception& cause){if(error.empty())error=cause.what();}
+    catch(...){if(error.empty())error="Bug finish nonstandard exception";}
+    unknown=attempted;if(unknown)return reject(error,error);return false;
+}
 bool begin_action(const Context& context,const Binding& binding,const std::string& action,std::string& error){
     auto& r=runtime();std::lock_guard lock(r.gate);developer_staff::Capture before;
     if(!r.action.empty()||action.empty())return fail(error,"Bug action scope nested or UUID absent");
     if(!pin(context,binding,before,error)||!complete_bindings(error))return false;
-    r.action=action;r.random_occurrence=r.specific_occurrence=r.record_occurrence=0;return true;
+    r.job_action_occurrence=0;r.action=action;r.random_occurrence=r.specific_occurrence=r.record_occurrence=0;return true;
 }
 bool end_action(bool confirmed,std::string& error){
     auto& r=runtime();std::lock_guard lock(r.gate);if(r.action.empty())return fail(error,"Bug action scope absent at return");
@@ -233,8 +263,8 @@ bool arm_snapshot(const std::string& uuid,const std::string& sha,bool host,std::
     auto& r=runtime();std::lock_guard lock(r.gate);
     if(!r.ready||uuid.empty()||(!host&&sha.size()!=64))return fail(error,"Bug snapshot arm lacks native hooks/UUID/digest");
     if(r.snapshot_armed)return fail(error,"Bug snapshot serde already armed");
-    r.thread=GetCurrentThreadId();r.snapshot_armed=true;r.snapshot_sealed=false;r.snapshot_host=host;r.snapshot_uuid=uuid;r.snapshot_sha=sha;r.saved.clear();r.lifetimes.clear();r.action.clear();r.confirmed_actions.clear();
-    r.locked=false;r.cause.clear();r.tracker=r.lounge=0;r.publication=0;return true;
+    r.thread=GetCurrentThreadId();r.snapshot_armed=true;r.snapshot_sealed=false;r.snapshot_host=host;r.snapshot_uuid=uuid;r.snapshot_sha=sha;r.saved.clear();r.lifetimes.clear();r.saved_jobs.clear();r.jobs.clear();r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.action.clear();r.confirmed_actions.clear();
+    r.frame_work.reset();r.frame_bugs={};r.frame_publication=0;r.locked=false;r.cause.clear();r.tracker=r.lounge=0;r.publication=0;return true;
 }
 bool seal_snapshot(const std::string& uuid,const std::string& sha,std::string& error){
     auto& r=runtime();std::lock_guard lock(r.gate);
@@ -242,6 +272,6 @@ bool seal_snapshot(const std::string& uuid,const std::string& sha,std::string& e
     if(!r.snapshot_armed||uuid!=r.snapshot_uuid||sha.size()!=64||(!r.snapshot_host&&sha!=r.snapshot_sha))return fail(error,"Bug snapshot seal UUID/digest/lifetime differs");
     r.snapshot_sha=sha;r.snapshot_armed=false;r.snapshot_sealed=true;return true;
 }
-void cancel_snapshot(const std::string& cause){auto& r=runtime();std::lock_guard lock(r.gate);r.snapshot_armed=r.snapshot_sealed=false;r.saved.clear();r.lifetimes.clear();r.cause=cause;}
+void cancel_snapshot(const std::string& cause){auto& r=runtime();std::lock_guard lock(r.gate);r.snapshot_armed=r.snapshot_sealed=false;r.saved.clear();r.lifetimes.clear();r.saved_jobs.clear();r.jobs.clear();r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.cause=cause;}
 bool initialize(std::string& error){auto& r=runtime();if(r.ready)return native_code(error);r.image=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));r.thread=GetCurrentThreadId();return install_native(error);}
 }

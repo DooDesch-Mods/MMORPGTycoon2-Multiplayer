@@ -1,5 +1,7 @@
 #include "live_host_state/day_rollover/economy/state_difference.h"
+#include "live_host_state/day_rollover/economy/capture_pause_restore.h"
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 namespace live=mt2mp::game::live_host_state;
 namespace economy=live::day::economy;
@@ -37,8 +39,40 @@ struct Mock final:Port {
 };
 Mock fixture(const State& base){Mock p;p.value.state=base;p.value.history.pin.context.role=mt2mp::action_session::Role::Client;p.value.subscribers={1};p.value.subscriber_slots={0};p.value.needs_owners.resize(1);return p;}
 State desired(const State& base){auto t=base;t.subscribers[0].quest_state->gold=1;t.subscribers[0].motion->position[0]+=1;for(auto& n:t.npcs){n.accepted.today=1;n.pose.position={8070.52880859375f,68.8605728149414f,8571.46484375f};}return t;}
+void capture_motion(){
+ auto before=fixture(baseline()).value;before.history.pin.pause=1;
+ before.state.npcs[0].pose.position={8135.8984375f,85.70109558105469f,8538.6884765625f};
+ auto after=before;after.state.npcs[0].pose.position={8139.6318359375f,85.70109558105469f,8539.0f};
+ after.state.npcs[0].pose.orientation={0,1,0,0};
+ const auto observed=after;std::string error;
+ need(!capture_readback(before,after,error),"strict capture admitted changed NPC movement");
+ const bool refreshed=capture_readback(before,after,error,true);
+ need(refreshed,"Host SaveScope movement blocked capture refresh: "+error);
+ need(after.state==observed.state,"capture refresh replaced final NPC state with prior pose");
+ auto reject=[&](auto mutate,const std::string& field){auto current=after;mutate(current);
+  need(!capture_readback(before,current,error,true)&&error.find(field)!=std::string::npos,"capture refresh lost guard "+field+": "+error);};
+ reject([](auto& v){v.state.npcs[0].pose.region=68;},"pose.region");
+ reject([](auto& v){v.state.npcs[0].pose.scale[0]=2;},"pose.scale");
+ reject([](auto& v){v.state.npcs[0].level+=1;},".level");
+ reject([](auto& v){v.state.npcs[0].key="action:00000000-0000-4000-8000-000000000003";},".key");
+ reject([](auto& v){v.state.npcs.pop_back();},"npc.count");
+ reject([](auto& v){v.state.subscribers[0].pay[0]+=1;},"subscriber[56].pay");
+ reject([](auto& v){v.history.pin.world+=1;},"native_owners_changed");
+ auto invalid=after;invalid.state.npcs[0].pose.position[0]=std::numeric_limits<float>::infinity();
+ need(!capture_readback(before,invalid,error,true)&&error.find("invalid")!=std::string::npos,"capture refresh accepted nonfinite NPC pose");
+ after=observed;after.history.pin.pause=0;unsigned restored=0,reads=0;
+ const bool paused=restore_capture_pause(before,after,[&](const live::Pin& pin,std::string&){++restored;after.history.pin.pause=pin.pause;return true;},
+  [&](Owners& value,std::string&){++reads;value=after;return true;},error);
+ need(paused&&restored==1&&reads==1&&after.history.pin.pause==1&&after.state==observed.state,
+      "Host SaveScope movement blocked original pause restoration/final state: "+error);
+ after=observed;after.history.pin.pause=0;restored=reads=0;
+ const bool failed=restore_capture_pause(before,after,[&](const live::Pin&,std::string& e){++restored;e="original pause setter exception";return false;},
+  [&](Owners& value,std::string&){++reads;value=after;return true;},error);
+ need(!failed&&restored==1&&reads==0&&error.find("original pause setter exception")!=std::string::npos,"capture pause failure lost original cause or replayed");
+}
 }
 int main(){try{
+ capture_motion();
  const auto base=baseline();auto target=desired(base);auto p=fixture(base);const auto before=p.value;Apply a;auto result=a.run(p,before,target);
  need(result.confirmed&&!result.unknown&&p.value.state==target&&p.counters==2&&p.poses==2,"two NPC/Subscriber scopes did not settle: "+result.cause);
  need(p.calls==std::vector<std::string>{"quest-scope","npc-scope","npc-scope","subscriber-pose","npc-pose","npc-pose"},"poses were interleaved with scopes");

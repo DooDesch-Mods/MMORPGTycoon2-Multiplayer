@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Original Host Policies page and uniquely bound Online-C checkbox through native Hover/Press/Release",
+  "runtime_run_id": "ae4c4743-6006-4807-8bad-f4315234fb77",
+  "dll_sha256": "99c341c656204fa567b659e26179ba4ac78266794e65516b0ee50ab3636daba6",
+  "evidence": {
+    "native": {
+      "path": "artifacts/acceptance/0ebdd6bc-9cb2-4f93-b29f-44de3d2ee0f5/summary.json",
+      "sha256": "22691cd19be5be83f0acd85668b3bce501275c17c099b292ef064c74a10aba8c"
+    },
+    "failed_enable_preflight": {
+      "path": "artifacts/acceptance/d8beba79-93bf-4d60-8c6c-50564ef27148/summary.json",
+      "sha256": "ceaea13af3608e2ec6be2c3920cae4b3d24c49924d44591d78eb0964d0f3c124"
+    },
+    "failed_settled_reader": {
+      "path": "artifacts/acceptance/652da32e-2416-42c8-816e-67ff2f854437/summary.json",
+      "sha256": "2d0d652bfd2f6059fbe76b1de4169700b4d012d17b0be70500d4f7182ca85ad1"
+    },
+    "reader_regression": {
+      "path": "artifacts/build_history/20261015T231931720027Z/affected-ctest.log",
+      "sha256": "594d4e962928ec167bc2f326afa51084facc1807ecd2f9ce54147c563d4165ea"
+    },
+    "reader_stage": {
+      "path": "tools/bug_saved_comparison/policy_route/settled_page_fix/manifest.json",
+      "sha256": "5ccb647d36940c8a85d827bfc865de91f4dc7502196b8287e944683e08f80577"
+    }
+  },
+  "actual_page": {
+    "current_page_present": true,
+    "next_matches_current": true,
+    "requested_policies": true,
+    "sampled": true,
+    "transition": 0,
+    "window_visible": 1
+  },
+  "policies_before": {
+    "fixABugsOffline": true,
+    "fixABugsOnline": true,
+    "fixBBugsOffline": true,
+    "fixBBugsOnline": false,
+    "fixCBugsOffline": true,
+    "fixCBugsOnline": false
+  },
+  "policies_after": {
+    "fixABugsOffline": true,
+    "fixABugsOnline": true,
+    "fixBBugsOffline": true,
+    "fixBBugsOnline": false,
+    "fixCBugsOffline": true,
+    "fixCBugsOnline": true
+  },
+  "source": [
+    {
+      "path": "src/game/developer_staff/bug_policy.cpp",
+      "sha256": "ae9a05cbcd3af8e4952cc79c103a4d7ad0ce9564c1067940de7dbfe12e1e95ba"
+    },
+    {
+      "path": "src/game/developer_staff/bug_policy_process.cpp",
+      "sha256": "eb81fc8241c5b38588f241d13dc55734abe79b33c7099c0ae8724c4f5f816896"
+    },
+    {
+      "path": "src/game/developer_staff/bug_policy_read.h",
+      "sha256": "a7cb1740ea0119655f51a23170cd9d089981afc0acce251def50464f908693a8"
+    },
+    {
+      "path": "test/test_bug_policy_read.cpp",
+      "sha256": "61acb81791289f86597b05442a7817a424395e8197a4d8ea2d328f0d8365f2d5"
+    }
+  ],
+  "confirmed_behavior": [
+    "One original Window.Show and SetPage return and confirm the visible requested Policies page.",
+    "Actual page fields confirm nonnull current page, equal target/current and transition0.",
+    "One original checkbox Hover/Press/Release changes only the actual Online-C bool. Masks7/7 and the readback confirm the result.",
+    "The paused native ledger, all50 Developer rows, counts and the other five policy bools stay equal."
+  ],
+  "limits": [
+    "This is an owned local Host diagnostic action. Shared policy presentation and manual Client Fix are not proven.",
+    "No Bug-known setter, MakeJob, Job tick or completion callback was invoked. Natural Type7 lifecycle acceptance remains separate."
+  ]
+}

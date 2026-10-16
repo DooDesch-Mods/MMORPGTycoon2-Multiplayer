@@ -1,0 +1,381 @@
+{
+  "scope": "One original Host weapon acquisition replicated through the existing Economy state, with all current chosen tuples equal after one original pause",
+  "passed": true,
+  "runtime_run_id": "a50dc811-7072-43c6-97e5-4995e94cf3a8",
+  "dll_sha256": "a629707baf90861f44960a72cbb6a5b510a3f301af17184e3f21029e9fd3a4d8",
+  "native_acceptance_id": "43c1062c-4344-4e17-a118-47e816943a83",
+  "native_acceptance": "artifacts\\acceptance\\43c1062c-4344-4e17-a118-47e816943a83\\summary.json",
+  "weapon_changes": [
+    {
+      "id": 60,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        13,
+        "swords",
+        1889777055
+      ]
+    }
+  ],
+  "actual_subscribers_each_peer": 56,
+  "all_actual_weapon_tuples_equal": true,
+  "full_shared_frame_equal": true,
+  "actual_native_ledger_equal": true,
+  "actual_ledger": {
+    "cash": 87600,
+    "flat_day": 1,
+    "line_counts": [
+      58,
+      0,
+      0,
+      0,
+      0,
+      0,
+      9,
+      0,
+      1,
+      0,
+      0,
+      1,
+      1,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "line_income": [
+      2320,
+      0,
+      0,
+      0,
+      0,
+      0,
+      -8360,
+      0,
+      -10,
+      0,
+      0,
+      -500,
+      -300,
+      0,
+      0,
+      0,
+      -150,
+      0,
+      0,
+      0
+    ],
+    "record_cash": 87600,
+    "record_day": 1,
+    "record_expense": 9330,
+    "record_income": 2330,
+    "record_present": 1
+  },
+  "actual_weapons": {
+    "0": [
+      0,
+      "",
+      0
+    ],
+    "1": [
+      0,
+      "",
+      0
+    ],
+    "2": [
+      0,
+      "",
+      0
+    ],
+    "3": [
+      0,
+      "",
+      0
+    ],
+    "4": [
+      0,
+      "",
+      0
+    ],
+    "5": [
+      0,
+      "",
+      0
+    ],
+    "6": [
+      0,
+      "",
+      0
+    ],
+    "7": [
+      0,
+      "",
+      0
+    ],
+    "9": [
+      0,
+      "",
+      0
+    ],
+    "10": [
+      0,
+      "",
+      0
+    ],
+    "11": [
+      0,
+      "",
+      0
+    ],
+    "12": [
+      0,
+      "",
+      0
+    ],
+    "13": [
+      0,
+      "",
+      0
+    ],
+    "14": [
+      0,
+      "",
+      0
+    ],
+    "15": [
+      0,
+      "",
+      0
+    ],
+    "16": [
+      0,
+      "",
+      0
+    ],
+    "17": [
+      0,
+      "",
+      0
+    ],
+    "18": [
+      0,
+      "",
+      0
+    ],
+    "19": [
+      0,
+      "",
+      0
+    ],
+    "20": [
+      0,
+      "",
+      0
+    ],
+    "21": [
+      0,
+      "",
+      0
+    ],
+    "22": [
+      0,
+      "",
+      0
+    ],
+    "23": [
+      0,
+      "",
+      0
+    ],
+    "24": [
+      0,
+      "",
+      0
+    ],
+    "25": [
+      0,
+      "",
+      0
+    ],
+    "26": [
+      0,
+      "",
+      0
+    ],
+    "27": [
+      0,
+      "",
+      0
+    ],
+    "28": [
+      0,
+      "",
+      0
+    ],
+    "29": [
+      0,
+      "",
+      0
+    ],
+    "30": [
+      0,
+      "",
+      0
+    ],
+    "31": [
+      0,
+      "",
+      0
+    ],
+    "32": [
+      0,
+      "",
+      0
+    ],
+    "35": [
+      0,
+      "",
+      0
+    ],
+    "37": [
+      0,
+      "",
+      0
+    ],
+    "39": [
+      0,
+      "",
+      0
+    ],
+    "40": [
+      0,
+      "",
+      0
+    ],
+    "41": [
+      0,
+      "",
+      0
+    ],
+    "42": [
+      0,
+      "",
+      0
+    ],
+    "43": [
+      15,
+      "swords",
+      386395346
+    ],
+    "44": [
+      0,
+      "",
+      0
+    ],
+    "45": [
+      0,
+      "",
+      0
+    ],
+    "46": [
+      18,
+      "swords",
+      386395346
+    ],
+    "47": [
+      11,
+      "swords",
+      1889777055
+    ],
+    "48": [
+      0,
+      "",
+      0
+    ],
+    "49": [
+      0,
+      "",
+      0
+    ],
+    "50": [
+      14,
+      "swords",
+      1889777055
+    ],
+    "51": [
+      0,
+      "",
+      0
+    ],
+    "52": [
+      13,
+      "wands",
+      -223771958
+    ],
+    "54": [
+      0,
+      "",
+      0
+    ],
+    "55": [
+      10,
+      "swords",
+      1889777055
+    ],
+    "56": [
+      0,
+      "",
+      0
+    ],
+    "59": [
+      0,
+      "",
+      0
+    ],
+    "60": [
+      13,
+      "swords",
+      1889777055
+    ],
+    "61": [
+      0,
+      "",
+      0
+    ],
+    "62": [
+      0,
+      "",
+      0
+    ],
+    "63": [
+      0,
+      "",
+      0
+    ]
+  },
+  "regression_tests": "artifacts/build_history/20261016T012924172502Z/affected-ctest.log",
+  "corrected_cause": "Weapon scalar records resolve exactly their 13 native record dependencies; the complete append resolver keeps its strict original guard checks.",
+  "prior_failed_acceptance": "988ef9fb-7c53-4056-823b-d8a430dc389f",
+  "media": {
+    "host": {
+      "path": "_drafts\\media\\weapon-tuple-host.bmp",
+      "pixel_sha256": "00a198a44d613d8ea2f6f1a2ac0e9c519e844a85cbe2781a96684b7d18299952"
+    },
+    "client-1": {
+      "path": "_drafts\\media\\weapon-tuple-client-1.bmp",
+      "pixel_sha256": "dac4351eb7f50e8c839a81b99bbdb5d7e29ff875543ece9bdeae2e1f9a5af319"
+    }
+  },
+  "limits": [
+    "The close-up frames were inspected. Per-subscriber model/bone/matrix and RNG evidence remains a separate open scope.",
+    "Later original Actor birth/Equip interception remains a separate open scope.",
+    "Full coop remains incomplete."
+  ],
+  "proof_sha256": "2155f2fcdbad3fb209e232d4aa88aafa55ff767a51d597355c701ebc665ebf99"
+}

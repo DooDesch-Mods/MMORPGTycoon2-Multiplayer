@@ -10,4 +10,7 @@ bool local_session_connected();
 size_t local_session_peers();
 uint8_t local_session_peer_mask();
 std::string local_session_status();
+// The retained notice is scoped to the current shared snapshot, not transport lifetime.
+bool publish_local_host_leave(std::string& error);
+bool local_host_left(const std::string& snapshot);
 }

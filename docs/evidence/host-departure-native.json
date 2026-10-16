@@ -1,0 +1,99 @@
+{
+  "schema_version": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Confirmed local Host Leave retires the Client without a Client Leave click; normal same-process rehost remains usable",
+  "runtime_run_id": "224dccd6-4f8f-40a8-9024-ea0e1ea2b677",
+  "dll_sha256": "40c51e57f915983d35695caa129dcca2ca9e43a8ea1b6242e0112ae9335277e5",
+  "evidence": {
+    "failed_original": {
+      "path": "artifacts/acceptance/4ee8ef9c-7a2f-408f-bf06-650e34a2ef71/summary.json",
+      "sha256": "d25472141b930a7d3c84eaa54b0d33f0d2e94bf18d33ddf34080db02d16087d6"
+    },
+    "leave": {
+      "path": "artifacts/acceptance/812a1b73-5051-4e75-bafb-12d1b351ac50/summary.json",
+      "sha256": "f058cefb256b50b611c3a1b306460d015116cec2ed237385e49f8c6dcf72f9c0"
+    },
+    "rehost": {
+      "path": "artifacts/acceptance/57078968-8416-4ec6-9903-71836c7d00be/summary.json",
+      "sha256": "0f36f4d2d7de7262ddf7341693ead41fe9d4121a40f3aa8115b89cf5ce892462"
+    },
+    "focused_tests": {
+      "path": "artifacts/build_history/20261015T230112358452Z/affected-ctest.log",
+      "sha256": "02d1cbb9f2023dd4c587e0c347ccaf55927190c9817d61020875c42f82123a51"
+    },
+    "stage_manifest": {
+      "path": "tools/bug_saved_comparison/host_leave_stage/manifest.json",
+      "sha256": "175562e2484c0223307d8035e66581e7670a5c5942a7f5023854277d63aadd82"
+    }
+  },
+  "retired": {
+    "host": {
+      "admitted": false,
+      "title_active": true,
+      "controller_initialized": false,
+      "leave_confirmed": 1,
+      "command_failures": 0,
+      "route_buttons": [
+        "host",
+        "open",
+        "leave"
+      ]
+    },
+    "client-1": {
+      "admitted": false,
+      "title_active": true,
+      "controller_initialized": false,
+      "leave_confirmed": 1,
+      "command_failures": 0,
+      "route_buttons": [
+        "join",
+        "open"
+      ]
+    }
+  },
+  "old_snapshot_uuid": "1b13aa81-3bed-4c16-bdde-29e9529b6e8a",
+  "new_snapshot_uuid": "60fd403a-f370-4295-841d-f6764e977afe",
+  "rehost_contexts": {
+    "host": {
+      "path": "test/mcp/evidence/a570789688416-18-session-cont_20261015T231628218952Z.json",
+      "sha256": "459cee016c3c04d6f7ea7a863e31eb021f12d3a22770f4dfa1f3a739f57f56db"
+    },
+    "client-1": {
+      "path": "test/mcp/evidence/a570789688416-19-session-cont_20261015T231634601684Z.json",
+      "sha256": "0b560884324541e5aaa39945af0333f34473cca25c7eb4e013dfa006fb18255d"
+    }
+  },
+  "source": [
+    {
+      "path": "include/mt2mp/net/local_session.h",
+      "sha256": "806caf2cd7b230c7d318bf519433d92881349dd884ddedfb27704377263351a8"
+    },
+    {
+      "path": "src/net/local_session.cpp",
+      "sha256": "117c4cf76645c6f29dbfc0c0830fbc3cd308f69305d95e1a65dcc071ee4a99d1"
+    },
+    {
+      "path": "src/net/session_wire.cpp",
+      "sha256": "670819b00b960f331952790045efa0a15fc6fc44ef4f85d0ef68d8bfe5052426"
+    },
+    {
+      "path": "src/game/native_lobby.cpp",
+      "sha256": "27e84812dd29e495bb8505f48d8fe4542343ccc7cdeed5e97606ecfe0bd14969"
+    },
+    {
+      "path": "test/test_host_departure.cpp",
+      "sha256": "6aa85e1c4d2b454b4348a6744f801b965a7c5d7147b7de2ddcec3fbced8d20b5"
+    }
+  ],
+  "confirmed_behavior": [
+    "The original Host Leave button is invoked once. The Client has no Leave route receipt.",
+    "Both peers return to actual idle Title, clear admission and confirm one completed native Leave without errors.",
+    "The same processes open, Host and Join a new lobby, load the retained small-world fixture once and reach Playing.",
+    "Both final shared snapshot IDs agree and differ from the departed snapshot. The old notice does not retire the new world."
+  ],
+  "limits": [
+    "This proves confirmed Host Leave on the local transport after a shared world, not abrupt process loss or lobby-only departure.",
+    "Separate-account Steam and complete ongoing gameplay acceptance remain open. This development candidate is not a new tester beta."
+  ]
+}

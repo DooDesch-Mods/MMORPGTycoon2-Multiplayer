@@ -1,0 +1,18 @@
+if(WIN32)
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set(weapon_runtime_generated "${CMAKE_CURRENT_BINARY_DIR}/weapon_runtime_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_toon_weapon_wiring.py"
+    --source-root "${MT2MP_SOURCE_ROOT}" --output "${weapon_runtime_generated}"
+    RESULT_VARIABLE weapon_runtime_extract)
+if(NOT weapon_runtime_extract EQUAL 0)
+    message(FATAL_ERROR "Actual weapon Runtime wiring extraction failed")
+endif()
+foreach(name runtime wiring)
+    add_executable(test_toon_weapon_${name} "${MT2MP_SOURCE_ROOT}/test/test_toon_weapon_${name}.cpp")
+    target_include_directories(test_toon_weapon_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${weapon_runtime_generated}")
+    target_compile_features(test_toon_weapon_${name} PRIVATE cxx_std_20)
+    target_compile_definitions(test_toon_weapon_${name} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+    target_compile_options(test_toon_weapon_${name} PRIVATE /W4 /WX /utf-8 /EHsc)
+    add_test(NAME toon_weapon_${name} COMMAND test_toon_weapon_${name})
+endforeach()
+endif()

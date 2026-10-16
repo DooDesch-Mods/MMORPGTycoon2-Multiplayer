@@ -1,4 +1,5 @@
 #include "native_monetary.h"
+#include "toon_weapon_visual/visual.h"
 #include "state_difference.h"
 #include "live_host_state/apply_timing.h"
 #include "live_host_state/native_bulk_read.h"
@@ -16,6 +17,7 @@
 #include <bit>
 #include "subscriber_lifecycle/runtime_capture.h"
 #include "subscriber_lifecycle/runtime_append.h"
+#include "subscriber_lifecycle/append_calls.h"
 #include "subscriber_lifecycle/retirement_runtime.h"
 #include "native_open_runtime.h"
 #include "region_saved_identity.h"
@@ -43,6 +45,7 @@ bool text(uintptr_t p,size_t offset,size_t bound,std::string& out,std::string& e
 template<class Row>bool loans(const Pin& pin,size_t offset,bool offer,uintptr_t& data,std::vector<uintptr_t>& owners,std::vector<Row>& out,std::string& e){int32_t count=-1,capacity=-1;if(!at(pin.business,offset+8,data,e)||!at(pin.business,offset+0x10,count,e)||!at(pin.business,offset+0x14,capacity,e)||count<0||capacity<count||count>1024||(!data&&count))return fail(e,e.empty()?"economic native Loan/Offer bounded array differs":e);std::set<std::string> ids;for(int32_t i=0;i<count;++i){uintptr_t p=0;Row row;if(!at(data,size_t(i)*8,p,e)||!ap(p,pin.image,offer?0x16df370:0x17438e0,e))return false;for(size_t n=0;n<3;++n)if(!text(p,0x18+n*0x20,n?2048:256,row.text[n],e))return false;if(!ids.insert(row.text[0]).second)return fail(e,"economic native Loan/Offer duplicate ID");for(size_t n=0;n<row.amounts.size();++n)if(!at(p,0x78+n*4,row.amounts[n],e))return false;owners.push_back(p);out.push_back(std::move(row));}return true;}
 }
 #include "native_motion.inc"
+#include "native_weapon_state.inc"
 #include "native_quest_state.inc"
 bool NativePort::bind_actual_receipt(const Target& target,std::string& error){
     if(!day::valid(target,error))return false;

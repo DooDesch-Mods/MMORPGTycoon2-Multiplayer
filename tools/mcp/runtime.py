@@ -25,6 +25,7 @@ STATUS_PUBLICATION_WAIT_SECONDS = 0.25
 STATUS_PUBLICATION_POLL_SECONDS = 0.01
 OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot", "capture_frame", "set_time_scale", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "probe_building_placement", "place_test_building", "purchase_test_region", "focus_test_camera", "read_subscriber_needs"}
 OPS.add("append_subscriber_record_probe")
+OPS.add("read_subscriber_weapon")
 MUTATIONS = {"set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
 OPS.add("tutorial_welcome_ok")
@@ -106,6 +107,8 @@ MUTATIONS.add("send_chat")
 OPS.update({"read_chat_ui", "native_chat_ui_key", "native_chat_ui_text"})
 MUTATIONS.update({"native_chat_ui_key", "native_chat_ui_text"})
 OPS.update({"read_native_loans", "native_take_loan_fixture", "native_loan_payment"})
+OPS.update({"read_bug_c_policy", "native_bug_c_policy"})
+MUTATIONS.add("native_bug_c_policy")
 OPS.update({"read_native_release", "native_initial_release_fixture"})
 MUTATIONS.add("native_initial_release_fixture")
 OPS.update({"read_native_developers", "native_developer_fixture"})

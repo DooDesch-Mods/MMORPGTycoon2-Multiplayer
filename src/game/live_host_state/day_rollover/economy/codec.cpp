@@ -40,14 +40,14 @@ bool encode(const State& state,std::vector<uint8_t>& out,std::string& error){
         for(const auto& row:state.subscribers){Json pose=nullptr;if(row.motion)pose={{"region",row.motion->region},{"orientation",row.motion->orientation},{"position",row.motion->position},{"scale",row.motion->scale}};subscribers.push_back({{"id",row.serialized_id},{"pay",row.pay},{"play_days",row.play_days},{"needs_bits",row.needs_bits},{"satisfaction",row.activity.satisfaction},{"addiction",row.activity.addiction},{"logged_in_time_bits",row.activity.logged_in_time_bits},{"motion",pose},{"rewards",row.rewards},{"quest_state",toon_json(row.quest_state)}});}
         for(const auto& row:state.loans)loans.push_back({{"text",row.text},{"amounts",row.amounts}});
         for(const auto& row:state.offers)offers.push_back({{"text",row.text},{"amounts",row.amounts}});
-        const auto text=Json{{"schema",11},{"kind","host_state_economy"},{"day",Json::parse(day_bytes)},
+        const auto text=Json{{"schema",12},{"kind","host_state_economy"},{"day",Json::parse(day_bytes)},
             {"subscribers",subscribers},{"npcs",npcs_json(state.npcs)},{"loans",loans},{"offers",offers},{"additions",{{"available",state.additions.available},{"next_id",state.additions.next_id},{"baseline",state.additions.baseline},{"graphs",state.additions.graphs},{"retired",retired}}}}.dump();
-        if(text.size()>max_frame_payload)return fail(error,"economy frame exceeds 65536-byte Channel9 transport bound bytes="+std::to_string(text.size()));
+        if(text.size()>max_logical_frame_payload)return fail(error,"economy frame exceeds 1048576-byte logical frame bound bytes="+std::to_string(text.size()));
         out.assign(text.begin(),text.end());error.clear();return true;
     }catch(const std::exception& x){return fail(error,std::string("economy encode original=")+x.what());}
 }
 bool decode(const uint8_t* bytes,size_t size,State& out,std::string& error){
-    out={};if(!bytes||!size||size>max_frame_payload)return fail(error,"economy frame length invalid");
+    out={};if(!bytes||!size||size>max_logical_frame_payload)return fail(error,"economy frame length invalid");
     try{
         std::vector<std::set<std::string>> fields;
         const auto json=Json::parse(bytes,bytes+size,[&](int depth,Json::parse_event_t event,Json& value){
@@ -57,7 +57,7 @@ bool decode(const uint8_t* bytes,size_t size,State& out,std::string& error){
             if(event==Json::parse_event_t::object_end)fields.pop_back();return true;
         });
         exact(json,{"schema","kind","day","subscribers","npcs","loans","offers","additions"});
-        if(i32(json.at("schema"))!=11||json.at("kind")!="host_state_economy"||!json.at("subscribers").is_array())throw std::runtime_error("economy exact schema11 required");
+        if(i32(json.at("schema"))!=12||json.at("kind")!="host_state_economy"||!json.at("subscribers").is_array())throw std::runtime_error("economy exact schema12 required");
         State target;const auto day_text=json.at("day").dump();
         if(!day::decode(reinterpret_cast<const uint8_t*>(day_text.data()),day_text.size(),target.day,error))return false;
         for(const auto& row:json.at("subscribers")){

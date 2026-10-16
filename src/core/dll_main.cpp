@@ -25,6 +25,7 @@
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
 #include "../game/developer_staff/probe.h"
+#include "../game/developer_staff/bug_policy.h"
 #include "../game/developer_staff/action_native.h"
 #include "../game/developer_staff/retirement/retire.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
@@ -70,6 +71,7 @@
 #include "../game/observer_hooks.h"
 #include "../game/live_host_state/economic_fence.h"
 #include "../game/subscriber_lifecycle/retirement_runtime.h"
+#include "../game/render_pool_guard/runtime.h"
 #include "../game/live_host_state/day_rollover/native_day.h"
 #include "../game/move_ui_probe/contract.h"
 #include "../game/native_tool_prepare/tool_cancel.h"
@@ -894,6 +896,8 @@ static json status() {
     result["capabilities"]["read_native_lobby"]=owned_native_profile;
     result["capabilities"]["read_native_loans"]=owned_native_profile;
     result["capabilities"]["read_native_release"]=owned_native_profile;
+    result["capabilities"]["read_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
+    result["capabilities"]["native_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["read_native_developers"]=owned_native_profile;
     result["capabilities"]["native_developer_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_native_developer_retirement"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
@@ -985,6 +989,7 @@ static json status() {
     result["capabilities"]["purchase_test_region"]=cfg.is_host&&capabilities.clock;
     result["capabilities"]["focus_test_camera"]=capabilities.clock;
     result["capabilities"]["read_subscriber_needs"]=game::native::in_game();
+    result["capabilities"]["read_subscriber_weapon"]=game::native::in_game();
     result["capabilities"]["capture_subscriber_record"]=Config::instance().local_test && Config::instance().is_host && game::native::in_game();
     result["capabilities"]["append_subscriber_record_probe"]=Config::instance().local_test && !Config::instance().is_host && game::native::in_game();
     result["capabilities"]["read_subscriber_candidates"]=game::native::in_game();
@@ -1346,6 +1351,15 @@ static void diagnostics_tick() {
             }else response["ok"]=game::developer_staff::retirement::run_fixture(request.at("args"),observed,error);
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_RETIREMENT_FAILED"},{"message",error}};
+        }
+        else if(operation=="read_bug_c_policy"||operation=="native_bug_c_policy") {
+            json observed;std::string error;
+            if(operation=="read_bug_c_policy") {
+                if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("Bug-C policy read requires empty arguments");
+                response["ok"]=game::developer_staff::bug_policy::observe(observed,error);
+            }else response["ok"]=game::developer_staff::bug_policy::run(request.at("args"),observed,error);
+            response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","BUG_C_POLICY_UI_FAILED"},{"message",error}};
         }
         else if(operation=="native_developer_ui") {
             json observed;std::string error;
@@ -1960,6 +1974,20 @@ static void diagnostics_tick() {
             if(!response["ok"].get<bool>())
                 response["error"]={{"code","SUBSCRIBER_CAPTURE_REJECTED"},{"message",error}};
         }
+        else if(operation=="read_subscriber_weapon") {
+            const auto& args=request.at("args");
+            if(!args.is_object()||args.size()!=1||!args.contains("serialized_id"))
+                throw std::runtime_error("read_subscriber_weapon requires exactly serialized_id");
+            const auto& number=args.at("serialized_id");
+            if(!number.is_number_integer()||number.is_boolean()||
+               (number.is_number_unsigned()&&number.get<uint64_t>()>INT32_MAX)||
+               (!number.is_number_unsigned()&&(number.get<int64_t>()<0||number.get<int64_t>()>INT32_MAX)))
+                throw std::runtime_error("subscriber ID requires int32 range 0..2147483647");
+            std::string error;json observed;
+            response["ok"]=game::typed_action_runtime::read_subscriber_weapon(number.get<int32_t>(),observed,error);
+            response["result"]=std::move(observed);
+            if(!response["ok"].get<bool>())response["error"]={{"code","SUBSCRIBER_WEAPON_READ_REJECTED"},{"message",error}};
+        }
         else if(operation=="read_subscriber_needs") {
             const auto& number=request.at("args").at("serialized_id");
             if(!number.is_number_integer()||number.get<int64_t>()<0||number.get<int64_t>()>INT32_MAX)
@@ -2203,6 +2231,8 @@ bool initialize(HMODULE module) {
             if(!native_image_begin || !image_info.SizeOfImage || image_info.SizeOfImage>std::numeric_limits<uintptr_t>::max()-native_image_begin)
                 throw std::runtime_error("native caller image bounds invalid");
             native_image_end=native_image_begin+image_info.SizeOfImage;
+            if(!game::render_pool_guard::initialize(native_image_begin,image_info.SizeOfImage,native_error))
+                throw std::runtime_error("native render pool guard initialization failed: "+native_error);
             if(!game::tutorial_replication::initialize(native_image_begin,native_error))throw std::runtime_error("tutorial initialization failed: "+native_error);
             if(!game::native_open_runtime::initialize(runtime_root,native_image_begin,native_error))
                 throw std::runtime_error("native snapshot origin initialization failed: "+native_error);

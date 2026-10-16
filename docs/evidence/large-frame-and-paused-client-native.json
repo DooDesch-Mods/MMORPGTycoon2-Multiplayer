@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "passed": true,
+  "dll_sha256": "2f47808da257529e7129078d11e1f1304f1dba82f505e1c8320d91b366267c08",
+  "scope": "Complete large logical frame delivery and original zero-time Client Toon updates",
+  "runtime_run_id": "e67be70c-4efe-4d7f-a708-d3aef20d0be3",
+  "acceptance": "artifacts/acceptance/02fb0eb5-ba42-4912-8103-880cfcd2c79b/summary.json",
+  "acceptance_sha256": "2c8eedc98a3bb4e949da278a98a7c3dd36605a02f3525dc98d8d67d62b150b24",
+  "received_large_frame": {
+    "admitted": true,
+    "bytes": 75550,
+    "chunks": 4,
+    "complete": true,
+    "revision": 264,
+    "sha256": "94d2d2b5915423f3753f08ae46c922aa339227f9854c5432ca13573392f591e9",
+    "sha256_verified": true
+  },
+  "committed_revision": 265,
+  "latest_host_send": {
+    "bytes": 64878,
+    "chunks": 1,
+    "packets_queued": 1,
+    "queued": true,
+    "revision": 265,
+    "sha256": null
+  },
+  "actual_subscribers_each_peer": 79,
+  "full_current_frame_and_native_rows_equal": true,
+  "client_toon_time": {
+    "confirmed_updates": 236167,
+    "last": {
+      "after_bits": 0,
+      "backlog_bits": 0,
+      "cache_attempted": false,
+      "cache_cleared": false,
+      "cause": "",
+      "confirmed": true,
+      "input_dt_bits": 0,
+      "original_attempted": true,
+      "original_returned": true,
+      "owned": true,
+      "subscriber_id": 91,
+      "toon_address": 2409789443072,
+      "unknown": false
+    },
+    "last_discarded": {
+      "after_bits": 0,
+      "backlog_bits": 1033121634,
+      "cache_attempted": true,
+      "cache_cleared": true,
+      "cause": "",
+      "confirmed": true,
+      "input_dt_bits": 0,
+      "original_attempted": true,
+      "original_returned": true,
+      "owned": true,
+      "subscriber_id": 86,
+      "toon_address": 2409908767808,
+      "unknown": false
+    }
+  },
+  "host_toon_confirmed_updates": 0,
+  "paused_motion_acceptance": "artifacts/acceptance/48c0b96d-fbf2-4986-b516-106fcc5b5edf/summary.json",
+  "paused_motion_acceptance_sha256": "2967f793a056bdef6c306d3fb3430f3efcc324b61ac91aff0bfbd7e26173b671",
+  "paused_motion_scope": "Toon61 and the actual Clock remain unchanged across each peer camera/read sequence; original presentation remains active",
+  "prior_test_conditions": [
+    {
+      "acceptance_id": "ad2eb53d-3940-4c58-b040-db536f1725bc",
+      "cause": "No larger logical frame had occurred during the initial paused read"
+    },
+    {
+      "acceptance_id": "da070891-7330-4cfe-9836-27e768cb0145",
+      "cause": "Observer asserted committed state immediately after complete admission; it now waits for the matching commit",
+      "compensation": "One original pause confirmed on both peers; mutation not replayed"
+    }
+  ],
+  "limits": [
+    "Latest Host send265 is a smaller update; the retained large Client receipt is264",
+    "Local common transport acceptance does not establish separate-account Steam acceptance",
+    "Full coop remains incomplete"
+  ]
+}

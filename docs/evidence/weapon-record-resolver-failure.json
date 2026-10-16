@@ -1,0 +1,298 @@
+{
+  "runtime_run_id": "0a81ccc0-51f6-4fd0-a3ef-132b39608ebe",
+  "acceptance_id": "988ef9fb-7c53-4056-823b-d8a430dc389f",
+  "passed": false,
+  "weapon_changes": [
+    {
+      "id": 60,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        14,
+        "swords",
+        1889777055
+      ]
+    }
+  ],
+  "original_log": [
+    "[03:21:55.564] [ERROR] [GEN] [typed_action_runtime.cpp:948] [LiveState] Apply failed: economy native scalar/readback Unknown original=actual Toon Quest state Unknown original=Subscriber append native code mismatch RVA=9036016; no replay; actual Day already committed; no replay",
+    "[03:21:55.640] [ERROR] [GEN] [prepare_flow.cpp:33] [NativeLobby] Prepare failed state=Verbunden cause=economy native scalar/readback Unknown original=actual Toon Quest state Unknown original=Subscriber append native code mismatch RVA=9036016; no replay; actual Day already committed; no replay"
+  ],
+  "actual_paused_state": {
+    "host": {
+      "clock": {
+        "day": 1,
+        "pause_scale": 1.0,
+        "paused": true,
+        "scale": 0.0,
+        "seconds": 51417
+      },
+      "toon": {
+        "attributes": [
+          1101004800,
+          0,
+          0
+        ],
+        "gold": 20,
+        "level": 1,
+        "progress": [
+          {
+            "action_performed": false,
+            "complete": true,
+            "completed": 2,
+            "monsters_defeated": 0,
+            "npc": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:34",
+              "sequence_id": -1,
+              "state": "live"
+            },
+            "quest": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:34",
+              "sequence_id": 1,
+              "state": "live"
+            },
+            "visited": true
+          },
+          {
+            "action_performed": false,
+            "complete": false,
+            "completed": 1,
+            "monsters_defeated": 0,
+            "npc": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:39",
+              "sequence_id": -1,
+              "state": "live"
+            },
+            "quest": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:39",
+              "sequence_id": 1,
+              "state": "live"
+            },
+            "visited": false
+          }
+        ],
+        "quests_completed": 3,
+        "seconds_to_level_bits": 1134971542,
+        "weapon_category": "swords",
+        "weapon_ilvl": 14,
+        "weapon_variant_id": 1889777055,
+        "xp_bits": 1123024896
+      },
+      "live_state": {
+        "active": true,
+        "attempted": false,
+        "attempted_stores": 0,
+        "cause": "",
+        "completed_stores": 0,
+        "confirmed": false,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "",
+        "economic_fence_locked": false,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": false,
+        "requested": true,
+        "unknown": false
+      },
+      "weapon_visual": {
+        "attachments": [],
+        "attack": 13,
+        "attempted": false,
+        "bone": -1,
+        "bootstrap_confirmed": false,
+        "cache": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "category": "",
+        "cause": "",
+        "confirmed": false,
+        "deferred": false,
+        "forwarded": false,
+        "hook": false,
+        "ilvl": 0,
+        "matrix": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "model_id": -1,
+        "owned": false,
+        "remove": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "scene": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "subscriber_id": -1,
+        "toon_address": 0,
+        "unknown": false,
+        "variant": 0
+      }
+    },
+    "client-1": {
+      "clock": {
+        "day": 1,
+        "pause_scale": 1.0,
+        "paused": true,
+        "scale": 0.0,
+        "seconds": 50208
+      },
+      "toon": {
+        "attributes": [
+          1101004800,
+          0,
+          0
+        ],
+        "gold": 30,
+        "level": 1,
+        "progress": [
+          {
+            "action_performed": false,
+            "complete": true,
+            "completed": 2,
+            "monsters_defeated": 0,
+            "npc": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:34",
+              "sequence_id": -1,
+              "state": "live"
+            },
+            "quest": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:34",
+              "sequence_id": 1,
+              "state": "live"
+            },
+            "visited": true
+          },
+          {
+            "action_performed": false,
+            "complete": false,
+            "completed": 1,
+            "monsters_defeated": 0,
+            "npc": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:39",
+              "sequence_id": -1,
+              "state": "live"
+            },
+            "quest": {
+              "npc_key": "68798f58d024750aeff950c6d80ed534099b5b5ed0fee56a02dd927b98697017:world:npc:39",
+              "sequence_id": 1,
+              "state": "live"
+            },
+            "visited": false
+          }
+        ],
+        "quests_completed": 3,
+        "seconds_to_level_bits": 1133233590,
+        "weapon_category": "",
+        "weapon_ilvl": 0,
+        "weapon_variant_id": 0,
+        "xp_bits": 1123024896
+      },
+      "live_state": {
+        "active": true,
+        "attempted": true,
+        "attempted_stores": 22,
+        "cause": "live frame locked after Unknown; no replay",
+        "completed_stores": 21,
+        "confirmed": false,
+        "day_receipt": {
+          "appended": 0,
+          "attempted": false,
+          "cause": "",
+          "confirmed": false,
+          "created": 0,
+          "pruned": 0,
+          "unknown": false
+        },
+        "day_record_sequence": 2,
+        "economic_fence_cause": "",
+        "economic_fence_locked": false,
+        "economic_retired_cause": "",
+        "economic_suppressed": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "locked": true,
+        "requested": true,
+        "unknown": true
+      },
+      "weapon_visual": {
+        "attachments": [],
+        "attack": 13,
+        "attempted": false,
+        "bone": -1,
+        "bootstrap_confirmed": true,
+        "cache": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "category": "",
+        "cause": "",
+        "confirmed": true,
+        "deferred": false,
+        "forwarded": false,
+        "hook": false,
+        "ilvl": 0,
+        "matrix": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "model_id": -1,
+        "owned": true,
+        "remove": {
+          "attempted": false,
+          "exception": 0,
+          "returned": false
+        },
+        "scene": {
+          "attempted": true,
+          "exception": 0,
+          "returned": true
+        },
+        "subscriber_id": 59,
+        "toon_address": 2573861755088,
+        "unknown": false,
+        "variant": 0
+      }
+    }
+  },
+  "cause": "The weapon scalar path validates the entire unrelated append API, including the already installed Context lookup hook at RVA 0x89e0f0. It needs only the original record API.",
+  "next_action": "Resolve and validate the exact record-only native dependencies. Preserve strict full append validation and reject changed record bodies. No replay of the failed transaction."
+}

@@ -39,6 +39,9 @@ inline bool capture_readback(const Owners& before,const Owners& after,std::strin
     if(refresh_motion){
         for(size_t i=0;i<std::min(before.state.npcs.size(),stable.npcs.size());++i){
             const auto& old=before.state.npcs[i];auto& current=stable.npcs[i];
+            // Normalize only the comparison copy for SaveScope movement.
+            // The const after.state retains the fresh pose published by Coupling.
+            current.pose.position=old.pose.position;current.pose.orientation=old.pose.orientation;
             current.accepted=old.accepted;current.completed=old.completed;current.highest_cache=old.highest_cache;
             for(size_t q=0;q<std::min(old.quests.size(),current.quests.size());++q){
                 current.quests[q].accepted=old.quests[q].accepted;current.quests[q].completed=old.quests[q].completed;

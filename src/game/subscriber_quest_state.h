@@ -25,10 +25,14 @@ struct Progress {
     bool visited=false,action_performed=false,complete=false;
     bool operator==(const Progress&)const=default;
 };
+// The category cannot exceed the existing Economy transport payload.
+inline constexpr size_t weapon_category_max_bytes=65536;
 struct Toon {
     int32_t gold=0;
     uint32_t xp_bits=0;
     int32_t level=0,quests_completed=0;
+    int32_t weapon_ilvl=0,weapon_variant_id=0;
+    std::string weapon_category;
     std::array<uint32_t,3> attributes{};
     uint32_t seconds_to_level_bits=0;
     std::vector<Progress> progress;
@@ -71,6 +75,8 @@ inline bool valid(const Link& link,bool quest,std::string& error){
     error.clear();return true;
 }
 inline bool valid(const Toon& toon,std::string& error){
+    if(toon.weapon_category.size()>weapon_category_max_bytes){error="Quest Toon weapon_category exceeds 65536-byte transport bound";return false;}
+    if(toon.weapon_category.find('\0')!=std::string::npos){error="Quest Toon weapon_category contains embedded NUL";return false;}
     if(toon.level<0||toon.quests_completed<0){error="Quest Toon level/completed count negative";return false;}
     if(!finite_bits(toon.xp_bits)||!finite_bits(toon.seconds_to_level_bits)){
         error="Quest Toon XP/time bits not finite";return false;

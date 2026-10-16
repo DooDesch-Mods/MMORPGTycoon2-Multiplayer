@@ -5,7 +5,8 @@ namespace bugs=mt2mp::game::bug_authority;
 namespace fixture {
 std::map<uintptr_t,unsigned char> bytes;
 bool active=false,context_ok=true,owned_writer=true,anchor_handled=false;
-int original_calls=0,births=0,removals=0,anchors=0,checks=0;
+int original_calls=0,births=0,removals=0,anchors=0,checks=0,job_births=0,job_saves=0;
+constexpr uintptr_t job=0x9000;
 mt2mp::action_session::Role role=mt2mp::action_session::Role::Host;
 constexpr uintptr_t parent=0x1000,collection=0x2000,bug=0x3000,stream=0x4000,context=0x5000,property=0x6000,map=0x7000;
 std::vector<uintptr_t> members;
@@ -18,9 +19,12 @@ void remove(uintptr_t,uintptr_t){++original_calls;}
 bool save(uintptr_t,uintptr_t,uintptr_t writer,uintptr_t ctx){++original_calls;bugs::saved_child(0xdc19e1,bug,writer,ctx);return true;}
 bool load(uintptr_t,uintptr_t,uintptr_t reader,uintptr_t ctx){++original_calls;bugs::original_children(0xbae563,reinterpret_cast<void*>(reader),1);members={bug};bugs::original_registered(0xbae8b5,reinterpret_cast<void*>(ctx),9,reinterpret_cast<void*>(bug));return true;}
 void record(uintptr_t,uintptr_t,uintptr_t ctx){++original_calls;members={bug};bugs::original_registered(0xbae470,reinterpret_cast<void*>(ctx),0,reinterpret_cast<void*>(bug));}
-void reset(){auto& r=bugs::runtime();bytes.clear();members.clear();active=false;context_ok=owned_writer=true;anchor_handled=false;role=mt2mp::action_session::Role::Host;original_calls=births=removals=anchors=0;
- r.image=0x100000000;r.ready=true;r.locked=false;r.cause.clear();r.snapshot_armed=false;r.snapshot_host=false;r.snapshot_uuid="snapshot";r.saved.clear();r.action.clear();r.binding.native_epoch=7;r.binding.native_generation=9;r.tracker=0x8000;
+void make(uintptr_t object){++original_calls;put(object+0x48,job);}
+void destroy(uintptr_t object){++original_calls;require(!bugs::runtime().jobs.pointer(object),"original D0 called before witness retirement");}
+void reset(){auto& r=bugs::runtime();bytes.clear();members.clear();active=false;context_ok=owned_writer=true;anchor_handled=false;role=mt2mp::action_session::Role::Host;original_calls=births=removals=anchors=job_births=job_saves=0;
+ r.image=0x100000000;r.ready=true;r.locked=false;r.cause.clear();r.snapshot_armed=false;r.snapshot_host=false;r.snapshot_uuid="snapshot";r.saved.clear();r.action.clear();r.jobs.clear();r.saved_jobs.clear();r.frame_work.reset();r.frame_bugs={};r.frame_publication=0;r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.binding.native_epoch=7;r.binding.native_generation=9;r.tracker=0x8000;
  put(collection,r.image+0x1705640);put(collection+0x48,parent);put(parent+0x170,map+0x1c0);put(property+0x38,uint64_t(0x18));put(bug,r.image+0x1742200);put(bug+8,context);
+ put(bug+0x48,uintptr_t(0));bugs::original_make_job=make;bugs::original_destroy_job=destroy;
  bugs::original_random=random;bugs::original_specific=specific;bugs::original_anchor=anchor;bugs::original_remove=remove;bugs::original_save=save;bugs::original_load=load;bugs::original_record=record;
 }
 }
@@ -31,6 +35,8 @@ Runtime& runtime(){static Runtime value;return value;}
 bool reject(const std::string& cause,std::string& error){runtime().locked=true;runtime().cause=error=cause;return false;}
 bool active_world(Context& context,Binding& binding,uint64_t& publication,bool& active,std::string& error){active=fixture::active;context.role=fixture::role;binding=runtime().binding;publication=5;if(!fixture::context_ok){error="actual Context unavailable";return false;}return true;}
 bool witness_birth(uintptr_t collection,uintptr_t pointer,unsigned lane,std::string& error){if(collection!=fixture::collection||pointer!=fixture::bug||lane<1||lane>3)return fail(error,"fixture incorrect birth");++fixture::births;return true;}
+bool work_birth(uintptr_t bug,uintptr_t job,std::string& e){if(bug!=fixture::bug||job!=fixture::job)return fail(e,"fixture wrong Job witness");++fixture::job_births;return true;}
+bool work_saved(uintptr_t job,uintptr_t context,int32_t link,std::string& e){if(job!=fixture::job||context!=fixture::context||link!=12)return fail(e,"fixture wrong Job save witness");++fixture::job_saves;return true;}
 bool witness_removal(uintptr_t,uintptr_t,std::string&){++fixture::removals;return true;}
 bool local_members(uintptr_t collection,std::vector<uintptr_t>& out,std::string& error){if(collection!=fixture::collection)return fail(error,"fixture incorrect collection");out=fixture::members;return true;}
 }
@@ -66,5 +72,21 @@ int main(){using fixture::require;
  bugs::original_registered(0xbae8b5,reinterpret_cast<void*>(fixture::context+1),9,reinterpret_cast<void*>(fixture::bug));require(bugs::runtime().locked&&scoped.value.children.witnessed.empty(),"foreign original ObjectContext cannot create identity");
  fixture::reset();bugs::runtime().action="ordered-history";bugs::load_record(fixture::collection+0x18,fixture::stream,fixture::context);
  require(fixture::births==1&&!bugs::runtime().locked,"actual original history child obtains action birth");
+ fixture::reset();bugs::make_job(fixture::bug);require(fixture::original_calls==1&&!fixture::job_births,"standalone original MakeJob forwarding");
+ fixture::reset();fixture::active=true;bugs::make_job(fixture::bug);require(fixture::original_calls==1&&fixture::job_births==1&&!bugs::runtime().locked,"Host original MakeJob not witnessed once");
+ fixture::reset();fixture::active=true;fixture::role=mt2mp::action_session::Role::Client;bugs::make_job(fixture::bug);require(!fixture::original_calls&&!fixture::job_births&&bugs::runtime().locked,"Client automatic MakeJob escaped fence");
+ fixture::reset();fixture::active=true;fixture::put(fixture::bug+0x48,fixture::job);bugs::make_job(fixture::bug);require(fixture::original_calls==1&&!fixture::job_births&&bugs::runtime().locked,"prior MakeJob link fabricated fresh birth");
+ fixture::reset();bugs::LocalWork local;local.job=fixture::job;local.bug=fixture::bug;local.parent=fixture::parent;local.row.birth.source="witness";std::string error;
+ require(bugs::runtime().jobs.born(local,error),"D0 witness setup");bugs::runtime().saved_jobs.push_back({fixture::job,fixture::context,12});bugs::destroy_job(fixture::job);
+ require(fixture::original_calls==1&&!bugs::runtime().jobs.pointer(fixture::job)&&bugs::runtime().saved_jobs[0].job==0,"original D0 left live occurrence or stale snapshot receiver");
+ fixture::reset();bugs::runtime().snapshot_armed=true;
+ bugs::original_registered(0xbaffcb,reinterpret_cast<void*>(fixture::context),12,reinterpret_cast<void*>(fixture::job));
+ require(fixture::job_saves==1&&!bugs::runtime().locked,"original Job LoadStream registration not routed");
+ bugs::runtime().snapshot_host=true;bugs::original_registered(0xbaffcb,reinterpret_cast<void*>(fixture::context),12,reinterpret_cast<void*>(fixture::job));
+ require(fixture::job_saves==1,"load witness captured on Host save side");
+ {using namespace bugs;struct Install {uintptr_t rva,detour;void** original;};
+#include "bug_hook_entries.inc"
+ require(std::size(entries)==10&&entries[0].rva==0x58da0&&entries[1].rva==0xc2e810,"actual installed hook set lacks MakeJob/D0 or differs from10");
+ require(entries[0].detour==reinterpret_cast<uintptr_t>(&make_job)&&entries[1].detour==reinterpret_cast<uintptr_t>(&destroy_job),"original MakeJob/D0 hook route differs");}
  std::cout<<fixture::checks<<" actual native hook boundary checks PASS\n";
 }

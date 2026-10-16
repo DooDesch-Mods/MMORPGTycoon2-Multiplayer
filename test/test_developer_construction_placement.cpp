@@ -1,5 +1,7 @@
 #include "developer_staff/construction_native.h"
 #include "multiplayer_world/world_state.h"
+#include "bug_authority/codec.h"
+namespace bug_authority=mt2mp::game::bug_authority;
 #include <atomic>
 #include <iostream>
 #include <map>
@@ -51,6 +53,7 @@ std::map<std::string,BuildOperation> buildings_;World world_;
 bool current(const action::Binding&,const std::string&,std::string& e){++fixture::currents;if(!fixture::current_ok)e="actual current Origin failure";return fixture::current_ok;}
 bool read_ledger(action::Ledger& out,std::string&){out={};return true;}
 #include "construction_engine_jobs.inc"
+#include "construction_engine_bug_parent.inc"
 #include "construction_perform_place.inc"
 };
 uint32_t GetCurrentThreadId(){return 1;}
@@ -59,8 +62,20 @@ struct Controller {action::Context context;action::Binding binding;const action:
 struct Runtime {uint32_t thread=1;bool lobby_retiring=false;Session session;Controller controller;NativeEngine engine;};
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "construction_runtime_jobs.inc"
+#include "construction_runtime_bug_parent.inc"
 void reset(Runtime& r){using namespace fixture;places=finishes=captures=currents=0;capture_ok=finish_ok=commit_ok=current_ok=true;no_job=false;calls.clear();request={};request.action=action::Action::PlaceBuilding;request.action_uuid="11111111-1111-4111-8111-111111111111";request.snapshot_uuid="22222222-2222-4222-8222-222222222222";request.canonical_record_key="action:"+request.action_uuid;context={};context.snapshot_uuid=request.snapshot_uuid;context.session=3;context.role=action::Role::Client;r={};r.controller.context=context;r.controller.binding=binding;published_runtime=&r;}
 int main(){try{using namespace fixture;Runtime runtime;std::string e;std::vector<developer_staff::construction::LocalJob> jobs;
+reset(runtime);bool known=true,alive=true;
+need(bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&!known&&!alive,"missing Building row became a tombstone");
+runtime.engine.world_.rows_[request.canonical_record_key].state.alive=true;
+need(bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&known&&alive,"confirmed alive Building row lost");
+runtime.engine.world_.rows_[request.canonical_record_key].state.alive=false;
+need(bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&known&&!alive,"confirmed tombstone lost");
+for(int wrong=0;wrong<7;++wrong){reset(runtime);known=alive=true;
+    if(wrong==0)published_runtime=nullptr;if(wrong==1)runtime.thread=2;if(wrong==2)runtime.lobby_retiring=true;
+    if(wrong==3)runtime.session.good=false;if(wrong==4)runtime.controller.context.session++;if(wrong==5)runtime.controller.binding.native_epoch++;if(wrong==6)current_ok=false;
+    need(!bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&!known&&!alive&&!e.empty(),"Bug parent accessor ignored current owner or retained stale output");}
+reset(runtime);known=alive=true;need(!bug_parent_alive(context,binding,std::string(64,'a')+":world:npc:34",known,alive,e)&&!known&&!alive,"NPC key admitted as Building tombstone");
 reset(runtime);need(runtime.engine.perform_place(binding,request,nullptr,e)==action::Outcome::Confirmed,"actual placement failed "+e);
 need(calls==std::vector<std::string>{"capture","place","remember","admit","resolve","finish","commit"},"original placement/census/order changed");
 need(construction_jobs(context,binding,jobs,e)&&jobs.size()==1&&jobs[0].building_uid==500&&jobs[0].job==0x1234,"pending Controller lost owned local Job");

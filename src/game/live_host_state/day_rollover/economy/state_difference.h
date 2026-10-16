@@ -71,6 +71,9 @@ inline std::string state_difference(const State& actual,const State& required){
             if(x.gold!=y.gold)return difference(key+"gold",x.gold,y.gold);
             if(x.xp_bits!=y.xp_bits)return difference(key+"xp_bits",x.xp_bits,y.xp_bits);
             if(x.level!=y.level)return difference(key+"level",x.level,y.level);
+            if(x.weapon_ilvl!=y.weapon_ilvl)return difference(key+"weapon_ilvl",x.weapon_ilvl,y.weapon_ilvl);
+            if(x.weapon_category!=y.weapon_category)return difference(key+"weapon_category",x.weapon_category,y.weapon_category);
+            if(x.weapon_variant_id!=y.weapon_variant_id)return difference(key+"weapon_variant_id",x.weapon_variant_id,y.weapon_variant_id);
             if(x.attributes!=y.attributes)return difference(key+"attributes",x.attributes,y.attributes);
             if(x.seconds_to_level_bits!=y.seconds_to_level_bits)return difference(key+"seconds_to_level_bits",x.seconds_to_level_bits,y.seconds_to_level_bits);
             if(x.quests_completed!=y.quests_completed)return difference(key+"quests_completed",x.quests_completed,y.quests_completed);

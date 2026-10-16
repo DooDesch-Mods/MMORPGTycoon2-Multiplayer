@@ -13,6 +13,7 @@ struct AppendApi {
     ProgressShift progress_shift=nullptr;
     Unary context_construct=nullptr, context_destroy=nullptr, context_abort=nullptr;
 };
+bool resolve_record_api(Memory&,uintptr_t image,DecodeApi&,std::string&);
 bool resolve_append_api(Memory&,uintptr_t image,AppendApi&,std::string&);
 bool context_call(Unary,void*,CallReceipt&,std::string&);
 bool quest_link_call(QuestResolve,void* link,void* context,CallReceipt&,std::string&);

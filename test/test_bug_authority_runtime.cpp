@@ -21,6 +21,7 @@ action::Context context;action::Binding binding;staff::Capture capture;
 std::vector<staff::job_census::Job> jobs;
 bool active=true,scalar_failure=false,ledger_drift=false;
 int effects=0;uintptr_t next_bug=0x50000;
+std::vector<create::Value> creation_inputs;
 constexpr uintptr_t parent=0x20000,collection=0x30000,lounge=0x40000,data=0x60000;
 const std::string snapshot="11111111-1111-4111-8111-111111111111";
 const std::string action_id="22222222-2222-4222-8222-222222222222";
@@ -30,8 +31,8 @@ void sync(){auto& r=bugs::runtime();int32_t count=static_cast<int32_t>(live.size
  size_t index=0;for(const auto& [ptr,bug]:live){put(data+8*index++,ptr);put(ptr,uintptr_t(r.image+0x1742200));put(ptr+0x50,bug.anchor);put(ptr+0x48,bug.job);}}
 void add(uintptr_t pointer,const bugs::Value& v){create::Bug b;b.pointer=pointer;b.anchor=parent;b.value={v.type,v.created,v.discovered,v.toons,v.variant,v.reproducibility,v.known,v.manual,v.debugged};live.emplace(pointer,b);collections[collection].push_back(pointer);sync();}
 bugs::Row row(bugs::BirthKind kind=bugs::BirthKind::Action,uint64_t occurrence=1){return {bugs::ParentKind::Building,key,{kind,kind==bugs::BirthKind::Snapshot?std::string(64,'a'):(kind==bugs::BirthKind::Action?action_id:snapshot),kind==bugs::BirthKind::Publication?5u:0u,occurrence},{1,1,-1,0,2,.1f,false,false,false}};}
-void reset(){memory.clear();parents.clear();collections.clear();live.clear();jobs.clear();effects=0;scalar_failure=ledger_drift=false;active=true;next_bug=0x50000;
- auto& r=bugs::runtime();r.image=0x100000000;r.thread=GetCurrentThreadId();r.ready=true;r.locked=false;r.cause.clear();r.snapshot_armed=false;r.snapshot_sealed=true;r.snapshot_host=false;r.snapshot_uuid=snapshot;r.snapshot_sha=std::string(64,'a');r.lifetimes.clear();r.saved.clear();r.action.clear();r.publication=0;r.random_occurrence=r.specific_occurrence=r.record_occurrence=0;r.confirmed_actions={action_id};
+void reset(){memory.clear();parents.clear();collections.clear();live.clear();jobs.clear();creation_inputs.clear();effects=0;scalar_failure=ledger_drift=false;active=true;next_bug=0x50000;
+ auto& r=bugs::runtime();r.image=0x100000000;r.thread=GetCurrentThreadId();r.ready=true;r.locked=false;r.cause.clear();r.snapshot_armed=false;r.snapshot_sealed=true;r.snapshot_host=false;r.snapshot_uuid=snapshot;r.snapshot_sha=std::string(64,'a');r.lifetimes.clear();r.saved.clear();r.jobs.clear();r.saved_jobs.clear();r.frame_work.reset();r.frame_bugs={};r.frame_publication=0;r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.action.clear();r.publication=0;r.random_occurrence=r.specific_occurrence=r.record_occurrence=0;r.confirmed_actions={action_id};
  context={};context.snapshot_uuid=snapshot;context.role=action::Role::Client;binding={};binding.native_epoch=7;binding.native_generation=9;r.context=context;r.binding=binding;r.lounge=lounge;r.tracker=lounge+0x100;
  capture={};capture.image=r.image;capture.thread=r.thread;capture.local.lounge=lounge;capture.pin.origin.world_epoch=7;capture.pin.origin.generation=9;capture.pin.time_scale=0;capture.pin.pause_scale=0;
  parents[key]=parent;collections[collection]={};put(parent,uintptr_t(r.image+0x1710000));put(parent+0x18,uint64_t(42));put(parent+0xbd8,collection);put(r.image+0x13df2e0,r.tracker);put(r.image+0x13df630,uintptr_t(0x70000));sync();
@@ -67,7 +68,7 @@ namespace mt2mp::game::bug_authority {
 bool native_code(std::string&){return true;}bool install_native(std::string&){runtime().ready=true;return true;}
 void anchor_noop(uintptr_t,uintptr_t){}create::SetAnchor anchor_original(){return anchor_noop;}
 bool create_replica(create::NativeServices&,const create::Lease& owner,const create::Value& value,create::Receipt& receipt){++fixture::effects;receipt={};receipt.admitted=receipt.attempted=receipt.confirmed=true;receipt.bug=fixture::next_bug;fixture::next_bug+=0x100;
-    create::Bug bug;bug.pointer=receipt.bug;bug.anchor=owner.parent;bug.value=value;fixture::live.emplace(bug.pointer,bug);fixture::collections[owner.collection].push_back(bug.pointer);fixture::sync();return true;}
+    fixture::creation_inputs.push_back(value);create::Bug bug;bug.pointer=receipt.bug;bug.anchor=owner.parent;bug.value=value;fixture::live.emplace(bug.pointer,bug);fixture::collections[owner.collection].push_back(bug.pointer);fixture::sync();return true;}
 bool native_remove(uintptr_t collection,uintptr_t bug,bool& attempted,std::string& e){attempted=true;++fixture::effects;fixture::live.erase(bug);auto& rows=fixture::collections[collection];rows.erase(std::remove(rows.begin(),rows.end(),bug),rows.end());fixture::sync();return witness_removal(runtime().tracker,bug,e);}
 }
 void run(){using fixture::require;std::string error;bool attempted=false,unknown=false;
@@ -128,6 +129,49 @@ void run(){using fixture::require;std::string error;bool attempted=false,unknown
   require(after&&bugs::same_identity(after->row,before.row)&&after->parent==before.parent&&after->collection==before.collection&&bugs::runtime().lifetimes.rows().size()==count,"type promotion preserves birth parent receiver and occurrence count");
   require(bugs::adopt_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&!attempted&&fixture::effects==effect_count+1,"same promoted state does not replay scalar or birth");
  }
+ fixture::reset();target.rows={fixture::row()};
+ require(bugs::adopt_frame(fixture::context,fixture::binding,5,target,attempted,unknown,error),"Work retirement fixture birth");
+ const auto linked=fixture::live.begin()->first;fixture::live.at(linked).job=0x90000;fixture::sync();
+ staff::job_census::Job linked_job;linked_job.bug.pointer=linked;fixture::jobs.push_back(linked_job);
+ bugs::WorkState work;target={};const auto before_retire=fixture::effects;error.clear();
+ require(bugs::preflight_frame(fixture::context,fixture::binding,6,target,error,&work),"Work preflight admits linked Bug for phased cleanup");
+ require(bugs::adopt_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&!attempted&&!unknown&&fixture::effects==before_retire&&fixture::live.contains(linked),"Bug adopt deleted before Developer detach");
+ require(!bugs::finish_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&!attempted&&!unknown&&fixture::effects==before_retire&&fixture::live.contains(linked),"Bug finish ignored direct/queue links");
+ require(error=="Bug finish still has a native Job reference","Bug finish lost original rejection cause");
+ fixture::live.at(linked).job=0;fixture::sync();error.clear();
+ require(!bugs::finish_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&!attempted&&fixture::live.contains(linked),"Bug finish ignored surviving queue reference");
+ fixture::jobs.clear();error.clear();
+ require(bugs::finish_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&attempted&&!unknown&&!fixture::live.contains(linked)&&fixture::effects==before_retire+1,"Bug finish did not retire selected detached occurrence once");
+ require(bugs::finish_frame(fixture::context,fixture::binding,6,target,attempted,unknown,error)&&!attempted&&fixture::effects==before_retire+1,"confirmed finish replayed native removal");
+ fixture::reset();target.rows={fixture::row()};target.rows[0].value.manual=target.rows[0].value.debugged=true;error.clear();
+ require(bugs::preflight_frame(fixture::context,fixture::binding,5,target,error,&work)&&bugs::adopt_frame(fixture::context,fixture::binding,5,target,attempted,unknown,error),"new authoritative debug/manual Bug rejected");
+ require(fixture::creation_inputs.size()==1&&!fixture::creation_inputs[0].manual&&!fixture::creation_inputs[0].debugged&&fixture::effects==2,"original birth was not neutral before scalar adoption");
+ require(fixture::live.begin()->second.value.manual&&fixture::live.begin()->second.value.debugged,"new Bug final scalar flags differ");
+ auto prepare_job=[&](uintptr_t native_job){fixture::reset();fixture::context.role=action::Role::Host;bugs::runtime().context=fixture::context;
+     fixture::add(pointer,fixture::row().value);error.clear();require(bugs::witness_birth(fixture::collection,pointer,1,error),"original Bug witness setup");
+     fixture::live.at(pointer).job=native_job;fixture::sync();fixture::put(native_job,bugs::runtime().image+0x17427a0);fixture::put(native_job+8,uintptr_t(0xa0000));
+     fixture::put(native_job+0x18,int32_t(7));fixture::put(native_job+0x38,pointer);};
+ constexpr uintptr_t native_job=0x90000;prepare_job(native_job);
+ require(bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().size()==1,"original MakeJob witness rejected");
+ require(bugs::runtime().jobs.rows()[0].row.birth==bugs::Birth{bugs::BirthKind::Publication,fixture::snapshot,5,1},"MakeJob publication birth differs");
+ require(!bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().size()==1,"duplicate original Job receiver reidentified");
+ prepare_job(native_job);bugs::runtime().action=fixture::action_id;
+ require(bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows()[0].row.birth==bugs::Birth{bugs::BirthKind::Action,fixture::action_id,0,1},"MakeJob action birth differs");
+ for(int wrong=0;wrong<5;++wrong){prepare_job(native_job);
+     if(wrong==0)fixture::put(pointer+0x48,uintptr_t(native_job+1));if(wrong==1)fixture::put(native_job+0x38,uintptr_t(pointer+1));
+     if(wrong==2)fixture::put(pointer+0x50,uintptr_t(fixture::parent+1));if(wrong==3)fixture::put(native_job,bugs::runtime().image+0x1742200);if(wrong==4)fixture::put(native_job+0x18,int32_t(0));
+     require(!bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().empty(),"wrong MakeJob reciprocal/parent/type admitted");}
+ prepare_job(native_job);bugs::runtime().job_publication=5;bugs::runtime().job_occurrence=UINT64_MAX;
+ require(!bugs::work_birth(pointer,native_job,error)&&bugs::runtime().jobs.rows().empty(),"Job publication occurrence overflow accepted");
+ prepare_job(native_job);bugs::runtime().snapshot_armed=true;bugs::runtime().snapshot_host=true;
+ require(bugs::work_saved(native_job,0xb0000,12,error)&&bugs::runtime().saved_jobs.size()==1,"Host snapshot save wrongly requires loaded receiver context");
+ require(!bugs::work_saved(native_job,0xb0000,13,error),"same saved Job receiver duplicated");
+ prepare_job(native_job);bugs::runtime().snapshot_armed=true;bugs::runtime().snapshot_host=false;
+ require(!bugs::work_saved(native_job,0xb0000,12,error)&&bugs::runtime().saved_jobs.empty(),"Client snapshot accepted foreign context");
+ require(bugs::work_saved(native_job,0xa0000,12,error)&&bugs::runtime().saved_jobs.size()==1,"Client actual snapshot context/link rejected");
+ prepare_job(native_job);bugs::runtime().snapshot_armed=true;
+ require(!bugs::work_saved(native_job,0xa0000,0,error)&&bugs::runtime().saved_jobs.empty(),"zero serialized Job link accepted");
+ fixture::reset();require(bugs::work_saved(1,2,3,error)&&bugs::runtime().saved_jobs.empty(),"undistributed capture invented snapshot Job witnesses");
  std::cout<<fixture::checks<<" actual runtime boundary checks PASS\n";
 }
 int main(){try{run();return 0;}catch(const std::exception& error){std::cerr<<"Runtime check failed: "<<error.what()<<'\n';return 1;}}

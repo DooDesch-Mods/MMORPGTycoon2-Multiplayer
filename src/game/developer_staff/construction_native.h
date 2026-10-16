@@ -4,6 +4,7 @@
 #include "shared_state.h"
 namespace mt2mp::game::developer_staff::construction {
 struct PlacementBefore {Capture capture;job_census::Census queue;};
+bool settle_loaded_client(const action_session::Context&,const action_session::Binding&,bool& attempted,std::string&);
 bool capture_placement(PlacementBefore&,std::string&);
 bool finish_placement(const PlacementBefore&,const std::string& snapshot,const std::string& key,
                       uint64_t uid,LocalJob&,std::string&);

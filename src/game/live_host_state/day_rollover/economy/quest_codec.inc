@@ -39,12 +39,14 @@ Json toon_json(const std::optional<quest_state::Toon>& value){
     for(const auto& p:value->progress)progress.push_back({{"npc",link_json(p.npc)},{"quest",link_json(p.quest)},{"completed",p.completed},
         {"monsters_defeated",p.monsters_defeated},{"visited",p.visited},{"action_performed",p.action_performed},{"complete",p.complete}});
     return {{"gold",value->gold},{"xp_bits",value->xp_bits},{"level",value->level},{"quests_completed",value->quests_completed},
+        {"weapon_ilvl",value->weapon_ilvl},{"weapon_category",value->weapon_category},{"weapon_variant_id",value->weapon_variant_id},
         {"attributes",value->attributes},{"seconds_to_level_bits",value->seconds_to_level_bits},{"progress",progress}};
 }
 std::optional<quest_state::Toon> toon_read(const Json& row){
     if(row.is_null())return std::nullopt;
-    exact(row,{"gold","xp_bits","level","quests_completed","attributes","seconds_to_level_bits","progress"});quest_state::Toon value;
+    exact(row,{"gold","xp_bits","level","quests_completed","attributes","seconds_to_level_bits","progress","weapon_ilvl","weapon_category","weapon_variant_id"});quest_state::Toon value;
     value.gold=i32(row.at("gold"));value.xp_bits=u32(row.at("xp_bits"));value.level=i32(row.at("level"));value.quests_completed=i32(row.at("quests_completed"));
+    value.weapon_ilvl=i32(row.at("weapon_ilvl"));value.weapon_category=string(row.at("weapon_category"));value.weapon_variant_id=i32(row.at("weapon_variant_id"));
     bit_patterns(row.at("attributes"),value.attributes);value.seconds_to_level_bits=u32(row.at("seconds_to_level_bits"));
     if(!row.at("progress").is_array())throw std::runtime_error("Quest progress array required");
     for(const auto& p:row.at("progress")){

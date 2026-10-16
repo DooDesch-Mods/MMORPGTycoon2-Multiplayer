@@ -1,10 +1,14 @@
 #pragma once
 #include "runtime.h"
 #include "lifetime.h"
+#include "job_lifetime.h"
+#include "job_birth.h"
+#include "job_retire.h"
 #include "creation/native_calls.h"
 #include "developer_staff/read.h"
 #include "placement_ui_probe/ui_probe.h"
 #include <mutex>
+#include <optional>
 namespace mt2mp::game::bug_authority {
 namespace creation=developer_staff::bug_creation;
 struct SavedChildren {uintptr_t collection=0;std::vector<uintptr_t> children;};
@@ -14,6 +18,12 @@ struct Runtime {
     std::string cause,snapshot_uuid,snapshot_sha;
     Context context;Binding binding;uintptr_t tracker=0,lounge=0;
     Lifetimes lifetimes;
+    JobLifetimes jobs;std::vector<SavedJob> saved_jobs;
+    uint64_t job_occurrence=0,job_publication=0,job_action_occurrence=0;
+    std::optional<WorkState> frame_work;
+    State frame_bugs;uint64_t frame_publication=0;
+    std::vector<JobBirthReceipt> job_birth_calls;
+    std::vector<JobRetireReceipt> job_retire_calls;
     std::vector<SavedChildren> saved;
     std::string action;
     std::set<std::string> confirmed_actions;
@@ -23,6 +33,11 @@ struct Runtime {
     placement_ui_probe::ProcessMemory memory;
 };
 Runtime& runtime();
+bool work_parent(const Row&,uintptr_t&,uintptr_t&,std::string&);
+bool work_pin(const Context&,const Binding&,developer_staff::Capture&,std::string&);
+bool work_bindings(std::string&);
+bool work_birth(uintptr_t bug,uintptr_t job,std::string&);
+bool work_saved(uintptr_t job,uintptr_t context,int32_t link,std::string&);
 bool reject(const std::string&,std::string&);
 bool native_code(std::string&);
 bool install_native(std::string&);

@@ -1,0 +1,38 @@
+set(type7_frame_sources
+    tutorial_replication/state.cpp tutorial_replication/startingpoint.cpp developer_staff/shared_state.cpp
+    live_host_state/state.cpp live_host_state/network/node_state.cpp live_host_state/day_rollover/day.cpp
+    live_host_state/day_rollover/economy/codec.cpp live_host_state/day_rollover/economy/monetary.cpp
+    subscriber_lifecycle/additions.cpp subscriber_lifecycle/payload.cpp subscriber_lifecycle/record_decode.cpp
+    subscriber_lifecycle/record_graph.cpp subscriber_lifecycle/reference_map.cpp)
+list(TRANSFORM type7_frame_sources PREPEND "${MT2MP_SOURCE_ROOT}/src/game/")
+foreach(group pool frame)
+    add_executable(test_bug_type7_${group} "${MT2MP_SOURCE_ROOT}/test/test_bug_type7_${group}.cpp")
+    target_include_directories(test_bug_type7_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+    target_compile_features(test_bug_type7_${group} PRIVATE cxx_std_20)
+    if(MSVC)
+        target_compile_options(test_bug_type7_${group} PRIVATE /W4 /WX /utf-8 /EHsc /Gy)
+        target_link_options(test_bug_type7_${group} PRIVATE /OPT:REF /INCREMENTAL:NO)
+    endif()
+    add_test(NAME bug_type7_${group} COMMAND test_bug_type7_${group})
+    set_tests_properties(bug_type7_${group} PROPERTIES TIMEOUT 60)
+endforeach()
+target_sources(test_bug_type7_pool PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+target_sources(test_bug_type7_frame PRIVATE ${type7_frame_sources})
+
+if(TARGET test_bug_authority_runtime)
+    target_sources(test_bug_authority_runtime PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/job_witness.cpp")
+endif()
+if(TARGET test_bug_authority_hooks)
+    set(bug_hook_source "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/hooks.cpp")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${bug_hook_source}")
+    file(READ "${bug_hook_source}" bug_hook_text)
+    string(FIND "${bug_hook_text}" "    const Install entries[]={" bug_install_begin)
+    string(FIND "${bug_hook_text}" "    for(const auto& entry:entries)" bug_install_end)
+    if(bug_install_begin LESS 0 OR bug_install_end LESS bug_install_begin)
+        message(FATAL_ERROR "Actual Bug hook installation boundaries changed")
+    endif()
+    math(EXPR bug_install_size "${bug_install_end}-${bug_install_begin}")
+    string(SUBSTRING "${bug_hook_text}" ${bug_install_begin} ${bug_install_size} bug_install_body)
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/bug_hook_entries.inc" "${bug_install_body}")
+    target_include_directories(test_bug_authority_hooks PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
+endif()

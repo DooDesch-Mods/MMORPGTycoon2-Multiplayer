@@ -27,4 +27,7 @@ bool resolve_original(const Api&, void* context, CallReceipt&, std::string&);
 bool classify_original(const Api&, void* manager, void* subscriber, bool online, CallReceipt&, std::string&);
 bool next_id_original(const Api&, const void* actual_next_id_property, void* manager,
                       void* integer_record, void* context, CallReceipt&, std::string&);
+// The caller pins scalar property leaves whose original bodies do not use Context.
+bool load_scalar_property(PropertyLoad, const void* property, void* object,
+                          void* record, CallReceipt&, std::string&);
 }

@@ -69,6 +69,10 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_developer_ui.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_bug_policy.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_subscriber.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/local_acceptance_test.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/e2e -p test_building_history.py

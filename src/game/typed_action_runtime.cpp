@@ -1,5 +1,9 @@
 #include "bug_authority/runtime.h"
+#include "bug_authority/codec.h"
 #include "typed_action_runtime.h"
+#include "toon_weapon_visual/authority.h"
+#include "toon_weapon_visual/probe.h"
+#include "toon_time_fence/native.h"
 #include "time_integration.h"
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/session_wire.h"
@@ -207,6 +211,15 @@ class NativeEngine final:public action::Engine {
         return action::Outcome::Confirmed;
     }
 public:
+    bool bug_parent_alive(const action::Binding& binding,const std::string& snapshot,const std::string& key,
+                          bool& known,bool& alive,std::string& error){
+        known=alive=false;if(!current(binding,snapshot,error))return false;
+        bug_authority::Row parent;parent.parent_kind=bug_authority::ParentKind::Building;parent.parent_key=key;
+        if(!bug_authority::codec_detail::parent(parent)){error="Bug parent requires canonical Building key";return false;}
+        const auto row=world_.rows().find(key);
+        if(row!=world_.rows().end()){known=true;alive=row->second.state.alive;}
+        error.clear();return true;
+    }
     bool construction_jobs(const action::Binding& binding,const std::string& snapshot,
                            std::vector<developer_staff::construction::LocalJob>& out,std::string& error){
         out.clear();if(!current(binding,snapshot,error))return false;
@@ -822,6 +835,15 @@ struct Runtime {
     std::unique_ptr<live_host_state::day::NativePort> day_port;
     std::unique_ptr<live_host_state::day::Sync> day_state;
     std::string live_error;
+    toon_weapon_visual::Receipt weapon_receipt;
+    uintptr_t weapon_toon=0;
+    toon_weapon_visual::Receipt weapon_hook_receipt;
+    uintptr_t weapon_hook_toon=0;
+    std::optional<action::Context> weapon_bootstrap_context;
+    action::Binding weapon_bootstrap_binding;
+    toon_time_fence::Receipt toon_time_receipt,toon_time_discarded;
+    uintptr_t toon_time_receiver=0,toon_time_discarded_receiver=0;
+    uint64_t toon_time_confirmed=0;
     Runtime():session(action::selected_session()),
         transport(Config::instance().local_test?static_cast<action::Transport&>(local_transport):static_cast<action::Transport&>(steam_transport)),
         controller(session,engine,transport,[](const char* level,const std::string& operation,const std::string& cause) {
@@ -832,6 +854,21 @@ struct Runtime {
 };
 std::atomic<Runtime*> published_runtime{nullptr};
 }
+#include "toon_weapon_visual/runtime.inc"
+#include "toon_weapon_visual/probe_runtime.inc"
+#include "toon_time_fence/runtime.inc"
+namespace {
+bool toon_time_initialized=false,toon_time_initialize_attempted=false;
+std::string toon_time_initialize_error;
+bool toon_time_initialize(std::string& error){
+    if(toon_time_initialized)return toon_time_fence::verify_hook(error);
+    if(toon_time_initialize_attempted){error=toon_time_initialize_error;return false;}
+    toon_time_initialize_attempted=true;
+    toon_time_initialized=toon_time_fence::initialize(weapon_image,
+        {toon_time_owner,toon_time_publish,toon_time_client_active},toon_time_initialize_error);
+    error=toon_time_initialize_error;return toon_time_initialized;
+}
+}
 bool start(std::string& error) {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime){runtime=new Runtime;published_runtime.store(runtime,std::memory_order_release);}
@@ -839,6 +876,8 @@ bool start(std::string& error) {
     if(runtime->lobby_retiring){error="typed lobby owner is retiring; no start";return false;}
     if(runtime->attempted){error="typed action start already attempted; no restart";return false;}
     runtime->attempted=true;
+    if(!weapon_initialize(error))return false;
+    if(!toon_time_initialize(error))return false;
     if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error))return false;
     return runtime->controller.start(GetTickCount64(),error);
 }
@@ -852,6 +891,11 @@ bool enable_live_state(std::string& error) {
     if(!epoch){error="live actual common Sidecar epoch absent";return false;}if(!live_host_state::read_time_authority(context,time,error))return false;
     auto& fence=live_host_state::economic_fence();
     if(!fence.arm(context,binding,[](const char* level,const std::string& cause){if(std::string_view(level)=="error")LOG_ERROR("[LiveState] {}",cause);else LOG_WARN("[LiveState] {}",cause);},error))return false;
+    if(context.role==action::Role::Client){
+        if(!runtime->engine.current(binding,context.snapshot_uuid,error))return false;
+        bool movement_attempted=false;
+        if(!developer_staff::construction::settle_loaded_client(context,binding,movement_attempted,error))return false;
+    }
     runtime->live_port=std::make_unique<live_host_state::NativePort>(context,binding,&fence);
     runtime->live_state=std::make_unique<live_host_state::Bridge>(context,binding,epoch,*runtime->live_port,runtime->transport,[context](uint64_t& revision,std::string& cause){return live_host_state::read_time_authority(context,revision,cause);});
     runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!runtime->day_state->bootstrap(error))return false;runtime->live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);runtime->live_state->bind_economy(*runtime->economy_state);if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return true;
@@ -865,6 +909,15 @@ bool construction_jobs(const action::Context& expected,const action::Binding& bi
     if(context!=expected||context!=runtime->controller.bound_context()||binding!=runtime->controller.bound_binding()){
         error="Construction local Jobs current Session/Controller Binding differs";return false;}
     return runtime->engine.construction_jobs(binding,context.snapshot_uuid,out,error);
+}
+bool bug_parent_alive(const action::Context& expected,const action::Binding& binding,const std::string& key,
+                      bool& known,bool& alive,std::string& error){
+    known=alive=false;auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring){error="Bug parent requires current bound Mainthread owner";return false;}
+    action::Context context;if(!runtime->session.current(context,error))return false;
+    if(context!=expected||context!=runtime->controller.bound_context()||binding!=runtime->controller.bound_binding()){
+        error="Bug parent current Session/Controller Binding differs";return false;}
+    return runtime->engine.bug_parent_alive(binding,context.snapshot_uuid,key,known,alive,error);
 }
 bool bug_context(action::Context& context,action::Binding& binding,uint64_t& publication,bool& active,std::string& error){
     active=false;context={};binding={};publication=0;
@@ -919,7 +972,8 @@ bool live_state_available(std::string& error) {
 void tick() {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->lobby_retiring||!runtime->controller.status().started)return;
-    if(runtime->live_state&&!runtime->controller.status().locked) {std::string cause;const auto state=runtime->controller.status();auto& fence=live_host_state::economic_fence();const bool okay=!fence.locked()&&runtime->live_state->tick(state.host_revision,state.pending,cause);if(!okay){if(cause.empty())cause=fence.cause();if(runtime->live_error!=cause)LOG_ERROR("[LiveState] Apply failed: {}",cause);runtime->live_error=cause;}else {if(!runtime->live_error.empty())LOG_INFO("[LiveState] Apply recovered");runtime->live_error.clear();}}
+    if(runtime->live_state&&!runtime->controller.status().locked) {std::string cause;const auto state=runtime->controller.status();auto& fence=live_host_state::economic_fence();const bool applied=!fence.locked()&&runtime->live_state->tick(state.host_revision,state.pending,cause);const bool okay=applied&&!fence.locked();if(!okay){if(cause.empty())cause=fence.cause();if(runtime->live_error!=cause)LOG_ERROR("[LiveState] Apply failed: {}",cause);runtime->live_error=cause;}else {if(!runtime->live_error.empty())LOG_INFO("[LiveState] Apply recovered");runtime->live_error.clear();}}
+    weapon_bootstrap(*runtime);
     ui_move_runtime::tick();
     ui_region_runtime::tick();
     ui_price_runtime::tick();
@@ -940,7 +994,7 @@ json controller_status() {
     // Frame guards need Controller receipts, not a diagnostic rescan of the whole economy.
     return {{"initialized",true},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},
         {"pending",s.pending||runtime->lobby_retiring},{"host_revision",s.host_revision},{"action_uuid",s.action_uuid},
-        {"outcome",int(s.outcome)},{"cause",s.cause}};
+        {"outcome",int(s.outcome)},{"cause",s.cause},{"live_error",runtime->live_error}};
 }
 json status() {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -953,11 +1007,13 @@ json status() {
         live_host_state::day::economy::State actual;std::vector<uint8_t> encoded;
         if(runtime->economy_state->read_current(*runtime->live_state->last(),actual,economy_read_error)&&live_host_state::day::economy::encode(actual,encoded,economy_read_error))native_economy=nlohmann::json::parse(encoded);
     }
-    return {{"initialized",true},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
+    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
         {"host_revision",s.host_revision},{"attempted",s.attempted},{"confirmed",s.confirmed},{"failed",s.failed},
         {"duplicates",s.duplicates},{"suppressed_errors",s.suppressed_errors},{"required_mask",s.required_mask},{"ack_mask",s.ack_mask},
         {"outcome",int(s.outcome)},{"action_uuid",s.action_uuid},{"cause",s.cause},{"last_packet_accepted",s.last_packet_accepted},
         {"subscriber_additions",runtime->economy_state?runtime->economy_state->addition_receipt():nlohmann::json(nullptr)},
+        {"frame_transport",runtime->live_state?runtime->live_state->frame_transport_status():nlohmann::json(nullptr)},
+        {"toon_time",toon_time_status(*runtime)},
         {"network_receipt",runtime->live_state?live_host_state::network::encode_receipt(runtime->live_state->network_receipt()):nlohmann::json::object()},
         {"network_activation_receipt",runtime->live_state?runtime->live_state->network_activation_receipt().status():nlohmann::json(nullptr)},
         {"network_frame_revision",runtime->live_state&&runtime->live_state->last()?runtime->live_state->last()->revision:0},

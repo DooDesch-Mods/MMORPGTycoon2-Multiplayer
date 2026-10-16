@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.10",
+  "scope": "Larger live updates, stable Client motion after reload and shared visible equipment",
+  "native_evidence": [
+    "docs/evidence/bug-policy-ui-native.json",
+    "docs/evidence/host-departure-native.json",
+    "docs/evidence/npc-capture-motion-native.json",
+    "docs/evidence/render-pool-guard-native.json",
+    "docs/evidence/loaded-client-movement-native.json",
+    "docs/evidence/weapon-tuple-native.json",
+    "docs/evidence/large-frame-and-paused-client-native.json",
+    "docs/evidence/live-weapon-and-visual-native.json"
+  ],
+  "latest_mod_sha256": "2f47808da257529e7129078d11e1f1304f1dba82f505e1c8320d91b366267c08",
+  "latest_build": "artifacts/build_history/20261016T031954110320Z",
+  "acceptance": "Both peers load the grown fixture. A75,550-byte logical frame is reconstructed from four packets and admitted; later committed state265 has equal current native rows for all79 subscribers, NPCs, loans and offers. The Client original zero-time Toon path clears observed residual movement without normalizing the Host. Eight figures naturally acquire weapons; current model921 at bone5 is confirmed and visible on both peers for figure79.",
+  "limits": [
+    "Full action coverage and complete natural tutorial acceptance remain open",
+    "Later armed Actor Equip RNG acceptance remains open",
+    "Four players, large private worlds and separate-account Steam acceptance remain open"
+  ],
+  "delivery": "Local native source acceptance; CI package and release are checked separately",
+  "base_commit": "66037233df746b660581ffd8d7c66c40ec3b2c3f"
+}

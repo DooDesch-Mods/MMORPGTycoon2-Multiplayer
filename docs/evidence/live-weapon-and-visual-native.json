@@ -1,0 +1,168 @@
+{
+  "schema": 1,
+  "passed": true,
+  "dll_sha256": "2f47808da257529e7129078d11e1f1304f1dba82f505e1c8320d91b366267c08",
+  "scope": "Natural Host weapon acquisition and current native Client attachment display",
+  "runtime_run_id": "e67be70c-4efe-4d7f-a708-d3aef20d0be3",
+  "baseline": "artifacts/acceptance/da070891-7330-4cfe-9836-27e768cb0145/summary.json",
+  "after": "artifacts/acceptance/02fb0eb5-ba42-4912-8103-880cfcd2c79b/summary.json",
+  "visual_acceptance": "artifacts/acceptance/cedd155f-5e62-4d33-86ca-6d99b3f54127/summary.json",
+  "visual_acceptance_sha256": "488d8d8fa80b9b9bdd26f7dbe9e1e53493ee884fefcb1711068f1c55be5762d7",
+  "naturally_changed_weapons": [
+    {
+      "id": 78,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        13,
+        "wands",
+        -223771958
+      ]
+    },
+    {
+      "id": 79,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        16,
+        "swords",
+        386395346
+      ]
+    },
+    {
+      "id": 80,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        10,
+        "swords",
+        1889777055
+      ]
+    },
+    {
+      "id": 81,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        12,
+        "swords",
+        1889777055
+      ]
+    },
+    {
+      "id": 82,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        10,
+        "swords",
+        1889777055
+      ]
+    },
+    {
+      "id": 83,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        16,
+        "swords",
+        386395346
+      ]
+    },
+    {
+      "id": 84,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        13,
+        "swords",
+        1889777055
+      ]
+    },
+    {
+      "id": 85,
+      "before": [
+        0,
+        "",
+        0
+      ],
+      "after": [
+        15,
+        "swords",
+        386395346
+      ]
+    }
+  ],
+  "actual_subscribers_each_peer": 79,
+  "all_native_subscriber_rows_equal": true,
+  "selected": {
+    "host": {
+      "serialized_id": 79,
+      "tuple": {
+        "weapon_category": "swords",
+        "weapon_ilvl": 16,
+        "weapon_variant_id": 386395346
+      },
+      "actual_model_id": 921,
+      "actual_bone": 5,
+      "matrix_matching": true,
+      "read_confirmed": true,
+      "visible": true,
+      "skeleton_visible": true
+    },
+    "client-1": {
+      "serialized_id": 79,
+      "tuple": {
+        "weapon_category": "swords",
+        "weapon_ilvl": 16,
+        "weapon_variant_id": 386395346
+      },
+      "actual_model_id": 921,
+      "actual_bone": 5,
+      "matrix_matching": true,
+      "read_confirmed": true,
+      "visible": true,
+      "skeleton_visible": true
+    }
+  },
+  "media": {
+    "host": {
+      "path": "_drafts/media/live-weapon-host.bmp",
+      "file_sha256": "15c04ee4a07dbdd19b1d61514af75bc806391732715c700463360060dd0e5593",
+      "pixel_sha256": "217355b7d91b9f02efd338cfbfad48898ccc70b3eff964d511e99f753b748abd",
+      "visually_inspected": true
+    },
+    "client-1": {
+      "path": "_drafts/media/live-weapon-client-1.bmp",
+      "file_sha256": "b740513d306c54b42df794d3c30c77f83a5a1b535f3ed31a916b13e62980645d",
+      "pixel_sha256": "82a02d99e607a4b73759a45d61f39647590f15574fedaaecb497907bfd3c10b2",
+      "visually_inspected": true
+    }
+  },
+  "limits": [
+    "Later original armed Actor Equip RNG interception remains a separate scope",
+    "Individual idle animation poses remain local",
+    "Full coop remains incomplete"
+  ]
+}

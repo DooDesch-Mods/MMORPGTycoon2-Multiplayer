@@ -1,4 +1,6 @@
 #include "construction_native.h"
+#include "bug_authority/work_runtime.h"
+#include "bug_authority/job_calls.h"
 #include "construction_calls.h"
 #include "construction_links.h"
 #include "construction_plan.h"
@@ -89,7 +91,7 @@ bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
        b.snapshot_id!=context.snapshot_uuid||b.world_epoch!=c.pin.origin.world_epoch||
        b.world_generation!=c.pin.origin.generation)return fail(e,"Construction existing Building binding/UID/type/variant/native Origin differs");
     if(!at(b.object,0x178,out.region,e)||!at(b.object,0x170,out.shard,e)||!at(b.object,0x7e1,out.active,e)||!at(b.object,0x7a8,out.state,e))return false;
-    if(out.shard!=reinterpret_cast<uintptr_t>(c.pin.origin.map)+0x1c0||out.state!=2||out.active>1)
+    if(out.shard!=reinterpret_cast<uintptr_t>(c.pin.origin.map)+0x1c0||(out.state!=2&&out.state!=1)||out.active>1)
         return fail(e,"Construction target requires actual online root-shard Building and Boolean active field");
     return true;
 }
@@ -114,12 +116,17 @@ bool graph(const Capture& c,const std::vector<LocalJob>& links,State& out,job_ce
         }else if(link.target_alive&&!link.target_restored&&!state.active)return fail(e,"Construction original Job disappeared without authoritative Building activation");
         out.jobs.push_back(std::move(state));
     }
+    bug_authority::WorkState work;std::vector<uintptr_t> work_jobs;
+    if(!bug_authority::capture_work(c,jobs,work,work_jobs,e))return false;
+    for(auto job:work_jobs)if(!bound.insert(job).second)return fail(e,"Developer Job occurrence has two native owners");
+    if(bug_authority::has_work())out.work=std::move(work);
     for(const auto& j:jobs.jobs)if(!bound.contains(j.pointer))return fail(e,"Construction queue contains a Job outside retained original placement occurrences");
     return true;
 }
 bool code(const Capture& c,uintptr_t& dp,uintptr_t& jp,std::string& e){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Body bodies[]={
+        {0x4d0140,64,"be269dd99cc4585d34b5e7dceed29058d2db2c55efd7d12b07774864e8bbc9ef"},
         {0x967370,416,"2a6e4111f91e2c3cecb2aa35b99ed8d71f22a75f8300694f7d9ba6b086c01daa"},
         {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
         {0x1113d80,272,"dee54a7232d3aef27b73436213be00e802ba3cb997d4fb09a5f41f38468fafcc"},
@@ -149,7 +156,7 @@ bool code(const Capture& c,uintptr_t& dp,uintptr_t& jp,std::string& e){
         {0xc2e810,176,"9aa893e96fc125d33f182e51dd1ff11ec5164ed30cbd1cd62c2765da01cb20e2"},
         {0x89e940,224,"c3dc4f40d9604953e71e4faf6d70671f6813bc45ba74ec7d8996b357712dc6f0"},
         {0x89e480,256,"d95b690b624d4f2e5b1050ebe0fd0ddc7ea6f8a52f31ac6f60d00372a162cae5"}};
-    for(const auto& b:bodies){std::vector<unsigned char> bytes(b.size);
+    for(const auto& b:bodies){if(b.rva==0xc2e810){if(!bug_authority::verify_job_destructor(e))return false;continue;}std::vector<unsigned char> bytes(b.size);
         if(!memory.copy(c.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha)return fail(e,"Construction native full body differs RVA="+std::to_string(b.rva));}
     if(!at(c.image,0x1a32148,dp,e)||!at(c.image,0x1a30a20,jp,e))return false;
@@ -252,7 +259,7 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
         if(t.on_map&&t.state!=0&&t.state!=1&&t.state!=2&&t.state!=4)return fail(e,"Construction frame Developer state requires another Job family");
         if(t.on_map&&!t.active)return fail(e,"Construction frame inactive Developer remains on map");
         if(!t.on_map&&t.job_link)return fail(e,"Construction frame Job-linked actor is off map");
-        if(wanted.actors[i].region_id!=actual.actors[i].region_id)return fail(e,"Construction frame Developer Region owner differs before pose adoption");
+        if(wanted.actors[i].region_id<0&&wanted.actors[i].region_id!=actual.actors[i].region_id)return fail(e,"Developer Region cannot be cleared during visual adoption");
         uintptr_t carried=0;if(!at(c.local.developers[i],0x4d0,carried,e))return false;
         if(carried)return fail(e,"Construction frame actor carries a Monster from another Job family");
         if(wanted.actors[i].region_id>=0){uintptr_t selected=0;const auto map=reinterpret_cast<uintptr_t>(c.pin.origin.map);
@@ -267,12 +274,16 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
         if(t.developer_id>=0){const auto found=std::find_if(target.rows.begin(),target.rows.end(),[&](const auto& r){return r.id==t.developer_id;});
             if(found==target.rows.end()||!found->job_link||!found->on_map||(found->state!=1&&found->state!=2))return fail(e,"Construction target Job/Developer reciprocity differs");}
     }
-    for(const auto& r:target.rows)if(r.job_link&&std::count_if(wanted.jobs.begin(),wanted.jobs.end(),[&](const auto& j){return j.present&&j.developer_id==r.id;})!=1)
+    if(wanted.work&&!bug_authority::preflight_work(c,*wanted.work,e))return false;
+    if(actual.work&&!wanted.work)return fail(e,"Developer frame discarded retained Bug-work authority");
+    for(const auto& r:target.rows)if(r.job_link&&(std::count_if(wanted.jobs.begin(),wanted.jobs.end(),[&](const auto& j){return j.present&&j.developer_id==r.id;})+
+        (wanted.work?std::count_if(wanted.work->jobs.begin(),wanted.work->jobs.end(),[&](const auto& j){return j.developer_id==r.id;}):0))!=1)
         return fail(e,"Construction target Developer has no unique original Job occurrence");
     std::vector<Membership> operations;
     return membership_plan(member_ids(c,c.local.inside),member_ids(c,c.local.outside),target.indoor,target.outdoor,operations,e);
 }
 }
+#include "loaded_movement.inc"
 bool capture_placement(PlacementBefore& out,std::string& e){
     out={};if(!read_process(out.capture,e)||!job_census::read(copy,out.capture,out.queue,e))return false;
     Capture after;if(!read_process(after,e)||!owners(out.capture,after,e))return false;
@@ -334,6 +345,10 @@ bool apply(const action_session::Context& context,const action_session::Binding&
         const auto& wanted=*expanded.construction;
         std::vector<Membership> operations;
         if(!membership_plan(member_ids(current,current.local.inside),member_ids(current,current.local.outside),target.indoor,target.outdoor,operations,e))return false;
+        if(wanted.work){
+            if(!bug_authority::begin_work(before,*wanted.work,w.attempted,e)||
+               !bug_authority::work_actor_links(before,*wanted.work,w.dev_property,w.job_property,false,w.attempted,e))return false;
+        }
         // Detach only a selected original occurrence whose authoritative owner
         // changed. Each borrowed property Resolve must confirm both links.
         for(size_t j=0;j<links.size();++j)if(actual.jobs[j].developer_id>=0&&
@@ -354,6 +369,11 @@ bool apply(const action_session::Context& context,const action_session::Binding&
             if(old.state!=next.state){if(!w.fresh(e)||!field(w,i,scalar::Field::State,next.state,e))return false;}
             if(old.position!=next.position||actual.actors[i]!=wanted.actors[i]){
                 if(!w.fresh(e))return false;
+                if(actual.actors[i].region_id!=wanted.actors[i].region_id){uintptr_t region=0;const auto map=reinterpret_cast<uintptr_t>(before.pin.origin.map);
+                    if(!region_saved_identity::resolve(before.image,map,map+0x1c0,wanted.actors[i].region_id,0,region,
+                        [](uintptr_t p,size_t o,auto& value,std::string& cause){return at(p,o,value,cause);},e))return false;
+                    Call selected;bug_authority::work_region(before.image,before.local.developers[i],region,&selected);if(!call(w,selected,"Developer SetRegion",e))return false;
+                }
                 Call r;pose(before.image,before.local.developers[i],&wanted.actors[i],&next.position,&r);
                 if(!call(w,r,"Developer pose",e))return false;
                 if(old.on_map){Call quad;unary(before.image,Unary::UpdateQuadtree,before.local.developers[i],&quad);
@@ -376,6 +396,8 @@ bool apply(const action_session::Context& context,const action_session::Binding&
             wanted.jobs[j].developer_id!=actual.jobs[j].developer_id){
             if(!w.fresh(e)||!pair(w,before.local.developers[actor_slot(before,wanted.jobs[j].developer_id)],links[j],true,e))return false;
         }
+        if(wanted.work&&(!bug_authority::work_actor_links(before,*wanted.work,w.dev_property,w.job_property,true,w.attempted,e)||
+            !bug_authority::finish_work(before,*wanted.work,w.attempted,e)))return false;
         for(size_t j=0;j<links.size();++j)if(actual.jobs[j].present&&!wanted.jobs[j].present){
             if(!w.fresh(e)||!retire(w,links[j],e))return false;
         }

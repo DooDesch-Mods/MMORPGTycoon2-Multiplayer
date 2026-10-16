@@ -1,0 +1,6646 @@
+{
+  "passed": false,
+  "scope": "Original reload of the retained equipped small world stops at the loaded Client movement guard",
+  "runtime_run_id": "8b87dbae-5691-4c71-871b-e76ee2d59e2e",
+  "dll_sha256": "b6eeeafd0fcde64888b186e7457c86caa59ddc47d3603b5ddfc569f26ade8fb8",
+  "native_acceptance_id": "a866c3d2-bacb-4e8a-9a62-303757b20085",
+  "error": {
+    "step": "playing-client-1-4",
+    "cause": "native preparation failed: native live simulation start failed: Construction Client private movement is not quiescent; no worker AI or path replay permitted"
+  },
+  "retained_snapshot": "054fc67f-faa8-4d9a-a8e5-af26fb852139",
+  "actual_states": {
+    "host": {
+      "movement": {
+        "actors": [
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": 0,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": true,
+            "id": 0,
+            "movement_destination": [
+              8020.0,
+              75.83831787109375,
+              8550.0
+            ],
+            "orientation": [
+              0.0,
+              -0.42740821838378906,
+              0.0,
+              0.9040586948394775
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": true,
+            "region": {
+              "present": true,
+              "saved_id": 67
+            },
+            "region_matches_job": true,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 0,
+            "travel_step_count": 1,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 1,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 1,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 2,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 2,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 3,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 3,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 4,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 4,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 5,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 5,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 6,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 6,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 7,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 7,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 8,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 8,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 9,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 9,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 10,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 10,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 11,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 11,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 12,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 12,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 13,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 13,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 14,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 14,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 15,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 15,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 16,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 16,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 17,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 17,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 18,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 18,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 19,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 19,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 20,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 20,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 21,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 21,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 22,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 22,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 23,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 23,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 24,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 24,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 25,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 25,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 26,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 26,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 27,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 27,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 28,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 28,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 29,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 29,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 30,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 30,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 31,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 31,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 32,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 32,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 33,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 33,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 34,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 34,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 35,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 35,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 36,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 36,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 37,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 37,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 38,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 38,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 39,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 39,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 40,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 40,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 41,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 41,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 42,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 42,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 43,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 43,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 44,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 44,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 45,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 45,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 46,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 46,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 47,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 47,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 48,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 48,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 49,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 49,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          }
+        ],
+        "movement_graph_identity_proven": false,
+        "observed": true
+      },
+      "developers": [
+        {
+          "active": true,
+          "employed": true,
+          "id": 0,
+          "job_link": true,
+          "on_map": true,
+          "position": [
+            8106.29443359375,
+            92.62618255615234,
+            8550.0
+          ],
+          "slot": 0,
+          "state": 1
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 1,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 1,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 2,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 2,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 3,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 3,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 4,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 4,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 5,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 5,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 6,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 6,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 7,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 7,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 8,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 8,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 9,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 9,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 10,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 10,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 11,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 11,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 12,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 12,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 13,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 13,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 14,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 14,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 15,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 15,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 16,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 16,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 17,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 17,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 18,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 18,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 19,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 19,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 20,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 20,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 21,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 21,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 22,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 22,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 23,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 23,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 24,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 24,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 25,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 25,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 26,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 26,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 27,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 27,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 28,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 28,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 29,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 29,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 30,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 30,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 31,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 31,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 32,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 32,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 33,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 33,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 34,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 34,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 35,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 35,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 36,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 36,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 37,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 37,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 38,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 38,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 39,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 39,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 40,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 40,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 41,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 41,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 42,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 42,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 43,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 43,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 44,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 44,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 45,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 45,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 46,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 46,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 47,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 47,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 48,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 48,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 49,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 49,
+          "state": 0
+        }
+      ],
+      "jobs": {
+        "developers": [
+          {
+            "carried_present": false,
+            "id": 0,
+            "job_index": 0,
+            "job_present": true,
+            "reciprocal": true
+          },
+          {
+            "carried_present": false,
+            "id": 1,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 2,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 3,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 4,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 5,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 6,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 7,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 8,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 9,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 10,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 11,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 12,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 13,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 14,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 15,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 16,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 17,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 18,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 19,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 20,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 21,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 22,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 23,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 24,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 25,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 26,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 27,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 28,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 29,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 30,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 31,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 32,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 33,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 34,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 35,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 36,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 37,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 38,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 39,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 40,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 41,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 42,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 43,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 44,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 45,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 46,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 47,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 48,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 49,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          }
+        ],
+        "diagnostic_only": true,
+        "identity_proven": false,
+        "jobs": [
+          {
+            "bug": {
+              "anchor_present": true,
+              "created": 1,
+              "debugged": 0,
+              "discovered": 1,
+              "job_reciprocal": true,
+              "known": 1,
+              "manual": 0,
+              "present": true,
+              "reproducibility": 0.14788949489593506,
+              "runtime_id_local": 1,
+              "toons": 1,
+              "type": 0,
+              "variant": 0
+            },
+            "building_present": false,
+            "building_proxy_present": false,
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "developer_id": 0,
+            "developer_present": true,
+            "developer_reciprocal": true,
+            "monster_present": false,
+            "monster_proxy_present": false,
+            "position": [
+              8020.0,
+              70.83831787109375,
+              8550.0
+            ],
+            "queue_index": 0,
+            "raw_id_untrusted": 0,
+            "region_present": true,
+            "type": 7,
+            "valid": true
+          }
+        ],
+        "queue_capacity": 4,
+        "queue_count": 1,
+        "schema": 1
+      },
+      "time_scale": 0.0,
+      "origin_uuid": "1f216374-dee1-4d18-9dcf-0c38ee8d5a46",
+      "evidence": "test/mcp/evidence/loaded-movement-host_20261016T020138954438Z.json"
+    },
+    "client-1": {
+      "movement": {
+        "actors": [
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": 0,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": true,
+            "id": 0,
+            "movement_destination": [
+              8020.0,
+              75.83831787109375,
+              8550.0
+            ],
+            "orientation": [
+              0.0,
+              -0.42740821838378906,
+              0.0,
+              0.9040586948394775
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": true,
+            "region": {
+              "present": true,
+              "saved_id": 67
+            },
+            "region_matches_job": true,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 0,
+            "travel_step_count": 1,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 1,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 1,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 2,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 2,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 3,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 3,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 4,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 4,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 5,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 5,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 6,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 6,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 7,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 7,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 8,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 8,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 9,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 9,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 10,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 10,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 11,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 11,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 12,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 12,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 13,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 13,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 14,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 14,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 15,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 15,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 16,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 16,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 17,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 17,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 18,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 18,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 19,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 19,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 20,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 20,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 21,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 21,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 22,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 22,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 23,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 23,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 24,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 24,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 25,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 25,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 26,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 26,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 27,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 27,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 28,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 28,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 29,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 29,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 30,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 30,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 31,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 31,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 32,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 32,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 33,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 33,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 34,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 34,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 35,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 35,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 36,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 36,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 37,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 37,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 38,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 38,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 39,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 39,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 40,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 40,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 41,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 41,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 42,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 42,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 43,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 43,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 44,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 44,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 45,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 45,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 46,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 46,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 47,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 47,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 48,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 48,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          },
+          {
+            "current_building": {
+              "present": false
+            },
+            "current_pad": -1,
+            "destination_building": {
+              "present": false
+            },
+            "destination_pad": 0,
+            "has_destination": false,
+            "id": 49,
+            "movement_destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "orientation": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "path_active": false,
+            "path_node_present": false,
+            "path_task_pending": false,
+            "path_task_present": false,
+            "quadtree_dirty": false,
+            "quadtree_present": false,
+            "region": {
+              "present": false
+            },
+            "region_matches_job": null,
+            "road_present": false,
+            "scale": [
+              1.0,
+              1.0,
+              1.0
+            ],
+            "shard_is_root": true,
+            "shard_present": true,
+            "slot": 49,
+            "travel_step_count": 0,
+            "travel_step_index": 0
+          }
+        ],
+        "movement_graph_identity_proven": false,
+        "observed": true
+      },
+      "developers": [
+        {
+          "active": true,
+          "employed": true,
+          "id": 0,
+          "job_link": true,
+          "on_map": true,
+          "position": [
+            8106.29443359375,
+            92.62618255615234,
+            8550.0
+          ],
+          "slot": 0,
+          "state": 1
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 1,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 1,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 2,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 2,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 3,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 3,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 4,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 4,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 5,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 5,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 6,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 6,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 7,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 7,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 8,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 8,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 9,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 9,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 10,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 10,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 11,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 11,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 12,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 12,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 13,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 13,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 14,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 14,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 15,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 15,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 16,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 16,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 17,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 17,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 18,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 18,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 19,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 19,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 20,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 20,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 21,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 21,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 22,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 22,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 23,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 23,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 24,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 24,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 25,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 25,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 26,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 26,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 27,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 27,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 28,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 28,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 29,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 29,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 30,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 30,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 31,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 31,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 32,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 32,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 33,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 33,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 34,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 34,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 35,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 35,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 36,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 36,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 37,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 37,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 38,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 38,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 39,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 39,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 40,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 40,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 41,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 41,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 42,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 42,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 43,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 43,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 44,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 44,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 45,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 45,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 46,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 46,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 47,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 47,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 48,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 48,
+          "state": 0
+        },
+        {
+          "active": false,
+          "employed": false,
+          "id": 49,
+          "job_link": false,
+          "on_map": false,
+          "position": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "slot": 49,
+          "state": 0
+        }
+      ],
+      "jobs": {
+        "developers": [
+          {
+            "carried_present": false,
+            "id": 0,
+            "job_index": 0,
+            "job_present": true,
+            "reciprocal": true
+          },
+          {
+            "carried_present": false,
+            "id": 1,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 2,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 3,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 4,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 5,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 6,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 7,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 8,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 9,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 10,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 11,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 12,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 13,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 14,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 15,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 16,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 17,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 18,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 19,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 20,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 21,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 22,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 23,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 24,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 25,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 26,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 27,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 28,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 29,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 30,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 31,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 32,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 33,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 34,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 35,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 36,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 37,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 38,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 39,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 40,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 41,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 42,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 43,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 44,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 45,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 46,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 47,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 48,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          },
+          {
+            "carried_present": false,
+            "id": 49,
+            "job_index": -1,
+            "job_present": false,
+            "reciprocal": false
+          }
+        ],
+        "diagnostic_only": true,
+        "identity_proven": false,
+        "jobs": [
+          {
+            "bug": {
+              "anchor_present": true,
+              "created": 1,
+              "debugged": 0,
+              "discovered": 1,
+              "job_reciprocal": true,
+              "known": 1,
+              "manual": 0,
+              "present": true,
+              "reproducibility": 0.14788949489593506,
+              "runtime_id_local": 0,
+              "toons": 1,
+              "type": 0,
+              "variant": 0
+            },
+            "building_present": false,
+            "building_proxy_present": false,
+            "destination": [
+              0.0,
+              0.0,
+              0.0
+            ],
+            "developer_id": 0,
+            "developer_present": true,
+            "developer_reciprocal": true,
+            "monster_present": false,
+            "monster_proxy_present": false,
+            "position": [
+              8020.0,
+              70.83831787109375,
+              8550.0
+            ],
+            "queue_index": 0,
+            "raw_id_untrusted": 0,
+            "region_present": true,
+            "type": 7,
+            "valid": true
+          }
+        ],
+        "queue_capacity": 4,
+        "queue_count": 1,
+        "schema": 1
+      },
+      "time_scale": 0.0,
+      "origin_uuid": "da55192b-d849-44ef-b6ee-f0a5be8b4de3",
+      "evidence": "test/mcp/evidence/loaded-movement_20261016T020009229124Z.json"
+    }
+  },
+  "measured_condition": "Developer 0 has a movement destination and one retained travel step, index 0, on both peers. Path worker/task/pending/road/node flags are absent. Both Clocks are 0.",
+  "next_action": "Prove original loaded Client movement cleanup before authority adoption. Preserve Host simulation and the existing quiescence guard. No load replay.",
+  "prior_weapon_value_acceptance": "43c1062c-4344-4e17-a118-47e816943a83",
+  "prior_accepted_scope_invalidated": false
+}

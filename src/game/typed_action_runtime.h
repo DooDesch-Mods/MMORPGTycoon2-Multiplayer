@@ -9,6 +9,7 @@ namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct 
 namespace mt2mp::game::developer_staff::construction {struct LocalJob;}
 namespace mt2mp::game::typed_action_runtime {
 bool start(std::string&);
+bool read_subscriber_weapon(int32_t serialized_id,nlohmann::json& out,std::string& error);
 void tick();
 bool enable_live_state(std::string&);
 bool live_state_active();
@@ -30,6 +31,8 @@ bool submit_move_npc(const std::string& action_uuid,const std::string& target_ac
     const action_session::BuildingState& transform,std::string&);
 bool observe_startingpoint_submission(const action_session::Context& expected_context,
     const action_session::Binding& expected_binding,const std::string& action_uuid,std::string&);
+bool bug_parent_alive(const action_session::Context&,const action_session::Binding&,const std::string& key,
+    bool& known,bool& alive,std::string&);
 bool bug_context(action_session::Context&,action_session::Binding&,uint64_t& publication,bool& active,std::string&);
 bool network_binding(const std::string& snapshot,action_session::Binding&,std::string&);
 bool construction_jobs(const action_session::Context&,const action_session::Binding&,

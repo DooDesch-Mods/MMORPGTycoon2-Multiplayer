@@ -80,8 +80,8 @@ bool read(Runtime& r,const action::Context& expected,const action::Binding& bind
     if(!project(c,out,e))return false;
     std::vector<construction::LocalJob> jobs;
     if(!typed_action_runtime::construction_jobs(context,binding,jobs,e))return false;
-    if(!jobs.empty()){
-        construction::State extra;if(!construction::capture(c,jobs,extra,e))return false;
+    construction::State extra;if(!construction::capture(c,jobs,extra,e))return false;
+    if(!jobs.empty()||extra.work){
         out.construction=std::move(extra);if(!valid(out,e))return false;
     }
     return true;
@@ -218,11 +218,11 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     action::Context context;if(!action::selected_session().current(context,e)||context.snapshot_uuid!=request.snapshot_uuid||(context.role==action::Role::Client)!=(host!=nullptr)){if(e.empty())e="Developer native action actual role/session differs";return action::Outcome::RejectedNoEffect;}
     Capture before;PoolState state;if(!read(*r,context,binding,before,state,e)||!full_code(*r,e))return action::Outcome::RejectedNoEffect;
     const bool hire=request.action==action::Action::HireDeveloper;
-    std::vector<FieldChange> projected;if(!frame_plan(state,state,projected,e))return action::Outcome::RejectedNoEffect;
+    std::vector<FieldChange> projected;if(!state.construction&&!frame_plan(state,state,projected,e))return action::Outcome::RejectedNoEffect;
     if((hire&&state.count==50)||(!hire&&!state.count)){e="Developer native requested count is at boundary";return action::Outcome::RejectedNoEffect;}
     action::Ledger expected_ledger;if(!expected_payment(hire,before.pin.ledger,expected_ledger,e))return action::Outcome::RejectedNoEffect;
     const auto affected=size_t(hire?state.count:state.count-1);
-    if(state.rows[affected].job_link){e="Developer affected native JobQueue identity/closure is not yet bound";return action::Outcome::RejectedNoEffect;}
+    if(state.rows[affected].job_link&&!state.construction){e="Developer affected native JobQueue occurrence is not bound";return action::Outcome::RejectedNoEffect;}
     if(host&&(host->before!=before.pin.ledger||host->developers_before!=state||!host->developers_after)){e="Developer Client native BEFORE differs from Host";return action::Outcome::RejectedNoEffect;}
     uintptr_t window=0;if(!read_window([&](auto p,auto out,auto n,auto& error){return r->memory.copy(p,out,n,error);},before,window,e))return action::Outcome::RejectedNoEffect;
     auto& op=r->operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.evidence.before=before.pin.ledger;op.evidence.developers_before=state;

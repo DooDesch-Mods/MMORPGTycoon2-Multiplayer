@@ -157,14 +157,18 @@ inline bool read_name(Memory& memory, uintptr_t npc, std::string& name, std::str
     return true;
 }
 
+inline bool read_global_random(Memory& memory,uintptr_t image,std::array<uint64_t,4>& out,std::string& error){
+    uintptr_t global=0;
+    if(!field(memory,image,0x164b250,global,error))return false;
+    if(!global)return reject(error,"NPC global random source absent");
+    return field(memory,global,0,out,error);
+}
+
 inline bool read(Memory& memory, uintptr_t image, uintptr_t region,
                  State& output, std::string& error) {
     if (!image || !region) return reject(error, "NPC census image or region is null");
     State result;
-    uintptr_t global = 0;
-    if (!field(memory, image, 0x164b250, global, error)) return false;
-    if (!global) return reject(error, "NPC global random source absent");
-    if (!field(memory, global, 0, result.global_random, error) ||
+    if (!read_global_random(memory, image, result.global_random, error) ||
         !field(memory, region, 0x998, result.manager, error)) return false;
     if (!result.manager) return reject(error, "NPC region manager absent");
     uintptr_t owner = 0;

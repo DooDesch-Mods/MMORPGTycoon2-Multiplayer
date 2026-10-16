@@ -1,4 +1,5 @@
 #include "developer_staff/construction_links.h"
+#include "bug_authority/job_links.h"
 #include "runtime_append.h"
 #include "building_reference_pins.h"
 #include "append_calls.h"
@@ -601,5 +602,6 @@ bool probe(const std::filesystem::path& root,const std::string& basename,const s
 }
 
 #include "developer_staff/construction_links.inc"
+#include "bug_authority/job_links.inc"
 
 }

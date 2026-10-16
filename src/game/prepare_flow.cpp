@@ -147,6 +147,8 @@ bool tick(std::string& error){
     }
     if(step==Step::Playing){
         const auto actual=typed_action_runtime::controller_status();
+        const auto live_error=actual.value("live_error",std::string{});
+        if(!live_error.empty()){error=live_error;return fail(error);}
         if(!captures_ready()||!actual.value("started",false)||actual.value("locked",true)){error="native playing authority/capture readiness lost: "+actual.value("cause",std::string{});return fail(error);}
         error.clear();return true;
     }

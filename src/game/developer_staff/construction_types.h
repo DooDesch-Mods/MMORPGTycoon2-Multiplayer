@@ -1,5 +1,7 @@
 #pragma once
 #include <array>
+#include <optional>
+#include "../bug_authority/job_state.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -22,6 +24,7 @@ struct JobState {
 struct State {
     std::vector<ActorPose> actors;
     std::vector<JobState> jobs;
+    std::optional<bug_authority::WorkState> work;
     bool operator==(const State&)const=default;
 };
 struct LocalJob {

@@ -220,7 +220,10 @@ void suspend_actions(){
     actions_suspended=true;
 }
 bool retire_lobby(std::string& error){
-    if(local())return SidecarClient::instance().retire_action_handler(error);
+    if(local()){
+        if(!publish_local_host_leave(error))return false;
+        return SidecarClient::instance().retire_action_handler(error);
+    }
     if(SteamMatchmaking::instance().in_lobby()){error="wire retirement requires confirmed lobby absence";return false;}
     handlers.erase(9);ids={};lobby=own=0;mask=hello_ack=0;bound=hello_sent=ended=actions_suspended=false;
     failure.clear();last_logged.clear();repeats=retiring_packets=0;hello_started={};error.clear();return true;

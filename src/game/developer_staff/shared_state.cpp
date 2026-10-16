@@ -1,4 +1,5 @@
 #include "shared_state.h"
+#include "../bug_authority/job_codec.h"
 #include <cmath>
 #include <set>
 #include <limits>
@@ -37,7 +38,15 @@ bool valid_construction(const PoolState& s,std::string& e){
             if(it==s.rows.end()||!it->job_link||!it->on_map)return fail(e,"Developer construction assignment lacks reciprocal pool Job/map membership");
         }
     }
-    for(const auto& row:s.rows)if(row.job_link!=assigned.contains(row.id))return fail(e,"Developer pool Job link lacks exact construction assignment");
+    if(c.work){
+        if(!bug_authority::work_codec::valid(*c.work,e))return false;
+        for(const auto& job:c.work->jobs)if(job.developer_id>=0){
+            if(!assigned.insert(job.developer_id).second)return fail(e,"Developer assignment repeated across construction/Bug Jobs");
+            const auto it=std::find_if(s.rows.begin(),s.rows.end(),[&](const auto& row){return row.id==job.developer_id;});
+            if(it==s.rows.end()||!it->job_link||!it->on_map)return fail(e,"Bug Job assignment lacks reciprocal Developer pool Job/map membership");
+        }
+    }
+    for(const auto& row:s.rows)if(row.job_link!=assigned.contains(row.id))return fail(e,c.work?"Developer pool Job link lacks exact construction/Bug assignment":"Developer pool Job link lacks exact construction assignment");
     return true;
 }
 bool valid(const PoolState& s,std::string& e){
@@ -61,6 +70,7 @@ json encode(const PoolState& s){
         for(const auto& p:s.construction->actors)actors.push_back(json::array({p.id,p.region_id,p.orientation[0],p.orientation[1],p.orientation[2],p.orientation[3],p.scale[0],p.scale[1],p.scale[2]}));
         for(const auto& job:s.construction->jobs)jobs.push_back(json::array({job.building_key,job.present,job.active,job.developer_id}));
         out["construction"]={{"actors",actors},{"jobs",jobs}};
+        if(s.construction->work)bug_authority::work_codec::encode(*s.construction->work,out["construction"]);
     }
     return out;
 }
@@ -73,7 +83,9 @@ bool decode(const json& j,PoolState& out,std::string& e){
         for(const auto* name:{"indoor","outdoor"}){const auto& values=j.at(name);if(!values.is_array()||values.size()>50)throw std::runtime_error("Developer manager array exceeds50");
             auto& target=std::string(name)=="indoor"?s.indoor:s.outdoor;for(const auto& v:values)target.push_back(integer(v));}
         if(j.contains("construction")){
-            const auto& c=j.at("construction");if(!c.is_object()||c.size()!=2||!c.contains("actors")||!c.contains("jobs"))throw std::runtime_error("Developer construction requires exact actors/jobs");
+            const auto& c=j.at("construction");if(!c.is_object()||(c.size()!=2&&c.size()!=6)||!c.contains("actors")||!c.contains("jobs")||
+                (c.size()==6&&(!c.contains("bug_jobs")||!c.contains("bug_parents")||!c.contains("job_created")||!c.contains("job_fixed"))))
+                throw std::runtime_error("Developer construction requires actors/jobs and optional complete Bug Work fields");
             const auto& actors=c.at("actors");const auto& jobs=c.at("jobs");
             if(!actors.is_array()||actors.size()!=50||!jobs.is_array())throw std::runtime_error("Developer construction actor/job shape differs");
             construction::State value;
@@ -81,6 +93,7 @@ bool decode(const json& j,PoolState& out,std::string& e){
                 value.actors.push_back({integer(row[0]),integer(row[1]),{scalar(row[2]),scalar(row[3]),scalar(row[4]),scalar(row[5])},{scalar(row[6]),scalar(row[7]),scalar(row[8])}});}
             for(const auto& row:jobs){if(!row.is_array()||row.size()!=4||!row[0].is_string())throw std::runtime_error("Developer construction Job requires exact4 fields");
                 value.jobs.push_back({row[0].get<std::string>(),boolean(row[1]),boolean(row[2]),integer(row[3])});}
+            if(c.size()==6){bug_authority::WorkState work;if(!bug_authority::work_codec::decode(c,work,e))return false;value.work=std::move(work);}
             s.construction=std::move(value);
         }
         if(!valid(s,e))return false;out=std::move(s);e.clear();return true;

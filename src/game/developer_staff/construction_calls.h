@@ -9,6 +9,7 @@ struct Call {
 };
 enum class Unary {OnMap,OffMap,UpdateQuadtree,UpdateBuildingColors,DestroyJob};
 uint32_t unary(uintptr_t image,Unary,uintptr_t object,Call*);
+uint32_t stop_loaded_movement(uintptr_t image,uintptr_t actor,Call*);
 uint32_t membership(uintptr_t image,uintptr_t lounge,uintptr_t actor,bool outside,Call*);
 uint32_t pose(uintptr_t image,uintptr_t actor,const ActorPose*,const std::array<float,3>*,Call*);
 uint32_t shift(uintptr_t image,uintptr_t destination,uintptr_t source,size_t bytes,Call*);

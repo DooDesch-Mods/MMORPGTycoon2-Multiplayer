@@ -58,7 +58,7 @@ bool quest_toon(const Pin& p,const std::vector<QuestOwner>& owners,uintptr_t sub
     next.level=observed.level;next.quests_completed=observed.quests_completed;
     constexpr size_t attributes[]={0x750,0x778,0x7a0};
     for(size_t i=0;i<3;++i)if(!at(toon,attributes[i],next.attributes[i],e))return false;
-    if(!at(toon,0x878,next.seconds_to_level_bits,e))return false;
+    if(!at(toon,0x878,next.seconds_to_level_bits,e)||!read_toon_weapon(toon,next,e))return false;
     const auto translate=[&](const npc_quest_visitor_reader::Link& source,quest_state::Link& target){
         using ReadState=npc_quest_visitor_reader::LinkState;
         if(source.state==ReadState::Empty){target.state=quest_state::LinkState::Empty;return true;}
@@ -236,11 +236,20 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     const auto& p=before.history.pin;const auto subscriber=before.subscribers[index];
     std::vector<QuestOwner> owners;std::optional<quest_state::Toon> actual;
     if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_toon(p,owners,subscriber,actual,e))return false;
-    if(actual==target)return true;
+    const auto refresh_weapon=[&](){
+        if(!target)return true;
+        uintptr_t receiver=0;if(!at(subscriber,0x80,receiver,e))return false;
+        toon_weapon_visual::Receipt receipt;
+        if(!toon_weapon_visual::refresh(receiver,receipt,e))return false;
+        return (receipt.owned&&receipt.confirmed)||fail(e,"Quest weapon visual did not confirm current Client");
+    };
+    if(actual==target)return refresh_weapon();
     if(!actual||!target)return fail(e,"Quest apply requires actual Toon lifecycle transition before state stores");
     if(old&&actual!=old)return fail(e,"Quest apply prior Toon state changed");
     uintptr_t toon=0;if(!at(subscriber,0x80,toon,e))return false;
     QuestFresh fresh{&p,subscriber,toon,0,before.state.subscribers[index].serialized_id,false,false,false};
+    const auto weapon_fence=[&](std::string& error){return current_subscriber(before,index,error)&&quest_fresh_link(&fresh,{},error);};
+    if(!store_toon_weapon(p,toon,*actual,*target,weapon_fence,e)||!refresh_weapon())return false;
     // A freshly captured equal Progress list needs no row stores or native callbacks.
     // Scalar ownership, CAS and the complete final read remain below this branch.
     if(actual->progress!=target->progress){

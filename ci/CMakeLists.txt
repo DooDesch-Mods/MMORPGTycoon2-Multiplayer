@@ -162,4 +162,28 @@ include("${CMAKE_CURRENT_LIST_DIR}/bug_authority_native_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/building_types_checks.cmake")
 
+include("${CMAKE_CURRENT_LIST_DIR}/bug_type7_portable_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/bug_type7_native_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/bug_policy_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/host_departure_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/toon_equipment_value_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/frame_fragments_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/toon_weapon_records_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/prepare_sync_failure_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/toon_weapon_visual_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/toon_weapon_runtime_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/render_pool_guard_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/record_api_resolver_checks.cmake")
+
+include(toon_weapon_probe_checks.cmake)
+include("${CMAKE_CURRENT_LIST_DIR}/loaded_movement_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/toon_time_fence_checks.cmake")

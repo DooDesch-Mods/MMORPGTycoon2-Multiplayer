@@ -17,6 +17,7 @@ constexpr uintptr_t image=0x10000000,object=0x20000000,selection=0x30000000,defi
 std::map<uintptr_t,unsigned char> bytes;
 uintptr_t rejected_read=0;unsigned target_field_reads=0,checks=0;
 bool session_ok=true,record_ok=true,local_ok=true,actor_ok=true,census_ok=true;
+bool work_ok=true;
 std::string local_variant;bool local_scenery=false;
 action::Context context;
 remove_diagnostics::LocalTarget binding;
@@ -71,6 +72,13 @@ bool read(const Read&,const Capture&,Census& out,std::string& e){
     if(!fixture::census_ok){e="actual census failed";return false;}out=fixture::queue;return true;
 }
 }
+namespace mt2mp::game::bug_authority {
+bool capture_work(const Capture&,const job_census::Census&,WorkState& out,std::vector<uintptr_t>& bound,std::string& e){
+    if(!fixture::work_ok){e="actual Bug-work capture failed";return false;}
+    out={};bound.clear();return true;
+}
+bool has_work(){return false;}
+}
 namespace mt2mp::game::developer_staff::construction {
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 template<class T>bool at(uintptr_t p,size_t offset,T& out,std::string& e){return fixture::memory.copy(p+offset,&out,sizeof(out),e);}
@@ -86,7 +94,7 @@ bool actor(const Capture&,size_t slot,Actor& out,std::string& e){
 
 void reset(const std::string& type="SmallInn",const std::string& variant="base",uint32_t flags=UINT32_MAX){
     using namespace fixture;bytes.clear();rejected_read=0;target_field_reads=0;
-    session_ok=record_ok=local_ok=actor_ok=census_ok=true;local_scenery=false;local_variant.clear();
+    session_ok=record_ok=local_ok=actor_ok=census_ok=work_ok=true;local_scenery=false;local_variant.clear();
     context={};context.snapshot_uuid="11111111-1111-4111-8111-111111111111";
     capture={};capture.image=image;capture.pin.origin.map=reinterpret_cast<void*>(map);
     capture.pin.origin.world_epoch=7;capture.pin.origin.generation=9;
@@ -139,7 +147,7 @@ int main(){try{using namespace fixture;std::string e;construction::State out;
     for(int wrong=0;wrong<11;++wrong){reset("Inn","boat");
         if(wrong==0)binding.uid++;if(wrong==1)binding.record_key+="x";if(wrong==2)binding.snapshot_id+="x";
         if(wrong==3)binding.world_epoch++;if(wrong==4)binding.world_generation++;if(wrong==5)binding.manager++;
-        if(wrong==6)put(object+0x170,map+0x1c1);if(wrong==7)put(object+0x7a8,int32_t(1));
+        if(wrong==6)put(object+0x170,map+0x1c1);if(wrong==7)put(object+0x7a8,int32_t(0));
         if(wrong==8)put(object+0x7e1,uint8_t(2));if(wrong==9)local_variant="elf";if(wrong==10)local_scenery=true;
         need(!graph(out,e)&&!e.empty(),"wrong Building identity/variant/lifecycle entered construction");
     }
@@ -158,6 +166,12 @@ int main(){try{using namespace fixture;std::string e;construction::State out;
         if(wrong==2)put(proxy,uintptr_t(0));if(wrong==3){queue.jobs[0].developer=0xa0000000;queue.jobs[0].reciprocal=false;}
         need(!graph(out,e)&&!e.empty(),"foreign occurrence or broken native weak/backlink admitted");
     }
+    reset("Blacksmith","base");put(object+0x7a8,int32_t(1));
+    need(graph(out,e)&&out.jobs.size()==1&&out.jobs[0].present,
+        "original maintenance Building lost its retained construction occurrence: "+e);
+    reset("Blacksmith","base");work_ok=false;
+    need(!graph(out,e)&&e=="actual Bug-work capture failed",
+        "upstream Bug-work failure became a successful construction graph");
     std::cout<<"PASS "<<checks<<" actual classifier/binding/construction graph cases; no native calls\n";
     return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

@@ -1,0 +1,40 @@
+{
+  "scope": "One original small-fixture world load through lobby admission on two owned peers with all nine runtime pool-access methods guarded",
+  "dll_sha256": "16e55acd7f4989106e7744dd1b3f5f0e0cea49747d0ac8e9c95d19a678318d29",
+  "runtime_run_id": "0a81ccc0-51f6-4fd0-a3ef-132b39608ebe",
+  "native_acceptance_id": "d6a721e3-82cb-4f08-9bf6-d9de0674697d",
+  "native_passed": true,
+  "fixture_snapshot": "b6bbc33d-7065-4242-9146-b6a5179260bc",
+  "source_tests": {
+    "affected_ctest": "artifacts\\build_history\\20261016T011508036310Z\\affected-ctest.log",
+    "passed_targets": 8,
+    "actual_wrapper_checks": 44,
+    "two_thread_calls": 4000
+  },
+  "original_failure_run": "0f702825-3957-4d02-8112-cbbb43d141c3",
+  "original_cause": "HEAP_FAILURE_BLOCK_NOT_BUSY double free in the original unused VBO vector reallocation; stale backing pointer confirmed, first freeing thread not captured",
+  "protection": "One process-lifetime recursive lock wraps all nine original runtime pool access functions. Exact original whole-body hashes are checked before creating hooks. Original allocation, GL calls and exception behavior remain.",
+  "limitations": [
+    "One native load is not a general concurrency stress proof.",
+    "Static initialization and CRT exit callback remain original; normal engine shutdown ordering is required.",
+    "Weapon tuple and visible attachment acceptance are separate.",
+    "Full coop remains incomplete."
+  ],
+  "captures": {
+    "host": {
+      "path": "_drafts\\media\\render-pool-load-host.bmp",
+      "pixel_sha256": "c210d32594ae10d03195ff9623a37a9b0f08d9548635a1c0f867b9d4050cef42"
+    },
+    "client-1": {
+      "path": "_drafts\\media\\render-pool-load-client-1.bmp",
+      "pixel_sha256": "a61ffdc1ab8a16b726fa4a10bb705a71ccba2a39a26ad5bdbee3bbd18e260324"
+    }
+  },
+  "production_files": {
+    "src\\game\\render_pool_guard\\fingerprints.h": "db736cc571e6f555a87aba1a685939b5314bcb15f878efb5444fd8f0fe942916",
+    "src\\game\\render_pool_guard\\invoke.cpp": "b2e3d188c868d627e594a2c80addec80b049a0ada66cc5c032e13921fc24b096",
+    "src\\game\\render_pool_guard\\invoke.h": "b1d7af342e5e80fd5464b2a120726b3e620d006053bef6738296495479b37c08",
+    "src\\game\\render_pool_guard\\runtime.cpp": "0576416ff2c2a91d7b0e623c5c7f7e911f4650016086de9b6a0925b43fffa347",
+    "src\\game\\render_pool_guard\\runtime.h": "7f4e8ad5c99c7f13d0a176fe74dd689d82ad0f8fcdd9e9998cf5feccadcae134"
+  }
+}

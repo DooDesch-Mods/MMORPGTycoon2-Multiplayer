@@ -28,6 +28,7 @@ import lobby_ops
 import loan_ops
 import release_ops
 import developer_staff_ops
+import bug_policy_ops
 import subscriber_capture_ops
 import subscriber_append_ops
 import node_observer_ops
@@ -243,6 +244,7 @@ OP_SCHEMAS = {
     "read_building_catalog": EMPTY,
     "read_subscriber_candidates": EMPTY,
     "read_subscriber_needs": object_schema({"serialized_id":{"type":"integer","minimum":0,"maximum":2147483647}},("serialized_id",)),
+    "read_subscriber_weapon": object_schema({"serialized_id":{"type":"integer","minimum":0,"maximum":2147483647}},("serialized_id",)),
     "arm_subscriber_needs": object_schema({"epoch": POSITIVE_UINT64, "serialized_id": SUBSCRIBER_ID, "expected_initial": NEEDS},
                                          ("epoch", "serialized_id", "expected_initial")),
     "apply_subscriber_needs": object_schema({"epoch": POSITIVE_UINT64, "serialized_id": SUBSCRIBER_ID, "revision": POSITIVE_UINT64,
@@ -347,6 +349,7 @@ OP_DESCRIPTIONS = {
     "place_test_building": "Send a scoped MPTest diagnostic placement request to the host and wait for host result and local replica.",
     "purchase_test_region": "Purchase the first region of the owned MPTest world through native affordability, cash subtraction and ownership services, then read back the result. Diagnostic preparation only.",
     "focus_test_camera": "Focus the owned MPTest diagnostic camera through native Camera.FocusOn and wait for actual camera readback. The native target interpolates.",
+    "read_subscriber_weapon": "Read one current joined Subscriber's chosen weapon and actual local Actor/Skeleton/attachment/matrix on the game thread. Does not equip, refresh, or run simulation.",
     "set_time_scale": "Set time scale through a verified game-thread capability.",
     "load_snapshot": "Validate local snapshot size and SHA256, then wait for native world activation through its opaque snapshot identifier.",
     "execute_action": "Execute a named game action through a verified game-thread capability.",
@@ -360,9 +363,11 @@ OP_SCHEMAS.update(subscriber_append_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(subscriber_append_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(subscriber_capture_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(loan_ops.SCHEMAS)
+OP_SCHEMAS.update(bug_policy_ops.SCHEMAS)
 OP_SCHEMAS.update(release_ops.SCHEMAS)
 OP_SCHEMAS.update(developer_staff_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(developer_staff_ops.DESCRIPTIONS)
+OP_DESCRIPTIONS.update(bug_policy_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(release_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(loan_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(lobby_ops.SCHEMAS)
@@ -392,7 +397,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -484,6 +489,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             subscriber_capture_ops.validate(op, arguments)
         if op in subscriber_append_ops.SCHEMAS:
             subscriber_append_ops.validate(op, arguments)
+        if op in bug_policy_ops.SCHEMAS:
+            bug_policy_ops.validate(op, arguments)
         if op in release_ops.SCHEMAS:
             release_ops.validate(op, arguments)
         if op in developer_staff_ops.SCHEMAS:
@@ -731,7 +738,7 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 for value in values:
                     if type(value) not in {int, float} or not -100 <= value <= 100 or not math.isfinite(value):
                         raise RuntimeErrorDetail("invalid_args", f"{key} requires values in [-100,100]")
-        if op=="read_subscriber_needs":
+        if op in {"read_subscriber_needs", "read_subscriber_weapon"}:
             if set(arguments)!={"serialized_id"} or type(arguments["serialized_id"]) is not int or not 0<=arguments["serialized_id"]<=2147483647:
                 raise RuntimeErrorDetail("invalid_args","serialized_id requires integer 0 through 2147483647")
         if op in {"purchase_test_region", "focus_test_camera"}:

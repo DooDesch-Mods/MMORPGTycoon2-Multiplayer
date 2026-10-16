@@ -1,0 +1,84 @@
+{
+  "schema": 1,
+  "scope": "NPC movement during original Host SaveScope must not stop Subscriber capture; refreshed actual poses remain published",
+  "status": "accepted-local-two-peer",
+  "full_coop_proven": false,
+  "dll_sha256": "3a8c845a0dafdbd57ed1bffa949292ca5b7b597ba3e522f9f9ad72b86fa9a653",
+  "runtime_run_id": "325f2e4b-2d0e-451d-aad5-cb407cb75dc1",
+  "cause": "The capture consistency comparison allowed visitor motion and NPC counters, but rejected NPC position/orientation catch-up during the original SaveScope",
+  "change": "Normalize only the owning temporary comparison copy; the const refreshed State is unchanged and remains the published value",
+  "strict_guards_retained": [
+    "NPC region",
+    "scale",
+    "level",
+    "identity",
+    "membership",
+    "native owners",
+    "unrelated scalar state",
+    "finite pose validation"
+  ],
+  "regression": {
+    "before": {
+      "path": "artifacts/build_history/20261015T235226756656Z/original-regression-selected.log",
+      "sha256": "888393bed3001e7a8193817f88cf3a744072aa3a3ca61c9b735fb2ba9b170fac"
+    },
+    "after": {
+      "path": "artifacts/build_history/20261016T000012033692Z/affected-ctest.log",
+      "sha256": "dfbb92904c8f277f13e51f5bb3048424b1be3c3fdf28e8f4c5b0aa4d164e8666"
+    },
+    "cases_passed": 30,
+    "unselected_initial_ctest_is_not_a_pass": true
+  },
+  "native": {
+    "baseline_subscribers": 62,
+    "final_subscribers": 65,
+    "new_original_subscriber_ids": [
+      70,
+      71,
+      72
+    ],
+    "npc_count": 2,
+    "changed_npc_pose_keys": [
+      "9079c8ee251f6aa8efa75e6db0c334b1a98495eddf29a58aa62174af34408edd:world:npc:34",
+      "9079c8ee251f6aa8efa75e6db0c334b1a98495eddf29a58aa62174af34408edd:world:npc:39"
+    ],
+    "current_npc_states_exactly_equal": true,
+    "full_shared_frame_exactly_equal": true,
+    "native_ledger_exactly_equal": true,
+    "native_developer_pool_exactly_equal": true,
+    "pending_subscriber_graphs": 0,
+    "original_clock_run_and_pause_once_confirmed_both_peers": true,
+    "final_clock_seconds": 59776,
+    "cash": 87960
+  },
+  "evidence": [
+    {
+      "path": "artifacts/acceptance/3c8ef6ba-4e9f-4cdb-b6be-f2b469f6b832/summary.json",
+      "sha256": "f4604d9a722186f0b353cc27fa3659c7a772cad799899bb8e9647588c83c741c"
+    },
+    {
+      "path": "artifacts/acceptance/80d29212-c9d9-49ea-9fb8-42ce52e7f78a/summary.json",
+      "sha256": "c8441b8bf8d89a8339c4516400a02cee81204164870be44efd60acd3dbd565d9"
+    }
+  ],
+  "source": [
+    {
+      "path": "src/game/live_host_state/day_rollover/economy/capture_readback.h",
+      "sha256": "e6e5c1373d3333f4bac61d5c7f679420af0668fc105dded3418d87a19866e2fb"
+    },
+    {
+      "path": "test/test_npc_pose_phase.cpp",
+      "sha256": "ec064b59d16ee38db96ad7886676cbc32917000081472ff69530fc80579b5feb"
+    },
+    {
+      "path": "_drafts/observe_natural_bug_job.py",
+      "sha256": "f90359449daa763dd11ce5ef2a2babcae712cd7a74f4b9788008c2e0272a1d04"
+    }
+  ],
+  "limits": [
+    "Local owned two-peer test; no separate-account online acceptance",
+    "No natural Type7 repair Job occurred in this run",
+    "Weapon tuple replication is a separate known unfinished path",
+    "This candidate is not published as a new beta"
+  ]
+}

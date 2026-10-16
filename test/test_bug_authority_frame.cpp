@@ -18,7 +18,7 @@ bool decode(const nlohmann::json& j,economy::State& out,std::string& e){const au
 int main(){try{
     auto s=fixture();std::string e;std::vector<uint8_t> bytes;economy::State actual;
     need(economy::encode(s,bytes,e)&&economy::decode(bytes.data(),bytes.size(),actual,e)&&actual==s,"full Economy/Day/HostFrame Bug roundtrip: "+e);
-    const auto raw=nlohmann::json::parse(bytes);need(raw["day"]["frame"]["schema"]==11,"Host schema not11");
+    const auto raw=nlohmann::json::parse(bytes);need(raw["day"]["frame"]["schema"]==12,"Host schema not12");
     auto bad=raw;bad["day"]["frame"]["bugs"][0][11]=2;need(!decode(bad,actual,e)&&actual==economy::State{},"malformed fullframe accepted");
     for(int schema:{9,10}){auto old=raw;old["day"]["frame"]["schema"]=schema;old["day"]["frame"].erase("bugs");if(schema==9)old["day"]["frame"].erase("developers");need(decode(old,actual,e)&&!actual.day.frame.bugs,"legacy absence lost: "+e);}
     auto old=raw;old["day"]["frame"]["schema"]=10;need(!decode(old,actual,e),"mixed schema accepted");
@@ -28,6 +28,6 @@ int main(){try{
     need(live::admit(1,c,f.epoch,f.source_generation,&previous,f,0,0,false,e)==live::Admission::Rejected,"same revision conflicting Bugs accepted");
     f=previous;f.bugs->rows[0].birth.sequence=4;need(!live::valid(f,e),"future publication accepted");
     f=previous;f.bugs->rows[0].birth.source="22222222-2222-4222-8222-222222222222";need(!live::valid(f,e),"foreign publication snapshot accepted");
-    s=fixture();for(uint64_t i=1;i<700;++i){auto row=s.day.frame.bugs->rows[0];row.birth.occurrence=i;s.day.frame.bugs->rows.push_back(row);}need(!economy::encode(s,bytes,e)&&e.find("65536")!=std::string::npos,"existing transport cap bypassed: "+e);
+    s=fixture();for(uint64_t i=1;i<10000;++i){auto row=s.day.frame.bugs->rows[0];row.birth.occurrence=i;s.day.frame.bugs->rows.push_back(row);}need(!economy::encode(s,bytes,e)&&e.find("1048576")!=std::string::npos,"existing transport cap bypassed: "+e);
     std::cout<<"PASS 11 complete-frame compatibility/domain/admission/cap cases\n";return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}
