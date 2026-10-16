@@ -66,6 +66,29 @@ Run this only while keeping the game closed; the check does not lock out a later
 
 Beta.1/beta.2 archives use the isolated starter. Extract those full ZIPs outside the game installation, keep `_internal` beside `MT2MP-Start.exe`, start Steam and follow their included instructions. Their source and test route remain supported. Do not merge their files into a drop-in ZIP. New private beta CI selects `--mode dropin` explicitly; `tools/package.py` and `build_beta.py` retain the default `legacy` mode for existing callers.
 
+## Build a local tester beta
+
+The existing local build command accepts the full tester version. Set it before
+native acceptance so the DLL and package report the same version. For example:
+
+```powershell
+python -X utf8 tools/build.py --version 0.1.0-beta.13 --target MT2_Multiplayer --target wsock32
+```
+
+Run the affected checks and native acceptance, then commit the accepted source.
+Prepare a freeze JSON with `candidate` (`v0.1.0-beta.13@<full source commit>`),
+`source_commit`, `dll_sha256` and `loader_sha256` from those accepted binaries.
+Use an unused version and output path; existing packages are preserved.
+
+```powershell
+python -X utf8 tools/package.py --mode dropin --version 0.1.0-beta.13 --freeze artifacts/local_beta/v0.1.0-beta.13/freeze.json --output artifacts/local_beta/v0.1.0-beta.13/MMORPGTycoon2-Multiplayer-v0.1.0-beta.13-windows-x64.zip
+```
+
+Validate the result with `.github/scripts/build_beta.py`'s `validate` function and
+record its checksum and actual local checks. This route uses the existing package
+allowlist and requires no GitHub build, tag or release. Online acceptance remains
+a separate manual test.
+
 ## Publish the next accepted beta
 
 Commit the intended source, UI and notices with a matching CMake base version. After native acceptance, push an unused `vX.Y.Z-beta.N` tag or update `.github/beta-milestone.json` on main with exact `schema`, `version`, `summary` and `native_evidence` fields. No planned or failed milestone receives a record. The [beta workflow](../.github/workflows/beta.yml) keeps its manual-tag and same-run milestone publication paths.

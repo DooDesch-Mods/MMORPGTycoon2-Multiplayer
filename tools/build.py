@@ -1,6 +1,7 @@
 from pathlib import Path
 from datetime import datetime, timezone
 import argparse
+import re
 import shutil
 import subprocess
 import sys
@@ -9,14 +10,18 @@ from build_input_guard import inputs, require_unchanged
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description='Build the mod and selected affected checks, or all targets by default.')
 parser.add_argument('--target', action='append', help='CMake target to build; repeat for several targets')
+parser.add_argument('--version', help='Full version to embed in a local tester build')
 args = parser.parse_args()
+if args.version and not re.fullmatch(r'\d+\.\d+\.\d+(?:-beta\.[1-9]\d*)?', args.version):
+    parser.error('version must be X.Y.Z or X.Y.Z-beta.N')
 cmake = r"C:\Program Files\CMake\bin\cmake.exe"
 stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
 history = ROOT / "artifacts" / "build_history" / stamp
 history.mkdir(parents=True, exist_ok=False)
 before = inputs(ROOT)
 commands = [
-    [cmake, "-S", str(ROOT), "-B", str(ROOT / "build"), "-G", "Visual Studio 17 2022", "-A", "x64"],
+    [cmake, "-S", str(ROOT), "-B", str(ROOT / "build"), "-G", "Visual Studio 17 2022", "-A", "x64",
+     *(["-DMT2MP_BUILD_VERSION=" + args.version] if args.version else [])],
     [cmake, "--build", str(ROOT / "build"), "--config", "Release", "--parallel", "4",
      *(["--target", *args.target] if args.target else [])],
 ]
