@@ -19,6 +19,20 @@ struct Fake final:detail::Port {
     detail::Origin origin;
     std::function<void(detail::Origin&)> change_origin;
     uintptr_t unreadable=0,unstable=0;
+    int research_calls=0;bool getter_failure=false;
+    std::array<bool,4> getter_flags{true,false,true,true};
+    bool research_flags(uintptr_t image,uintptr_t receiver,std::array<bool,4>& out,std::string& e)override{
+        if(image!=base||receiver!=project){e="fixture getter receiver differs";return false;}
+        ++research_calls;if(getter_failure){e="fixture original research getter failure";return false;}
+        out=getter_flags;return true;
+    }
+    void research_setup(){
+        constexpr uintptr_t business=0x230000,cash=0x231000,projects=0x232000;
+        owned(state,0x1c0,0x13df220,business,0x16d97e0);put<uint8_t>(business+0xf0,0);
+        put<uintptr_t>(business+0x100,cash);put<int32_t>(cash+0x20,88160);put<int32_t>(software+0x88,1);
+        array(lounge+0xd8,projects,{project});str(project+0x40,"");put<int32_t>(project+0x60,0);
+        put<uintptr_t>(tech+0x1e0,0);put<int32_t>(tech+0xa8,1);put<int32_t>(tech+0xac,10000);
+    }
     int current_calls=0,fail_current=0;bool fail_image=false;
     Fake(){
         origin.game=reinterpret_cast<void*>(0x100000);origin.mode=reinterpret_cast<void*>(mode);origin.state=reinterpret_cast<void*>(state);
@@ -125,5 +139,25 @@ int main(){try{
     {Fake f;f.unstable=release_manager+0x38;rejects(f,"changed during read");}
     {Fake f;f.array(release+0x150,change_array,{change});f.unstable=change+0x70;rejects(f,"changed during read");}
     {Fake f;f.array(release+0x150,change_array,{change});f.unstable=change_array;rejects(f,"changed during read");}
+    auto research=[](Fake& f){json out;std::string e;const auto before=f.memory;
+        require(detail::observe(f,out,e,nullptr,false,true),"research failed: "+e);
+        require(e.empty()&&f.memory==before,"research modified memory/error");++tests;return out.at("research");};
+    auto research_reject=[](Fake& f,const std::string& part){json out={{"stale",true}};std::string e;
+        require(!detail::observe(f,out,e,nullptr,false,true),"research expected reject");
+        require(out.is_null()&&e.find(part)!=std::string::npos,"research wrong cause: "+e);++tests;};
+    {Fake f;success(f);require(f.research_calls==0,"legacy replication queried research");}
+    {Fake f;f.research_setup();auto result=research(f);require(result["project_present"]==true&&result["cash"]==88160&&result["major_version"]==1,"research owner fields");
+        const auto& row=result["rows"][0];require(row["key"]=="startingpoint"&&row["cost"]==10000&&row["required_major"]==1&&row["visible"]==true&&row["owned"]==false&&row["can_choose_now"]==true&&row["can_afford"]==true&&f.research_calls==1,"original getter results/receiver");}
+    {Fake f;f.research_setup();f.put<uintptr_t>(lounge+0xa8,0);f.getter_flags={false,true,false,false};auto result=research(f);
+        require(result["project_present"]==false&&result["rows"][0]["visible"]==false&&result["rows"][0]["owned"]==true&&result["rows"][0]["can_choose_now"]==false&&result["rows"][0]["can_afford"]==false,"getter results were inferred or hidden");}
+    {Fake f;f.research_setup();f.getter_failure=true;research_reject(f,"original research getter failure");require(f.research_calls==1,"getter replay");}
+    {Fake f;f.research_setup();f.put<uintptr_t>(base+0x13df220,0x230008);research_reject(f,"current owner differs: research Business");require(f.research_calls==0,"getter before owner authorization");}
+    {Fake f;f.research_setup();f.put<uintptr_t>(record+0x60,tech+8);research_reject(f,"record/tech reciprocal link differs");require(f.research_calls==0,"getter on foreign record");}
+    {Fake f;f.research_setup();f.put<uintptr_t>(tech+0x1e0,tech+8);research_reject(f,"prerequisite outside owned TechTree");require(f.research_calls==0,"getter on foreign prerequisite");}
+    {Fake f;f.research_setup();f.unreadable=tech+0xa8;research_reject(f,"fixture memory original cause");require(f.research_calls==0,"getter after memory failure");}
+    {Fake f;f.research_setup();f.unstable=software+0x88;research_reject(f,"changed during read");}
+    {Fake f;f.research_setup();f.put<uint8_t>(0x230000+0xf0,2);research_reject(f,"version/sandbox flag invalid");}
+    {Fake f;f.research_setup();f.put<int32_t>(project+0x18,2);auto result=research(f);require(result["rows"].empty()&&f.research_calls==0,"non-tech project passed getter");}
+    {Fake f;f.research_setup();f.array(lounge+0xd8,0x232000,{project,project});research_reject(f,"null/duplicate member");}
     std::cout<<"PASS "<<tests<<" actual reader fixtures; no game writes or native calls\n";return 0;
 }catch(const std::exception& e){std::cerr<<"FAIL: "<<e.what()<<'\n';return 1;}}

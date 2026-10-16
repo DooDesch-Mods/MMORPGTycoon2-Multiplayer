@@ -1,0 +1,74 @@
+{
+  "schema": 1,
+  "scope": "Actual ordinary kind0 Research eligibility on two paused peers",
+  "passed": true,
+  "runtime_run_id": "18dbdfce-bca5-4672-801f-b66cabd0f10c",
+  "dll_sha256": "7f1b5bd10309535fd9ec365885ea6c345d018377a76c93abf4bf3905eee9eb10",
+  "build": "artifacts/build_history/20261016T120653568979Z",
+  "acceptance": "artifacts/acceptance/4a4bea65-ab34-4752-9da7-f2d1858aea2c/summary.json",
+  "acceptance_sha256": "30d8324cbf4d3b0808a0d24930812f1857b32c1bc65e7b9454b099854257a29c",
+  "research": {
+    "host": {
+      "cash": 88160,
+      "kind": 0,
+      "major_version": 1,
+      "project_present": false,
+      "sandbox": false,
+      "bridges": {
+        "can_afford": true,
+        "can_choose_now": true,
+        "cost": 10000,
+        "custom": false,
+        "deployed": false,
+        "key": "bridges",
+        "kind": 0,
+        "owned": false,
+        "prerequisite_key": "",
+        "purchased": false,
+        "required_major": 1,
+        "visible": true
+      }
+    },
+    "client-1": {
+      "cash": 88160,
+      "kind": 0,
+      "major_version": 1,
+      "project_present": false,
+      "sandbox": false,
+      "bridges": {
+        "can_afford": true,
+        "can_choose_now": true,
+        "cost": 10000,
+        "custom": false,
+        "deployed": false,
+        "key": "bridges",
+        "kind": 0,
+        "owned": false,
+        "prerequisite_key": "",
+        "purchased": false,
+        "required_major": 1,
+        "visible": true
+      }
+    }
+  },
+  "actual_reader_fixture_cases": 81,
+  "media": [
+    {
+      "peer": "host",
+      "path": "_drafts/media/research-eligibility-host.bmp",
+      "sha256": "74f3cc8cbec44697376ade0085c2d73ac1a44a7294fd6411d76c53c21923311d",
+      "visually_inspected": true
+    },
+    {
+      "peer": "client-1",
+      "path": "_drafts/media/research-eligibility-client-1.bmp",
+      "sha256": "b895968be0279e607feee3edcd102e3ae8782bad634870fd16bcfd84da8516f3",
+      "visually_inspected": true
+    }
+  ],
+  "mutation_attempted": false,
+  "limits": [
+    "Selected enabled Research button, shared purchase, work and Commit are not accepted by this read-only proof",
+    "Existing Startingpoint actions and replication reads keep their original path"
+  ]
+}

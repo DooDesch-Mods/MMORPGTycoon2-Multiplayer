@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <set>
+#include <map>
 #include <vector>
 
 namespace mt2mp::game::tutorial_development::detail {
@@ -134,6 +135,53 @@ bool source(Reader& r,uintptr_t image,uintptr_t address,ProjectSource& out,std::
        !r.string(address,0x20,out.key,error)||!r.string(address,0x40,out.art,error)||!r.at(address,0x60,out.statistic,error))return false;
     return out.kind>=0&&out.kind<=3||fail(error,"development catalogue project kind outside0..3");
 }
+bool research_rows(Reader& r,Port& port,uintptr_t image,uintptr_t state,uintptr_t lounge,uintptr_t software,nlohmann::json& out,std::string& error){
+    uintptr_t tree=0,business=0,cash=0,current=0;int32_t major=0,balance=0;uint8_t sandbox=0;
+    if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"research TechTree",error)||
+       !owner(r,image,state,0x1c0,0x13df220,0x16d97e0,"research Business",business,error)||
+       !r.at(business,0xf0,sandbox,error)||!r.at(business,0x100,cash,error)||!r.at(cash,0x20,balance,error)||
+       !r.at(software,0x88,major,error)||!r.at(lounge,0xa8,current,error))return false;
+    if(sandbox>1||major<0)return fail(error,"development research version/sandbox flag invalid");
+    std::vector<uintptr_t> projects,techs,records;
+    if(!r.array(lounge,0xd8,projects,error)||!r.array(tree,0x10,techs,error)||!r.array(software,0x280,records,error))return false;
+    std::map<std::string,uintptr_t> by_key,by_record;
+    for(auto address:techs){std::string key;if(!r.string(address,0x20,key,error))return false;
+        if(key.empty()||!by_key.emplace(key,address).second)return fail(error,"development research Tech key empty/duplicated");}
+    for(auto address:records){std::string key;if(!r.type(address,image+0x16e79d0,"research TechRecord",error)||!r.string(address,0x38,key,error))return false;
+        if(key.empty()||!by_record.emplace(key,address).second)return fail(error,"development research record key empty/duplicated");}
+    nlohmann::json rows=nlohmann::json::array();std::set<std::string> seen;
+    for(auto address:projects){ProjectSource entry;if(!source(r,image,address,entry,error))return false;
+        if(entry.kind!=0)continue;
+        if(!seen.insert(entry.key).second)return fail(error,"development research project key duplicated");
+        auto ti=by_key.find(entry.key),ri=by_record.find(entry.key);
+        if(ti==by_key.end()||ri==by_record.end())return fail(error,"development research project has no owned Tech/record");
+        const auto tech=ti->second,record=ri->second;uintptr_t linked=0,back=0,prerequisite=0;int32_t required=0,cost=0;
+        std::array<uint8_t,3> flags{};
+        if(!r.at(tech,0x1e8,linked,error)||!r.at(record,0x60,back,error)||!r.bytes(record+0x58,flags.data(),flags.size(),error)||
+           !r.at(tech,0x1e0,prerequisite,error)||!r.at(tech,0xa8,required,error)||!r.at(tech,0xac,cost,error))return false;
+        if(linked!=record||back!=tech)return fail(error,"development research Tech/record reciprocal owner differs");
+        for(auto flag:flags)if(flag>1)return fail(error,"development research record flag invalid");
+        if(required<0||cost<0)return fail(error,"development research Tech limits invalid");
+        std::string prerequisite_key;
+        if(prerequisite){
+            if(std::find(techs.begin(),techs.end(),prerequisite)==techs.end())return fail(error,"development research prerequisite outside owned TechTree");
+            uintptr_t prerecord=0,preback=0;std::array<uint8_t,3> preflags{};
+            if(!r.string(prerequisite,0x20,prerequisite_key,error)||!r.at(prerequisite,0x1e8,prerecord,error))return false;
+            auto pi=by_record.find(prerequisite_key);
+            if(pi==by_record.end()||pi->second!=prerecord)return fail(error,"development research prerequisite record outside SoftwareStatus");
+            if(!r.at(prerecord,0x60,preback,error)||!r.bytes(prerecord+0x58,preflags.data(),preflags.size(),error))return false;
+            if(preback!=prerequisite)return fail(error,"development research prerequisite reciprocal owner differs");
+            for(auto flag:preflags)if(flag>1)return fail(error,"development research prerequisite flag invalid");
+        }
+        std::array<bool,4> native{};
+        if(!port.research_flags(image,address,native,error))return false;
+        rows.push_back({{"key",entry.key},{"kind",0},{"purchased",flags[0]!=0},{"deployed",flags[1]!=0},{"custom",flags[2]!=0},
+            {"visible",native[0]},{"owned",native[1]},{"can_choose_now",native[2]},{"can_afford",native[3]},
+            {"cost",cost},{"required_major",required},{"prerequisite_key",prerequisite_key}});
+    }
+    out={{"kind",0},{"project_present",current!=0},{"major_version",major},{"cash",balance},{"sandbox",sandbox!=0},{"rows",std::move(rows)}};
+    return true;
+}
 bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& error){
     if(!snapshot.record)return fail(error,"startingpoint creation native TechRecord absent from owned SoftwareStatus");
     CreationOwners out;const auto lounge=snapshot.lounge,image=snapshot.image;
@@ -165,7 +213,7 @@ bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& erro
     snapshot.creation=std::move(out);return true;
 }
 }
-bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot,bool creation){
+bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot,bool creation,bool research){
     result=nullptr;if(snapshot)*snapshot={};
     try{
         Origin before;if(!port.current(before,error))return false;
@@ -215,6 +263,8 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
                 {"events_enabled",admission.events_enabled},{"repeatable",admission.repeatable},{"modifiers",admission.modifiers},
                 {"art_pack_bytes",admission.art_pack_bytes},{"item_feature",admission.item_feature},{"listeners",listeners}};
         }
+        nlohmann::json research_result;
+        if(research&&!research_rows(r,port,image,state,lounge,software,research_result,error))return false;
         if(!r.stable(error))return false;
         Origin after;if(!port.current(after,error))return false;if(!same(before,after))return fail(error,"development current world origin changed during read");
         tech["inventory_count"]=item_count;tech["inventory_present"]=item_count!=0;
@@ -223,6 +273,7 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
             {"startingpoint_release",{{"change_count",release.change_count},{"mutation_counter",release.mutation_counter},
                 {"feature_count",release.feature_count},{"feature_present",release.feature_count!=0}}}};
         if(snapshot)result["startingpoint_adoption"]=snapshot->admission;
+        if(research)result["research"]=std::move(research_result);
         error.clear();return true;
     }catch(const std::exception& x){result=nullptr;return fail(error,std::string("development read exception: ")+x.what());}
 }

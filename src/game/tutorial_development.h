@@ -51,7 +51,10 @@ struct Port {
     virtual bool current(Origin&,std::string&)=0;
     virtual bool image(uintptr_t&,std::string&)=0;
     virtual bool copy(uintptr_t,void*,size_t,std::string&)=0;
+    virtual bool research_flags(uintptr_t,uintptr_t,std::array<bool,4>&,std::string& error){
+        error="development research getters unavailable";return false;
+    }
 };
-bool observe(Port&,nlohmann::json&,std::string&,StartingpointSnapshot* snapshot=nullptr,bool creation=false);
+bool observe(Port&,nlohmann::json&,std::string&,StartingpointSnapshot* snapshot=nullptr,bool creation=false,bool research=false);
 }
 }
