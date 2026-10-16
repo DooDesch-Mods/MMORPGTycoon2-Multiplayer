@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "scope": "Private JSON PCH for the two existing MSVC source-test codec archives",
+  "production_build_changed": false,
+  "workflow_commands_changed": false,
+  "source_lists_flags_and_macros_unchanged": true,
+  "ctest_registrations_unchanged": 149,
+  "direct_consumer_executables_built": 39,
+  "direct_consumer_ctests_passed": 42,
+  "local_clean_build_seconds_including_pch_creation": {
+    "source_check_codecs": {
+      "before": 76.678,
+      "after": 45.444
+    },
+    "source_check_codecs_windows": {
+      "before": 87.703,
+      "after": 42.978
+    },
+    "combined": {
+      "before": 164.381,
+      "after": 88.422
+    }
+  },
+  "hosted_total_improvement_measured": false,
+  "private_stage_manifest_sha256": "b6b63706473ea1f32fda5e175ab1205228fa1cdc7352d965b62580fbcc9f10d7",
+  "verification_sha256": "ab9fdd3b6b2da05fe8fe2c1c18237088a1420350685732ba07b9627761a20e24",
+  "affected_ctest_log_sha256": "3a035eef7a6685c8de7aad7026dd51171280d379772221faa128e6ad41052321",
+  "retained_selection_correction": "The private selector initially expected one test per executable; all42 actual registrations were then tested",
+  "python_dependency_fix": {
+    "original_failure": "ModuleNotFoundError: No module named 'e2e.subscriber_additions'",
+    "release_run": 38895902579,
+    "windows_run": 38895902525,
+    "solution": "Extract the two unchanged clock functions into tracked tools/native_time_once.py",
+    "function_asts_unchanged": true,
+    "isolated_tracked_export_tests_passed": [
+      "test/mcp/test_bug_completion_readback.py",
+      "test/mcp/test_bug_repair_acceptance.py"
+    ],
+    "isolated_export_receipt": "artifacts/beta12_clean_tree/20261016T120528220932Z/receipt.json"
+  },
+  "limits": [
+    "GitHub also reported an account payment or spending limit block; source fixes do not remove that account condition"
+  ]
+}

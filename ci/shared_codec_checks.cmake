@@ -24,6 +24,8 @@ foreach(archive source_check_codecs source_check_codecs_windows)
     target_compile_features(${archive} PRIVATE cxx_std_20)
     if(MSVC)
         target_compile_options(${archive} PRIVATE /W4 /WX /utf-8 /EHsc /Gy)
+        target_precompile_headers(${archive} PRIVATE
+            "${MT2MP_SOURCE_ROOT}/include/vendor/nlohmann/json.hpp")
     endif()
 endforeach()
 target_compile_definitions(source_check_codecs_windows PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

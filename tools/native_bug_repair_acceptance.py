@@ -8,7 +8,7 @@ ROOT = next(p for p in Path(__file__).resolve().parents if (p / 'tools/local_acc
 sys.path.insert(0, str(ROOT / 'tools'))
 from local_acceptance import AcceptanceError, AcceptanceRunner, hash_file, read_json, utc
 from native_bug_completion_readback import sample, validate, work, PEERS, require
-from e2e.subscriber_additions import set_clock_once
+from native_time_once import set_clock_once
 
 def baseline(samples, uis):
     require(samples['host']['frame'] == samples['client-1']['frame'], 'Paused continuation full frames differ')
