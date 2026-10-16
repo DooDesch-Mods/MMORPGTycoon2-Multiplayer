@@ -26,6 +26,7 @@
 #include "../game/initial_release/release_fixture.h"
 #include "../game/developer_staff/probe.h"
 #include "../game/developer_staff/bug_policy.h"
+#include "../game/bug_authority/manual_action.h"
 #include "../game/developer_staff/action_native.h"
 #include "../game/developer_staff/retirement/retire.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
@@ -896,6 +897,8 @@ static json status() {
     result["capabilities"]["read_native_lobby"]=owned_native_profile;
     result["capabilities"]["read_native_loans"]=owned_native_profile;
     result["capabilities"]["read_native_release"]=owned_native_profile;
+    result["capabilities"]["read_native_bug_fix_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_bug_fix_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["read_native_developers"]=owned_native_profile;
@@ -1351,6 +1354,14 @@ static void diagnostics_tick() {
             }else response["ok"]=game::developer_staff::retirement::run_fixture(request.at("args"),observed,error);
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_RETIREMENT_FAILED"},{"message",error}};
+        }
+        else if(operation=="read_native_bug_fix_ui"||operation=="native_bug_fix_ui") {
+            json observed;std::string error;
+            response["ok"]=operation=="read_native_bug_fix_ui"?
+                game::bug_authority::manual_action::read_ui_fixture(request.at("args"),observed,error):
+                game::bug_authority::manual_action::run_ui_fixture(request.at("args"),observed,error);
+            response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","BUG_FIX_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="read_bug_c_policy"||operation=="native_bug_c_policy") {
             json observed;std::string error;

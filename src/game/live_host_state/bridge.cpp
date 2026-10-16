@@ -24,7 +24,7 @@ bool Bridge::route_receive(uint64_t sender,const uint8_t* bytes,size_t n,bool& h
     if(!bytes||!n||n>max_frame_payload)return fail(e,"live Channel9 packet bound invalid");
     try{
         const auto j=fragments::packet_json(bytes,n);
-        if(j.is_object()&&j.value("kind",std::string{})=="host_state_fragment"){
+        if(j.is_object()&&j.contains("kind")&&j.at("kind").is_string()&&j.at("kind")=="host_state_fragment"){
             handled=true;
             if(suspended_){e="info: Host frame fragment skipped for suspended snapshot";return true;}
             std::vector<uint8_t> complete;

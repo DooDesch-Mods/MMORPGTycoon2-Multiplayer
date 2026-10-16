@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "passed": false,
+  "scope": "Original Client BugButton capture, before Host action execution",
+  "dll_sha256": "d3129eef9d35a741e1267ee552d59362f44c2681802d9f614b98f65f4cd7f8bf",
+  "runtime_run_id": "959733c6-89d4-4813-86ab-2a2106f78d6e",
+  "acceptance": "artifacts/acceptance/a84819ba-d5a1-4b3e-9275-3ca3f1974e5e/summary.json",
+  "action_uuid": "cf9b8ed8-cdb7-477f-b2ab-29dbba2cb52f",
+  "original_ui": "Show, Select and one Hover/Press/Release confirmed; exactly one Client intent captured and submitted",
+  "failed_condition": "The first live fragment discriminator requests string kind for a typed action whose kind is numeric",
+  "host": {
+    "attempted": 0,
+    "confirmed": 0,
+    "failed": 1
+  },
+  "client": {
+    "captured": 1,
+    "submitted": 1,
+    "native_operations": 0,
+    "result": "retained ACK observation timeout"
+  },
+  "actual_native_unchanged_both_peers": [
+    "full ledger",
+    "50 Developer rows and poses",
+    "Developer movement",
+    "physical Job graph"
+  ],
+  "mutation_retries": 0,
+  "limits": [
+    "No repair action acceptance yet",
+    "The routing defect also affects other typed actions sharing Channel9"
+  ],
+  "media": {
+    "path": "_drafts/media/bug-manual-client.bmp",
+    "sha256": "762a59c44ae76778fb6d5b818a2f3aab9fc837d922f586e113e34a2b4b35db82",
+    "visually_inspected": true
+  },
+  "original_receipts": [
+    "test/mcp/evidence/bug-kind-failure-host_20261016T100407526190Z.json",
+    "test/mcp/evidence/bug-kind-failure-client-1_20261016T100415596913Z.json"
+  ]
+}

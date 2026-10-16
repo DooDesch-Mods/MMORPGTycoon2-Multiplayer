@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.10",
-  "summary": "Keep larger live world updates flowing, stop residual Client movement while paused, and share naturally acquired weapons with their visible models.",
-  "native_evidence": "docs/evidence/beta10-native.json"
+  "version": "0.1.0-beta.11",
+  "summary": "Keep shared actions flowing beside live world updates, and let Clients schedule or cancel repairs through the original game controls.",
+  "native_evidence": "docs/evidence/beta11-native.json"
 }

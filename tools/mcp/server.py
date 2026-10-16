@@ -29,6 +29,7 @@ import loan_ops
 import release_ops
 import developer_staff_ops
 import bug_policy_ops
+import bug_fix_ui_ops
 import subscriber_capture_ops
 import subscriber_append_ops
 import node_observer_ops
@@ -364,10 +365,12 @@ OP_DESCRIPTIONS.update(subscriber_append_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(subscriber_capture_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(loan_ops.SCHEMAS)
 OP_SCHEMAS.update(bug_policy_ops.SCHEMAS)
+OP_SCHEMAS.update(bug_fix_ui_ops.SCHEMAS)
 OP_SCHEMAS.update(release_ops.SCHEMAS)
 OP_SCHEMAS.update(developer_staff_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(developer_staff_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(bug_policy_ops.DESCRIPTIONS)
+OP_DESCRIPTIONS.update(bug_fix_ui_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(release_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(loan_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(lobby_ops.SCHEMAS)
@@ -397,7 +400,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -489,6 +492,9 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             subscriber_capture_ops.validate(op, arguments)
         if op in subscriber_append_ops.SCHEMAS:
             subscriber_append_ops.validate(op, arguments)
+        if op in bug_fix_ui_ops.SCHEMAS:
+            bug_fix_ui_ops.validate(op, arguments)
+            return runtime.request(op, arguments)
         if op in bug_policy_ops.SCHEMAS:
             bug_policy_ops.validate(op, arguments)
         if op in release_ops.SCHEMAS:

@@ -162,6 +162,10 @@ bool prepare(const Context& context,const Binding& binding,uint64_t publication,
 bool work_parent(const Row& row,uintptr_t& parent,uintptr_t& collection,std::string& error){return resolve_parent(row,parent,collection,error);}
 bool work_pin(const Context& context,const Binding& binding,developer_staff::Capture& capture,std::string& error){return pin(context,binding,capture,error);}
 bool work_bindings(std::string& error){return complete_bindings(error);}
+bool action_state(const Context& context,const Binding& binding,State& out,developer_staff::Capture& before,std::string& error){
+    auto& r=runtime();std::lock_guard lock(r.gate);
+    return pin(context,binding,before,error)&&observe(out,error)&&untouched(before,error);
+}
 bool witness_birth(uintptr_t collection,uintptr_t bug,unsigned lane,std::string& error){
     if(!bug)return true;auto& r=runtime();Context context;Binding binding;uint64_t publication=0;bool active=false;
     if(!active_world(context,binding,publication,active,error))return false;if(!active)return true;
@@ -263,7 +267,7 @@ bool arm_snapshot(const std::string& uuid,const std::string& sha,bool host,std::
     auto& r=runtime();std::lock_guard lock(r.gate);
     if(!r.ready||uuid.empty()||(!host&&sha.size()!=64))return fail(error,"Bug snapshot arm lacks native hooks/UUID/digest");
     if(r.snapshot_armed)return fail(error,"Bug snapshot serde already armed");
-    r.thread=GetCurrentThreadId();r.snapshot_armed=true;r.snapshot_sealed=false;r.snapshot_host=host;r.snapshot_uuid=uuid;r.snapshot_sha=sha;r.saved.clear();r.lifetimes.clear();r.saved_jobs.clear();r.jobs.clear();r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.action.clear();r.confirmed_actions.clear();
+    r.thread=GetCurrentThreadId();r.snapshot_armed=true;r.snapshot_sealed=false;r.snapshot_host=host;r.snapshot_uuid=uuid;r.snapshot_sha=sha;r.saved.clear();r.lifetimes.clear();r.saved_jobs.clear();r.jobs.clear();r.job_occurrence=r.job_publication=r.job_action_occurrence=0;r.action.clear();r.confirmed_actions.clear();r.ordered_job_birth.reset();
     r.frame_work.reset();r.frame_bugs={};r.frame_publication=0;r.locked=false;r.cause.clear();r.tracker=r.lounge=0;r.publication=0;return true;
 }
 bool seal_snapshot(const std::string& uuid,const std::string& sha,std::string& error){

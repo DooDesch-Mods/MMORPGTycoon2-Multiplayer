@@ -152,7 +152,9 @@ bool preflight_work(const Capture& capture,const WorkState& target,std::string& 
     if(!properties(capture,e)||!verify_job_calls(reader(),capture.image,e)||!fresh(capture,e))return false;
     for(const auto& row:target.jobs){
         if(row.birth.kind==BirthKind::Snapshot&&(row.birth.source!=r.snapshot_sha||!row.birth.occurrence||row.birth.occurrence>INT32_MAX))return fail(e,"Bug Job snapshot witness digest/linkId differs");
-        if(row.birth.kind==BirthKind::Action&&!r.confirmed_actions.contains(row.birth.source))return fail(e,"Bug Job Action witness is not locally confirmed");
+        if(row.birth.kind==BirthKind::Action&&!r.confirmed_actions.contains(row.birth.source)&&
+           !(r.ordered_job_birth&&*r.ordered_job_birth==row.birth&&r.action==row.birth.source))
+            return fail(e,"Bug Job Action witness is not locally confirmed or the exact admitted ordered birth");
         if(row.birth.kind==BirthKind::Publication&&(row.birth.source!=r.context.snapshot_uuid||row.birth.sequence>r.frame_publication))return fail(e,"Bug Job publication witness is outside current frame");
         if(!row.bug.parent_key.empty()){
             if(row.bug.birth.kind==BirthKind::Snapshot&&row.bug.birth.source!=r.snapshot_sha)return fail(e,"Bug Job retained Bug snapshot provenance differs");

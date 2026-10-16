@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 namespace mt2mp::action_session::ui_capture {struct Replay;}
-namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct ZoneIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
+namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct BugFixIntent;struct ZoneIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
 
 namespace mt2mp::game::developer_staff::construction {struct LocalJob;}
 namespace mt2mp::game::typed_action_runtime {
@@ -21,6 +21,7 @@ bool submit_building_history(action_session::Action action,const std::string& ac
 bool submit_building_history(action_session::Action action,const std::string& action_uuid,const std::string& target_action_uuid,const std::string& object_key,std::string&);
 bool submit_commit_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_developer(bool hire,const std::string& id,std::string& error);
+bool submit_bug_fix(const std::string&,const action_session::BugFixIntent&,std::string&);
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error);
 bool submit_start_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_prices(const std::string& action_uuid,const action_session::PriceIntent&,std::string&);

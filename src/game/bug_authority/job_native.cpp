@@ -71,6 +71,8 @@ bool NativeJobBirth::pair(const JobLease& lease,uintptr_t job,subscriber_lifecyc
     return subscriber_lifecycle_append::bind_bug_pair(request,receipt,error);
 }
 bool NativeJobBirth::detach(const JobLease& lease,uintptr_t job,subscriber_lifecycle_append::BugPairReceipt& receipt,std::string& error){
+    receipt={};
+    if(!authorize(lease,error))return false;
     PairOwner owner{this,&lease};
     const subscriber_lifecycle_append::BugPairRequest request{lease.image,lease.bug,job,bug_property_,job_property_,
         lease.thread,false,lease.occurrence_key,fresh_pair,&owner};

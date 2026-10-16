@@ -189,7 +189,7 @@ class RegionStdioTests(unittest.TestCase):
                         if operation == "focus_test_camera":
                             self.assertEqual(definition.inputSchema["properties"]["distance"]["exclusiveMinimum"], 0)
                         self.assertFalse(definition.inputSchema["additionalProperties"])
-                        read_only=operation in {"read_subscriber_weapon", "read_subscriber_needs", "read_network_state", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input"}
+                        read_only=operation in {"read_native_bug_fix_ui", "read_subscriber_weapon", "read_subscriber_needs", "read_network_state", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input"}
                         self.assertEqual(definition.annotations.readOnlyHint,read_only)
                         self.assertEqual(definition.annotations.destructiveHint,not read_only)
                         self.assertFalse(definition.annotations.openWorldHint)

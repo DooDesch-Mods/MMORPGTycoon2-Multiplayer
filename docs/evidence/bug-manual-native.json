@@ -1,0 +1,134 @@
+{
+  "schema": 1,
+  "passed": true,
+  "full_coop_proven": false,
+  "scope": "Actual Client Schedule Fix and Cancel Fix through original BugButton and the shared Host-ordered Controller",
+  "dll_sha256": "b8781845b588adbfdcdbcbb034236e5e711956dd06956ba2fd356d8a221f6153",
+  "runtime_run_id": "1e6af684-28cc-4b59-8b60-006a62c56fc2",
+  "acceptance": {
+    "cancel": {
+      "path": "artifacts/acceptance/433d2663-986c-412b-8a8b-7cf7da4a8bf3/summary.json",
+      "sha256": "2da52af23d46c64ab314395f270853bda9a153eb7f90c9fcd0448d50d40c3353",
+      "action_uuid": "8b5060fc-e731-4eb9-ba42-d57a6538fa47",
+      "host_ack_mask": 3,
+      "operations": {
+        "client-1": {
+          "action_uuid": "8b5060fc-e731-4eb9-ba42-d57a6538fa47",
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "job_returned": false,
+          "manual_returned": false,
+          "retired": true,
+          "schedule": false
+        },
+        "host": {
+          "action_uuid": "8b5060fc-e731-4eb9-ba42-d57a6538fa47",
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "job_returned": true,
+          "manual_returned": true,
+          "retired": true,
+          "schedule": false
+        }
+      },
+      "physical_job_count_each_peer": 1
+    },
+    "schedule": {
+      "path": "artifacts/acceptance/59ba3c74-e6c6-4472-9186-b9bfe7e7f9db/summary.json",
+      "sha256": "6b7310e42e116b01063dfa19bc842364ddbb12d3fe2ce446b2e3d418ebce4931",
+      "action_uuid": "f75d2ef0-7f83-46ba-a739-5215cdaa89d0",
+      "host_ack_mask": 3,
+      "operations": {
+        "client-1": {
+          "action_uuid": "f75d2ef0-7f83-46ba-a739-5215cdaa89d0",
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "job_returned": false,
+          "manual_returned": false,
+          "retired": true,
+          "schedule": true
+        },
+        "host": {
+          "action_uuid": "f75d2ef0-7f83-46ba-a739-5215cdaa89d0",
+          "attempted": true,
+          "cause": "",
+          "confirmed": true,
+          "job_returned": true,
+          "manual_returned": true,
+          "retired": true,
+          "schedule": true
+        }
+      },
+      "physical_job_count_each_peer": 2
+    }
+  },
+  "actual_effects": [
+    "Cancel keeps the assigned physical Job as type0/invalid, removes both Bug edges and retains the Developer Job link",
+    "Schedule creates exactly one valid unassigned physical type7 Job with the shared action birth and reciprocal Bug link",
+    "Both peers confirm and retire each exact UUID once; Host receives mask3; fresh native staff rows, movement and full ledger are unchanged",
+    "Original Client UI shows Unscheduled after Cancel and Scheduled after Schedule"
+  ],
+  "native_effect_guard": "The production actual-state validator also checks Bug identity/values and complete Developer Work counters before confirmation; public diagnostic rows independently prove physical links and staff state",
+  "retained_snapshot": {
+    "building_bindings_confirmed": true,
+    "building_identity_error": "",
+    "bytes": 241871,
+    "distribution_requested": false,
+    "path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/tutorial-two/_MPTest/host/data/76561198013473990/save\\MPTestLevelTwoBoundary\\snapshot-60f0e206-1c0a-4835-94ea-1b15b62a92c7.vrz",
+    "run_id": "1e6af684-28cc-4b59-8b60-006a62c56fc2",
+    "sha256": "fafc7d16c4f0def24c40626f491e0c4a92c832800f9b45ad0a99b1ad4cfd9296",
+    "snapshot_id": "60f0e206-1c0a-4835-94ea-1b15b62a92c7",
+    "state": "snapshot_file_complete",
+    "world_name": "MPTestLevelTwoBoundary"
+  },
+  "media": {
+    "cancel-host": {
+      "path": "_drafts/media/bug-cancel-host.bmp",
+      "sha256": "21e75e38a91a578b70fd1871c3e18efd13e018ced5161912907702e132bd79a1",
+      "visually_inspected": true
+    },
+    "cancel-client-1": {
+      "path": "_drafts/media/bug-cancel-client-1.bmp",
+      "sha256": "15aff890594379d8b248f499cefe589f5af28366e86e8f7ec4d1d81039105b66",
+      "visually_inspected": true
+    },
+    "schedule-host": {
+      "path": "_drafts/media/bug-schedule-host.bmp",
+      "sha256": "298213cd049009a620ac18df186ed7cc4e36186bf009b99cde2a6063f3e45c4b",
+      "visually_inspected": true
+    },
+    "schedule-client-1": {
+      "path": "_drafts/media/bug-schedule-client-1.bmp",
+      "sha256": "1b4e27fdd87a60e5edee23b1d9a9a58df3130611bf19f1ac3a86e2fd013bd0a2",
+      "visually_inspected": true
+    }
+  },
+  "prior_failures": [
+    {
+      "path": "artifacts/acceptance/caaf7e25-7e36-4b6e-8bf6-cc816fabb620/summary.json",
+      "cause": "Diagnostic copied the Policies page class instead of actual mmoView; no Click or gameplay mutation"
+    },
+    {
+      "path": "docs/evidence/bug-manual-routing-failure.json",
+      "cause": "Shared classifier requested a string for numeric typed kind; no native Job operation"
+    },
+    {
+      "path": "artifacts/acceptance/1a35a8fe-2305-45f3-8a76-36cb19d4b1ce/summary.json",
+      "cause": "Fresh Client detach built its request before resolving ObjectLink properties; Host completed, Client retained partial failure"
+    }
+  ],
+  "checks": {
+    "actual_route_and_codec": 154,
+    "actual_borrowed_pair_and_fresh_adapter": 20,
+    "original_ui_fixture": 71,
+    "latest_affected_ctest": "artifacts/build_history/20261016T102142035929Z/affected-ctest.log"
+  },
+  "limits": [
+    "Natural completion of the newly scheduled repair remains open",
+    "Separate-account Steam acceptance remains manual and open",
+    "Full action coverage, full natural tutorial, four players and large private worlds remain open"
+  ]
+}

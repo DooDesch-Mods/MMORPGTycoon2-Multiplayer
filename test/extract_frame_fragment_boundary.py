@@ -21,3 +21,5 @@ assert 'fragments_.timely(now,e)' in body('bool Bridge::tick(')
 # Reuse the actual full Economy fixture; do not recreate its state contract.
 fixture=(a.root/'test/test_toon_equipment_value.cpp').read_text(encoding='utf-8');begin=fixture.index('economy::State fixture(){');end=fixture.index('\nbool decode(',begin)
 (a.output/'frame_fragment_fixture.inc').write_text(fixture[begin:end]+'\n',encoding='utf-8')
+
+(a.output/"frame_fragment_route.inc").write_text(route+"\n",encoding="utf-8")

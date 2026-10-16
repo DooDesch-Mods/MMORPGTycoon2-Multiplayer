@@ -1,13 +1,12 @@
-# Stable world updates and shared equipment
+# Shared actions and repair controls
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
 ## Highlights
 
-- **Keep growing your world.** Larger live updates now cross the old single-packet limit and reach the Client as complete updates.
-- **See the same weapons.** Equipment acquired through the Host simulation reaches Client characters, including the visible weapon model.
-- **Keep paused characters still.** Client characters no longer consume leftover movement time while paused. Reloading also clears stale Client employee waypoints through the original game functions.
-- **Leave a failed session.** Host departure and sync failures release the lobby controls for another session.
+- **Keep actions flowing.** Fixed a shared packet classifier that rejected build and management actions while live world updates were active, including deeper Quest NPC results.
+- **Control repairs together.** Clients can use the original **Schedule Fix** and **Cancel Fix** buttons. The Host executes each request once and both players see the same repair queue.
+- **Cut duplicate CI compilation.** Shared source checks now reuse compiled code across test programs.
 
 ## Install and play
 
@@ -19,4 +18,4 @@
 
 ## Beta status
 
-The changes above passed local two-instance checks. Complete action coverage, the full natural tutorial, four players and large worlds remain open. The shared online test with separate Steam accounts is still manual.
+The repair controls passed local two-instance checks. Natural repair completion, full action coverage, the complete tutorial, four players and large worlds remain open. The online test with separate Steam accounts is still manual.

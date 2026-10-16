@@ -21,6 +21,7 @@ struct Runtime {
     JobLifetimes jobs;std::vector<SavedJob> saved_jobs;
     uint64_t job_occurrence=0,job_publication=0,job_action_occurrence=0;
     std::optional<WorkState> frame_work;
+    std::optional<Birth> ordered_job_birth;
     State frame_bugs;uint64_t frame_publication=0;
     std::vector<JobBirthReceipt> job_birth_calls;
     std::vector<JobRetireReceipt> job_retire_calls;
@@ -36,6 +37,7 @@ Runtime& runtime();
 bool work_parent(const Row&,uintptr_t&,uintptr_t&,std::string&);
 bool work_pin(const Context&,const Binding&,developer_staff::Capture&,std::string&);
 bool work_bindings(std::string&);
+bool action_state(const Context&,const Binding&,State&,developer_staff::Capture&,std::string&);
 bool work_birth(uintptr_t bug,uintptr_t job,std::string&);
 bool work_saved(uintptr_t job,uintptr_t context,int32_t link,std::string&);
 bool reject(const std::string&,std::string&);

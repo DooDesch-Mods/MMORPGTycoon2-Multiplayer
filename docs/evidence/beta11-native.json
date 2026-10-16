@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.11",
+  "scope": "Keep typed actions flowing beside live updates and share original repair controls",
+  "native_evidence": [
+    "docs/evidence/bug-manual-native.json",
+    "docs/evidence/channel9-action-routing.json"
+  ],
+  "latest_mod_sha256": "b8781845b588adbfdcdbcbb034236e5e711956dd06956ba2fd356d8a221f6153",
+  "latest_build": "artifacts/build_history/20261016T102142035929Z",
+  "acceptance": "Client Cancel Fix and Schedule Fix each execute once through Host authority, both peers acknowledge and retain equal actual Job effects, staff state and ledger",
+  "ci_compile_reuse": {
+    "source_actions_before": 111,
+    "source_actions_after": 22,
+    "removed": 89,
+    "affected_executables": 17,
+    "hosted_wall_time_measured": false
+  },
+  "limits": [
+    "Natural repair completion and remaining action families remain open",
+    "Four players, large private worlds and separate-account Steam acceptance remain open"
+  ],
+  "delivery": "Local native acceptance; CI package and release are checked separately",
+  "base_commit": "1a8ca231d3871e5630a0087a9489be902ba34e6e"
+}

@@ -2,6 +2,7 @@
 #include "live_host_state/day_rollover/economy/codec.h"
 #include "mt2mp/core/hash.h"
 #include <iostream>
+#include "typed_action/action_session.h"
 namespace live=mt2mp::game::live_host_state;
 namespace economy=live::day::economy;
 namespace staff=mt2mp::game::developer_staff;
@@ -17,9 +18,11 @@ live::Context context(const live::Frame& f){return {f.session,2,1,3,mt2mp::actio
 std::vector<Json> json_packets(const fragments::Packets& packets){std::vector<Json> out;for(const auto& p:packets)out.push_back(Json::parse(p));return out;}
 bool take(fragments::Assembly& a,const live::Frame& f,const Json& packet,std::vector<uint8_t>& out,std::string& e){return a.take(1,context(f),f.epoch,f.source_generation,packet,mt2mp::sha256,out,e);}
 }
+#include "frame_fragment_route_checks.inc"
 int main(){try{
     std::string e;fragments::Packets packets;std::vector<uint8_t> bytes,complete;
     auto state=fixture();const auto f=state.day.frame;
+    channel9_fixture::checks(f);
     need(economy::encode(state,bytes,e)&&fragments::encode(f,bytes,mt2mp::sha256,packets,e)&&packets.size()==1&&packets[0]==bytes,"small frame bytes changed: "+e);
     for(int32_t id=64;id<264;++id){auto subscriber=state.subscribers[0];subscriber.serialized_id=id;state.subscribers.push_back(subscriber);}
     need(economy::encode(state,bytes,e)&&bytes.size()>90895&&bytes.size()<live::max_logical_frame_payload,"grown full Economy fixture did not cross actual failure size: "+e);

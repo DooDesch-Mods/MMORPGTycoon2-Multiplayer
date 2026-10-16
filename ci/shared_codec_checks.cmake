@@ -1,8 +1,21 @@
-# These pure codecs are used unchanged by several source-only test binaries.
+# These state and codec sources are used unchanged by several source-only test binaries.
 # Keep one compiled copy while retaining every executable and test registration.
 set(shared_codec_sources
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
-    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/network/node_state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/day.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/codec.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/monetary.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/additions.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/payload.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/record_graph.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/reference_map.cpp")
+if(WIN32)
+    list(APPEND shared_codec_sources "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/record_decode.cpp")
+endif()
 get_property(shared_codec_consumers DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 foreach(archive source_check_codecs source_check_codecs_windows)
     add_library(${archive} STATIC ${shared_codec_sources})

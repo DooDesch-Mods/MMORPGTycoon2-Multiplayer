@@ -3,8 +3,9 @@ if(WIN32)
     set(_fragment_generated "${CMAKE_CURRENT_BINARY_DIR}/frame_fragment_generated")
     execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_frame_fragment_boundary.py"
         --root "${MT2MP_SOURCE_ROOT}" --output "${_fragment_generated}" COMMAND_ERROR_IS_FATAL ANY)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp" "${MT2MP_SOURCE_ROOT}/test/test_toon_equipment_value.cpp")
-    add_executable(test_frame_fragments "${MT2MP_SOURCE_ROOT}/test/test_frame_fragments.cpp" ${type7_frame_sources})
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp" "${MT2MP_SOURCE_ROOT}/test/test_toon_equipment_value.cpp" "${MT2MP_SOURCE_ROOT}/test/extract_frame_fragment_boundary.py")
+    add_executable(test_frame_fragments "${MT2MP_SOURCE_ROOT}/test/test_frame_fragments.cpp" ${type7_frame_sources}
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp")
     target_include_directories(test_frame_fragments PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${_fragment_generated}")
     target_compile_features(test_frame_fragments PRIVATE cxx_std_20)
     target_compile_definitions(test_frame_fragments PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

@@ -1,4 +1,5 @@
 #include "bug_authority/runtime.h"
+#include "bug_authority/manual_action.h"
 #include "bug_authority/codec.h"
 #include "typed_action_runtime.h"
 #include "toon_weapon_visual/authority.h"
@@ -508,6 +509,7 @@ public:
         return outcome;
     }
     action::Outcome execute_action_native(const action::Binding& binding,const action::Request& request,std::string& error) {
+        if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::perform(binding,request,nullptr,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetStartingpointWorkers)return perform_staff(binding,request,nullptr,error);
         if(request.action==action::Action::StartStartingpoint)return perform_start(binding,request,nullptr,error);
@@ -529,6 +531,7 @@ public:
         return action::Engine::execute_action(binding,request,error);
     }
     action::Outcome apply_action_native(const action::Binding& binding,const action::Request& request,const action::Evidence& host,std::string& error) {
+        if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::perform(binding,request,&host,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::SetStartingpointWorkers)return perform_staff(binding,request,&host,error);
         if(request.action==action::Action::StartStartingpoint)return perform_start(binding,request,&host,error);
@@ -597,6 +600,7 @@ public:
         error=original;return outcome;
     }
     bool observe_action(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error)override {
+        if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::observe(binding,request,out,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers)return observe_commit(binding,request,out,error);
         if(request.action==action::Action::PlaceNPC||request.action==action::Action::RemoveNPC||
@@ -692,6 +696,7 @@ public:
             if(!world_.retire_native_effects(world_.origin(),status.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
             return npc_probe::zone_action_runtime::retire(binding,request,error);
         }
+        if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::retire(binding,request,error);
         if(request.action==action::Action::HireDeveloper||request.action==action::Action::FireDeveloper){
             if(!current(binding,request.snapshot_uuid,error))return false;
             const auto controller=typed_action_runtime::status();
@@ -878,7 +883,7 @@ bool start(std::string& error) {
     runtime->attempted=true;
     if(!weapon_initialize(error))return false;
     if(!toon_time_initialize(error))return false;
-    if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error))return false;
+    if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error)||!bug_authority::manual_action::enable(error))return false;
     return runtime->controller.start(GetTickCount64(),error);
 }
 bool enable_live_state(std::string& error) {
@@ -978,6 +983,7 @@ void tick() {
     ui_region_runtime::tick();
     ui_price_runtime::tick();
     developer_staff::action_runtime::tick();
+    bug_authority::manual_action::tick();
     npc_probe::action_runtime::tick();
     npc_probe::zone_action_runtime::tick();
     ui_terrain_runtime::tick();
@@ -1007,7 +1013,7 @@ json status() {
         live_host_state::day::economy::State actual;std::vector<uint8_t> encoded;
         if(runtime->economy_state->read_current(*runtime->live_state->last(),actual,economy_read_error)&&live_host_state::day::economy::encode(actual,encoded,economy_read_error))native_economy=nlohmann::json::parse(encoded);
     }
-    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
+    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"bug_manual",bug_authority::manual_action::status()},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
         {"host_revision",s.host_revision},{"attempted",s.attempted},{"confirmed",s.confirmed},{"failed",s.failed},
         {"duplicates",s.duplicates},{"suppressed_errors",s.suppressed_errors},{"required_mask",s.required_mask},{"ack_mask",s.ack_mask},
         {"outcome",int(s.outcome)},{"action_uuid",s.action_uuid},{"cause",s.cause},{"last_packet_accepted",s.last_packet_accepted},
@@ -1102,6 +1108,12 @@ bool submit_region_property(const std::string& id,const action::RegionPropertyIn
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="region property requires started Mainthread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; region property not attempted";return false;}
     return runtime->controller.submit_region_property(id,intent,GetTickCount64(),error);
+}
+bool submit_bug_fix(const std::string& id,const action::BugFixIntent& intent,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Bug Fix requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Bug Fix not attempted";return false;}
+    return runtime->controller.submit_bug_fix(id,intent,GetTickCount64(),error);
 }
 bool submit_developer(bool hire,const std::string& id,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1202,7 +1214,7 @@ namespace mt2mp::game::typed_action_runtime {
 bool begin_lobby_leave(std::string& e){
     const auto current=status();
     const auto build=ui_build_runtime::status(),remove=ui_remove_runtime::status(),move=ui_move_runtime::status(),region=ui_region_runtime::status(),price=ui_price_runtime::status();
-    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||npc_probe::action_runtime::pending_ui()||developer_staff::action_runtime::pending_ui()||npc_probe::zone_action_runtime::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
+    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||npc_probe::action_runtime::pending_ui()||developer_staff::action_runtime::pending_ui()||npc_probe::zone_action_runtime::pending_ui()||bug_authority::manual_action::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
     if(current.value("snapshot_handoff",false)||!current.value("snapshot_error",std::string{}).empty()){e="native lobby Leave blocked by current snapshot handoff: "+current.value("snapshot_error",std::string{});return false;}
     auto* r=published_runtime.load(std::memory_order_acquire);
     if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
@@ -1233,7 +1245,7 @@ bool finish_lobby_leave(bool& ready,std::string& e){
     if(net::SteamMatchmaking::instance().in_lobby()){e="native lobby Leave local membership readback still present";return false;}
     if(!net::session_wire::retire_lobby(e))return false;
     tutorial_replication::retire("confirmed native Title after lobby Leave");
-    if(!developer_staff::action_runtime::retire_lobby(e))return false;
+    if(!developer_staff::action_runtime::retire_lobby(e)||!bug_authority::manual_action::retire_lobby(e))return false;
     live_host_state::day::bind_host_journal(nullptr);published_runtime.store(nullptr,std::memory_order_release);delete r;
     ready=true;e.clear();return true;
 }

@@ -77,6 +77,7 @@ bool tutorial_fenced=true,tutorial_fenced_at_delete=true;unsigned tutorial_retir
 void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
 bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true,staff_ok=true;unsigned staff_retired=0;
+bool bug_ok=true;unsigned bug_retired=0;
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
@@ -84,6 +85,7 @@ void reset(){
     tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
     fence_ok=wire_ok=time_ok=live_ok=staff_ok=true;staff_retired=0;
+    bug_ok=true;bug_retired=0;
 }
 }
 uint32_t GetCurrentThreadId(){return fixture::thread;}
@@ -127,6 +129,16 @@ namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
 namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
 namespace npc_probe::zone_action_runtime {bool pending_ui(){return fixture::captures.value("zone_pending",false);}}
+namespace bug_authority::manual_action {
+bool pending_ui(){return fixture::captures.value("bug_pending",false);}
+bool retire_lobby(std::string& e){
+    ++fixture::bug_retired;
+    require(fixture::title&&!fixture::transition&&!fixture::saving&&fixture::staff_retired==1,
+        "Bug owner retired before idle Title and Developer owner");
+    if(!fixture::bug_ok){e="original Bug owner retirement failure";return false;}
+    return true;
+}
+}
 namespace developer_staff::action_runtime {
 bool pending_ui(){return fixture::captures.value("staff_pending",false);}
 bool retire_lobby(std::string& e){
@@ -355,8 +367,29 @@ void developer_lifetime_delta(){
         !runtime::published_runtime.load(),"confirmed Developer Title retirement did not release owner once");
     std::cout<<"PASS Developer Leave lifetime: pending intent, active World, exact ordering, original failure, confirmed retirement\n";
 }
+void bug_lifetime_delta(){
+    Pair pair;fixture::reset();std::string error;bool ready=true;
+    auto* owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    fixture::captures["bug_pending"]=true;
+    require(!runtime::begin_lobby_leave(error)&&!fixture::suspended&&!fixture::invalidated&&!owner->lobby_retiring,
+        "pending Bug intent crossed Leave boundary");
+    fixture::captures["bug_pending"]=false;
+    require(runtime::begin_lobby_leave(error),error);
+    require(runtime::finish_lobby_leave(ready,error)&&!ready&&!fixture::bug_retired,"active World retired Bug owner");
+    fixture::title=true;fixture::bug_ok=false;
+    require(!runtime::finish_lobby_leave(ready,error)&&error=="original Bug owner retirement failure"&&
+        !ready&&fixture::bug_retired==1&&!fixture::deleted&&runtime::published_runtime.load()==owner,
+        "Bug retirement failure was hidden or callback storage deleted");
+    runtime::published_runtime.store(nullptr);delete owner;
+    fixture::reset();owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    require(runtime::begin_lobby_leave(error),error);fixture::title=true;
+    require(runtime::finish_lobby_leave(ready,error)&&ready&&fixture::bug_retired==1&&fixture::deleted==1&&
+        !runtime::published_runtime.load(),"confirmed Bug Title retirement did not release owner once");
+    std::cout<<"PASS Bug Leave lifetime: pending intent, active World, retained failure and confirmed retirement\n";
+}
 int main(){
     try{
+        bug_lifetime_delta();
         developer_lifetime_delta();
         locked_live_departure();
 #ifndef TUTORIAL_LEAVE_DELTA_ONLY

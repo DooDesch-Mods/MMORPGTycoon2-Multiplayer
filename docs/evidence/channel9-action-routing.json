@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "passed": true,
+  "scope": "Shared live-state classifier delegates typed actions unchanged to their existing decoder",
+  "source_fix": "String-check the fragment kind; permit the existing action owner schema19 depth8 ceiling",
+  "regression": {
+    "checks": 154,
+    "actual_route_extracted": true,
+    "real_action_codec": true,
+    "covered_kinds": [
+      "Request",
+      "HostResult",
+      "ApplyAck",
+      "Completion"
+    ],
+    "quest_request_depth": 5,
+    "quest_result_depth": 8,
+    "depth9_rejected": true,
+    "existing_fragment_reassembly_and_subscriber_ack": true,
+    "log": "artifacts/build_history/20261016T102142035929Z/affected-ctest.log"
+  },
+  "native_followthrough": "docs/evidence/bug-manual-native.json",
+  "prior_failure": "docs/evidence/bug-manual-routing-failure.json"
+}
