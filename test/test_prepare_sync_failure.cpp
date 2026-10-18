@@ -83,7 +83,7 @@ int main(){try{
     prepare::step=prepare::Step::Playing;std::string error="stale caller error";
     check(prepare::tick(error)&&error.empty(),"healthy Playing failed");
     auto state=prepare::status();
-    check(state.at("ready")==true&&state.at("playing")==true&&state.at("label")=="Verbunden","healthy label/readiness changed");
+    check(state.at("ready")==true&&state.at("playing")==true&&state.at("label")=="Connected","healthy label/readiness changed");
     check(fixture::controller_reads==1&&!fixture::full_reads&&!fixture::submits&&!fixture::starts,"healthy frame performed extra native work");
     owner.live_error="automatic Subscriber capture changed actual Frame cohort/scalars id=69 save_scope_closed=1 original=capture readback differs";
     const auto original=owner.live_error;
@@ -91,7 +91,7 @@ int main(){try{
     check(!prepare::tick(error)&&error==original&&prepare::failure==original,"Playing hid the retained live failure");
     state=prepare::status();
     check(state.at("ready")==false&&state.at("playing")==false&&state.at("state")==int(prepare::Step::Failed)
-        &&state.at("error")==original&&state.at("label")=="Sitzung nicht verfügbar","failed status still claims connected or ready");
+        &&state.at("error")==original&&state.at("label")=="Session unavailable","failed status still claims connected or ready");
     const auto reads=fixture::controller_reads;
     check(!prepare::tick(error)&&error==original&&fixture::controller_reads==reads&&fixture::fail_logs==1,"Failed tick rescanned/relogged or lost cause");
     check(!prepare::start(error)&&!prepare::prepare_current(error)&&!fixture::submits&&!fixture::starts,"failed sync automatically replayed preparation");

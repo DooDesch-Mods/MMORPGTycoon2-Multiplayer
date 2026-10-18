@@ -125,7 +125,7 @@ void cases(){
         need(framework_last_action.at("handler_failed")==true&&framework_last_action.at("callback_pending")==false&&framework_last_action.at("error")==cause,
              "failed asynchronous action is acknowledged with the complete cause");
         need(!framework_new_world_requested&&!framework_creating_world&&choosing&&mp_visible&&picker_visible&&visibility_calls.empty()&&
-             list_status=="Neue Welt konnte nicht geöffnet werden.","unattempted rejection leaves the picker usable with a clear notice");
+             list_status=="Could not open new world setup.","unattempted rejection leaves the picker usable with a clear notice");
         need(render_edge(error)&&sdk_calls==1&&command_failures==1,"later render remains healthy without retrying the failed native launch");
     }
     for(int invalid=0;invalid<9;++invalid){
