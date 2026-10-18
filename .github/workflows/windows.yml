@@ -30,20 +30,44 @@ jobs:
         with:
           python-version: '3.13'
           architecture: x64
+      - name: Build and run C++ source tests
+        run: |
+          $python = (Get-Command python -CommandType Application).Source
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+          $visualStudio = & $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -or -not $visualStudio) { throw 'Visual Studio 2022 C++ toolchain not found' }
+          Import-Module (Join-Path $visualStudio 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
+          Enter-VsDevShell -VsInstallPath $visualStudio -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          $parallel = [Math]::Min(4, [Environment]::ProcessorCount)
+          Write-Output "Building C++ tests with Ninja, MSVC x64 and $parallel workers"
+          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl "-DPython3_EXECUTABLE=$python"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .ci-build/tests --parallel $parallel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir .ci-build/tests --output-on-failure --timeout 60
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+  python-tests:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          architecture: x64
           cache: pip
           cache-dependency-path: tools/mcp/requirements.txt
       - name: Install diagnostic test dependencies
         run: |
           python -m pip install --disable-pip-version-check -r tools/mcp/requirements.txt
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Build source-only tests
+      - name: Run Python source and packaging tests
         run: |
-          cmake -S ci -B .ci-build/tests -A x64
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build .ci-build/tests --config Release --parallel 2
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          ctest --test-dir .ci-build/tests -C Release --output-on-failure --timeout 60
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_build_input_guard.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
@@ -174,15 +198,16 @@ jobs:
           compression-level: 0
   build:
     if: always()
-    needs: [source-tests, compile]
+    needs: [source-tests, python-tests, compile]
     runs-on: ubuntu-latest
     steps:
       - name: Require all Windows checks
         env:
           SOURCE_TESTS_RESULT: ${{ needs.source-tests.result }}
           COMPILE_RESULT: ${{ needs.compile.result }}
+          PYTHON_TESTS_RESULT: ${{ needs.python-tests.result }}
         run: |
-          if [ "$SOURCE_TESTS_RESULT" != success ] || [ "$COMPILE_RESULT" != success ]; then
-            echo "::error::Windows checks failed: source-tests=$SOURCE_TESTS_RESULT compile=$COMPILE_RESULT"
+          if [ "$SOURCE_TESTS_RESULT" != success ] || [ "$PYTHON_TESTS_RESULT" != success ] || [ "$COMPILE_RESULT" != success ]; then
+            echo "::error::Windows checks failed: source-tests=$SOURCE_TESTS_RESULT python-tests=$PYTHON_TESTS_RESULT compile=$COMPILE_RESULT"
             exit 1
           fi
