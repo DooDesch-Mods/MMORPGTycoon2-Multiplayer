@@ -103,7 +103,7 @@ try:
     require(first['new_world']['handoff']['confirmed'] and first['new_world']['handoff']['status'] in ['opened','already_open'],
             'Original wizard handoff not confirmed')
     host.wait(lambda v:not visible(v),'wizard-handoff-hidden-app')
-    client.wait(lambda v:v['loading_ui']['heading']=='Host erstellt eine Welt','remote-creating')
+    client.wait(lambda v:v['loading_ui']['heading']=='Host is creating a world','remote-creating')
     frame('original-wizard-host','host');frame('creating-world-client','client-1')
     if args.handoff_proof:
         proof=json.loads(args.handoff_proof.read_text(encoding='utf-8'))
@@ -117,7 +117,7 @@ try:
         cancelled=host.wait(lambda v:visible(v) and v['world_selection_open'] and not v['new_world']['active'],'cancel-returned-picker')
         require(cancelled['new_world']['observation']['visible'] is False and cancelled['new_world']['observation']['attempted'] is False,
                 'Cancellation observation reopened the wizard')
-        client.wait(lambda v:v['loading_ui']['heading']=='Host wählt eine Welt','remote-choosing-after-cancel')
+        client.wait(lambda v:v['loading_ui']['heading']=='Host is choosing a world','remote-choosing-after-cancel')
         opened=host.click('new_world',lambda v:v['new_world']['active'])
         require(opened['new_world']['handoff']['status']=='opened' and opened['new_world']['handoff']['attempted'] is True,
                 'Hidden original wizard was not opened once')

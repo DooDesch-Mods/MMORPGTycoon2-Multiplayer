@@ -102,7 +102,7 @@ void check_visible_interactions(const Layout& layout) {
     require(layout.at("start").group == "legacy" && exposed.count("start") == 0,
             "The redundant legacy Start action is visible");
     require(layout.at("new_world").group == "picker" && exposed.count("new_world") &&
-                layout.at("new_world").text == "Neue Welt erstellen",
+                layout.at("new_world").text == "Create a new world",
             "The native New Game action is not confined to the Host world picker");
     require(mt2mp::game::lobby_ui::page_size == 2, "Compact native list does not use two rows per page");
     for (size_t row = 0; row < mt2mp::game::lobby_ui::page_size; ++row) {
@@ -110,10 +110,10 @@ void check_visible_interactions(const Layout& layout) {
         const auto& load = layout.at("list" + suffix);
         const auto& join = layout.at("find" + suffix);
         require(load.type == "button" && load.group == "picker" &&
-                    load.text == "Gemeinsam laden" && !load.disabled && exposed.count(load.id),
+                    load.text == "Load together" && !load.disabled && exposed.count(load.id),
                 "Saved-world row lost its direct shared-load action: " + load.id);
         require(join.type == "button" && join.group == "find" &&
-                    join.text == "Beitreten" && !join.disabled && exposed.count(join.id),
+                    join.text == "Join" && !join.disabled && exposed.count(join.id),
                 "Public row lost its distinct direct-join action: " + join.id);
         require(load.id != join.id, "Saved-world and public join actions share an identity");
     }

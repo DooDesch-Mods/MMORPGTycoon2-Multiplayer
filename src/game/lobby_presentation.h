@@ -25,30 +25,30 @@ inline Phase host_phase(int preparation, bool transitioning, bool selected, cons
 struct Message {std::string heading,detail;bool busy=false;};
 inline Message describe(bool host, bool member, bool pending, int preparation, Phase remote,
                         const std::string& snapshot, uint64_t done, uint64_t total, bool failed) {
-    if(failed||preparation==10)return {"Verbindung unterbrochen","Verlasse die Sitzung und verbinde dich neu."};
-    if(!member)return pending?Message{"Verbindung wird hergestellt","" ,true}:Message{"Gemeinsam bauen",""};
-    if(preparation==12)return {"Sitzung wird beendet","",true};
+    if(failed||preparation==10)return {"Connection lost","Leave the session and reconnect."};
+    if(!member)return pending?Message{"Connecting","" ,true}:Message{"Build together",""};
+    if(preparation==12)return {"Leaving session","",true};
     if(snapshot=="transferring"&&total){
         const auto percent=done>=total?100:unsigned((done*100)/total);
-        return {host?"Welt wird gesendet":"Welt wird empfangen",std::to_string(percent)+" %",true};
+        return {host?"Sending world":"Receiving world",std::to_string(percent)+" %",true};
     }
-    if(snapshot=="awaiting_verification")return {"Welt wird geprüft","",true};
-    if(snapshot=="awaiting_load")return {host?"Mitspieler lädt die Welt":"Deine Welt wird geladen",host?"Danach startet ihr gemeinsam.":"Du trittst automatisch bei.",true};
-    if(preparation==9)return {"Gemeinsam im Spiel",""};
+    if(snapshot=="awaiting_verification")return {"Verifying world","",true};
+    if(snapshot=="awaiting_load")return {host?"Player is loading the world":"Loading your world",host?"You will start together afterwards.":"You will join automatically.",true};
+    if(preparation==9)return {"Playing together",""};
     const auto phase=remote;
     switch(phase){
-    case Phase::Creating:return {host?"Erstelle eure Welt":"Host erstellt eine Welt",host?"Schließe den Assistenten ab.":"Du trittst danach automatisch bei.",true};
-    case Phase::Choosing:return {host?"Wähle eure Welt":"Host wählt eine Welt",host?"Lade einen Spielstand oder erstelle eine neue Welt.":"Du trittst danach automatisch bei."};
-    case Phase::Selected:return {host?"Bereit zum Start":"Host hat eine Welt gewählt",host?"Starte die Welt für alle Spieler.":"Der Host startet eure Welt."};
-    case Phase::Loading:return {host?"Deine Welt wird geladen":"Host lädt die Welt",host?"Deine Mitspieler treten automatisch bei.":"Du trittst automatisch bei.",true};
-    case Phase::Preparing:return {"Gemeinsame Welt wird vorbereitet","",true};
-    case Phase::Sending:return {host?"Welt wird gesendet":"Welt wird übertragen","",true};
-    case Phase::ClientLoading:return {host?"Mitspieler lädt die Welt":"Deine Welt wird geladen","",true};
-    case Phase::Starting:return {"Spiel wird gestartet","",true};
-    case Phase::Playing:return {"Verbindung wird abgeschlossen","",true};
-    case Phase::Leaving:return {"Host hat die Sitzung verlassen","Verlasse die Lobby, um ein neues Spiel zu beginnen."};
-    case Phase::Failed:return {"Sitzung unterbrochen","Verlasse die Lobby und verbinde dich neu."};
+    case Phase::Creating:return {host?"Create your world":"Host is creating a world",host?"Complete the setup wizard.":"You will join automatically afterwards.",true};
+    case Phase::Choosing:return {host?"Choose your world":"Host is choosing a world",host?"Load a save or create a new world.":"You will join automatically afterwards."};
+    case Phase::Selected:return {host?"Ready to start":"Host has chosen a world",host?"Start the world for all players.":"The host will start your world."};
+    case Phase::Loading:return {host?"Loading your world":"Host is loading the world",host?"Other players will join automatically.":"You will join automatically.",true};
+    case Phase::Preparing:return {"Preparing shared world","",true};
+    case Phase::Sending:return {host?"Sending world":"Transferring world","",true};
+    case Phase::ClientLoading:return {host?"Player is loading the world":"Loading your world","",true};
+    case Phase::Starting:return {"Starting game","",true};
+    case Phase::Playing:return {"Finishing connection","",true};
+    case Phase::Leaving:return {"Host left the session","Leave the lobby to start a new game."};
+    case Phase::Failed:return {"Session interrupted","Leave the lobby and reconnect."};
     }
-    return {"Verbindung wird hergestellt","",true};
+    return {"Connecting","",true};
 }
 }

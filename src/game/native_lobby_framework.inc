@@ -8,7 +8,7 @@ void* ui_owner=nullptr;int ui_mode=-1;
 void* panel=nullptr;void* browser_panel=nullptr;
 bool list_pending=false,list_callback_completed=false,list_callback_ok=false,publication_failed=false;std::string publication_error;size_t list_page=0;uint64_t list_generation=0,selected_lobby=0;
 std::vector<std::string> saved_worlds;
-std::vector<net::LobbyInfo> discovered;std::string list_status="Öffentliche Lobbys",published_state;
+std::vector<net::LobbyInfo> discovered;std::string list_status="Public lobbies",published_state;
 using Command=void(*)(void*,const void*);
 Command original_command=nullptr,original_ingame_command=nullptr;
 bool release_fixture_active=false;void* release_fixture_mode=nullptr;uint64_t release_fixture_callbacks=0;std::string release_fixture_error;
@@ -124,16 +124,16 @@ bool framework_render(std::string& error){
         if(framework_report){
             const auto report=reporting::status();
             const auto phase=report.at("phase").get<std::string>();
-            framework_widgets.at("report_state").text=phase=="sent"?"Danke. Bericht empfangen: "+report.at("receipt").get<std::string>():
-                phase=="sending"?"Bericht wird gesendet...":
-                phase=="failed"?"Bericht konnte nicht gesendet werden: "+report.at("error").get<std::string>():phase=="preparing"?"Bericht wird vorbereitet...":"Bereit. "+std::to_string(report.at("event_count").get<size_t>())+" Diagnoseereignisse beigefügt.";
+            framework_widgets.at("report_state").text=phase=="sent"?"Thank you. Report received: "+report.at("receipt").get<std::string>():
+                phase=="sending"?"Sending report...":
+                phase=="failed"?"Could not send report: "+report.at("error").get<std::string>():phase=="preparing"?"Preparing report...":"Ready. "+std::to_string(report.at("event_count").get<size_t>())+" diagnostic events attached.";
             framework_widgets.at("report_send").disabled=phase=="sending"||phase=="sent"||phase=="preparing"||!report.at("ready").get<bool>()||report.at("report_id")=="";
-            framework_widgets.at("report_send").text=phase=="failed"?"Privaten Upload wiederholen":"Bericht privat senden";
+            framework_widgets.at("report_send").text=phase=="failed"?"Retry private upload":"Send report privately";
             const bool sealed=report.at("sealed").get<bool>();
             framework_widgets.at("report_comment").disabled=sealed;
             framework_widgets.at("report_comment").visible=!sealed;
-            framework_widgets.at("report_hint").text=phase=="sent"?"Beschreibung wurde privat gesendet.":sealed?"Beschreibung gespeichert. Beim Wiederholen wird derselbe Bericht gesendet.":"Was ist passiert? (optional)";
-            framework_widgets.at("report_auto").text=report.at("automatic").get<bool>()?"Automatische technische Berichte: An":report.at("automatic_inflight").get<bool>()?"Automatische technische Berichte: Aus (aktueller Bericht wird abgeschlossen)":"Automatische technische Berichte: Aus";
+            framework_widgets.at("report_hint").text=phase=="sent"?"Description sent privately.":sealed?"Description saved. Retrying sends the same report.":"What happened? (optional)";
+            framework_widgets.at("report_auto").text=report.at("automatic").get<bool>()?"Automatic technical reports: On":report.at("automatic_inflight").get<bool>()?"Automatic technical reports: Off (current report is finishing)":"Automatic technical reports: Off";
         }
         nlohmann::json widgets=nlohmann::json::array();
         // Native panels must be created before the controls drawn above them.
@@ -207,7 +207,7 @@ bool retire_departed_host(const nlohmann::json& preparation,std::string& error) 
         departed_host_error="Host connection lost; native retirement failed: "+detail;
         error=departed_host_error;return fail(error);
     }
-    ui_status="Host hat die Sitzung beendet";error.clear();return true;
+    ui_status="Host ended the session";error.clear();return true;
 }
 void request_panel_toggle(){++toggle_requested;}
 
@@ -225,8 +225,8 @@ bool tick(std::string& error) {
         (preparation.value("playing",false)&&!net::session_wire::connected()), owner);
     const auto left=preparation.value("leave_confirmed",uint64_t{});
     if(left!=last_leave_confirmed){framework_host_visibility.clear();framework_creating_world=false;framework_new_world_requested=false;}
-    if(left!=last_leave_confirmed){net::chat::Runtime::instance().set_lobby_admitted(false);last_leave_confirmed=left;playing_close_attempted=false;failure_notice_attempted.clear();failure_notice_error.clear();departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;host_world_pick_requested=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
-    if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Sitzung nicht verfügbar"));
+    if(left!=last_leave_confirmed){net::chat::Runtime::instance().set_lobby_admitted(false);last_leave_confirmed=left;playing_close_attempted=false;failure_notice_attempted.clear();failure_notice_error.clear();departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;host_world_pick_requested=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Session ended";}
+    if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Session unavailable"));
     if(!retire_departed_host(preparation,error))return false;
     native::WorldStatus world;
     if(!native::read_world_status(world,error))return false;
@@ -266,8 +266,8 @@ bool tick(std::string& error) {
         if(choosing){
             if(index<saved_worlds.size()){value=saved_worlds[index];disabled=false;}
         }else if(index<discovered.size()){const auto& row=discovered[index];
-            const std::string state=row.state=="open"?"Offen":row.state=="preparing"?"Wird vorbereitet":row.state=="playing"?"Im Spiel":row.state=="leaving"?"Wird beendet":"Nicht verfügbar";
-            value=row.host_name+"\n"+row.save_name+" - "+(row.state=="unavailable"?state:std::to_string(row.player_count)+"/"+std::to_string(row.max_players)+" Spieler - "+state);
+            const std::string state=row.state=="open"?"Open":row.state=="preparing"?"Preparing":row.state=="playing"?"Playing":row.state=="leaving"?"Leaving":"Unavailable";
+            value=row.host_name+"\n"+(row.save_name=="Welt wird ausgewählt"?std::string("Choosing a world"):row.save_name)+" - "+(row.state=="unavailable"?state:std::to_string(row.player_count)+"/"+std::to_string(row.max_players)+" players - "+state);
             disabled=pending||admitted()||list_pending||row.state!="open"||row.player_count<1||row.max_players<=row.player_count;
         }
         const bool present=index<(choosing?saved_worlds.size():discovered.size());
@@ -280,12 +280,12 @@ bool tick(std::string& error) {
     if(!disable("list_refresh",list_pending)||!disable("list_previous",list_pending||!list_page)||!disable("list_next",list_pending||(list_page+1)*lobby_ui::page_size>=(choosing?saved_worlds.size():discovered.size()))){error=cause;return false;}
     const bool multiple_pages=(choosing?saved_worlds.size():discovered.size())>lobby_ui::page_size;
     if(!set_pane_visible("list_previous",multiple_pages)||!set_pane_visible("list_next",multiple_pages)){error=cause;return false;}
-    if(publication_failed)ui_status="Host-Metadaten nicht verfügbar";
+    if(publication_failed)ui_status="Host metadata unavailable";
     if(last_ui_status!=ui_status){if(!label("status",ui_status)){error=cause;return false;}last_ui_status=ui_status;}
     const bool shared_client_world=!Config::instance().is_host&&ingame_active&&admitted()&&preparation.value("ready",false)&&
         shared.value("phase",std::string{})=="active"&&shared.value("world_authority_valid",false)&&
         !preparation.value("snapshot_id",std::string{}).empty()&&shared.value("id",std::string{})==preparation.value("snapshot_id",std::string{});
-    std::string world_label=selected_world.empty()?(shared_client_world?"Gemeinsame Welt":"Eure Welt"):selected_world;
+    std::string world_label=selected_world.empty()?(shared_client_world?"Shared world":"Your world"):selected_world;
     if(!Config::instance().local_test&&!Config::instance().is_host&&admitted()&&selected_world.empty()){
         const auto host_world=mm.get_lobby_data("game_name");
         if(world_selection::valid_name(host_world)&&host_world!="Welt wird ausgewählt")world_label=host_world;

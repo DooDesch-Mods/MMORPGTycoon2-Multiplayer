@@ -9,6 +9,7 @@
 
 ### Changed
 
+- Multiplayer menus and problem reporting now use English.
 - Multiplayer runs as a native MT2 Mod Framework plugin. Install Runtime 0.2.0 separately through Vortex.
 - New World opens the original game wizard while connected players wait for the Host.
 - The native menu has aligned icons, player portraits and button labels, with visible creating and loading states.

@@ -1,7 +1,7 @@
 bool fail(const std::string& detail) {
     ++command_failures;
     if(cause!=detail)LOG_ERROR("[NativeLobby] {}",detail);
-    cause=detail;ui_status="Sitzung nicht verfügbar";return false;
+    cause=detail;ui_status="Session unavailable";return false;
 }
 
 bool metadata_failure(const std::string& detail){publication_failed=true;publication_error=detail;return fail(detail);}
@@ -12,11 +12,11 @@ std::string chat_transcript(const net::chat::Snapshot& snapshot){
     for(size_t i=first;i<snapshot.entries.size();++i){
         const auto& entry=snapshot.entries[i];
         if(!result.empty())result+='\n';
-        result+=entry.origin==snapshot.local_peer?"Du":entry.origin==1?"Host":"Mitspieler "+std::to_string(entry.origin);
+        result+=entry.origin==snapshot.local_peer?"You":entry.origin==1?"Host":"Player "+std::to_string(entry.origin);
         result+=": "+entry.text;
         if(entry.origin==snapshot.local_peer){
-            if(entry.delivery==net::chat::Delivery::Queued)result+=" - Wird gesendet";
-            else if(entry.delivery==net::chat::Delivery::Failed)result+=" - Nicht zugestellt";
+            if(entry.delivery==net::chat::Delivery::Queued)result+=" - Sending";
+            else if(entry.delivery==net::chat::Delivery::Failed)result+=" - Not delivered";
         }
     }
     return result;
@@ -48,8 +48,8 @@ bool send_chat(){
 bool render_chat(std::string& error){
     const auto snapshot=net::chat::Runtime::instance().snapshot();
     const auto transcript=chat_transcript(snapshot);
-    const std::string state=snapshot.retired?"Chat beendet":chat_draft_clear_failed?"Chat - Nachricht vorgemerkt, Eingabe nicht geleert":!chat_error.empty()?"Chat - Nachricht nicht gesendet":
-        snapshot.connected?"Chat":admitted()?"Chat verbindet":"Chat - zuerst Lobby beitreten";
+    const std::string state=snapshot.retired?"Chat ended":chat_draft_clear_failed?"Chat - message queued, draft not cleared":!chat_error.empty()?"Chat - message not sent":
+        snapshot.connected?"Chat":admitted()?"Chat connecting":"Chat - join a lobby first";
     if(last_chat_transcript!=transcript){
         if(!label("chat_transcript",transcript)){error=cause;return false;}
         last_chat_transcript=transcript;
@@ -77,7 +77,7 @@ bool close_playing_panel_once(bool ingame_active,const nlohmann::json& preparati
 bool show_failed_panel_once(const nlohmann::json& preparation,std::string& error){
     const auto detail=preparation.value("error",std::string{});
     if(detail.empty()||preparation.value("leaving",false))return true;
-    cause=detail;ui_status="Sitzung beendet: Synchronisierungsfehler";
+    cause=detail;ui_status="Session ended: sync error";
     if(failure_notice_attempted==detail){error=failure_notice_error;if(!error.empty())cause=error;return error.empty();}
     failure_notice_attempted=detail;failure_notice_error.clear();
     const auto exception=view_show(false,true);
@@ -118,7 +118,7 @@ bool refresh_saved_worlds(std::string& error) {
 void begin_save_cache_refresh(){
     framework_save_refresh.begin(std::chrono::steady_clock::now());
     framework_save_refresh_owner=ui_owner;framework_save_refresh_admission=generation;
-    list_pending=true;++list_generation;list_page=0;saved_worlds.clear();list_status="Spielstände werden gesucht";
+    list_pending=true;++list_generation;list_page=0;saved_worlds.clear();list_status="Looking for saves";
 }
 
 bool process_save_cache_refresh(std::string& error){
@@ -133,7 +133,7 @@ bool process_save_cache_refresh(std::string& error){
     }
     const auto action=framework_save_refresh.tick(task!=nullptr,std::chrono::steady_clock::now());
     if(action==SaveCacheRefresh::Action::TimedOut){
-        list_pending=false;list_status="Spielstände konnten nicht geladen werden. Aktualisiere die Liste.";
+        list_pending=false;list_status="Could not load saves. Refresh the list.";
         error="native save cache refresh timed out required<120s; original task retained";return fail(error);
     }
     if(action==SaveCacheRefresh::Action::Queue){
@@ -148,7 +148,7 @@ bool process_save_cache_refresh(std::string& error){
     if(action==SaveCacheRefresh::Action::Ready){
         list_pending=false;
         if(!refresh_saved_worlds(error))return fail(error);
-        list_status=saved_worlds.empty()?"Noch keine Welt gespeichert":"Gespeicherte Welten";
+        list_status=saved_worlds.empty()?"No saved worlds yet":"Saved worlds";
         if(cause.starts_with("native save cache")||cause.starts_with("native latest world save unavailable"))cause.clear();
         LOG_INFO("[NativeLobby] Picker native save cache refresh completed worlds={}",saved_worlds.size());
     }
@@ -166,7 +166,7 @@ bool select_world(void* mode,const std::string& command) {
     String output{};bool returned=false;DWORD code=latest_save(mode,world.c_str(),&output,&returned);
     std::string stem;const bool valid=!code&&returned&&text(&output,stem,200);
     if(returned){const auto cleanup=dispose(&output);if(!code)code=cleanup;}
-    if(!valid||code||stem.empty()||stem.find_first_of("/\\\"\r\n\t")!=std::string::npos){list_status="Spielstand nicht lesbar. Wähle eine andere Welt.";fail("native latest world save unavailable exception="+std::to_string(code));return true;}
+    if(!valid||code||stem.empty()||stem.find_first_of("/\\\"\r\n\t")!=std::string::npos){list_status="Cannot read this save. Choose another world.";fail("native latest world save unavailable exception="+std::to_string(code));return true;}
     selected_world=world;selected_file="save/"+world+"/"+stem+".vrz";choosing=false;
     std::string metadata_error;if(!Config::instance().local_test&&!net::SteamMatchmaking::instance().publish_lobby_data("game_name",world,metadata_error)){metadata_failure(metadata_error);return true;}
     const auto hidden=view_show(true,false);
@@ -198,7 +198,7 @@ bool start_host_world(std::string& error){
     load_attempted=true;
     if(!(current_host_world?lobby_prepare::prepare_current(error):lobby_prepare::prepare(selected_file,error)))return fail(error);
     if(!lobby_prepare::start(error))return fail(error);
-    ui_status="Sitzung wird vorbereitet";error.clear();return true;
+    ui_status="Preparing session";error.clear();return true;
 }
 
 bool adopt_current_host_world(void* game,bool ingame_active,bool title_active,const nlohmann::json& preparation,std::string& error){
@@ -225,7 +225,7 @@ bool adopt_current_host_world(void* game,bool ingame_active,bool title_active,co
     std::string detail;
     if(!Config::instance().local_test&&!net::SteamMatchmaking::instance().publish_lobby_data("game_name",name,detail)){error=detail;return metadata_failure(error);}
     selected_world=name;selected_file.clear();current_host_world=true;current_host_world_error.clear();choosing=false;
-    ui_status="Welt ausgewählt";
+    ui_status="World selected";
     LOG_INFO("[NativeLobby] Active Host world selected name={}; starting shared preparation",name);
     return start_host_world(error);
 }
@@ -235,7 +235,7 @@ bool admit_local(bool host){
     if(!net::session_wire::connected()||peer<1||peer>4||(mask&3)!=3||!(mask&(1u<<(peer-1))))return fail("local lobby admission awaits confirmed launcher peer membership");
     if(host!=(peer==1))return fail("local lobby action differs from launcher-owned Host/Client role");
     net::chat::Runtime::instance().set_lobby_admitted(true);chat_error.clear();chat_last_sequence=0;chat_draft_clear_failed=false;
-    local_admitted=true;Config::instance().is_host=peer==1;host_world_pick_requested=host&&selected_world.empty()&&!current_host_world;++generation;cause.clear();ui_status="Lokale Lobby offen";return true;
+    local_admitted=true;Config::instance().is_host=peer==1;host_world_pick_requested=host&&selected_world.empty()&&!current_host_world;++generation;cause.clear();ui_status="Local lobby open";return true;
 }
 
 void update_avatars(){
@@ -294,19 +294,19 @@ void update_avatars(){
 }
 
 std::array<std::string,4> player_rows(){
-    std::array<std::string,4> rows;rows.fill("Freier Platz");
+    std::array<std::string,4> rows;rows.fill("Open slot");
     framework_host_name.clear();
     if(Config::instance().local_test){
         const auto mask=admitted()?net::session_wire::peer_mask():0;
-        if(mask&1)framework_host_name="Spieler 1";
-        for(size_t i=0;i<4;++i)if(mask&(1u<<i))rows[i]=(i==0?"Host":"Spieler "+std::to_string(i+1))+(net::session_wire::local_peer()==i+1?std::string(" (Du)"):std::string{});
+        if(mask&1)framework_host_name="Player 1";
+        for(size_t i=0;i<4;++i)if(mask&(1u<<i))rows[i]=(i==0?"Host":"Player "+std::to_string(i+1))+(net::session_wire::local_peer()==i+1?std::string(" (You)"):std::string{});
     }else{
         const auto members=lobby_ui::ordered_members(net::SteamMatchmaking::instance().get_lobby_members(),owner);
         const auto self=net::SteamNetworking::instance().local_steam_id();
         for(size_t i=0;i<rows.size()&&i<members.size();++i){
             const auto name=net::SteamNetworking::instance().get_persona_name(members[i]);
             if(members[i]==owner)framework_host_name=name;
-            rows[i]=name+(members[i]==self?" (Du)":"")+(members[i]==owner?"\nHost":"");
+            rows[i]=name+(members[i]==self?" (You)":"")+(members[i]==owner?"\nHost":"");
         }
     }
     return rows;
@@ -348,14 +348,14 @@ bool render_native_new_world(std::string& error){
         framework_last_action["handler_failed"]=action_failed;
         framework_last_action["callback_pending"]=false;
         framework_last_action["error"]=detail;
-        list_status="Neue Welt konnte nicht geöffnet werden.";
+        list_status="Could not open new world setup.";
         // The recorded action failure is handled; only the render callback succeeds.
         error.clear();return action_failed;
     }
     if(!receipt.value("confirmed",false)||(state!="opened"&&state!="already_open")||
        receipt.value("mode",0)!=2||receipt.value("window",std::string{})!="NewGame"||!receipt.value("visible",false))
         {error="New World native wizard handoff was not confirmed: "+receipt.dump();return fail(error);}
-    framework_creating_world=true;choosing=false;cause.clear();ui_status="Host erstellt eine Welt";
+    framework_creating_world=true;choosing=false;cause.clear();ui_status="Host is creating a world";
     if(view_show(false,false)||view_show(true,false))return fail("New World native wizard opened but Multiplayer could not be hidden; no launch replay");
     return true;
 }
@@ -396,20 +396,20 @@ bool render_context(bool title_active,bool ingame_active,const nlohmann::json& p
     const bool choose=title_active&&host&&!load_attempted;
     std::string entry_notice;
     if(pending)entry_notice=ui_status;
-    else if(ui_status=="Ungültige Lobby-ID")entry_notice="Gültige Lobby-ID eingeben";
+    else if(ui_status=="Invalid lobby ID")entry_notice="Enter a valid lobby ID";
     else if(!cause.empty()){
-        if(cause=="Steam lobby interface unavailable"||cause=="Steam discovery interface unavailable")entry_notice="Steam ist nicht verfügbar.";
-        else if(last_command=="MT2MPHost"||last_command=="MT2MPHostPublic")entry_notice="Lobby konnte nicht geöffnet werden.";
-        else if(last_command=="MT2MPJoin")entry_notice="Lobby konnte nicht beigetreten werden.";
-        else if(last_command=="MT2MPSearch"||last_command=="MT2MPRefresh")entry_notice="Spiele konnten nicht geladen werden.";
-        else entry_notice="Aktion konnte nicht abgeschlossen werden.";
+        if(cause=="Steam lobby interface unavailable"||cause=="Steam discovery interface unavailable")entry_notice="Steam is unavailable.";
+        else if(last_command=="MT2MPHost"||last_command=="MT2MPHostPublic")entry_notice="Could not open the lobby.";
+        else if(last_command=="MT2MPJoin")entry_notice="Could not join the lobby.";
+        else if(last_command=="MT2MPSearch"||last_command=="MT2MPRefresh")entry_notice="Could not load games.";
+        else entry_notice="Could not complete the action.";
     }
     if(!label("entry_state",entry_notice)){error=cause;return false;}
     if(!set_pane_visible("invite",member&&!Config::instance().local_test&&!load_attempted)||
        !disable("invite",pending||preparation.value("leaving",false))||
        !set_pane_visible("pick",choose)||!set_pane_visible("start",false)||
        !set_pane_visible("leave",member||!preparation.value("error",std::string{}).empty())||
-       !button_label("leave",ingame_active?"Spiel verlassen":"Lobby verlassen")){
+       !button_label("leave",ingame_active?"Leave game":"Leave lobby")){
         error=cause;return false;
     }
     const auto local_phase=lobby_presentation::host_phase(preparation.value("state",0),false,!selected_world.empty(),transfer.value("phase",std::string{}),framework_creating_world);
@@ -419,21 +419,21 @@ bool render_context(bool title_active,bool ingame_active,const nlohmann::json& p
     if(preparation.value("playing",false)&&cause.empty()&&!preparation.value("leaving",false)){
         detail=framework_host_name.empty()?std::string{}:"Host: "+framework_host_name;
         const auto append_fact=[&](const std::string& value){if(!detail.empty())detail+='\n';detail+=value;};
-        if(Config::instance().local_test)append_fact("Verbindung: Lokal");
+        if(Config::instance().local_test)append_fact("Connection: Local");
         else {
             if(host&&!framework_host_visibility.empty())append_fact(framework_host_visibility);
             const auto lobby_id=net::SteamMatchmaking::instance().current_lobby_id();
-            if(lobby_id)append_fact("Lobby-ID: "+std::to_string(lobby_id));
+            if(lobby_id)append_fact("Lobby ID: "+std::to_string(lobby_id));
         }
     }
     if(!label("load_status",message.heading)||!label("load_detail",detail)||
-       !label("browser_heading",choosing?"Welt wählen":"Spiel finden")){
+       !label("browser_heading",choosing?"Choose a world":"Find a game")){
         error=cause;return false;
     }
     size_t count=0;
     if(Config::instance().local_test){const auto mask=member?net::session_wire::peer_mask():0;for(unsigned i=0;i<4;++i)if(mask&(1u<<i))++count;}
     else if(member)count=net::SteamMatchmaking::instance().get_lobby_members().size();
-    if(!label("players_heading","Spieler "+std::to_string(count)+"/4")){error=cause;return false;}
+    if(!label("players_heading","Player "+std::to_string(count)+"/4")){error=cause;return false;}
     if(member&&message.busy&&!framework_busy_notice&&!framework_report&&!(host&&framework_creating_world)){framework_open=true;framework_browser=false;}
     framework_busy_notice=member&&message.busy;
     if(member&&!host&&title_active&&preparation.value("state",0)==0&&cause.empty())ui_status=message.heading;
@@ -458,11 +458,11 @@ void dispatch_action(void* mode,std::string cmd) {
         if(ui_mode!=2||pending||admitted()||list_pending){fail("native discovery requires idle Title and no pending request");return;}
         if(!net::SteamNetworking::instance().init()||!mm.init()){fail("Steam discovery interface unavailable");return;}
         if(view_show(false,false)||view_show(true,true)){fail("native discovery window visibility failed");return;}
-        list_pending=true;list_callback_completed=list_callback_ok=false;cause.clear();list_page=0;selected_lobby=0;discovered.clear();list_status="Lobbys werden gesucht";const auto current=++list_generation;
+        list_pending=true;list_callback_completed=list_callback_ok=false;cause.clear();list_page=0;selected_lobby=0;discovered.clear();list_status="Looking for lobbies";const auto current=++list_generation;
         mm.request_lobby_list([current](bool okay,const std::vector<net::LobbyInfo>& rows){
             if(current!=list_generation){LOG_WARN("[NativeLobby] Stale discovery callback discarded generation={}",current);return;}
             list_pending=false;list_callback_completed=true;list_callback_ok=okay;discovered=rows;list_page=0;
-            list_status=okay?(rows.empty()?"Keine öffentlichen Lobbys gefunden":"Öffentliche Lobbys: "+std::to_string(rows.size())):"Lobby-Suche fehlgeschlagen";
+            list_status=okay?(rows.empty()?"No public lobbies found":"Public lobbies: "+std::to_string(rows.size())):"Lobby search failed";
             if(!okay)LOG_ERROR("[NativeLobby] Steam discovery callback failed; see SDK callback/timeout cause");
             for(auto& [token,receipt]:route_receipts)if(receipt.value("discovery_generation",uint64_t{})==current){receipt["callback_pending"]=false;receipt["callback_completed"]=true;receipt["backend_confirmed"]=okay;receipt["lobby_count"]=rows.size();}
         });return;
@@ -494,7 +494,7 @@ void dispatch_action(void* mode,std::string cmd) {
         if(ui_mode!=2||pending||admitted()){fail("lobby admission rejected: idle Title and no active lobby required");return;}
         if(Config::instance().local_test){admit_local(cmd!="MT2MPJoin");return;}
         if(!net::SteamNetworking::instance().init()||!mm.init()){fail("Steam lobby interface unavailable");return;}
-        pending=true;cause.clear();ui_status="Verbindung wird hergestellt";const auto current=++generation;
+        pending=true;cause.clear();ui_status="Connecting";const auto current=++generation;
         const bool host=cmd!="MT2MPJoin";const bool public_lobby=cmd=="MT2MPHostPublic";
         const auto completion=[current,host,public_lobby](bool ok,uint64_t id){
             if(current!=generation){LOG_WARN("[NativeLobby] Cancelled admission callback discarded generation={}",current);return;}
@@ -502,10 +502,10 @@ void dispatch_action(void* mode,std::string cmd) {
                 receipt["callback_pending"]=false;receipt["callback_completed"]=true;receipt["backend_confirmed"]=ok&&id!=0;receipt["steam_lobby_id"]=id;
             }
             pending=false;if(!ok||!id){fail("Steam lobby admission failed");return;}
-            Config::instance().is_host=host;owner=net::SteamMatchmaking::instance().host_steam_id();ui_status="Lobby offen";
+            Config::instance().is_host=host;owner=net::SteamMatchmaking::instance().host_steam_id();ui_status="Lobby open";
             net::chat::Runtime::instance().set_lobby_admitted(true);chat_error.clear();chat_last_sequence=0;chat_draft_clear_failed=false;
             if(host){std::string error;auto& mm=net::SteamMatchmaking::instance();
-                framework_host_visibility=public_lobby?"Öffentlich":"Nur Freunde";
+                framework_host_visibility=public_lobby?"Public":"Friends only";
                 if(!mm.publish_lobby_data("mt2mp","1",error)||!mm.publish_lobby_data("host_name",net::SteamNetworking::instance().get_persona_name(owner),error)||
                    !mm.publish_lobby_data("mt2mp_version",MOD_VERSION,error)||!mm.publish_lobby_data("game_name","Welt wird ausgewählt",error)||
                    !mm.publish_lobby_data("lobby_state","open",error)||!mm.set_lobby_joinable(true,error)){metadata_failure(error);return;}
@@ -518,7 +518,7 @@ void dispatch_action(void* mode,std::string cmd) {
             std::string id;uint64_t number=0;
             if(!input_text("lobby_id",id,20)){pending=false;fail("native lobby ID field unreadable");return;}
             auto parse=std::from_chars(id.data(),id.data()+id.size(),number);
-            if(parse.ec!=std::errc{}||parse.ptr!=id.data()+id.size()||!number){pending=false;ui_status="Ungültige Lobby-ID";return;}
+            if(parse.ec!=std::errc{}||parse.ptr!=id.data()+id.size()||!number){pending=false;ui_status="Invalid lobby ID";return;}
             mm.join_lobby(number,completion);
         }
         return;
@@ -530,30 +530,30 @@ void dispatch_action(void* mode,std::string cmd) {
     if(cmd=="MT2MPLeave") {
         if(pending){fail("native Leave awaits actual pending admission callback; no cancellation replay");return;}
         std::string error;if(!lobby_prepare::leave(error)){fail("native Leave failed: "+error);return;}
-        ++generation;pending=false;choosing=false;ui_status="Sitzung wird beendet";return;
+        ++generation;pending=false;choosing=false;ui_status="Leaving session";return;
     }
     if(cmd=="MT2MPInvite") {
         const auto reject_invite=[](const char* detail,const char* status){fail(detail);ui_status=status;};
-        if(!mm.in_lobby()){reject_invite("Steam invite dialog rejected: no active lobby","Keine Steam-Lobby");return;}
+        if(!mm.in_lobby()){reject_invite("Steam invite dialog rejected: no active lobby","No Steam lobby");return;}
         const auto lobby_id=mm.current_lobby_id();
-        if(!lobby_id){reject_invite("Steam invite dialog rejected: active lobby ID is zero","Steam-Lobby-ID fehlt");return;}
+        if(!lobby_id){reject_invite("Steam invite dialog rejected: active lobby ID is zero","Steam lobby ID missing");return;}
         const auto steam=mt2mp::net::steam_module();
-        if(!steam){reject_invite("Steam invite dialog unavailable: selected Steam module unavailable","Steam-Bibliothek nicht verfügbar");return;}
+        if(!steam){reject_invite("Steam invite dialog unavailable: selected Steam module unavailable","Steam library unavailable");return;}
         using Access=void*(*)();using Enabled=bool(*)(void*);using Invite=void(*)(void*,uint64_t);
         auto friends=reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamFriends_v018"));
         auto utils=reinterpret_cast<Access>(GetProcAddress(steam,"SteamAPI_SteamUtils_v010"));
         auto enabled=reinterpret_cast<Enabled>(GetProcAddress(steam,"SteamAPI_ISteamUtils_IsOverlayEnabled"));
         auto invite=reinterpret_cast<Invite>(GetProcAddress(steam,"SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog"));
-        if(!friends){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamFriends_v018","Steam-Freundeschnittstelle fehlt");return;}
-        if(!utils){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamUtils_v010","Steam-Dienstschnittstelle fehlt");return;}
-        if(!enabled){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamUtils_IsOverlayEnabled","Steam-Overlayprüfung fehlt");return;}
-        if(!invite){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog","Steam-Einladungsfunktion fehlt");return;}
+        if(!friends){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamFriends_v018","Steam friends interface missing");return;}
+        if(!utils){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_SteamUtils_v010","Steam services interface missing");return;}
+        if(!enabled){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamUtils_IsOverlayEnabled","Steam overlay check unavailable");return;}
+        if(!invite){reject_invite("Steam invite dialog unavailable: missing export SteamAPI_ISteamFriends_ActivateGameOverlayInviteDialog","Steam invite function missing");return;}
         auto* f=friends();
-        if(!f){reject_invite("Steam invite dialog unavailable: SteamFriends interface is null","Steam-Freundeschnittstelle nicht bereit");return;}
+        if(!f){reject_invite("Steam invite dialog unavailable: SteamFriends interface is null","Steam friends interface not ready");return;}
         auto* u=utils();
-        if(!u){reject_invite("Steam invite dialog unavailable: SteamUtils interface is null","Steam-Dienstschnittstelle nicht bereit");return;}
-        if(!enabled(u)){reject_invite("Steam invite dialog unavailable: overlay disabled","Steam-Overlay deaktiviert");return;}
-        invite(f,lobby_id);cause.clear();ui_status="Steam-Einladungsdialog angefordert";
+        if(!u){reject_invite("Steam invite dialog unavailable: SteamUtils interface is null","Steam services interface not ready");return;}
+        if(!enabled(u)){reject_invite("Steam invite dialog unavailable: overlay disabled","Steam overlay disabled");return;}
+        invite(f,lobby_id);cause.clear();ui_status="Steam invite dialog requested";
         LOG_INFO("[NativeLobby] Steam invite dialog requested; recipient selection and delivery not confirmed");return;
     }
     fail("unknown native lobby command "+cmd);

@@ -26,10 +26,10 @@ Step step=Step::Idle;std::string operation,snapshot,failure,selected_path;bool s
 bool source_current_world=false,zero_day_reload_attempted=false;
 auto began=std::chrono::steady_clock::time_point{};
 uint64_t leave_confirmed=0;
-const char* label(){switch(step){case Step::Idle:return "Welt auswählen";case Step::LoadSelected:case Step::LoadOrigin:return "Welt wird geladen";
-case Step::CaptureLocal:case Step::CaptureShared:return "Spielstand wird erfasst";case Step::ReturnTitle:return "Welt wird vorbereitet";
-case Step::AwaitAck:return "Spielstand wird übertragen";case Step::Ready:return "Welt bereit";case Step::Starting:return "Sitzung wird gestartet";
-case Step::Playing:return "Verbunden";case Step::Leaving:return "Sitzung wird beendet";case Step::Handshake:return "Verbindung wird bestätigt";case Step::Failed:return "Sitzung nicht verfügbar";}return "Sitzung nicht verfügbar";}
+const char* label(){switch(step){case Step::Idle:return "Choose a world";case Step::LoadSelected:case Step::LoadOrigin:return "Loading world";
+case Step::CaptureLocal:case Step::CaptureShared:return "Capturing save";case Step::ReturnTitle:return "Preparing world";
+case Step::AwaitAck:return "Transferring save";case Step::Ready:return "World ready";case Step::Starting:return "Starting session";
+case Step::Playing:return "Connected";case Step::Leaving:return "Leaving session";case Step::Handshake:return "Confirming connection";case Step::Failed:return "Session unavailable";}return "Session unavailable";}
 bool fail(const std::string& error){if(step!=Step::Failed)LOG_ERROR("[NativeLobby] Prepare failed state={} cause={}",label(),error);failure=error;step=Step::Failed;return false;}
 void enter(Step next){step=next;began=std::chrono::steady_clock::now();LOG_INFO("[NativeLobby] Prepare state={}",label());}
 bool submit(const char* op,const nlohmann::json& args,Step next,std::string& error){if(!lobby_operations::submit(op,args,operation,error))return fail(error);enter(next);return true;}
