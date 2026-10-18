@@ -17,6 +17,16 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
+<picture>
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
+  <img src="docs/images/coverage.svg" alt="Feature coverage: 4 available, 7 partial, 2 planned, across 13 tracked areas" width="1200">
+</picture>
+
+Percentages count the listed areas equally. They describe feature coverage, not overall project completion or stability.
+
+<details>
+<summary>Feature details - what is included</summary>
+
 | Feature | Early Beta 15 | What is covered |
 | --- | --- | --- |
 | Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
@@ -26,21 +36,23 @@ Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplaye
 | Terrain and roads | ◐ Partial | Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned. |
 | Regions | ✅ Available | Share region purchases, biome styles and region levels. |
 | Pause and game speed | ✅ Available | Keep the same pause state and simulation speed. |
-| Research | ◐ Partial | Start Bridges research, assign workers and unlock it together. Other research is not covered by this overview. |
+| Research | ◐ Partial | Start Bridges research, assign workers and unlock it together. More research options are planned. |
 | NPC placement | ◐ Partial | Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority. |
 | Elite monsters | ◐ Partial | Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority. |
 | Save and resume | ◐ Partial | Continue from the Host's saved world. Wider support for saved objects is a next priority. |
 | More quests and combat | ○ Planned | More quest tools and live monster gameplay are in development for future releases. |
 | Four players and larger worlds | ○ Planned | The current focus is two-player co-op in small worlds. |
 
+</details>
+
 ## Roadmap
 
 <picture>
-  <source media="(max-width: 600px)" srcset="docs/images/roadmap-mobile.svg">
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/roadmap-mobile.svg">
   <img src="docs/images/roadmap.svg" alt="Roadmap: Available now - Build together. Next priorities - A living world. Longer term - Grow your world" width="1200">
 </picture>
 
-[Read the roadmap in text](docs/ROADMAP.md). Priorities can change; no release dates are promised.
+[Read the roadmap in text](docs/ROADMAP.md).
 <!-- roadmap:end -->
 
 ![A shared building in MMORPG Tycoon 2.](https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/building-together.png)

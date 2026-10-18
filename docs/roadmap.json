@@ -5,6 +5,7 @@
   "version_label": "Early Beta 15",
   "release_label": "Early Beta 15 - Shared building is available now",
   "graphic_title": "The road to a shared MMO world.",
+  "coverage_title": "Co-op feature coverage",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
   "overview_intro": "Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
@@ -21,11 +22,11 @@
     {"name": "Terrain and roads", "status": "partial", "scope": "Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned."},
     {"name": "Regions", "status": "available", "scope": "Share region purchases, biome styles and region levels."},
     {"name": "Pause and game speed", "status": "available", "scope": "Keep the same pause state and simulation speed."},
-    {"name": "Research", "status": "partial", "scope": "Start Bridges research, assign workers and unlock it together. Other research is not covered by this overview."},
+    {"name": "Research", "status": "partial", "scope": "Start Bridges research, assign workers and unlock it together. More research options are planned."},
     {"name": "NPC placement", "status": "partial", "scope": "Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority."},
     {"name": "Elite monsters", "status": "partial", "scope": "Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority."},
     {"name": "Save and resume", "status": "partial", "scope": "Continue from the Host's saved world. Wider support for saved objects is a next priority."},
     {"name": "More quests and combat", "status": "planned", "scope": "More quest tools and live monster gameplay are in development for future releases."},
-    {"name": "Four players and larger worlds", "status": "planned", "scope": "The current focus is two-player co-op in small worlds."}
+    {"name": "Four players and larger worlds", "short_name": "Larger sessions", "status": "planned", "scope": "The current focus is two-player co-op in small worlds."}
   ]
 }
