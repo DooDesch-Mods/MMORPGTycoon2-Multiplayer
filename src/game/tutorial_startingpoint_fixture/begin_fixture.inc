@@ -3,7 +3,10 @@ DWORD pay_project(uintptr_t image,uintptr_t project,bool& accepted){
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool begin_snapshot(const Pin& owner,tutorial_development::StartingpointSnapshot& s,json& diagnostic,std::string& e){
-    if(!tutorial_development::read_startingpoint(s,diagnostic,e,true))return false;
+    if(!tutorial_development::read_research(owner.tech_key,s,diagnostic,e,true))return false;
+    // Compare the same public diagnostic shape on both sides of the private
+    // selected snapshot. read() also includes the getter eligibility section.
+    if(!tutorial_development::read(diagnostic,e))return false;
     if(!same(owner.world,s.origin)||owner.lounge!=s.lounge||owner.player!=s.player||owner.inventory!=s.inventory||
        owner.slots!=s.slots||owner.items!=s.items||!s.creation||!s.row||!s.record)
         return fail(e,"startingpoint begin native Origin/catalogue/record/inventory differs");
@@ -11,7 +14,7 @@ bool begin_snapshot(const Pin& owner,tutorial_development::StartingpointSnapshot
 }
 bool begin_project(const Request& request,json& result,Progress*& phase,std::string& key,std::string& e){
     Pin p;if(!pin(request,p,e)||!before_begin(p.development,p.project,e))return false;
-    if(p.development!=request.expected_development)return fail(e,"startingpoint begin expected development differs");
+    if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint begin expected development differs");
     tutorial_development::StartingpointSnapshot before;json diagnostic;
     if(!begin_snapshot(p,before,diagnostic,e)||diagnostic!=p.development||before.project)return fail(e,e.empty()?"startingpoint begin private baseline differs":e);
     if(!tutorial_replication::startingpoint::creation::code(memory,p.image,e))return false;

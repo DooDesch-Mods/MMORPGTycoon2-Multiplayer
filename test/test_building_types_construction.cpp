@@ -2,6 +2,7 @@
 #include "developer_staff/construction_occurrence.h"
 #include "remove_diagnostics.h"
 #include "mt2mp/game/native_engine.h"
+#include "live_host_state/memory_query_timing.h"
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -85,10 +86,11 @@ template<class T>bool at(uintptr_t p,size_t offset,T& out,std::string& e){return
 const job_census::Read copy=[](auto p,auto out,auto size,auto& e){return fixture::memory.copy(p,out,size,e);};
 struct Target{remove_diagnostics::LocalTarget binding;uintptr_t region=0,shard=0;uint8_t active=0;int32_t state=0;};
 struct Actor{ActorPose pose;};
-bool actor(const Capture&,size_t slot,Actor& out,std::string& e){
+bool actor(const Capture&,size_t slot,Actor& out,std::string& e,bool=false){
     if(!fixture::actor_ok){e="actual actor failed";return false;}out.pose.id=static_cast<int32_t>(slot);return true;
 }
 #include "building_type_binding.inc"
+#include "building_type_jobs.inc"
 #include "building_type_graph.inc"
 }
 

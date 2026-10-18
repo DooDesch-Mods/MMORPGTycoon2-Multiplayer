@@ -38,8 +38,14 @@ bool valid(const MessageProgress& p,std::string& e){
 }
 bool valid(const State& s,std::string& e){
     if(s.startingpoint&&!startingpoint::valid(*s.startingpoint,e))return false;
+    if(s.research&&!research::valid(*s.research,e))return false;
+    if(s.startingpoint&&s.research){
+        const auto& a=*s.startingpoint;const auto& b=s.research->value;
+        if(a.release_change_count!=b.release_change_count||a.release_counter!=b.release_counter){e="Research and Startingpoint shared Release counters differ";return false;}
+        if(a.project_present&&b.project_present){e="Research and Startingpoint cannot both be current projects";return false;}
+    }
     if(s.terminal_startingpoint&&!startingpoint::valid(*s.terminal_startingpoint,e))return false;
-    if(s.staff_display){if(!s.startingpoint||!s.startingpoint->project_present||s.startingpoint->deployed){e="Staff display requires current Startingpoint row";return false;}if(!staff_display::valid(*s.staff_display,e))return false;}
+    if(s.staff_display){if(!(s.startingpoint&&s.startingpoint->project_present&&!s.startingpoint->deployed)&&!(s.research&&s.research->value.project_present&&!s.research->value.deployed)){e="Staff display requires current Startingpoint or Research row";return false;}if(!staff_display::valid(*s.staff_display,e))return false;}
     if(s.active.size()>2||s.terminal.size()>2){e="tutorial active/terminal state exceeds2";return false;}
     if(s.terminal.size()==2&&s.terminal.front().scenario!="initial_tutorial"){e="tutorial terminal receipts require fixed Initial/LevelTwo order";return false;}
     std::set<std::string> ids;bool initial_active=false,initial_terminal=false;
@@ -67,15 +73,19 @@ bool valid(const State& s,std::string& e){
 }
 nlohmann::json encode(const State& s){
     auto rows=nlohmann::json::array(),terminal=nlohmann::json::array();for(const auto& c:s.active)rows.push_back(cursor_encode(c));for(const auto& c:s.terminal)terminal.push_back(cursor_encode(c));
-    return {{"active",rows},{"initial_complete",s.initial_complete},{"leveltwo_complete",s.leveltwo_complete},{"startingpoint",s.startingpoint?startingpoint::encode(*s.startingpoint):nlohmann::json(nullptr)},{"staff_display",s.staff_display?staff_display::encode(*s.staff_display):nlohmann::json(nullptr)},
+    nlohmann::json result={{"active",rows},{"initial_complete",s.initial_complete},{"leveltwo_complete",s.leveltwo_complete},{"startingpoint",s.startingpoint?startingpoint::encode(*s.startingpoint):nlohmann::json(nullptr)},{"staff_display",s.staff_display?staff_display::encode(*s.staff_display):nlohmann::json(nullptr)},
         {"terminal",terminal},{"terminal_startingpoint",s.terminal_startingpoint?startingpoint::encode(*s.terminal_startingpoint):nlohmann::json(nullptr)},
         {"version",s.version?nlohmann::json(*s.version):nlohmann::json(nullptr)},{"terminal_version",s.terminal_version?nlohmann::json(*s.terminal_version):nlohmann::json(nullptr)},{"lifecycle_order",s.lifecycle_order},{"leveltwo_initial_next",s.leveltwo_initial_next}};
+    if(s.research)result["research"]=research::encode(*s.research);
+    return result;
 }
 bool decode(const nlohmann::json& j,State& out,std::string& e){out={};try{
-    if(j.contains("terminal"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint","staff_display","terminal","terminal_startingpoint","version","terminal_version","lifecycle_order","leveltwo_initial_next"});
+    if(j.contains("research"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint","research","staff_display","terminal","terminal_startingpoint","version","terminal_version","lifecycle_order","leveltwo_initial_next"});
+    else if(j.contains("terminal"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint","staff_display","terminal","terminal_startingpoint","version","terminal_version","lifecycle_order","leveltwo_initial_next"});
     else if(j.contains("staff_display"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint","staff_display"});else if(j.contains("startingpoint"))fields(j,{"active","initial_complete","leveltwo_complete","startingpoint"});else fields(j,{"active","initial_complete","leveltwo_complete"});
     if(!j.at("active").is_array()||j.at("active").size()>2||!j.at("initial_complete").is_boolean()||!j.at("leveltwo_complete").is_boolean())throw std::runtime_error("tutorial state types differ");State s;
     if(j.contains("startingpoint")&&!j.at("startingpoint").is_null()){startingpoint::Row r;if(!startingpoint::decode(j.at("startingpoint"),r,e))return false;s.startingpoint=r;}
+    if(j.contains("research")&&!j.at("research").is_null()){research::Row r;if(!research::decode(j.at("research"),r,e))return false;s.research=std::move(r);}
     if(j.contains("staff_display")&&!j.at("staff_display").is_null()){staff_display::State value;if(!staff_display::decode(j.at("staff_display"),value,e))return false;s.staff_display=std::move(value);}
     s.initial_complete=j.at("initial_complete").get<bool>();s.leveltwo_complete=j.at("leveltwo_complete").get<bool>();
     for(const auto& row:j.at("active")){Cursor c;if(!cursor_decode(row,c,e))return false;s.active.push_back(std::move(c));}

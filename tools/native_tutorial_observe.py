@@ -6,17 +6,22 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, hash_file, read_json, utc
 from lobby_ui.native_local_acceptance import button, observe, ready
+from runtime import FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind, candidate_binary_receipt
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
 parser.add_argument('--test-root', type=Path, default=ROOT / '_MPTest')
 parser.add_argument('--start', action='store_true')
+parser.add_argument('--candidate-binary', type=Path, help='Exact selected mod build artifact; required for Framework plugin mode')
 parser.add_argument('--world', help='Select an existing owned fixture instead of creating a world')
 parser.add_argument('--fixture-snapshot', help='Load one verified diagnostic snapshot after admission')
 parser.add_argument('--development', action='store_true', help='Read the joined Starting Point project, record and inventory baseline')
+parser.add_argument('--wait-seconds', type=int, default=60, help='Bound state observation without repeating the world start')
 args = parser.parse_args()
+if not 5 <= args.wait_seconds <= 900:
+    parser.error('wait-seconds must be between 5 and 900')
 args.players, args.cleanup = 2, False
-args.step_timeout, args.ready_timeout, args.wait_seconds = 45, 60, 60
+args.step_timeout, args.ready_timeout = 45, 60
 runner = AcceptanceRunner(args)
 runner.summary['scope'] = ('read-only Starting Point development and inventory baseline on two owned peers'
                            if args.development else 'read-only native tutorial observation on two owned peers; no shared tutorial progression claim')
@@ -24,11 +29,18 @@ try:
     runner.load_manifests()
     if runner.summary['runtime_run_id'] != args.expected_run_id:
         raise AcceptanceError('Owned run differs; no game operation attempted')
-    expected = hash_file(ROOT / 'build/bin/Release/MT2_Multiplayer.dll')
+    candidates = {}
     for peer, manifest in runner.manifests.items():
-        if read_json(manifest)['installed_binary_sha256']['MT2_Multiplayer.dll'] != expected:
-            raise AcceptanceError('Observer DLL differs on ' + peer)
+        identity = read_json(manifest)
+        candidate = args.candidate_binary
+        if candidate is None and manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
+            candidate = ROOT / 'build/bin/Release/MT2_Multiplayer.dll'
+        candidates[peer] = candidate_binary_receipt(identity, candidate)
+    expected = candidates['host']['sha256']
+    if any(value['sha256'] != expected or value['module'] != candidates['host']['module'] for value in candidates.values()):
+        raise AcceptanceError('Observer candidate differs between peers')
     runner.summary['dll_sha256'] = expected
+    runner.summary['candidate_binaries'] = candidates
     if args.start:
         for peer in ('host', 'client-1'):
             runner.poll_title(peer)

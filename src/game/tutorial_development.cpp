@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "tutorial_development.h"
 #include "native_open_runtime.h"
 #include "placement_ui_probe/ui_probe.h"
@@ -42,12 +43,17 @@ public:
                 if(mt2mp::sha256(bytes)!=body.sha){error="development research original getter body differs RVA="+std::to_string(body.rva);return false;}}
             research_guarded_=true;
         }
+        live_host_state::apply_timing::PageReadScope getter_scope(live_host_state::apply_timing::PageBoundary::OriginalCall);
         const auto fault=research_call(image,project,out);
         if(fault){error="development research original getter exception="+std::to_string(fault);return false;}return true;
     }
     bool copy(uintptr_t address,void* out,size_t count,std::string& error)override{return memory_.copy(address,out,count,error);}
 };
 }
-bool read(nlohmann::json& result,std::string& error){NativePort port;StartingpointSnapshot snapshot;return detail::observe(port,result,error,&snapshot,false,true);}
-bool read_startingpoint(StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error,bool creation){NativePort port;return detail::observe(port,result,error,&snapshot,creation);}
+bool read(nlohmann::json& result,std::string& error){live_host_state::apply_timing::PageReadScope pages;NativePort port;StartingpointSnapshot snapshot;return detail::observe(port,result,error,&snapshot,false,true);}
+bool read_startingpoint(StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error,bool creation,bool share_metadata){live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);NativePort port;return detail::observe(port,result,error,&snapshot,creation);}
+bool read_research(const std::string& key,StartingpointSnapshot& snapshot,nlohmann::json& result,std::string& error,bool creation,bool share_metadata){
+    live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);NativePort port;return detail::observe(port,result,error,&snapshot,creation,false,key);
+}
+
 }

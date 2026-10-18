@@ -237,7 +237,7 @@ class RuntimeTests(unittest.TestCase):
         atomic_json(self.diagnostics / "status.json", status)
         self.assert_error("stale_status", self.runtime.available)
         self.assertEqual({tool.name for tool in tools_for(self.runtime)},
-                         {"list_instances", "bind_runtime", "runtime_status", "read_logs", "observe_pending", "recover_pending"})
+                         {"list_instances", "bind_runtime", "runtime_status", "read_logs", "observe_pending", "recover_pending", "read_subscriber_lifecycle"})
 
     def test_wrong_runtime_manifest_rejected(self):
         manifest = dict(self.manifest)

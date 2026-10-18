@@ -1,7 +1,7 @@
 bool client_staff(const Request& request,json& result,Progress*& phase,std::string& key,std::string& e){
-    const bool is_show=request.operation=="client_staff_show";
+    const bool is_show=request.operation=="client_staff_show"||request.operation=="client_bridges_staff_show";
     Pin p;if(!pin(request,p,e,true))return false;
-    if(p.development!=request.expected_development)return fail(e,"startingpoint Client Staff expected development differs");
+    if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint Client Staff expected development differs");
     tutorial_development::StartingpointSnapshot snapshot;json diagnostic;
     if(!begin_snapshot(p,snapshot,diagnostic,e)||diagnostic!=p.development||!staff_baseline(p,snapshot,e))
         return fail(e,e.empty()?"startingpoint Client Staff private baseline differs":e);
@@ -14,7 +14,7 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
     if(!economy.read(ledger_before,e)||!native::read_simulation_state(simulation_before,e))return false;
     int32_t available=0;if(!at(ledger_before.business,0x4c,available,e))return false;
     json measured;json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
-    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff";
+    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
     if((is_show&&phase->shown)||(!is_show&&phase->begun))return fail(e,"startingpoint Client Staff phase consumed; no replay");
     StaffUI ui;
@@ -82,7 +82,7 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
 bool client_staff_state(const Request& request,json& result,std::string& e){
     Pin p;tutorial_development::StartingpointSnapshot snapshot;json diagnostic,ui;StaffUI owners;
     if(!pin(request,p,e,true)||!begin_snapshot(p,snapshot,diagnostic,e)||!staff_baseline(p,snapshot,e)||!staff_ui_code(p.image,e))return false;
-    if(p.development!=request.expected_development||diagnostic!=p.development)return fail(e,"startingpoint Staff state expected development differs");
+    if(!same_expected_development(p.development,request.expected_development)||diagnostic!=p.development)return fail(e,"startingpoint Staff state expected development differs");
     action_session::Context context,current;if(!action_session::selected_session().current(context,e))return false;
     action_session::Binding binding;if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
     live_host_state::NativePort economy(context,binding,nullptr);live_host_state::Pin ledger_before,ledger_after;
@@ -96,7 +96,7 @@ bool client_staff_state(const Request& request,json& result,std::string& e){
     if(!action_session::selected_session().current(current,e)||current!=context)return fail(e,e.empty()?"startingpoint Staff state common Context changed":e);
     result={{"operation",request.operation},{"token",request.token},{"attempted",false},{"returned",true},{"confirmed",true},{"unknown",false},
         {"read_only",true},{"ready",ui.at("ready")},{"cause",ui.at("cause")},{"ui",ui}};
-    const auto key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff";
+    const auto key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff:"+p.tech_key;
     const auto prior=worlds.find(key);result["phase_locked"]=prior!=worlds.end()&&prior->second.locked;
     if(prior!=worlds.end()&&prior->second.locked)result["phase_cause"]=prior->second.cause;
     return true;

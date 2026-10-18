@@ -17,7 +17,7 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/overlay/notification_overlay.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <bcrypt.h>
 #include <atomic>
 #include <cstdio>
@@ -25,6 +25,9 @@
 #include <intrin.h>
 #include <optional>
 #include <exception>
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/framework_runtime.h"
+#endif
 
 namespace mt2mp::game::native_open_runtime {
 bool read_current_world(building_mixed_identity::opened_file::CurrentWorld&,std::string&);
@@ -71,6 +74,13 @@ struct Runtime {
     placement_kiss::Update original=nullptr;
     Purchase purchase=nullptr;Add add=nullptr;Undo undo=nullptr;
     Scope* scope=nullptr;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    struct CreatePair {MT2FW_MT2_CreateCall call{};Scope* scope=nullptr;};
+    std::array<CreatePair,64> framework_creates{};
+    size_t framework_create_depth=0,framework_create_overflow=0;
+    uint64_t framework_create_token=0;
+    bool framework_create_failed=false;
+#endif
     uint64_t captured=0,forwarded=0,rejected=0;
     std::string last_action;
     uintptr_t ui_build_receiver=0;
@@ -114,6 +124,7 @@ bool purchase_entry(const void* type,const void* position) {
     if(scope&&!scope->scenery){++scope->purchase_returned;if(!result&&scope->cause.empty())scope->cause="native building purchase rejected";}
     return result;
 }
+#ifndef MT2MP_FRAMEWORK_PLUGIN
 void* add_entry(void* manager,const void* type,const void* variant,const void* transform,
                 void* layout,void* theme,void* plan,bool purchase) {
     auto* runtime=published.load(std::memory_order_acquire);
@@ -123,6 +134,9 @@ void* add_entry(void* manager,const void* type,const void* variant,const void* t
     if(scope&&!scope->scenery){++scope->add_returned;scope->building=result;}
     return result;
 }
+#else
+#include "framework_create_observer.inc"
+#endif
 void undo_entry(void* manager,const void* label,void* graph) {
     auto* runtime=published.load(std::memory_order_acquire);
     auto* scope=runtime->thread==GetCurrentThreadId()?runtime->scope:nullptr;
@@ -391,7 +405,9 @@ bool enable(std::string& error) {
     };
     if(!install(0x593cc0,reinterpret_cast<void*>(&update_entry),reinterpret_cast<void**>(&runtime->original))||
        !install(0x40bb10,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&runtime->purchase))||
+#ifndef MT2MP_FRAMEWORK_PLUGIN
        !install(0x24ed30,reinterpret_cast<void*>(&add_entry),reinterpret_cast<void**>(&runtime->add))||
+#endif
        !install(0x53b260,reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))||
        !runtime->build.publish_typed_original(runtime->original,error)||
        !install(0x5d4620,reinterpret_cast<void*>(&scene_update_entry),reinterpret_cast<void**>(&runtime->scene_update))||
@@ -404,7 +420,13 @@ bool enable(std::string& error) {
     runtime->scene_originals={uintptr_t(runtime->scene_update),uintptr_t(runtime->scene_purchase),uintptr_t(runtime->scene_add),uintptr_t(runtime->scene_press),uintptr_t(runtime->erase_press),uintptr_t(runtime->scene_release)};
     if(!scenery_kiss::validate_ui_trampolines(runtime->image,runtime->scene_originals,error))return fail();
     published.store(runtime,std::memory_order_release);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    if(!framework_subscribe_create(*runtime,error))return fail();
+#endif
     for(const auto rva:{0x593cc0,0x40bb10,0x24ed30,0x53b260,0x5d4620,0x448330,0x2cb340,0x5cf440,0x5d64e0,0x5d0600}) {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        if(rva==0x24ed30)continue;
+#endif
         const auto result=MH_EnableHook(reinterpret_cast<void*>(runtime->image+rva));
         if(result!=MH_OK){error="building capture EnableHook failed: "+std::string(MH_StatusToString(result));return fail();}
     }
@@ -414,12 +436,28 @@ bool enable(std::string& error) {
     runtime->ready=true;runtime->cause.clear();error.clear();
     LOG_INFO("[UIBuild] Original building Update capture enabled");return true;
 }
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+bool framework_retire(std::string& error)try {
+    auto* runtime=published.load(std::memory_order_acquire);
+    if(!runtime||!runtime->framework_create_token){error.clear();return true;}
+    if(runtime->thread!=GetCurrentThreadId()||runtime->scope||runtime->replaying||runtime->framework_create_depth||runtime->framework_create_overflow){error="Framework CreateBuilding retirement waits for idle bound-thread scopes";return false;}
+    const auto& routes=framework_runtime::routes();
+    const auto result=routes.create_unsubscribe(routes.context,runtime->framework_create_token);
+    if(result!=MT2FW_MT2_OK){error="Framework CreateBuilding retirement failed result="+std::to_string(result);return false;}
+    runtime->framework_create_token=0;runtime->ready=false;error.clear();return true;
+}catch(const std::exception& problem){error=std::string("Framework CreateBuilding retirement exception: ")+problem.what();return false;}
+catch(...){error="Framework CreateBuilding retirement nonstandard exception";return false;}
+#endif
 bool enabled()noexcept {const auto* runtime=published.load(std::memory_order_acquire);return runtime&&runtime->ready&&runtime->thread==GetCurrentThreadId();}
 bool place_scenery(Runtime&,const action::Request&,action::BuildingState&,json&,std::string&);
 bool place(const action::Request& request,action::BuildingState& state,json& receipt,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
     receipt=json::object();state={};
-    if(!enabled()||runtime->replaying||runtime->receipts.contains(request.action_uuid)) {
+    if(!enabled()||runtime->replaying||runtime->receipts.contains(request.action_uuid)
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+       ||runtime->framework_create_failed
+#endif
+    ) {
         error="native building action unavailable, reentrant or already attempted";return false;
     }
     bool scenery=false;

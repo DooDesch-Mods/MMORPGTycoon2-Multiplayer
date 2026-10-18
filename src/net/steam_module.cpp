@@ -12,7 +12,7 @@ HMODULE steam_module(){
             const auto* installed=installed_profile::get();
             const auto game=installed?installed->game_dir:std::filesystem::path(config.game_dir);
             if(game.empty()||!game.is_absolute())throw std::runtime_error("Steam module game directory unavailable");
-            const auto expected=game/(installed?L"steam_api64.dll":L"steam_api64_original.dll");
+            const auto expected=game/((installed||config.framework_profile_verified)?L"steam_api64.dll":L"steam_api64_original.dll");
             if(!private_profile::equal(private_profile::canonical_file(expected),expected))
                 throw std::runtime_error("Steam selected module path is an alias outside its exact game location");
             HMODULE module=nullptr;

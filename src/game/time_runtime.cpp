@@ -246,7 +246,7 @@ struct Runtime::Impl {
         if(!ui_domain(s.observed.clock.selected)){
             if(!bridge.disable_capture(e))return false;
             e="host_scale_outside_capture_domain_original_forward";return false;}
-        return bridge.set_host_state(bound.epoch,s.observed.revision,s.observed.clock.selected,s.observed.clock.pause,e)&&bridge.enable_capture(state.hook_mask,e);
+        return bridge.set_host_state_and_enable_capture(bound.epoch,s.observed.revision,s.observed.clock.selected,s.observed.clock.pause,state.hook_mask,e);
     }
 };
 Runtime::Runtime():impl_(std::make_unique<Impl>()){}

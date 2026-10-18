@@ -14,8 +14,8 @@ struct Controller {action::Context context;action::Binding binding;Status value;
     Status status()const{return value;}const action::Context& bound_context()const{return context;}action::Binding bound_binding()const{return binding;}};
 struct Session {action::Context context;bool current(action::Context& out,std::string&){out=context;return true;}};
 struct Engine {bool valid=true;bool current(const action::Binding&,const std::string&,std::string& e){if(!valid)e="exact native world changed";return valid;}};
-struct Bridge {economy::State state;bool has=true,is_locked=false;bool locked()const{return is_locked;}
-    const economy::State* weapon_economy()const{return has?&state:nullptr;}const economy::State* committed_economy()const{return weapon_economy();}};
+struct Bridge {economy::State state;std::optional<economy::State> applying;bool has=true,is_locked=false;bool locked()const{return is_locked;}
+    const economy::State* weapon_economy()const{return applying?&*applying:committed_economy();}const economy::State* committed_economy()const{return has?&state:nullptr;}};
 struct Fence {bool is_locked=false;std::string failure;bool locked()const{return is_locked;}const std::string& cause()const{return failure;}
     void journal_failed(const std::string& e){is_locked=true;failure=e;}};
 Fence fence;
@@ -75,6 +75,22 @@ int main(){try{
     {World w;visual::Lease lease;bool owned=false;std::string error;need(rt::weapon_owner(uintptr_t(w.toon.data()),lease,owned,error)&&lease.subscriber_id==59,"actual owner lost serialized ID");
         visual::Receipt r;r.owned=r.confirmed=true;r.subscriber_id=lease.subscriber_id;rt::weapon_publish(lease.toon,r);
         auto status=rt::weapon_status(w.runtime);need(status.at("subscriber_id")==59&&status.at("toon_address")==uintptr_t(w.toon.data()),"published diagnostic receiver differs from receipt");}
+    for(bool applying:{false,true}){
+        World w;auto& bridge=*w.runtime.live_state;bridge.state.day.frame.revision=148;
+        if(applying){bridge.applying=bridge.state;bridge.applying->day.frame.revision=149;bridge.applying->subscribers.clear();}
+        else bridge.state.subscribers.clear();
+        put(w.subscriber.data(),0x20,int32_t(158));
+        visual::Lease lease;bool owned=false;std::string error;
+        need(!rt::weapon_owner(uintptr_t(w.toon.data()),lease,owned,error)&&owned&&
+            error=="Weapon authority Subscriber absent from admitted Economy","absent authority was weakened");
+        const auto& d=lease.authority_failure;
+        need(lease.subscriber_id==158&&d.at("subscriber_id")==158&&d.at("actual_subscriber_count")==1,"actual failed owner ID missing");
+        need(d.at("selected")== (applying?"applying":"committed")&&d.at("selected_frame").at("revision")==(applying?149:148)&&
+            d.at("selected_frame").at("id_matches")==0&&d.at("committed_frame").at("revision")==148,"authority phase/revision/membership differs");
+        visual::Receipt r;r.owned=true;r.subscriber_id=lease.subscriber_id;r.authority_failure=d;r.cause=error;
+        rt::weapon_publish(lease.toon,r);const auto status=rt::weapon_status(w.runtime);
+        need(status.at("authority_failure")==d&&fixture::fence.locked()&&status.at("cause")==error,"diagnostic changed failure or lost status");
+    }
     {World w;w.runtime.controller.context.role=action::Role::Host;bool owned=true;std::string error;need(w.owner(owned,error)&&!owned,"Host not passed through");}
     {World w;w.runtime.thread=0;bool owned=false;std::string error;need(!w.owner(owned,error)&&owned&&error.find("Mainthread")!=std::string::npos,"identified off-thread Client fell back");}
     {World w;w.runtime.controller.value.locked=true;bool owned=false;std::string error;need(!w.owner(owned,error)&&owned,"locked Client lost ownership");}

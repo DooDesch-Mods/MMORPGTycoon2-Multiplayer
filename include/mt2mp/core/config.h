@@ -40,6 +40,8 @@ struct Config {
     bool chat_visible = false;
     bool local_test = false;
     bool installed_profile_verified = false;
+    bool framework_profile_verified = false;
+    std::string framework_profile_directory;
     bool diagnostic_mailbox_enabled = false;
     std::string runtime_root;
     std::string run_id;

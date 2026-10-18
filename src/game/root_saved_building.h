@@ -6,6 +6,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "live_host_state/memory_query_timing.h"
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
@@ -21,7 +22,7 @@ inline DWORD copy(const void* source, void* target, size_t size) {
 inline bool bytes(const void* object, size_t offset, void* value, size_t size, std::string& error) {
     const auto address = reinterpret_cast<uintptr_t>(object);
     MEMORY_BASIC_INFORMATION memory{};
-    if (!object || address > UINTPTR_MAX - offset || !VirtualQuery(reinterpret_cast<void*>(address + offset), &memory, sizeof(memory)) ||
+    if (!object || address > UINTPTR_MAX - offset || !mt2mp::game::live_host_state::apply_timing::virtual_query(reinterpret_cast<void*>(address + offset), &memory, sizeof(memory),mt2mp::game::live_host_state::apply_timing::Part::QuerySavedFields) ||
         memory.State != MEM_COMMIT || (memory.Protect & (PAGE_NOACCESS | PAGE_GUARD)) || size > memory.RegionSize ||
         address + offset - reinterpret_cast<uintptr_t>(memory.BaseAddress) > memory.RegionSize - size) {
         error = "root saved field unreadable offset=" + std::to_string(offset); return false;

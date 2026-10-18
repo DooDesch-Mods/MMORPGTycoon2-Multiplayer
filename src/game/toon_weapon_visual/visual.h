@@ -15,6 +15,7 @@ struct Lease {
     std::array<uintptr_t,5> origin{};
     uint64_t origin_bytes=0;
     std::string origin_uuid,origin_sha;
+    nlohmann::json authority_failure=nullptr;
     bool operator==(const Lease&)const=default;
 };
 struct Call { bool attempted=false,returned=false;uint32_t exception=0; };
@@ -25,6 +26,7 @@ struct RandomObservation {
 };
 struct Receipt {
     RandomObservation random;
+    nlohmann::json authority_failure=nullptr,native_callers=nullptr;
     int32_t subscriber_id=-1;
     bool owned=false,deferred=false,attempted=false,confirmed=false,unknown=false;
     bool hook=false,forwarded=false;

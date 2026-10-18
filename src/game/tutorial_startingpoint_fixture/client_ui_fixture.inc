@@ -1,14 +1,14 @@
 bool client_ui(const Request& request,json& result,Progress*& phase,std::string& key,std::string& e){
     const bool is_show=request.operation=="client_show";
     Pin p;if(!pin(request,p,e,true)||!before(p,e))return false;
-    if(p.development!=request.expected_development)return fail(e,"startingpoint Client fixture expected development differs");
+    if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint Client fixture expected development differs");
     action_session::Context context;action_session::Binding binding;
     if(!action_session::selected_session().current(context,e)||context.role!=action_session::Role::Client||
        !typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return fail(e,e.empty()?"startingpoint Client fixture current session differs":e);
     live_host_state::NativePort economy(context,binding,nullptr);live_host_state::Pin ledger_before,ledger_after;
     if(!economy.read(ledger_before,e))return false;
     json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
-    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client";
+    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
     if((is_show&&phase->shown)||(!is_show&&phase->committed))return fail(e,"startingpoint Client fixture phase consumed; no replay");
     if(is_show){if(!development_window(p,e))return false;}

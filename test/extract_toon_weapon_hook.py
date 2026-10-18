@@ -14,4 +14,6 @@ while depth:
     depth += (source[end] == '{') - (source[end] == '}')
     end += 1
 args.output.parent.mkdir(parents=True, exist_ok=True)
-args.output.write_text(source[start:end] + '\n', encoding='utf-8')
+helper_start = source.index('void capture_failure_callers(Receipt& receipt){')
+helper_end = source.index('\nvoid publish(', helper_start)
+args.output.write_text(source[helper_start:helper_end] + '\n' + source[start:end] + '\n', encoding='utf-8')

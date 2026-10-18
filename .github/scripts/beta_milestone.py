@@ -49,8 +49,8 @@ def ensure_tag(tag, commit, call=None):
     if not tag.startswith('v') or not VERSION.fullmatch(tag[1:]) or not re.fullmatch(r'[0-9a-f]{40}', commit):
         raise ValueError('invalid milestone tag or source commit')
     base = 'https://api.github.com/repos/' + REPOSITORY
-    if call('GET', base).get('private') is not True:
-        raise ValueError('milestone tags require the private repository')
+    if call('GET', base).get('full_name') != REPOSITORY:
+        raise ValueError('milestone repository identity differs')
     reference = call('GET', base + '/git/ref/tags/' + tag, missing=True)
     if reference is None:
         if call('GET', base + '/git/commits/' + commit).get('sha') != commit:

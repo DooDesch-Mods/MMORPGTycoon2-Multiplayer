@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "tutorial_observer.h"
 #include "native_open_runtime.h"
 #include "tutorial_replication/native.h"
@@ -29,7 +30,7 @@ public:
         if(!address||!target||!count||address>std::numeric_limits<uintptr_t>::max()-count){error="tutorial memory range invalid";return false;}
         const auto end=address+count;auto cursor=address;
         while(cursor<end){MEMORY_BASIC_INFORMATION info{};
-            if(!VirtualQuery(reinterpret_cast<const void*>(cursor),&info,sizeof(info))||info.State!=MEM_COMMIT||
+            if(!live_host_state::apply_timing::virtual_query(reinterpret_cast<const void*>(cursor),&info,sizeof(info))||info.State!=MEM_COMMIT||
                (info.Protect&(PAGE_GUARD|PAGE_NOACCESS))||!(info.Protect&(PAGE_READONLY|PAGE_READWRITE|PAGE_WRITECOPY|PAGE_EXECUTE_READ|PAGE_EXECUTE_READWRITE|PAGE_EXECUTE_WRITECOPY))){error="tutorial native memory not readable";return false;}
             const auto base=reinterpret_cast<uintptr_t>(info.BaseAddress);
             if(base>std::numeric_limits<uintptr_t>::max()-info.RegionSize||base+info.RegionSize<=cursor){error="tutorial native memory region range invalid";return false;}
@@ -41,5 +42,5 @@ public:
     }
 };
 }
-bool read(nlohmann::json& result,std::string& error){NativePort port;return detail::observe(port,result,error);}
+bool read(nlohmann::json& result,std::string& error){live_host_state::apply_timing::PageReadScope pages;NativePort port;return detail::observe(port,result,error);}
 }

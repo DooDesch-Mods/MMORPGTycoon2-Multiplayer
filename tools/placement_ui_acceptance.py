@@ -5,18 +5,61 @@ import uuid
 from pathlib import Path
 from local_acceptance import AcceptanceRunner, AcceptanceError, ROOT, read_json, compare_ledgers, placement_expense, utc, log
 
-def main():
+from runtime import Runtime, FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind, candidate_binary_receipt
+
+
+def validate_candidate(runner, frozen, candidate_binary):
+    for peer in ('host', 'client-1'):
+        path = runner.manifests[peer]
+        identity = read_json(path)
+        if manifest_runtime_kind(identity) == FRAMEWORK_PLUGIN_KIND:
+            bound = Runtime(runner.root).bind(str(path))
+            if bound.get('process_identity_verified') is not True:
+                raise AcceptanceError('exact Framework process identity is not verified: ' + peer)
+            receipt = candidate_binary_receipt(identity, candidate_binary)
+        elif candidate_binary is not None:
+            receipt = candidate_binary_receipt(identity, candidate_binary)
+        else:
+            receipt = {'module': 'MT2_Multiplayer.dll', 'sha256': identity['installed_binary_sha256']['MT2_Multiplayer.dll']}
+        if receipt['sha256'] != frozen['dll_sha256']:
+            raise AcceptanceError('installed DLL differs from freeze: ' + peer)
+        runner.checked('selected-candidate-' + peer, receipt)
+
+
+def prepare_buildings_tab(runner, origin):
+    token = str(uuid.uuid4())
+    runner.summary['buildings_tab_token'] = token
+    runner.persist()
+    receipt = runner.single('prepare-buildings-tab-once', 'client-1', 'game_native_buildings_tab', {
+        'acceptance_token': token, 'snapshot_uuid': origin['uuid'],
+        'expected_world_epoch': origin['world_epoch'], 'expected_generation': origin['generation']})
+    deadline = time.monotonic() + 45
+    while True:
+        if receipt.get('confirmed') is not True or receipt.get('unknown') is not False:
+            raise AcceptanceError('Original Buildings tab input unconfirmed; no Press replay')
+        if receipt.get('tab_ready') is True:
+            runner.checked('original-buildings-tab-ready', receipt)
+            return receipt
+        if time.monotonic() >= deadline:
+            raise AcceptanceError('Original Buildings tab readiness timed out after45s; no Press replay')
+        receipt = runner.single('observe-buildings-tab', 'client-1', 'game_read_buildings_tab',
+                                {'acceptance_token': token})
+
+
+def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--setup', type=Path, required=True)
     parser.add_argument('--test-root', type=Path, default=ROOT / '_MPTest')
     parser.add_argument('--freeze', type=Path, required=True)
+    parser.add_argument('--candidate-binary', type=Path, help='Exact selected mod artifact; required for Framework plugin mode')
     parser.add_argument('--x', type=float, default=8100)
     parser.add_argument('--z', type=float, default=8550)
     parser.add_argument('--reuse-installed', action='store_true')
     parser.add_argument('--type', default='SmallInn')
     parser.add_argument('--variant', default='base')
     parser.add_argument('--expected-cost', type=int)
-    args = parser.parse_args()
+    parser.add_argument('--prepare-buildings-tab', action='store_true', help='Select the original Buildings tab once before placement')
+    args = parser.parse_args(argv)
     args.players = 2; args.cleanup = False; args.step_timeout = 45
     runner = AcceptanceRunner(args)
     runner.summary['scope'] = 'one genuine Client ItemButton and cursor request, actual normal GameUpdate capture, original native commit per peer and exact Host completion'
@@ -25,8 +68,8 @@ def main():
         if setup.get('passed') is not True:raise AcceptanceError('fixture setup failed')
         runner.load_manifests()
         if runner.summary['runtime_run_id'] != setup.get('new_run_id', setup.get('runtime_run_id')):raise AcceptanceError('owned setup run differs')
+        validate_candidate(runner, frozen, args.candidate_binary)
         for peer in ('host', 'client-1'):
-            if read_json(runner.manifests[peer])['installed_binary_sha256']['MT2_Multiplayer.dll'] != frozen['dll_sha256']:raise AcceptanceError('installed DLL differs: ' + peer)
             prior = runner.inspect(peer + '-read-current-installation', peer) if args.reuse_installed else {}
             if not prior.get('typed_actions', {}).get('started'):
                 runner.single(peer + '-start-controller', peer, 'game_start_typed_actions')
@@ -40,6 +83,8 @@ def main():
         initial = compare_ledgers(before['host'], before['client-1'])
         base_confirmed = before['host']['typed_actions']['confirmed']
         if before['client-1']['typed_actions']['confirmed'] != base_confirmed: raise AcceptanceError('initial Controller confirmation counts differ')
+        if args.prepare_buildings_tab:
+            prepare_buildings_tab(runner, before['client-1']['native_open_origin'])
         ground = runner.single('readonly-client-ground', 'client-1', 'game_probe_building_placement', {'type':args.type,'variant':args.variant,'x':args.x,'z':args.z})
         origin = before['client-1']['native_open_origin']
         token = str(uuid.uuid4())

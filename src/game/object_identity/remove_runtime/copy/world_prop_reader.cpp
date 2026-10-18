@@ -1,4 +1,5 @@
 #include "world_prop_reader.h"
+#include "live_host_state/memory_query_timing.h"
 #include <algorithm>
 #include <limits>
 #include <set>
@@ -27,9 +28,22 @@ bool array(Memory& m,uintptr_t data,int32_t count,int32_t capacity,std::vector<u
     const auto bytes=static_cast<size_t>(count)*sizeof(uintptr_t);
     if(bytes&&(!data||data>UINTPTR_MAX-bytes))return fail(e,"remove_reader_array_range");
     out.clear();std::set<uintptr_t> unique;
-    // Read each physical slot before growing storage; a corrupt count cannot reserve gigabytes.
-    for(int32_t i=0;i<count;++i){uintptr_t value=0;if(!m.copy(data+static_cast<size_t>(i)*sizeof(value),&value,sizeof(value),e))return false;
-        if(!value||!unique.insert(value).second)return fail(e,"remove_reader_array_null_or_duplicate");out.push_back(value);}
+    // Bound temporary storage independently of the native count; every slot is still validated.
+    uintptr_t values[64]{};
+    for(size_t first=0;first<static_cast<size_t>(count);){
+        const auto slots=std::min(size_t(64),static_cast<size_t>(count)-first);
+        std::string chunk_error;
+        const bool copied=m.copy(data+first*sizeof(uintptr_t),values,slots*sizeof(uintptr_t),chunk_error);
+        for(size_t i=0;i<slots;++i){
+            // A later unreadable slot must not hide an earlier null or duplicate.
+            if(!copied&&!m.copy(data+(first+i)*sizeof(uintptr_t),&values[i],sizeof(uintptr_t),e))return false;
+            const auto value=values[i];
+            if(!value||!unique.insert(value).second)return fail(e,"remove_reader_array_null_or_duplicate");
+            out.push_back(value);
+        }
+        if(!copied){if(e.empty())e=chunk_error;return false;}
+        first+=slots;
+    }
     return true;
 }
 bool list(Memory& m,uintptr_t base,size_t off,std::vector<uintptr_t>& out,std::string& e){
@@ -50,7 +64,7 @@ bool ProcessMemory::copy(uintptr_t address,void* out,size_t bytes,std::string& e
     if(!address||!out||!bytes||address>UINTPTR_MAX-bytes)return fail(e,"remove_memory_range");
     uintptr_t cursor=address;const uintptr_t end=address+bytes;
     while(cursor<end){MEMORY_BASIC_INFORMATION info{};
-        if(!VirtualQuery(reinterpret_cast<void*>(cursor),&info,sizeof(info))||info.State!=MEM_COMMIT||(info.Protect&(PAGE_NOACCESS|PAGE_GUARD)))return fail(e,"remove_memory_page_unreadable");
+        if(!mt2mp::game::live_host_state::apply_timing::virtual_query(reinterpret_cast<void*>(cursor),&info,sizeof(info),mt2mp::game::live_host_state::apply_timing::Part::QueryWorldProp)||info.State!=MEM_COMMIT||(info.Protect&(PAGE_NOACCESS|PAGE_GUARD)))return fail(e,"remove_memory_page_unreadable");
         const auto start=reinterpret_cast<uintptr_t>(info.BaseAddress);
         if(start>UINTPTR_MAX-info.RegionSize||start+info.RegionSize<=cursor)return fail(e,"remove_memory_page_range");
         cursor=std::min(end,start+info.RegionSize);
@@ -68,6 +82,7 @@ bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& a
 }
 bool same_world(const opened::CurrentWorld& a,const opened::CurrentWorld& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.uuid==b.uuid&&a.sha256==b.sha256&&a.bytes==b.bytes;}
 bool Reader::current(WorldState& out,bool idle,std::string& e){
+    mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropCurrent);
     out={};e.clear();if(world_busy_)return fail(e,"remove_world_reader_reentrant");Busy busy(world_busy_);
     if(!thread_||GetCurrentThreadId()!=thread_)return fail(e,"remove_world_wrong_thread");
     if(!image_||!api_.find||!api_.cast)return fail(e,"remove_world_resolver_missing");
@@ -88,12 +103,15 @@ bool Reader::current(WorldState& out,bool idle,std::string& e){
     return true;
 }
 bool Reader::typed(uintptr_t object,uint64_t uid,uintptr_t type,std::string& e){
-    uintptr_t found=0,casted=0;const auto seh=lookup(api_,image_,uid,0x1673900,type,0,found,casted);
+    uintptr_t found=0,casted=0;uint32_t seh=0;
+    {mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropTypedLookup);
+        seh=lookup(api_,image_,uid,0x1673900,type,0,found,casted);}
     if(seh){e="remove_prop_lookup_SEH_"+std::to_string(seh);return false;}
     if(found!=object||casted!=object)return fail(e,"remove_prop_registry_or_typed_identity");
     uint64_t actual=0;return at(memory_,object,0x18,actual,e)&&(actual==uid||fail(e,"remove_prop_full_uid_mismatch"));
 }
 bool Reader::main_member(uintptr_t object,uintptr_t shard,uintptr_t region,std::string& e){
+    mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropMainMember);
     uintptr_t manager=0,v=0;if(!at(memory_,region,0x950,manager,e)||!vt(memory_,image_,manager,0x17183c0,e))return false;
     if(!at(memory_,manager,0x450,v,e)||v!=shard)return fail(e,"remove_building_manager_shard");
     if(!at(memory_,manager,0x458,v,e)||v!=region)return fail(e,"remove_building_manager_region");
@@ -105,7 +123,10 @@ bool Reader::main_member(uintptr_t object,uintptr_t shard,uintptr_t region,std::
 bool Reader::region_member(const WorldState& world,uintptr_t shard,uintptr_t region,std::string& e){
     if(!vt(memory_,image_,region,0x1787930,e)||!vt(memory_,image_,shard,0x174ad20,e))return false;
     uintptr_t actual=0;if(!at(memory_,region,0x70,actual,e)||actual!=shard)return fail(e,"remove_region_shard_mismatch");
-    auto root_region=[&](uintptr_t r){std::vector<uintptr_t> a,b;if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,a,e))return false;
+    auto root_region=[&](uintptr_t r){
+        mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropRootRegion);
+        mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
+        std::vector<uintptr_t> a,b;if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,a,e))return false;
         for(auto candidate:a){uintptr_t candidate_shard=0;if(!vt(memory_,image_,candidate,0x1787930,e)||!at(memory_,candidate,0x70,candidate_shard,e)||candidate_shard!=world.root)return fail(e,"remove_root_region_census_owner");}
         if(std::find(a.begin(),a.end(),r)==a.end())return fail(e,"remove_region_absent_root_map");
         if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,b,e)||a!=b)return fail(e,"remove_root_regions_changed");return true;};

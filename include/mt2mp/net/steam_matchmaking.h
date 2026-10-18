@@ -54,6 +54,9 @@ public:
     uint64_t host_steam_id() const;
     std::vector<uint64_t> get_lobby_members() const;
 
+    // Optional Steam presence uses the existing game-thread Steam session.
+    void update_rich_presence(bool enabled, bool playing, bool preparing, bool unavailable, uint64_t expected_host);
+
     // Member change callback
     void set_member_callback(LobbyMemberCallback cb);
 

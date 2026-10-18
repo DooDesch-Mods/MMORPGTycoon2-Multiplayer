@@ -1,10 +1,24 @@
-# MMORPG Tycoon 2 Multiplayer
+# MMORPG Tycoon 2 Multiplayer - Early Beta
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-An experimental cooperative multiplayer mod for MMORPG Tycoon 2 on Windows. This private repository contains the mod source and build tools. It is not a finished release. Targeted local gameplay checks do not establish complete online or Steam support.
+Build together in one Host world. This is an early beta in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of saves you care about.
 
-The repository includes the mod DLL, installed Steam loader, native multiplayer UI, and separate proxy/relay test tools. Game installations, original game libraries, saves, personal settings and native test artifacts are excluded.
+This repository contains the Windows x64 Multiplayer plugin, build tools and legacy standalone tools. Game files, saves, personal settings and native test artifacts are excluded.
+
+## Install with Vortex
+
+Install MT2 Mod Framework Runtime 0.1.6 and the MMORPG Tycoon 2 Vortex Extension 0.1.2 once, using the matching downloads listed with the Multiplayer release. Both players need the same Multiplayer version and dependencies.
+
+1. Close the game and import the Multiplayer ZIP into Vortex for MMORPG Tycoon 2.
+2. Enable Multiplayer and deploy.
+3. Start the game through Steam.
+4. Double-click Multiplayer on the game desktop, or choose Mods... > Multiplayer > Open while in a world.
+5. Host a lobby and create or load a small world, or join your friend's lobby.
+
+Vortex manages the files and profile. No manual profile path or configuration edit is required. Close the game before updating, disabling or removing this native plugin. Keep your saves and profile data.
+
+Use the downloads supplied together with the release. Do not combine the Framework plugin with an older standalone Multiplayer loader or Steam proxy. Historical standalone packages are documented in the [beta guide](docs/BETA.md).
 
 ## Build and test
 
@@ -13,7 +27,7 @@ Building requires Windows x64, Visual Studio 2022 with C++, the Windows SDK and 
 ```powershell
 cmake -S ci -B build/unit -A x64
 cmake --build build/unit --config Release --parallel 2
-ctest --test-dir build/unit -C Release --output-on-failure
+ctest --test-dir build/unit -C Release --output-on-failure --no-tests=error
 python -m unittest discover -s test -p test_build_input_guard.py
 ```
 
@@ -22,21 +36,29 @@ The [Windows workflow](.github/workflows/windows.yml) runs the game-independent 
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
 ```powershell
+python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.14 --target MT2MultiplayerPlugin
+```
+
+Framework mode needs a matching Framework source checkout with the native service, route and ownership headers. It writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
+
+The Framework version defaults to `mod.json`; an explicit version must match it. A matching CMake cache skips the redundant configure step while retaining CMake's automatic regeneration. Use `--reconfigure` to configure explicitly. The build writes `build/framework/build-receipt.json` with the exact DLL hash and version.
+
+Package that local plugin with the canonical manifest:
+
+```powershell
+python -X utf8 tools/package.py --mode vortex --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip
+```
+
+Packaging reads back every ZIP entry and rejects a changed DLL or mismatched manifest version. Keep a copy of a package before the next build if you need its exact bytes later.
+
+To build the legacy standalone tools:
+
+```powershell
 cmake -S . -B build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
 cmake --build build/mod --config Release --target MT2_Multiplayer wsock32 steam_api64 mt2mp_sidecar --parallel 2
 ```
 
 The separate CI test entry avoids linking every test to the injected mod DLL. Launcher and MCP tools require a legally installed copy of the game and explicit local runtime paths. CI does not run these tools.
-
-## Installation status
-
-New drop-in beta packages contain `WSOCK32.dll`, `MT2_Multiplayer.dll` and the authored `mt2mp_ui` folder. Copy those beside `MT2.exe` and launch normally through Steam. Keep the game's original `steam_api64.dll`; an older proxy copied into that location requires the hash-checked restoration in the [beta guide](docs/BETA.md). Do not overwrite another mod's unknown loader.
-
-Multiplayer worlds and diagnostics use a separate private profile. The current Steam account's normal saves also appear on the desktop and in the world picker. The mod reads those originals and writes session saves into its private profile. Existing normal saves and portable test directories are preserved. Historical beta.2 packages use their separate portable starter; keep those files outside the game installation.
-
-World selection, desktop icon dragging and native double-click behavior have passed targeted checks in the game. Joining from another computer, world transfer and shared online gameplay still require acceptance with separate Steam accounts.
-
-Download private test builds from [GitHub Releases](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases). See the [beta guide](docs/BETA.md) for tester steps, known limitations and the tagged release workflow.
 
 ## Dependencies
 

@@ -2,6 +2,7 @@
 #include <bit>
 #include <set>
 #include "snapshot_building_key.h"
+#include "npc_target_key.h"
 
 namespace mt2mp::subscriber_lifecycle::first_append {
 namespace {
@@ -109,6 +110,7 @@ bool subscriber_toon(Memory& m,const ReferenceWorld& w,uintptr_t wanted,int32_t 
     found=toon;found_id=wanted_id;e.clear();return true;
 }
 }
+bool valid_npc_key(const std::string& key) {return game::npc_target_key::valid(key);}
 bool valid_building_key(const std::string& key) {
     if (game::snapshot_building_key::valid(key)) return true;
     if (key.size()!=43 || !key.starts_with("action:")) return false;
@@ -150,6 +152,18 @@ bool identify_reference(Memory& m,const ReferenceWorld& w,uintptr_t object,int32
         if(!valid_building_key(out.building_key))return fail(e,"Building reference shared key invalid");
         out.kind=ReferenceKind::SharedBuilding;return true;
     }
+    if(vptr==w.image+0x1742980){
+        if(!w.npcs)return fail(e,"NPC reference has no pinned shared bindings");
+        if(!w.npcs->identify(object,out.npc_key,e))return false;
+        if(!valid_npc_key(out.npc_key))return fail(e,"NPC reference shared key invalid");
+        out.kind=ReferenceKind::SharedNPC;return true;
+    }
+    if(vptr==w.image+0x174ac10){
+        if(!w.npcs)return fail(e,"Quest reference has no pinned shared bindings");
+        if(!w.npcs->identify_quest(object,out.npc_key,out.sequence_id,e))return false;
+        if(!valid_npc_key(out.npc_key)||out.sequence_id<0)return fail(e,"Quest reference shared key invalid");
+        out.kind=ReferenceKind::SharedQuest;return true;
+    }
     if(vptr==w.image+0x1744e90){
         if(!subscriber_toon(m,w,object,-1,found,index,e))return false;
         out.kind=ReferenceKind::SubscriberToon;out.subscriber_id=index;return true;
@@ -159,8 +173,10 @@ bool identify_reference(Memory& m,const ReferenceWorld& w,uintptr_t object,int32
 bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key,uintptr_t& out,std::string& e){
     out=0;uintptr_t shard=0;int32_t index=-1;
     if(!roots(m,w,shard,e))return false;
+    if(key.kind!=ReferenceKind::SharedNPC&&key.kind!=ReferenceKind::SharedQuest&&!key.npc_key.empty())return fail(e,"non-NPC reference has NPC key");
     if(key.kind!=ReferenceKind::SharedBuilding&&!key.building_key.empty())return fail(e,"non-Building reference has Building key");
     if(key.kind!=ReferenceKind::SubscriberToon&&key.subscriber_id!=-1)return fail(e,"non-Toon reference has Subscriber ID");
+    if(key.kind!=ReferenceKind::SharedQuest&&key.sequence_id!=-1)return fail(e,"non-Quest reference has Quest sequence");
     switch(key.kind){
     case ReferenceKind::RootShard:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1)return fail(e,"RootShard key has foreign fields");
@@ -171,6 +187,17 @@ bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key
     case ReferenceKind::SubscriberToon:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||key.subscriber_id<0)return fail(e,"Subscriber Toon key has invalid/foreign fields");
         return subscriber_toon(m,w,0,key.subscriber_id,out,index,e);
+    case ReferenceKind::SharedQuest:
+        if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||
+           !valid_npc_key(key.npc_key)||key.sequence_id<0)return fail(e,"Quest reference key has invalid/foreign fields");
+        if(!w.npcs)return fail(e,"Quest reference has no pinned shared bindings");
+        if(!w.npcs->resolve_quest(key.npc_key,key.sequence_id,out,e))return false;
+        return ap(m,w,out,0x174ac10,e);
+    case ReferenceKind::SharedNPC:
+        if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_npc_key(key.npc_key))return fail(e,"NPC reference key has invalid/foreign fields");
+        if(!w.npcs)return fail(e,"NPC reference has no pinned shared bindings");
+        if(!w.npcs->resolve(key.npc_key,out,e))return false;
+        return ap(m,w,out,0x1742980,e);
     case ReferenceKind::SharedBuilding:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_building_key(key.building_key))return fail(e,"Building reference key has invalid/foreign fields");
         if(!w.buildings)return fail(e,"Building reference has no pinned shared bindings");

@@ -21,6 +21,8 @@ def extract(root,output):
         'lifecycle_update.inc':part(native,'void sequence_update(','void postload('),
         'lifecycle_pin.inc':part(apply,'bool pin(','bool create('),
         'lifecycle_execute.inc':part(apply,'bool create(','bool prepare('),
+        'lifecycle_progress_only.inc':part(native,'static bool research_progress_only(', 'static bool preflight_local('),
+        'lifecycle_preflight.inc':part(native,'static bool preflight_local(', 'bool apply(const action_session::Context&'),
         'lifecycle_outer_apply.inc':part(native,'bool apply(const action_session::Context&','\n#include "startingpoint_commit_intent.inc"'),
     }
     output.mkdir(parents=True,exist_ok=True)

@@ -22,6 +22,7 @@ TAG = 'v0.1.0-beta.3'
 class TagAPI:
     def __init__(self, existing=None):
         self.private = True
+        self.repository = publish_beta.REPOSITORY
         self.existing = existing
         self.remote_commit = COMMIT
         self.bad_ack = False
@@ -41,7 +42,7 @@ class TagAPI:
             if self.bad_ack:
                 self.existing['object']['sha'] = 'b' * 40
             return copy.deepcopy(self.existing)
-        return {'private': self.private}
+        return {'private': self.private, 'full_name': self.repository}
 
     def writes(self):
         return [call for call in self.calls if call[0] != 'GET']
@@ -121,13 +122,19 @@ class MilestoneTests(unittest.TestCase):
             beta_milestone.ensure_tag('v0.1.0-beta.2', COMMIT, api)
         self.assertEqual(api.writes(), [])
 
-    def test_public_repo_or_unknown_source_cannot_create_tag(self):
-        for field, value in [('private', False), ('remote_commit', 'b' * 40)]:
+    def test_other_repo_or_unknown_source_cannot_create_tag(self):
+        for field, value in [('repository', 'other/repository'), ('remote_commit', 'b' * 40)]:
             api = TagAPI()
             setattr(api, field, value)
             with self.subTest(field=field), self.assertRaises(ValueError):
                 beta_milestone.ensure_tag(TAG, COMMIT, api)
             self.assertEqual(api.writes(), [])
+
+    def test_public_repository_can_create_its_exact_milestone_tag(self):
+        api = TagAPI()
+        api.private = False
+        beta_milestone.ensure_tag(TAG, COMMIT, api)
+        self.assertEqual(len(api.writes()), 1)
 
     def test_bad_creation_ack_stops_after_one_mutation(self):
         api = TagAPI()
@@ -161,12 +168,15 @@ class MilestoneTests(unittest.TestCase):
             return api(method, url, payload, *args, **kwargs)
         with patch.object(publish_beta, 'api', capture), patch.object(publish_beta, '__file__', str(SOURCE / '.github/scripts/publish_beta.py')):
             publish_beta.publish(fixtures.TAG, fixtures.COMMIT, assets, self.record)
-        self.assertIn('## Highlights', posts[0]['body'])
+        notes = (SOURCE / 'docs/BETA_RELEASE_NOTES.md').read_text(encoding='utf8')
+        heading, separator, body = notes.partition('\n')
+        self.assertTrue(separator and body.strip())
+        self.assertIn(body.strip(), posts[0]['body'])
         self.assertIn('**Full Changelog**', posts[0]['body'])
         self.assertNotIn(self.data['native_evidence'], posts[0]['body'])
         self.assertNotIn(fixtures.COMMIT, posts[0]['body'])
         self.assertNotIn('Accepted milestone:', posts[0]['body'])
-        title = (SOURCE / 'docs/BETA_RELEASE_NOTES.md').read_text(encoding='utf8').splitlines()[0].removeprefix('# ')
+        title = heading.removeprefix('# ')
         self.assertEqual(posts[0]['name'], fixtures.TAG + ' - ' + title)
         self.assertFalse(api.release['draft'])
         self.assertTrue(api.release['prerelease'])

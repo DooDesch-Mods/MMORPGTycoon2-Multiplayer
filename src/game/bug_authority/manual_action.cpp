@@ -17,7 +17,7 @@
 #include "mt2mp/game/native_engine.h"
 #include <Windows.h>
 #include <bcrypt.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <cstdio>
 #include <atomic>
 
@@ -147,7 +147,7 @@ void tick(){auto* o=owner.load(std::memory_order_acquire);if(!o||!o->ready||!o->
 bool pending_ui(){auto* o=owner.load(std::memory_order_acquire);return o&&o->pending.has_value();}
 bool retire_lobby(std::string& e){auto* o=owner.load(std::memory_order_acquire);if(!o)return true;
     native::WorldStatus world;if(GetCurrentThreadId()!=o->thread||!native::read_world_status(world,e))return fail(e,e.empty()?"BugButton lobby retirement requires Mainthread":e);
-    if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress)return fail(e,"BugButton lobby retirement requires idle Title");
+    if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0)return fail(e,"BugButton lobby retirement requires idle Title");
     o->pending.reset();o->operations.clear();o->cause.clear();o->fixture_receipts.clear();o->fixture_locked=false;return true;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* host,std::string& e){

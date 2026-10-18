@@ -17,7 +17,7 @@ from mcp.client.stdio import stdio_client
 from runtime import OPS, RuntimeErrorDetail, atomic_json, read_json
 from error_details import error_details, original_causes, full_trace
 
-ALLOWED_TOOLS = {f"game_{operation}" for operation in OPS} | {"runtime_status", "read_logs", "observe_pending", "recover_pending"}
+ALLOWED_TOOLS = {f"game_{operation}" for operation in OPS} | {"runtime_status", "read_logs", "observe_pending", "recover_pending", "read_subscriber_lifecycle"}
 
 
 def load_spec(path: Path) -> dict:

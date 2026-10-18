@@ -3,12 +3,15 @@ from __future__ import annotations
 
 from pathlib import Path
 import copy
+import json
 import sys
+import tempfile
 import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from tools.e2e import building_history as history
+from runtime import RuntimeErrorDetail
 
 
 UID = "11111111-1111-4111-8111-111111111111"
@@ -178,6 +181,86 @@ class BuildingHistoryTests(unittest.TestCase):
                                     7, 1, 4, now=lambda: next(moments))
         self.assertEqual(len(runner.calls), 1)
         self.assertEqual(runner.calls[0][2], "game_native_building_history_ui")
+
+
+class FrameworkAdmissionTests(unittest.TestCase):
+    def setUp(self):
+        self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
+        self.root = Path(self.directory.name)
+        self.candidate = self.root / 'MT2MultiplayerPlugin.dll'
+        self.candidate.write_bytes(b'exact selected plugin fixture')
+        self.digest = history.hash_file(self.candidate)
+        self.freeze = self.root / 'freeze.json'
+        self.freeze.write_text(json.dumps({'dll_sha256': self.digest}), encoding='utf-8')
+        self.placement = self.root / 'placement.json'
+        self.placement.write_text('{}', encoding='utf-8')
+        self.manifests = {}
+        for number, peer in enumerate(history.PEERS, 1):
+            runtime = self.root / peer
+            runtime.mkdir()
+            manifest = runtime / 'instance.json'
+            manifest.write_text(json.dumps({'schema_version': 2, 'runtime_kind': 'framework-plugin',
+                'runtime_root': str(runtime), 'pid': number, 'process_start_time': str(100 + number),
+                'installed_binary_sha256': {'MT2MultiplayerPlugin.dll': self.digest}}), encoding='utf-8')
+            self.manifests[peer] = manifest
+        class Runner:
+            def __init__(self, root, manifests):
+                self.root, self.manifests = root, manifests
+                self.summary = {'runtime_run_id': UID}
+            def load_manifests(self):
+                pass
+            def checked(self, *_):
+                pass
+        class Binding:
+            def __init__(self, _):
+                pass
+            def bind(self, _):
+                return {'process_identity_verified': True}
+        self.runner, self.binding = Runner(self.root, self.manifests), Binding
+        self.patch = patch.object(history, 'placement_evidence', return_value=({'runtime_run_id': UID}, MUTATION, {'objects': {}}))
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+
+    def test_framework_selected_artifact_succeeds_without_legacy_dll(self):
+        action, _ = history.preflight(self.runner, self.placement, self.freeze, self.binding,
+                                      candidate_binary=self.candidate)
+        self.assertEqual(action, MUTATION)
+        self.assertFalse((self.root / 'host/game/MT2_Multiplayer.dll').exists())
+
+    def test_framework_requires_exact_artifact_and_frozen_content(self):
+        for selected, content, freeze_hash, error in [
+                (None, b'exact selected plugin fixture', self.digest, 'Explicit candidate binary'),
+                (self.candidate, b'wrong build', self.digest, 'differs from installed'),
+                (self.root / 'MT2_Multiplayer.dll', b'exact selected plugin fixture', self.digest, 'exact candidate filename'),
+                (self.candidate, b'exact selected plugin fixture', '0' * 64, 'differs from candidate freeze')]:
+            self.candidate.write_bytes(content)
+            self.freeze.write_text(json.dumps({'dll_sha256': freeze_hash}), encoding='utf-8')
+            with self.subTest(selected=selected, freeze=freeze_hash), self.assertRaisesRegex(
+                    (history.AcceptanceError, RuntimeErrorDetail), error):
+                history.preflight(self.runner, self.placement, self.freeze, self.binding, candidate_binary=selected)
+
+    def test_legacy_default_keeps_real_installed_file_hash_check(self):
+        for path in self.manifests.values():
+            identity = json.loads(path.read_text(encoding='utf-8'))
+            identity.update(schema_version=1, installed_binary_sha256={'MT2_Multiplayer.dll': self.digest})
+            del identity['runtime_kind']
+            path.write_text(json.dumps(identity), encoding='utf-8')
+            installed = Path(identity['runtime_root']) / 'game/MT2_Multiplayer.dll'
+            installed.parent.mkdir()
+            installed.write_bytes(self.candidate.read_bytes())
+        self.assertEqual(history.preflight(self.runner, self.placement, self.freeze, self.binding)[0], MUTATION)
+        (self.root / 'client-1/game/MT2_Multiplayer.dll').write_bytes(b'changed installed file')
+        with self.assertRaisesRegex(history.AcceptanceError, 'exact installed DLL differs'):
+            history.preflight(self.runner, self.placement, self.freeze, self.binding)
+
+    def test_cli_forwards_explicit_candidate_without_inferring_framework_build(self):
+        with patch.object(history, 'execute', return_value=0) as execute:
+            self.assertEqual(history.main(['--placement', 'placement.json', '--freeze', 'freeze.json',
+                '--test-root', 'owned/runs/test', '--candidate-binary', str(self.candidate)]), 0)
+            selected = execute.call_args.args[0]
+            self.assertEqual(selected.candidate_binary, self.candidate)
+            self.assertEqual(selected.test_root, Path('owned/runs/test'))
 
 
 if __name__ == "__main__":

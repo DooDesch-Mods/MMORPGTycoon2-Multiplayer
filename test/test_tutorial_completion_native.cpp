@@ -6,7 +6,7 @@
 #include <set>
 #include <stdexcept>
 using namespace mt2mp::game::tutorial_replication;
-namespace action_session {struct Context {int id=1;bool operator==(const Context&)const=default;};struct Binding {};}
+namespace action_session {enum class Role{Host,Client};struct Context {Role role=Role::Client;int id=1;bool operator==(const Context&)const=default;};struct Binding {};}
 namespace {
 using DWORD=uint32_t;
 struct World {int id=1;std::string uuid="world";uint64_t generation=1;};
@@ -30,6 +30,9 @@ std::vector<uintptr_t> instances;
 size_t completed_ids=0;
 unsigned checks=0;
 State physical_state,desired_state;
+unsigned state_reads=0,fail_read=0,research_calls=0;
+bool code_ok=true,research_ok=true,prepare_ok=true,display_ok=true,research_effect_ok=true,display_fail_install=false;
+State preflight_observed;
 bool fail(std::string& e,const std::string& why){e=why;return false;}
 void block(const std::string& e){if(fault.empty())fault=e;}
 void need(bool ok,const std::string& e){if(!ok)throw std::runtime_error(e);}
@@ -75,7 +78,7 @@ bool interval(const NativeCursor&,const Cursor&,const std::optional<startingpoin
 bool history(const NativeCursor&,const Cursor& target,std::string&){native_cursor.value.history=target.history;native_cursor.value.last=target.last;return true;}
 struct ProgressCalls {};
 struct Memory {} memory;
-namespace message_progress {bool apply(Memory&,uintptr_t,uintptr_t,int32_t,const std::optional<MessageProgress>&,ProgressCalls&,bool&,std::string&){return true;}}
+namespace message_progress {bool verify_code(Memory&,uintptr_t,std::string& e){return code_ok||fail(e,"original message code failed");}bool apply(Memory&,uintptr_t,uintptr_t,int32_t,const std::optional<MessageProgress>&,ProgressCalls&,bool&,std::string&){return true;}}
 namespace lifecycle_native {
 DWORD start_call(uintptr_t,uintptr_t){++starts;fixture_present=true;if(append_ok)instances.push_back(instance);advance(reinterpret_cast<void*>(fixture_sequence));return start_code;}
 DWORD complete_call(uintptr_t,uintptr_t){++completes;if(remove_ok){fixture_present=false;completed_ids=1;instances.clear();physical_state=desired_state;}return complete_code;}
@@ -83,7 +86,7 @@ DWORD set_version_call(uintptr_t){++version_sets;if(version_ok)current_version={
 bool version(const World&,uintptr_t& owner,std::array<int32_t,3>& out,std::string&){owner=77;out=current_version;return true;}
 #include "lifecycle_pin.inc"
 #include "lifecycle_execute.inc"
-bool prepare(const action_session::Context&,const action_session::Binding&,const State& local,const State& target,lifecycle::Plan& plan,std::optional<startingpoint::Row>& technology,std::string& e){technology=lifecycle::technology(local);return lifecycle::plan(local,target,plan,e);}
+bool prepare(const action_session::Context&,const action_session::Binding&,const State& local,const State& target,lifecycle::Plan& plan,std::optional<startingpoint::Row>& technology,std::string& e){if(!prepare_ok)return fail(e,"original lifecycle prepare failed");technology=lifecycle::technology(local);return lifecycle::plan(local,target,plan,e);}
 }
 struct StartingpointCalls {
     action_session::Context context;action_session::Binding binding;
@@ -96,16 +99,33 @@ struct StartingpointCalls {
     bool readback(const startingpoint::Row&,std::string& e){return fail(e,"unexpected technology mutation");}
 };
 struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;} commit_receipt;
-namespace display_native {bool admit(const action_session::Context&,const action_session::Binding&,const std::optional<staff_display::State>&,std::string&,bool){return true;}}
-bool native_state(const action_session::Context&,const action_session::Binding&,State& out,std::vector<NativeCursor>& cursors,std::string&){out=physical_state;cursors.clear();return true;}
-bool preflight(const action_session::Context&,const action_session::Binding&,const State& target,std::string& e){if(!fault.empty())return fail(e,fault);return valid(target,e);}
+namespace live_host_state::apply_timing {struct PageReadScope {~PageReadScope(){};}; }
+namespace tutorial_development {struct StartingpointSnapshot {}; }
+namespace display_native {bool admit(const action_session::Context&,const action_session::Binding&,const std::optional<staff_display::State>&,std::string& e,bool install,const std::string& ="startingpoint",bool=false,const tutorial_development::StartingpointSnapshot* observed=nullptr){if(observed)need(install,"prepared Staff was used before effects");return (display_ok&&!(install&&display_fail_install))||fail(e,"original display admission failed");}}
+bool native_state(const action_session::Context&,const action_session::Binding&,State& out,std::vector<NativeCursor>& cursors,std::string& e,bool=false){
+    ++state_reads;if(!fault.empty())return fail(e,fault);if(state_reads==fail_read)return fail(e,"original native state failed");
+    out=physical_state;cursors={native_cursor};return true;
+}
+bool research_preflight(const action_session::Context&,const action_session::Binding&,const State& local,const State& target,State& projected,std::string& e,StartingpointCalls* =nullptr){
+    preflight_observed=local;projected=local;research::Plan operation;
+    return (research_ok||fail(e,"original research preflight failed"))&&research::plan(local.research,target.research,operation,e);
+}
+bool research_apply(const action_session::Context&,const action_session::Binding&,const State& local,const State& target,bool& attempted,bool& unknown,std::string& e,StartingpointCalls* prepared=nullptr,tutorial_development::StartingpointSnapshot* observed=nullptr){
+    need((prepared!=nullptr)==(observed!=nullptr),"partial Progress local reuse");
+    ++research_calls;if(local.research==target.research)return true;
+    attempted=unknown=true;physical_state.research=target.research;
+    if(!research_effect_ok)return fail(e,"original research effect failed");unknown=false;return true;
+}
+#include "lifecycle_progress_only.inc"
+#include "lifecycle_preflight.inc"
 #include "lifecycle_outer_apply.inc"
 void reset(const std::string& id="leveltwo_tutorial",int32_t next=0){
     memory_bytes.clear();memory_strings.clear();fault.clear();load={true,{},{}};scoped_sequence=0;return_address=image+0x4f61fe;thread_id=7;
     origin_ok=type_ok=append_ok=remove_ok=version_ok=true;owner_change=false;fixture_present=false;first_fence_seen=false;
     advances=starts=completes=version_sets=0;start_code=advance_code=complete_code=version_code=0;limit=id=="initial_tutorial"?107:17;
     updates=terminals=scenario_starts=0;
-    physical_state={};desired_state={};
+    physical_state={};desired_state={};preflight_observed={};state_reads=fail_read=research_calls=0;
+    code_ok=research_ok=prepare_ok=display_ok=research_effect_ok=true;display_fail_install=false;
     current_version={0,0,0};instances.clear();completed_ids=0;lifecycle_native::cache.reset();lifecycle_native::creation=nullptr;
     native_cursor={instance,fixture_sequence,fixture_steps,{id,"",limit,next,false,{},{}}};
     seed(fixture_sequence+0x20,fixture_steps);seed(fixture_sequence+0x28,limit);seed(fixture_sequence+0x50,next);seed<uint8_t>(fixture_sequence+0x54,0);seed<uintptr_t>(fixture_sequence+0x48,0);
@@ -150,5 +170,7 @@ void execute(){using namespace lifecycle_native;action_session::Context c;action
         need(!apply(c,b,desired_state,attempted,unknown,e)&&attempted&&unknown&&completes==1&&!fault.empty()&&load.sequences.contains(fixture_sequence),"partial outer Apply lost Unknown/fence");const auto cause=e;
         need(!apply(c,b,desired_state,attempted,unknown,e)&&!attempted&&!unknown&&completes==1&&advances==2&&e==cause,"faulted outer Apply replayed original or lost original cause");pass("actual outer Apply latches partial Unknown and blocks replay with original cause");}
 }
+#include "tutorial_preflight_reuse_cases.inc"
+#include "tutorial_progress_only_cases.inc"
 }
-int main(){try{hooks();execute();std::cout<<checks<<" actual lifecycle native-body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}
+int main(){try{hooks();execute();preflight_reuse_cases();progress_only_cases();std::cout<<checks<<" actual lifecycle native-body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

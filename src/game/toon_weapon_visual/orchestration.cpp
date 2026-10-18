@@ -11,7 +11,10 @@ bool reconcile(Calls& calls,uintptr_t toon,Receipt& r,std::string& error){
     auto observed=[&](const Call& call){r.attempted|=call.attempted;};
     try{
         Lease before;
-        if(!calls.pin(toon,before,r.owned,error))return fail(error);
+        if(!calls.pin(toon,before,r.owned,error)){
+            r.subscriber_id=before.subscriber_id;r.authority_failure=before.authority_failure;
+            return fail(error);
+        }
         if(!r.owned)return true;
         RandomDiagnostic random(calls,r.random);
         r.subscriber_id=before.subscriber_id;

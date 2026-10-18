@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.14",
+  "scope": "Native game desktop entry, shared new-world creation and corrected lobby layout",
+  "latest_mod_sha256": "8f34d71aeb45f6c907d034b5987d6051884253106786acace242f8da9d49aa99",
+  "framework_runtime_version": "0.1.6",
+  "framework_runtime_sha256": "23da8b7e4fbe6b236a418262b99944b1c43d512c0171450ba0f3a85e163f3a7d",
+  "latest_build": "artifacts/build_history/20261018T000731014033Z",
+  "native_evidence": [
+    "docs/evidence/lobby-desktop-native.json",
+    "docs/evidence/wizard-automation-native.json",
+    "docs/evidence/lobby-alignment-native.json"
+  ],
+  "acceptance": "The original new-world wizard creates a Host world and both peers acknowledge its snapshot. The final layout candidate loads an existing owned world once and provides eight inspected native views.",
+  "inherited_scope": "The final candidate changes lobby geometry only after the accepted original-wizard transition fix. Unchanged wizard logic and game actions retain their earlier native evidence.",
+  "checks": "24 wizard-driver regressions, 297 actual-body handoff checks and the affected native-layout CTest passed. Framework and Multiplayer builds passed.",
+  "delivery": "Local native acceptance; package validation and publication are separate steps",
+  "limits": [
+    "Remaining action families and full tutorial remain open",
+    "Client world title can still use a generic fallback",
+    "No measured FPS improvement is claimed",
+    "Four players, large private worlds and separate-account online acceptance remain open"
+  ]
+}

@@ -1,5 +1,6 @@
 #include "client_world.h"
 #include "mt2mp/core/config.h"
+#include "session_provider.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -19,9 +20,19 @@ bool array(Memory& m,uintptr_t owner,size_t base,std::vector<uintptr_t>& out,std
     out.clear();out.reserve(size_t(count));
     for(int32_t i=0;i<count;++i){uintptr_t p=0;if(!at(m,data,size_t(i)*8,p,e))return false;out.push_back(p);}return true;
 }
-bool root_once(Memory& m,const std::string& sha,const std::string& origin,bool held,ClientWorld& out,std::string& e){
-    out={};const auto& cfg=Config::instance();
-    if(!cfg.local_test||cfg.is_host||cfg.peer_id<2||cfg.peer_id>4)return fail(e,"Subscriber append requires owned Client2..4");
+bool root_once(Memory& m,const std::string& sha,const std::string& origin,bool held,ClientWorld& out,std::string& e,const action_session::Context* expected){
+    out={};
+    if(expected){
+        action_session::Context current;
+        if(!action_session::selected_session().current(current,e))return false;
+        if(current!=*expected||current.role!=action_session::Role::Client||current.host_peer!=1||
+           current.local_peer<2||current.local_peer>4||!current.session||current.snapshot_uuid.empty()||
+           (current.peer_mask&0xf0)||!(current.peer_mask&1u)||!(current.peer_mask&(1u<<(current.local_peer-1))))
+            return fail(e,"Subscriber append production Session/Client slot differs");
+    }else{
+        const auto& cfg=Config::instance();
+        if(!cfg.local_test||cfg.is_host||cfg.peer_id<2||cfg.peer_id>4)return fail(e,"Subscriber append requires owned Client2..4");
+    }
     std::string actual;
     if(!game::native::read_resolver_receipt(out.image,out.thread,actual,e))return false;
     if(actual!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||out.thread!=GetCurrentThreadId())return fail(e,"Subscriber append build/mainthread differs");
@@ -69,9 +80,15 @@ bool read_cohort(Memory& m,const ClientWorld& w,Census& out,std::string& e,bool 
     if(partition){for(const auto& member:out.members){const auto& values=member.online?out.online:out.offline;if(std::find(values.begin(),values.end(),member.id)==values.end())return fail(e,"Subscriber actual login partition incomplete");}}
     return true;
 }
-bool read_client_world(Memory& memory,const std::string& sha,const std::string& origin,bool held,ClientWorld& out,std::string& e){
+bool read_client_world_roots(Memory& memory,const std::string& sha,const std::string& origin,bool held,ClientWorld& out,std::string& e,const action_session::Context* expected){
     ClientWorld a,b;
-    if(!root_once(memory,sha,origin,held,a,e)||!read_cohort(memory,a,a.census,e)||!root_once(memory,sha,origin,held,b,e)||!read_cohort(memory,b,b.census,e))return false;
+    if(!root_once(memory,sha,origin,held,a,e,expected)||!root_once(memory,sha,origin,held,b,e,expected))return false;
+    if(!same_client_owner(a,b))return fail(e,"Subscriber Client double-read roots changed");
+    out=std::move(b);e.clear();return true;
+}
+bool read_client_world(Memory& memory,const std::string& sha,const std::string& origin,bool held,ClientWorld& out,std::string& e,const action_session::Context* expected){
+    ClientWorld a,b;
+    if(!root_once(memory,sha,origin,held,a,e,expected)||!read_cohort(memory,a,a.census,e)||!root_once(memory,sha,origin,held,b,e,expected)||!read_cohort(memory,b,b.census,e))return false;
     if(!same_client_owner(a,b)||a.census.next_id!=b.census.next_id||a.census.members!=b.census.members||a.census.online!=b.census.online||a.census.offline!=b.census.offline)return fail(e,"Subscriber Client double-read census changed");
     out=std::move(b);e.clear();return true;
 }

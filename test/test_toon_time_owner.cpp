@@ -6,14 +6,24 @@
 #include <atomic>
 #include <iostream>
 #include <stdexcept>
+#include <type_traits>
+#include <utility>
 namespace action=mt2mp::action_session;
 namespace visual=mt2mp::game::toon_weapon_visual;
 namespace economy=mt2mp::game::live_host_state::day::economy;
+static_assert(std::is_same_v<decltype(std::declval<const action::Controller&>().status()),action::Status>);
+static_assert(std::is_same_v<decltype(std::declval<const action::Controller&>().bound_context()),action::Context>);
+static_assert(std::is_same_v<decltype(std::declval<const action::Controller&>().status_view()),const action::Status&>);
+static_assert(std::is_same_v<decltype(std::declval<const action::Controller&>().bound_context_view()),const action::Context&>);
 namespace fixture {
 struct Status {bool started=true,locked=false;};
 struct Controller {action::Context context;action::Binding binding;Status value;
-    Status status()const{return value;}const action::Context& bound_context()const{return context;}action::Binding bound_binding()const{return binding;}};
-struct Session {action::Context context;bool current(action::Context& out,std::string&){out=context;return true;}};
+    mutable unsigned status_copies=0,context_copies=0,status_views=0,context_views=0;
+    Status status()const{++status_copies;return value;}action::Context bound_context()const{++context_copies;return context;}
+    const Status& status_view()const noexcept{++status_views;return value;}
+    const action::Context& bound_context_view()const noexcept{++context_views;return context;}
+    action::Binding bound_binding()const{return binding;}};
+struct Session {action::Context context;unsigned reads=0;bool current(action::Context& out,std::string&){++reads;out=context;return true;}};
 struct Engine {bool valid=true;bool current(const action::Binding&,const std::string&,std::string& e){if(!valid)e="exact native world changed";return valid;}};
 struct Bridge {economy::State state;bool has=true,is_locked=false;bool locked()const{return is_locked;}
     const economy::State* weapon_economy()const{return has?&state:nullptr;}const economy::State* committed_economy()const{return weapon_economy();}};
@@ -21,13 +31,13 @@ struct Fence {bool is_locked=false;std::string failure;bool locked()const{return
     void journal_failed(const std::string& e){is_locked=true;failure=e;}};
 Fence fence;
 mt2mp::game::building_mixed_identity::opened_file::CurrentWorld world;
-float scale=0;unsigned refresh_calls=0;bool world_ok=true;uintptr_t unreadable=0;
+float scale=0;unsigned refresh_calls=0,world_reads=0,clock_reads=0;bool world_ok=true;uintptr_t unreadable=0;
 }
 namespace placement_ui_probe {
 bool ProcessMemory::copy(uintptr_t address,void* out,size_t size,std::string& error){if(address==fixture::unreadable){error="exact AP read failure";return false;}std::memcpy(out,reinterpret_cast<const void*>(address),size);return true;}
 }
-namespace mt2mp::game::native_open_runtime {bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& error){if(!fixture::world_ok){error="exact world unavailable";return false;}out=fixture::world;return true;}}
-namespace mt2mp::game::native {bool read_clock(ClockState& out,std::string&){out.time_scale=fixture::scale;return true;}}
+namespace mt2mp::game::native_open_runtime {bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& error){if(!fixture::world_ok){error="exact world unavailable";return false;}++fixture::world_reads;out=fixture::world;return true;}}
+namespace mt2mp::game::native {bool read_clock(ClockState& out,std::string&){++fixture::clock_reads;out.time_scale=fixture::scale;return true;}}
 namespace mt2mp::net {uint64_t current_world_epoch(){return 7;}}
 namespace mt2mp::game::live_host_state {fixture::Fence& economic_fence(){return fixture::fence;}}
 
@@ -54,7 +64,7 @@ template<class T>void put(void* object,size_t offset,T value){std::memcpy(static
 struct World {
     std::array<unsigned char,0xb0> subscriber{};std::array<unsigned char,0xb00> toon{};rt::Runtime runtime;
     World(){
-        fixture::fence={};fixture::scale=0;fixture::world_ok=true;fixture::unreadable=0;
+        fixture::fence={};fixture::world_reads=fixture::clock_reads=0;fixture::scale=0;fixture::world_ok=true;fixture::unreadable=0;
         put(subscriber.data(),0,rt::weapon_image+0x16e75f0);put(subscriber.data(),0x20,int32_t(60));put(subscriber.data(),0x80,uintptr_t(toon.data()));
         put(toon.data(),0,rt::weapon_image+0x1744e90);put(toon.data(),0x940,uintptr_t(subscriber.data()));put(toon.data(),0x170,uintptr_t(0xabc000+0x1c0));
         runtime.controller.context={1,2,1,3,action::Role::Client,"common"};runtime.controller.binding={2,3};runtime.session.context=runtime.controller.context;
@@ -74,6 +84,51 @@ struct OwnerCalls {
     bool clear_backlog(uintptr_t,uint32_t,std::string&){++effects;return false;}
     bool original(uintptr_t,float,std::string&){++effects;return false;}
 };
+struct FreshOwnerCalls:OwnerCalls {
+    unsigned pins=0,backlog_reads=0,originals=0,clears=0,change_pin=0;
+    bool change_membership=false;
+    uint32_t bits=std::bit_cast<uint32_t>(2.0f);
+    bool pin(uintptr_t toon,Owner& out,bool& owned,std::string& error){
+        ++pins;
+        if(pins==change_pin){
+            if(change_membership)rt::published_runtime.load()->session.context.peer_mask=7;
+            else fixture::world.sha256="changed-local-sha";
+        }
+        return OwnerCalls::pin(toon,out,owned,error);
+    }
+    bool read_backlog(uintptr_t,uint32_t& out,std::string&){++backlog_reads;out=bits;return true;}
+    bool clear_backlog(uintptr_t,uint32_t expected,std::string&){++clears;if(bits!=expected)return false;bits=0;return true;}
+    bool original(uintptr_t,float dt,std::string&){++originals;return dt==0.0f&&bits==0;}
+};
+void fresh_owner_checks(){
+    {
+        World w;FreshOwnerCalls calls;tf::Receipt receipt;
+        need(rt::toon_time_client_active(),"fresh active Client rejected");
+        need(tf::normalize(calls,uintptr_t(w.toon.data()),3.0f,receipt)&&receipt.confirmed&&receipt.cache_cleared,
+            "fresh actual owner normalization rejected");
+        const auto& controller=w.runtime.controller;
+        need(calls.pins==3&&calls.backlog_reads==3&&calls.clears==1&&calls.originals==1&&calls.bits==0,
+            "owner copy change lost pin/backlog/CAS/original boundaries");
+        need(w.runtime.session.reads==3&&fixture::world_reads==3&&fixture::clock_reads==3,
+            "owner copy change reused Session/world/Clock proof");
+        need(controller.status_views==7&&controller.context_views==7&&!controller.status_copies&&!controller.context_copies,
+            "Toon active/owner checks constructed copying Controller temporaries");
+        tf::Owner out;bool owned=false;std::string error;
+        need(rt::toon_time_owner(uintptr_t(w.toon.data()),out,owned,error)&&owned&&
+            out.origin_uuid==fixture::world.uuid&&out.origin_sha==fixture::world.sha256&&
+            fixture::world.uuid=="local"&&fixture::world.sha256=="local-sha",
+            "moving local NativeOpen strings changed provider state or owner receipt");
+    }
+    for(unsigned pin:{2u,3u})for(bool membership:{false,true}){
+        World w;FreshOwnerCalls calls;tf::Receipt receipt;calls.change_pin=pin;calls.change_membership=membership;
+        need(!tf::normalize(calls,uintptr_t(w.toon.data()),0.0f,receipt)&&!receipt.confirmed&&!receipt.forward&&
+            receipt.unknown==(pin==3)&&calls.originals==(pin==3?1u:0u)&&calls.pins==pin,
+            "fresh second/final owner or Session membership change accepted");
+        need(receipt.cause==(membership?"Toon time current Session differs from Controller":
+            pin==2?"Toon time owner changed before cache normalization":"Toon time owner changed after original entry"),
+            "fresh owner change lost exact boundary cause");
+    }
+}
 void ap_read_failure(){
     World w;OwnerCalls calls;tf::Receipt receipt;
     const auto toon=uintptr_t(w.toon.data());fixture::unreadable=toon;
@@ -88,6 +143,7 @@ void ap_read_failure(){
 int main(int argc,char**){try{
     ap_read_failure();
     if(argc>1){std::cout<<checks<<" actual unreadable receiver check passed\n";return 0;}
+    fresh_owner_checks();
     {World w;bool owned=false;std::string error;need(rt::toon_time_client_active()&&w.owner(owned,error)&&owned,"exact owner rejected");}
     {World w;tf::Owner out;bool owned=false;std::string error;need(rt::toon_time_owner(uintptr_t(w.toon.data()),out,owned,error)&&out.subscriber_id==60&&out.toon==uintptr_t(w.toon.data())&&out.origin[4]==0xabc000,"owner receipt identity differs");}
     {World w;w.runtime.controller.context.role=action::Role::Host;bool owned=true;std::string error;need(!rt::toon_time_client_active()&&w.owner(owned,error)&&!owned,"Host not passed through");}

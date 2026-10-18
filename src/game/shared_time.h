@@ -76,6 +76,9 @@ public:
     bool read(Presentation&, std::string& error);
     bool set_host_state(uint64_t epoch, uint64_t revision, float selected_scale,
                         float pause_scale, std::string& error);
+    // Host state validation and capture admission share one callback-free scan.
+    bool set_host_state_and_enable_capture(uint64_t epoch, uint64_t revision, float selected_scale,
+                                           float pause_scale, uint32_t installed_hook_mask, std::string& error);
     bool write_presentation(WriteReceipt&, std::string& error);
     // Client requires mask3; Host requires Activate bit0 and keeps Update original.
     bool enable_capture(uint32_t installed_hook_mask, std::string& error);

@@ -1,8 +1,30 @@
 #include "mt2mp/core/logger.h"
+#include "mt2mp/core/reporting.h"
 #include <chrono>
 #include <filesystem>
+#include <algorithm>
 
 namespace mt2mp {
+namespace {
+constexpr std::streamoff log_limit=4*1024*1024;
+void preserve_tail(const std::filesystem::path& current,const std::filesystem::path& previous){
+    if(!std::filesystem::exists(current))return;
+    std::ifstream input(current,std::ios::binary|std::ios::ate);
+    if(!input)throw std::runtime_error("previous log open failed");
+    const auto length=input.tellg();if(length<0)throw std::runtime_error("previous log size failed");
+    input.seekg(std::max(std::streamoff(0),std::streamoff(length)-log_limit));
+    std::ofstream output(previous,std::ios::binary|std::ios::trunc);
+    if(!output)throw std::runtime_error("previous log archive open failed");
+    output<<input.rdbuf();output.flush();
+    if(!output||input.bad())throw std::runtime_error("previous log archive read/write failed");
+}
+void rotate_log(std::ofstream& stream,const std::filesystem::path& path){
+    if(!stream.is_open()||stream.tellp()<log_limit)return;
+    stream.close();preserve_tail(path,std::filesystem::path(path.wstring()+L".previous"));
+    stream.open(path,std::ios::out|std::ios::trunc);
+    if(!stream)throw std::runtime_error("rotated log reopen failed");
+}
+}
 
 Logger& Logger::instance() {
     static Logger logger;
@@ -45,7 +67,7 @@ Logger::LogFile& Logger::get_file(LogCategory cat) {
     if (it == files_.end()) {
         auto& lf = files_[key];
         std::string path = base_dir_ + "\\" + category_filename(cat);
-        lf.file.open(path, std::ios::out | std::ios::trunc);
+        lf.file.open(std::filesystem::u8path(path), std::ios::out | std::ios::trunc);
         return lf;
     }
     return it->second;
@@ -57,11 +79,17 @@ void Logger::init(const std::string& base_dir) {
 
     // Create logs directory
     std::string log_dir = base_dir + "\\mt2mp_logs";
-    std::filesystem::create_directories(log_dir);
+    std::filesystem::create_directories(std::filesystem::u8path(log_dir));
     base_dir_ = log_dir;
 
+    // Preserve the preceding launch before opening the new combined log.
+    const std::filesystem::path combined=std::filesystem::u8path(base_dir)/"mt2mp.log";
+    if(std::filesystem::exists(combined)) {
+        const auto previous=std::filesystem::u8path(base_dir)/"mt2mp.previous.log";
+        preserve_tail(combined,previous);
+    }
     // Open combined log
-    main_file_.open(base_dir + "\\mt2mp.log", std::ios::out | std::ios::trunc);
+    main_file_.open(combined, std::ios::out | std::ios::trunc);
 
     initialized_ = true;
     log(LogCategory::General, LogLevel::Info, __FILE__, __LINE__, "Logger initialized: " + log_dir);
@@ -81,6 +109,7 @@ void Logger::shutdown() {
 void Logger::set_level(LogLevel level) { min_level_ = level; }
 
 void Logger::log(LogCategory cat, LogLevel level, const char* file, int line, const std::string& msg) {
+    reporting::observe(static_cast<int>(level),file,line,msg);
     if (level < min_level_) return;
 
     static const char* level_names[] = {"DEBUG", "INFO", "WARN", "ERROR"};
@@ -110,6 +139,7 @@ void Logger::log(LogCategory cat, LogLevel level, const char* file, int line, co
         auto& lf = get_file(cat);
         std::lock_guard lock(lf.mutex);
         if (lf.file.is_open()) {
+            rotate_log(lf.file,std::filesystem::u8path(base_dir_)/category_filename(cat));
             lf.file << formatted;
             lf.file.flush();
         }
@@ -119,6 +149,7 @@ void Logger::log(LogCategory cat, LogLevel level, const char* file, int line, co
     {
         std::lock_guard lock(main_mutex_);
         if (main_file_.is_open()) {
+            rotate_log(main_file_,std::filesystem::u8path(base_dir_).parent_path()/"mt2mp.log");
             main_file_ << formatted;
             main_file_.flush();
         }

@@ -60,10 +60,11 @@ struct Pin {
     World world;
     uintptr_t image=0,lounge=0,project=0,window=0,button=0,player=0,inventory=0,slots=0;
     std::array<uintptr_t,200> items{};
-    json development,tutorial;
+    json development,tutorial;std::string tech_key="startingpoint";
 };
 bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending_id={},
          const action_session::Context* submitted_context=nullptr,const action_session::Binding* submitted_binding=nullptr){
+    p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";
     uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(p.image,thread,sha,e))return false;
     if(sha!=exact_sha||p.image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
@@ -110,6 +111,14 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
     return same(p.world,after)||fail(e,"startingpoint fixture Origin changed during pin");
 }
 bool before(const Pin& p,std::string& e){
+    if(p.tech_key=="bridges"){
+        tutorial_development::StartingpointSnapshot snapshot;json diagnostic;
+        if(!tutorial_development::read_research(p.tech_key,snapshot,diagnostic,e,true))return false;
+        if(!same(p.world,snapshot.origin)||p.project!=snapshot.project||!snapshot.row||!snapshot.row->project_present||
+           !snapshot.row->purchased||snapshot.row->deployed||snapshot.row->custom||snapshot.row->inventory_count||snapshot.row->release_feature_count)
+            return fail(e,"Bridges Commit requires exact purchased current unowned project");
+        return std::find(p.items.begin(),p.items.end(),uintptr_t(0))!=p.items.end()||fail(e,"Bridges Commit inventory full");
+    }
     const auto& d=p.development.at("project");const auto& t=p.development.at("startingpoint");
     if(!d.at("present").get<bool>()||d.at("kind")!=0||d.at("tech_key")!="startingpoint"||!p.project)
         return fail(e,"startingpoint fixture requires current native startingpoint project");
@@ -172,6 +181,17 @@ DWORD activate(uintptr_t image,uintptr_t button){__try{reinterpret_cast<void(*)(
 DWORD show(uintptr_t image,uintptr_t window){__try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x81ec20)(reinterpret_cast<void*>(window),true,false);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 DWORD complete_state(uintptr_t image,uintptr_t lounge,bool& result){__try{result=reinterpret_cast<bool(*)(void*)>(image+0x25ed50)(reinterpret_cast<void*>(lounge));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Busy {Busy(){busy=true;}~Busy(){busy=false;}};
+bool before_research(const Pin& p,std::string& e){
+    if(p.tech_key=="startingpoint")return before_begin(p.development,p.project,e);
+    if(p.project||p.development.at("research").at("project_present")!=false)return fail(e,"Bridges Research requires no current project");
+    size_t matches=0;
+    for(const auto& row:p.development.at("research").at("rows"))if(row.at("key")=="bridges"){
+        ++matches;if(row.at("visible")!=true||row.at("owned")!=false||row.at("purchased")!=false||
+            row.at("can_choose_now")!=true||row.at("can_afford")!=true||row.at("cost")!=10000)
+            return fail(e,"Bridges original Research getters do not admit purchase");
+    }
+    return matches==1||fail(e,"Bridges actual catalogue row absent/duplicated");
+}
 #include "begin_fixture.inc"
 #include "client_ui_fixture.inc"
 #include "research_ui_native.inc"
@@ -190,24 +210,24 @@ bool run(const Request& request,json& result,std::string& e){
     std::string key;Progress* phase=nullptr;
     try{
         if(request.token.empty()||request.token.size()>64||request.origin_uuid.empty()||!request.epoch||!request.generation||
-           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"&&request.operation!="client_staff_show"&&request.operation!="client_staff_state"&&request.operation!="client_staff_one"&&request.operation!="staff_activity_state"))return fail(e,"startingpoint fixture fixed request invalid");
+           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"&&request.operation!="client_staff_show"&&request.operation!="client_staff_state"&&request.operation!="client_staff_one"&&request.operation!="staff_activity_state"&&request.operation!="client_bridges_show"&&request.operation!="client_bridges_state"&&request.operation!="client_bridges_start"&&request.operation!="client_bridges_staff_show"&&request.operation!="client_bridges_staff_state"&&request.operation!="client_bridges_staff_one"&&request.operation!="client_bridges_commit"))return fail(e,"startingpoint fixture fixed request invalid");
         // No shared receipt state is touched outside the bound update thread.
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,e))return false;
         if(thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
             return fail(e,"startingpoint fixture requires owned GameUpdate/Mainthread before receipt access");
         if(request.operation=="staff_activity_state")return staff_activity_state(request,result,e);
-        if(request.operation=="client_staff_state")return client_staff_state(request,result,e);
-        if(request.operation=="client_research_state")return client_research_state(request,result,e);
+        if((request.operation=="client_staff_state"||request.operation=="client_bridges_staff_state"))return client_staff_state(request,result,e);
+        if((request.operation=="client_research_state"||request.operation=="client_bridges_state"))return client_research_state(request,result,e);
         if(receipts.contains(request.token)){result=receipts.at(request.token);result["replay_rejected"]=true;return fail(e,"startingpoint fixture token consumed; no replay");}
         if(busy||receipts.size()>=64||worlds.size()>=64)return fail(e,"startingpoint fixture busy or receipt bound reached");
         Busy scope;
-        if(request.operation=="client_show"||request.operation=="client_commit")return client_ui(request,result,phase,key,e);
-        if(request.operation=="client_research_show"||request.operation=="client_research")return client_research(request,result,phase,key,e);
-        if(request.operation=="client_staff_show"||request.operation=="client_staff_one")return client_staff(request,result,phase,key,e);
+        if(request.operation=="client_show"||request.operation=="client_commit"||request.operation=="client_bridges_commit")return client_ui(request,result,phase,key,e);
+        if(request.operation=="client_research_show"||request.operation=="client_research"||request.operation=="client_bridges_show"||request.operation=="client_bridges_start")return client_research(request,result,phase,key,e);
+        if(request.operation=="client_staff_show"||request.operation=="client_staff_one"||request.operation=="client_bridges_staff_show"||request.operation=="client_bridges_staff_one")return client_staff(request,result,phase,key,e);
         if(request.operation=="begin")return begin_project(request,result,phase,key,e);
         Pin p;if(!pin(request,p,e)||!before(p,e))return false;
-        if(p.development!=request.expected_development)return fail(e,"startingpoint fixture expected development readback differs");
+        if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint fixture expected development readback differs");
         key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation);
         phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
         const bool is_complete=request.operation=="complete";

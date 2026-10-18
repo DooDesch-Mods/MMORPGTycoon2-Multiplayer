@@ -10,7 +10,7 @@ namespace mt2mp::game::native {
 
 enum class EntryPoint { GameUpdate, ModeUpdate, ClockUpdate, ModeCommand, BeginEdit, EndEdit, SoftwareTick, SoftwareTickerTick,
     SoftwareCalculateRating, SoftwareCalculateFun, BusinessNextDayFinances, SubscriberNewDay,
-    NeedSetSet, NeedSetIncrement, NeedSetAddAssign, NeedSetSubtractAssign, SubscriberBrainTick, SubscriberUpdateNeeds };
+    NeedSetSet, NeedSetIncrement, NeedSetAddAssign, NeedSetSubtractAssign, SubscriberBrainTick, SubscriberUpdateNeeds, ScreenUpdate, ScreenDrawPipeline };
 
 using SubscriberNeeds = std::array<float, 7>;
 enum class NeedsWriteLeaf : uint32_t { Set, Increment, AddAssign, SubtractAssign, Count };

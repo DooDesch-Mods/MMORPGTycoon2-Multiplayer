@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "work_runtime.h"
 #include "runtime_internal.h"
 #include "job_native.h"
@@ -48,6 +49,7 @@ bool region_id(const Capture& capture,uintptr_t region,int32_t& id,std::string& 
         [](uintptr_t p,size_t o,auto& value,std::string& cause){return field(p,o,value,cause);},e);
 }
 bool read_counter(const Capture& capture,uintptr_t queue,size_t offset,JobCounter& out,std::string& e){
+    live_host_state::apply_timing::PageReadScope pages;
     npc_quest_daily_apply::NativeState state;
     if(!npc_quest_daily_apply::read_native(runtime().memory,capture.image,queue+offset,state,e))return false;
     out={state.value,state.words[6],state.words[4]};return true;

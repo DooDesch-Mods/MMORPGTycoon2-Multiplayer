@@ -1,0 +1,17 @@
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(autosave_generated "${CMAKE_CURRENT_BINARY_DIR}/live_autosave_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_live_autosave.py"
+    --root "${CMAKE_CURRENT_LIST_DIR}/.." --output "${autosave_generated}"
+    RESULT_VARIABLE autosave_extract_result)
+if(NOT autosave_extract_result EQUAL 0)
+    message(FATAL_ERROR "Live autosave actual-body extraction failed")
+endif()
+add_executable(test_live_autosave "${CMAKE_CURRENT_LIST_DIR}/../test/test_live_autosave.cpp")
+target_compile_features(test_live_autosave PRIVATE cxx_std_20)
+target_include_directories(test_live_autosave PRIVATE "${autosave_generated}")
+if(MSVC)
+    target_compile_options(test_live_autosave PRIVATE /W4 /WX /permissive-)
+else()
+    target_compile_options(test_live_autosave PRIVATE -Wall -Wextra -Werror)
+endif()
+add_test(NAME live_autosave_publication COMMAND test_live_autosave)

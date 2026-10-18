@@ -1,6 +1,9 @@
 #pragma once
 #include "state.h"
+#include "vip_port.h"
+#include "marketing_port.h"
 #include "frame_fragments.h"
+#include "frame_apply_acks.h"
 #include "day_rollover/sync.h"
 #include "day_rollover/economy/coupling.h"
 #include <functional>
@@ -33,6 +36,20 @@ struct NetworkActivationReceipt {
     nlohmann::json status()const{return {{"attempted_events",attempted_events},{"confirmed_events",confirmed_events},{"last",last}};}
 };
 class Bridge {
+    MarketingPort* marketing_port_=nullptr;
+    bool apply_marketing(const Frame&,std::string&);
+    VipPort* vip_port_=nullptr;
+    std::optional<vip::Origin> vip_origin_;
+    vip::ClientRetention vip_client_;
+    nlohmann::json vip_receipt_=nullptr,vip_cleanup_=nullptr;
+    bool capture_vips(Frame&,std::string&);
+    bool sent_vips(const Frame&,std::string&);
+    bool acknowledge_vips(uint64_t peer,uint64_t revision,std::string&);
+    bool admit_vips(const Frame&,std::string&);
+    bool prepare_vips(const Frame&,std::vector<vip::Transition>&,std::string&);
+    bool apply_vips(const Frame&,const std::vector<vip::Transition>&,bool& attempted,std::string&);
+    bool suspend_vips(std::string&);
+    bool reset_vips(const Context&,const Binding&,uint64_t common_epoch,std::string&);
     day::Sync* day_=nullptr;
     day::economy::Coupling* economy_=nullptr;
     std::optional<day::economy::State> captured_economy_,queued_economy_,before_economy_,last_economy_;
@@ -47,17 +64,33 @@ class Bridge {
     std::optional<std::chrono::steady_clock::time_point> last_capture_;
     uint64_t host_revision_=0,common_epoch_=0,source_generation_=0;
     bool locked_=false;
+    std::string publication_wait_;
+    std::string publication_first_wait_,publication_last_wait_;
+    uint64_t publication_wait_count_=0,publication_recovery_count_=0;
+    bool publication_was_waiting_=false;
     ApplyReceipt receipt_;
     fragments::Assembly fragments_;
+    FrameApplyAcks apply_acks_;
     nlohmann::json sent_frame_transport_,received_frame_transport_;
     network::Receipt network_receipt_;
     NetworkActivationReceipt network_activation_receipt_;
     bool capture(uint64_t action_revision,Frame&,std::string&);
     bool send(const Frame&,std::string&);
     bool take(const Frame&,std::string&);
+    bool acknowledge_frame(const Frame&,std::string&);
 public:
     Bridge(const Context& c,const Binding& b,uint64_t common_epoch,Port& p,action_session::Transport& t,
         std::function<bool(uint64_t&,std::string&)> time):context_(c),binding_(b),port_(p),time_(std::move(time)),transport_(t),common_epoch_(common_epoch){}
+    bool bind_vip(VipPort&,std::string&);
+    bool bind_marketing(MarketingPort& value,std::string& e){if(marketing_port_||host_revision_||last_||queued_){e="Marketing provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;marketing_port_=&value;e.clear();return true;}
+    nlohmann::json marketing_status()const{return marketing_port_?marketing_port_->status():nlohmann::json(nullptr);}
+    nlohmann::json vip_status()const{
+        nlohmann::json origin=nullptr;
+        if(vip_origin_)origin={{"session",vip_origin_->session},{"epoch",vip_origin_->epoch},
+            {"source_generation",vip_origin_->generation},{"snapshot_uuid",vip_origin_->snapshot}};
+        return {{"armed",vip_port_!=nullptr},{"origin",std::move(origin)},{"committed_sequence",vip_client_.committed()},
+            {"last_apply",vip_receipt_},{"cleanup",vip_cleanup_}};
+    }
     void bind_day(day::Sync& value){day_=&value;}
     void bind_economy(day::economy::Coupling& value){economy_=&value;}
     bool after_action(const action_session::Message&,std::string&);
@@ -74,7 +107,18 @@ public:
     action_session::AuthorityReadiness before_ready(uint64_t sender,const action_session::Message&,uint64_t previous,std::string&);
     uint64_t next_publication_revision()const{return host_revision_==UINT64_MAX?0:host_revision_+1;}
     bool locked()const{return locked_;}
-    nlohmann::json frame_transport_status()const{return {{"sent",sent_frame_transport_},{"received",received_frame_transport_},{"partial",fragments_.pending()}};}
+    const std::string& publication_wait()const{return publication_wait_;}
+    nlohmann::json publication_wait_status()const{return {{"waiting",!publication_wait_.empty()},
+        {"observations",publication_wait_count_},{"recoveries",publication_recovery_count_},
+        {"first_cause",publication_first_wait_},{"last_cause",publication_last_wait_}};}
+    nlohmann::json frame_transport_status()const{
+        nlohmann::json peers=nlohmann::json::array();
+        for(size_t i=0;i<apply_acks_.peers().size();++i)peers.push_back({{"peer",i+1},{"applied_revision",apply_acks_.peers()[i].revision}});
+        return {{"sent",sent_frame_transport_},{"received",received_frame_transport_},{"partial",fragments_.pending()},
+            {"apply_ack",{{"required_revision",apply_acks_.required()},{"pending_peer_mask",apply_acks_.pending()},
+                {"cooldown",apply_acks_.cooling(std::chrono::steady_clock::now())},{"wait_observations",apply_acks_.observations()},
+                {"recoveries",apply_acks_.recoveries()},{"peers",std::move(peers)}}}};
+    }
     const ApplyReceipt& receipt()const{return receipt_;}
     const network::Receipt& network_receipt()const{return network_receipt_;}
     const NetworkActivationReceipt& network_activation_receipt()const{return network_activation_receipt_;}

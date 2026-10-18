@@ -43,7 +43,8 @@ struct StartingpointSnapshot {
     std::optional<CreationOwners> creation;
 };
 bool read(nlohmann::json& result,std::string& error);
-bool read_startingpoint(StartingpointSnapshot&,nlohmann::json&,std::string&,bool creation=false);
+bool read_research(const std::string& key,StartingpointSnapshot&,nlohmann::json&,std::string&,bool creation=false,bool share_metadata=false);
+bool read_startingpoint(StartingpointSnapshot&,nlohmann::json&,std::string&,bool creation=false,bool share_metadata=false);
 namespace detail {
 using Origin=building_mixed_identity::opened_file::CurrentWorld;
 struct Port {
@@ -55,6 +56,6 @@ struct Port {
         error="development research getters unavailable";return false;
     }
 };
-bool observe(Port&,nlohmann::json&,std::string&,StartingpointSnapshot* snapshot=nullptr,bool creation=false,bool research=false);
+bool observe(Port&,nlohmann::json&,std::string&,StartingpointSnapshot* snapshot=nullptr,bool creation=false,bool research=false,const std::string& key="startingpoint");
 }
 }

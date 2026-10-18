@@ -6,6 +6,7 @@
 #include <map>
 #include <chrono>
 #define LOG_NET_INFO(...) ((void)0)
+#define LOG_WARN(...) ((void)0)
 
 using namespace mt2mp::action_session;
 namespace {
@@ -78,6 +79,7 @@ void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
 bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true,staff_ok=true;unsigned staff_retired=0;
 bool bug_ok=true;unsigned bug_retired=0;
+unsigned vip_retired=0,chat_closes=0;bool chat_admitted=true;
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
@@ -85,12 +87,19 @@ void reset(){
     tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
     fence_ok=wire_ok=time_ok=live_ok=staff_ok=true;staff_retired=0;
-    bug_ok=true;bug_retired=0;
+    bug_ok=true;bug_retired=0;vip_retired=0;chat_closes=0;chat_admitted=true;
 }
 }
 uint32_t GetCurrentThreadId(){return fixture::thread;}
 namespace mt2mp {
 namespace net {
+namespace chat {struct Runtime {
+    static Runtime& instance(){static Runtime value;return value;}
+    void set_lobby_admitted(bool value){
+        require(!value&&!fixture::wire_retired&&!fixture::invalidated,"chat retirement must precede wire retirement and world invalidation");
+        fixture::chat_admitted=value;++fixture::chat_closes;
+    }
+};}
 uint64_t epoch=0,revision=0,applied_updates=0;
 std::array<float,2> initial{},published{};
 std::map<uint64_t,int> peers;
@@ -101,7 +110,7 @@ namespace session_wire {
 void suspend_actions(){++fixture::suspended;}
 bool retire_lobby(std::string& e){++fixture::wire_retired;if(!fixture::wire_ok)e="wire retirement failed";return fixture::wire_ok;}
 }
-void invalidate_snapshot_world(const char*){++fixture::invalidated;}
+void invalidate_snapshot_world(const char*){require(!fixture::chat_admitted&&fixture::chat_closes==1,"successful Leave closes pending chat before invalidating world");++fixture::invalidated;}
 struct SteamMatchmaking {
     static SteamMatchmaking& instance(){static SteamMatchmaking value;return value;}
     void leave_lobby(){
@@ -174,10 +183,18 @@ void retire(const std::string& cause){
 }
 namespace typed_action_runtime {
 struct Live{bool suspend_lobby(std::string& e){if(!fixture::live_ok)e="live Unknown";return fixture::live_ok;}};
+struct Vip {
+    void retire_lobby(){
+        require(fixture::title&&!fixture::transition&&!fixture::saving&&fixture::bug_retired==1,
+                "VIP owner retired before settled Title and other world owners");
+        ++fixture::vip_retired;
+    }
+};
 struct Runtime {
     action_session::Controller& controller;
     uint32_t thread=7;bool lobby_retiring=false;
     std::unique_ptr<Live> live_state;bool live_port=false;
+    std::unique_ptr<Vip> vip_presentation;
     std::string live_error;
     explicit Runtime(action_session::Controller& value):controller(value){}
     ~Runtime(){fixture::tutorial_fenced_at_delete=fixture::tutorial_fenced;++fixture::deleted;}
@@ -264,11 +281,12 @@ void idle_departure(){
     std::thread other([&]{other_thread_allowed=p.client.can_retire_lobby();});other.join();
     require(!other_thread_allowed,"foreign thread gained retirement eligibility");
 
-    fixture::reset();auto* owner=new runtime::Runtime(p.client);owner->live_state=std::make_unique<runtime::Live>();owner->live_port=true;
+    fixture::reset();auto* owner=new runtime::Runtime(p.client);owner->live_state=std::make_unique<runtime::Live>();owner->live_port=true;owner->vip_presentation=std::make_unique<runtime::Vip>();
     runtime::published_runtime.store(owner);
     require(runtime::begin_lobby_leave(p.error),p.error);
     require(owner->lobby_retiring&&fixture::suspended==1&&fixture::invalidated==1,"Leave did not suspend before world transition");
     bool ready=true;require(runtime::finish_lobby_leave(ready,p.error)&&!ready&&fixture::deleted==0,"owner deleted before actual Title");
+    require(fixture::vip_retired==0,"VIP owner retired with old World active");
     fixture::title=true;fixture::transition=true;
     require(runtime::finish_lobby_leave(ready,p.error)&&!ready&&fixture::deleted==0,"owner deleted during Title transition");
     fixture::transition=false;fixture::saving=true;
@@ -276,6 +294,7 @@ void idle_departure(){
     fixture::saving=false;
     require(runtime::finish_lobby_leave(ready,p.error)&&ready,p.error);
     require(fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&!runtime::published_runtime.load(),"Leave did not finish membership/handler/storage retirement");
+    require(fixture::vip_retired==1,"settled Leave did not retire VIP owner exactly once");
     require(p.client.status().locked&&p.client.status().cause==cause,"retirement cleared original Controller lock");
 }
 void completed_actions_and_reentry(){
@@ -387,8 +406,19 @@ void bug_lifetime_delta(){
         !runtime::published_runtime.load(),"confirmed Bug Title retirement did not release owner once");
     std::cout<<"PASS Bug Leave lifetime: pending intent, active World, retained failure and confirmed retirement\n";
 }
+void chat_retirement_delta(){
+    Pair pair;fixture::reset();std::string error;
+    auto* owner=new runtime::Runtime(pair.client);runtime::published_runtime.store(owner);
+    fixture::captures["pending_ui"]=true;
+    require(!runtime::begin_lobby_leave(error)&&fixture::chat_admitted&&!fixture::chat_closes,"rejected Leave must not close chat admission");
+    fixture::captures["pending_ui"]=false;
+    require(runtime::begin_lobby_leave(error)&&!fixture::chat_admitted&&fixture::chat_closes==1&&!fixture::wire_retired,"actual Leave closes chat before transport retirement");
+    require(!runtime::begin_lobby_leave(error)&&fixture::chat_closes==1,"rejected Leave replay does not close chat twice");
+    runtime::published_runtime.store(nullptr);delete owner;
+}
 int main(){
     try{
+        chat_retirement_delta();
         bug_lifetime_delta();
         developer_lifetime_delta();
         locked_live_departure();

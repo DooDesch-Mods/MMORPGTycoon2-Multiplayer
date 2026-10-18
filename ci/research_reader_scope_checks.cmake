@@ -1,0 +1,18 @@
+if(WIN32)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+if(NOT DEFINED READER_DEPENDENCY_ROOT)
+    get_filename_component(READER_DEPENDENCY_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+endif()
+set(reader_generated "${CMAKE_CURRENT_BINARY_DIR}/research_reader_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_research_reader_scope.py"
+    --root "${CMAKE_CURRENT_LIST_DIR}/.." --dependencies "${READER_DEPENDENCY_ROOT}" --output "${reader_generated}"
+    RESULT_VARIABLE reader_extract_result)
+if(NOT reader_extract_result EQUAL 0)
+    message(FATAL_ERROR "Research pure-reader extraction failed")
+endif()
+add_executable(test_research_reader_scope "${CMAKE_CURRENT_LIST_DIR}/../test/test_research_reader_scope.cpp")
+target_compile_features(test_research_reader_scope PRIVATE cxx_std_20)
+target_include_directories(test_research_reader_scope PRIVATE "${reader_generated}" "${READER_DEPENDENCY_ROOT}/src/game" "${READER_DEPENDENCY_ROOT}/include")
+target_compile_options(test_research_reader_scope PRIVATE /W4 /WX /permissive-)
+add_test(NAME research_reader_scope COMMAND test_research_reader_scope)
+endif()

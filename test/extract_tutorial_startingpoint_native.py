@@ -26,7 +26,7 @@ extracted = [
 ]
 (args.output / "native_scope.inc").write_text("\n".join(extracted), encoding="utf-8")
 native_calls = args.native.with_name("startingpoint_native.inc").read_text(encoding="utf-8-sig")
-commit = part(native_calls, "bool same_world(", "bool startingpoint_code(")
+commit = part(native_calls, "bool same_world(", '#include "research_release.inc"')
 commit += native_calls[native_calls.index("void commit_current(void* lounge){"):]
 (args.output / "native_commit.inc").write_text(commit, encoding="utf-8")
 (args.output / "reader_fixture.h").write_text(

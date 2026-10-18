@@ -22,12 +22,17 @@ placement_ui_probe::ProcessMemory memory;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 template<class T>bool at(uintptr_t p,size_t o,T& v,std::string& e){if(!p||p>UINTPTR_MAX-o)return fail(e,"live native address range invalid");return memory.copy(p+o,&v,sizeof v,e);}
 bool ap(uintptr_t p,uintptr_t image,uintptr_t addresspoint,std::string& e){uintptr_t actual=0;return at(p,0,actual,e)&&(actual==image+addresspoint||fail(e,"live native class addresspoint differs"));}
-bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages;p={};uintptr_t image=0;uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(image,thread,sha,e))return false;
+bool current_scope(const Context& expected,const Binding& binding,Pin& p,native::WorldStatus& status,std::string& e){p={};uintptr_t image=0;uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(image,thread,sha,e))return false;
     if(thread!=GetCurrentThreadId()||image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"live native module/Mainthread receipt differs");
     auto& session=action_session::selected_session();Context current;if(!session.current(current,e)||current!=expected)return fail(e,e.empty()?"live actual session differs from Controller bound context":e);
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;if(!world.world||!world.state||world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)return fail(e,"live actual World/epoch/generation differs");
-    native::WorldStatus status;if(!native::read_world_status(status,e))return false;if(!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
+    if(!native::read_world_status(status,e))return false;
     p.context=current;p.binding=binding;p.common_epoch=net::current_world_epoch();if(!p.common_epoch)return fail(e,"live actual common Sidecar epoch absent");p.image=image;p.thread=thread;p.world=uintptr_t(world.world);
+    return true;
+}
+bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages;native::WorldStatus status;
+    if(!current_scope(expected,binding,p,status,e)||!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
+    const auto image=p.image;
     if(!at(image,0x13df9a0,p.clock,e)||!ap(p.clock,image,0x17499d0,e)||!at(image,0x13df220,p.business,e)||!ap(p.business,image,0x16d97e0,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1712c00,e))return false;
     if(p.clock>UINTPTR_MAX-0x60||p.business>UINTPTR_MAX-0x110||p.record>UINTPTR_MAX-0x5d0)return fail(e,"live native fixed owner extent overflows");
     int32_t version=0;if(!at(p.record,0x18,version,e)||version!=2)return fail(e,e.empty()?"live native Record dv requires2":e);
@@ -41,6 +46,14 @@ bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std
 }
 uintptr_t address(const Pin& p,size_t slot){if(slot<6)return p.clock+0x38+slot*4;if(slot==6)return p.business+0x38;if(slot<12)return p.record+0x1c+(slot-7)*4;slot-=12;return p.record+0x30+(slot/2)*0x48+0x18+(slot%2)*4;}
 
+}
+bool NativePort::publication_ready(uint64_t expected_epoch,bool& waiting,std::string& e){
+    waiting=false;
+    if(context_.role!=action_session::Role::Host||context_.local_peer!=1)return fail(e,"live publication readiness requires bound Host");
+    Pin current;native::WorldStatus status;
+    if(!current_scope(context_,binding_,current,status,e))return false;
+    if(current.common_epoch!=expected_epoch)return fail(e,"live publication actual common epoch differs from Bridge");
+    return publication_activity(status.saves_in_progress,status.edit_operations,waiting,e);
 }
 bool NativePort::read(Pin& out,std::string& e){out={};Pin first,second;float pause1=0,pause2=0;if(!once(context_,binding_,first,pause1,e)||!once(context_,binding_,second,pause2,e))return false;if(first!=second||pause1!=pause2)return fail(e,"live native roots/fields/session changed during double read");Frame shape;shape.session=context_.session;shape.snapshot=context_.snapshot_uuid;shape.epoch=binding_.native_epoch;shape.source_generation=binding_.native_generation;shape.revision=shape.time_revision=1;shape.values=first.values;shape.selected=first.selected;shape.pause=pause1;if(!valid(shape,e))return false;out=first;e.clear();return true;}
 bool NativePort::current_owners(const Pin& expected,std::string& e,int32_t expected_edits){Pin current;float pause=0;if(!once(context_,binding_,current,pause,e,expected_edits))return false;current.values={};auto identity=expected;identity.values={};if(current!=identity||current.selected!=0)return fail(e,"live scalar current owner identities/History membership/Clock0 differ");e.clear();return true;}

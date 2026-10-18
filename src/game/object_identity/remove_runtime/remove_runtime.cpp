@@ -1,6 +1,6 @@
 #include "remove_runtime.h"
 #include "owned_undo_open.h"
-#include "vendor/minhook/include/MinHook.h"
+#include "mt2mp/hooks/minhook_backend.h"
 #include <algorithm>
 #include <cstring>
 #include <exception>

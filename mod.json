@@ -1,0 +1,10 @@
+{
+  "id": "doodesch.multiplayer",
+  "name": "Multiplayer",
+  "version": "0.1.0-beta.14",
+  "api_version": "1.0.0",
+  "type": "native",
+  "entry": "MT2MultiplayerPlugin.dll",
+  "capabilities": ["ui", "input"],
+  "multiplayer": "shared"
+}

@@ -75,6 +75,12 @@ DWORD call_set_current_project(uintptr_t base,uintptr_t lounge,uintptr_t source)
 namespace mt2mp::game::tutorial_development {
 bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string&,bool creation){++snapshot_reads;if(during_read)during_read(snapshot_reads);out=physical;if(!creation)out.creation.reset();return true;}
 }
+namespace mt2mp::game::tutorial_development {
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation){
+    if(key!="startingpoint")throw std::runtime_error("Startingpoint selected another Research key");
+    return read_startingpoint(out,diagnostic,e,creation);
+}
+}
 namespace mt2mp::game::native {
 bool read_resolver_receipt(uintptr_t& base,uint32_t& thread,std::string& sha,std::string&){base=image;thread=mainthread;sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";return true;}
 bool read_clock(ClockState& out,std::string&){out=clock_status;return true;}
@@ -94,6 +100,15 @@ void reset(){
     economy_pin={};economy_pin.context=fixture_context;economy_pin.binding=fixture_binding;economy_pin.image=image;economy_pin.world=reinterpret_cast<uintptr_t>(physical.origin.world);economy_pin.clock=0x400000;economy_pin.business=0x410000;economy_pin.record=0x420000;economy_pin.history=0x430000;economy_pin.thread=mainthread;economy_pin.history_count=3;economy_pin.history_capacity=5;economy_pin.values.cash=92430;economy_pin.values.record={1,2,3,4,5};economy_pin.values.calendar={1,2,3,4,5,6};for(size_t i=0;i<20;++i)economy_pin.values.lines[i]={int32_t(i),int32_t(i+20)};
     world_status={};world_status.saves_in_progress=world_status.edit_operations=0;clock_status={};clock_status.time_scale=0;clock_status.pause_scale=1;purchase_calls=set_calls=snapshot_reads=economy_reads=0;fail_economy_read=0;purchase_error=set_error=0;after_purchase=after_set={};during_read={};code_valid=true;
 }
+// Startingpoint must never enter the keyed Research deployment boundary.
+namespace research_release {
+struct Graph { bool operator==(const Graph&)const=default; };
+bool read(uintptr_t,Graph&,std::string&){throw std::runtime_error("Startingpoint entered Research Release read");}
+bool admissible(const Graph&,uintptr_t,std::string&){throw std::runtime_error("Startingpoint entered Research Release admission");}
+bool preserve(const Graph&,const Graph&,uintptr_t,nlohmann::json&,std::string&){throw std::runtime_error("Startingpoint entered Research Release preservation");}
+}
+World research_proof_origin;
+nlohmann::json research_commit_proof;
 #include "creation_calls.inc"
 startingpoint::Row target(){startingpoint::Row row;row.project_present=row.purchased=true;row.work=78.88058471679688f;row.lines=182;row.desired_workers=1;return row;}
 void need(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);}

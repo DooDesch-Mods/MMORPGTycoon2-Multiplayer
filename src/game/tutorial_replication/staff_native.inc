@@ -19,9 +19,9 @@ bool staff_code(std::string& e){
 struct StaffCalls {
     const action_session::Context& context;const action_session::Binding& binding;
     tutorial_development::StartingpointSnapshot before;live_host_state::Pin economy;
-    int32_t available=0;
+    int32_t available=0;std::string key="startingpoint";
     bool snapshot(tutorial_development::StartingpointSnapshot& value,live_host_state::Pin& pin,std::string& e){
-        StartActionCalls reader{context,binding};return reader.snapshot(value,pin,e);
+        StartActionCalls reader{context,binding};reader.key=key;return reader.snapshot(value,pin,e);
     }
     bool admit(int32_t desired,std::string& e){
         if((context.role==action_session::Role::Client)!=load.armed)return fail(e,"Startingpoint staff actual joined role differs");
@@ -68,21 +68,22 @@ bool staff_window(const tutorial_development::StartingpointSnapshot& snapshot,in
     return (!logic&&visible==1&&owner==window&&selected==desired)||fail(e,"Startingpoint staff actual visible Window/Pips owner or selected value differs");
 }
 struct StaffCaptureCalls {
-    void* receiver;int32_t desired;
+    void* receiver;int32_t desired;std::string key="startingpoint";
     void original(){original_allocate(receiver,desired);}
     bool pin(std::string& e){
         action_session::Context context;action_session::Binding binding;
         if(!action_session::selected_session().current(context,e)||context.role!=action_session::Role::Client)
             return fail(e,e.empty()?"Startingpoint staff intent requires joined Client":e);
         if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
-        StaffCalls calls{context,binding};
+        if(!current_project_key(receiver,key,e))return false;
+        StaffCalls calls{context,binding};calls.key=key;
         if(!calls.admit(desired,e)||calls.before.lounge!=reinterpret_cast<uintptr_t>(receiver))return fail(e,e.empty()?"Startingpoint staff UI receiver differs from current lounge":e);
         if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry)||!staff_window(calls.before,desired,e))return false;
         startingpoint::Row row;action_session::Ledger ledger;
         return calls.read(row,ledger,e)&&row==*calls.before.row||fail(e,e.empty()?"Startingpoint staff capture changed native row":e);
     }
     bool uuid(std::string& id,std::string& e){return intent_uuid(id,e);}
-    bool submit(const std::string& id,std::string& e){return typed_action_runtime::submit_startingpoint_workers(id,desired,e);}
+    bool submit(const std::string& id,std::string& e){return key=="bridges"?typed_action_runtime::submit_research_workers(id,key,desired,e):typed_action_runtime::submit_startingpoint_workers(id,desired,e);}
 };
 void allocate_current(void* receiver,int32_t desired){
     if(load.armed&&GetCurrentThreadId()!=mainthread){block("Client staff allocation thread differs");return;}

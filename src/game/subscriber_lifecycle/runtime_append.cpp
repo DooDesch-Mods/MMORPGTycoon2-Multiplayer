@@ -1,7 +1,9 @@
+#include "mt2mp/core/runtime_paths.h"
 #include "developer_staff/construction_links.h"
 #include "bug_authority/job_links.h"
 #include "runtime_append.h"
 #include "building_reference_pins.h"
+#include "npc_reference_pins.h"
 #include "append_calls.h"
 #include "client_world.h"
 #include "payload.h"
@@ -43,6 +45,7 @@ struct Work{
     stage::ClientWorld original,held;
     stage::Payload payload;
     subscriber_building_references::Pins building_pins;
+    subscriber_npc_references::Pins npc_pins;
     std::string origin,local_sha;
     const FrameBinding* frame=nullptr;
     Json* receipt=nullptr;
@@ -62,12 +65,15 @@ bool current_frame(const Work& w,std::string& e){
     return true;
 }
 bool read_world(Work& w,bool held,stage::ClientWorld& out,std::string& e){
-    return current_frame(w,e)&&stage::read_client_world(memory,w.local_sha,w.origin,held,out,e);
+    return current_frame(w,e)&&stage::read_client_world(memory,w.local_sha,w.origin,held,out,e,w.frame?&w.frame->context:nullptr);
+}
+bool read_world_roots(Work& w,bool held,stage::ClientWorld& out,std::string& e){
+    return current_frame(w,e)&&stage::read_client_world_roots(memory,w.local_sha,w.origin,held,out,e,w.frame?&w.frame->context:nullptr);
 }
 bool fresh_link(void* user,const local::ExternalLink& link,std::string& e){
     auto& w=*static_cast<Work*>(user);
     if(!current_frame(w,e))return false;
-    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins};
+    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins};
     for(size_t i=0;i<w.links.size();++i)if(w.links[i].saved_link_id==link.saved_link_id){uintptr_t p=0;return stage::resolve_reference(memory,world,w.keys[i].first,p,e)&&p==link.object||fail(e,e.empty()?"Subscriber external owner changed during native Resolve":e);}
     return fail(e,"Subscriber external link not declared");
 }
@@ -84,7 +90,7 @@ bool toon_array(Work& w,std::vector<uintptr_t>& out,std::string& e){
 bool exit_guard(void* user,std::string& e){
     auto& w=*static_cast<Work*>(user);stage::ClientWorld current;
     if(!read_world(w,true,current,e))return false;
-    return (stage::same_client_owner(w.original,current)||fail(e,"Subscriber append owner changed before original SaveScope leave"))&&w.building_pins.verify_used(e);
+    return (stage::same_client_owner(w.original,current)||fail(e,"Subscriber append owner changed before original SaveScope leave"))&&w.building_pins.verify_used(e)&&w.npc_pins.verify_used(e);
 }
 struct Resources {
     stage::NativeTree record,next;
@@ -102,10 +108,10 @@ bool body_inner(Work& w,Resources& owners,std::string& e){
     const auto before=w.held.census;
     if(w.payload.next_id<before.next_id)return fail(e,"Subscriber Host nextID moved backwards");
     for(const auto& member:before.members)if(member.id==w.payload.id)return fail(e,"Subscriber already present; no C1 replay");
-    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins};
+    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins};
     for(const auto& ref:w.payload.external){uintptr_t object=0;
         if(!stage::resolve_reference(memory,world,ref.key,object,e))return false;
-        const auto name=std::to_string(int(ref.key.kind))+":"+std::to_string(ref.key.region_id)+":"+std::to_string(ref.key.character_kind)+":"+std::to_string(ref.key.character_id)+":"+std::to_string(ref.key.ability_index)+":"+ref.key.building_key+(ref.key.kind==stage::ReferenceKind::SubscriberToon?":"+std::to_string(ref.key.subscriber_id):"");
+        const auto name=std::to_string(int(ref.key.kind))+":"+std::to_string(ref.key.region_id)+":"+std::to_string(ref.key.character_kind)+":"+std::to_string(ref.key.character_id)+":"+std::to_string(ref.key.ability_index)+":"+ref.key.building_key+ref.key.npc_key+(ref.key.kind==stage::ReferenceKind::SharedQuest?":"+std::to_string(ref.key.sequence_id):"")+(ref.key.kind==stage::ReferenceKind::SubscriberToon?":"+std::to_string(ref.key.subscriber_id):"");
         w.links.push_back({ref.local_link_id,name,object});w.keys.push_back({ref.key,object});
         if(ref.key.kind==stage::ReferenceKind::RootRegion){if(w.region&&w.region!=object)return fail(e,"single Subscriber probe spans multiple root Regions");w.region=object;}
     }
@@ -128,6 +134,9 @@ bool body_inner(Work& w,Resources& owners,std::string& e){
     const auto lookup_result=lookup_scope.receipt();lookup_scope.clear();
     result["native_calls"]={{"context_constructed",ctor.returned},{"array_load_attempted",load.attempted},{"array_load_returned",load.returned},{"next_id_returned",next_call.returned},{"context_resolve_destroy_attempted",dtor.attempted},{"context_resolve_destroy_returned",dtor.returned},{"lookup_original_calls",lookup_result.original_calls},{"external_lookup_hits",lookup_result.external_hits},{"lookup_failed",lookup_result.failed},{"lookup_cause",lookup_result.cause}};
     if(!ok||lookup_result.failed){w.unknown=true;if(lookup_result.failed)e+=(e.empty()?"":"; ")+lookup_result.cause;return false;}
+    // Borrowed targets can have no Weak proxy until original Resolve assigns
+    // the imported links. Require positive live holders after that call returns.
+    if(!w.npc_pins.verify_quest_references(e)){w.unknown=true;return false;}
     local::Census after;
     if(!stage::read_cohort(memory,w.held,after,e,false)){w.unknown=true;return false;}
     if(after.members.size()!=before.members.size()+1||after.next_id!=w.payload.next_id){w.unknown=true;return fail(e,"native Subscriber append count/nextID differs");}
@@ -182,6 +191,7 @@ bool initialize(uintptr_t image,std::string& e){if(image_base)return image_base=
 void* lookup_entrypoint(){return image_base?reinterpret_cast<void*>(image_base+local::lookup_rva):nullptr;}
 void set_lookup_hook_ready(bool ready){hook_ready=ready;}
 void* lookup(void* context,int32_t id,local::Lookup original){return lookup_scope.lookup(GetCurrentThreadId(),context,id,original);}
+#include "quest_edit_batch.inc"
 // QUEST_LINK_BODY_BEGIN
 namespace {
 struct QuestWeak {
@@ -318,11 +328,13 @@ bool quest_link_exit(void* user,std::string& e){
     return quest_fresh(&w,borrowed,e);
 }
 }
-bool bind_quest_instance(const QuestLinkRequest& request,const std::string& origin,
-                         const FrameBinding& frame,QuestLinkReceipt& result,std::string& e){
+static bool bind_quest_instance_impl(const QuestLinkRequest& request,const std::string& origin,
+                         const FrameBinding& frame,QuestLinkReceipt& result,std::string& e,QuestEditBatch* batch){
     result={};e.clear();
-    if(busy.test_and_set())return fail(e,"Quest link shared Subscriber append scope busy");
-    struct Busy{~Busy(){busy.clear();}} release;
+    QuestBatchStep step{batch,e};
+    if(batch){if(!quest_batch_claim(*batch,e))return false;}
+    else if(busy.test_and_set())return fail(e,"Quest link shared Subscriber append scope busy");
+    struct Busy{bool owned;~Busy(){if(owned)busy.clear();}} release{!batch};
     auto owner=std::make_unique<QuestLinkWork>();auto& w=*owner;
     w.request=request;w.receipt=&result;w.world.origin=origin;w.world.local_sha=frame.local_sha;w.world.frame=&frame;
     local::SaveScopeReceipt scope;bool ok=false;
@@ -330,15 +342,16 @@ bool bind_quest_instance(const QuestLinkRequest& request,const std::string& orig
         if(!hook_ready||!image_base||!api.quest_resolve)return fail(e,"Quest link original shared lookup hook/API not ready");
         if(!request.instance||request.quest>UINTPTR_MAX-0x28||request.portable_key.empty()||!request.fresh)
             return fail(e,"Quest link local request missing");
-        if(!read_world(w.world,false,w.world.original,e))return false;
+        if(!quest_batch_world(batch,w.world,e))return false;
         if(w.world.original.image!=image_base)return fail(e,"Quest link current image differs");
         if(blocked_epoch==w.world.original.origin.world_epoch&&blocked_generation==w.world.original.origin.generation)
             return fail(e,"Quest link prior outcome unknown: "+blocked_cause);
         const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
-        ok=local::with_save_scope(save,w.world.original.origin.mode,quest_link_body,quest_link_exit,&w,scope,e);
+        ok=batch?quest_batch_run(*batch,w.world,quest_link_body,quest_link_exit,&w,scope,e):
+            local::with_save_scope(save,w.world.original.origin.mode,quest_link_body,quest_link_exit,&w,scope,e);
         if(scope.unknown)w.unknown=true;
         if(!ok&&(result.id_store_attempted||result.resolve.attempted))w.unknown=true;
-        if(ok){stage::ClientWorld closed;
+        if(ok&&!batch){stage::ClientWorld closed;
             if(!read_world(w.world,false,closed,e)||!stage::same_client_owner(w.world.original,closed)){
                 if(e.empty())e="Quest link current owner changed after SaveScope";
                 w.unknown=true;ok=false;
@@ -348,6 +361,7 @@ bool bind_quest_instance(const QuestLinkRequest& request,const std::string& orig
     catch(...){e+=(e.empty()?"":"; ")+std::string("Quest link unknown C++ exception");w.unknown=true;}
     if(w.armed){result.lookup=lookup_scope.receipt();lookup_scope.clear();w.armed=false;}
     if(w.unknown){
+        if(batch)batch->scope.unknown=true;
         blocked_epoch=w.world.original.origin.world_epoch;blocked_generation=w.world.original.origin.generation;blocked_cause=e;
         result.unknown=true;result.private_context_retained=true;
         // Retain the C++ slot even when Ctor or Dtor ownership is indeterminate.
@@ -355,7 +369,16 @@ bool bind_quest_instance(const QuestLinkRequest& request,const std::string& orig
         w.retained_next=std::move(retained_quest_links);retained_quest_links=std::move(owner);
         return false;
     }
-    result.confirmed=ok&&result.after_confirmed;return result.confirmed;
+    step.success=ok&&result.after_confirmed;
+    result.confirmed=step.success&&!batch;return step.success;
+}
+bool bind_quest_instance(const QuestLinkRequest& request,const std::string& origin,
+                         const FrameBinding& frame,QuestLinkReceipt& result,std::string& e){
+    return bind_quest_instance_impl(request,origin,frame,result,e,nullptr);
+}
+bool bind_quest_instance(QuestEditBatch& batch,const QuestLinkRequest& request,const std::string& origin,
+                         const FrameBinding& frame,QuestLinkReceipt& result,std::string& e){
+    return bind_quest_instance_impl(request,origin,frame,result,e,&batch);
 }
 // QUEST_LINK_BODY_END
 
@@ -520,10 +543,12 @@ bool progress_body(void* user,std::string& e){
 }
 bool progress_exit(void* user,std::string& e){return progress_fresh(*static_cast<ProgressWork*>(user),e);}
 bool progress_apply(const ProgressRequest& request,uintptr_t retiring,bool retire,
-                    const std::string& origin,const FrameBinding& frame,ProgressReceipt& result,std::string& e){
+                    const std::string& origin,const FrameBinding& frame,ProgressReceipt& result,std::string& e,QuestEditBatch* batch=nullptr){
     result={};e.clear();
-    if(busy.test_and_set())return fail(e,"Progress shared Subscriber append scope busy");
-    struct Busy{~Busy(){busy.clear();}} release;
+    QuestBatchStep step{batch,e};
+    if(batch){if(!quest_batch_claim(*batch,e))return false;}
+    else if(busy.test_and_set())return fail(e,"Progress shared Subscriber append scope busy");
+    struct Busy{bool owned;~Busy(){if(owned)busy.clear();}} release{!batch};
     auto owner=std::make_unique<ProgressWork>();auto& w=*owner;
     w.request=request;w.receipt=&result;w.retire=retire;w.selected=retiring;result.progress=retiring;
     w.world.origin=origin;w.world.local_sha=frame.local_sha;w.world.frame=&frame;
@@ -533,14 +558,15 @@ bool progress_apply(const ProgressRequest& request,uintptr_t retiring,bool retir
             return fail(e,"Progress original API missing");
         if(!request.toon||(!retire&&!request.npc)||(retire&&!retiring)||request.npc>UINTPTR_MAX-0x30||request.npc_key.empty()||!request.fresh)
             return fail(e,"Progress local request missing");
-        if(!read_world(w.world,false,w.world.original,e))return false;
+        if(!quest_batch_world(batch,w.world,e))return false;
         if(w.world.original.image!=image_base)return fail(e,"Progress current image differs");
         if(blocked_epoch==w.world.original.origin.world_epoch&&blocked_generation==w.world.original.origin.generation)
             return fail(e,"Progress prior outcome unknown: "+blocked_cause);
         const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
-        ok=local::with_save_scope(save,w.world.original.origin.mode,progress_body,progress_exit,&w,scope,e);
+        ok=batch?quest_batch_run(*batch,w.world,progress_body,progress_exit,&w,scope,e):
+            local::with_save_scope(save,w.world.original.origin.mode,progress_body,progress_exit,&w,scope,e);
         if(scope.unknown||(!ok&&(result.allocate.attempted||result.shift.attempted||result.removed||result.destroy.attempted)))w.unknown=true;
-        if(ok){stage::ClientWorld closed;
+        if(ok&&!batch){stage::ClientWorld closed;
             if(!read_world(w.world,false,closed,e)||!stage::same_client_owner(w.world.original,closed)){
                 if(e.empty())e="Progress owner changed after SaveScope";w.unknown=true;ok=false;
             }
@@ -548,12 +574,14 @@ bool progress_apply(const ProgressRequest& request,uintptr_t retiring,bool retir
     }catch(const std::exception& ex){e+=(e.empty()?"":"; ")+std::string("Progress C++: ")+ex.what();w.unknown=true;}
     catch(...){e+=(e.empty()?"":"; ")+std::string("Progress unknown C++ exception");w.unknown=true;}
     if(w.unknown){
+        if(batch)batch->scope.unknown=true;
         blocked_epoch=w.world.original.origin.world_epoch;blocked_generation=w.world.original.origin.generation;blocked_cause=e;
         result.unknown=true;result.retained=true;
         w.receipt=nullptr;w.world.frame=nullptr;w.request.fresh=nullptr;w.request.user=nullptr;
         w.retained_next=std::move(retained_progress);retained_progress=std::move(owner);return false;
     }
-    result.confirmed=ok&&result.after_confirmed;return result.confirmed;
+    step.success=ok&&result.after_confirmed;
+    result.confirmed=step.success&&!batch;return step.success;
 }
 }
 bool ensure_progress(const ProgressRequest& request,const std::string& origin,const FrameBinding& frame,ProgressReceipt& r,std::string& e){
@@ -561,6 +589,12 @@ bool ensure_progress(const ProgressRequest& request,const std::string& origin,co
 }
 bool retire_progress(const ProgressRequest& request,uintptr_t progress,const std::string& origin,const FrameBinding& frame,ProgressReceipt& r,std::string& e){
     return progress_apply(request,progress,true,origin,frame,r,e);
+}
+bool ensure_progress(QuestEditBatch& batch,const ProgressRequest& request,const std::string& origin,const FrameBinding& frame,ProgressReceipt& r,std::string& e){
+    return progress_apply(request,0,false,origin,frame,r,e,&batch);
+}
+bool retire_progress(QuestEditBatch& batch,const ProgressRequest& request,uintptr_t progress,const std::string& origin,const FrameBinding& frame,ProgressReceipt& r,std::string& e){
+    return progress_apply(request,progress,true,origin,frame,r,e,&batch);
 }
 // QUEST_PROGRESS_BODY_END
 
@@ -579,12 +613,14 @@ bool apply_impl(const Json& graph,const std::string& origin,const FrameBinding* 
         result["serialized_subscriber_id"]=work.payload.id;result["source_snapshot_sha256"]=work.payload.baseline_sha;result["actual_client_origin_sha256"]=work.local_sha;result["shared_frame_binding"]=frame!=nullptr;
         if(std::any_of(work.payload.external.begin(),work.payload.external.end(),[](const auto& r){return r.key.kind==stage::ReferenceKind::SharedBuilding;})&&
            !work.building_pins.prepare(work.original.image,work.original.origin,e))return false;
+        if(std::any_of(work.payload.external.begin(),work.payload.external.end(),[](const auto& r){return r.key.kind==stage::ReferenceKind::SharedNPC||r.key.kind==stage::ReferenceKind::SharedQuest;})&&
+           !work.npc_pins.prepare(work.original.image,work.original.origin,e))return false;
         const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
         const bool done=local::with_save_scope(save,work.original.origin.mode,body,exit_guard,&work,scope,e);
         result["subscriber_creation_attempted"]=work.effect;
         result["save_scope"]={{"enter_returned",scope.enter_returned},{"body_attempted",scope.body_attempted},{"leave_attempted",scope.leave_attempted},{"leave_returned",scope.leave_returned},{"exit_guard_confirmed",scope.exit_guard_confirmed},{"unknown",scope.unknown},{"body_cause",scope.body_cause},{"cleanup_cause",scope.cleanup_cause}};
         if(!done){work.unknown=work.unknown||scope.unknown||work.effect;}
-        else{stage::ClientWorld closed;if(!read_world(work,false,closed,e)||!stage::same_client_owner(work.original,closed)||!work.building_pins.verify_used(e))work.unknown=true;else{result["state"]="confirmed";result["closed_world_readback_confirmed"]=true;return true;}}
+        else{stage::ClientWorld closed;if(!read_world(work,false,closed,e)||!stage::same_client_owner(work.original,closed)||!work.building_pins.verify_used(e)||!work.npc_pins.verify_used(e))work.unknown=true;else{result["state"]="confirmed";result["closed_world_readback_confirmed"]=true;return true;}}
     }catch(const std::exception& ex){e=std::string("Subscriber append exception: ")+ex.what();work.unknown=work.unknown||work.effect||scope.enter_attempted;}
     catch(...){e="Subscriber append unknown C++ exception";work.unknown=true;}
     if(work.unknown){blocked_epoch=work.original.origin.world_epoch;blocked_generation=work.original.origin.generation;blocked_cause=e;result["state"]="unknown";result["replay_permitted"]=false;lookup_scope.clear();}
@@ -595,7 +631,7 @@ bool apply_frame(const Json& graph,const std::string& origin,const FrameBinding&
 bool probe(const std::filesystem::path& root,const std::string& basename,const std::string& sha,const std::string& origin,Json& result,std::string& e){
     result={{"state","rejected"},{"subscriber_creation_attempted",false}};
     try{if(!filename(basename)||sha.size()!=64)return fail(e,"Subscriber append artifact basename/SHA invalid");
-        std::ifstream file(root/"diagnostics"/"subscriber-records"/basename,std::ios::binary);if(!file)return fail(e,"Subscriber append private artifact open failed");
+        std::ifstream file(runtime_paths::diagnostics(root)/"subscriber-records"/basename,std::ios::binary);if(!file)return fail(e,"Subscriber append private artifact open failed");
         const std::string content((std::istreambuf_iterator<char>(file)),{});if(file.bad()||hash(content)!=sha)return fail(e,"Subscriber append artifact readback SHA differs");
         return apply_graph(Json::parse(content),origin,result,e);
     }catch(const std::exception& x){return fail(e,std::string("Subscriber artifact read original=")+x.what());}

@@ -35,14 +35,28 @@ static bool detour_swap_window(SDL_Window* window) {
             reinterpret_cast<uintptr_t>(window));
     }
 
-    // Call our overlay render before the swap
+    // Separate mod drawing from the original presentation wait.
+    uint64_t overlay_ns = 0;
+    bool rendered = false;
     if (g_render_callback) {
+        const auto started = monotonic_ns();
         g_render_callback();
+        overlay_ns = monotonic_ns() - started;
+        rendered = true;
     }
 
+    const auto swap_started = monotonic_ns();
     const bool returned = orig_swap_window(window);
+    const auto swap_ns = monotonic_ns() - swap_started;
+    std::lock_guard lock(g_present_mutex);
+    if (rendered) {
+        ++g_presents.overlay_calls;
+        g_presents.overlay_total_ns += overlay_ns;
+    }
+    ++g_presents.swap_returns;
+    g_presents.swap_total_ns += swap_ns;
+    if (!returned) ++g_presents.swap_failed;
     if (returned) {
-        std::lock_guard lock(g_present_mutex);
         ++g_presents.completed;
         g_presents.last_completed_monotonic_ns = monotonic_ns();
         if (g_present_window != window) {

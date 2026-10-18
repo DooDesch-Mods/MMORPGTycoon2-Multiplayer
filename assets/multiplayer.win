@@ -1,0 +1,85 @@
+mmoWindow
+{
+	dims 450 380;
+	anchorPos 80 80;
+	anchorType Window;
+	clickable false;
+	hasTitlebar true;
+	corners "BottomRight";
+	transitionType rez;
+	rezSpeed slow;
+	hideOnEscape true;
+	hasTitlebar true;
+	title "Multiplayer";
+	transparent false;
+	suppressGlowBorder true;
+
+	content
+	{
+		mmoTextPane
+		{
+			dims 400 30;
+			anchorType Top;
+			anchorPos 0 10;
+			text "MMORPG Tycoon 2 - Multiplayer Mod";
+			justify topcenter;
+			size 18;
+			bold true;
+		}
+		mmoPane
+		{
+			dims 400 2;
+			material "White";
+			anchorType Top;
+			anchorPos 0 45;
+		}
+		mmoTextPane
+		{
+			dims 380 40;
+			anchorType Top;
+			anchorPos 0 60;
+			text "Press F10 to open the Multiplayer lobby.\nUse the lobby to host or join a session.";
+			justify topcenter;
+			size 14;
+		}
+		mmoButtonPane
+		{
+			dims 380 50;
+			text "Open Multiplayer Lobby (F10)";
+			textSize 20;
+			anchorType Top;
+			anchorPos 0 120;
+			clickable true;
+			command "MessageTo Game OpenWeb http://localhost/mt2mp_lobby";
+			corners "BottomLeft";
+			edges "Top Left Bottom Right";
+			border true;
+		}
+		mmoPane
+		{
+			dims 400 2;
+			material "White";
+			anchorType Top;
+			anchorPos 0 190;
+		}
+		mmoTextPane
+		{
+			dims 380 80;
+			anchorType Top;
+			anchorPos 0 200;
+			text "How to play:\n1. Host: Click 'Open Lobby' then 'Create Lobby'\n2. Join: Enter host's Steam ID and click 'Connect'\n3. Both players see each other's cursors\n4. Game state syncs automatically";
+			justify topleft;
+			size 13;
+		}
+		mmoTextPane
+		{
+			dims 380 30;
+			anchorType Bottom;
+			anchorPos 0 10;
+			text "MT2 Multiplayer Mod v0.1.0";
+			justify bottomcenter;
+			size 12;
+			textColor 0.5 0.5 0.5 1;
+		}
+	}
+}

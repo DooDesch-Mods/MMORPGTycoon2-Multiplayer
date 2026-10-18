@@ -57,10 +57,19 @@ void poll(void* event,uint64_t next_frame);
 void frame(uint64_t completed_frame);
 void suspend(const std::string& cause);
 const Receipt& receipt();
+struct FocusWindowState {
+    bool observed=false;
+    uint64_t sdl_flags=0;
+    bool hidden=false,minimized=false,not_focusable=false,input_focus_flag=false;
+    bool visible=false,enabled=false,iconic=false;
+    bool foreground_owned=false,thread_focus_owned=false,thread_active_owned=false;
+    bool force_raise=false,activate_when_raised=true;
+};
 struct FocusReceipt {
     std::string origin,error;
     bool requested=false,attempted=false,returned=false;
     bool keyboard_focus=false,input_enabled=false,ready=false;
+    FocusWindowState window_state{};
 };
 bool request_focus(const std::string& native_origin_uuid,std::string&);
 bool read_focus(FocusReceipt&,std::string&);

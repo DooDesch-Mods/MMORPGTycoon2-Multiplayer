@@ -29,6 +29,9 @@ struct DecodeReceipt {
 struct NativeTree { uintptr_t root=0; std::vector<uintptr_t> detached; };
 bool validate_records(const std::vector<Record>&,std::string&);
 bool decode_records(const DecodeApi&,Memory&,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
+enum class MarketingRecordKind { Award, Campaign };
+// Fresh typed object loads consume the object Record itself, without an array wrapper.
+bool decode_marketing_record(const DecodeApi&,Memory&,MarketingRecordKind,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
 bool decode_integer_record(const DecodeApi&,Memory&,const char*,int32_t,NativeTree&,DecodeReceipt&,std::string&);
 bool decode_string_record(const DecodeApi&,Memory&,const char*,const std::string&,NativeTree&,DecodeReceipt&,std::string&);
 bool destroy_records(const DecodeApi&,NativeTree&,DecodeReceipt&,std::string&);

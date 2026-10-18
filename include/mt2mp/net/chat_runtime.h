@@ -10,12 +10,17 @@ struct Snapshot {
     uint64_t session = 0;
     uint8_t local_peer = 0;
     std::vector<Entry> entries;
+    uint64_t conversation = 0;
+    bool retired = false;
 };
 
 class Runtime {
 public:
     static Runtime& instance();
     bool initialize(std::string& error);
+    // Native lobby owner calls this on confirmed admission and before wire retirement.
+    // Mode changes preserve admission; repeated identical calls do not start a new conversation.
+    void set_lobby_admitted(bool admitted);
     void tick();
     bool submit(const std::string& text, std::string& error, uint64_t* sequence = nullptr);
     Snapshot snapshot() const;
@@ -28,6 +33,8 @@ private:
     bool initialized_ = false;
     uint64_t session_ = 0;
     uint8_t local_ = 0;
+    bool admitted_ = false;
+    uint64_t admission_ = 0;
 };
 
 } // namespace mt2mp::net::chat

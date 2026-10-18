@@ -14,7 +14,7 @@ using DWORD=unsigned long;
 using World=building_mixed_identity::opened_file::CurrentWorld;
 constexpr uintptr_t win=0x2000,tabs=0x3000,view=0x4000,grid=0x5000,button=0x6000,rows=0x7000,fixture_pane=0x8000,tech=0x9000;
 const std::string action="11111111-1111-1111-1111-111111111111";
-struct Pin{World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};};
+struct Pin{World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
 struct Request{std::string token="token",origin_uuid="local",operation="client_research";uint64_t epoch=1,generation=1;json expected_development;};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;
@@ -46,11 +46,11 @@ bool network_binding(const std::string&,action_session::Binding&,std::string& e)
 bool observe_startingpoint_submission(const action_session::Context& c,const action_session::Binding& b,const std::string& id,std::string& e){
     ++pending_observations;return (c.snapshot_uuid=="common"&&b.owner==7&&client_controller_admission(controller,id,e))||fail(e,e.empty()?"bound Context changed":e);}
 }
-bool pin(const Request&,Pin& p,std::string& e,bool client=false,const std::string& pending={},const action_session::Context* context=nullptr,const action_session::Binding* binding=nullptr){
+bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending={},const action_session::Context* context=nullptr,const action_session::Binding* binding=nullptr){
     if(!client||!client_controller_admission(controller,pending,e))return false;
     if(pending.empty()){action_session::Binding b;if(!typed_action_runtime::network_binding("common",b,e))return false;}
     else if(!context||!binding||!typed_action_runtime::observe_startingpoint_submission(*context,*binding,pending,e))return false;
-    p={};p.development=development;p.world=native_snapshot.origin;
+    p={};p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
     if(activation_calls&&change_origin)++p.world.world_epoch;
     return true;
 }
@@ -92,6 +92,7 @@ DWORD activate(uintptr_t,uintptr_t){
     if(unknown_pending)controller["outcome"]=3;return 0;
 }
 #include "research_ui_read.inc"
+#include "research_begin_guard.inc"
 #include "client_research_fixture.inc"
 unsigned checks_completed=0;
 void need(bool yes,const char* cause){if(!yes)throw std::runtime_error(cause);++checks_completed;}
@@ -135,7 +136,20 @@ void next_ui_update(){
     put<uintptr_t>(view,0x410,fixture_pane);put<int32_t>(view,0x408,2);
     for(uintptr_t child:{fixture_pane,grid,button})put<uintptr_t>(child,0x280,win);
 }
-bool state(json& out,std::string& e){e.clear();Request r;r.operation="client_research_state";r.expected_development=development;return client_research_state(r,out,e);}
+bool state(json& out,std::string& e,const char* op="client_research_state"){e.clear();Request r;r.operation=op;r.expected_development=development;return client_research_state(r,out,e);}
+void bridges(){
+    native_snapshot.creation->catalogue[1].key="bridges";put<int32_t>(tech,0xac,10000);ledger_value=88160;
+    development["research"]={{"project_present",false},{"rows",json::array({{{"key","bridges"},{"visible",true},{"owned",false},{"purchased",false},{"can_choose_now",true},{"can_afford",true},{"cost",10000}}})}};
+}
+void check_bridges(){std::string e;json out;
+    reset();bridges();need(run(out,e,"client_bridges_show")&&show_calls==1&&activation_calls==0&&out["price"]==10000,"Bridges Show failed exact selected price");
+    need(worlds.contains("local:1:1:client_research:bridges")&&!worlds.contains("local:1:1:client_research:startingpoint"),"Bridges consumed Startingpoint phase");
+    need(state(out,e,"client_bridges_state")&&out["ready"]==true&&activation_calls==0,"Bridges read-only state failed");
+    need(run(out,e,"client_bridges_start")&&activation_calls==1&&out["submitted"]==true&&out["price"]==10000&&out["ledger_before"]==out["ledger_after"],"Bridges original selection/Start orchestration failed");
+    need(!run(out,e,"client_bridges_start")&&activation_calls==1,"Bridges pending Start replayed");
+    reset();bridges();development["research"]["rows"][0]["cost"]=9999;need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("getters")!=std::string::npos,"Bridges wrong original price reached selection");
+    reset();bridges();development["research"]["rows"].push_back(development["research"]["rows"][0]);need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("duplicated")!=std::string::npos,"duplicate Bridges catalogue reached UI");
+}
 void check(){std::string e;json out;
     reset();unlaid_out();staff_page();
     need(run(out,e,"client_research_show")&&show_calls==1&&page_calls==1&&select_calls==0&&activation_calls==0&&out["page_requested"]==true&&out["selection_confirmed"]==false,"Show must request deferred Tech page without selecting inactive Grid");
@@ -188,4 +202,4 @@ void check(){std::string e;json out;
 }
 
 }
-int main(){try{check();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{check();check_bridges();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

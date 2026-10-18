@@ -1,3 +1,6 @@
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/hooks/framework_backend.h"
+#endif
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/core/logger.h"
@@ -103,7 +106,7 @@ bool fail(std::string& error, const std::string& message) {
 bool readable(const void* pointer, size_t bytes) {
     if (!pointer || !bytes) return false;
     MEMORY_BASIC_INFORMATION memory{};
-    if (!mt2mp::game::live_host_state::apply_timing::virtual_query(pointer, &memory, sizeof(memory)) || memory.State != MEM_COMMIT ||
+    if (!mt2mp::game::live_host_state::apply_timing::virtual_query(pointer, &memory, sizeof(memory),mt2mp::game::live_host_state::apply_timing::Part::QueryEngine) || memory.State != MEM_COMMIT ||
         (memory.Protect & (PAGE_GUARD | PAGE_NOACCESS))) return false;
     const auto address = reinterpret_cast<uintptr_t>(pointer);
     const auto start = reinterpret_cast<uintptr_t>(memory.BaseAddress);
@@ -692,6 +695,8 @@ bool initialize(std::string& error) {
         {0x54d00, "\x0f\xb6\x81\xf0\x00\x00\x00\x84", 8},
         {0x54d80, "\xb8\x01\x00\x00\x00\x66\x0f\x6e", 8},
         {0x353a50, "\x56\x53\x48\x83\xec\x28\x80\xb9", 8},
+        {0x9ca0e0, "\x56\x53\x48\x83\xec\x28\x8b\x41\x30\xc6\x41\x6f\x00\x48\x89\xce", 16},
+        {0x9cb150, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xe8", 16},
         {0x4a1bb0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
         {0x259450, "\x41\x54\x55\x57\x56\x53", 6},
         {0x4a2f90, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
@@ -700,8 +705,17 @@ bool initialize(std::string& error) {
     };
     for (const auto& guard : guards) {
         auto* address = reinterpret_cast<const void*>(base + guard.rva);
-        if (!readable(address, guard.size) || std::memcmp(address, guard.bytes, guard.size))
+        if (!readable(address, guard.size))
+            return fail(error, "native prologue guard unreadable RVA=" + std::to_string(guard.rva));
+        if (std::memcmp(address, guard.bytes, guard.size)) {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            std::string route_error;
+            if (hooks::framework::verify_code(base + guard.rva, guard.bytes, guard.size, route_error)) continue;
+            return fail(error, "native prologue guard rejected RVA=" + std::to_string(guard.rva) + "; " + route_error);
+#else
             return fail(error, "native prologue guard rejected RVA=" + std::to_string(guard.rva));
+#endif
+        }
     }
     resolved_executable_sha256=digest;
     image.store(base);
@@ -724,7 +738,7 @@ Capabilities capabilities() {
 
 void* entrypoint(EntryPoint point) {
     constexpr uintptr_t addresses[] = {0x463ce0, 0x4a1bb0, 0x259450, 0x4a2f90, 0x265300, 0x265650, 0x2de7f0, 0x2de820,
-        0x2de360, 0x2de6b0, 0x57570, 0x2eb530, 0x395ee0, 0x395f00, 0x3960a0, 0x396120, 0x394a20, 0x38f620};
+        0x2de360, 0x2de6b0, 0x57570, 0x2eb530, 0x395ee0, 0x395f00, 0x3960a0, 0x396120, 0x394a20, 0x38f620, 0x9ca0e0, 0x9cb150};
     const auto index = static_cast<unsigned>(point);
     if (!ready() || index >= std::size(addresses)) return nullptr;
     return reinterpret_cast<void*>(image.load() + addresses[index]);
@@ -1083,7 +1097,7 @@ bool apply_software_cache(uint64_t epoch, uint64_t revision, const SoftwareCache
             "/" + std::to_string(expected_before.fun));
     auto* destination = static_cast<unsigned char*>(software) + 0x314;
     MEMORY_BASIC_INFORMATION memory{};
-    if (!readable(destination, sizeof(float) * 2) || !mt2mp::game::live_host_state::apply_timing::virtual_query(destination, &memory, sizeof(memory)) ||
+    if (!readable(destination, sizeof(float) * 2) || !mt2mp::game::live_host_state::apply_timing::virtual_query(destination, &memory, sizeof(memory),mt2mp::game::live_host_state::apply_timing::Part::QueryEngine) ||
         !(memory.Protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)))
         return fail(error, "software cache apply rejected: cache pair is not writable");
     LOG_INFO("[Native] Software cache apply attempted epoch={} revision={} before={}/{} host={}/{}", epoch, revision,
@@ -1527,7 +1541,7 @@ bool apply_subscriber_needs(uint64_t epoch, int32_t serialized_id, uint64_t revi
     }
     auto* destination = static_cast<unsigned char*>(needs_replica.needs) + 0x18;
     MEMORY_BASIC_INFORMATION memory{};
-    if (!readable(destination, sizeof(SubscriberNeeds)) || !mt2mp::game::live_host_state::apply_timing::virtual_query(destination, &memory, sizeof(memory)) ||
+    if (!readable(destination, sizeof(SubscriberNeeds)) || !mt2mp::game::live_host_state::apply_timing::virtual_query(destination, &memory, sizeof(memory),mt2mp::game::live_host_state::apply_timing::Part::QueryEngine) ||
         !(memory.Protect & (PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY)))
         return fail(error, "needs apply rejected: complete seven-value destination is not writable");
     needs_replica.permit_index = -1;

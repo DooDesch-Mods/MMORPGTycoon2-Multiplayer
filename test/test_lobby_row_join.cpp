@@ -11,25 +11,33 @@
 using Json=nlohmann::json;
 struct Config {bool local_test=false,is_host=false;static Config& instance(){static Config value;return value;}};
 namespace net {
+namespace chat {struct Runtime {
+    bool admitted=false;unsigned admissions=0;
+    static Runtime& instance(){static Runtime value;return value;}
+    void set_lobby_admitted(bool value){admitted=value;++admissions;}
+};}
 struct LobbyInfo {std::string state="open",host_name="Host";int player_count=1,max_players=4;uint64_t lobby_id=42;};
 struct SteamNetworking {static SteamNetworking& instance(){static SteamNetworking value;return value;}bool init(){return true;}std::string get_persona_name(uint64_t){return "Host";}};
 struct SteamMatchmaking {
-    std::function<void(bool,uint64_t)> completion;unsigned joins=0;uint64_t requested=0;std::vector<uint64_t> members={1};
+    std::function<void(bool,uint64_t)> completion;unsigned creates=0,joins=0;uint64_t requested=0;std::vector<uint64_t> members={1};
     static SteamMatchmaking& instance(){static SteamMatchmaking value;return value;}
     bool init(){return true;}
     uint64_t host_steam_id(){return 1;}
     bool publish_lobby_data(const char*,const std::string&,std::string&){return true;}
     bool set_lobby_joinable(bool,std::string&){return true;}
-    void create_lobby(int,std::function<void(bool,uint64_t)>,bool){throw std::runtime_error("unexpected create");}
+    void create_lobby(int,std::function<void(bool,uint64_t)> callback,bool){++creates;completion=callback;}
     void join_lobby(uint64_t id,std::function<void(bool,uint64_t)> callback){++joins;requested=id;completion=callback;}
     std::vector<uint64_t> get_lobby_members(){return members;}
 };
 namespace session_wire {bool physical=false;bool connected(){return physical;}}
 }
 bool pending=false,member=false,list_pending=false,choosing=false,load_attempted=false;
+bool host_world_pick_requested=false,current_host_world=false;
+std::string selected_world;
 int ui_mode=2;size_t list_page=0;uint64_t generation=0,selected_lobby=0,owner=0;
 std::vector<net::LobbyInfo> discovered;
 std::vector<std::string> saved_worlds;
+std::string chat_error;uint64_t chat_last_sequence=0;bool chat_draft_clear_failed=false;
 std::string cause,ui_status,field_text,published_state;bool label_ok=true;
 std::map<std::string,Json> route_receipts;
 unsigned failures=0,world_selections=0;
@@ -57,21 +65,34 @@ std::string publication_state(const Json& preparation){
 }
 void check(bool value,const char* why){if(!value)throw std::runtime_error(why);}
 void reset(){
+    net::chat::Runtime::instance()={};chat_error.clear();chat_last_sequence=0;
     Config::instance()=Config{};net::SteamMatchmaking::instance()=net::SteamMatchmaking{};
     pending=member=list_pending=choosing=load_attempted=false;net::session_wire::physical=false;
+    host_world_pick_requested=current_host_world=false;selected_world.clear();
     ui_mode=2;list_page=0;generation=selected_lobby=owner=0;failures=world_selections=0;
     discovered={net::LobbyInfo{}};saved_worlds={"Saved"};cause.clear();ui_status.clear();field_text.clear();label_ok=true;route_receipts.clear();
 }
 int main(){
     auto& mm=net::SteamMatchmaking::instance();
+    reset();dispatch("MT2MPHost");
+    check(mm.creates==1&&pending&&!host_world_pick_requested,"unconfirmed Host opens world picker");
+    member=true;mm.completion(true,42);check(host_world_pick_requested,"confirmed new Title host does not queue explicit picker");
+    reset();selected_world="Already Selected";dispatch("MT2MPHost");member=true;mm.completion(true,42);
+    check(!host_world_pick_requested,"Host callback replaces selected world");
+    reset();current_host_world=true;dispatch("MT2MPHost");member=true;mm.completion(true,42);
+    check(!host_world_pick_requested,"Host callback replaces current world");
+    reset();dispatch("MT2MPHost");mm.completion(false,0);check(!host_world_pick_requested,"failed Host opens world picker");
     reset();dispatch("MT2MPList0");
     check(mm.joins==1&&mm.requested==42&&selected_lobby==42&&pending&&!admitted(),"row did not request one callback-confirmed Join");
     route_receipts["row"]={{"button","list0"},{"admission_generation",generation},{"backend_confirmed",false}};
     dispatch("MT2MPList0");check(mm.joins==1&&failures==1,"pending row replayed Join");
+    check(!net::chat::Runtime::instance().admitted,"pending callback must not admit chat");
     member=true;mm.completion(true,42);
+    check(net::chat::Runtime::instance().admitted&&net::chat::Runtime::instance().admissions==1,"confirmed callback admits chat once");
     check(!pending&&owner==1&&route_receipts["row"]["callback_completed"]==true&&route_receipts["row"]["backend_confirmed"]==true,"row callback did not update actual admission receipt");
     reset();dispatch("MT2MPList0");route_receipts["row"]={{"button","list0"},{"admission_generation",generation}};mm.completion(false,0);
     check(!pending&&!admitted()&&cause=="Steam lobby admission failed"&&route_receipts["row"]["backend_confirmed"]==false,"failed Join was presented as admitted");
+    check(!net::chat::Runtime::instance().admitted,"failed callback must not admit chat");
     reset();dispatch("MT2MPList0");++generation;mm.completion(true,42);check(owner==0&&pending,"stale callback admitted");
     reset();discovered[0].state="playing";dispatch("MT2MPList0");check(mm.joins==0&&failures==1,"closed row joined");
     reset();discovered[0].player_count=4;dispatch("MT2MPList0");check(mm.joins==0&&failures==1,"full row joined");

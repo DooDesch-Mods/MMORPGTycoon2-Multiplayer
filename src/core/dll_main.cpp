@@ -1,5 +1,17 @@
 #include "../game/bug_authority/runtime_internal.h"
 #include "mt2mp/core/dll_main.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/framework_runtime.h"
+#include "mt2mp/core/framework_input.h"
+#endif
+#include "mt2mp/core/runtime_paths.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/framework_open_paths.h"
+#endif
+#include "mt2mp/core/game_update_pair.h"
+#include <array>
+#include <optional>
+#include <bit>
 #include "mt2mp/core/config.h"
 #include "mt2mp/core/installed_profile.h"
 #include "mt2mp/core/private_profile_paths.h"
@@ -31,6 +43,7 @@
 #include "../game/developer_staff/retirement/retire.h"
 #include "../game/subscriber_lifecycle/runtime_capture.h"
 #include "../game/subscriber_lifecycle/runtime_append.h"
+#include "../game/marketing_native_probe/runtime.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
@@ -48,6 +61,7 @@
 #include "../game/root_building_load.h"
 #include "../game/network_identity.h"
 #include "../game/native_open_runtime.h"
+#include "../game/scenario_vip_authority/alert_probe.h"
 #include "../game/tutorial_observer.h"
 #include "../game/tutorial_development.h"
 #include "../game/tutorial_replication/native.h"
@@ -99,6 +113,7 @@
 #include <psapi.h>
 #include <intrin.h>
 
+namespace mt2mp::hooks {void set_game_window_ptr(SDL_Window*);}
 namespace mt2mp::installed_profile {const std::filesystem::path& diagnostic_root();}
 namespace mt2mp {
 using json=nlohmann::json;
@@ -152,6 +167,29 @@ static json frame_timing_status() {
     for(size_t i=0;i<size_t(FrameTimingPart::Count);++i){const auto& t=frame_timing[i];parts[names[i]]={{"count",t.count},{"total_ns",t.total_ns},{"max_ns",t.max_ns}};}
     parts["frame_interval"]={{"count",frame_intervals.count},{"total_ns",frame_intervals.total_ns},{"max_ns",frame_intervals.max_ns}};
     return {{"schema",1},{"unit","nanoseconds"},{"completed_game_updates",completed_game_updates},{"parts",std::move(parts)},{"apply_parts",game::live_host_state::apply_timing::snapshot()}};
+}
+using EnginePhaseUpdate=void(*)(void*,float);
+using EnginePhaseDraw=void(*)(void*,void*,void*);
+static EnginePhaseUpdate original_timed_mode_update=nullptr;
+static EnginePhaseUpdate original_timed_screen_update=nullptr;
+static EnginePhaseDraw original_timed_screen_draw_pipeline=nullptr;
+static void timed_mode_update(void* receiver,float dt){
+    game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ModeUpdate);
+    original_timed_mode_update(receiver,dt);
+}
+static void timed_screen_update(void* receiver,float dt){
+    game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ScreenUpdate);
+    original_timed_screen_update(receiver,dt);
+}
+static void timed_screen_draw_pipeline(void* receiver,void* pipeline,void* options){
+    game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ScreenDrawPipeline);
+    original_timed_screen_draw_pipeline(receiver,pipeline,options);
+}
+static bool install_engine_timing_hooks(std::string& error){
+    if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ModeUpdate),reinterpret_cast<void*>(&timed_mode_update),reinterpret_cast<void**>(&original_timed_mode_update))||!original_timed_mode_update){error="native diagnostic Mode Update hook failed";return false;}
+    if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ScreenUpdate),reinterpret_cast<void*>(&timed_screen_update),reinterpret_cast<void**>(&original_timed_screen_update))||!original_timed_screen_update){error="native diagnostic Screen Update hook failed";return false;}
+    if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ScreenDrawPipeline),reinterpret_cast<void*>(&timed_screen_draw_pipeline),reinterpret_cast<void**>(&original_timed_screen_draw_pipeline))||!original_timed_screen_draw_pipeline){error="native diagnostic Screen DrawPipeline hook failed";return false;}
+    error.clear();return true;
 }
 static DWORD render_thread=0;
 static DWORD engine_thread=0;
@@ -621,14 +659,14 @@ static void capture_frame() {
         for(size_t i=0;i<pixels.size();i+=4) std::swap(pixels[i],pixels[i+2]);
         BITMAPFILEHEADER file{}; file.bfType=0x4d42; file.bfOffBits=sizeof(file)+sizeof(BITMAPINFOHEADER); file.bfSize=DWORD(file.bfOffBits+pixels.size());
         BITMAPINFOHEADER info{}; info.biSize=sizeof(info); info.biWidth=width; info.biHeight=height; info.biPlanes=1; info.biBitCount=32; info.biCompression=BI_RGB;
-        auto path=std::filesystem::path(runtime_root)/"diagnostics"/("frame-"+pending_frame.at("id").get<std::string>()+".bmp");
+        auto path=runtime_paths::diagnostics(runtime_root)/("frame-"+pending_frame.at("id").get<std::string>()+".bmp");
         std::ofstream stream(path,std::ios::binary); stream.write(reinterpret_cast<const char*>(&file),sizeof(file)); stream.write(reinterpret_cast<const char*>(&info),sizeof(info)); stream.write(reinterpret_cast<const char*>(pixels.data()),pixels.size()); stream.close();
         if(!stream) throw std::runtime_error("frame write failed: "+path.string());
         response["ok"]=true; response["result"]={{"path",path.string()},{"width",width},{"height",height},{"bytes",file.bfSize},{"pixel_sha256",sha256(pixels)}};
         LOG_INFO("[MCP] FRAME_CAPTURED path={} dimensions={}x{}",path.string(),width,height);
     } catch(const std::exception& error) { response["ok"]=false; response["error"]={{"code","FRAME_FAILED"},{"message",error.what()}}; LOG_ERROR("[MCP] Frame capture failed: {}",error.what()); }
     pending_frame=nullptr;
-    try { respond(std::filesystem::path(runtime_root)/"diagnostics",response); }
+    try { respond(runtime_paths::diagnostics(runtime_root),response); }
     catch(const std::exception& error) { LOG_ERROR("[MCP] Frame response write failed: {}",error.what()); }
 }
 static void report_live_scope_entry(bool entered,const std::string& error) {
@@ -645,17 +683,50 @@ static void report_live_scope_entry(bool entered,const std::string& error) {
     if(failed_frames!=UINT64_MAX)++failed_frames;
 }
 
-static void game_update(void* game,float dt) {
-    FrameTimingScope measured_update(FrameTimingPart::Update);
-    if(previous_frame_start!=std::chrono::steady_clock::time_point{})record_frame_timing(frame_intervals,uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(measured_update.started-previous_frame_start).count()));
-    previous_frame_start=measured_update.started;
-    game::initial_release::FixtureUpdateScope release_fixture_scope(game);
-    game::developer_staff::FixtureUpdateScope developer_fixture_scope(game);
-    game::tutorial_startingpoint_fixture::UpdateScope startingpoint_fixture_scope(game);
-    bool live_scope=false;
-    if(game::typed_action_runtime::live_state_active()) {std::string error;live_scope=game::live_host_state::economic_fence().enter_game_update(error);report_live_scope_entry(live_scope,error);}
-    struct LiveScope {bool active;void close(){if(active){game::live_host_state::economic_fence().leave_game_update();active=false;}}~LiveScope(){close();}} scope{live_scope};
-    {FrameTimingScope measured(FrameTimingPart::Original);original_game_update(game,dt);}
+// The same lifetime surrounds original Update in standalone and Framework paths.
+struct GameUpdateInterval {
+    explicit GameUpdateInterval(std::chrono::steady_clock::time_point started) {
+        if(previous_frame_start!=std::chrono::steady_clock::time_point{})record_frame_timing(frame_intervals,uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(started-previous_frame_start).count()));
+        previous_frame_start=started;
+    }
+};
+struct GameUpdateLiveScope {
+    bool active=false;
+    void close(){if(active){game::live_host_state::economic_fence().leave_game_update();active=false;}}
+    ~GameUpdateLiveScope(){close();}
+};
+struct GameUpdateFrame {
+    FrameTimingScope measured_update{FrameTimingPart::Update};
+    GameUpdateInterval interval{measured_update.started};
+    game::initial_release::FixtureUpdateScope release_fixture_scope;
+    game::developer_staff::FixtureUpdateScope developer_fixture_scope;
+    game::tutorial_startingpoint_fixture::UpdateScope startingpoint_fixture_scope;
+    GameUpdateLiveScope live;
+    explicit GameUpdateFrame(void* receiver):release_fixture_scope(receiver),developer_fixture_scope(receiver),startingpoint_fixture_scope(receiver) {
+        if(game::typed_action_runtime::live_state_active()) {
+            std::string error;
+            live.active=game::live_host_state::economic_fence().enter_game_update(error);
+            report_live_scope_entry(live.active,error);
+        }
+    }
+};
+static game_update_pair::Trace game_update_trace;
+struct GameUpdateWorkScope {
+    game_update_pair::Section section;
+    game_update_pair::TraceToken token{};
+    explicit GameUpdateWorkScope(game_update_pair::Section value) noexcept:section(value) {
+        try {if(game_update_trace.begin)token=game_update_trace.begin(game_update_trace.context,section);}
+        catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace begin failed: {}",error.what());}
+        catch(...){LOG_ERROR("[GameUpdate] Trace begin failed: unknown exception");}
+    }
+    ~GameUpdateWorkScope() noexcept {
+        if(!token.token)return;
+        try {game_update_trace.end(game_update_trace.context,section,token);}
+        catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace end failed: {}",error.what());}
+        catch(...){LOG_ERROR("[GameUpdate] Trace end failed: unknown exception");}
+    }
+};
+static void game_update_after(GameUpdateFrame& frame,float dt) {
     game::time_input_diagnostics::frame(completed_game_updates+1);
     if(tutorial_movement_ready)game::tutorial_movement::frame(completed_game_updates+1);
     ++completed_game_updates;
@@ -668,37 +739,115 @@ static void game_update(void* game,float dt) {
         if(!native_lobby_initialized)LOG_ERROR("[NativeLobby] Initialization failed: {}",native_lobby_error);
     }
     if(native_lobby_initialized) {
-        FrameTimingScope measured(FrameTimingPart::Lobby);
+        FrameTimingScope measured(FrameTimingPart::Lobby);GameUpdateWorkScope traced(game_update_pair::Section::Lobby);
         std::string observed;
         if(!game::native_lobby::tick(observed)&&native_lobby_error!=observed){native_lobby_error=observed;LOG_ERROR("[NativeLobby] Native menu tick failed: {}",observed);}
     }
     if(owned_native_profile) {
         if(Config::instance().local_test||net::session_wire::connected())initialize_time_hooks();
-        {FrameTimingScope measured(FrameTimingPart::Typed);game::typed_action_runtime::tick();}
-        {FrameTimingScope measured(FrameTimingPart::Transport);
+        {FrameTimingScope measured(FrameTimingPart::Typed);GameUpdateWorkScope traced(game_update_pair::Section::Typed);game::typed_action_runtime::tick();}
+        {FrameTimingScope measured(FrameTimingPart::Transport);GameUpdateWorkScope traced(game_update_pair::Section::Transport);
         if(Config::instance().local_test)net::tick_local_session();
         else {std::string wire_error;if(!net::session_wire::tick(wire_error)&&!wire_error.empty()&&!wire_error.starts_with("info:"))native_lobby_error=wire_error;}
         net::chat::Runtime::instance().tick();
         net::tick_snapshot_sync(); net::tick_diagnostic_placement(); net::tick_software_sync();}
         if(time_initialized) {
-            FrameTimingScope measured(FrameTimingPart::Time);
+            FrameTimingScope measured(FrameTimingPart::Time);GameUpdateWorkScope traced(game_update_pair::Section::Time);
             if(game::time_integration::instance().tick(time_tick_error)) { ++time_tick_confirmed; time_tick_error.clear(); }
             else if(time_tick_error=="snapshot_not_active") ++time_tick_waiting;
             else ++time_tick_failed;
         }
-        {FrameTimingScope measured(FrameTimingPart::Hud);game::time_input_diagnostics::tick();
+        {FrameTimingScope measured(FrameTimingPart::Hud);GameUpdateWorkScope traced(game_update_pair::Section::Hud);game::time_input_diagnostics::tick();
         game::hud_time_runtime::tick();
         game::hud_calendar_runtime::tick();
         game::native_free_diagnostics::drain_logs();}
-        {FrameTimingScope measured(FrameTimingPart::Diagnostics);diagnostics_tick();}
-        scope.close();
+        {FrameTimingScope measured(FrameTimingPart::Diagnostics);GameUpdateWorkScope traced(game_update_pair::Section::Diagnostics);diagnostics_tick();}
+        frame.live.close();
         std::string lobby_error;
-        {FrameTimingScope measured(FrameTimingPart::Prepare);if(!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
+        {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if(!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
     }
 }
+static void game_update(void* receiver,float dt) {
+    GameUpdateFrame frame(receiver);
+    {FrameTimingScope measured(FrameTimingPart::Original);original_game_update(receiver,dt);}
+    game_update_after(frame,dt);
+}
+namespace game_update_pair {
+namespace {
+struct Entered {
+    Frame identity;
+    std::optional<GameUpdateFrame> lifetime;
+};
+// Framework V2 permits at most 64 nested GameUpdate invocations.
+std::array<Entered,64> entered_updates;
+size_t update_depth=0;
+const void* update_owner=nullptr;
+DWORD update_thread=0;
+uint64_t latest_entered_id=0;
+bool accepting_updates=false;
+bool update_failure(std::string& error,const char* cause){error=cause;return false;}
+bool same_float(float left,float right){return std::bit_cast<uint32_t>(left)==std::bit_cast<uint32_t>(right);}
+}
+bool activate(const void* owner,const Trace& trace,std::string& error) {
+    if(!owner||!initialized||original_game_update||update_owner||update_depth)
+        return update_failure(error,"Framework GameUpdate requires initialized runtime, no standalone original, and an unbound owner");
+    if(bool(trace.begin)!=bool(trace.end)||(trace.begin&&!trace.context))
+        return update_failure(error,"Framework GameUpdate trace callbacks/context are incomplete");
+    update_owner=owner;update_thread=GetCurrentThreadId();game_update_trace=trace;
+    latest_entered_id=0;accepting_updates=true;error.clear();return true;
+}
+bool begin(const void* owner,const Frame& frame,std::string& error) {
+    if(!accepting_updates||!owner||owner!=update_owner||GetCurrentThreadId()!=update_thread||!initialized)
+        return update_failure(error,"Framework GameUpdate begin owner/thread/runtime is not active");
+    if(!frame.id||frame.id<=latest_entered_id||!frame.game||!std::isfinite(frame.dt)||frame.original_returned||update_depth==entered_updates.size())
+        return update_failure(error,"Framework GameUpdate begin identity/original receipt/nesting budget differs");
+    try {
+        GameUpdateWorkScope measured(Section::Before);
+        auto& entered=entered_updates[update_depth];
+        entered.lifetime.emplace(frame.game);
+        entered.identity=frame;
+        ++update_depth;latest_entered_id=frame.id;error.clear();return true;
+    } catch(const std::exception& problem){error=std::string("Framework GameUpdate begin failed: ")+problem.what();return false;}
+    catch(...){return update_failure(error,"Framework GameUpdate begin failed: unknown exception");}
+}
+bool end(const void* owner,const Frame& frame,std::string& error,bool* closed) {
+    if(closed)*closed=false;
+    if(!owner||owner!=update_owner||GetCurrentThreadId()!=update_thread||!update_depth)
+        return update_failure(error,"Framework GameUpdate end owner/thread/entered lifetime differs");
+    auto& entered=entered_updates[update_depth-1];
+    const auto& expected=entered.identity;
+    if(frame.id!=expected.id||frame.game!=expected.game||!same_float(frame.dt,expected.dt)||frame.original_returned>1)
+        return update_failure(error,"Framework GameUpdate end does not match the innermost entered frame");
+    struct CloseEntered {
+        Entered& entered;
+        bool* closed;
+        ~CloseEntered(){entered.lifetime.reset();--update_depth;if(closed)*closed=true;}
+    } close{entered,closed};
+    bool passed=true;
+    if(frame.original_returned) {
+        try {game_update_after(*entered.lifetime,frame.dt);error.clear();}
+        catch(const std::exception& problem){error=std::string("Framework GameUpdate post failed: ")+problem.what();passed=false;}
+        catch(...){error="Framework GameUpdate post failed: unknown exception";passed=false;}
+    } else {error="Framework original GameUpdate did not return normally";passed=false;}
+    if(!passed)accepting_updates=false;
+    return passed;
+}
+bool retire(const void* owner,std::string& error) {
+    if(!owner||owner!=update_owner||GetCurrentThreadId()!=update_thread)
+        return update_failure(error,"Framework GameUpdate retirement owner/thread differs");
+    accepting_updates=false;
+    if(update_depth)return update_failure(error,"Framework GameUpdate retirement waits for entered frames");
+    update_owner=nullptr;update_thread=0;game_update_trace={};error.clear();return true;
+}
+}
+
 static std::string env(const char* name) { char value[32768]; DWORD n=GetEnvironmentVariableA(name,value,sizeof(value)); return n&&n<sizeof(value)?std::string(value,n):""; }
 static void init_paths() {
     auto& cfg=Config::instance();
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    framework_runtime::configure();
+    runtime_root=cfg.runtime_root;run_id=cfg.run_id;owned_native_profile=true;
+#else
     if(const auto* installed=installed_profile::get()){
         cfg.game_dir=installed->game_dir.string();cfg.user_data_dir=installed->user_data_dir.string();
         runtime_root=installed->runtime_root.string();run_id=installed->run_id;
@@ -722,6 +871,7 @@ static void init_paths() {
         owned_native_profile=cfg.local_test;cfg.diagnostic_mailbox_enabled=owned_native_profile;
         if(owned_native_profile&&env("MT2MP_TRANSPORT")=="steam")cfg.local_test=false;
     }
+#endif
     cfg.runtime_root=runtime_root;cfg.run_id=run_id;
     game::lobby_operations::configure(run_id,diagnostic_executor_idle);
 }
@@ -766,7 +916,10 @@ static json status() {
         {"render_presents",{{"schema",1},{"unit","nanoseconds"},{"completed",presents.completed},
             {"sampled_monotonic_ns",presents.sampled_monotonic_ns},
             {"last_completed_monotonic_ns",presents.last_completed_monotonic_ns},
-            {"window_identity",presents.window_identity}}},
+            {"window_identity",presents.window_identity},
+            {"overlay_calls",presents.overlay_calls},{"overlay_total_ns",presents.overlay_total_ns},
+            {"swap_returns",presents.swap_returns},{"swap_total_ns",presents.swap_total_ns},
+            {"swap_failed",presents.swap_failed}}},
         {"game_thread_ready",engine_thread!=0},{"game_thread_id",engine_thread},{"render_thread_id",render_thread},{"peer_id",cfg.peer_id},
         {"session_connected",net::session_wire::connected()},{"peer_count",net::session_wire::peers()},
         {"session_status",net::local_session_status()},{"write_dir",write_dir},
@@ -776,8 +929,15 @@ static json status() {
         {"placement_status",net::diagnostic_placement_status()},
         {"world_ready",false},{"blocker","Engine-Replikation noch nicht bewiesen"},
         {"overlay_visible",overlay::LobbyOverlay::instance().is_visible()},
-        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",render_thread!=0}}}};
+        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",false}}}};
     if(!installed_proof_receipt.is_null())result["installed_proof"]=installed_proof_receipt;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    result["runtime_kind"]="framework-plugin";
+    result["framework_profile"]=private_profile::utf8(framework_runtime::paths().profile);
+    result["installed_binary_sha256"]=framework_runtime::modules();
+    result["render_presents"]["available"]=false;
+    result["render_presents"]["cause"]="Presentation belongs to Framework; use its profiler";
+#endif
     result["capabilities"]["read_chat"]=true;
     result["capabilities"]["send_chat"]=net::chat::Runtime::instance().snapshot().connected;
     result["capabilities"]["read_chat_ui"]=render_thread!=0;
@@ -835,21 +995,21 @@ static json status() {
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_remove_runtime::enabled();
     result["capabilities"]["native_npc_move_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_move_runtime::enabled();
-    result["capabilities"]["read_prices"]=game::typed_action_runtime::status().value("started",false);
+    result["capabilities"]["read_prices"]=result["typed_actions"].value("started",false);
       result["capabilities"]["native_price_ui"]=game::ui_price_runtime::status().value("enabled",false);
     result["capabilities"]["native_region_styles_ui"]=game::ui_region_runtime::enabled();
     result["capabilities"]["native_region_preset_ui"]=game::ui_region_runtime::enabled();
     result["capabilities"]["native_region_property_ui"]=game::ui_region_runtime::enabled();
     std::string live_admission;
     result["capabilities"]["enable_live_host_state"]=game::typed_action_runtime::live_state_available(live_admission);
-    result["capabilities"]["read_live_host_state"]=game::typed_action_runtime::status().value("initialized",false);
+    result["capabilities"]["read_live_host_state"]=result["typed_actions"].value("initialized",false);
     result["live_state_admission"]=live_admission;
     result["capabilities"]["request_building_move"]=game::ui_move_runtime::enabled();
     result["capabilities"]["native_move_ui"]=game::ui_move_runtime::enabled();
     result["capabilities"]["read_move_ui"]=true;
-    result["capabilities"]["native_cancel_tool"]=game::typed_action_runtime::status().value("started",false);
+    result["capabilities"]["native_cancel_tool"]=result["typed_actions"].value("started",false);
     result["capabilities"]["read_cancel_tool"]=true;
-    result["capabilities"]["native_buildings_tab"]=game::typed_action_runtime::status().value("started",false);
+    result["capabilities"]["native_buildings_tab"]=result["typed_actions"].value("started",false);
     result["capabilities"]["read_buildings_tab"]=true;
                 result["capabilities"]["native_build_button"]=game::ui_build_runtime::enabled();
                 result["capabilities"]["read_build_ui"]=true;
@@ -995,11 +1155,13 @@ static json status() {
     result["capabilities"]["read_subscriber_weapon"]=game::native::in_game();
     result["capabilities"]["capture_subscriber_record"]=Config::instance().local_test && Config::instance().is_host && game::native::in_game();
     result["capabilities"]["append_subscriber_record_probe"]=Config::instance().local_test && !Config::instance().is_host && game::native::in_game();
+    result["capabilities"]["insert_marketing_record_probe"]=Config::instance().local_test && !Config::instance().is_host && game::native::in_game();
     result["capabilities"]["read_subscriber_candidates"]=game::native::in_game();
     result["capabilities"]["read_network_state"]=game::native::in_game();
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_startingpoint"]=owned_native_profile&&cfg.local_test&&game::native::in_game();
+    result["capabilities"]["read_vip_alert_owners"]=owned_native_profile;
     result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_movement"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["read_tutorial_movement"]=tutorial_movement_ready;
@@ -1095,6 +1257,13 @@ static json status() {
         }
         result["native_open_origin"]=std::move(opened);
     }
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    for(const char* name:{"read_chat_ui","native_chat_ui_key","native_chat_ui_text"})result["capabilities"][name]=false;
+    const auto input=framework_input::read();
+    result["framework_input"]={{"subscribed",input.subscribed},{"healthy",input.healthy},{"thread",input.owner_thread},
+        {"received",input.received},{"forwarded",input.forwarded},{"rejected",input.rejected},{"error",input.error}};
+    if(!framework_input::ready())for(const char* name:{"native_time_key","read_time_input","tutorial_movement","read_tutorial_movement","tutorial_movement_focus","read_tutorial_movement_focus"})result["capabilities"][name]=false;
+#endif
     return result;
 }
 static json chat_status() {
@@ -1105,10 +1274,10 @@ static json chat_status() {
         if(entry.delivery==net::chat::Delivery::Confirmed)delivery="confirmed";
         else if(entry.delivery==net::chat::Delivery::Failed)delivery="failed";
         else if(entry.delivery==net::chat::Delivery::Received)delivery="received";
-        entries.push_back({{"origin",entry.origin},{"sequence",entry.sequence},{"text",entry.text},
+        entries.push_back({{"origin",entry.origin},{"sequence",entry.sequence},{"host_order",entry.host_order},{"origin_admission",entry.origin_admission},{"text",entry.text},
             {"delivery",delivery},{"expected_peer_mask",entry.expected_mask},{"ack_peer_mask",entry.ack_mask}});
     }
-    return {{"connected",snapshot.connected},{"session",snapshot.session},{"local_peer",snapshot.local_peer},{"entries",entries}};
+    return {{"connected",snapshot.connected},{"session",snapshot.session},{"conversation",snapshot.conversation},{"retired",snapshot.retired},{"local_peer",snapshot.local_peer},{"entries",entries}};
 }
 static json chat_ui_status() {
     const auto ui=overlay::ChatOverlay::instance().ui_snapshot();
@@ -1126,6 +1295,9 @@ static json chat_ui_status() {
 }
 static void diagnostics_tick() {
     if(runtime_root.empty()) return;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    if(!Config::instance().diagnostic_mailbox_enabled)return;
+#endif
     static auto last=std::chrono::steady_clock::time_point{};
     auto now=std::chrono::steady_clock::now();
     if(now-last<std::chrono::milliseconds(100)) return; last=now;
@@ -1142,7 +1314,7 @@ static void diagnostics_tick() {
                 }
             }
         } recovery;
-        auto dir=std::filesystem::path(runtime_root)/"diagnostics";
+        auto dir=runtime_paths::diagnostics(runtime_root);
         static auto last_status=std::chrono::steady_clock::time_point{};
         if(Config::instance().diagnostic_mailbox_enabled&&now-last_status>=std::chrono::seconds(1)) { write_json(dir/"status.json",status()); last_status=now; }
         if(!deferred_response.is_null()) { write_json(dir/"response.json",deferred_response); deferred_response=nullptr; return; }
@@ -1427,9 +1599,10 @@ static void diagnostics_tick() {
                 SDL_Scancode scancode=SDL_SCANCODE_UNKNOWN;
                 SDL_Keycode keycode=SDLK_UNKNOWN;
                 if(key=="F9") { scancode=SDL_SCANCODE_F9;keycode=SDLK_F9; }
+                else if(key=="F10") { scancode=SDL_SCANCODE_F10;keycode=SDLK_F10; }
                 else if(key=="ENTER") { scancode=SDL_SCANCODE_RETURN;keycode=SDLK_RETURN; }
                 else if(key=="ESCAPE") { scancode=SDL_SCANCODE_ESCAPE;keycode=SDLK_ESCAPE; }
-                else if(key!="PROBE")throw std::runtime_error("native_chat_ui_key accepts F9, ENTER, ESCAPE or PROBE");
+                else if(key!="PROBE")throw std::runtime_error("native_chat_ui_key accepts F9, F10, ENTER, ESCAPE or PROBE");
                 if((key=="ENTER"||key=="ESCAPE")&&(!before.at("visible").get<bool>()||!before.at("input_active").get<bool>()))
                     throw std::runtime_error("chat input field is not active");
                 if(key=="PROBE"&&(before.at("visible").get<bool>()||overlay::LobbyOverlay::instance().is_visible()))
@@ -1893,7 +2066,14 @@ static void diagnostics_tick() {
             response["ok"]=ok&&read;
             response["result"]={{"requested",focus.requested},{"attempted",focus.attempted},{"returned",focus.returned},
                 {"native_origin_uuid",focus.origin},{"keyboard_focus",focus.keyboard_focus},{"input_enabled",focus.input_enabled},
-                {"ready",focus.ready},{"error",focus.error}};
+                {"ready",focus.ready},{"error",focus.error},
+                {"window_state",{{"observed",focus.window_state.observed},{"sdl_flags",focus.window_state.sdl_flags},
+                    {"hidden",focus.window_state.hidden},{"minimized",focus.window_state.minimized},
+                    {"not_focusable",focus.window_state.not_focusable},{"input_focus_flag",focus.window_state.input_focus_flag},
+                    {"visible",focus.window_state.visible},{"enabled",focus.window_state.enabled},{"iconic",focus.window_state.iconic},
+                    {"foreground_owned",focus.window_state.foreground_owned},{"thread_focus_owned",focus.window_state.thread_focus_owned},
+                    {"thread_active_owned",focus.window_state.thread_active_owned},{"force_raise",focus.window_state.force_raise},
+                    {"activate_when_raised",focus.window_state.activate_when_raised}}}};
             if(!ok||!read)response["error"]={{"code","TUTORIAL_MOVEMENT_FOCUS_REJECTED"},{"message",error}};
         }
         else if(operation=="tutorial_movement"||operation=="read_tutorial_movement") {
@@ -1933,6 +2113,14 @@ static void diagnostics_tick() {
             if(response["ok"].get<bool>())response["result"]=std::move(observed);
             else response["error"]={{"code","TUTORIAL_READ_REJECTED"},{"message",error}};
         }
+        else if(operation=="read_vip_alert_owners") {
+            if(!owned_native_profile)throw std::runtime_error("VIP alert read requires owned native profile");
+            if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("VIP alert read requires empty object arguments");
+            std::string error;json observed;
+            response["ok"]=game::scenario_vip_authority::read_alert_owners(observed,error);
+            response["result"]=std::move(observed);
+            if(!response["ok"].get<bool>())response["error"]={{"code",response["result"].value("status","")=="absent"?"VIP_ALERT_OWNERS_ABSENT":"VIP_ALERT_OWNERS_REJECTED"},{"message",error}};
+        }
         else if(operation=="read_tutorial_progress") {
             if(!owned_native_profile)throw std::runtime_error("tutorial progress read requires owned native profile");
             if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("tutorial progress read requires empty object arguments");
@@ -1955,6 +2143,12 @@ static void diagnostics_tick() {
             response["ok"]=game::native_network::read_state(network,error);
             if(response["ok"].get<bool>()) response["result"]=game::native_network::state_json(network);
             else response["error"]={{"code","NETWORK_READ_REJECTED"},{"message",error}};
+        }
+        else if(operation=="insert_marketing_record_probe") {
+            std::string error;json receipt;
+            response["ok"]=game::marketing_native_probe::probe(runtime_root,request.at("args"),receipt,error);
+            response["result"]=std::move(receipt);
+            if(!response["ok"].get<bool>())response["error"]={{"code","MARKETING_PROBE_REJECTED"},{"message",error}};
         }
         else if(operation=="append_subscriber_record_probe") {
             const auto& args=request.at("args");
@@ -2066,12 +2260,7 @@ static void diagnostics_tick() {
             else response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
         }
         else if(operation=="toggle_overlay") {
-            bool previous=overlay::LobbyOverlay::instance().is_visible();
-            SDL_Event event{}; event.type=SDL_EVENT_KEY_DOWN; event.key.windowID=SDL_GetWindowID(hooks::get_game_window()); event.key.scancode=SDL_SCANCODE_F10; event.key.key=SDLK_F10; event.key.down=true;
-            if(!SDL_PushEvent(&event)) throw std::runtime_error("SDL F10 down queue failed: "+std::string(SDL_GetError()));
-            event.type=SDL_EVENT_KEY_UP; event.key.down=false;
-            if(!SDL_PushEvent(&event)) throw std::runtime_error("SDL F10 up queue failed: "+std::string(SDL_GetError()));
-            pending_overlay={{"id",id},{"previous",previous}}; overlay_started=now; last_request=id; return;
+            throw std::runtime_error("toggle_overlay retired; use native_chat_ui_key F10 and read_native_lobby visibility confirmation");
         }
         else if(operation=="create_test_world") {
             // Keep diagnostic world folders short enough for native metadata paths.
@@ -2092,7 +2281,11 @@ static void diagnostics_tick() {
             if(actual_root.empty()) throw std::runtime_error("PHYSFS write directory unavailable");
             std::string world_name;
             if(!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            snapshot_path=framework_open_paths::snapshot(framework_open_paths::absolute(runtime_root),actual_root.c_str(),world_name,id,true);
+#else
             snapshot_path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,id);
+#endif
             std::filesystem::create_directories(snapshot_path.parent_path());
             const bool bind_snapshot_identities=distribute||net::current_snapshot_id().empty()||!net::current_world_epoch();
             if(!game::building_capture_identity::begin(id,Config::instance().session_id,error,world_name,bind_snapshot_identities)) throw std::runtime_error("building capture begin failed before native save: "+error);
@@ -2127,7 +2320,11 @@ static void diagnostics_tick() {
             std::ifstream stream(manifest); json record; stream>>record;
             auto actual_root=status().at("write_dir").get<std::string>();
             const auto world_name=net::snapshot_world_path::from_manifest(record);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            auto path=framework_open_paths::snapshot(framework_open_paths::absolute(runtime_root),actual_root.c_str(),world_name,snapshot_id,false);
+#else
             auto path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,snapshot_id);
+#endif
             if(record.at("snapshot_id").get<std::string>()!=snapshot_id) throw std::runtime_error("local snapshot manifest UUID differs");
             if(record.contains("world_name")&&record.contains("path")&&std::filesystem::weakly_canonical(net::snapshot_world_path::utf8_path(record.at("path").get<std::string>()))!=std::filesystem::weakly_canonical(path)) throw std::runtime_error("local snapshot manifest path differs from owned world folder");
             const auto expected=record.at("bytes").get<uint64_t>();
@@ -2137,7 +2334,11 @@ static void diagnostics_tick() {
             if(!net::hash_snapshot_file(path,digest,length,error)) throw std::runtime_error("local snapshot hash failed: "+error);
             if(length!=expected||digest!=record.at("sha256").get<std::string>()) throw std::runtime_error("local snapshot incomplete or SHA256 differs");
             uint64_t origin_generation=0;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            if(!game::native_open_runtime::prepare(framework_open_paths::absolute(runtime_root),snapshot_id,digest,expected,origin_generation,error,world_name))
+#else
             if(!game::native_open_runtime::prepare(runtime_root,snapshot_id,digest,expected,origin_generation,error,world_name))
+#endif
                 throw std::runtime_error("native snapshot origin preparation failed: "+error);
             try {
             if(!suspend_time("MCP verified local snapshot replaces world",error)) throw std::runtime_error("time authority retire before load failed: "+error);
@@ -2178,7 +2379,7 @@ static void diagnostics_tick() {
                     game::network_identity::cancel_pending(diagnostic_failure);
             }
             if(pending) *pending=nullptr;
-            try { respond(std::filesystem::path(runtime_root)/"diagnostics",failure); }
+            try { respond(runtime_paths::diagnostics(runtime_root),failure); }
             catch(const std::exception& publication_error) { LOG_ERROR("[MCP] Failure response publication failed run={}: {}",run_id,publication_error.what()); }
         }
     }
@@ -2218,7 +2419,13 @@ static void publish_installed_proof(){
 }
 bool initialize(HMODULE module) {
     try {
-        g_module=module; init_paths(); Logger::instance().init(Config::instance().installed_profile_verified?runtime_root:Config::instance().game_dir);
+        g_module=module; init_paths(); Logger::instance().init(
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            private_profile::utf8(framework_runtime::paths().data)
+#else
+            Config::instance().installed_profile_verified?runtime_root:Config::instance().game_dir
+#endif
+        );
         if(owned_native_profile) {
             wchar_t dll_path[32768];
             const auto length=GetModuleFileNameW(module,dll_path,32768);
@@ -2232,7 +2439,11 @@ bool initialize(HMODULE module) {
         if(!hooks::init()) throw std::runtime_error("MinHook initialization failed");
         std::string native_error;
         if(!game::native::initialize(native_error)) throw std::runtime_error(native_error);
+#ifndef MT2MP_FRAMEWORK_PLUGIN
         if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::GameUpdate),reinterpret_cast<void*>(&game_update),reinterpret_cast<void**>(&original_game_update))) throw std::runtime_error("native game Update hook failed");
+#endif
+        if(owned_native_profile&&Config::instance().local_test&&!install_engine_timing_hooks(native_error))
+            throw std::runtime_error(native_error);
         if(owned_native_profile) {
             MODULEINFO image_info{};
             const auto native_module=GetModuleHandleW(nullptr);
@@ -2245,7 +2456,11 @@ bool initialize(HMODULE module) {
             if(!game::render_pool_guard::initialize(native_image_begin,image_info.SizeOfImage,native_error))
                 throw std::runtime_error("native render pool guard initialization failed: "+native_error);
             if(!game::tutorial_replication::initialize(native_image_begin,native_error))throw std::runtime_error("tutorial initialization failed: "+native_error);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            if(!game::native_open_runtime::initialize(framework_open_paths::absolute(runtime_root),native_image_begin,native_error))
+#else
             if(!game::native_open_runtime::initialize(runtime_root,native_image_begin,native_error))
+#endif
                 throw std::runtime_error("native snapshot origin initialization failed: "+native_error);
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ClockUpdate),reinterpret_cast<void*>(&clock_update),reinterpret_cast<void**>(&original_clock_update))) throw std::runtime_error("native pending-load clock pause hook failed");
             if(!game::normal_load_identity::initialize(native_error)) throw std::runtime_error(native_error);
@@ -2292,6 +2507,7 @@ bool initialize(HMODULE module) {
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::SubscriberBrainTick),reinterpret_cast<void*>(&brain_tick),reinterpret_cast<void**>(&original_brain_tick))) throw std::runtime_error("native subscriber Brain Tick observation hook failed");
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::SubscriberUpdateNeeds),reinterpret_cast<void*>(&update_needs),reinterpret_cast<void**>(&original_update_needs))) throw std::runtime_error("native subscriber UpdateNeeds observation hook failed");
         }
+#ifndef MT2MP_FRAMEWORK_PLUGIN
         if(!hooks::install_renderer_hooks()) throw std::runtime_error("SDL_GL_SwapWindow hook failed");
         if(!hooks::install_input_hooks()) throw std::runtime_error("SDL3 input hooks failed");
         if(!hooks::install_window_hooks()) throw std::runtime_error("SDL3 window hooks failed");
@@ -2302,6 +2518,7 @@ bool initialize(HMODULE module) {
             overlay::GLOverlay::instance().render();
             capture_frame();
         });
+#endif
         if(owned_native_profile) {
             net::initialize_snapshot_sync();
             net::initialize_software_sync();
@@ -2320,7 +2537,12 @@ bool initialize(HMODULE module) {
         if(owned_native_profile) game::native::set_subscriber_needs_hook_mask(0x3f);
         if(owned_native_profile) game::subscriber_lifecycle_append::set_lookup_hook_ready(true);
         publish_installed_proof();
-        LOG_INFO("[RUNTIME] REQUIRED_HOOKS_READY SDL3 input renderer window"); return true;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        LOG_INFO("[RUNTIME] REQUIRED_ENGINE_ROUTES_READY provider=Framework");
+#else
+        LOG_INFO("[RUNTIME] REQUIRED_HOOKS_READY SDL3 input renderer window");
+#endif
+        return true;
     } catch(const std::exception& error) { LOG_ERROR("[RUNTIME] Initialization failed: {}",error.what()); return false; }
     catch(...) { LOG_ERROR("[RUNTIME] Initialization failed: unknown exception"); return false; }
 }
@@ -2340,10 +2562,18 @@ void shutdown() {
     game::native_open_runtime::shutdown("runtime shutdown");
     game::building_capture_identity::cancel("runtime shutdown");
     game::network_identity::invalidate_world("runtime shutdown");
-    game::normal_load_identity::shutdown(); hooks::cleanup(); Logger::instance().shutdown();
+    game::normal_load_identity::shutdown();
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    LOG_INFO("[Framework] Owned routes disabled; original storage retained until process exit");
+#else
+    hooks::cleanup();
+#endif
+    Logger::instance().shutdown();
 }
 HMODULE get_module_handle() { return g_module; }
 }
+
+#ifndef MT2MP_FRAMEWORK_PLUGIN
 extern "C" __declspec(dllexport) bool MT2MP_InitInstalled(HMODULE module,const mt2mp::installed_profile::Receipt* receipt) {
     std::string error;
     if(!receipt||!mt2mp::installed_profile::accept(*receipt,error))return false;
@@ -2352,3 +2582,19 @@ extern "C" __declspec(dllexport) bool MT2MP_InitInstalled(HMODULE module,const m
 extern "C" __declspec(dllexport) bool MT2MP_Init(HMODULE module) { return mt2mp::initialize(module); }
 extern "C" __declspec(dllexport) void MT2MP_Shutdown() { mt2mp::shutdown(); }
 extern "C" __declspec(dllexport) void MT2MP_Tick() {}
+
+#endif
+
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+namespace mt2mp::framework_runtime {
+void render_capture(){
+    const auto thread=GetCurrentThreadId();
+    if(!render_thread)render_thread=thread;
+    if(render_thread!=thread)throw std::runtime_error("Framework render thread changed");
+    auto* window=SDL_GL_GetCurrentWindow();
+    if(!window)throw std::runtime_error("Framework render has no current SDL window");
+    hooks::set_game_window_ptr(window);
+    capture_frame();
+}
+}
+#endif

@@ -1,0 +1,12 @@
+if(WIN32)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(engine_phase_generated "${CMAKE_CURRENT_BINARY_DIR}/engine_phase_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_engine_phase_timing.py"
+    --root "${CMAKE_CURRENT_LIST_DIR}/.." --output "${engine_phase_generated}" COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_engine_phase_timing "${CMAKE_CURRENT_LIST_DIR}/../test/test_engine_phase_timing.cpp")
+target_compile_features(test_engine_phase_timing PRIVATE cxx_std_20)
+target_include_directories(test_engine_phase_timing PRIVATE "${engine_phase_generated}" "${CMAKE_CURRENT_LIST_DIR}/../src/game" "${CMAKE_CURRENT_LIST_DIR}/../include")
+target_compile_options(test_engine_phase_timing PRIVATE /W4 /WX /permissive- /EHsc)
+target_compile_definitions(test_engine_phase_timing PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+add_test(NAME engine_phase_timing COMMAND test_engine_phase_timing)
+endif()

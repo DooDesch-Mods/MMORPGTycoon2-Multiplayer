@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT / "tools" / "mcp"))
 
 from local_acceptance import (AcceptanceError, AcceptanceRunner, compare_ledgers, extract_result,
                               hash_file, log, read_json, ready_reason, utc, within)
-from runtime import Runtime
+from runtime import Runtime, FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind, candidate_binary_receipt
 
 PEERS = ("host", "client-1")
 POSE = ("type", "variant", "x", "y", "z", "rotation", "scale")
@@ -81,7 +81,7 @@ def placement_evidence(path):
     return summary, action, proof
 
 
-def preflight(runner, placement_path, freeze, runtime_factory=Runtime):
+def preflight(runner, placement_path, freeze, runtime_factory=Runtime, candidate_binary=None):
     placed, action, proof = placement_evidence(placement_path)
     frozen = read_json(freeze)
     expected_dll = frozen.get("dll_sha256")
@@ -97,10 +97,20 @@ def preflight(runner, placement_path, freeze, runtime_factory=Runtime):
         if bound.get("process_identity_verified") is not True:
             raise AcceptanceError(f"{peer} PID/creation identity unverified")
         identity = read_json(manifest)
-        installed = identity.get("installed_binary_sha256", {}).get("MT2_Multiplayer.dll")
-        actual = hash_file(Path(identity["runtime_root"]) / "game" / "MT2_Multiplayer.dll")
-        if installed != expected_dll or actual != expected_dll:
-            raise AcceptanceError(f"{peer} exact installed DLL differs from candidate freeze")
+        if manifest_runtime_kind(identity) == FRAMEWORK_PLUGIN_KIND or candidate_binary is not None:
+            receipt = candidate_binary_receipt(identity, candidate_binary)
+            actual = receipt['sha256']
+            if actual != expected_dll:
+                raise AcceptanceError(f"{peer} selected DLL differs from candidate freeze")
+            if manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
+                if hash_file(Path(identity['runtime_root']) / 'game' / 'MT2_Multiplayer.dll') != actual:
+                    raise AcceptanceError(f"{peer} installed DLL differs from explicit candidate")
+            runner.checked('selected-candidate-' + peer, receipt)
+        else:
+            installed = identity.get("installed_binary_sha256", {}).get("MT2_Multiplayer.dll")
+            actual = hash_file(Path(identity["runtime_root"]) / "game" / "MT2_Multiplayer.dll")
+            if installed != expected_dll or actual != expected_dll:
+                raise AcceptanceError(f"{peer} exact installed DLL differs from candidate freeze")
         identities[peer] = {"pid": identity["pid"], "process_start_time": identity["process_start_time"],
                             "dll_sha256": actual}
     runner.checked("placement-and-exact-runtime", {"placement": str(placement_path),
@@ -326,7 +336,8 @@ def execute(args, runtime_factory=Runtime):
     try:
         if not 2 < args.wait_seconds <= 60:
             raise AcceptanceError("--wait-seconds must be >2 and <=60")
-        original, proof = preflight(runner, args.placement, args.freeze, runtime_factory)
+        original, proof = preflight(runner, args.placement, args.freeze, runtime_factory,
+                                    candidate_binary=getattr(args, 'candidate_binary', None))
         resume = getattr(args, "resume_undo", None)
         initial = resume_initial(runner, resume, args.placement) if resume else pair(runner, "history-before")
         placed_ledger, revision, confirmed = require_initial(initial, original, proof)
@@ -375,6 +386,7 @@ def main(argv=None):
     parser.add_argument("--placement", type=Path, required=True, help="passed placement_ui_acceptance summary.json")
     parser.add_argument("--test-root", type=Path, default=ROOT / "_MPTest")
     parser.add_argument("--freeze", type=Path, required=True, help="current candidate freeze containing dll_sha256")
+    parser.add_argument("--candidate-binary", type=Path, help="Exact selected mod artifact; required for Framework plugin mode")
     parser.add_argument("--wait-seconds", type=float, default=45)
     parser.add_argument("--resume-undo", type=Path, help="retained confirmed Undo stopped by ledger-oracle error; never replay Undo")
     return execute(parser.parse_args(argv))

@@ -1,0 +1,202 @@
+{
+  "scope": "Bounded WorldProp array reads in the same owned small saved-world input at normal speed",
+  "passed": true,
+  "native_performance_fix_proven": false,
+  "full_coop_proven": false,
+  "records": {
+    "baseline": {
+      "acceptance": "artifacts/acceptance/878b0795-2cee-4a3d-8732-31592e00dd34/summary.json",
+      "acceptance_sha256": "e1a67ad02fed35b9435c41cbec8d4d52032d884fcd0bef243a84789ba8d25f1a",
+      "setup": "artifacts/acceptance/027c7e3f-220c-42e1-9629-58cf1b9a4eab/summary.json",
+      "plugin_sha256": "7364fcb94b51fabe71c24000aab2f85b32c1d3bdea218c4341280fc512377c16",
+      "fixture_sha256": "675f562070b00d29ef30bdb9b47bf30494ca9c0fa28d570a8f730fbd0e7350eb",
+      "fixture_bytes": 280228,
+      "checks": {
+        "paused_clock_equal": true,
+        "complete_finance_equal": true,
+        "native_economy_equal": true,
+        "software_values_equal": true,
+        "no_failed_pending_locked_action": true
+      },
+      "client_counters": {
+        "client_take": {
+          "calls": 19,
+          "total_ms": 2116.8502,
+          "mean_ms": 111.41316842105262
+        },
+        "os_page_queries_inside_take": {
+          "calls": 346591,
+          "total_ms": 808.7481,
+          "mean_ms": 0.002333436528934681
+        },
+        "query_share_of_take_percent": 38.20525892668268,
+        "query_categories": {
+          "query_engine": {
+            "calls": 56891,
+            "total_ms": 47.5384,
+            "mean_ms": 0.0008356049287233482
+          },
+          "query_open_witness": {
+            "calls": 76915,
+            "total_ms": 105.7638,
+            "mean_ms": 0.0013750737827471886
+          },
+          "query_other": {
+            "calls": 2273,
+            "total_ms": 3.97,
+            "mean_ms": 0.001746590409150902
+          },
+          "query_placement": {
+            "calls": 201036,
+            "total_ms": 598.7962,
+            "mean_ms": 0.0029785521001213715
+          },
+          "query_saved_fields": {
+            "calls": 5600,
+            "total_ms": 18.2218,
+            "mean_ms": 0.0032538928571428575
+          },
+          "query_world_prop": {
+            "calls": 3876,
+            "total_ms": 34.4579,
+            "mean_ms": 0.008890067079463364
+          }
+        },
+        "reader_hotspots": [
+          {
+            "reader": "world_prop_current",
+            "calls": 656,
+            "total_ms": 29.8978,
+            "mean_ms": 0.04557591463414634
+          },
+          {
+            "reader": "world_prop_main_member",
+            "calls": 12,
+            "total_ms": 0.1542,
+            "mean_ms": 0.01285
+          },
+          {
+            "reader": "world_prop_root_region",
+            "calls": 12,
+            "total_ms": 0.1008,
+            "mean_ms": 0.0084
+          },
+          {
+            "reader": "world_prop_typed_lookup",
+            "calls": 24,
+            "total_ms": 0.002,
+            "mean_ms": 8.333333333333333e-05
+          }
+        ],
+        "reader_scope_available": true,
+        "limits": [
+          "Reader timers can include calls outside Take and nested work; do not sum them as exclusive costs.",
+          "No rendered FPS, CPU occupancy or external-wall rate is inferred."
+        ]
+      },
+      "world_prop_queries_per_take": 204.0
+    },
+    "candidate": {
+      "acceptance": "artifacts/acceptance/db212333-ae8e-4ef7-a17a-fe361cedf872/summary.json",
+      "acceptance_sha256": "0e4262931620e8c298fc0d64763f65e3b5c5d2a8607b1e032f8f934352050648",
+      "setup": "artifacts/acceptance/35b498ca-856a-4e89-988e-3e18c5edbb55/summary.json",
+      "plugin_sha256": "59b3bfa453ce5bd4ae390fed4e8939c75ead95c84fb29fc5b9f06b12e138867d",
+      "fixture_sha256": "675f562070b00d29ef30bdb9b47bf30494ca9c0fa28d570a8f730fbd0e7350eb",
+      "fixture_bytes": 280228,
+      "checks": {
+        "paused_clock_equal": true,
+        "complete_finance_equal": true,
+        "native_economy_equal": true,
+        "software_values_equal": true,
+        "no_failed_pending_locked_action": true
+      },
+      "client_counters": {
+        "client_take": {
+          "calls": 20,
+          "total_ms": 2264.5494,
+          "mean_ms": 113.22747
+        },
+        "os_page_queries_inside_take": {
+          "calls": 351628,
+          "total_ms": 881.262,
+          "mean_ms": 0.0025062338607846927
+        },
+        "query_share_of_take_percent": 38.915556445798885,
+        "query_categories": {
+          "query_engine": {
+            "calls": 62290,
+            "total_ms": 75.0845,
+            "mean_ms": 0.0012054021512281265
+          },
+          "query_open_witness": {
+            "calls": 69399,
+            "total_ms": 121.4741,
+            "mean_ms": 0.0017503724837533683
+          },
+          "query_other": {
+            "calls": 16694,
+            "total_ms": 20.039,
+            "mean_ms": 0.0012003713909188932
+          },
+          "query_placement": {
+            "calls": 195291,
+            "total_ms": 612.1557,
+            "mean_ms": 0.0031345822388128487
+          },
+          "query_saved_fields": {
+            "calls": 4640,
+            "total_ms": 14.7303,
+            "mean_ms": 0.003174633620689655
+          },
+          "query_world_prop": {
+            "calls": 3314,
+            "total_ms": 37.7784,
+            "mean_ms": 0.01139963789981895
+          }
+        },
+        "reader_hotspots": [
+          {
+            "reader": "world_prop_current",
+            "calls": 676,
+            "total_ms": 28.8003,
+            "mean_ms": 0.042603994082840234
+          },
+          {
+            "reader": "world_prop_main_member",
+            "calls": 12,
+            "total_ms": 0.1953,
+            "mean_ms": 0.016275
+          },
+          {
+            "reader": "world_prop_root_region",
+            "calls": 12,
+            "total_ms": 0.0582,
+            "mean_ms": 0.00485
+          },
+          {
+            "reader": "world_prop_typed_lookup",
+            "calls": 24,
+            "total_ms": 0.0027,
+            "mean_ms": 0.00011250000000000001
+          }
+        ],
+        "reader_scope_available": true,
+        "limits": [
+          "Reader timers can include calls outside Take and nested work; do not sum them as exclusive costs.",
+          "No rendered FPS, CPU occupancy or external-wall rate is inferred."
+        ]
+      },
+      "world_prop_queries_per_take": 165.7
+    }
+  },
+  "tests": "artifacts/world_prop_array/ctest.log",
+  "production_loop": "src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp",
+  "production_sha256": "89cfca01664518845763f870131eb315070dbe4e3a1232af654411ffcc20c5a0",
+  "observed_result": "WorldProp query work decreased; total Client Take latency did not improve in this comparison.",
+  "limits": [
+    "Native counters cover different normal live evolutions of the same saved input and variable parallel game load.",
+    "Framework binaries differ only by unused wizard diagnostics during this InGame measurement; exact run manifests retain their module pins.",
+    "Unit fixture proves130 valid slots need3 bounded copies rather than130; this is not an OS-query, time or FPS ratio.",
+    "No rendered FPS or total development-speed improvement is claimed."
+  ]
+}

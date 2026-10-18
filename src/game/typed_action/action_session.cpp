@@ -1,6 +1,9 @@
 #include "../tutorial_replication/start_ledger.h"
 #include "../tutorial_replication/staff_action.h"
 #include "action_session.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/reporting.h"
+#endif
 #include "../bug_authority/job_codec.h"
 #include "../snapshot_building_key.h"
 #include "../snapshot_zone_key.h"
@@ -195,7 +198,13 @@ bool valid_npc_target(const Request& r) {
         r.canonical_record_key=="action:"+r.target_action_uuid;
 }
 #include "bug_fix_codec.inc"
+bool research_action(Action action){return action==Action::StartResearch||action==Action::SetResearchWorkers||action==Action::CommitResearch;}
 bool valid_request(const Request& r) {
+    if(research_action(r.action)){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.desired_workers=0;
+        return r.canonical_record_key=="tech:bridges"&&
+            (r.action==Action::SetResearchWorkers?game::tutorial_replication::staff::value(r.desired_workers):r.desired_workers==0)&&valid_request(base);
+    }
     if(r.action==Action::SetBugFix){auto base=r;base.action=Action::StartStartingpoint;
         base.bug_fix={};base.canonical_record_key="tech:startingpoint";
         return r.canonical_record_key==r.bug_fix.bug.parent_key&&bug_fix_intent_valid(r.bug_fix)&&valid_request(base);}
@@ -290,6 +299,17 @@ bool object_effect(const Request& r,const Evidence& e) {
     return e.object_before.alive&&e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant;
 }
 bool execution(const Request& r,const Evidence& e) {
+    if(research_action(r.action)){
+        namespace research=game::tutorial_replication::research;
+        namespace start=game::tutorial_replication::start_intent;
+        if(!e.research_before||!e.research_after||e.research_before->key!="bridges"||e.research_after->key!=e.research_before->key||
+           e.target_retired||e.undo_confirmed||e.selection_confirmed||e.object_before!=BuildingState{}||e.object_after!=BuildingState{})return false;
+        const auto& a=e.research_before->value;const auto& b=e.research_after->value;std::string cause;
+        if(r.action==Action::StartResearch)return start::rows(a,b,cause)&&start::payment(e.before,e.after,cause)&&int64_t(e.before.cash)-e.after.cash==10000;
+        if(r.action==Action::SetResearchWorkers)return game::tutorial_replication::staff::rows(a,b,r.desired_workers,cause)&&e.before==e.after;
+        research::Plan operation;
+        return research::plan(e.research_before,e.research_after,operation,cause)&&operation==research::Plan::Deploy&&e.before==e.after;
+    }
     if(r.action==Action::SetBugFix)return bug_fix_effect(r,e);
     if(r.action==Action::PlaceMonsterZone)return zone_transition(e.zone_before,e.zone_after)&&
         e.before==e.after&&e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed&&
@@ -404,6 +424,18 @@ bool execution(const Request& r,const Evidence& e) {
         !e.target_retired&&e.undo_confirmed;
 }
 bool authority_evidence(const Request& request,const Evidence& local,const Evidence& host){
+    if(research_action(request.action)){
+        namespace research=game::tutorial_replication::research;
+        if(!execution(request,local)||!execution(request,host)||
+           !research::same_state(local.research_before,host.research_before)||
+           !research::same_state(local.research_after,host.research_after))return false;
+        // Retain each peer's actual local call receipt, including its exact stamp
+        // delta. Only cross-peer comparison excludes the process-local stamp.
+        auto left=local,right=host;
+        left.research_before.reset();left.research_after.reset();
+        right.research_before.reset();right.research_after.reset();
+        return left==right;
+    }
     if(request.action!=Action::PlaceMonsterZone)return local==host;
     if(!zone_transition(local.zone_before,local.zone_after)||!zone_transition(host.zone_before,host.zone_after)||
        !zone_shared_state(local.zone_before,host.zone_before)||!zone_shared_state(local.zone_after,host.zone_after))return false;
@@ -442,6 +474,10 @@ bool same_action(const Message& a,const Message& b) {return a.session==b.session
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
 bool valid_message(const Message& m,std::string& error) {
+    if(!research_action(m.request.action)&&(m.evidence.research_before||m.evidence.research_after)){error="Research evidence outside Research action";return false;}
+    if(m.evidence.research_before.has_value()!=m.evidence.research_after.has_value()){error="Research action evidence requires both rows";return false;}
+    for(const auto* row:{&m.evidence.research_before,&m.evidence.research_after})
+        if(*row&&!game::tutorial_replication::research::valid(**row,error))return false;
     if(m.request.action!=Action::SetBugFix&&(m.evidence.bug_before||m.evidence.bug_after)){
         error="Bug evidence outside SetBugFix action";return false;}
     if(m.evidence.bug_before.has_value()!=m.evidence.bug_after.has_value()){
@@ -534,13 +570,18 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t(r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t(r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(r.action==Action::SetBugFix){
+        if(research_action(r.action)){
+            if(r.action==Action::SetResearchWorkers)j["request"]["desired_workers"]=r.desired_workers;
+            namespace research=game::tutorial_replication::research;
+            j["evidence"]["research_before"]=e.research_before?research::encode(*e.research_before):json(nullptr);
+            j["evidence"]["research_after"]=e.research_after?research::encode(*e.research_after):json(nullptr);
+        }else if(r.action==Action::SetBugFix){
             j["request"]["bug_fix"]=bug_fix_json(r.bug_fix);
             j["evidence"]["bug_before"]=bug_fix_row_json(e.bug_before);j["evidence"]["bug_after"]=bug_fix_row_json(e.bug_after);
             j["evidence"]["developers_before"]=e.developers_before?game::developer_staff::encode(*e.developers_before):json(nullptr);
@@ -614,7 +655,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>26)throw std::runtime_error("unsupported action schema");
+        const auto schema=u64(j.at("schema"));if(schema<1||schema>29)throw std::runtime_error("unsupported action schema");
         if(schema!=19&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
@@ -628,7 +669,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             else if(action==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
             else if(action==17)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","building"});
             else throw std::runtime_error("Quest schema action invalid");}
-        else if(schema==22)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","desired_workers"});
+        else if(schema==22||schema==28)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","desired_workers"});
         else if(schema==18)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","building"});
         else if(schema==17)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
         else if(schema==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc"});
@@ -636,21 +677,31 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==12)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path_delete"});
         else if(schema==11||schema==15)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region_property"});
         else if(schema==10)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
-        else if(schema==1||schema==20||schema==21||schema==23||schema==24)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key"});
+        else if(schema==1||schema==20||schema==21||schema==23||schema==24||schema==27||schema==29)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key"});
         else if(schema==2)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","building"});
         else if(schema==3||schema==5)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region"});
         else if(schema==9)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network_pipe"});
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));if(action<1||action>24||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));if(action<1||action>27||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
         if(schema==10||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
         const auto& e=j.at("evidence");
-        if(schema==26){
+        if(schema>=27&&schema<=29){
+            if(schema==28){const auto desired=u64(r.at("desired_workers"));if(desired>50)throw std::runtime_error("Research desired workers exceeds50");m.request.desired_workers=int32_t(desired);}
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","research_before","research_after"});
+            const auto read=[](const json& j,std::optional<game::tutorial_replication::research::Row>& out){
+                if(j.is_null())return;
+                game::tutorial_replication::research::Row row;std::string cause;
+                if(!game::tutorial_replication::research::decode(j,row,cause))throw std::runtime_error(cause);
+                out=std::move(row);
+            };
+            read(e.at("research_before"),m.evidence.research_before);read(e.at("research_after"),m.evidence.research_after);
+        }else if(schema==26){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","bug_before","bug_after","developers_before","developers_after"});
             m.request.bug_fix=bug_fix_read(r.at("bug_fix"));
             bug_fix_row_read(e.at("bug_before"),m.evidence.bug_before);bug_fix_row_read(e.at("bug_after"),m.evidence.bug_after);
@@ -760,7 +811,12 @@ bool Controller::fail(const std::string& cause,std::string& out,bool lock,bool s
         idle_session_loss_=session_loss&&!status_.locked&&!status_.pending&&!busy_&&!pending_&&!local_request_&&!authority_waiting_;
         status_.locked=true;status_.outcome=Outcome::Unknown;
     }
-    if(last_logged_error_!=out){last_logged_error_=out;if(logger_)logger_("error","ActionSession",out);}
+    if(last_logged_error_!=out){last_logged_error_=out;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        reporting::event("action.failed",{{"revision",status_.host_revision},{"required_mask",uint64_t(status_.required_mask)},
+            {"ack_mask",uint64_t(status_.ack_mask)}},status_.action_uuid);
+#endif
+        if(logger_)logger_("error","ActionSession",out);}
     else ++status_.suppressed_errors;
     return false;
 }
@@ -793,6 +849,11 @@ bool Controller::send(uint64_t target,const Message& m,std::string& error) {
     std::vector<uint8_t> bytes;
     if(!encode(m,bytes,error))return fail(error,error,true);
     if(!invoke([&]{return transport_.send(target,bytes,error);},error))return fail("action send target="+std::to_string(target)+": "+error,error,true);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    reporting::event("action.sent."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},
+        {"revision",m.revision},{"peer_slot",target},{"required_mask",m.required_mask},{"ack_mask",uint64_t(status_.ack_mask)},
+        {"bytes",uint64_t(bytes.size())}},m.request.action_uuid);
+#endif
     return true;
 }
 void Controller::remember(const std::string& id,Cached value) {
@@ -893,6 +954,18 @@ bool Controller::submit_developer(bool hire,const std::string& id,uint64_t now,s
     Request request;request.action=hire?Action::HireDeveloper:Action::FireDeveloper;request.action_uuid=id;
     request.canonical_record_key="staff:developers";return submit(std::move(request),now,error);
 }
+bool Controller::submit_start_research(const std::string& id,const std::string& key,uint64_t now,std::string& error){
+    Request request;request.action=Action::StartResearch;request.action_uuid=id;
+    request.canonical_record_key="tech:"+key;return submit(std::move(request),now,error);
+}
+bool Controller::submit_research_workers(const std::string& id,const std::string& key,int32_t desired,uint64_t now,std::string& error){
+    Request request;request.action=Action::SetResearchWorkers;request.action_uuid=id;request.desired_workers=desired;
+    request.canonical_record_key="tech:"+key;return submit(std::move(request),now,error);
+}
+bool Controller::submit_commit_research(const std::string& id,const std::string& key,uint64_t now,std::string& error){
+    Request request;request.action=Action::CommitResearch;request.action_uuid=id;
+    request.canonical_record_key="tech:"+key;return submit(std::move(request),now,error);
+}
 bool Controller::submit_commit_startingpoint(const std::string& id,uint64_t now,std::string& error){
     Request request;request.action=Action::CommitStartingpoint;request.action_uuid=id;
     request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
@@ -932,6 +1005,7 @@ bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidenc
        retired.property_before!=evidence.property_before||retired.property_after!=evidence.property_after||
        retired.region_retired_sha256!=evidence.region_retired_sha256||retired.terrain_before!=evidence.terrain_before||retired.terrain_after!=evidence.terrain_after||
        retired.npc_before!=evidence.npc_before||retired.npc_after!=evidence.npc_after||
+       retired.research_before!=evidence.research_before||retired.research_after!=evidence.research_after||
        retired.startingpoint_before!=evidence.startingpoint_before||retired.startingpoint_after!=evidence.startingpoint_after||
        retired.developers_before!=evidence.developers_before||retired.developers_after!=evidence.developers_after||
        retired.bug_before!=evidence.bug_before||retired.bug_after!=evidence.bug_after)
@@ -1137,6 +1211,11 @@ bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64
     if(m.session!=context_.session||m.request.snapshot_uuid!=context_.snapshot_uuid)return fail("packet session or snapshot differs",error);
     if(m.kind!=Kind::Request&&m.required_mask!=context_.peer_mask)return fail("packet immutable participant mask differs",error,true);
     if(m.kind!=Kind::Request&&m.kind!=Kind::ApplyAck&&sender!=context_.host_peer)return fail("result/completion sender is not Host",error);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    reporting::event("action.received."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},
+        {"revision",m.revision},{"peer_slot",sender},{"required_mask",m.required_mask},{"ack_mask",uint64_t(status_.ack_mask)},
+        {"bytes",uint64_t(size)}},m.request.action_uuid);
+#endif
     switch(m.kind) {
     case Kind::Request:return request(m,sender,error);
     case Kind::HostResult:return result(m,error);

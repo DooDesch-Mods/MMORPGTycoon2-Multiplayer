@@ -1,4 +1,5 @@
 #include "npc_saved_identity_runtime.h"
+#include "live_host_state/memory_query_timing.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "building_capture_identity.h"
 #include "root_saved_building.h"
@@ -334,7 +335,8 @@ bool current_snapshot_sha(std::string& out, std::string& error) {
     if (!current(world, error)) return false;
     out = sha; error.clear(); return true;
 }
-bool read_current(std::vector<Current>& out, std::string& error) {
+bool read_current(std::vector<Current>& out, std::string& error, bool share_metadata) {
+    live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
     std::lock_guard lock(gate); out.clear(); opened::CurrentWorld world;
     if (!current(world, error)) return false;
     namespace host = build_actions::private_native::host;
@@ -342,7 +344,8 @@ bool read_current(std::vector<Current>& out, std::string& error) {
     constexpr const char* exe_sha = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
     if (!host::resolve_lookup(process, image, exe_sha, api, error)) return false;
     auto lookup = [&](uint64_t uid, uintptr_t& pointer, std::string& cause) {
-        const auto code = find_call(api.find, uid, pointer);
+        uint32_t code = 0;
+        code = find_call(api.find, uid, pointer);
         return !code || q::fail(cause, "NPC UID lookup exception=" + std::to_string(code));
     };
     const auto map = reinterpret_cast<uintptr_t>(world.map);

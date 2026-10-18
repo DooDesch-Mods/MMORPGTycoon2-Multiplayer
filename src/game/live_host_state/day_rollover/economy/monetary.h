@@ -1,3 +1,4 @@
+#include <functional>
 #pragma once
 #include "live_host_state/day_rollover/day.h"
 #include <bit>
@@ -103,6 +104,10 @@ public:
     // Ports without a native History optimization retain their existing store guards.
     virtual bool begin_scalar_stores(const Owners&,std::string& e){e.clear();return true;}
     virtual void end_scalar_stores()noexcept{}
+    virtual bool begin_quest_stores(const Owners&,std::string& e){e.clear();return true;}
+    virtual void end_quest_stores()noexcept{}
+    virtual bool with_quest_stores(const Owners&,const State&,
+        const std::function<bool(std::string&)>& body,std::string& e){return body(e);}
     virtual bool capture_subscriber(int32_t,nlohmann::json&,std::string& e){e="native Subscriber capture unavailable";return false;}
     virtual bool append_subscriber(const nlohmann::json&,nlohmann::json&,std::string& e){e="native Subscriber append unavailable";return false;}
     virtual bool subscriber_retirements(const Owners&,std::vector<mt2mp::subscriber_lifecycle::additions::Retirement>& rows,std::string& e){rows.clear();e.clear();return true;}

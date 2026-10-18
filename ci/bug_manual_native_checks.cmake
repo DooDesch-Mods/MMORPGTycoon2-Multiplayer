@@ -12,3 +12,19 @@ if(MSVC)
     target_compile_options(test_bug_manual_fixture PRIVATE /W4 /WX /EHsc)
 endif()
 add_test(NAME bug_manual_fixture COMMAND test_bug_manual_fixture)
+
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(_bug_retirement_generated "${CMAKE_CURRENT_BINARY_DIR}/bug_manual_retirement_generated")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/src/game/bug_authority/manual_action.cpp"
+    "${MT2MP_SOURCE_ROOT}/test/extract_bug_manual_retirement.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_bug_manual_retirement.py"
+    --source-root "${MT2MP_SOURCE_ROOT}" --output "${_bug_retirement_generated}" COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_bug_manual_retirement "${MT2MP_SOURCE_ROOT}/test/test_bug_manual_retirement.cpp")
+target_compile_features(test_bug_manual_retirement PRIVATE cxx_std_20)
+target_include_directories(test_bug_manual_retirement PRIVATE "${_bug_retirement_generated}")
+if(MSVC)
+    target_compile_options(test_bug_manual_retirement PRIVATE /W4 /WX /EHsc /utf-8)
+endif()
+add_test(NAME bug_manual_retirement COMMAND test_bug_manual_retirement)
+set_tests_properties(bug_manual_retirement PROPERTIES TIMEOUT 30)

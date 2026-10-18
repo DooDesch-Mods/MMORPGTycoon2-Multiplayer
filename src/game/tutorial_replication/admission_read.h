@@ -11,6 +11,8 @@ struct Admission {
     uint64_t art_pack_bytes=0;
     std::vector<Listener> listeners;
 };
+bool read_research_admission(initial_release::Memory&,uintptr_t,uintptr_t,uintptr_t,
+                             const std::string& key,Admission&,std::string&);
 // Caller supplies the catalogue-owned Tech from tutorial_development's reciprocal
 // owner read. Use its watched Memory and full NativeOpen before/after transaction.
 // This reads prerequisites only. Success does not authorize a Client mutation.

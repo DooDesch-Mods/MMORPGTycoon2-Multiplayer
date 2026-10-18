@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "construction_native.h"
 #include "bug_authority/work_runtime.h"
 #include "bug_authority/job_calls.h"
@@ -27,6 +28,10 @@ template<class T>bool at(uintptr_t p,size_t offset,T& value,std::string& e){
     return memory.copy(p+offset,&value,sizeof(T),e);
 }
 const job_census::Read copy=[](auto p,auto out,auto n,auto& e){return memory.copy(p,out,n,e);};
+bool read_jobs(const Capture& capture,job_census::Census& out,std::string& e){
+    live_host_state::apply_timing::PageReadScope pages;
+    return job_census::read(copy,capture,out,e);
+}
 bool owners(const Capture& a,const Capture& b,std::string& e){
     return (same_origin(a.pin.origin,b.pin.origin)&&a.image==b.image&&a.thread==b.thread&&
         a.pin.ledger==b.pin.ledger&&a.pin.time_scale==b.pin.time_scale&&a.pin.pause_scale==b.pin.pause_scale&&
@@ -47,7 +52,9 @@ struct Actor {
     uint8_t moving=0,path=0,pending=0;int32_t steps=0,index=0;
     bool operator==(const Actor&)const=default;
 };
-bool actor(const Capture& c,size_t slot,Actor& out,std::string& e){
+bool actor(const Capture& c,size_t slot,Actor& out,std::string& e,bool share_metadata=false){
+    // Only the two pure fixed50 loops opt in. All bytes and owners stay live.
+    live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
     if(c.state.rows.size()!=50||c.local.developers.size()!=50||slot>=50)return fail(e,"Construction actor fixed50 absent");
     const auto p=c.local.developers[slot];uintptr_t ap=0,render=0,callback=0;
     if(!at(p,0,ap,e)||!at(p,0x30,render,e)||!at(render,0x38,callback,e))return false;
@@ -60,8 +67,8 @@ bool actor(const Capture& c,size_t slot,Actor& out,std::string& e){
     const auto map=reinterpret_cast<uintptr_t>(c.pin.origin.map);const auto root=map+0x1c0;
     if(out.shard&&out.shard!=root)return fail(e,"Construction actor is not in the current root shard");
     if(out.region){uintptr_t selected=0;
-        if(!at(out.region,0x834,out.pose.region_id,e)||!region_saved_identity::resolve(c.image,map,root,out.pose.region_id,out.region,selected,
-            [](uintptr_t p,size_t o,auto& v,std::string& cause){return at(p,o,v,cause);},e))return false;
+        if(!at(out.region,0x834,out.pose.region_id,e)||!([&]{live_host_state::apply_timing::PageReadScope pages(!share_metadata);return region_saved_identity::resolve(c.image,map,root,out.pose.region_id,out.region,selected,
+            [](uintptr_t p,size_t o,auto& v,std::string& cause){return at(p,o,v,cause);},e);}()))return false;
     }
     for(const auto value:out.pose.orientation)if(!std::isfinite(value))return fail(e,"Construction actor orientation is not finite");
     float norm=0;for(const auto value:out.pose.orientation)norm+=value*value;
@@ -96,8 +103,10 @@ bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
     return true;
 }
 bool graph(const Capture& c,const std::vector<LocalJob>& links,State& out,job_census::Census& jobs,std::vector<Actor>& actors,std::string& e){
-    out={};actors.clear();if(!job_census::read(copy,c,jobs,e))return false;
-    for(size_t slot=0;slot<50;++slot){Actor a;if(!actor(c,slot,a,e))return false;out.actors.push_back(a.pose);actors.push_back(a);}
+    out={};actors.clear();if(!read_jobs(c,jobs,e))return false;
+    {live_host_state::apply_timing::PageReadScope actor_pages;
+    for(size_t slot=0;slot<50;++slot){Actor a;if(!actor(c,slot,a,e,true))return false;out.actors.push_back(a.pose);actors.push_back(a);}
+    }
     std::set<std::string> keys;std::set<uintptr_t> bound;
     for(const auto& link:links){
         if(!link.job||!link.building_uid||link.building_key.empty()||!keys.insert(link.building_key).second)
@@ -207,7 +216,7 @@ size_t actor_slot(const Capture& c,int32_t id){
 }
 bool retire(Work& w,const LocalJob& link,std::string& e){
     Capture current;job_census::Census queue;
-    if(!read_process(current,e)||!owners(w.before,current,e)||!job_census::read(copy,current,queue,e))return false;
+    if(!read_process(current,e)||!owners(w.before,current,e)||!read_jobs(current,queue,e))return false;
     const auto selected=std::find_if(queue.jobs.begin(),queue.jobs.end(),[&](const auto& j){return j.pointer==link.job;});
     if(selected==queue.jobs.end())return fail(e,"Construction selected Job disappeared before original retirement");
     Target target;
@@ -230,7 +239,7 @@ bool retire(Work& w,const LocalJob& link,std::string& e){
     w.attempted=true;
     if(!live_host_state::compare_fixed_i32(queue.queue+0x28,int32_t(queue.jobs.size()),int32_t(expected.size()),e))return false;
     job_census::Census detached;
-    if(!read_process(current,e)||!owners(w.before,current,e)||!job_census::read(copy,current,detached,e))return false;
+    if(!read_process(current,e)||!owners(w.before,current,e)||!read_jobs(current,detached,e))return false;
     if(detached.queue!=queue.queue||detached.data!=queue.data||detached.capacity!=queue.capacity||detached.jobs!=expected||detached.developers!=expected_developers)
         return fail(e,"Construction selected queue erase changed another receiver or owner");
     if(!memory.copy(link.job,check.data(),check.size(),e))return false;
@@ -240,7 +249,7 @@ bool retire(Work& w,const LocalJob& link,std::string& e){
     // The deleted receiver is never read again. Only surviving queue entries
     // and Developer links can confirm the original selected-object retirement.
     job_census::Census final;
-    if(!read_process(current,e)||!owners(w.before,current,e)||!job_census::read(copy,current,final,e))return false;
+    if(!read_process(current,e)||!owners(w.before,current,e)||!read_jobs(current,final,e))return false;
     return final==detached||fail(e,"Construction original Job destructor changed surviving queue graph");
 }
 bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJob>& links,PoolState& target,State& actual,
@@ -263,8 +272,8 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
         uintptr_t carried=0;if(!at(c.local.developers[i],0x4d0,carried,e))return false;
         if(carried)return fail(e,"Construction frame actor carries a Monster from another Job family");
         if(wanted.actors[i].region_id>=0){uintptr_t selected=0;const auto map=reinterpret_cast<uintptr_t>(c.pin.origin.map);
-            if(!region_saved_identity::resolve(c.image,map,map+0x1c0,wanted.actors[i].region_id,0,selected,
-                [](uintptr_t p,size_t o,auto& v,std::string& cause){return at(p,o,v,cause);},e))return false;}
+            if(!([&]{live_host_state::apply_timing::PageReadScope pages;return region_saved_identity::resolve(c.image,map,map+0x1c0,wanted.actors[i].region_id,0,selected,
+                [](uintptr_t p,size_t o,auto& v,std::string& cause){return at(p,o,v,cause);},e);}()))return false;}
     }
     for(size_t i=0;i<wanted.jobs.size();++i){const auto& a=actual.jobs[i];const auto& t=wanted.jobs[i];
         if(t.building_key!=a.building_key||(a.active&&!t.active)||(!a.present&&t.present))return fail(e,"Construction frame changes original occurrence identity or reverses completion");
@@ -285,13 +294,13 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
 }
 #include "loaded_movement.inc"
 bool capture_placement(PlacementBefore& out,std::string& e){
-    out={};if(!read_process(out.capture,e)||!job_census::read(copy,out.capture,out.queue,e))return false;
+    out={};if(!read_process(out.capture,e)||!read_jobs(out.capture,out.queue,e))return false;
     Capture after;if(!read_process(after,e)||!owners(out.capture,after,e))return false;
     return (out.capture.state==after.state&&out.capture.local==after.local)||fail(e,"Construction placement before graph changed");
 }
 bool finish_placement(const PlacementBefore& before,const std::string& snapshot,const std::string& key,uint64_t uid,LocalJob& out,std::string& e){
     out={};Capture after;job_census::Census queue;
-    if(!read_process(after,e)||!job_census::read(copy,after,queue,e))return false;
+    if(!read_process(after,e)||!read_jobs(after,queue,e))return false;
     if(!same_origin(before.capture.pin.origin,after.pin.origin)||before.capture.state!=after.state||before.capture.local!=after.local||
        before.capture.pin.time_scale!=after.pin.time_scale||before.queue.queue!=queue.queue)
         return fail(e,"Construction original placement changed Developer/world/queue owner");
@@ -318,10 +327,12 @@ bool capture(const Capture& c,const std::vector<LocalJob>& links,State& out,std:
     if(!graph(c,links,out,jobs,actors,e))return false;
     Capture after;if(!read_process(after,e)||!owners(c,after,e))return false;
     if(c.state!=after.state||c.local!=after.local)return fail(e,"Construction frame capture changed actual pool");
-    job_census::Census check;if(!job_census::read(copy,after,check,e))return false;
+    job_census::Census check;if(!read_jobs(after,check,e))return false;
     if(check!=jobs)return fail(e,"Construction frame capture changed original Job graph");
-    for(size_t slot=0;slot<50;++slot){Actor second;if(!actor(after,slot,second,e))return false;
+    {live_host_state::apply_timing::PageReadScope actor_pages;
+    for(size_t slot=0;slot<50;++slot){Actor second;if(!actor(after,slot,second,e,true))return false;
         if(second!=actors[slot])return fail(e,"Construction frame capture changed actor movement/Region");}
+    }
     std::vector<JobState> pending;
     for(size_t i=0;i<out.jobs.size();++i)if(out.jobs[i].present||
         (links[i].target_alive&&links[i].target_restored&&!out.jobs[i].active))pending.push_back(std::move(out.jobs[i]));
@@ -370,8 +381,8 @@ bool apply(const action_session::Context& context,const action_session::Binding&
             if(old.position!=next.position||actual.actors[i]!=wanted.actors[i]){
                 if(!w.fresh(e))return false;
                 if(actual.actors[i].region_id!=wanted.actors[i].region_id){uintptr_t region=0;const auto map=reinterpret_cast<uintptr_t>(before.pin.origin.map);
-                    if(!region_saved_identity::resolve(before.image,map,map+0x1c0,wanted.actors[i].region_id,0,region,
-                        [](uintptr_t p,size_t o,auto& value,std::string& cause){return at(p,o,value,cause);},e))return false;
+                    if(!([&]{live_host_state::apply_timing::PageReadScope pages;return region_saved_identity::resolve(before.image,map,map+0x1c0,wanted.actors[i].region_id,0,region,
+                        [](uintptr_t p,size_t o,auto& value,std::string& cause){return at(p,o,value,cause);},e);}()))return false;
                     Call selected;bug_authority::work_region(before.image,before.local.developers[i],region,&selected);if(!call(w,selected,"Developer SetRegion",e))return false;
                 }
                 Call r;pose(before.image,before.local.developers[i],&wanted.actors[i],&next.position,&r);

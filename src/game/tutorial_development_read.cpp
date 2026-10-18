@@ -81,24 +81,24 @@ bool project(Reader& r,uintptr_t image,uintptr_t lounge,nlohmann::json& out,std:
     if(current){int32_t kind=0;std::string key;if(!r.type(current,image+0x16e48c0,"DevProject",error)||!r.at(current,0x18,kind,error)||!r.string(current,0x20,key,error))return false;
         if(kind<0||kind>3)return fail(error,"development project kind outside0..3");out["kind"]=kind;if(kind==0)out["tech_key"]=key;}return true;
 }
-bool technology(Reader& r,uintptr_t image,uintptr_t software,uintptr_t& tech,nlohmann::json& out,std::string& error){
+bool technology(Reader& r,uintptr_t image,uintptr_t software,uintptr_t& tech,nlohmann::json& out,std::string& error,const std::string& selected){
     tech=0;uintptr_t tree=0,record=0,linked=0;if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"TechTree",error))return false;
     std::vector<uintptr_t> techs,records;if(!r.array(tree,0x10,techs,error)||!r.array(software,0x280,records,error))return false;
-    for(auto candidate:techs){std::string key;if(!r.string(candidate,0x20,key,error))return false;if(key=="startingpoint"){
+    for(auto candidate:techs){std::string key;if(!r.string(candidate,0x20,key,error))return false;if(key==selected){
         if(tech)return fail(error,"development startingpoint TechTree key duplicated");tech=candidate;}}
     if(!tech)return fail(error,"development startingpoint TechTree member absent");
     std::string item_name;if(!r.type(tech,image+0x16dc330,"startingpoint TechItem",error)||!r.string(tech,0x1f0,item_name,error)||!r.at(tech,0x1e8,linked,error))return false;
-    if(item_name!="@StartingPoints")return fail(error,"development startingpoint native itemTypeName differs");
+    if(item_name!=(selected=="startingpoint"?"@StartingPoints":"@Build Bridge"))return fail(error,"development startingpoint native itemTypeName differs");
     for(auto candidate:records){std::string key;if(!r.type(candidate,image+0x16e79d0,"TechRecord",error)||!r.string(candidate,0x38,key,error))return false;
-        if(key=="startingpoint"){if(record)return fail(error,"development startingpoint SoftwareStatus record duplicated");record=candidate;}}
+        if(key==selected){if(record)return fail(error,"development startingpoint SoftwareStatus record duplicated");record=candidate;}}
     if(linked!=record)return fail(error,"development startingpoint record is not owned by current SoftwareStatus");
-    out={{"key","startingpoint"},{"item_type_name",item_name},{"record_present",record!=0},{"purchased",nullptr},{"deployed",nullptr},{"custom",nullptr},{"owned",nullptr}};
+    out={{"key",selected},{"item_type_name",item_name},{"record_present",record!=0},{"purchased",nullptr},{"deployed",nullptr},{"custom",nullptr},{"owned",nullptr}};
     if(record){uintptr_t back=0;std::array<uint8_t,3> flags{};if(!r.at(record,0x60,back,error)||!r.bytes(record+0x58,flags.data(),flags.size(),error))return false;
         if(back!=tech)return fail(error,"development startingpoint record/tech reciprocal link differs");
         for(auto value:flags)if(value>1)return fail(error,"development startingpoint record flag invalid");
         out["purchased"]=flags[0]!=0;out["deployed"]=flags[1]!=0;out["custom"]=flags[2]!=0;out["owned"]=flags[1]!=0||flags[2]!=0;}return true;
 }
-bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::string& error){
+bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::string& error,const std::string& selected){
     uintptr_t head=0,tail=0,target=0,previous=0;
     if(!r.at(image,0x13e2050,head,error)||!r.at(image,0x13e2040,tail,error))return false;
     std::set<uintptr_t> types;
@@ -108,7 +108,7 @@ bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::
         if(back!=previous)return fail(error,"development ItemType catalogue previous link differs");
         if(getter!=image+0xd31590)return fail(error,"development ItemType name getter unsupported");
         if(!r.string(node,0x48,name,error))return false;
-        if(name=="@StartingPoints"){if(target)return fail(error,"development StartingPoints ItemType catalogue key duplicated");target=node;}
+        if(name==(selected=="startingpoint"?"@StartingPoints":"@Build Bridge")){if(target)return fail(error,"development StartingPoints ItemType catalogue key duplicated");target=node;}
         previous=node;node=next;
     }
     if(previous!=tail)return fail(error,"development ItemType catalogue tail differs");
@@ -182,7 +182,7 @@ bool research_rows(Reader& r,Port& port,uintptr_t image,uintptr_t state,uintptr_
     out={{"kind",0},{"project_present",current!=0},{"major_version",major},{"cash",balance},{"sandbox",sandbox!=0},{"rows",std::move(rows)}};
     return true;
 }
-bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& error){
+bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& error,const std::string& selected){
     if(!snapshot.record)return fail(error,"startingpoint creation native TechRecord absent from owned SoftwareStatus");
     CreationOwners out;const auto lounge=snapshot.lounge,image=snapshot.image;
     std::vector<uintptr_t> catalogue,developers;
@@ -196,7 +196,7 @@ bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& erro
     if(out.automatic_workers>1||(out.automatic_workers&&(out.total_workers<0||out.max_workers<0)))
         return fail(error,"startingpoint creation native automatic worker policy invalid");
     for(auto address:catalogue){ProjectSource entry;if(!source(r,image,address,entry,error))return false;
-        if(entry.kind==0&&entry.key=="startingpoint"){
+        if(entry.kind==0&&entry.key==selected){
             if(out.source)return fail(error,"startingpoint creation catalogue key duplicated");out.source=address;
         }
         out.catalogue.push_back(std::move(entry));
@@ -213,8 +213,9 @@ bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& erro
     snapshot.creation=std::move(out);return true;
 }
 }
-bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot,bool creation,bool research){
+bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointSnapshot* snapshot,bool creation,bool research,const std::string& selected){
     result=nullptr;if(snapshot)*snapshot={};
+    if(selected!="startingpoint"&&selected!="bridges")return fail(error,"development unsupported selected research key");
     try{
         Origin before;if(!port.current(before,error))return false;
         if(!before.game||!before.mode||!before.state||!before.world||!before.map||!before.generation||!before.world_epoch||!before.bytes||before.uuid.empty()||before.sha256.empty())return fail(error,"development current world origin incomplete");
@@ -231,14 +232,14 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
            !owner(r,image,state,0x1c8,0x13df500,0x1715450,"SoftwareStatus",software,error))return false;
         nlohmann::json dev,tech;int32_t item_count=0;uintptr_t startingpoint=0;
         initial_release::StartingpointRelease release;
-        if(!project(r,image,lounge,dev,error)||!technology(r,image,software,startingpoint,tech,error)||
-           !inventory(r,image,player,item_count,error)||!initial_release::read_startingpoint_release(r,image,state,startingpoint,release,error))return false;
+        if(!project(r,image,lounge,dev,error)||!technology(r,image,software,startingpoint,tech,error,selected)||
+           !inventory(r,image,player,item_count,error,selected)||!initial_release::read_research_release(r,image,state,startingpoint,selected,release,error))return false;
         if(snapshot){
             snapshot->origin=before;snapshot->image=image;snapshot->lounge=lounge;snapshot->tech=startingpoint;snapshot->player=player;
             if(!r.at(lounge,0xa8,snapshot->project,error)||!r.at(startingpoint,0x1e8,snapshot->record,error)||
                !r.at(player,0x1d0,snapshot->inventory,error)||!r.at(snapshot->inventory,8,snapshot->slots,error)||
                !r.bytes(snapshot->slots,snapshot->items.data(),sizeof(snapshot->items),error))return false;
-            const bool fixed_project=dev.at("present")==true&&dev.at("kind")==0&&dev.at("tech_key")=="startingpoint";
+            const bool fixed_project=dev.at("present")==true&&dev.at("kind")==0&&dev.at("tech_key")==selected;
             const bool retired=!fixed_project&&tech.at("deployed")==true;
             const bool baseline=!snapshot->project&&tech.at("deployed")==false&&tech.at("custom")==false;
             if(tech.at("record_present")==true&&(fixed_project||retired||baseline)){
@@ -252,9 +253,9 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
                 row.inventory_count=item_count;row.release_change_count=release.change_count;row.release_feature_count=release.feature_count;row.release_counter=release.mutation_counter;
                 snapshot->row=row;
             }
-            if(creation&&!creation_owners(r,*snapshot,error))return false;
+            if(creation&&!creation_owners(r,*snapshot,error,selected))return false;
             startingpoint_adoption::Admission admission;
-            snapshot->admitted=startingpoint_adoption::read_admission(r,image,state,startingpoint,admission,snapshot->admission_cause);
+            snapshot->admitted=startingpoint_adoption::read_research_admission(r,image,state,startingpoint,selected,admission,snapshot->admission_cause);
             snapshot->release=admission.release;
             nlohmann::json listeners=nlohmann::json::array();
             auto rva=[&](uintptr_t address)->nlohmann::json{return address>=image&&address-image<0x1b00000?nlohmann::json(address-image):nlohmann::json(nullptr);};

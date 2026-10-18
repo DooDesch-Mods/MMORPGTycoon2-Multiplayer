@@ -1,0 +1,83 @@
+{
+  "passed": true,
+  "state": "native-desktop-and-shared-creation-confirmed",
+  "scope": "Unattended local two-peer original New World flow",
+  "acceptance": "artifacts\\acceptance\\5a938248-43f5-49d7-978d-be1931f6d01c\\summary.json",
+  "runtime_run_id": "abc2d657-8962-4688-86cd-004f1e08fd32",
+  "plugin_sha256": "a1b3db62c435a9ae56d74b3bf8fe42b7bc139b987e877cb762f939562d099231",
+  "framework_sha256": "13cdad96285945bfc02753d8325fd26e5d514a19df9d7d88a6d313cb07c0447c",
+  "created_worlds": {
+    "host": {
+      "selected_world": "Legends of The Mage-King",
+      "snapshot_id": "747ad840-2cf1-4ed6-b0a4-6cbb6bea7a88"
+    },
+    "client-1": {
+      "selected_world": "",
+      "snapshot_id": "747ad840-2cf1-4ed6-b0a4-6cbb6bea7a88"
+    }
+  },
+  "native_pages_confirmed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "native_mutation_counts": {
+    "select-icon": 1,
+    "select-type": 1,
+    "allocate-affinity": 4,
+    "next": 5,
+    "create": 1
+  },
+  "native_mutation_requests": [
+    "1ab74084-3975-425c-92b8-847c5eeb6a7c",
+    "23ee7962-fa87-42f8-bfd2-04cc5feae9b0",
+    "315f05a9-446f-40c4-9f44-f4828ed1ec4e",
+    "4d42c12e-d8b0-4539-b730-c61f6b34e974",
+    "580a081f-9a83-455d-984e-705590d6b0b3",
+    "66ad5433-84d9-4179-a608-ba65cb1775ca",
+    "9355db74-d42c-49a5-85bf-ba6522a62c60",
+    "cd9d05cc-aba1-44bb-bfa4-1e26e8e80fab",
+    "d7a150cc-ef4e-4a1d-882f-27adec331a13",
+    "e1f0ce63-f675-4f72-8af4-7df0bd99bac8",
+    "e4d58bc3-eec8-4faa-8abf-a77a7f86ff68",
+    "e9910991-2952-4375-b380-f423945a2957"
+  ],
+  "manual_input": false,
+  "images": [
+    {
+      "path": "_drafts\\media\\wizard-player-appeal-complete.bmp",
+      "sha256": "d2dfa77b10b326670cf9b116d5846628391288480344f542b363f3527a6a4a60",
+      "native_pixel_sha256": "d0adcaa8bb0ebb2cc667be91c7f3ee3cd14029d6e0652d3ab158615e9ffd80a0"
+    },
+    {
+      "path": "_drafts\\media\\created-world-multiplayer-client.bmp",
+      "sha256": "d262c36b554b3f2b83756b79dfa3abd35052f4d59d91bd653e36633e0b7a44f2",
+      "native_pixel_sha256": "1b2ae32701ec8aca3b7a70d6e61f107f645860e6f0ceb8a83c047be7a5b72be1"
+    }
+  ],
+  "regressions": {
+    "wizard_driver_cases": 24,
+    "original_handoff_checks": 297,
+    "old_transition_failed": true,
+    "fixed_transition_passed": true,
+    "transition_receipt": "_drafts/wizard-transition-tests/receipt.json"
+  },
+  "previous_attempts": [
+    {
+      "acceptance": "artifacts/acceptance/a1096035-bd69-4e14-b106-d96939ae516e/summary.json",
+      "cause": "Four required Player Appeal points were not yet allocated; Next was never bypassed."
+    },
+    {
+      "acceptance": "artifacts/acceptance/50791335-0c2b-4b5f-914c-63722670e03c/summary.json",
+      "cause": "Pending InGame transition was rejected by an idle-Title observation; original Create was not replayed.",
+      "read_recovery": "test/mcp/evidence/recover-creation-transition-read_20261017T234505743575Z.json"
+    }
+  ],
+  "limits": [
+    "No new gameplay family, FPS, four-peer, large-save or online acceptance.",
+    "The client selected_world picker field is empty; the matching snapshot and actual game HUD identify the loaded world."
+  ]
+}

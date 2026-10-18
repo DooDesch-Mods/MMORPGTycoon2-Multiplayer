@@ -1,0 +1,244 @@
+{
+  "scope": "Dedicated native Multiplayer Desktop registration, single click,20-pixel drag and double click",
+  "passed": true,
+  "full_coop_proven": false,
+  "source_acceptance": "artifacts/acceptance/57913998-89c7-4772-bb20-9010cc3d1d37/summary.json",
+  "runtime_run_id": "218bcc50-048f-4dd7-afed-2e051fbf630a",
+  "candidate_pins": {
+    "host": {
+      "runtime_kind": "framework-plugin",
+      "module": "MT2MultiplayerPlugin.dll",
+      "candidate_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\artifacts\\lobby_desktop\\wizard_frozen\\MT2MultiplayerPlugin.dll",
+      "sha256": "7c7e1e5f85f3b8e9d5559d6d21f0821bb13fad5650e31bc74c35ee801b9f3088"
+    },
+    "client-1": {
+      "runtime_kind": "framework-plugin",
+      "module": "MT2MultiplayerPlugin.dll",
+      "candidate_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\artifacts\\lobby_desktop\\wizard_frozen\\MT2MultiplayerPlugin.dll",
+      "sha256": "7c7e1e5f85f3b8e9d5559d6d21f0821bb13fad5650e31bc74c35ee801b9f3088"
+    }
+  },
+  "framework_receipt": "artifacts/lobby_desktop/framework_frozen/receipt.json",
+  "events": [
+    {
+      "after": {
+        "click_armed": true,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1136.34423828125,
+          180.0
+        ],
+        "last_click_ms": 134181442,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "after_press": {
+        "click_armed": true,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1136.34423828125,
+          180.0
+        ],
+        "last_click_ms": 134181442,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "before": {
+        "click_armed": false,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1136.34423828125,
+          180.0
+        ],
+        "last_click_ms": 26740526520860766,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "confirmed": true,
+      "cursor_fields_written": false,
+      "cursor_screen_after": [
+        688.1720581054688,
+        387.0968017578125
+      ],
+      "cursor_screen_before": [
+        688.1720581054688,
+        387.0968017578125
+      ],
+      "drag_attempted": false,
+      "drag_exception": 0,
+      "event": "single",
+      "launches_unchanged": true,
+      "native_attempted": true,
+      "native_event": "mmoDesktopIcon::Press/Release",
+      "native_returned": true,
+      "press_exception": 0,
+      "release_attempted": true,
+      "release_exception": 0,
+      "result": "confirmed",
+      "sequence_confirmed": true,
+      "target": "app-icon:doodesch.multiplayer"
+    },
+    {
+      "after": {
+        "click_armed": false,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1116.3441162109375,
+          179.99998474121094
+        ],
+        "last_click_ms": 134189934,
+        "record_position": [
+          1116.3441162109375,
+          179.99998474121094
+        ]
+      },
+      "after_press": {
+        "click_armed": true,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1136.34423828125,
+          180.0
+        ],
+        "last_click_ms": 134189934,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "before": {
+        "click_armed": true,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1136.34423828125,
+          180.0
+        ],
+        "last_click_ms": 134181442,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "confirmed": true,
+      "cursor_fields_written": false,
+      "cursor_screen_after": [
+        688.1720581054688,
+        387.0968017578125
+      ],
+      "cursor_screen_before": [
+        688.1720581054688,
+        387.0968017578125
+      ],
+      "drag_attempted": true,
+      "drag_exception": 0,
+      "during_drag": {
+        "click_armed": false,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": true,
+        "entity_position": [
+          1116.34423828125,
+          180.0
+        ],
+        "last_click_ms": 134189934,
+        "record_position": [
+          1136.34423828125,
+          180.0
+        ]
+      },
+      "event": "drag",
+      "launches_unchanged": true,
+      "native_attempted": true,
+      "native_event": "mmoDesktopIcon::Press/Drag/Release",
+      "native_returned": true,
+      "press_exception": 0,
+      "release_attempted": true,
+      "release_exception": 0,
+      "result": "confirmed",
+      "sequence_confirmed": true,
+      "target": "app-icon:doodesch.multiplayer"
+    },
+    {
+      "before": {
+        "click_armed": false,
+        "dimensions": [
+          100.0,
+          82.0
+        ],
+        "dragging": false,
+        "entity_position": [
+          1116.3441162109375,
+          179.99998474121094
+        ],
+        "last_click_ms": 134189934,
+        "record_position": [
+          1116.3441162109375,
+          179.99998474121094
+        ]
+      },
+      "confirmed": true,
+      "event": "double",
+      "exception_code": 0,
+      "handler_reached": true,
+      "native_attempted": true,
+      "native_event": "mmoDesktopIcon::DoubleClick",
+      "native_returned": true,
+      "result": "confirmed",
+      "target": "app-icon:doodesch.multiplayer"
+    }
+  ],
+  "media": [
+    {
+      "path": "_drafts/media/dedicated-desktop-host.bmp",
+      "sha256": "b47a2d3aa857b946348d6e559293041b0d6e3f63a58f17f3d14fa3cfb276e2fe"
+    },
+    {
+      "path": "_drafts/media/dragged-desktop-host.bmp",
+      "sha256": "f96e19d46aa80d2a39513a7e1ae317e20442cd79893ed3cd1c9e8ab06b97ea74"
+    }
+  ],
+  "separate_creation_failure": {
+    "cause": "Framework action rejected: {'attempted': True, 'callback_pending': False, 'error': 'Framework lobby action failed: UI calls belong in ui.window/render callbacks', 'handler_failed': True, 'sequence': 2, 'widget': 'new_world'}",
+    "root_action_attempted": true,
+    "engine_launch_executed": false,
+    "guard": "_drafts/framework-migration/v4/src/core/core.cpp:326",
+    "correction": "Queue the handoff in Tick; invoke and observe ui.new_world only in the render callback.",
+    "corrected_candidate": "artifacts/lobby_desktop/queued_frozen/receipt.json",
+    "native_accepted": false
+  },
+  "limits": [
+    "Native in-game hiding, cancellation and actual creation remain unaccepted.",
+    "Inactive owner retirement is covered by the Framework state test, not this native scope."
+  ]
+}

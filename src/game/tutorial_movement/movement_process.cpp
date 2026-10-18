@@ -153,10 +153,27 @@ void poll(void* raw,uint64_t frame_id){
 void frame(uint64_t frame_id){std::string e;if(!fixture.frame(frame_id,e))report(e);}
 void suspend(const std::string& cause){std::string e;if(!fixture.suspend(cause,e))report(e);}
 const Receipt& receipt(){return fixture.receipt();}
+FocusWindowState observe_focus_window(const Snapshot& owner){
+    const auto window=reinterpret_cast<SDL_Window*>(owner.window);
+    const auto hwnd=reinterpret_cast<HWND>(owner.hwnd);
+    FocusWindowState out;
+    out.sdl_flags=SDL_GetWindowFlags(window);
+    out.hidden=(out.sdl_flags&SDL_WINDOW_HIDDEN)!=0;
+    out.minimized=(out.sdl_flags&SDL_WINDOW_MINIMIZED)!=0;
+    out.not_focusable=(out.sdl_flags&SDL_WINDOW_NOT_FOCUSABLE)!=0;
+    out.input_focus_flag=(out.sdl_flags&SDL_WINDOW_INPUT_FOCUS)!=0;
+    out.visible=IsWindowVisible(hwnd)!=0;out.enabled=IsWindowEnabled(hwnd)!=0;out.iconic=IsIconic(hwnd)!=0;
+    out.foreground_owned=GetForegroundWindow()==hwnd;
+    out.thread_focus_owned=GetFocus()==hwnd;out.thread_active_owned=GetActiveWindow()==hwnd;
+    out.force_raise=SDL_GetHintBoolean(SDL_HINT_FORCE_RAISEWINDOW,false);
+    out.activate_when_raised=SDL_GetHintBoolean(SDL_HINT_WINDOW_ACTIVATE_WHEN_RAISED,true);
+    out.observed=true;return out;
+}
 bool read_focus(FocusReceipt& out,std::string& e){
-    out=focus_receipt;out.keyboard_focus=false;out.input_enabled=false;out.ready=false;
+    out=focus_receipt;out.keyboard_focus=false;out.input_enabled=false;out.ready=false;out.window_state={};
     Snapshot actual;if(!observe(nullptr,actual,e))return false;
     if(!out.origin.empty()&&out.origin!=actual.origin)return reject(e,"tutorial movement focus actual origin changed");
+    out.window_state=observe_focus_window(actual);
     out.origin=actual.origin;out.keyboard_focus=actual.keyboard_focus;out.input_enabled=actual.input_enabled;
     out.ready=actual.keyboard_focus&&actual.input_enabled;e.clear();return true;
 }

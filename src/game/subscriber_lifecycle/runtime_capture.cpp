@@ -1,10 +1,13 @@
+#include "mt2mp/core/runtime_paths.h"
 #include "runtime_capture.h"
 #include "building_reference_pins.h"
+#include "npc_reference_pins.h"
 #include "capture.h"
 #include "record_graph.h"
 #include "reference_map.h"
 #include "save_scope.h"
 #include "native_open_runtime.h"
+#include "session_provider.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/core/hash.h"
@@ -74,10 +77,18 @@ bool same(const Pin& a, const Pin& b) {
         a.image == b.image && a.thread == b.thread && a.manager == b.manager && a.data == b.data && a.capacity == b.capacity &&
         a.next_id == b.next_id && a.members == b.members && a.subscriber == b.subscriber && a.toon == b.toon && a.brain == b.brain && a.online == b.online;
 }
-bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, int32_t expected_saves = 0, bool census = true, bool require_paused = true) {
+bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, int32_t expected_saves = 0, bool census = true, bool require_paused = true, const action_session::Context* expected = nullptr) {
     out = {}; std::string hash;
-    const auto& config = Config::instance();
-    if (!config.local_test || !config.is_host || config.peer_id != 1) return fail(e, "subscriber capture requires actual owned test Host1");
+    if(expected){
+        action_session::Context current;
+        if(!action_session::selected_session().current(current,e))return false;
+        if(current!=*expected||current.role!=action_session::Role::Host||current.host_peer!=1||current.local_peer!=1||
+           !current.session||current.snapshot_uuid.empty()||(current.peer_mask&0xf0)||!(current.peer_mask&1u))
+            return fail(e,"subscriber capture production Session/Host slot differs");
+    }else{
+        const auto& config = Config::instance();
+        if (!config.local_test || !config.is_host || config.peer_id != 1) return fail(e, "subscriber capture requires actual owned test Host1");
+    }
     if (!native::read_resolver_receipt(out.image, out.thread, hash, e)) return false;
     if (hash != exe_sha || out.thread != GetCurrentThreadId()) return fail(e, "subscriber capture exact build/mainthread differs");
     if (!native_open_runtime::read_current_world(out.world, e)) return false;
@@ -123,9 +134,9 @@ bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, i
     if (owner != out.subscriber || reverse != out.subscriber || online > 1) return fail(e, "subscriber capture actual Toon/Brain reciprocal ownership differs");
     out.online = online != 0; return true;
 }
-bool pin(int32_t id, const std::string& origin, Pin& out, std::string& e, int32_t expected_saves = 0, bool require_paused = true) {
+bool pin(int32_t id, const std::string& origin, Pin& out, std::string& e, int32_t expected_saves = 0, bool require_paused = true, const action_session::Context* expected = nullptr) {
     Pin first, second;
-    if (!read_pin(id, origin, first, e, expected_saves, true, require_paused) || !read_pin(id, origin, second, e, expected_saves, true, require_paused)) return false;
+    if (!read_pin(id, origin, first, e, expected_saves, true, require_paused, expected) || !read_pin(id, origin, second, e, expected_saves, true, require_paused, expected)) return false;
     if (!same(first, second)) return fail(e, "subscriber capture native double-read census changed");
     out = std::move(second); return true;
 }
@@ -206,18 +217,19 @@ bool save_artifact(const std::filesystem::path& path, const std::string& content
     return true;
 }
 }
-bool capture_impl(const std::filesystem::path& root, int32_t id, const std::string& origin, Json& result, std::string& cause, Json* wire) {
+bool capture_impl(const std::filesystem::path& root, int32_t id, const std::string& origin, Json& result, std::string& cause, Json* wire, const action_session::Context* expected) {
     result = {{"state", "rejected"}, {"serialized_subscriber_id", id}, {"native_origin_uuid", origin}, {"native_save_context_serial_changes", true}, {"subscriber_creation_requested", false}};
     if (busy.test_and_set()) return fail(cause, "subscriber capture reentrant operation");
     struct Release { ~Release() { busy.clear(); } } release;
     try {
         if (id < 0 || !uuid(origin) || (!wire && root.empty())) return fail(cause, "subscriber capture typed ID/origin/runtime root invalid");
         Pin admission;
-        if (!read_pin(id, origin, admission, cause, 0, false, !wire)) return false;
+        if (!read_pin(id, origin, admission, cause, 0, false, !wire, expected)) return false;
         if (blocked_epoch == admission.world.world_epoch && blocked_generation == admission.world.generation)
             return fail(cause, "subscriber capture previous native outcome unknown: " + blocked_cause);
         subscriber_building_references::Pins building_pins;
-        if(!building_pins.prepare(admission.image, admission.world, cause))return false;
+        subscriber_npc_references::Pins npc_pins;
+        if(!building_pins.prepare(admission.image, admission.world, cause)||!npc_pins.prepare(admission.image,admission.world,cause))return false;
         local::CaptureApi api;
         if (!resolve(admission.image, api, cause) ||
             !bytes(admission.image, 0x4a03a0, "\x53\x48\x83\xec\x20\x48\x89\xcb\xe8\xd3\xb8\x56\x00\x84\xc0\x74", 16, cause) ||
@@ -233,12 +245,12 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
         ScopeCallbacks callbacks;
         callbacks.body = [&](std::string& e) {
             Schedulers held;
-            if (!pin(id, origin, before, e, 1, !wire) || !same_owner(admission, before)) return fail(e, e.empty() ? "subscriber capture native owner changed entering SaveScope" : e);
+            if (!pin(id, origin, before, e, 1, !wire, expected) || !same_owner(admission, before)) return fail(e, e.empty() ? "subscriber capture native owner changed entering SaveScope" : e);
             if (!schedulers(before, true, held, e) || held != original_schedulers) return fail(e, e.empty() ? "subscriber capture scheduler receivers changed" : e);
             workers_drained = true;
             if (!local::capture_original(api, reinterpret_cast<const void*>(before.subscriber), inspect, &borrow, receipt, e)) return false;
             Pin after;
-            if (!pin(id, origin, after, e, 1, !wire) || !same(before, after)) return fail(e, e.empty() ? "subscriber capture owner changed across native capture" : e);
+            if (!pin(id, origin, after, e, 1, !wire, expected) || !same(before, after)) return fail(e, e.empty() ? "subscriber capture owner changed across native capture" : e);
             for (const auto& row : borrow.graph.records) {
                 Json tokens = Json::array(); for (const auto& value : row.tokens) tokens.push_back(token(value));
                 rows.push_back({{"parent", row.parent == SIZE_MAX ? Json(nullptr) : Json(row.parent)}, {"child_index", row.child_index}, {"label", token(row.label)}, {"tokens", std::move(tokens)}});
@@ -246,7 +258,7 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
             int32_t character_kind = -1, character_id = -1;
             if (!local::first_append::record_character_type(borrow.graph.records, character_kind, character_id, e)) return false;
             const local::first_append::ReferenceWorld reference_world{before.image,
-                reinterpret_cast<uintptr_t>(before.world.state), reinterpret_cast<uintptr_t>(before.world.map), &building_pins};
+                reinterpret_cast<uintptr_t>(before.world.state), reinterpret_cast<uintptr_t>(before.world.map), &building_pins, &npc_pins};
             for (const auto& link : borrow.graph.private_links) {
                 uintptr_t vptr = 0;
                 if (!at(link.object, 0, vptr, e)) return false;
@@ -271,10 +283,17 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
                     const char* kind = key.kind == local::first_append::ReferenceKind::RootShard ? "root_shard" :
                         key.kind == local::first_append::ReferenceKind::RootRegion ? "root_region" :
                         key.kind == local::first_append::ReferenceKind::SharedBuilding ? "shared_building" :
-                        key.kind == local::first_append::ReferenceKind::SubscriberToon ? "subscriber_toon" : "character_ability";
+                        key.kind == local::first_append::ReferenceKind::SubscriberToon ? "subscriber_toon" :
+                        key.kind == local::first_append::ReferenceKind::SharedNPC ? "shared_npc" :
+                        key.kind == local::first_append::ReferenceKind::SharedQuest ? "shared_quest" : "character_ability";
                     row["portable_owner"] = {{"kind", kind}, {"region_id", key.region_id}, {"character_kind", key.character_kind},
                         {"character_id", key.character_id}, {"ability_index", key.ability_index}, {"source_snapshot_sha256", before.world.sha256}};
                     if(key.kind==local::first_append::ReferenceKind::SharedBuilding)row["portable_owner"]["building_key"]=key.building_key;
+                    if(key.kind==local::first_append::ReferenceKind::SharedNPC)row["portable_owner"]["npc_key"]=key.npc_key;
+                    if(key.kind==local::first_append::ReferenceKind::SharedQuest){
+                        row["portable_owner"]["npc_key"]=key.npc_key;
+                        row["portable_owner"]["sequence_id"]=key.sequence_id;
+                    }
                     if(key.kind==local::first_append::ReferenceKind::SubscriberToon){
                         if(key.subscriber_id==id){e="Subscriber self Toon must have an inline Record definition";return reference_failure("identify failed");}
                         row["portable_owner"]["subscriber_id"]=key.subscriber_id;
@@ -291,9 +310,9 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
         };
         callbacks.exit = [&](std::string& e) {
             Pin current; Schedulers held;
-            if (!read_pin(id, origin, current, e, 1, false, !wire) || !same_owner(admission, current)) return fail(e, e.empty() ? "subscriber SaveScope exit owner changed" : e);
+            if (!read_pin(id, origin, current, e, 1, false, !wire, expected) || !same_owner(admission, current)) return fail(e, e.empty() ? "subscriber SaveScope exit owner changed" : e);
             if (!schedulers(current, true, held, e) || held != original_schedulers) return fail(e, e.empty() ? "subscriber SaveScope exit scheduler changed" : e);
-            return building_pins.verify_used(e);
+            return building_pins.verify_used(e)&&npc_pins.verify_used(e);
         };
         local::SaveScopeReceipt scope_receipt;
         const bool captured = local::with_save_scope(scope_api, admission.world.mode, scope_body, scope_exit, &callbacks, scope_receipt, cause);
@@ -319,8 +338,8 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
             return false;
         }
         Pin closed; Schedulers resumed;
-        if (!read_pin(id, origin, closed, cause, 0, false, !wire) || !same_owner(admission, closed) ||
-            !schedulers(closed, false, resumed, cause) || resumed != original_schedulers || !building_pins.verify_used(cause)) {
+        if (!read_pin(id, origin, closed, cause, 0, false, !wire, expected) || !same_owner(admission, closed) ||
+            !schedulers(closed, false, resumed, cause) || resumed != original_schedulers || !building_pins.verify_used(cause)||!npc_pins.verify_used(cause)) {
             if (cause.empty()) cause = "subscriber SaveScope closed readback differs";
             blocked_epoch = admission.world.world_epoch; blocked_generation = admission.world.generation; blocked_cause = cause; result["state"] = "unknown";
             return false;
@@ -332,7 +351,7 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
             {"world_epoch", before.world.world_epoch}, {"serialized_subscriber_id", id}, {"next_subscriber_id", before.next_id}, {"online", before.online},
             {"source_record_sha256", source_hash}, {"references_sha256", link_hash}, {"external_references_sha256", external_hash}, {"records", std::move(rows)}, {"references", std::move(links)}};
         if(wire){*wire=artifact;result["state"]="captured";cause.clear();return true;}
-        const auto directory = root / "diagnostics" / "subscriber-records";
+        const auto directory = runtime_paths::diagnostics(root) / "subscriber-records";
         std::filesystem::create_directories(directory);
         const auto path = directory / (origin + "-" + std::to_string(id) + "-" + std::to_string(GetTickCount64()) + "-" + std::to_string(++sequence) + ".json");
         if (!save_artifact(path, artifact.dump(2), cause)) return false;
@@ -344,8 +363,8 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
     } catch (const std::exception& e) { return fail(cause, std::string("subscriber capture exception: ") + e.what()); }
     catch (...) { return fail(cause, "subscriber capture unknown C++ exception"); }
 }
-bool capture(const std::filesystem::path& root,int32_t id,const std::string& origin,Json& result,std::string& cause){return capture_impl(root,id,origin,result,cause,nullptr);}
-bool capture_frame(int32_t id,const std::string& origin,Json& graph,Json& receipt,std::string& cause){graph={};return capture_impl({},id,origin,receipt,cause,&graph);}
+bool capture(const std::filesystem::path& root,int32_t id,const std::string& origin,Json& result,std::string& cause){return capture_impl(root,id,origin,result,cause,nullptr,nullptr);}
+bool capture_frame(int32_t id,const std::string& origin,const action_session::Context& expected,Json& graph,Json& receipt,std::string& cause){graph={};return capture_impl({},id,origin,receipt,cause,&graph,&expected);}
 #ifdef MT2MP_SUBSCRIBER_CAPTURE_TEST
 bool testing_pin(int32_t id, const std::string& origin, std::string& cause) {
     Pin value;

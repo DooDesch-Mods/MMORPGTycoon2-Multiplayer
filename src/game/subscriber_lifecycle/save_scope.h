@@ -13,6 +13,8 @@ struct SaveScopeReceipt {
     uint32_t enter_exception = 0, leave_exception = 0;
     std::string body_cause, cleanup_cause;
 };
+bool begin_save_scope(const SaveScopeApi&,void* mode,SaveScopeReceipt&,std::string&);
+bool finish_save_scope(const SaveScopeApi&,void* mode,bool body_ok,bool exit_guard_ok,SaveScopeReceipt&,std::string&);
 bool with_save_scope(const SaveScopeApi&, void* mode, SaveScopeBody body,
                      SaveScopeBody exit_guard, void* user, SaveScopeReceipt&, std::string&);
 }

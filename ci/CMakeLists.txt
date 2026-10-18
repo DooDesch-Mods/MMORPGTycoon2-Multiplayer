@@ -189,4 +189,62 @@ include("${CMAKE_CURRENT_LIST_DIR}/toon_time_fence_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/bug_fix_action_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/bug_manual_native_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/research_action_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/research_reader_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/research_fixture_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/research_native_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/research_runtime_checks.cmake")
+
+include(live_autosave_checks.cmake)
+
+include(research_reader_scope_checks.cmake)
+
+include(quest_reader_scope_checks.cmake)
+
+include(query_attribution_checks.cmake)
+
+include(query_phase_checks.cmake)
+
+include(placement_reader_scope_checks.cmake)
+
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_reader_scope_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/subscriber_npc_reference_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/subscriber_online_native_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/scenario_vip_authority_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/toon_time_timing_checks.cmake")
+
+include(engine_phase_timing_checks.cmake)
+
+include("${CMAKE_CURRENT_LIST_DIR}/vip_frame_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/vip_runtime_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/time_host_capture_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/marketing_native_probe_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/marketing_frame_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/steam_lifecycle_admission_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/steam_hud_admission_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/chat_checks.cmake")
+
+add_executable(test_steam_presence "${CMAKE_CURRENT_LIST_DIR}/../test/test_steam_presence.cpp")
+target_compile_features(test_steam_presence PRIVATE cxx_std_17)
+target_include_directories(test_steam_presence PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../include")
+if(MSVC)
+    target_compile_options(test_steam_presence PRIVATE /UNDEBUG)
+else()
+    target_compile_options(test_steam_presence PRIVATE -UNDEBUG)
+endif()
+add_test(NAME steam_presence_behavior COMMAND test_steam_presence)
+include(reporting_checks.cmake)
+include(lobby_presentation_checks.cmake)
+include(steam_avatar_checks.cmake)
+include(lobby_layout_checks.cmake)
+include(lobby_assets_checks.cmake)
+include("${CMAKE_CURRENT_LIST_DIR}/lobby_handoff_checks.cmake")

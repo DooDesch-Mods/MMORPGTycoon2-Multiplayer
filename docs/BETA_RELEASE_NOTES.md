@@ -1,21 +1,32 @@
-# Shared repair completion
+# Build together from the game desktop
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-## Highlights
+Build your world together. Host a Steam lobby and invite a friend to join you in MMORPG Tycoon 2.
 
-- Natural repairs now remove the completed Bug and Job on both players, free the developer and bring the building back online.
-- Fixed a sync stop during automatic capture when a simulated player logs out and changes one day in their weekly schedule. The Client receives the current state.
-- Added automatic checks for repair completion, loaded assigned jobs and the original logout capture path.
+## New in Beta 14
+
+- Open Multiplayer from its own desktop icon or the central Mods window.
+- Create a new world with the original game wizard. The Client follows the Host automatically.
+- See when the Host is creating or loading a world. The native menu now has aligned icons, player portraits and button labels.
+- Share supported building placement, movement and removal, region purchases, biome styles and region levels.
+- Keep pause and game speed in sync, and continue together after loading the Host's saved world.
+- Report a problem from the Multiplayer window and send technical details privately. Keep the confirmed report number when contacting support. Automatic technical reports are optional and off by default.
 
 ## Install
 
-1. Close the game. Copy `WSOCK32.dll`, `MT2_Multiplayer.dll` and `mt2mp_ui` from the ZIP beside `MT2.exe`.
-2. Both players use this beta and launch through Steam.
-3. Host a lobby, join it, then create or load a small world together.
+Requires Windows x64, the supported Steam game build, the matching [MT2 Mod Framework Runtime](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) listed with this release. Both players need matching Multiplayer and dependency versions.
 
-Updating from beta.2? Follow the [legacy upgrade steps](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md#migrate-a-legacy-proxy-copied-into-the-game-directory) first.
+1. Close the game and install the required Framework Runtime and Vortex Extension.
+2. Install the Multiplayer ZIP through Vortex for MMORPG Tycoon 2.
+3. Enable Multiplayer, deploy and start the game through Steam.
+4. Open the Multiplayer desktop icon, or choose **Mods... > Multiplayer > Open**.
+5. Host a lobby and create or load a small world, or join your friend's lobby. Wait until both players are ready before building.
 
-## Beta status
+This download contains the native Multiplayer plugin. Install the Framework Runtime separately. Remove an older standalone Multiplayer loader before switching to this plugin. Close the game before updating or removing native plugins.
 
-This repair path passed a local two-player test. Full tutorial and action coverage, other Bug types, four players and large worlds remain open. The separate-account online test remains manual.
+## Early Beta
+
+This mod is in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
+
+Problem reports stay private for 30 days. They do not include saves, chat, screenshots or Steam account IDs. Please keep passwords and personal information out of the optional description.

@@ -1,5 +1,6 @@
 #pragma once
 #include "monetary.h"
+#include "npc_probe.h"
 #include "live_host_state/day_rollover/native_day.h"
 namespace mt2mp::game::live_host_state::day::economy {
 class NativePort final:public Port {
@@ -9,9 +10,18 @@ class NativePort final:public Port {
     Target actual_day_receipt_;
     const Owners* scalar_before_=nullptr;
     NativeHistory scalar_history_;
-    bool once(Owners&,std::string&);
+    const Owners* quest_before_=nullptr;
+    subscriber_lifecycle_append::QuestEditBatch* quest_batch_=nullptr;
+    bool quest_owners_ready_=false;
+    NativeHistory quest_history_;
+    std::vector<npc_probe::action_runtime::StateOwner> quest_owners_;
+    void clear_quest_span()noexcept;
+    bool admit_quest_history(const Owners&,std::string&);
+    bool once(Owners&,std::string&,std::vector<npc_probe::action_runtime::StateOwner>* npc_owners=nullptr);
+    bool read_with_npc_owners(Owners&,std::string&,std::vector<npc_probe::action_runtime::StateOwner>*);
     bool motion_once(MotionRead&,std::string&);
-    bool current(const Owners&,uintptr_t owner,bool subscriber,std::string&);
+    bool current(const Owners&,uintptr_t owner,bool subscriber,std::string&,std::vector<npc_probe::action_runtime::StateOwner>* npc_owners=nullptr);
+    bool current_npc_owners(const Owners&,std::vector<npc_probe::action_runtime::StateOwner>&,std::string&);
     bool current_subscriber(const Owners&,size_t,std::string&);
     bool preflight_from_read(const Owners&,const State&,std::string&)override;
     bool preflight_motion_body(const Owners&,const State&,std::string&);
@@ -24,6 +34,9 @@ public:
     bool read_motion(MotionRead&,std::string&)override;
     bool begin_scalar_stores(const Owners&,std::string&)override;
     void end_scalar_stores()noexcept override;
+    bool begin_quest_stores(const Owners&,std::string&)override;
+    void end_quest_stores()noexcept override;
+    bool with_quest_stores(const Owners&,const State&,const std::function<bool(std::string&)>&,std::string&)override;
     bool capture_subscriber(int32_t,nlohmann::json&,std::string&)override;
     bool append_subscriber(const nlohmann::json&,nlohmann::json&,std::string&)override;
     bool subscriber_retirements(const Owners&,std::vector<mt2mp::subscriber_lifecycle::additions::Retirement>&,std::string&)override;

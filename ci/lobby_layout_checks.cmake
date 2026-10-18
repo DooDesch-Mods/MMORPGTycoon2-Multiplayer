@@ -1,0 +1,7 @@
+add_executable(test_lobby_layout ../test/test_lobby_layout.cpp)
+target_include_directories(test_lobby_layout PRIVATE ../src/game)
+target_compile_features(test_lobby_layout PRIVATE cxx_std_17)
+if(MSVC)
+    target_compile_options(test_lobby_layout PRIVATE /utf-8)
+endif()
+add_test(NAME lobby_layout COMMAND test_lobby_layout)

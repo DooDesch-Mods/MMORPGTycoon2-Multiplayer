@@ -4,6 +4,7 @@ bool same_world(const World& a,const World& b){
     return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&
         a.uuid==b.uuid&&a.sha256==b.sha256&&a.bytes==b.bytes&&a.world_epoch==b.world_epoch&&a.generation==b.generation;
 }
+#include "research_release.inc"
 bool startingpoint_code(std::string& e){
     for(const auto& entry:startingpoint_native_entries){std::array<unsigned char,16> actual{};
         if(!memory.copy(image+entry.rva,actual.data(),actual.size(),e))return false;
@@ -27,12 +28,15 @@ struct StartingpointCalls {
     const action_session::Binding& binding;
     tutorial_development::StartingpointSnapshot before;
     live_host_state::Pin economy_before{};
+    bool share_reader_metadata=false;
     bool creating=false;
     bool creation_attempted=false;
     uintptr_t created_project=0;
+    std::string key="startingpoint";
+    research_release::Graph release_before;
     bool read(tutorial_development::StartingpointSnapshot& out,std::string& e){
         World world;if(!origin(context,binding,world,e))return false;
-        nlohmann::json diagnostic;if(!tutorial_development::read_startingpoint(out,diagnostic,e,creating))return false;
+        nlohmann::json diagnostic;if(!tutorial_development::read_research(key,out,diagnostic,e,creating||key=="bridges",share_reader_metadata))return false;
         World after;if(!origin(context,binding,after,e))return false;
         if(!same_world(world,out.origin)||!same_world(world,after))return fail(e,"startingpoint full NativeOpen changed during read");
         if(creating){native::WorldStatus status;if(!native::read_world_status(status,e))return false;
@@ -70,9 +74,12 @@ struct StartingpointCalls {
         uintptr_t destructor=0;if(!at(image+0x16e48c0,8,destructor,e))return false;
         if(destructor!=image+0x261980)return fail(e,"startingpoint DevProject deleting destructor differs");
         if(deploying){
+            if(key=="bridges"&&(!research_release::read(before.release,release_before,e)||!research_release::admissible(release_before,before.tech,e)))return false;
             if(!before.admitted)return fail(e,"startingpoint adoption preflight rejected: "+before.admission.dump());
             if(std::find(before.items.begin(),before.items.end(),uintptr_t(0))==before.items.end())return fail(e,"startingpoint native inventory has no free slot");
         }
+        if(deploying&&key=="bridges"){research_release::Graph again;if(!research_release::read(before.release,again,e))return false;
+            if(again!=release_before)return fail(e,"Research Release graph changed before deployment");}
         tutorial_development::StartingpointSnapshot again;
         if(!read(again,e)||!same_owners(again,e))return false;
         if(before.project!=again.project||before.row!=again.row||before.items!=again.items||before.admission!=again.admission||before.creation!=again.creation)
@@ -141,26 +148,40 @@ struct StartingpointCalls {
             if(before.items[i]||!after.items[i])return fail(e,"startingpoint Deploy replaced or removed an existing inventory item");
             ++insertions;
         }
-        return insertions==1||fail(e,"startingpoint Deploy did not insert exactly one inventory item");
+        if(insertions!=1)return fail(e,"startingpoint Deploy did not insert exactly one inventory item");
+        if(key=="bridges"){
+            research_release::Graph graph;nlohmann::json receipt;
+            if(!research_release::read(after.release,graph,e)||!research_release::preserve(release_before,graph,before.tech,receipt,e))return false;
+            receipt["scan_stamp_before"]=before.row->release_counter;
+            receipt["scan_stamp_after"]=after.row->release_counter;
+            research_proof_origin=before.origin;
+            research_commit_proof={{"key",key},{"confirmed",false},{"release",std::move(receipt)}};
+            if(!before.creation||!after.creation)return fail(e,"Research Deploy Release ownership census absent");
+            const auto& old=before.creation->release_changes;const auto& now=after.creation->release_changes;
+            if(now.size()!=old.size()+1)return fail(e,"Research Deploy Release member count differs");
+            for(auto member:old)if(std::count(now.begin(),now.end(),member)!=1)return fail(e,"Research Deploy removed/replaced an existing Release member");
+        }
+        return true;
     }
     bool retire(std::string& e){
         uintptr_t current=0;if(!at(before.lounge,0xa8,current,e))return false;
         if(current!=before.project)return fail(e,"startingpoint project owner changed before native destruction");
         const auto code=startingpoint_destroy(before.project);
         if(code)return fail(e,"startingpoint original project deleting destructor exception="+std::to_string(code));
-        // Commit's two Map::AddBugsFromTech calls return before any RNG or map
-        // mutation for the required zero counters. Keep its remaining tail;
-        // ClearCurrentDevProject would additionally cancel developers.
+        // Startingpoint requires zero bugs. Research map bugs come from the Host
+        // through the existing Bug frame; Client Commit must not run map RNG.
+        // Keep the original retirement tail without cancelling developers.
         return put(before.lounge,0xa8,uintptr_t(0),e)&&put(before.lounge,0xb0,uint64_t(0),e)&&
             put(before.lounge,0xb8,uint64_t(0),e)&&put(before.lounge,0xc4,int32_t(0),e);
     }
-    bool readback(const startingpoint::Row& target,std::string& e){
+    bool readback(const startingpoint::Row& target,std::string& e,tutorial_development::StartingpointSnapshot* observed=nullptr){
         tutorial_development::StartingpointSnapshot after;if(!read(after,e)||!same_owners(after,e))return false;
         if(after.row&&!after.row->project_present)after.row->commit_bugs=target.commit_bugs;
         if(!after.row||*after.row!=target)return fail(e,"startingpoint full native readback differs from Host row");
         if(creating&&!creation_readback(after,true,e))return false;
         if(target.project_present&&(after.project!=(creating?created_project:before.project)||after.items!=before.items))return fail(e,"startingpoint project adoption changed project/inventory ownership");
         if(!target.project_present&&after.project)return fail(e,"startingpoint native project destructor/tail did not retire project");
+        if(observed)*observed=std::move(after);
         return true;
     }
 };
@@ -170,7 +191,8 @@ void commit_current(void* lounge){
     if(load.armed){
         if(GetCurrentThreadId()!=mainthread){block("Client native Commit thread differs");return;}
         client_commit_suppressed=true;std::string cause;
-        try{client_commit_submitted=submit_client_commit(lounge,cause);}
+        try{std::string key;client_commit_submitted=current_project_key(lounge,key,cause)&&
+            (key=="bridges"?submit_client_research_commit(lounge,cause):submit_client_commit(lounge,cause));}
         catch(const std::exception& x){client_commit_submitted=false;cause=std::string("startingpoint Commit intent exception: ")+x.what();}
         if(!client_commit_submitted&&cause.empty())cause="startingpoint Commit intent rejected without cause";
         if(cause!=client_commit_cause||client_commit_submitted){
@@ -180,14 +202,15 @@ void commit_current(void* lounge){
         client_commit_cause=cause;return;
     }
     tutorial_development::StartingpointSnapshot before;
-    nlohmann::json diagnostic;std::string cause;
+    nlohmann::json diagnostic;std::string cause,key;
     bool observe=false;
+    const bool research=current_project_key(lounge,key,cause)&&key=="bridges";
     try{
         action_session::Context context;
         if(action_session::selected_session().current(context,cause)&&context.role==action_session::Role::Host&&
-           verify_commit_entry(image+0x25fb10,cause)&&tutorial_development::read_startingpoint(before,diagnostic,cause)&&
+           verify_commit_entry(image+0x25fb10,cause)&&tutorial_development::read_research(research?"bridges":"startingpoint",before,diagnostic,cause,true)&&
            before.lounge==reinterpret_cast<uintptr_t>(lounge)&&before.project&&before.row&&before.row->project_present&&!before.row->deployed){
-            commit_receipt={before.origin,before.tech,before.record,std::nullopt,{}};observe=true;
+            (research?research_commit_receipt:commit_receipt)={before.origin,before.tech,before.record,std::nullopt,{}};observe=true;
         }
     }catch(const std::exception& x){cause=std::string("startingpoint pre-Commit receipt: ")+x.what();}
     // This hook does not authorize or replace any Host operation. Preserve the
@@ -196,11 +219,11 @@ void commit_current(void* lounge){
     if(!observe){if(!cause.empty())LOG_WARN("[Tutorial] Host Commit receipt unavailable cause={}",cause);return;}
     try{
         tutorial_development::StartingpointSnapshot after;
-        if(tutorial_development::read_startingpoint(after,diagnostic,cause)&&same_world(before.origin,after.origin)&&
+        if(tutorial_development::read_research(research?"bridges":"startingpoint",after,diagnostic,cause,true)&&same_world(before.origin,after.origin)&&
            before.lounge==after.lounge&&before.tech==after.tech&&before.record==after.record&&!after.project&&after.row&&after.row->deployed){
-            commit_receipt.bugs=startingpoint::CommitBugs{before.row->bugs_total,before.row->bugs_known};return;
+            (research?research_commit_receipt:commit_receipt).bugs=startingpoint::CommitBugs{before.row->bugs_total,before.row->bugs_known};return;
         }
         if(cause.empty())cause="startingpoint original Commit owner/retirement readback differs";
     }catch(const std::exception& x){cause=std::string("startingpoint post-Commit receipt: ")+x.what();}
-    commit_receipt.cause=cause;LOG_WARN("[Tutorial] Host Commit receipt rejected cause={}",cause);
+    (research?research_commit_receipt:commit_receipt).cause=cause;LOG_WARN("[Tutorial] Host Commit receipt rejected cause={}",cause);
 }

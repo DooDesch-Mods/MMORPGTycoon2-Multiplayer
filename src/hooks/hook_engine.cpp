@@ -7,7 +7,7 @@
 #include "../game/ui_build_runtime.h"
 #include "../game/ui_move_runtime.h"
 
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <vector>
 
 namespace mt2mp::hooks {

@@ -5,6 +5,20 @@
 #include <string>
 
 namespace mt2mp::game::tutorial_startingpoint_fixture {
+// Cross-command observations can span native Release scans. Immediate native
+// owner pins and execution readbacks still compare their complete diagnostics.
+inline bool same_expected_development(const nlohmann::json& actual,const nlohmann::json& expected){
+    if(actual==expected)return true;
+    const nlohmann::json::json_pointer stamp("/startingpoint_release/mutation_counter");
+    if(!actual.contains(stamp)||!expected.contains(stamp))return false;
+    const auto valid_stamp=[](const nlohmann::json& value){
+        return value.is_number_integer()&&(value.is_number_unsigned()?
+            value.get<uint64_t>()<=UINT32_MAX:value.get<int64_t>()>=0&&value.get<int64_t>()<=UINT32_MAX);
+    };
+    if(!valid_stamp(actual.at(stamp))||!valid_stamp(expected.at(stamp)))return false;
+    auto compared=expected;compared.at(stamp)=actual.at(stamp);
+    return actual==compared;
+}
 inline bool before_begin(const nlohmann::json& d,uintptr_t project,std::string& e){
     const auto& p=d.at("project");const auto& t=d.at("startingpoint");
     if(project||p.at("present")!=false||p.at("work")!=0||p.at("lines")!=0||p.at("desired_workers")!=0||

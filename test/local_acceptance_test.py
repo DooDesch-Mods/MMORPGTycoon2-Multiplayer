@@ -369,5 +369,54 @@ class SavedMCPAcceptanceTests(unittest.TestCase):
             acceptance.placement_expense(before, after)
 
 
+class AtomicSummaryTests(unittest.TestCase):
+    def test_summary_replace_recovers_without_repeating_game_work(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
+            target=Path(directory)/'summary.json'
+            acceptance.write_json(target, {'old': True})
+            original=Path.replace
+            attempts=[]
+            def replace(source, destination):
+                attempts.append((source, destination))
+                if len(attempts)<3:
+                    raise PermissionError(13, 'sharing violation')
+                return original(source, destination)
+            output=io.StringIO()
+            with patch.object(Path, 'replace', autospec=True, side_effect=replace), patch.object(acceptance.time, 'sleep') as wait, contextlib.redirect_stdout(output):
+                acceptance.write_json(target, {'new': True})
+            self.assertEqual(acceptance.read_json(target), {'new': True})
+            self.assertEqual(len(attempts), 3)
+            self.assertEqual([call.args[0] for call in wait.call_args_list], [0.025, 0.05])
+            self.assertIn('warn: acceptance summary replace temporarily blocked', output.getvalue())
+            self.assertIn('info: acceptance summary replace recovered', output.getvalue())
+
+    def test_permanent_summary_lock_keeps_original_and_raises_original_cause(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
+            target=Path(directory)/'summary.json'
+            acceptance.write_json(target, {'old': True})
+            cause=PermissionError(13, 'permanent access denied')
+            output=io.StringIO()
+            with patch.object(Path, 'replace', side_effect=cause) as replace, patch.object(acceptance.time, 'sleep') as wait, contextlib.redirect_stdout(output):
+                with self.assertRaises(PermissionError) as raised:
+                    acceptance.write_json(target, {'new': True})
+            self.assertIs(raised.exception, cause)
+            self.assertEqual(replace.call_count, 5)
+            self.assertEqual(wait.call_count, 4)
+            self.assertEqual(acceptance.read_json(target), {'old': True})
+            self.assertEqual(acceptance.read_json(target.with_suffix('.json.tmp')), {'new': True})
+            self.assertIn('error: acceptance summary replace failed', output.getvalue())
+
+    def test_other_summary_errors_are_not_retried(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
+            target=Path(directory)/'summary.json'
+            cause=OSError(28, 'disk full')
+            with patch.object(Path, 'replace', side_effect=cause) as replace, patch.object(acceptance.time, 'sleep') as wait:
+                with self.assertRaises(OSError) as raised:
+                    acceptance.write_json(target, {'new': True})
+            self.assertIs(raised.exception, cause)
+            self.assertEqual(replace.call_count, 1)
+            wait.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

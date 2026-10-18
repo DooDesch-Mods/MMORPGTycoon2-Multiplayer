@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "read.h"
 #include "native_open_runtime.h"
 #include "placement_ui_probe/ui_probe.h"
@@ -24,5 +25,5 @@ struct ProcessPort final:Port {
     bool copy(uintptr_t address,void* out,size_t count,std::string& e)override{return memory.copy(address,out,count,e);}
 };
 }
-bool read_process(Capture& out,std::string& e){ProcessPort port;return read(port,out,e);}
+bool read_process(Capture& out,std::string& e){live_host_state::apply_timing::PageReadScope pages;ProcessPort port;return read(port,out,e);}
 }

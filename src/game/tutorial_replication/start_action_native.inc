@@ -10,10 +10,11 @@ struct StartActionCalls {
     tutorial_development::StartingpointSnapshot before;
     live_host_state::Pin before_pin{},paid_pin{};
     bool paid=false,created=false;uintptr_t created_project=0;
+    std::string key="startingpoint";
 
     bool snapshot(tutorial_development::StartingpointSnapshot& value,live_host_state::Pin& pin,std::string& e){
         World first,last;nlohmann::json diagnostic;
-        if(!origin(context,binding,first,e)||!tutorial_development::read_startingpoint(value,diagnostic,e,true)||
+        if(!origin(context,binding,first,e)||!tutorial_development::read_research(key,value,diagnostic,e,true)||
            !origin(context,binding,last,e))return false;
         if(!same_world(first,last)||!same_world(first,value.origin))return fail(e,"Startingpoint Start NativeOpen changed during read");
         if(context.role==action_session::Role::Client&&!startingpoint_clock(e))return false;
@@ -56,7 +57,18 @@ struct StartActionCalls {
            sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
             return fail(e,"Startingpoint Start actual EXE/Mainthread differs");
         if((context.role==action_session::Role::Client)!=load.armed)return fail(e,"Startingpoint Start actual role/joined-load authority differs");
-        return verify_pay_entry(image+start_intent::pay_rva,e)&&startingpoint::creation::code(memory,image,e);
+        if(!verify_pay_entry(image+start_intent::pay_rva,e)||!startingpoint::creation::code(memory,image,e))return false;
+        if(key=="bridges"){
+            nlohmann::json eligibility;if(!tutorial_development::read(eligibility,e))return false;
+            const auto& view=eligibility.at("research");size_t matches=0;
+            for(const auto& row:view.at("rows"))if(row.at("key")==key){
+                ++matches;if(row.at("visible")!=true||row.at("owned")!=false||row.at("purchased")!=false||
+                    row.at("can_choose_now")!=true||row.at("can_afford")!=true||row.at("cost")!=10000)
+                    return fail(e,"Research original selection/affordability getters reject Bridges");
+            }
+            if(matches!=1||view.at("project_present")!=false)return fail(e,"Research original catalogue/current-project eligibility differs");
+        }
+        return true;
     }
     bool pay(std::string& e){
         bool accepted=false;const auto code=start_pay_call(before.creation->source,accepted);
@@ -66,7 +78,7 @@ struct StartActionCalls {
     }
     bool create(const startingpoint::Row& paid_row,const startingpoint::Row& target,std::string& e){
         if(context.role==action_session::Role::Client){
-            StartingpointCalls adopter{context,binding};bool attempted=false,unknown=false;
+            StartingpointCalls adopter{context,binding};adopter.key=key;bool attempted=false,unknown=false;
             if(!startingpoint::apply(paid_row,target,adopter,attempted,unknown,e))return false;
             created_project=adopter.created_project;
         }else{
@@ -84,17 +96,19 @@ bool run_start_action(const action_session::Context& context,const action_sessio
     const action_session::Ledger& ledger_before,const startingpoint::Row& row_before,
     const action_session::Ledger* host_after,const startingpoint::Row* host_row,
     action_session::Ledger& ledger_after,startingpoint::Row& row_after,
-    bool& attempted,bool& unknown,std::string& e){
+    bool& attempted,bool& unknown,std::string& e,const std::string& key="startingpoint"){
     attempted=unknown=false;
     if(bool(host_after)!=bool(host_row)||(context.role==action_session::Role::Client)!=(host_after!=nullptr))return fail(e,"Startingpoint Start role/HostResult evidence differs");
-    StartActionCalls calls{context,binding};
+    StartActionCalls calls{context,binding};calls.key=key;
     if(!calls.snapshot(calls.before,calls.before_pin,e)||!calls.before.row||!calls.before.creation||!calls.before.record||
        !calls.before.creation->source||calls.before.creation->current||calls.before.project||
        *calls.before.row!=row_before||live_host_state::ledger(calls.before_pin.values)!=ledger_before)
         return e.empty()?fail(e,"Startingpoint Start exact current baseline differs"):false;
     if(row_before.project_present||row_before.purchased||row_before.deployed||row_before.custom)
         return fail(e,"Startingpoint Start requires actual unpurchased Startingpoint and no project");
-    int32_t price=0;if(!at(calls.before.tech,0xac,price,e)||!start_intent::expected_payment(ledger_before,price,ledger_after,e))return false;
+    int32_t price=0;if(!at(calls.before.tech,0xac,price,e))return false;
+    if(key=="bridges"&&price!=10000)return fail(e,"Research original Bridges price differs");
+    if(!start_intent::expected_payment(ledger_before,price,ledger_after,e))return false;
     row_after=row_before;row_after.purchased=row_after.project_present=true;
     row_after.work=0;row_after.lines=row_after.bugs_total=row_after.bugs_known=row_after.desired_workers=0;
     const auto& workers=*calls.before.creation;

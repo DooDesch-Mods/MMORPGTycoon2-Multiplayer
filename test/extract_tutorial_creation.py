@@ -15,7 +15,7 @@ def part(begin, end):
     return native[native.index(begin):native.index(end)]
 args.output.mkdir(parents=True, exist_ok=True)
 (args.output / "creation_calls.inc").write_text(
-    part("bool same_world(", "bool startingpoint_code(") +
+    part("bool same_world(", '#include "research_release.inc"') +
     part("bool startingpoint_clock(", "DWORD startingpoint_deploy(") +
     part("struct StartingpointCalls {", "void commit_current("), encoding="utf-8")
 fixture = args.reader_fixture.read_text(encoding="utf-8-sig")

@@ -7,6 +7,8 @@
 
 #include <windows.h>
 #include <chrono>
+#include <algorithm>
+#include "mt2mp/net/steam_presence.h"
 
 // Flat C API types
 using FnCreateLobby = uint64_t(*)(void* self, int eLobbyType, int cMaxMembers);
@@ -172,6 +174,8 @@ static T load_fn(const char* name) {
     return reinterpret_cast<T>(GetProcAddress(get_steam(), name));
 }
 
+static void restore_rich_presence();
+
 SteamMatchmaking& SteamMatchmaking::instance() {
     static SteamMatchmaking inst;
     return inst;
@@ -260,6 +264,7 @@ bool SteamMatchmaking::init() {
 
 void SteamMatchmaking::shutdown() {
     if (in_lobby()) leave_lobby();
+    restore_rich_presence();
     steam_matchmaking_ = nullptr;
 }
 
@@ -494,6 +499,7 @@ void SteamMatchmaking::join_lobby(uint64_t lobby_id, LobbyJoinedCallback cb) {
 }
 
 void SteamMatchmaking::leave_lobby() {
+    update_rich_presence(false, false, false, true, 0);
     g_cancel_create = true;
     g_cancel_join = true;
     if (!steam_matchmaking_ || !fn_LeaveLobby || !in_lobby()) return;
@@ -564,5 +570,7 @@ uint64_t SteamMatchmaking::host_steam_id() const {
 }
 
 void SteamMatchmaking::set_member_callback(LobbyMemberCallback cb) { member_callback_ = std::move(cb); }
+
+#include "steam_presence.inc"
 
 } // namespace mt2mp::net

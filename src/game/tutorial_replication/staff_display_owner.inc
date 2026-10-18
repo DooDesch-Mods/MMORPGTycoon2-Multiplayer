@@ -9,7 +9,8 @@ std::string native_fault;
 void clear(){cache.reset();receipt.rendered=false;receipt.deferred=false;receipt.visible=nullptr;if(!receipt.unknown)receipt.cause.clear();}
 void defer(const std::string& cause){receipt.rendered=false;receipt.deferred=true;receipt.visible=nullptr;if(receipt.cause!=cause)LOG_INFO("[TutorialStaffDisplay] deferred cause={}",cause);receipt.cause=cause;}
 void unknown(const std::string& cause){receipt.rendered=false;receipt.deferred=false;receipt.unknown=true;receipt.visible=nullptr;if(native_fault.empty()){native_fault=cause;LOG_ERROR("[TutorialStaffDisplay] native display Unknown; no replay cause={}",cause);}receipt.cause=native_fault;}
-bool read_owners(const tutorial_development::StartingpointSnapshot& snapshot,Owners& out,std::string& e){
+bool read_owners(const tutorial_development::StartingpointSnapshot& snapshot,Owners& out,std::string& e,bool share_metadata=false){
+    live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
     out={};out.snapshot=snapshot;
     if(!snapshot.creation||!snapshot.row||!snapshot.project||!snapshot.row->project_present||!snapshot.row->purchased||snapshot.row->deployed)
         return fail(e,"Staff display requires owned current purchased Startingpoint project");
@@ -34,9 +35,9 @@ bool bind_target(const staff_display::State& target,const Owners& owners,std::st
 bool cache_bound(const Cache& value,const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& s){
     return value.context==c&&value.binding==b&&same_world(value.world,s.origin)&&value.project==s.project&&value.tech==s.tech&&value.record==s.record&&s.row&&s.row->project_present&&!s.row->deployed;
 }
-bool capture(const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& snapshot,std::optional<staff_display::State>& out,std::string& e){
+bool capture(const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& snapshot,std::optional<staff_display::State>& out,std::string& e,bool share_metadata=false){
     out.reset();if(!snapshot.row||!snapshot.row->project_present||snapshot.row->deployed)return true;
-    Owners owners;if(!read_owners(snapshot,owners,e))return false;
+    Owners owners;if(!read_owners(snapshot,owners,e,share_metadata))return false;
     if(c.role==action_session::Role::Client){if(cache&&cache_bound(*cache,c,b,snapshot)){if(!bind_target(cache->target,owners,e))return false;out=cache->target;}return true;}
     staff_display::State value;
     for(const auto& d:owners.developers)if(d.employed){value.developers.push_back({d.id,d.job,d.on_map!=0});if(!d.on_map&&d.job>=5&&d.job<=7)++value.active_tech;}
@@ -47,14 +48,20 @@ bool capture(const action_session::Context& c,const action_session::Binding& b,c
     std::sort(value.developers.begin(),value.developers.end(),[](const auto& a,const auto& z){return a.id<z.id;});
     if(!staff_display::valid(value,e))return false;out=std::move(value);return true;
 }
-bool admit(const action_session::Context& c,const action_session::Binding& b,const std::optional<staff_display::State>& target,std::string& e,bool install){
+bool admit(const action_session::Context& c,const action_session::Binding& b,const std::optional<staff_display::State>& target,std::string& e,bool install,const std::string& key="startingpoint",bool share_metadata=false,const tutorial_development::StartingpointSnapshot* observed=nullptr){
     if(!target){if(install)clear();return true;}
     World world;if(!origin(c,b,world,e))return false;
-    tutorial_development::StartingpointSnapshot s;json d;if(!tutorial_development::read_startingpoint(s,d,e,true)||!same_world(world,s.origin))return fail(e,e.empty()?"Staff display full Origin differs":e);
+    tutorial_development::StartingpointSnapshot s;json d;
+    if(observed){
+        // Only the immediate successful Progress readback supplies this value.
+        if(!install||key!="bridges")return fail(e,"Staff display prepared Progress route differs");
+        s=*observed;
+    }else if(!tutorial_development::read_research(key,s,d,e,true,!install&&share_metadata))return fail(e,e.empty()?"Staff display full Origin differs":e);
+    if(!same_world(world,s.origin))return fail(e,"Staff display full Origin differs");
     // A creation frame is checked against its catalogue before creation and
     // against its actual newly allocated current project when installed.
     if(!s.project&&!install)return true;
-    Owners owners;if(!read_owners(s,owners,e)||!bind_target(*target,owners,e))return false;
+    Owners owners;if(!read_owners(s,owners,e,!install&&share_metadata)||!bind_target(*target,owners,e))return false;
     World after;if(!origin(c,b,after,e)||!same_world(world,after))return fail(e,e.empty()?"Staff display Origin changed during admission":e);
     if(install){const bool changed=!cache||!cache_bound(*cache,c,b,s)||cache->target!=*target;cache=Cache{c,b,world,s.project,s.tech,s.record,*target,owners};if(changed){receipt.rendered=false;receipt.visible=nullptr;receipt.deferred=true;}}
     return true;

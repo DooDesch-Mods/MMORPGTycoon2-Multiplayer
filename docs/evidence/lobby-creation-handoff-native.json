@@ -1,0 +1,98 @@
+{
+  "scope": "Original New Game wizard handoff, remote Creating state, native cancellation and hidden-wizard reopen",
+  "passed": true,
+  "world_creation_proven": false,
+  "full_coop_proven": false,
+  "source_acceptance": "artifacts/acceptance/7c041b2f-f7ef-41fe-b001-4f668fbfaa85/summary.json",
+  "runtime_run_id": "e042f4a9-6f21-41e3-bab5-1bf1a089132f",
+  "candidate_pins": {
+    "host": {
+      "runtime_kind": "framework-plugin",
+      "module": "MT2MultiplayerPlugin.dll",
+      "candidate_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\artifacts\\lobby_desktop\\rejection_frozen\\MT2MultiplayerPlugin.dll",
+      "sha256": "7364fcb94b51fabe71c24000aab2f85b32c1d3bdea218c4341280fc512377c16"
+    },
+    "client-1": {
+      "runtime_kind": "framework-plugin",
+      "module": "MT2MultiplayerPlugin.dll",
+      "candidate_path": "F:\\Projects\\Mods\\MMORPGTycoon2\\artifacts\\lobby_desktop\\rejection_frozen\\MT2MultiplayerPlugin.dll",
+      "sha256": "7364fcb94b51fabe71c24000aab2f85b32c1d3bdea218c4341280fc512377c16"
+    }
+  },
+  "already_open": {
+    "attempted": false,
+    "confirmed": true,
+    "mode": 2,
+    "route": "mmoModeTitle::ShowCreateWindow",
+    "status": "already_open",
+    "visible": true,
+    "window": "NewGame"
+  },
+  "close": {
+    "close_confirmed": true,
+    "exception_code": 0,
+    "native_attempted": true,
+    "native_event": "mmoButtonPane::Activate",
+    "native_returned": true,
+    "observation": {
+      "attempted": false,
+      "confirmed": true,
+      "mode": 2,
+      "route": "mmoNewGameWindow::visibility",
+      "status": "observed",
+      "visible": false,
+      "window": "NewGame"
+    },
+    "result": "confirmed",
+    "target": "wizard:doodesch.multiplayer:close",
+    "world_creation_confirmed": false
+  },
+  "cancelled_observation": {
+    "attempted": false,
+    "confirmed": true,
+    "mode": 2,
+    "route": "mmoNewGameWindow::visibility",
+    "status": "observed",
+    "visible": false,
+    "window": "NewGame"
+  },
+  "opened": {
+    "attempted": true,
+    "confirmed": true,
+    "mode": 2,
+    "route": "mmoModeTitle::ShowCreateWindow",
+    "status": "opened",
+    "visible": true,
+    "window": "NewGame"
+  },
+  "client_creating": {
+    "detail": "Du trittst danach automatisch bei.",
+    "heading": "Host erstellt eine Welt",
+    "host_phase": 10
+  },
+  "client_after_cancel": {
+    "detail": "Du trittst danach automatisch bei.",
+    "heading": "Host w\u00e4hlt eine Welt",
+    "host_phase": 0
+  },
+  "media": [
+    {
+      "path": "_drafts/media/original-wizard-host.bmp",
+      "sha256": "ef78b4c03c874a000540609b059e2d80e7fc5c3e912be9fa95d6bc5f0ca7da6e"
+    },
+    {
+      "path": "_drafts/media/creating-world-client.bmp",
+      "sha256": "8e0fd645323ea6eb41d9c31f1a52fa84d54f3d14ba1b938bd01e304c2bd84fc2"
+    }
+  ],
+  "next_blocker": {
+    "operation": "wizard:doodesch.multiplayer:next",
+    "engine_call_executed": false,
+    "cause": "Framework desktop_activate failed: Wizard original button owner, enabled state or command differs; evidence=F:\\Projects\\Mods\\MMORPGTycoon2\\artifacts\\acceptance\\7c041b2f-f7ef-41fe-b001-4f668fbfaa85\\framework-ui\\7e986e7b-9516-4ab9-94cd-d78299699f00.json",
+    "owner": "Framework integration coordinator"
+  },
+  "limits": [
+    "Actual final Create and automatic two-peer adoption remain unaccepted in this flow.",
+    "No edited name/seed/page native preservation, online, FPS or full co-op claim."
+  ]
+}

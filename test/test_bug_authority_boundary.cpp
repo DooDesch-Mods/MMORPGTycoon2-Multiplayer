@@ -1,3 +1,5 @@
+#include "live_host_state/apply_timing.h"
+namespace apply_timing=mt2mp::game::live_host_state::apply_timing;
 #include <optional>
 #include <string>
 #include <iostream>
@@ -56,6 +58,16 @@ int main(){try{
         need(locked==(phase>=2),"failure latch did not preserve attempt/completion");
         if(phase>=2)need(receipt.unknown&&receipt.attempted&&!receipt.confirmed&&!receipt.cause.empty(),"Unknown latch false success");
         if(phase==2)need(receipt.cause==cause,"upstream cause lost");if(phase==3)need(receipt.cause=="original receipt","receipt cause lost");++checks;
+    }
+    {failure=0;bool locked=false;ApplyReceipt receipt;std::string e;
+        constexpr apply_timing::Part measured[]={apply_timing::Part::BugPreflight,apply_timing::Part::DeveloperPreflight,
+            apply_timing::Part::BugAdopt,apply_timing::Part::DeveloperAdopt,apply_timing::Part::BugFinish};
+        std::array<uint64_t,5> before{};for(size_t i=0;i<5;++i)before[i]=apply_timing::totals[size_t(measured[i])].count;
+        need(boundary({},locked,receipt,e),"timed boundary success");
+        for(size_t i=0;i<5;++i)need(apply_timing::totals[size_t(measured[i])].count==before[i]+1,"exactly one timing event per actual group");++checks;
+        const auto prior=apply_timing::totals[size_t(apply_timing::Part::BugFinish)].count;
+        failure=7;bool caught=false;try{boundary({},locked,receipt,e);}catch(const std::runtime_error&){caught=true;}
+        need(caught&&apply_timing::totals[size_t(apply_timing::Part::BugFinish)].count==prior+1&&locked&&receipt.unknown,"timed exception keeps existing partial-effect latch");++checks;
     }
     std::cout<<"PASS "<<checks<<" actual Bug Bridge boundary/latch cases\n";return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}

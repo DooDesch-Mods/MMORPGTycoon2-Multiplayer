@@ -3,7 +3,7 @@
 import argparse
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import sys
 import zipfile
@@ -19,7 +19,88 @@ def digest(data):
     return hashlib.sha256(data).hexdigest()
 
 
-def collect(root, build, freeze, with_sidecar=False, launcher=None, release_version=None, mode="legacy"):
+def regular_bytes(path):
+    if ".." in Path(path).parts:
+        raise ValueError(f"unsafe package input path: {path}")
+    path = Path(path).absolute()
+    for part in (path, *path.parents):
+        if part.is_symlink() or (hasattr(part, "is_junction") and part.is_junction()):
+            raise ValueError(f"linked package input rejected: {path}")
+    if not path.is_file():
+        raise ValueError(f"required regular payload file missing: {path}")
+    data = path.read_bytes()
+    if not data:
+        raise ValueError(f"empty payload file: {path}")
+    return data
+
+
+def collect_vortex(root, build, freeze, multiplayer_package, release_version):
+    if multiplayer_package is None:
+        raise ValueError("vortex mode requires explicit --multiplayer-package")
+    frozen_bytes = regular_bytes(freeze)
+    frozen = json.loads(frozen_bytes)
+    if not isinstance(frozen, dict):
+        raise ValueError("candidate receipt must be a JSON object")
+    files = frozen.get("files")
+    record = files.get("MT2MultiplayerPlugin.dll") if isinstance(files, dict) else None
+    if (not isinstance(record, dict) or type(record.get("bytes")) is not int or record["bytes"] <= 0
+            or not isinstance(record.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])):
+        raise ValueError("candidate receipt lacks exact plugin file pin")
+    binary = regular_bytes(build / "MT2MultiplayerPlugin.dll")
+    if (len(binary) != record["bytes"] or digest(binary) != record["sha256"]
+            or frozen.get("dll_sha256") != digest(binary)):
+        raise ValueError("candidate plugin differs from exact frozen hash or size")
+    manifest_bytes = regular_bytes(Path(multiplayer_package) / "mod.json")
+    mod = json.loads(manifest_bytes)
+    required = {"id": "doodesch.multiplayer", "api_version": "1.0.0", "type": "native",
+                "entry": "MT2MultiplayerPlugin.dll", "multiplayer": "shared"}
+    if (not isinstance(mod, dict) or any(mod.get(key) != value for key, value in required.items())
+            or not isinstance(mod.get("name"), str) or not mod["name"].strip()
+            or mod.get("capabilities") != ["ui", "input"]
+            or set(mod) != {*required, "name", "version", "capabilities"}):
+        raise ValueError("Multiplayer manifest differs from supported native package contract")
+    version = mod.get("version")
+    if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-beta\.[1-9]\d*)?", version):
+        raise ValueError("Multiplayer manifest version must be X.Y.Z or X.Y.Z-beta.N")
+    if release_version is not None and release_version != version:
+        raise ValueError("package version differs from Multiplayer manifest")
+    if frozen.get("version") is not None and frozen["version"] != version:
+        raise ValueError("built plugin version differs from Multiplayer manifest")
+    entries = {"MT2MultiplayerPlugin.dll": binary, "mod.json": manifest_bytes,
+               "assets/multiplayer.png": regular_bytes(root / "assets/ui/desktop_multiplayer/multiplayer.png")}
+    notices = {
+        "LICENSE.md": root / "LICENSE.md",
+        "THIRD_PARTY_NOTICES.md": root / "THIRD_PARTY_NOTICES.md",
+        "licenses/MinHook.txt": root / "include/vendor/minhook/LICENSE.txt",
+        "licenses/DearImGui.txt": root / "include/vendor/imgui/LICENSE.txt",
+        "licenses/nlohmann-json.txt": root / "include/vendor/nlohmann/LICENSE.MIT",
+        "licenses/SDL3.txt": root / "include/vendor/SDL3/LICENSE.txt",
+        "README.md": root / "tools/packaging/VORTEX_TEST.md",
+    }
+    entries.update({name: regular_bytes(source) for name, source in notices.items()})
+    metadata = {
+        "schema_version": 1, "version": version, "candidate": "framework-native-plugin",
+        "package_mode": "vortex", "stage": "vortex-integration-pending",
+        "manual_test_package": True, "ready_for_manual_testing": False,
+        "delivery_integration_accepted": False, "online_acceptance_passed": False,
+        "required_game_exe_sha256": GAME_SHA256,
+        "installation": {"manager": "vortex", "game_id": "mmorpgtycoon2", "mod_id": mod["id"],
+                         "framework_runtime_required": True, "framework_runtime_included": False},
+        "inputs": {"candidate_receipt_sha256": digest(frozen_bytes), "mod_manifest_sha256": digest(manifest_bytes)},
+        "files": {name: {"size": len(data), "sha256": digest(data)} for name, data in entries.items()},
+    }
+    entries["package.json"] = (json.dumps(metadata, indent=2) + "\n").encode("utf-8")
+    return entries, metadata
+
+
+def collect(root, build, freeze, with_sidecar=False, launcher=None, release_version=None, mode="legacy",
+            multiplayer_package=None):
+    if mode == "vortex":
+        if with_sidecar or launcher is not None:
+            raise ValueError("vortex plugin package cannot include launcher or sidecar")
+        return collect_vortex(root, build, freeze, multiplayer_package, release_version)
+    if multiplayer_package is not None:
+        raise ValueError("Multiplayer package input requires vortex mode")
     version = re.search(r"project\(MT2_Multiplayer VERSION (\d+\.\d+\.\d+)",
                         (root / "CMakeLists.txt").read_text(encoding="utf-8"))
     if not version:
@@ -88,6 +169,19 @@ def collect(root, build, freeze, with_sidecar=False, launcher=None, release_vers
 
 
 def write_package(entries, output):
+    folded = set()
+    devices = {"con", "prn", "aux", "nul", *(f"{prefix}{index}" for prefix in ("com", "lpt") for index in range(1, 10))}
+    for name in entries:
+        if not isinstance(name, str):
+            raise ValueError(f"unsafe archive path type: {type(name).__name__}")
+        if (not name or "\\" in name or ":" in name or PurePosixPath(name).is_absolute()
+                or PureWindowsPath(name).drive
+                or any(part in {"", ".", ".."} or part.endswith((".", " ")) for part in name.split("/"))
+                or any(part.split(".")[0].casefold() in devices for part in name.split("/"))
+                or any(ord(char) < 32 or char in '<>"?*|' for char in name)
+                or name.casefold() in folded):
+            raise ValueError(f"unsafe or duplicate archive path: {name}")
+        folded.add(name.casefold())
     output.parent.mkdir(parents=True, exist_ok=True)
     # Exclusive creation preserves previous delivered candidates.
     with output.open("xb") as stream:
@@ -95,6 +189,8 @@ def write_package(entries, output):
             for name, data in entries.items():
                 archive.writestr(name, data)
     with zipfile.ZipFile(output) as archive:
+        if len(archive.namelist()) != len(entries) or set(archive.namelist()) != set(entries):
+            raise ValueError(f"ZIP file list differs: {output}")
         if archive.testzip() is not None:
             raise ValueError(f"ZIP integrity check failed: {output}")
         for name, expected in entries.items():
@@ -105,18 +201,22 @@ def write_package(entries, output):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--freeze", required=True, type=Path)
-    parser.add_argument("--build", type=Path, default=ROOT / "build/bin/Release")
+    parser.add_argument("--build", type=Path, help="Explicit artifact directory; legacy modes default to build/bin/Release")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--with-sidecar", action="store_true")
     parser.add_argument("--launcher", type=Path)
     parser.add_argument("--version")
-    parser.add_argument("--mode", choices=("legacy", "dropin"), default="legacy")
+    parser.add_argument("--mode", choices=("legacy", "dropin", "vortex"), default="legacy")
+    parser.add_argument("--multiplayer-package", type=Path, help="Exact selected Multiplayer mod.json directory")
     args = parser.parse_args()
     try:
         output = args.output.resolve()
         if not output.is_relative_to(ROOT / "artifacts"):
             raise ValueError("private packages must be written under project artifacts/")
-        entries, manifest = collect(ROOT, args.build, args.freeze, args.with_sidecar, args.launcher, args.version, args.mode)
+        if args.mode == "vortex" and args.build is None:
+            raise ValueError("vortex mode requires an explicit --build artifact directory")
+        entries, manifest = collect(ROOT, args.build or ROOT / "build/bin/Release", args.freeze,
+                                    args.with_sidecar, args.launcher, args.version, args.mode, args.multiplayer_package)
         write_package(entries, output)
         print(json.dumps({"status": "payload-verified", "output": str(output),
                           "files": len(entries), "ready_for_manual_testing": manifest["ready_for_manual_testing"]}))

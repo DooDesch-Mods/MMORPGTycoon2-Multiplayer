@@ -40,6 +40,7 @@ def package(path, edit=None):
 class ReleaseAPI:
     def __init__(self, directory, existing=False):
         self.private = True
+        self.repository = publish_beta.REPOSITORY
         self.commit = COMMIT
         self.writes = []
         self.bad_ack = False
@@ -77,7 +78,7 @@ class ReleaseAPI:
             self.release.update(payload)
         if '/releases/1' in url:
             return copy.deepcopy(self.release)
-        return {'private': self.private}
+        return {'private': self.private, 'full_name': self.repository}
 
 
 class BetaReleaseTests(unittest.TestCase):
@@ -187,9 +188,17 @@ class BetaReleaseTests(unittest.TestCase):
             publish_beta.publish(TAG, COMMIT, self.directory)
         self.assertEqual(service.writes, [])
 
+    def test_public_repository_can_publish_a_checked_prerelease(self):
+        service = ReleaseAPI(self.directory)
+        service.private = False
+        with patch.object(publish_beta, 'api', service):
+            publish_beta.publish(TAG, COMMIT, self.directory)
+        self.assertFalse(service.release['draft'])
+        self.assertTrue(service.release['prerelease'])
+
     def test_guard_failures_do_not_publish(self):
         for change, cause in [
-            (lambda s: setattr(s, 'private', False), 'private'),
+            (lambda s: setattr(s, 'repository', 'other/repository'), 'repository'),
             (lambda s: setattr(s, 'commit', 'b' * 40), 'commit'),
             (lambda s: s.release.update(prerelease=False), 'prerelease'),
             (lambda s: s.release['assets'][0].update(digest='wrong'), 'asset differs'),

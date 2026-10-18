@@ -1,26 +1,28 @@
 struct StartPresentation {
-    std::string action;World origin;start_intent::Window window;
+    std::string action;World origin;start_intent::Window window;std::string key="startingpoint";
 };
 std::optional<StartPresentation> pending_start_presentation;
 start_intent::Receipt client_start_receipt;
 std::string client_start_presentation_cause;
 struct StartCaptureCalls {
     void* receiver;action_session::Context context;action_session::Binding binding;
-    tutorial_development::StartingpointSnapshot snapshot;start_intent::Window window;
+    tutorial_development::StartingpointSnapshot snapshot;start_intent::Window window;std::string key="startingpoint";
     bool original(){return original_pay(receiver);}
     bool capture(std::string& e){
         if(!action_session::selected_session().current(context,e))return false;
         if(context.role!=action_session::Role::Client)return fail(e,"Startingpoint StartTech intent requires joined Client");
         if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
-        StartActionCalls reader{context,binding};live_host_state::Pin pin;
+        if(!str(reinterpret_cast<uintptr_t>(receiver),0x20,key,e))return false;
+        if(key!="startingpoint"&&key!="bridges")return fail(e,"Research selected UI project key unsupported");
+        StartActionCalls reader{context,binding};reader.key=key;live_host_state::Pin pin;
         if(!reader.snapshot(snapshot,pin,e)||!reader.preflight(e))return false;
         if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
         return start_intent::window(memory,snapshot,reinterpret_cast<uintptr_t>(receiver),window,e);
     }
     bool action_uuid(std::string& id,std::string& e){return intent_uuid(id,e);}
     bool submit(const std::string& id,std::string& e){
-        if(!typed_action_runtime::submit_start_startingpoint(id,e))return false;
-        pending_start_presentation=StartPresentation{id,snapshot.origin,window};return true;
+        if(!(key=="bridges"?typed_action_runtime::submit_start_research(id,key,e):typed_action_runtime::submit_start_startingpoint(id,e)))return false;
+        pending_start_presentation=StartPresentation{id,snapshot.origin,window,key};return true;
     }
 };
 bool pay_current(void* source){
@@ -40,7 +42,7 @@ bool finish_start_presentation(const std::string& action,const action_session::C
     attempted=false;
     if(!pending_start_presentation||pending_start_presentation->action!=action)return true;
     const auto pending=*pending_start_presentation;pending_start_presentation.reset();
-    StartActionCalls reader{context,binding};tutorial_development::StartingpointSnapshot snapshot;
+    StartActionCalls reader{context,binding};reader.key=pending.key;tutorial_development::StartingpointSnapshot snapshot;
     live_host_state::Pin before,after;start_intent::Window window;
     if(!reader.snapshot(snapshot,before,e))return false;
     if(!same_world(pending.origin,snapshot.origin)||

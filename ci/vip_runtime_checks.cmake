@@ -1,0 +1,7 @@
+add_executable(test_vip_runtime "${MT2MP_SOURCE_ROOT}/test/test_vip_runtime.cpp")
+target_include_directories(test_vip_runtime PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_vip_runtime PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(test_vip_runtime PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME vip_runtime COMMAND test_vip_runtime)

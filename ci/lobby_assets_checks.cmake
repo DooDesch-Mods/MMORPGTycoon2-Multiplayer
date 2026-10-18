@@ -1,0 +1,8 @@
+if(WIN32)
+    add_executable(test_lobby_assets ../test/test_lobby_assets.cpp ../src/game/lobby_assets.cpp)
+    target_include_directories(test_lobby_assets PRIVATE ../include ../src)
+    target_compile_definitions(test_lobby_assets PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(test_lobby_assets PRIVATE /UNDEBUG /utf-8)
+    target_link_libraries(test_lobby_assets PRIVATE bcrypt)
+    add_test(NAME lobby_asset_provider COMMAND test_lobby_assets "${CMAKE_CURRENT_BINARY_DIR}/lobby-assets-profile")
+endif()

@@ -57,7 +57,7 @@ class TutorialObserverTests(unittest.TestCase):
               "world_epoch":1,"world_generation":2,"operation":"client_commit","expected_development":{"project":{"present":True}}}
         receipt={"attempted":True,"returned":True,"confirmed":True,"unknown":False,"submitted":True,
                  "action_uuid":"f473438a-510a-4f85-8337-b4e154ea15d6","host_completion_confirmed":False}
-        for operation in ("client_show","client_commit","client_research_show","client_research","client_staff_show","client_staff_one"):
+        for operation in ("client_show","client_commit","client_research_show","client_research","client_staff_show","client_staff_one","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"):
             with self.subTest(operation=operation):
                 runtime=Mock();runtime.request.return_value=receipt
                 args={**good,"operation":operation}
@@ -75,7 +75,7 @@ class TutorialObserverTests(unittest.TestCase):
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}

@@ -1,4 +1,5 @@
 #include "mt2mp/hooks/hook_input.h"
+#include "../game/native_lobby.h"
 #include "mt2mp/hooks/hook_engine.h"
 #include "mt2mp/hooks/hook_window.h"
 #include "mt2mp/overlay/gl_overlay.h"
@@ -78,8 +79,7 @@ static bool poll_event(SDL_Event* event) {
         }
         if ((event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) && event->key.scancode == SDL_SCANCODE_F10) {
             if (event->type == SDL_EVENT_KEY_DOWN && !event->key.repeat) {
-                overlay::LobbyOverlay::instance().toggle();
-                update_overlay_state();
+                game::native_lobby::request_panel_toggle();
             }
             continue;
         }
@@ -135,6 +135,24 @@ static bool poll_event(SDL_Event* event) {
 }
 void set_input_filter_callback(InputFilterCallback callback) { input_filter = std::move(callback); }
 void set_input_event_observer(InputEventObserver observer) { input_observer = observer; }
+
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+void forward_framework_input_event(void* raw) {
+    const auto* event = static_cast<const SDL_Event*>(raw);
+    if (!event) return;
+    if (event->type == SDL_EVENT_MOUSE_MOTION) {
+        mouse.screen_x = static_cast<int32_t>(event->motion.x);
+        mouse.screen_y = static_cast<int32_t>(event->motion.y);
+        mouse.buttons = event->motion.state;
+    }
+    if (input_observer) input_observer(raw);
+    if (event->type == SDL_EVENT_KEY_DOWN || event->type == SDL_EVENT_KEY_UP) {
+        ++chat_key_forwarded;
+        if (event->type == SDL_EVENT_KEY_UP && event->key.scancode == SDL_SCANCODE_UNKNOWN) ++chat_probe_forwarded;
+    }
+}
+#endif
+
 const MouseState& get_mouse_state() { return mouse; }
 ChatInputState read_chat_input_state() {
     std::lock_guard lock(chat_text_mutex);

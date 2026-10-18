@@ -25,7 +25,8 @@ def function(path, anchor):
 for name, source, anchor in [
     ('building_type_classify', classifier, 'bool classify_normal_building('),
     ('building_type_binding', construction, 'bool building(const Capture&'),
-    ('building_type_graph', construction, 'bool graph(const Capture&')]:
+    ('building_type_graph', construction, 'bool graph(const Capture&'),
+    ('building_type_jobs', construction, 'bool read_jobs(')]:
     (args.output/(name+'.inc')).write_text(function(source,anchor)+'\n',encoding='utf-8')
 (args.output/'source_inputs.json').write_text(json.dumps({str(path):hashlib.sha256(path.read_bytes()).hexdigest()
     for path in (construction,classifier)},indent=2)+'\n')

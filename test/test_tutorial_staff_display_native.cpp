@@ -11,6 +11,7 @@
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
 #include <windows.h>
+#include "live_host_state/memory_query_timing.h"
 #define LOG_INFO(...) ((void)0)
 #define LOG_ERROR(...) ((void)0)
 namespace tr=mt2mp::game::tutorial_replication;
@@ -24,7 +25,7 @@ std::map<uintptr_t,unsigned char> bytes;
 std::map<uintptr_t,std::string> strings;
 std::map<uintptr_t,json> labels;
 development::StartingpointSnapshot snapshot;
-World current;bool origin_ok=true,read_ok=true;unsigned origins=0;
+World current;bool origin_ok=true,read_ok=true;unsigned origins=0,development_reads=0;
 bool complete=false;int summary_calls=0,project_calls=0,developer_calls=0;
 unsigned original_calls=0,clock_reads=0;bool throw_string=false;
 std::vector<int> setter_rows;std::string setter_fail;bool mismatch=false;
@@ -37,7 +38,7 @@ void pass(const char* name){++cases;std::cout<<"PASS "<<name<<'\n';}
 template<class T>void put(uintptr_t p,T value){const auto* b=reinterpret_cast<const unsigned char*>(&value);for(size_t i=0;i<sizeof(value);++i)bytes[p+i]=b[i];}
 void child(uintptr_t p,uintptr_t addresspoint,uintptr_t parent){put(p,module+addresspoint);put(p+0x280,window);put(p+0x278,parent);}
 void reset(){
-    bytes.clear();strings.clear();labels.clear();origins=0;origin_ok=read_ok=true;complete=false;
+    bytes.clear();strings.clear();labels.clear();origins=development_reads=0;origin_ok=read_ok=true;complete=false;
     summary_calls=project_calls=developer_calls=0;setter_rows.clear();setter_fail.clear();mismatch=false;
     original_calls=clock_reads=0;throw_string=false;
     snapshot={};snapshot.image=module;snapshot.origin.mode=reinterpret_cast<void*>(mode);snapshot.origin.state=reinterpret_cast<void*>(state);
@@ -46,6 +47,7 @@ void reset(){
     snapshot.lounge=lounge;snapshot.project=project;snapshot.tech=0x60010;snapshot.record=0x60020;
     snapshot.row=tr::startingpoint::Row{};snapshot.row->project_present=snapshot.row->purchased=true;
     snapshot.creation=development::CreationOwners{};
+    snapshot.creation->current=development::ProjectSource{project,0,0,"startingpoint",""};
     snapshot.creation->developer_data=0x80000;
     put(state+0x1c0,business);put<int32_t>(business+0x4c,2);put<int32_t>(lounge+0x310,2);
     put(lounge+0x70,snapshot.creation->developer_data);put<int32_t>(lounge+0x78,50);
@@ -73,7 +75,13 @@ void reset(){
 tr::staff_display::State target(){return {1,1,{{1,0,false},{41,6,false}}};}
 }
 namespace mt2mp::game::tutorial_development {
-bool read_startingpoint(StartingpointSnapshot& out,json&,std::string& e,bool){if(!fixture::read_ok){e="original snapshot read failed";return false;}out=fixture::snapshot;return true;}
+bool read_startingpoint(StartingpointSnapshot& out,json&,std::string& e,bool,bool){++fixture::development_reads;if(!fixture::read_ok){e="original snapshot read failed";return false;}out=fixture::snapshot;return true;}
+}
+namespace mt2mp::game::tutorial_development {
+bool read_research(const std::string& key,StartingpointSnapshot& out,json& diagnostic,std::string& e,bool creation,bool share){
+    if(!fixture::snapshot.creation||!fixture::snapshot.creation->current||key!=fixture::snapshot.creation->current->key){e="fixture selected Research key differs";return false;}
+    return read_startingpoint(out,diagnostic,e,creation,share);
+}
 }
 namespace mt2mp::game::native {
 bool read_clock(ClockState& out,std::string&){++fixture::clock_reads;out={};out.time_scale=0;return true;}
@@ -119,6 +127,20 @@ namespace dn=tr::display_native;
 action_session::Context test_context{3,2,1,3,action_session::Role::Client,"11111111-1111-4111-8111-111111111111"};
 action_session::Binding binding{4,7};
 void reset(){fixture::reset();dn::cache.reset();dn::receipt={};dn::native_fault.clear();tr::mainthread=GetCurrentThreadId();}
+void prepared_staff(){using fixture::need;using fixture::pass;std::string e;
+    reset();fixture::snapshot.creation->current->key="bridges";const auto observed=fixture::snapshot;const auto target=fixture::target();
+    fixture::read_ok=false;
+    need(dn::admit(test_context,binding,target,e,true,"bridges",false,&observed)&&dn::cache&&fixture::development_reads==0&&fixture::origins==2,"immediate readback still checks actual Origin and Staff without repeated Development");
+    pass("successful project readback supplies only the adjacent Development value");
+    reset();fixture::snapshot.creation->current->key="bridges";auto stale=fixture::snapshot;++stale.origin.generation;
+    need(!dn::admit(test_context,binding,target,e,true,"bridges",false,&stale)&&!dn::cache&&e=="Staff display full Origin differs","stale supplied Origin installed");
+    reset();fixture::snapshot.creation->current->key="bridges";const auto before=fixture::snapshot;
+    fixture::put<uint8_t>(before.creation->developers[0].address+0x4d8,0);
+    need(!dn::admit(test_context,binding,target,e,true,"bridges",false,&before)&&!dn::cache&&e.find("prefix")!=std::string::npos,"fresh Staff owner change hidden by Development reuse");
+    reset();need(!dn::admit(test_context,binding,target,e,false,"bridges",false,&fixture::snapshot)&&!dn::cache,"prepared snapshot escaped immediate install route");
+    need(!dn::admit(test_context,binding,target,e,true,"startingpoint",false,&fixture::snapshot)&&!dn::cache,"prepared snapshot escaped selected Research");
+    pass("prepared admission retains fresh world, live Staff and route guards");
+}
 void owners(){using fixture::need;using fixture::pass;std::string e;dn::Owners actual;
     reset();need(dn::read_owners(fixture::snapshot,actual,e)&&actual.developers[0].id==41&&actual.developers[0].row==0&&actual.developers[1].id==1,"actual array row confused with stable ID");pass("native ownership retains local array row separately from stable Developer ID");
     fixture::put<int32_t>(fixture::snapshot.creation->developers[49].address+0x4c0,41);need(!dn::read_owners(fixture::snapshot,actual,e)&&e.find("identity")!=std::string::npos,"duplicate native Developer ID admitted");pass("duplicate source identity rejects before cache installation");
@@ -140,6 +162,15 @@ void ui(){using fixture::need;using fixture::pass;std::string e;const auto targe
     reset();need(dn::admit(test_context,binding,target,e,true),e);fixture::setter_fail="project";dn::Calls partial(*dn::cache,fixture::window);need(!tr::staff_display::render(target,partial,attempted,e)&&attempted&&dn::receipt.unknown&&!dn::receipt.rendered&&fixture::summary_calls==1&&fixture::project_calls==1&&!fixture::developer_calls,"partial native setter became rendered success");pass("partial original setter failure is visible Unknown and stops remaining setters");
     reset();need(dn::admit(test_context,binding,target,e,true),e);fixture::mismatch=true;dn::Calls mismatch(*dn::cache,fixture::window);need(!tr::staff_display::render(target,mismatch,attempted,e)&&attempted&&e.find("readback differs")!=std::string::npos&&dn::receipt.visible.is_null(),"native cell mismatch became rendered success");pass("actual native LocString readback must match all expected visible cells");
 }
+void research_ui(){using fixture::need;using fixture::pass;std::string e;const auto target=fixture::target();
+    reset();fixture::snapshot.creation->current->key="bridges";fixture::strings[fixture::project+0x20]="bridges";
+    need(dn::admit(test_context,binding,target,e,true,"bridges"),e);dn::Calls calls(*dn::cache,fixture::window);bool attempted=false;
+    need(tr::staff_display::render(target,calls,attempted,e)&&attempted&&fixture::summary_calls==1&&fixture::project_calls==1&&fixture::developer_calls==2,e);
+    pass("Bridges display uses selected Research current key and exact existing setters");
+    fixture::strings[fixture::project+0x20]="startingpoint";dn::UI pinned;
+    need(!dn::ui_pin(*dn::cache,fixture::window,pinned,e)&&e.find("kind/key differs")!=std::string::npos,"mismatched Research UI key admitted");
+    pass("Research current source and visible project key must match");
+}
 void hook(){using fixture::need;using fixture::pass;std::string e;const auto target=fixture::target();
     reset();tr::display_update(reinterpret_cast<void*>(fixture::window),0.1f);need(fixture::original_calls==1&&dn::receipt.original_calls==1&&!dn::receipt.post_calls&&!fixture::clock_reads,"missing-cache hook skipped or repeated original");pass("actual UpdateUI hook preserves original once without an adopted display");
     reset();need(dn::admit(test_context,binding,target,e,true),e);const auto jobs=fixture::bytes;tr::display_update(reinterpret_cast<void*>(fixture::window),0.1f);
@@ -155,4 +186,4 @@ void hook(){using fixture::need;using fixture::pass;std::string e;const auto tar
     need(!escaped&&fixture::original_calls==1&&dn::receipt.deferred&&!dn::receipt.rendered&&dn::receipt.cause.find("original visible-page string read threw")!=std::string::npos,"post-observation exception escaped into the native caller");pass("original preflight read exception stays visible inside the posthook boundary");
 }
 }
-int main(){try{owners();ui();hook();std::cout<<fixture::cases<<" actual Staff owner/cache/UI body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}
+int main(){try{prepared_staff();owners();ui();research_ui();hook();std::cout<<fixture::cases<<" actual Staff owner/cache/UI body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

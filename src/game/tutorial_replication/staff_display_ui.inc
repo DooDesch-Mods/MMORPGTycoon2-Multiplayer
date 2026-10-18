@@ -23,7 +23,8 @@ bool ui_pin(const Cache& bound,uintptr_t window,UI& out,std::string& e){
     if(!at(reinterpret_cast<uintptr_t>(current.state),0x180,lounge,e)||!at(lounge,0xa8,project,e)||lounge!=bound.owners.snapshot.lounge||project!=bound.project)
         return fail(e,e.empty()?"Staff display current Lounge/project owner changed":e);
     if(!type(project,0x16e48c0,e)||!at(project,0x18,kind,e)||!str(project,0x20,key,e))return false;
-    if(kind||key!="startingpoint")return fail(e,"Staff display current project kind/key differs");
+    if(kind||!bound.owners.snapshot.creation||!bound.owners.snapshot.creation->current||
+       key!=bound.owners.snapshot.creation->current->key||(key!="startingpoint"&&key!="bridges"))return fail(e,"Staff display current project kind/key differs");
     const auto mode=reinterpret_cast<uintptr_t>(current.mode);uintptr_t windows=0;int32_t count=0,capacity=0;unsigned matches=0;
     if(!at(mode,0xa0,windows,e)||!at(mode,0xa8,count,e)||!at(mode,0xac,capacity,e))return false;
     if(!windows||count<1||capacity<count||capacity>512)return fail(e,"Staff display Mode window array bounds differ");

@@ -1,6 +1,8 @@
 #pragma once
 #include "typed_action/action_session.h"
 #include "frame_limits.h"
+#include "vip_transitions.h"
+#include "marketing_authority/state.h"
 #include <array>
 #include <string>
 #include <vector>
@@ -28,6 +30,8 @@ struct Frame {
     std::optional<tutorial_replication::State> tutorial;
     std::optional<developer_staff::PoolState> developers;
     std::optional<bug_authority::State> bugs;
+    std::optional<vip::Batch> vips;
+    std::optional<marketing_authority::State> marketing;
     bool operator==(const Frame&)const=default;
 };
 struct Pin {
@@ -40,6 +44,8 @@ struct Pin {
 };
 struct Port {
     virtual ~Port()=default;
+    // Only the ordinary Host publication loop may defer before capture.
+    virtual bool publication_ready(uint64_t,bool& waiting,std::string& e){waiting=false;e.clear();return true;}
     virtual bool read(Pin&,std::string&)=0;
     virtual bool store(const Pin&,size_t slot,int32_t expected,int32_t target,std::string&)=0;
 };

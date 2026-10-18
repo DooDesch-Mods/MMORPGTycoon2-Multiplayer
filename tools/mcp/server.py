@@ -30,8 +30,10 @@ import release_ops
 import developer_staff_ops
 import bug_policy_ops
 import bug_fix_ui_ops
+import subscriber_lifecycle_read
 import subscriber_capture_ops
 import subscriber_append_ops
+import marketing_probe_ops
 import node_observer_ops
 
 LOG = logging.getLogger("mt2_mcp")
@@ -47,6 +49,8 @@ BASE = {
     "bind_runtime": ("Bind exactly one owned live test instance by its instance.json manifest.",
                      object_schema({"manifest_path": {"type": "string"}}, ("manifest_path",)), False),
     "runtime_status": ("Read status and capability evidence from the bound runtime.", EMPTY, True),
+    "read_subscriber_lifecycle": ("Read fixed Subscriber/Toon lifecycle and Region fields, optionally adjusted play hours, current VIP-to-Subscriber links and Campaign/BoostWindow bindings, from the exact owned paused process. No game callback or write.",
+        object_schema({"serialized_id": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "include_scenario_vips": {"type": "boolean", "default": False}, "include_campaign_boosts": {"type": "boolean", "default": False}}, ("serialized_id",)), True),
     "read_logs": ("Read a bounded tail of an allowlisted diagnostic log in the bound runtime.",
                   object_schema({"filename": {"type": "string", "enum": ["runtime.log", "mt2mp.log", "diagnostics.log"]},
                                  "max_bytes": {"type": "integer", "minimum": 1, "maximum": 65536}}), True),
@@ -198,17 +202,18 @@ OP_SCHEMAS = {
     "read_chat": EMPTY,
     "send_chat": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
     "read_chat_ui": EMPTY,
-    "native_chat_ui_key": object_schema({"key": {"type": "string", "enum": ["F9", "ENTER", "ESCAPE", "PROBE"]}}, ("key",)),
+    "native_chat_ui_key": object_schema({"key": {"type": "string", "enum": ["F9", "F10", "ENTER", "ESCAPE", "PROBE"]}}, ("key",)),
     "native_chat_ui_text": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
     "inspect_engine": EMPTY,
     "read_network_state": EMPTY,
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
     "tutorial_startingpoint": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
-        "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state"]},
+        "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"]},
         "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
         "expected_development": {"type":"object"}},
         ("token","native_origin_uuid","operation","world_epoch","world_generation","expected_development")),
+    "read_vip_alert_owners": EMPTY,
     "read_tutorial_progress": EMPTY,
     "read_tutorial_movement": EMPTY,
     "read_tutorial_movement_focus": EMPTY,
@@ -311,13 +316,14 @@ OP_DESCRIPTIONS = {
     "native_building_history_ui": "Invoke one guarded original native Undo or Redo entry on the bound Mainthread. The receipt proves UI intent admission only; read both peers and never replay Unknown.",
     "read_building_history_ui": "Read native Undo and Redo stack depths, current shared graph targets, hook counters and Controller receipt without mutation.",
     "read_chat_ui": "Read actual chat window rendering, ImGui input focus, draft text, SDL text-input state and hook event counters.",
-    "native_chat_ui_key": "Queue one F9, Enter or Escape key through the existing SDL hook, or a harmless key-up probe after closing overlays. Read chat UI counters for consumption or forwarding.",
+    "native_chat_ui_key": "Queue one F9, F10, Enter or Escape key through the existing SDL hook, or a harmless key-up probe after closing overlays. F10 requests the native Multiplayer panel toggle; read_native_lobby confirms actual application. Read chat UI counters for other key consumption or forwarding.",
     "native_chat_ui_text": "Queue bounded UTF-8 text through SDL text input only while the actual chat field is active. Read the rendered draft afterward.",
     "inspect_engine": "Inspect verified engine metadata on the game thread.",
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
-    "tutorial_startingpoint": "Fixed Starting Point proof: staff_activity_state reads actual owned Developer activities and probes both fixed native localized project labels, with native call receipts and unchanged project/full ledger. It requires an initialized idle joined Host or Client, Clock0 and purchased current project; native temporary-object exceptions are Unknown and require process restart before another probe. client_staff_show opens the native Staff page; client_staff_state only measures Staff/dev/Pips/button readiness; client_staff_one activates the first owned toggle Button once for one worker and confirms only a fresh pending Host intent with unchanged local row and full ledger. Staff requires a purchased current Startingpoint project with desired workers0. client_research_show opens the window and requests its Tech page; client_research_state only reads page/owner/Grid/button readiness; client_research selects the actual catalogue Grid row and activates its enabled Research button once and confirms only a fresh pending Host intent with unchanged local row and full ledger. client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
+    "tutorial_startingpoint": "Fixed development UI proof: client_bridges_show/state/start use the actual owned Bridges Research row and original button; client_bridges_staff_show/state/one use its original Staff Pips; client_bridges_commit activates its original enabled Commit button after natural completion. These operations confirm only Client intent submission, not peer completion. No completion setter is offered for Bridges. Existing Starting Point proof: staff_activity_state reads actual owned Developer activities and probes both fixed native localized project labels, with native call receipts and unchanged project/full ledger. It requires an initialized idle joined Host or Client, Clock0 and purchased current project; native temporary-object exceptions are Unknown and require process restart before another probe. client_staff_show opens the native Staff page; client_staff_state only measures Staff/dev/Pips/button readiness; client_staff_one activates the first owned toggle Button once for one worker and confirms only a fresh pending Host intent with unchanged local row and full ledger. Staff requires a purchased current Startingpoint project with desired workers0. client_research_show opens the window and requests its Tech page; client_research_state only reads page/owner/Grid/button readiness; client_research selects the actual catalogue Grid row and activates its enabled Research button once and confirms only a fresh pending Host intent with unchanged local row and full ledger. client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
+    "read_vip_alert_owners": "Read actual current HUD alert Window class, AlertList ancestry and ScenarioVip arrival ownership on the bound game thread. Never creates, shows, hides or destroys alerts.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
     "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
     "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",
@@ -344,7 +350,7 @@ OP_DESCRIPTIONS = {
     "capture_frame": "Capture the native rendered game framebuffer to an owned diagnostic artifact.",
     "create_test_world": "Create the owned MPTestWorld through a verified native game-thread capability.",
     "exit_game": "Request graceful native shutdown of the bound owned test instance.",
-    "toggle_overlay": "Queue native SDL F10 events and observe the actual overlay visibility change.",
+    "toggle_overlay": "Retired legacy ImGui operation. Use native_chat_ui_key with F10 and read_native_lobby for the native Multiplayer panel acknowledgement.",
     "dismiss_crash_report": "Dismiss the active crash report through native CrashReport::Command Cancel (Don't Upload).",
     "probe_building_placement": "Probe native MPTest diagnostic building placement without purchasing or editing.",
     "place_test_building": "Send a scoped MPTest diagnostic placement request to the host and wait for host result and local replica.",
@@ -362,6 +368,8 @@ OP_DESCRIPTIONS.update(node_observer_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(subscriber_capture_ops.SCHEMAS)
 OP_SCHEMAS.update(subscriber_append_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(subscriber_append_ops.DESCRIPTIONS)
+OP_SCHEMAS.update(marketing_probe_ops.SCHEMAS)
+OP_DESCRIPTIONS.update(marketing_probe_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(subscriber_capture_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(loan_ops.SCHEMAS)
 OP_SCHEMAS.update(bug_policy_ops.SCHEMAS)
@@ -400,7 +408,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -413,6 +421,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
         return runtime.bind(arguments["manifest_path"])
     if name == "runtime_status":
         return runtime.status()
+    if name == "read_subscriber_lifecycle":
+        return subscriber_lifecycle_read.read(runtime, arguments)
     if name == "read_logs":
         return runtime.read_logs(**arguments)
     if name == "observe_pending":
@@ -429,7 +439,7 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "building history UI requires exact direction and guards")
             if any(not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None for key in ("snapshot_uuid", "target_action_uuid")) or type(arguments["expected_host_revision"]) is not int or not 0 <= arguments["expected_host_revision"] <= 18446744073709551615:
                 raise RuntimeErrorDetail("invalid_args", "building history UI snapshot, target or revision invalid")
-        if op in {"read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement"} and (not isinstance(arguments, dict) or arguments):
+        if op in {"read_vip_alert_owners", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement"} and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", op + " requires empty object arguments")
         if op == "tutorial_movement":
             if not isinstance(arguments, dict) or set(arguments) != {"acceptance_token", "native_origin_uuid"}:
@@ -438,7 +448,7 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
         if op == "tutorial_startingpoint":
             required={"token","native_origin_uuid","operation","world_epoch","world_generation","expected_development"}
-            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state"):
+            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires exact fixed operation and guards")
             if any(not isinstance(arguments[key],str) or re.fullmatch(TIME_TOKEN_PATTERN,arguments[key]) is None for key in ("token","native_origin_uuid")):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires canonical token and native origin UUIDs")
@@ -464,8 +474,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             raise RuntimeErrorDetail("invalid_args", "read_chat requires empty object arguments")
         if op == "read_chat_ui" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "read_chat_ui requires empty object arguments")
-        if op == "native_chat_ui_key" and (not isinstance(arguments, dict) or set(arguments) != {"key"} or arguments["key"] not in ("F9", "ENTER", "ESCAPE", "PROBE")):
-            raise RuntimeErrorDetail("invalid_args", "native_chat_ui_key requires F9, ENTER, ESCAPE or PROBE")
+        if op == "native_chat_ui_key" and (not isinstance(arguments, dict) or set(arguments) != {"key"} or arguments["key"] not in ("F9", "F10", "ENTER", "ESCAPE", "PROBE")):
+            raise RuntimeErrorDetail("invalid_args", "native_chat_ui_key requires F9, F10, ENTER, ESCAPE or PROBE")
         if op == "native_chat_ui_text":
             if not isinstance(arguments, dict) or set(arguments) != {"text"} or not isinstance(arguments["text"], str):
                 raise RuntimeErrorDetail("invalid_args", "native_chat_ui_text requires exactly one text string")
@@ -490,6 +500,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             node_observer_ops.validate(op, arguments)
         if op in subscriber_capture_ops.SCHEMAS:
             subscriber_capture_ops.validate(op, arguments)
+        if op in marketing_probe_ops.SCHEMAS:
+            marketing_probe_ops.validate(op, arguments)
         if op in subscriber_append_ops.SCHEMAS:
             subscriber_append_ops.validate(op, arguments)
         if op in bug_fix_ui_ops.SCHEMAS:

@@ -170,7 +170,9 @@ json status() {
         {"registry_entries",registry.size()},{"registry_generation",registry_generation},{"receipts",saved},{"retirements",retired}};
 }
 namespace {bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);}
-bool bindings(json& out,std::string& error) {
+namespace {
+enum class BindingDetails {Identity,Refund};
+bool collect_bindings(json& out,std::string& error,BindingDetails details) {
     out=json::object();error.clear();host::opened::CurrentWorld world;
     if(!current(world,error))return false;
     if(unknown_locked){error="remove diagnostics are Unknown; no new binding admission";return false;}
@@ -210,7 +212,7 @@ bool bindings(json& out,std::string& error) {
     // The session baseline remains the identity source after confirmed local edits.
     // Target resolution validates each live UID against the current native world.
     if(!retained.empty()) {
-        if(!attach_refunds(world,retained,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",retained}};return false;}
+        if(details==BindingDetails::Refund&&!attach_refunds(world,retained,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",retained}};return false;}
         out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",std::move(retained)}};
         return true;
     }
@@ -249,10 +251,14 @@ bool bindings(json& out,std::string& error) {
     } else {
         error="current complete NativeSnapshot building binding unavailable";return false;
     }
-    if(!attach_refunds(world,list,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",list}};return false;}
+    if(details==BindingDetails::Refund&&!attach_refunds(world,list,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",list}};return false;}
     out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},
         {"baseline_snapshot_id",baseline_snapshot},{"baseline_sha256",baseline_sha},{"bindings",std::move(list)}};
     return true;
+}
+}
+bool bindings(json& out,std::string& error) {
+    return collect_bindings(out,error,BindingDetails::Refund);
 }
 namespace {
 bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,native::BuildingState& building,
@@ -457,14 +463,20 @@ bool refresh_moved_building(const std::string& snapshot,const std::string& key,u
     LOG_INFO("[Action] Moved building binding refreshed key={} local_uid={}",key,uid);
     return true;
 }
-bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error) {
+namespace {
+bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error,
+                               const host::opened::CurrentWorld* admitted) {
     out={};error.clear();
     host::opened::CurrentWorld opened;
     if(!current(opened,error))return false;
     if(unknown_locked||!manager||!object||object>UINTPTR_MAX-0x20) {
         error="native UI target authority or pointer binding unavailable";return false;
     }
-    json sources;if(!bindings(sources,error))return false;
+    if(admitted) {
+        if(!host::same_world(*admitted,opened)){error="native UI admitted world changed before target observation";return false;}
+    } else {
+        json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
+    }
     auto& free=native_free_runtime::Runtime::instance();
     native_free_runtime::Receipt heap;
     if(!free.read_actual_receipt(heap,error))return false;
@@ -503,8 +515,12 @@ bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget& out,st
     out={manager,object,uid,opened.world_epoch,opened.generation,matched->snapshot,matched->key,building.type,building.variant,normal_building,normal_scenery,std::move(kind_cause)};
     return true;
 }
+}
+bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error) {
+    return resolve_local_target_impl(manager,object,out,error,nullptr);
+}
 bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error) {
-    out={};json sources;if(!bindings(sources,error))return false;
+    out={};json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown) {
         error="native UI record has no current unrevoked binding";return false;
@@ -522,7 +538,7 @@ bool resolve_record_target(const std::string& snapshot,const std::string& key,Lo
     void* object=nullptr;uint32_t seh=0;
     if(!lookup(api,found->second.uid,object,seh)) {error="native UI record lookup SEH="+std::to_string(seh);return false;}
     if(!object){error="native UI record lookup returned no target";return false;}
-    if(!resolve_local_target(world.selection,uintptr_t(object),out,error))return false;
+    if(!resolve_local_target_impl(world.selection,uintptr_t(object),out,error,&world.origin))return false;
     if(out.snapshot_id!=snapshot||out.record_key!=key||out.world_epoch!=expected.epoch||out.world_generation!=expected.origin_generation||
        found->second.revoked||found->second.unknown) {
         error="native UI record lookup resolved a different snapshot binding";out={};return false;

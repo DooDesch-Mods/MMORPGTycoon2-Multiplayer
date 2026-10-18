@@ -47,6 +47,9 @@ void initialize_snapshot_sync();
 void tick_snapshot_sync();
 bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error,const std::string& world_name="MPTestSession");
 std::string snapshot_sync_status();
+// End a failed live Host world through the existing snapshot-error channel.
+// Queue acknowledgement is distinct from a peer observing the terminal state.
+bool fail_host_world(const std::string& expected_snapshot,const std::string& cause,std::string& error);
 std::string current_snapshot_id();
 // Snapshot epoch only; native adapters must also verify their bound world receivers.
 uint64_t current_world_epoch();

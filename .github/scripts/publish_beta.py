@@ -38,8 +38,8 @@ def publish(tag, commit, directory, milestone=None):
         if 'v' + record['version'] != tag:
             raise ValueError('milestone version differs from release tag')
     base = 'https://api.github.com/repos/' + REPOSITORY
-    if api('GET', base).get('private') is not True:
-        raise ValueError('beta publishing requires the private repository')
+    if api('GET', base).get('full_name') != REPOSITORY:
+        raise ValueError('beta publishing repository identity differs')
     if api('GET', base + '/commits/' + tag)['sha'] != commit:
         raise ValueError('remote tag differs from build commit')
     archive = directory / ('MMORPGTycoon2-Multiplayer-' + tag + '-windows-x64.zip')

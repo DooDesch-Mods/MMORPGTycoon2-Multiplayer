@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "runtime_internal.h"
 #include "building_capture_identity.h"
 #include "native_open_runtime.h"
@@ -5,7 +6,7 @@
 #include "mt2mp/core/logger.h"
 #include "fingerprints.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <intrin.h>
 #include <array>
 #include <atomic>
@@ -202,6 +203,7 @@ bool native_remove(uintptr_t collection,uintptr_t bug,bool& attempted,std::strin
     return (before==after&&!runtime().lifetimes.pointer(bug))||fail(error,"Selected Bug retirement order/Tracker lifetime readback differs");
 }
 bool native_code(std::string& error){
+    live_host_state::apply_timing::PageReadScope pages;
     auto& r=runtime();if(!r.ready)return fail(error,"Bug native hooks are not published");
     for(const auto& hook:hooks){std::vector<unsigned char> bytes(hook.size);std::array<unsigned char,64> relocated{};
         if(!r.memory.copy(r.image+hook.rva,bytes.data(),bytes.size(),error)||!r.memory.copy(hook.trampoline,relocated.data(),relocated.size(),error))return false;

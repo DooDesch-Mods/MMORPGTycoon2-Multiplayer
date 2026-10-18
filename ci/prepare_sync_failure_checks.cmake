@@ -34,3 +34,5 @@ if(MSVC)
 endif()
 add_test(NAME prepare_sync_failure COMMAND test_prepare_sync_failure)
 set_tests_properties(prepare_sync_failure PROPERTIES TIMEOUT 30)
+
+include("${CMAKE_CURRENT_LIST_DIR}/host_live_failure_checks.cmake")

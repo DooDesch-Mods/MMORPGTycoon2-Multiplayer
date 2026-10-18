@@ -1,3 +1,5 @@
+// This controlled-port action fixture performs no native memory queries.
+namespace mt2mp::game::live_host_state::apply_timing {struct PageReadScope {~PageReadScope(){}};}
 #include "developer_staff/read.h"
 #include "developer_staff/probe.h"
 #include "developer_staff/shared_state.h"

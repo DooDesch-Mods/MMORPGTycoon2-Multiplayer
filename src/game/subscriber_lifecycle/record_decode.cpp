@@ -138,6 +138,25 @@ bool destroy_records(const DecodeApi& a,NativeTree& tree,DecodeReceipt& r,std::s
     }
     tree.root=0;r.cleaned=true;e.clear();return true;
 }
+bool decode_marketing_record(const DecodeApi& a,Memory& memory,MarketingRecordKind kind,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};
+    if(tree.root||!tree.detached.empty())return fail(e,"Marketing Record output already owns objects");
+    const char* expected=kind==MarketingRecordKind::Award?"mmoAward":kind==MarketingRecordKind::Campaign?"mmoAdCampaign":nullptr;
+    if(!expected||source.empty()||source.size()>32||source[0].label.type!=1||source[0].label.text!=expected)
+        return fail(e,"Marketing Record typed root differs");
+    // Share structural validation while preserving the strict Subscriber entry point.
+    auto structural=source;structural[0].label.text="mmoSubscriber";
+    if(!validate_records(structural,e))return false;
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||
+       !a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Marketing Record API incomplete");
+    std::vector<uintptr_t> objects(source.size(),0);tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){
+        if(!create(a,memory,source[i],objects[i],tree,r,e))return false;
+        if(!i)tree.root=objects[i];
+        else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;
+    }
+    r.complete=true;e.clear();return true;
+}
 bool decode_integer_record(const DecodeApi& a,Memory& memory,const char* label,int32_t value,NativeTree& tree,DecodeReceipt& r,std::string& e){
     r={};
     if(tree.root||!tree.detached.empty())return fail(e,"integer Record output already owns objects");

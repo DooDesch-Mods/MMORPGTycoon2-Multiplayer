@@ -3,11 +3,10 @@
 #include "hud_calendar_transport.h"
 #include "hud_time_reader_process.h"
 #include "time_integration.h"
-#include "mt2mp/core/config.h"
+#include "session_provider.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_engine.h"
-#include "mt2mp/net/local_session.h"
-#include "mt2mp/net/sidecar_client.h"
+#include "mt2mp/net/session_wire.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include <array>
 #include <atomic>
@@ -43,30 +42,51 @@ void observe(size_t index,const char* operation,const std::string& error) noexce
     }catch(const std::exception& cause){OutputDebugStringA("error: HUD Calendar observation failed; native OriginalOnce continues. cause=");OutputDebugStringA(cause.what());}
      catch(...){OutputDebugStringA("error: HUD Calendar observation failed; native OriginalOnce continues. cause=non-standard exception");}
 }
-bool context(void*,hud_time::CalendarContext& out,std::string& error) {
+bool read_context(hud_time::CalendarContext& out,action_session::Context& session,std::string& error) {
     out={};time_integration::Status current;
     if(!time_integration::instance().status(current,error))return false;
     const auto& state=current.runtime;
-    const auto& config=Config::instance();
-    const bool client=!config.is_host;
+    out.epoch=state.epoch;
+    if(state.phase!=time_runtime::Phase::Active||state.hook_mask!=3||state.presentation_uncertain||
+       state.controller.write_locked||!state.epoch||state.epoch!=net::current_world_epoch()||
+       !net::session_wire::connected()||!net::pending_snapshot_load_id().empty()){
+        error.clear();return true;
+    }
+    if(!action_session::selected_session().current(session,error))return false;
+    if(!session.session||session.session!=net::session_wire::session_id()||session.snapshot_uuid.empty()||session.snapshot_uuid!=net::current_snapshot_id()||
+       session.host_peer!=1||session.local_peer<1||session.local_peer>4||session.local_peer!=net::session_wire::local_peer()||
+       session.peer_mask!=net::session_wire::peer_mask()||(session.peer_mask&0xf0)||!(session.peer_mask&1u)||
+       !(session.peer_mask&(1u<<(session.local_peer-1)))||
+       (session.role!=action_session::Role::Host&&session.role!=action_session::Role::Client)||
+       (session.role==action_session::Role::Host)!=(session.local_peer==1)){
+        error="HUD Calendar actual Session/slot/membership differs";return false;
+    }
+    const bool client=session.role==action_session::Role::Client;
     const auto& snapshot=client?state.controller.applied:state.controller.observed;
     out.client=client;out.epoch=state.epoch;out.time_revision=snapshot.revision;
-    auto& sidecar=net::SidecarClient::instance();
-    out.active=config.local_test&&state.phase==time_runtime::Phase::Active&&state.hook_mask==3&&
-        !state.presentation_uncertain&&!state.controller.write_locked&&snapshot.present&&!snapshot.uncertain&&
-        out.epoch&&out.epoch==net::current_world_epoch()&&net::local_session_connected()&&
-        (net::local_session_peer_mask()&1u)&&sidecar.connected()&&sidecar.ready()&&net::pending_snapshot_load_id().empty();
+    out.active=snapshot.present&&!snapshot.uncertain;
     error.clear();return true;
+}
+bool context(void*,hud_time::CalendarContext& out,std::string& error) {
+    action_session::Context session;return read_context(out,session,error);
 }
 bool transport_context(hud_time::transport::Context& out,std::string& error) {
     out={};hud_time::CalendarContext current;
-    if(!context(nullptr,current,error))return false;
-    const auto& config=Config::instance();
-    if(config.peer_id<1||config.peer_id>4){error="calendar local peer outside 1..4";return false;}
+    action_session::Context expected;
+    if(!read_context(current,expected,error))return false;
+    if(!current.active){error.clear();return true;}
+    action_session::Context session;
+    if(!action_session::selected_session().current(session,error))return false;
+    if(session!=expected||session.local_peer!=net::session_wire::local_peer()||
+       session.session!=net::session_wire::session_id()||session.snapshot_uuid!=net::current_snapshot_id()||
+       session.peer_mask!=net::session_wire::peer_mask()||current.client!=(session.role==action_session::Role::Client)||
+       current.epoch!=net::current_world_epoch()){
+        error="Calendar transport current Session changed";return false;
+    }
     const auto bound=calendar.status();
-    out.connected=net::local_session_connected()&&net::SidecarClient::instance().connected()&&net::SidecarClient::instance().ready();
-    out.active=current.active;out.client=current.client;out.local_peer=static_cast<uint8_t>(config.peer_id);
-    out.peer_mask=net::local_session_peer_mask();out.epoch=current.epoch;out.time_revision=current.time_revision;
+    out.connected=net::session_wire::connected();
+    out.active=current.active;out.client=current.client;out.local_peer=static_cast<uint8_t>(session.local_peer);
+    out.peer_mask=session.peer_mask;out.epoch=current.epoch;out.time_revision=current.time_revision;
     out.calendar_bound=bound.bound&&!bound.locked;out.calendar_epoch=bound.epoch;return true;
 }
 void panel_update(void* receiver,float dt) {
@@ -105,12 +125,11 @@ bool initialize(const hud_time::Config& config,std::string& error) {
     services.apply=[](uint64_t sender,const hud_time::CalendarSample& sample,std::string& e){return calendar.receive(sender,sample,e);};
     services.suspend_calendar=[](const std::string& reason,std::string& e){return calendar.suspend(reason,e);};
     services.send=[](uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target,std::string& e){
-        auto& sidecar=net::SidecarClient::instance();
-        if(!sidecar.send(channel,bytes,size,target)){e=sidecar.failure_reason();if(e.empty())e="local transport refused Calendar packet";return false;}
+        if(!net::session_wire::send(channel,bytes,size,target)){e=net::session_wire::failure_reason();if(e.empty())e="session transport refused Calendar packet";return false;}
         e.clear();return true;
     };
     services.register_handler=[](uint8_t channel,hud_time::transport::Handler handler){
-        std::string cause;if(!net::SidecarClient::instance().claim_handler(channel,std::move(handler),cause))throw std::runtime_error(cause);
+        std::string cause;if(!net::session_wire::claim_handler(channel,std::move(handler),cause))throw std::runtime_error(cause);
         LOG_INFO("[HudCalendar] Exclusive transport handler claimed channel={}",channel);
     };
     if(!transport.initialize(config.game_thread,std::move(services),error))return false;

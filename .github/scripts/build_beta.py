@@ -35,6 +35,11 @@ def validate(archive, candidate, expected_mode=None):
             raise ValueError('beta package missing: package.json')
         manifest = json.loads(zipped.read('package.json'))
         mode = manifest.get('package_mode', 'legacy')
+        if mode == 'vortex':
+            if expected_mode not in (None, 'vortex'):
+                raise ValueError('beta package mode differs')
+            from framework_beta import validate as validate_framework
+            return validate_framework(archive, candidate)
         if mode not in {'legacy', 'dropin'} or expected_mode is not None and mode != expected_mode:
             raise ValueError('beta package mode differs')
         notices = DROPIN_NOTICES if mode == 'dropin' else NOTICES

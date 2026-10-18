@@ -1,10 +1,11 @@
+#include "live_host_state/frame_apply_acks.h"
 namespace channel9_fixture {
 using namespace mt2mp::game::live_host_state;
 namespace action_session=mt2mp::action_session;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 struct Economy {
     unsigned calls=0;uint8_t peer=0,mask=0;uint64_t revision=0;Json rows;
-    std::string failure;
+    std::string failure;unsigned committed=0;void subscriber_frame_committed(uint64_t){++committed;}
     bool acknowledge_subscribers(uint8_t p,uint8_t m,uint64_t r,const Json& value,std::string& e){
         ++calls;peer=p;mask=m;revision=r;rows=value;e=failure;return failure.empty();
     }
@@ -13,7 +14,11 @@ struct Bridge {
     bool suspended_=false,locked_=false,day_=false;
     Context context_;action_session::Binding binding_;
     uint64_t common_epoch_=0,source_generation_=0,host_revision_=0;
-    fragments::Assembly fragments_;Json received_frame_transport_;
+    fragments::Assembly fragments_;FrameApplyAcks apply_acks_;Json received_frame_transport_;
+    std::optional<economy::State> queued_economy_;ApplyReceipt receipt_;
+    struct Transport {std::vector<std::vector<uint8_t>> packets;std::string failure;bool send(uint64_t,const std::vector<uint8_t>& bytes,std::string& e){if(!failure.empty()){e=failure;return false;}packets.push_back(bytes);return true;}} transport_;
+    bool acknowledge_vips(uint64_t,uint64_t,std::string& e){e.clear();return true;}
+    bool acknowledge_frame(const Frame&,std::string&);
     Economy* economy_=nullptr;unsigned received=0;uint64_t received_sender=0;
     std::vector<uint8_t> received_bytes;std::string receive_failure;
     explicit Bridge(const Frame& f):context_(context(f)),binding_{1,f.source_generation},
@@ -24,10 +29,14 @@ struct Bridge {
     bool route_receive(uint64_t,const uint8_t*,size_t,bool&,std::string&);
 };
 #include "frame_fragment_route.inc"
+#include "frame_apply_ack_send.inc"
 
 void checks(const Frame& f){
     using namespace action_session;
     std::string e;bool handled=true;Economy economy;
+    mt2mp::subscriber_lifecycle::additions::Cache actual_cache;
+    const auto before_cache=actual_cache.status();
+    need(actual_cache.acknowledge(2,2,f.revision,Json::array(),e)&&actual_cache.status()==before_cache,"actual Subscriber cache accepts empty ACK without mutation");
     Bridge router(f);router.economy_=&economy;
     Message original;original.session=f.session;original.request.peer=2;original.request.sequence=1;
     original.request.action_uuid="22222222-2222-4222-8222-222222222222";
@@ -105,9 +114,29 @@ void checks(const Frame& f){
     need(!direct.take(1,context(f),f.epoch,f.source_generation,invalid,mt2mp::sha256,complete,direct_cause),"invalid fragment fixture accepted");
     need(!route_json(malformed,1,invalid)&&handled&&malformed.locked_&&e==direct_cause,"fragment failure cause changed");
     Bridge host(f);host.context_.role=Role::Host;host.context_.local_peer=1;host.economy_=&economy;
+    host.apply_acks_.sent(f.revision,2,std::chrono::steady_clock::now());
     Json ack={{"kind","host_state_subscriber_ack"},{"schema",1},{"session",f.session},{"epoch",f.epoch},{"snapshot_uuid",f.snapshot},
         {"source_generation",f.source_generation},{"frame_revision",f.revision},{"rows",Json::array()}};
     need(route_json(host,2,ack)&&handled&&economy.calls==1&&economy.peer==2&&economy.mask==2&&economy.revision==f.revision,"Subscriber ACK no longer routed");
+    need(host.apply_acks_.pending()==0&&host.apply_acks_.peers()[1].revision==f.revision,"validated actual ACK advances full-Apply progress");
+    auto conflicting=ack;conflicting["rows"]=Json::array({{{"id",1},{"sha256",std::string(64,'a')}}});
+    const auto prior_calls=economy.calls;
+    need(!route_json(host,2,conflicting)&&e.find("duplicate applied Frame ACK")!=std::string::npos&&economy.calls==prior_calls,"conflicting duplicate rejected before Subscriber cache mutation");
+    auto wrong_rows=ack;wrong_rows["rows"]=Json::object();e="stale cause";
+    need(!route_json(host,2,wrong_rows)&&e=="live applied Frame ACK rows invalid"&&economy.calls==prior_calls,"malformed ACK rows retain their actual guard cause");
+    Bridge empty(f);empty.context_.role=Role::Host;empty.context_.local_peer=1;empty.apply_acks_.sent(f.revision,2,std::chrono::steady_clock::now());
+    need(!route_json(empty,2,ack)&&empty.apply_acks_.pending()==2,"bare Bridge retains original no-Economy ACK rejection");
+    Bridge failed(f);failed.context_.role=Role::Host;failed.context_.local_peer=1;failed.economy_=&economy;failed.apply_acks_.sent(f.revision,2,std::chrono::steady_clock::now());
+    economy.failure="unconfirmed Subscriber rows";need(!route_json(failed,2,ack)&&failed.apply_acks_.pending()==2,"failed Subscriber validation never confirms full frame");economy.failure.clear();
+    for(bool available:{false,true}){
+        Bridge client(f);Economy local;client.economy_=&local;client.queued_economy_=fixture();client.queued_economy_->additions={};client.queued_economy_->additions.available=available;
+        need(client.acknowledge_frame(f,e)&&client.transport_.packets.size()==1,"actual successful Take ACK emitted with empty additions");
+        const auto sent=Json::parse(client.transport_.packets[0]);need(sent.size()==8&&sent.at("rows")==Json::array()&&sent.at("frame_revision")==f.revision&&sent.at("source_generation")==f.source_generation,"same eight-field ACK contract retained");
+        need(local.committed==(available?1u:0u),"Subscriber commit notification preserves availability contract");
+    }
+    Bridge bare(f);need(bare.acknowledge_frame(f,e)&&bare.transport_.packets.empty(),"bare Bridge does not emit Economy ACK");
+    Bridge failed_send(f);failed_send.economy_=&economy;failed_send.transport_.failure="original ACK send failure";
+    need(!failed_send.acknowledge_frame(f,e)&&failed_send.locked_&&failed_send.receipt_.unknown&&!failed_send.receipt_.confirmed&&e.find("original ACK send failure")!=std::string::npos,"ACK send failure after Apply is Unknown and cause retained");
     economy.failure="exact Subscriber ACK failure";need(!route_json(host,2,ack)&&handled&&e==economy.failure,"Subscriber ACK delegate cause changed");
     ack["session"]=f.session+1;need(!route_json(host,2,ack)&&handled&&e=="Subscriber Frame ACK authenticated sender/session/epoch/revision differs","malformed ACK cause changed");
     const std::string invalid_json="{";need(!host.route_receive(2,reinterpret_cast<const uint8_t*>(invalid_json.data()),invalid_json.size(),handled,e)&&!handled&&e.starts_with("live Channel9 discriminator: [json.exception.parse_error."),"malformed JSON cause changed");

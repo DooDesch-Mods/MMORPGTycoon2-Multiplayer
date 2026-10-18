@@ -1,4 +1,5 @@
 #include "npc_probe.h"
+#include "live_host_state/memory_query_timing.h"
 #include "monster_zone_action_runtime.h"
 #include "monster_zone_selection.h"
 #include "monster_zone_effect.h"
@@ -35,7 +36,7 @@
 #include "mt2mp/net/session_wire.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/core/config.h"
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <SDL3/SDL_mouse.h>
 #include <bcrypt.h>
 #include <intrin.h>

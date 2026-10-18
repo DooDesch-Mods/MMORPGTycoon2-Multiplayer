@@ -16,6 +16,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
+option(MT2MP_FRAMEWORK_PLUGIN "Build the native Framework plugin instead of standalone loaders" OFF)
+if(MT2MP_FRAMEWORK_PLUGIN)
+    include(cmake/framework_plugin.cmake)
+    return()
+endif()
+
 # ── Vendor: MinHook ──────────────────────────────────────────────
 add_subdirectory(include/vendor/minhook EXCLUDE_FROM_ALL)
 
@@ -51,6 +57,10 @@ file(GLOB_RECURSE MOD_SOURCES CONFIGURE_DEPENDS
     src/overlay/*.cpp
     src/game/*.cpp
 )
+
+# These implementations call the Framework SDK and belong only to its plugin.
+list(FILTER MOD_SOURCES EXCLUDE REGEX "/src/core/framework_(plugin|profile|input)\\.cpp$")
+list(FILTER MOD_SOURCES EXCLUDE REGEX "/src/hooks/framework_backend\\.cpp$")
 
 add_library(MT2_Multiplayer SHARED ${MOD_SOURCES})
 enable_language(ASM_MASM)

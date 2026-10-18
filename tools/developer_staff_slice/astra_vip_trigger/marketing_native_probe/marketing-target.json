@@ -1,0 +1,362 @@
+{
+  "schema": 1,
+  "source_sha256": "044e51739ee901902621dab042c38fa1a408e3c1ac8d282e420c562cfd972395",
+  "baseline_sha256": "675f562070b00d29ef30bdb9b47bf30494ca9c0fa28d570a8f730fbd0e7350eb",
+  "day": 2,
+  "award": [
+    {
+      "parent": null,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "mmoAward"
+      },
+      "tokens": []
+    },
+    {
+      "parent": 0,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "name"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": "{award_moststable_title}"
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 1,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "source"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": "News Source XYZ"
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 2,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "day"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 2,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 3,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "impressions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 15,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 4,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "conversions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 14,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 5,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "isGood"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": "true"
+        }
+      ]
+    }
+  ],
+  "campaign": [
+    {
+      "parent": null,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "mmoAdCampaign"
+      },
+      "tokens": []
+    },
+    {
+      "parent": 0,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "customName"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 1,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "type"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": "PositiveStreamer"
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 2,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "startedOn"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 2,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 3,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "duration"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 5,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 4,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "impressions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 5,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "conversions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 6,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "hype"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    }
+  ],
+  "launch": [
+    {
+      "parent": null,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "mmoAdCampaign"
+      },
+      "tokens": []
+    },
+    {
+      "parent": 0,
+      "child_index": 0,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "customName"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 1,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "type"
+      },
+      "tokens": [
+        {
+          "type": 2,
+          "bits": 0,
+          "text": "Launch"
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 2,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "startedOn"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 1,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 3,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "duration"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 3,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 4,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "impressions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 5,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "conversions"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    },
+    {
+      "parent": 0,
+      "child_index": 6,
+      "label": {
+        "type": 1,
+        "bits": 0,
+        "text": "hype"
+      },
+      "tokens": [
+        {
+          "type": 4,
+          "bits": 0,
+          "text": ""
+        }
+      ]
+    }
+  ]
+}

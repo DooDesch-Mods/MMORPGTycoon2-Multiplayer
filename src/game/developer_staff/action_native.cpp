@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -21,7 +22,7 @@
 #include "mt2mp/core/logger.h"
 #include "mt2mp/game/native_engine.h"
 #include "hud_time_runtime.h"
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <atomic>
 #include <cstdio>
 #include <map>
@@ -91,9 +92,11 @@ struct FrameCalls {
     bool pin(const PoolState& expected,std::string& e){
         PoolState observed;if(!action_runtime::read(runtime,context,binding,before,observed,e))return false;
         if(context.role!=action::Role::Client||observed!=expected)return fail(e,"Developer frame requires exact actual Client BEFORE pool");
+        {live_host_state::apply_timing::PageReadScope pages;
         for(const auto actor:before.local.developers){uintptr_t carried=0;
             if(!runtime.memory.copy(actor+0x4d0,&carried,sizeof carried,e))return false;
             if(carried)return fail(e,"Developer frame actual carried Monster closure is not yet bound");}
+        }
         return true;
     }
     bool scalar(const FieldChange& change,std::string& e){

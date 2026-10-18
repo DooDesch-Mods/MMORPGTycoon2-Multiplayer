@@ -40,11 +40,19 @@ bool parse_payload(const nlohmann::json& j,Payload& out,std::string& e){
             if(row.at("inline_definition").get<bool>()){if(!definitions.erase(id))throw std::runtime_error("Subscriber inline definition/reference differs");out.local_ids.push_back(id);continue;}
             external.push_back(row);const auto& key=row.at("portable_owner");if(key.at("source_snapshot_sha256").get<std::string>()!=out.baseline_sha)throw std::runtime_error("Subscriber external owner baseline differs");
             ExternalReference ref;ref.local_link_id=id;const auto kind=key.at("kind").get<std::string>();
-            if(kind=="root_shard")ref.key.kind=ReferenceKind::RootShard;else if(kind=="root_region")ref.key.kind=ReferenceKind::RootRegion;else if(kind=="character_ability")ref.key.kind=ReferenceKind::CharacterAbility;else if(kind=="shared_building")ref.key.kind=ReferenceKind::SharedBuilding;else if(kind=="subscriber_toon")ref.key.kind=ReferenceKind::SubscriberToon;else throw std::runtime_error("Subscriber external owner kind unsupported");
+            if(kind=="root_shard")ref.key.kind=ReferenceKind::RootShard;else if(kind=="root_region")ref.key.kind=ReferenceKind::RootRegion;else if(kind=="character_ability")ref.key.kind=ReferenceKind::CharacterAbility;else if(kind=="shared_building")ref.key.kind=ReferenceKind::SharedBuilding;else if(kind=="subscriber_toon")ref.key.kind=ReferenceKind::SubscriberToon;else if(kind=="shared_npc")ref.key.kind=ReferenceKind::SharedNPC;else if(kind=="shared_quest")ref.key.kind=ReferenceKind::SharedQuest;else throw std::runtime_error("Subscriber external owner kind unsupported");
             ref.key.region_id=integer(key.at("region_id"));ref.key.character_kind=integer(key.at("character_kind"));ref.key.character_id=integer(key.at("character_id"));ref.key.ability_index=integer(key.at("ability_index"));if(ref.key.kind==ReferenceKind::SharedBuilding){
                 ref.key.building_key=key.at("building_key").get<std::string>();
                 if(!valid_building_key(ref.key.building_key)||ref.key.region_id!=-1||ref.key.character_kind!=-1||ref.key.character_id!=-1||ref.key.ability_index!=-1)throw std::runtime_error("Subscriber Building key invalid/foreign fields");
             }else if(key.contains("building_key"))throw std::runtime_error("Subscriber non-Building owner has Building key");
+            if(ref.key.kind==ReferenceKind::SharedNPC||ref.key.kind==ReferenceKind::SharedQuest){
+                ref.key.npc_key=key.at("npc_key").get<std::string>();
+                if(!valid_npc_key(ref.key.npc_key)||ref.key.region_id!=-1||ref.key.character_kind!=-1||ref.key.character_id!=-1||ref.key.ability_index!=-1)throw std::runtime_error("Subscriber NPC key invalid/foreign fields");
+            }else if(key.contains("npc_key"))throw std::runtime_error("Subscriber non-NPC owner has NPC key");
+            if(ref.key.kind==ReferenceKind::SharedQuest){
+                ref.key.sequence_id=integer(key.at("sequence_id"));
+                if(ref.key.sequence_id<0)throw std::runtime_error("Subscriber Quest sequence invalid");
+            }else if(key.contains("sequence_id"))throw std::runtime_error("Subscriber non-Quest owner has Quest sequence");
             if(ref.key.kind==ReferenceKind::SubscriberToon){
                 ref.key.subscriber_id=integer(key.at("subscriber_id"));
                 if(ref.key.subscriber_id<0||ref.key.subscriber_id>=out.next_id||ref.key.subscriber_id==out.id||ref.key.region_id!=-1||ref.key.character_kind!=-1||ref.key.character_id!=-1||ref.key.ability_index!=-1)throw std::runtime_error("Subscriber Toon key invalid/self/foreign fields");

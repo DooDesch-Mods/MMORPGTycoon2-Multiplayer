@@ -190,6 +190,16 @@ bool Bridge::set_host_state(uint64_t epoch,uint64_t revision,float selected,floa
     }
     selected_=selected; pause_=pause; revision_=revision; host_available_=true; e.clear(); return true;
 }
+bool Bridge::set_host_state_and_enable_capture(uint64_t epoch,uint64_t revision,float selected,float pause,uint32_t mask,std::string& e) {
+    if (!thread(e)) return false;
+    if (!bound_host_) return failure(e,"local_host_capture_required");
+    if (!set_host_state(epoch,revision,selected,pause,e)) return false;
+    if (!thread(e)) return false;
+    if (mask!=1 && mask!=3) return failure(e,"host_activate_hook_required");
+    // set_host_state just validated the full live graph; no native effect occurs before admission.
+    if (!host_available_) return failure(e,"bound_host_state_required");
+    capture_=true; e.clear(); return true;
+}
 bool Bridge::write_presentation(WriteReceipt& receipt,std::string& e) {
     receipt={}; if (!thread(e)) return false;
     if (bound_host_) return failure(e,"host_presentation_is_native_original");
@@ -209,7 +219,8 @@ bool Bridge::write_presentation(WriteReceipt& receipt,std::string& e) {
         }
         ++receipt.completed;
     }
-    if (!scan(h,true,e)) {
+    // Without a store callback, the complete first scan is also the no-effect readback.
+    if (receipt.attempted && !scan(h,true,e)) {
         uncertain_=receipt.attempted!=0; receipt.partial_or_uncertain=uncertain_;
         ++counters_.presentation_failed; counters_.last_error="presentation_readback_failed: "+e;
         e=counters_.last_error; return false;

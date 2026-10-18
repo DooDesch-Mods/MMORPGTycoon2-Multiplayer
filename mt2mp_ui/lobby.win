@@ -1,7 +1,7 @@
 mmoWindow
 {
 	id "mt2mp_lobby";
-	dims 700 528;
+	dims 700 640;
 	anchorType Window;
 	anchorPos 120 40;
 	hasTitlebar true;
@@ -30,7 +30,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "host";
-			text "Lobby für Freunde";
+			text "Für Freunde hosten";
 			dims 200 36;
 			anchorType TopLeft;
 			anchorPos 16 50;
@@ -45,7 +45,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "host_public";
-			text "Öffentliche Lobby";
+			text "Öffentlich hosten";
 			dims 200 36;
 			anchorType TopLeft;
 			anchorPos 232 50;
@@ -60,7 +60,7 @@ mmoWindow
 		mmoButtonPane
 		{
 			id "search";
-			text "Lobbys suchen";
+			text "Spiel suchen";
 			dims 236 36;
 			anchorType TopLeft;
 			anchorPos 448 50;
@@ -76,9 +76,9 @@ mmoWindow
 		{
 			id "join";
 			text "Beitreten";
-			dims 300 36;
+			dims 236 36;
 			anchorType TopLeft;
-			anchorPos 16 96;
+			anchorPos 448 96;
 			textSize 16;
 			clickable true;
 			border true;
@@ -91,9 +91,9 @@ mmoWindow
 		{
 			id "invite";
 			text "Freunde einladen";
-			dims 344 36;
+			dims 300 36;
 			anchorType TopLeft;
-			anchorPos 340 96;
+			anchorPos 16 96;
 			textSize 16;
 			clickable true;
 			border true;
@@ -132,11 +132,24 @@ mmoWindow
 		}
 		mmoTextEditPane
 		{
+			id "lobby_id_label";
+			text "Lobby-ID";
+			dims 100 24;
+			anchorType TopLeft;
+			anchorPos 16 102;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
 			id "lobby_id";
 			text "";
-			dims 340 30;
+			dims 300 30;
 			anchorType TopLeft;
-			anchorPos 340 196;
+			anchorPos 128 99;
 			editable true;
 			clickable true;
 			maxLength 20;
@@ -148,7 +161,7 @@ mmoWindow
 		{
 			id "player0";
 			text "Freier Platz";
-			dims 668 36;
+			dims 324 24;
 			anchorType TopLeft;
 			anchorPos 16 258;
 			textSize 16;
@@ -161,9 +174,9 @@ mmoWindow
 		{
 			id "player1";
 			text "Freier Platz";
-			dims 668 36;
+			dims 324 24;
 			anchorType TopLeft;
-			anchorPos 16 304;
+			anchorPos 356 258;
 			textSize 16;
 			editable false;
 			clickable false;
@@ -174,9 +187,9 @@ mmoWindow
 		{
 			id "player2";
 			text "Freier Platz";
-			dims 668 36;
+			dims 324 24;
 			anchorType TopLeft;
-			anchorPos 16 350;
+			anchorPos 16 286;
 			textSize 16;
 			editable false;
 			clickable false;
@@ -187,14 +200,72 @@ mmoWindow
 		{
 			id "player3";
 			text "Freier Platz";
-			dims 668 36;
+			dims 324 24;
 			anchorType TopLeft;
-			anchorPos 16 396;
+			anchorPos 356 286;
 			textSize 16;
 			editable false;
 			clickable false;
 			justify left;
 			border false;
+		}
+		mmoTextEditPane
+		{
+			id "chat_status";
+			text "Chat - zuerst Lobby beitreten";
+			dims 668 22;
+			anchorType TopLeft;
+			anchorPos 16 324;
+			textSize 16;
+			editable false;
+			clickable false;
+			justify left;
+			border false;
+		}
+		mmoTextEditPane
+		{
+			id "chat_transcript";
+			text "";
+			dims 668 148;
+			anchorType TopLeft;
+			anchorPos 16 350;
+			textSize 14;
+			editable false;
+			clickable false;
+			justify left;
+			border true;
+			edges All;
+			material "DarkGrey";
+		}
+		mmoTextEditPane
+		{
+			id "chat_input";
+			text "";
+			dims 552 32;
+			anchorType TopLeft;
+			anchorPos 16 512;
+			textSize 16;
+			editable true;
+			clickable true;
+			maxLength 240;
+			border true;
+			edges All;
+			material "DarkGrey";
+		}
+		mmoButtonPane
+		{
+			id "chat_send";
+			text "Senden";
+			dims 100 32;
+			anchorType TopLeft;
+			anchorPos 584 512;
+			textSize 16;
+			clickable true;
+			border true;
+			edges All;
+			corners "TopLeft BottomRight";
+			cornerSize 8;
+			command "MessageTo Mode MT2MPChatSend";
 		}
 		mmoButtonPane
 		{
@@ -202,7 +273,7 @@ mmoWindow
 			text "Welt laden und starten";
 			dims 416 36;
 			anchorType TopLeft;
-			anchorPos 16 464;
+			anchorPos 16 576;
 			textSize 16;
 			clickable true;
 			border true;
@@ -217,7 +288,7 @@ mmoWindow
 			text "Lobby verlassen";
 			dims 236 36;
 			anchorType TopLeft;
-			anchorPos 448 464;
+			anchorPos 448 576;
 			textSize 16;
 			clickable true;
 			border true;

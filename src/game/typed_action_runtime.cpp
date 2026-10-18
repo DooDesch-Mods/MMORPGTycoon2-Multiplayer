@@ -1,3 +1,5 @@
+#include "mt2mp/net/chat_runtime.h"
+#include "marketing_authority/native_port.h"
 #include "bug_authority/runtime.h"
 #include "bug_authority/manual_action.h"
 #include "bug_authority/codec.h"
@@ -5,6 +7,10 @@
 #include "toon_weapon_visual/authority.h"
 #include "toon_weapon_visual/probe.h"
 #include "toon_time_fence/native.h"
+#include "scenario_vip_authority/native.h"
+#include "scenario_vip_authority/host_witness.h"
+#include "scenario_vip_authority/frame_adapter.h"
+#include "scenario_vip_authority/alert_cleanup_hook.h"
 #include "time_integration.h"
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/session_wire.h"
@@ -68,6 +74,61 @@ class NativeEngine final:public action::Engine {
     std::map<std::string,HistoryOperation> history_;
     struct CommitOperation {action::Request request;action::Binding binding;action::Evidence evidence;bool confirmed=false;};
     std::map<std::string,CommitOperation> commits_;
+    static bool research_action(action::Action value){
+        return value==action::Action::StartResearch||value==action::Action::SetResearchWorkers||value==action::Action::CommitResearch;
+    }
+    action::Outcome perform_research(const action::Binding& binding,const action::Request& request,const action::Evidence* host,std::string& error){
+        if(!research_action(request.action)||request.canonical_record_key!="tech:bridges"||!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
+        if(commits_.contains(request.action_uuid)){error="Research action already attempted; no replay";return action::Outcome::Unknown;}
+        if(commits_.size()>=action::history_limit){error="Research retained action receipt limit reached";return action::Outcome::RejectedNoEffect;}
+        action::Context context;if(!action::selected_session().current(context,error))return action::Outcome::RejectedNoEffect;
+        if((context.role==action::Role::Client)!=(host!=nullptr)){error="Research action role/authority differs";return action::Outcome::RejectedNoEffect;}
+        action::Evidence evidence;tutorial_replication::research::Row before;
+        if(!read_ledger(evidence.before,error)||!tutorial_replication::read_research_row(context,binding,"bridges",before,error))return action::Outcome::RejectedNoEffect;
+        evidence.research_before=before;
+        if(host&&(host->before!=evidence.before||!tutorial_replication::research::same_state(host->research_before,evidence.research_before)||!host->research_after)){
+            error="Research action differs from exact Host BEFORE";return action::Outcome::RejectedNoEffect;}
+        bug_authority::State bugs_before,bugs_after;
+        if(request.action==action::Action::CommitResearch&&!host){
+            if(!live_state_){error="Research Commit Host live publication owner absent";return action::Outcome::RejectedNoEffect;}
+            if(!bug_authority::capture(context,binding,live_state_->next_publication_revision(),bugs_before,error))return action::Outcome::RejectedNoEffect;
+        }
+        auto& receipt=commits_.emplace(request.action_uuid,CommitOperation{request,binding,evidence}).first->second;
+        bool attempted=false,unknown=false,applied=false;
+        if(request.action==action::Action::StartResearch){
+            action::Ledger expected;tutorial_replication::research::Row target;
+            applied=host?tutorial_replication::apply_research_start(context,binding,request.action_uuid,evidence.before,host->after,before,*host->research_after,attempted,unknown,error):
+                tutorial_replication::start_research(context,binding,evidence.before,before,expected,target,attempted,error);
+        }else if(request.action==action::Action::SetResearchWorkers){
+            applied=tutorial_replication::set_research_workers(context,binding,before,request.desired_workers,attempted,error);
+        }else{
+            applied=host?tutorial_replication::apply_research_commit(context,binding,before,*host->research_after,attempted,unknown,error):
+                tutorial_replication::commit_research(context,binding,before,attempted,error);
+        }
+        if(!applied)return attempted||unknown?action::Outcome::Unknown:action::Outcome::RejectedNoEffect;
+        tutorial_replication::research::Row after;
+        if(!read_ledger(receipt.evidence.after,error)||!tutorial_replication::read_research_row(context,binding,"bridges",after,error))return action::Outcome::Unknown;
+        receipt.evidence.research_after=after;
+        if(host&&(host->after!=receipt.evidence.after||!tutorial_replication::research::same_state(host->research_after,receipt.evidence.research_after))){
+            error="Research Client actual result differs from Host";return action::Outcome::Unknown;}
+        if(request.action==action::Action::StartResearch){
+            if(int64_t(evidence.before.cash)-receipt.evidence.after.cash!=10000||
+               !tutorial_replication::start_intent::payment(evidence.before,receipt.evidence.after,error)||
+               !tutorial_replication::start_intent::rows(before.value,after.value,error)){
+                if(error.empty())error="Research original Start price/ledger/project result differs";return action::Outcome::Unknown;}
+        }else if(request.action==action::Action::SetResearchWorkers){
+            if(evidence.before!=receipt.evidence.after||!tutorial_replication::staff::rows(before.value,after.value,request.desired_workers,error)){
+                if(error.empty())error="Research Workers ledger/project result differs";return action::Outcome::Unknown;}
+        }else{
+            tutorial_replication::research::Plan operation=tutorial_replication::research::Plan::None;
+            if(evidence.before!=receipt.evidence.after||!tutorial_replication::research::plan(before,after,operation,error)||operation!=tutorial_replication::research::Plan::Deploy){
+                if(error.empty())error="Research Commit ledger/deployment result differs";return action::Outcome::Unknown;}
+            if(!host&&!bug_authority::capture(context,binding,live_state_->next_publication_revision(),bugs_after,error))return action::Outcome::Unknown;
+            if(!tutorial_replication::retain_research_commit_effect(context,binding,request.action_uuid,
+               host?nullptr:&bugs_before,host?nullptr:&bugs_after,error))return action::Outcome::Unknown;
+        }
+        receipt.confirmed=true;return action::Outcome::Confirmed;
+    }
     action::Outcome perform_staff(const action::Binding& binding,const action::Request& request,const action::Evidence* host,std::string& error){
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(commits_.contains(request.action_uuid)){error="startingpoint staff action already attempted; no replay";return action::Outcome::Unknown;}
@@ -152,6 +213,14 @@ class NativeEngine final:public action::Engine {
         const auto found=commits_.find(request.action_uuid);
         if(found==commits_.end()||found->second.request!=request||found->second.binding!=binding||!found->second.confirmed){
             error="startingpoint exact confirmed native action receipt absent";return false;}
+        if(research_action(request.action)){
+            action::Context context;action::Ledger ledger;tutorial_replication::research::Row row;
+            if(!action::selected_session().current(context,error)||!read_ledger(ledger,error)||
+               !tutorial_replication::read_research_row(context,binding,"bridges",row,error))return false;
+            if(ledger!=found->second.evidence.after||!tutorial_replication::research::same_state(row,found->second.evidence.research_after)){
+                error="Research observation differs from retained result";return false;}
+            out=found->second.evidence;return true;
+        }
         action::Context context;action::Ledger ledger;tutorial_replication::startingpoint::Row row;
         if(!action::selected_session().current(context,error)||!read_ledger(ledger,error)||
            !tutorial_replication::read_startingpoint_row(context,binding,row,error))return false;
@@ -509,6 +578,7 @@ public:
         return outcome;
     }
     action::Outcome execute_action_native(const action::Binding& binding,const action::Request& request,std::string& error) {
+        if(research_action(request.action))return perform_research(binding,request,nullptr,error);
         if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::perform(binding,request,nullptr,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetStartingpointWorkers)return perform_staff(binding,request,nullptr,error);
@@ -531,6 +601,7 @@ public:
         return action::Engine::execute_action(binding,request,error);
     }
     action::Outcome apply_action_native(const action::Binding& binding,const action::Request& request,const action::Evidence& host,std::string& error) {
+        if(research_action(request.action))return perform_research(binding,request,&host,error);
         if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::perform(binding,request,&host,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::SetStartingpointWorkers)return perform_staff(binding,request,&host,error);
@@ -602,7 +673,7 @@ public:
     bool observe_action(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error)override {
         if(request.action==action::Action::SetBugFix)return bug_authority::manual_action::observe(binding,request,out,error);
         if(request.action==action::Action::PlaceMonsterZone)return npc_probe::zone_action_runtime::observe(binding,request,out,error);
-        if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers)return observe_commit(binding,request,out,error);
+        if(research_action(request.action)||request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers)return observe_commit(binding,request,out,error);
         if(request.action==action::Action::PlaceNPC||request.action==action::Action::RemoveNPC||
            request.action==action::Action::MoveNPC)
             return npc_probe::action_runtime::observe(binding,request,out,error);
@@ -706,7 +777,7 @@ public:
             if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
             return developer_staff::action_runtime::retire(binding,request,error);
         }
-        if(request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers){
+        if(research_action(request.action)||request.action==action::Action::CommitStartingpoint||request.action==action::Action::StartStartingpoint||request.action==action::Action::SetStartingpointWorkers){
             action::Evidence actual;if(!observe_commit(binding,request,actual,error))return false;
             const auto controller=typed_action_runtime::status();
             if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
@@ -834,12 +905,15 @@ struct Runtime {
     action::Controller controller;
     uint32_t thread=GetCurrentThreadId();bool attempted=false,live_attempted=false,lobby_retiring=false;
     std::unique_ptr<live_host_state::NativePort> live_port;
+    std::unique_ptr<scenario_vip_authority::FrameAdapter> vip_presentation;
+    std::unique_ptr<marketing_authority::NativePort> marketing;
     std::unique_ptr<live_host_state::Bridge> live_state;
     std::unique_ptr<live_host_state::day::economy::NativePort> economy_port;
     std::unique_ptr<live_host_state::day::economy::Coupling> economy_state;
     std::unique_ptr<live_host_state::day::NativePort> day_port;
     std::unique_ptr<live_host_state::day::Sync> day_state;
-    std::string live_error;
+    std::string live_error,live_publication_wait;
+    bool live_failure_terminal=false;
     toon_weapon_visual::Receipt weapon_receipt;
     uintptr_t weapon_toon=0;
     toon_weapon_visual::Receipt weapon_hook_receipt;
@@ -849,6 +923,8 @@ struct Runtime {
     toon_time_fence::Receipt toon_time_receipt,toon_time_discarded;
     uintptr_t toon_time_receiver=0,toon_time_discarded_receiver=0;
     uint64_t toon_time_confirmed=0;
+    scenario_vip_authority::Receipt vip_last,vip_failure;
+    uint64_t vip_suppressed=0;
     Runtime():session(action::selected_session()),
         transport(Config::instance().local_test?static_cast<action::Transport&>(local_transport):static_cast<action::Transport&>(steam_transport)),
         controller(session,engine,transport,[](const char* level,const std::string& operation,const std::string& cause) {
@@ -862,7 +938,19 @@ std::atomic<Runtime*> published_runtime{nullptr};
 #include "toon_weapon_visual/runtime.inc"
 #include "toon_weapon_visual/probe_runtime.inc"
 #include "toon_time_fence/runtime.inc"
+#include "scenario_vip_authority/runtime.inc"
+#include "scenario_vip_authority/alert_runtime.inc"
 namespace {
+bool vip_initialized=false,vip_initialize_attempted=false;
+std::string vip_initialize_error;
+bool vip_initialize(std::string& error){
+    if(vip_initialized)return scenario_vip_authority::verify_hook(error);
+    if(vip_initialize_attempted){error=vip_initialize_error;return false;}
+    vip_initialize_attempted=true;
+    vip_initialized=scenario_vip_authority::initialize(weapon_image,
+        {vip_client_active,vip_owner,vip_publish,scenario_vip_authority::host_update},vip_initialize_error);
+    error=vip_initialize_error;return vip_initialized;
+}
 bool toon_time_initialized=false,toon_time_initialize_attempted=false;
 std::string toon_time_initialize_error;
 bool toon_time_initialize(std::string& error){
@@ -883,6 +971,8 @@ bool start(std::string& error) {
     runtime->attempted=true;
     if(!weapon_initialize(error))return false;
     if(!toon_time_initialize(error))return false;
+    if(!vip_initialize(error))return false;
+    if(!vip_alert_initialize(error))return false;
     if(!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error)||!bug_authority::manual_action::enable(error))return false;
     return runtime->controller.start(GetTickCount64(),error);
 }
@@ -903,7 +993,12 @@ bool enable_live_state(std::string& error) {
     }
     runtime->live_port=std::make_unique<live_host_state::NativePort>(context,binding,&fence);
     runtime->live_state=std::make_unique<live_host_state::Bridge>(context,binding,epoch,*runtime->live_port,runtime->transport,[context](uint64_t& revision,std::string& cause){return live_host_state::read_time_authority(context,revision,cause);});
-    runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!runtime->day_state->bootstrap(error))return false;runtime->live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);runtime->live_state->bind_economy(*runtime->economy_state);if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return true;
+    runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!runtime->day_state->bootstrap(error))return false;runtime->live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);runtime->live_state->bind_economy(*runtime->economy_state);
+    runtime->vip_presentation=std::make_unique<scenario_vip_authority::FrameAdapter>(&vip_alert_authorize);
+    if(!runtime->live_state->bind_vip(*runtime->vip_presentation,error))return false;
+    runtime->marketing=std::make_unique<marketing_authority::NativePort>();
+    if(!runtime->live_state->bind_marketing(*runtime->marketing,error))return false;
+    if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return true;
 }
 bool live_state_active() {auto* runtime=published_runtime.load(std::memory_order_acquire);return runtime&&runtime->live_state!=nullptr;}
 bool construction_jobs(const action::Context& expected,const action::Binding& binding,
@@ -977,7 +1072,44 @@ bool live_state_available(std::string& error) {
 void tick() {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->lobby_retiring||!runtime->controller.status().started)return;
-    if(runtime->live_state&&!runtime->controller.status().locked) {std::string cause;const auto state=runtime->controller.status();auto& fence=live_host_state::economic_fence();const bool applied=!fence.locked()&&runtime->live_state->tick(state.host_revision,state.pending,cause);const bool okay=applied&&!fence.locked();if(!okay){if(cause.empty())cause=fence.cause();if(runtime->live_error!=cause)LOG_ERROR("[LiveState] Apply failed: {}",cause);runtime->live_error=cause;}else {if(!runtime->live_error.empty())LOG_INFO("[LiveState] Apply recovered");runtime->live_error.clear();}}
+    if(runtime->live_state&&!net::current_world_epoch()){
+        const auto failure=net::snapshot_progress().value("first_failure",std::string{});
+        if(!failure.empty()&&!runtime->live_failure_terminal){
+            runtime->live_failure_terminal=true;runtime->live_error=failure;
+            LOG_ERROR("[LiveState] Shared world ended: {}",failure);
+        }
+    }
+    if(runtime->live_failure_terminal){
+        std::string stopped;
+        if(!runtime->controller.tick(GetTickCount64(),stopped)&&stopped.empty())LOG_ERROR("[Action] Terminal session observation failed without cause");
+        return;
+    }
+    if(runtime->live_state&&!runtime->controller.status().locked) {
+        std::string cause;const auto state=runtime->controller.status();auto& fence=live_host_state::economic_fence();
+        const bool applied=!fence.locked()&&runtime->live_state->tick(state.host_revision,state.pending,cause);
+        if(!applied||fence.locked()){
+            if(cause.empty())cause=fence.cause();
+            if(cause.empty())cause="live authoritative state failed without cause";
+            runtime->live_failure_terminal=true;runtime->live_error=cause;
+            LOG_ERROR("[LiveState] Shared world failed: {}",cause);
+            const auto context=runtime->controller.bound_context();
+            if(context.role==action::Role::Host){
+                std::string notice;
+                if(!net::fail_host_world(context.snapshot_uuid,cause,notice))LOG_ERROR("[LiveState] Host failure notification not confirmed: {}; retained_failure={}",notice,cause);
+            }
+            std::string stopped;
+            if(!runtime->controller.tick(GetTickCount64(),stopped)&&stopped.empty())LOG_ERROR("[Action] Failed session observation lacks cause");
+            return;
+        }
+    }
+    if(runtime->live_state){
+        const auto& wait=runtime->live_state->publication_wait();
+        if(wait!=runtime->live_publication_wait){
+            if(!wait.empty())LOG_INFO("[LiveState] {}",wait);
+            else if(!runtime->live_publication_wait.empty())LOG_INFO("[LiveState] Native save publication wait ended");
+            runtime->live_publication_wait=wait;
+        }
+    }
     weapon_bootstrap(*runtime);
     ui_move_runtime::tick();
     ui_region_runtime::tick();
@@ -998,7 +1130,7 @@ json controller_status() {
     if(runtime->thread!=GetCurrentThreadId())return {{"initialized",false},{"error","typed action status requires bound Mainthread"}};
     const auto s=runtime->controller.status();
     // Frame guards need Controller receipts, not a diagnostic rescan of the whole economy.
-    return {{"initialized",true},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},
+    return {{"initialized",true},{"lobby_retiring",runtime->lobby_retiring},{"live_failure_terminal",runtime->live_failure_terminal},{"started",s.started},{"locked",s.locked},
         {"pending",s.pending||runtime->lobby_retiring},{"host_revision",s.host_revision},{"action_uuid",s.action_uuid},
         {"outcome",int(s.outcome)},{"cause",s.cause},{"live_error",runtime->live_error}};
 }
@@ -1013,13 +1145,17 @@ json status() {
         live_host_state::day::economy::State actual;std::vector<uint8_t> encoded;
         if(runtime->economy_state->read_current(*runtime->live_state->last(),actual,economy_read_error)&&live_host_state::day::economy::encode(actual,encoded,economy_read_error))native_economy=nlohmann::json::parse(encoded);
     }
-    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"bug_manual",bug_authority::manual_action::status()},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
+    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"bug_manual",bug_authority::manual_action::status()},{"ui_price",ui_price_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"lobby_retiring",runtime->lobby_retiring},{"live_failure_terminal",runtime->live_failure_terminal},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
         {"host_revision",s.host_revision},{"attempted",s.attempted},{"confirmed",s.confirmed},{"failed",s.failed},
         {"duplicates",s.duplicates},{"suppressed_errors",s.suppressed_errors},{"required_mask",s.required_mask},{"ack_mask",s.ack_mask},
         {"outcome",int(s.outcome)},{"action_uuid",s.action_uuid},{"cause",s.cause},{"last_packet_accepted",s.last_packet_accepted},
         {"subscriber_additions",runtime->economy_state?runtime->economy_state->addition_receipt():nlohmann::json(nullptr)},
         {"frame_transport",runtime->live_state?runtime->live_state->frame_transport_status():nlohmann::json(nullptr)},
         {"toon_time",toon_time_status(*runtime)},
+        {"vip_authority",vip_status(*runtime)},
+        {"marketing_frame",runtime->live_state?runtime->live_state->marketing_status():nlohmann::json(nullptr)},
+        {"vip_frame",runtime->live_state?runtime->live_state->vip_status():nlohmann::json(nullptr)},
+        {"vip_presentation",runtime->vip_presentation?runtime->vip_presentation->status():nlohmann::json(nullptr)},
         {"network_receipt",runtime->live_state?live_host_state::network::encode_receipt(runtime->live_state->network_receipt()):nlohmann::json::object()},
         {"network_activation_receipt",runtime->live_state?runtime->live_state->network_activation_receipt().status():nlohmann::json(nullptr)},
         {"network_frame_revision",runtime->live_state&&runtime->live_state->last()?runtime->live_state->last()->revision:0},
@@ -1027,6 +1163,8 @@ json status() {
         {"native_economy",native_economy},{"native_economy_read_error",economy_read_error},
         {"economy_receipt",runtime->economy_state?nlohmann::json{{"attempted",runtime->economy_state->receipt().attempted},{"confirmed",runtime->economy_state->receipt().confirmed},{"unknown",runtime->economy_state->receipt().unknown},{"attempted_stores",runtime->economy_state->receipt().attempted_stores},{"completed_stores",runtime->economy_state->receipt().stores},{"cause",runtime->economy_state->receipt().cause}}:nlohmann::json::object()},
         {"live_state",{{"requested",runtime->live_attempted},{"active",runtime->live_state!=nullptr},{"locked",(runtime->live_state&&runtime->live_state->locked())||live_host_state::economic_fence().locked()},
+            {"publication_wait",runtime->live_state?runtime->live_state->publication_wait():std::string{}},
+            {"publication_wait_receipt",runtime->live_state?runtime->live_state->publication_wait_status():nlohmann::json(nullptr)},
             {"day_record_sequence",runtime->day_state?runtime->day_state->sequence():0},{"day_receipt",runtime->day_state?nlohmann::json{{"attempted",runtime->day_state->day_receipt().attempted},{"confirmed",runtime->day_state->day_receipt().confirmed},{"unknown",runtime->day_state->day_receipt().unknown},{"created",runtime->day_state->day_receipt().created_records},{"appended",runtime->day_state->day_receipt().appended_records},{"pruned",runtime->day_state->day_receipt().pruned_records},{"cause",runtime->day_state->day_receipt().cause}}:nlohmann::json::object()},
             {"economic_fence_locked",live_host_state::economic_fence().locked()},{"economic_fence_cause",live_host_state::economic_fence().cause()},{"economic_retired_cause",live_host_state::economic_fence().retired_cause()},{"economic_suppressed",live_host_state::economic_fence().suppressed()},
             {"attempted",receipt.attempted},{"confirmed",receipt.confirmed},{"unknown",receipt.unknown},{"attempted_stores",receipt.attempted_stores},{"completed_stores",receipt.completed_stores},
@@ -1120,6 +1258,24 @@ bool submit_developer(bool hire,const std::string& id,std::string& error){
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Developer Hire/Fire requires started Mainthread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; Developer Hire/Fire not attempted";return false;}
     return runtime->controller.submit_developer(hire,id,GetTickCount64(),error);
+}
+bool submit_start_research(const std::string& id,const std::string& key,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Research requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Research not attempted";return false;}
+    return runtime->controller.submit_start_research(id,key,GetTickCount64(),error);
+}
+bool submit_research_workers(const std::string& id,const std::string& key,int32_t desired,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Research requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Research not attempted";return false;}
+    return runtime->controller.submit_research_workers(id,key,desired,GetTickCount64(),error);
+}
+bool submit_commit_research(const std::string& id,const std::string& key,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Research requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Research not attempted";return false;}
+    return runtime->controller.submit_commit_research(id,key,GetTickCount64(),error);
 }
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1219,13 +1375,17 @@ bool begin_lobby_leave(std::string& e){
     auto* r=published_runtime.load(std::memory_order_acquire);
     if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
         r->lobby_retiring=true;net::session_wire::suspend_actions();
-        if(r->live_state&&!r->live_state->suspend_lobby(e)){if(r->live_error.empty())r->live_error=e;return false;}
+        if(r->live_state){
+            if(!r->live_state->suspend_lobby(e)){if(r->live_error.empty())r->live_error=e;return false;}
+            if(!e.empty()){LOG_WARN("[VIPPresentation] {}",e);e.clear();}
+        }
         if(r->live_port&&!live_host_state::economic_fence().suspend_lobby(e)){if(r->live_error.empty())r->live_error=e;return false;}
     }else net::session_wire::suspend_actions();
     time_integration::Status time;
     if(time_integration::instance().status(time,e)){
         if(!time_integration::instance().suspend("native lobby Leave",e))return false;
     }else if(e!="time_integration_not_initialized")return false;
+    net::chat::Runtime::instance().set_lobby_admitted(false);
     net::invalidate_snapshot_world("native lobby Leave");e.clear();return true;
 }
 bool finish_lobby_leave(bool& ready,std::string& e){
@@ -1246,6 +1406,7 @@ bool finish_lobby_leave(bool& ready,std::string& e){
     if(!net::session_wire::retire_lobby(e))return false;
     tutorial_replication::retire("confirmed native Title after lobby Leave");
     if(!developer_staff::action_runtime::retire_lobby(e)||!bug_authority::manual_action::retire_lobby(e))return false;
+    if(r&&r->vip_presentation)r->vip_presentation->retire_lobby();
     live_host_state::day::bind_host_journal(nullptr);published_runtime.store(nullptr,std::memory_order_release);delete r;
     ready=true;e.clear();return true;
 }

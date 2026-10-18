@@ -1,3 +1,6 @@
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/hooks/framework_backend.h"
+#endif
 #include "move_kiss.h"
 #include "../object_identity/remove_runtime/owned_undo_open.h"
 #include <type_traits>
@@ -80,6 +83,15 @@ bool resolve_calls(Memory& memory,uintptr_t image,const std::string& sha,Calls& 
             for(size_t i=0;i<n;++i)if(bytes[i]!=(digit(g.hex[i*2])*16+digit(g.hex[i*2+1])))same=false;
             if(!same){
                 const auto cause="move_native_guard_mismatch="+std::to_string(g.rva);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+                if(g.rva==0x55ed80){
+                    unsigned char expected[32]{};
+                    for(size_t i=0;i<n;++i)expected[i]=static_cast<unsigned char>(digit(g.hex[i*2])*16+digit(g.hex[i*2+1]));
+                    std::string route_error;
+                    if(hooks::framework::verify_code(image+g.rva,expected,n,route_error))continue;
+                    error=cause+"; "+route_error;return false;
+                }
+#endif
                 if(g.rva!=0x539990){error=cause;return false;}
                 std::string owned_error;
                 if(!remove_runtime::read_owned_undo_open(image,checked_open,owned_error)||checked_open!=reinterpret_cast<Open>(image+g.rva)){

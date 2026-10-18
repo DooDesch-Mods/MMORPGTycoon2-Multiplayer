@@ -229,6 +229,52 @@ class StatusPublicationTests(unittest.TestCase):
         published.assert_called_once()
         self.assertFalse((self.diagnostics/'request.lock').exists())
 
+    def test_large_remove_admission_with_controller_is_accepted_once(self):
+        request_id='01234567-89ab-cdef-0123-456789abcdef'
+        self.status['capabilities']['probe_remove_ui']=True
+        atomic_json(self.diagnostics/'status.json',self.status)
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,
+                  'result':{'confirmed':True,'action_at_return':{'pending':True,'attempted':2}}}
+        payload=self.sized_json(response,606793)
+        (self.diagnostics/'response.json').write_bytes(payload)
+        with patch('runtime.uuid.uuid4',return_value=request_id),patch('runtime.atomic_json',wraps=atomic_json) as published:
+            self.assertEqual(self.runtime.request('probe_remove_ui',{}),json.loads(payload))
+        published.assert_called_once()
+        self.assertFalse((self.diagnostics/'request.lock').exists())
+
+    def test_large_pending_remove_admission_recovers_without_publication(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='probe_remove_ui'))
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,
+                  'result':{'confirmed':True,'action_at_return':{'pending':True,'attempted':2}}}
+        payload=self.sized_json(response,606793)
+        (self.diagnostics/'response.json').write_bytes(payload)
+        with patch('runtime.atomic_json') as published:
+            self.assertEqual(self.runtime.observe_pending(),{'pending':False,'response':json.loads(payload)})
+        published.assert_not_called()
+        self.assertFalse((self.diagnostics/'request.lock').exists())
+
+    def test_remove_response_above_ceiling_retains_pending_lock(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='probe_remove_ui'))
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        (self.diagnostics/'response.json').write_bytes(self.sized_json(response,MAX_STATUS_JSON+1))
+        with patch('runtime.atomic_json') as published:
+            with self.assertRaises(RuntimeErrorDetail) as caught:self.runtime.observe_pending()
+        self.assertEqual(caught.exception.code,'oversize_json')
+        published.assert_not_called()
+        self.assertTrue((self.diagnostics/'request.lock').exists())
+
+    def test_large_remove_response_for_another_request_keeps_lock(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='probe_remove_ui'))
+        response={'schema_version':1,'id':str(uuid.uuid4()),'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        (self.diagnostics/'response.json').write_bytes(self.sized_json(response,606793))
+        with patch('runtime.atomic_json') as published:
+            self.assertEqual(self.runtime.observe_pending()['pending'],True)
+        published.assert_not_called()
+        self.assertTrue((self.diagnostics/'request.lock').exists())
+
     def test_large_pending_camera_response_observes_without_replay(self):
         request_id=str(uuid.uuid4())
         atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='focus_test_camera'))

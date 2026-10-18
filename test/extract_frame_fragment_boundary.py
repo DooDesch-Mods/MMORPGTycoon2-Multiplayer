@@ -23,3 +23,10 @@ fixture=(a.root/'test/test_toon_equipment_value.cpp').read_text(encoding='utf-8'
 (a.output/'frame_fragment_fixture.inc').write_text(fixture[begin:end]+'\n',encoding='utf-8')
 
 (a.output/"frame_fragment_route.inc").write_text(route+"\n",encoding="utf-8")
+(a.output/"frame_apply_ack_send.inc").write_text(body('bool Bridge::acknowledge_frame(')+"\n",encoding="utf-8")
+take=body('bool Bridge::take(')
+assert take.index('tutorial_replication::apply(')<take.index('acknowledge_frame(frame,e)')<take.index('developer_completed=true;')
+assert 'apply_acks_.ready(' not in body('bool Bridge::capture_before(')
+assert 'apply_acks_.ready(' not in body('bool Bridge::publish_before(')
+for method in ['suspend_snapshot','suspend_lobby','rebind_snapshot']:assert 'apply_acks_.clear()' in body('bool Bridge::'+method+'(')
+

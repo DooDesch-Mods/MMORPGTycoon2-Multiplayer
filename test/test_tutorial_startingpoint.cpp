@@ -1,5 +1,22 @@
 #include "vendor/nlohmann/json.hpp"
 #include "native_open_runtime.h"
+#include "tutorial_development.h"
+namespace tutorial_development=mt2mp::game::tutorial_development;
+namespace {
+tutorial_development::StartingpointSnapshot fixture_research;
+bool fixture_read_failure=false;
+unsigned fixture_reads=0;
+}
+namespace mt2mp::game::tutorial_development {
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,
+                   std::string& error,bool creation,bool share_metadata){
+    ++fixture_reads;out={};diagnostic=nullptr;
+    if(fixture_read_failure){error="original Research read failure";return false;}
+    if(key!="bridges"||!creation||share_metadata){error="Research reader contract differs";return false;}
+    out=fixture_research;diagnostic=nlohmann::json::object();error.clear();return true;
+}
+}
+
 #include "tutorial_startingpoint_fixture/controller_admission.h"
 #include "tutorial_startingpoint_fixture/begin_guards.h"
 #include <algorithm>
@@ -36,10 +53,62 @@ int main(){
         changed=idle;changed["live_state"]["cause"]="original live failure";check(!controller_admission(changed,admission_error)&&admission_error.find("original live failure")!=std::string::npos,"live failure admitted or hidden");
         changed=idle;changed["error"]="read failed";check(!controller_admission(changed,admission_error)&&admission_error.find("read failed")!=std::string::npos,"Controller read cause discarded");
         changed=idle;changed.erase("pending");check(!controller_admission(changed,admission_error),"missing Controller field admitted");
+        using mt2mp::game::tutorial_startingpoint_fixture::same_expected_development;
+        auto prior_scan=native_baseline,current_scan=native_baseline;
+        prior_scan["startingpoint_release"]["mutation_counter"]=440;
+        current_scan["startingpoint_release"]["mutation_counter"]=560;
+        check(same_expected_development(current_scan,prior_scan),"later native scan rejected expected development");
+        check(current_scan!=prior_scan&&prior_scan["startingpoint_release"]["mutation_counter"]==440,
+              "observation comparison rewrote original diagnostics");
+        for(const char* path:{"/project/work","/project/lines","/project/bugs_total","/project/desired_workers",
+                             "/startingpoint/inventory_count","/startingpoint_release/change_count","/startingpoint_release/feature_count"}){
+            auto semantic=current_scan;semantic[json::json_pointer(path)]=999;
+            check(!same_expected_development(semantic,prior_scan),"meaningful development change ignored");
+        }
+        auto semantic=current_scan;semantic["startingpoint_release"]["feature_present"]=true;
+        check(!same_expected_development(semantic,prior_scan),"native Release feature change ignored");
+        semantic=current_scan;semantic["startingpoint"]["deployed"]=true;
+        check(!same_expected_development(semantic,prior_scan),"native deployment change ignored");
+        for(const auto& bad:std::vector<json>{nullptr,-1,4294967296ULL,1.5,"560"}){
+            semantic=current_scan;semantic["startingpoint_release"]["mutation_counter"]=bad;
+            check(!same_expected_development(semantic,prior_scan),"invalid observed scan stamp accepted");
+        }
+        semantic=current_scan;semantic["startingpoint_release"].erase("mutation_counter");
+        check(!same_expected_development(semantic,prior_scan),"missing observed scan stamp accepted");
         Pin baseline;baseline.development=native_baseline;baseline.project=1;
         baseline.player=10;baseline.inventory=20;baseline.slots=30;baseline.items[0]=40;
         std::string error;
         check(before(baseline,error),"retained native zero-bug baseline rejected");
+        Pin bridges;bridges.tech_key="bridges";bridges.project=44;
+        fixture_research={};fixture_research.origin=bridges.world;fixture_research.project=bridges.project;
+        fixture_research.row=mt2mp::game::tutorial_replication::startingpoint::Row{};
+        fixture_research.row->project_present=fixture_research.row->purchased=true;
+        fixture_research.row->bugs_total=5;fixture_research.row->bugs_known=3;
+        const auto research_baseline=fixture_research;
+        check(before(bridges,error)&&fixture_reads==1,"actual Bridges guard rejected owned purchased project or reader contract");
+        for(unsigned field=0;field<10;++field){
+            fixture_research=research_baseline;
+            if(field==0)++fixture_research.origin.generation;
+            if(field==1)++fixture_research.project;
+            if(field==2)fixture_research.row.reset();
+            if(field==3)fixture_research.row->project_present=false;
+            if(field==4)fixture_research.row->purchased=false;
+            if(field==5)fixture_research.row->deployed=true;
+            if(field==6)fixture_research.row->custom=true;
+            if(field==7)fixture_research.row->inventory_count=1;
+            if(field==8)fixture_research.row->release_feature_count=1;
+            if(field==9)fixture_research.origin.uuid="other";
+            check(!before(bridges,error)&&error=="Bridges Commit requires exact purchased current unowned project",
+                  "actual Bridges guard accepted changed owner/project/record");
+        }
+        fixture_research=research_baseline;bridges.items.fill(1);
+        check(!before(bridges,error)&&error=="Bridges Commit inventory full","actual Bridges guard accepted full inventory");
+        bridges.items[199]=0;
+        check(before(bridges,error),"actual Bridges guard rejected final free slot");
+        fixture_read_failure=true;
+        check(!before(bridges,error)&&error=="original Research read failure","actual Bridges guard hid native reader failure");
+        fixture_read_failure=false;
+
         for(const auto* counter:{"bugs_total","bugs_known","bugs_unknown"}){
             auto altered=baseline;altered.development["project"][counter]=1;error.clear();
             check(!before(altered,error)&&error.find("bug counters0")!=std::string::npos,"nonzero Map effect admitted");

@@ -122,7 +122,8 @@ bool state_owners_impl(const action::Context& context,const action::Binding& bin
             region=regions.emplace(op.request.npc.region,Region{pointer,std::move(census)}).first;
         }
         uintptr_t registered=0;
-        const auto seh=lookup(api.find,op.local_uid,registered);
+        uint32_t seh=0;
+        seh=lookup(api.find,op.local_uid,registered);
         if(seh||registered!=op.local_pointer)
             return fail(cause,"NPC Hoststate Place UID lookup differs SEH="+std::to_string(seh));
         const auto& census=region->second.second;
@@ -144,7 +145,7 @@ bool state_owners_impl(const action::Context& context,const action::Binding& bin
     std::vector<StateOwner> owners;
     if(!host_binding::collect(state.operations,binding,context.snapshot_uuid,fresh,owners,error))return false;
     std::vector<npc_saved_identity_runtime::Current> saved;
-    if(!npc_saved_identity_runtime::read_current(saved,error))return false;
+    if(!npc_saved_identity_runtime::read_current(saved,error,true))return false;
     for(const auto& item:saved){
         if(std::any_of(owners.begin(),owners.end(),[&](const auto& owner){return owner.key==item.key||owner.npc==item.row.local_pointer;}))
             return fail(error,"NPC Hoststate saved/action identity overlaps");
@@ -240,6 +241,11 @@ bool local_key(uintptr_t object,uint64_t uid,std::string& key,std::string& error
 }
 bool state_owners(const action::Context& context,const action::Binding& binding,
                   std::vector<StateOwner>& output,std::string& error) {
+    live_host_state::apply_timing::PageReadScope pages;
+    if(live_host_state::apply_timing::quest_store_depth){
+        live_host_state::apply_timing::Scope quest_measured(live_host_state::apply_timing::Part::QuestCanonicalOwners);
+        return state_owners_impl(context,binding,output,error);
+    }
     return state_owners_impl(context,binding,output,error);
 }
 bool resolve_state_link(const std::vector<StateOwner>& owners,const std::string& key,

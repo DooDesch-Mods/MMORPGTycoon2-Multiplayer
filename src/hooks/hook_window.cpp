@@ -119,9 +119,27 @@ void set_game_window_ptr(SDL_Window* w) {
         if(cfg.local_test) {
             const std::string title="MMORPG Tycoon 2 ["+(cfg.is_host?std::string("Host"):"Client "+std::to_string(cfg.peer_id-1))+"]";
             LOG_INFO("Local test existing window setup attempted");
-            if(!orig_setWindowFullscreen(w,false)) LOG_ERROR("Local test existing window fullscreen setup failed: {}",SDL_GetError());
-            if(!orig_setWindowSize(w,1280,720)) LOG_ERROR("Local test existing window size setup failed: {}",SDL_GetError());
-            if(!orig_setWindowTitle(w,title.c_str())) LOG_ERROR("Local test existing window title setup failed: {}",SDL_GetError());
+            if(!
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+SDL_SetWindowFullscreen(w,
+#else
+orig_setWindowFullscreen(w,
+#endif
+false)) LOG_ERROR("Local test existing window fullscreen setup failed: {}",SDL_GetError());
+            if(!
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+SDL_SetWindowSize(w,
+#else
+orig_setWindowSize(w,
+#endif
+1280,720)) LOG_ERROR("Local test existing window size setup failed: {}",SDL_GetError());
+            if(!
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+SDL_SetWindowTitle(w,
+#else
+orig_setWindowTitle(w,
+#endif
+title.c_str())) LOG_ERROR("Local test existing window title setup failed: {}",SDL_GetError());
             int width=0,height=0;
             if(!SDL_GetWindowSizeInPixels(w,&width,&height)) LOG_ERROR("Local test existing window size readback failed: {}",SDL_GetError());
             else LOG_INFO("Local test existing window readback dimensions={}x{} fullscreen={}",width,height,bool(SDL_GetWindowFlags(w)&SDL_WINDOW_FULLSCREEN));

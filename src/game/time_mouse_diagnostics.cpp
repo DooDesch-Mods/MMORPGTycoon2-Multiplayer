@@ -67,8 +67,14 @@ public:
         if(GetCurrentThreadId()!=game_thread)return fail(e,"time_mouse_wrong_game_thread");
         native_time_input::Context context;
         if(!io.context(context,e))return false;
-        if(!context.owned_test||!context.world_owned||!context.time_active||!context.overlay_hidden||!context.no_pending_operation||
-            !pending||context.epoch!=pending->session_epoch||context.revision!=q.revision)return fail(e,"time_mouse_current_owned_authority_not_ready");
+        if(!context.owned_test)return fail(e,"time_mouse_runtime_not_owned");
+        if(!context.world_owned)return fail(e,"time_mouse_world_not_owned");
+        if(!context.time_active)return fail(e,"time_mouse_authority_not_active");
+        if(!context.overlay_hidden)return fail(e,"time_mouse_overlay_visible");
+        if(!context.no_pending_operation)return fail(e,"time_mouse_other_operation_pending");
+        if(!pending)return fail(e,"time_mouse_pending_job_missing");
+        if(context.epoch!=pending->session_epoch)return fail(e,"time_mouse_session_epoch_changed measured="+std::to_string(context.epoch)+" required="+std::to_string(pending->session_epoch));
+        if(context.revision!=q.revision)return fail(e,"time_mouse_revision_changed measured="+std::to_string(context.revision)+" required="+std::to_string(q.revision));
         building_mixed_identity::opened_file::CurrentWorld world;
         if(!native_open_runtime::read_current_world(world,e))return false;
         if(world.generation!=q.generation||world.world_epoch!=q.epoch||world.uuid!=q.snapshot_uuid)

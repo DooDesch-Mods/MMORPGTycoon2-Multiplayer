@@ -5,9 +5,9 @@ bool same_research_native(const Pin& a,const Pin& b,const tutorial_development::
         x.row==y.row&&x.tech==y.tech&&x.record==y.record&&x.project==y.project;
 }
 bool client_research(const Request& request,json& result,Progress*& phase,std::string& key,std::string& e){
-    const bool is_show=request.operation=="client_research_show";
-    Pin p;if(!pin(request,p,e,true)||!before_begin(p.development,p.project,e))return false;
-    if(p.development!=request.expected_development)return fail(e,"startingpoint Client Research expected development differs");
+    const bool is_show=request.operation=="client_research_show"||request.operation=="client_bridges_show";
+    Pin p;if(!pin(request,p,e,true)||!before_research(p,e))return false;
+    if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint Client Research expected development differs");
     tutorial_development::StartingpointSnapshot snapshot;json diagnostic;
     if(!begin_snapshot(p,snapshot,diagnostic,e)||diagnostic!=p.development||snapshot.project)
         return fail(e,e.empty()?"startingpoint Client Research private baseline differs":e);
@@ -21,7 +21,7 @@ bool client_research(const Request& request,json& result,Progress*& phase,std::s
     native::SimulationState simulation_before,simulation_after;
     if(!economy.read(ledger_before,e)||!native::read_simulation_state(simulation_before,e))return false;
     json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
-    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_research";
+    key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_research:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
     if((is_show&&phase->shown)||(!is_show&&phase->begun))return fail(e,"startingpoint Client Research phase consumed; no replay");
     ResearchUI ui;
@@ -100,8 +100,8 @@ bool client_research(const Request& request,json& result,Progress*& phase,std::s
 
 bool client_research_state(const Request& request,json& result,std::string& e){
     Pin p;tutorial_development::StartingpointSnapshot snapshot;json diagnostic,ui;ResearchUI owners;
-    if(!pin(request,p,e,true)||!before_begin(p.development,p.project,e)||!begin_snapshot(p,snapshot,diagnostic,e))return false;
-    if(p.development!=request.expected_development||diagnostic!=p.development)return fail(e,"startingpoint Research state expected development differs");
+    if(!pin(request,p,e,true)||!before_research(p,e)||!begin_snapshot(p,snapshot,diagnostic,e))return false;
+    if(!same_expected_development(p.development,request.expected_development)||diagnostic!=p.development)return fail(e,"startingpoint Research state expected development differs");
     action_session::Context context,current;if(!action_session::selected_session().current(context,e))return false;
     if(!research_measure(p,snapshot,owners,ui,e)){result["ui"]=ui;return false;}
     Pin after;tutorial_development::StartingpointSnapshot after_snapshot;json after_diagnostic,after_ui;ResearchUI after_owners;
@@ -111,7 +111,7 @@ bool client_research_state(const Request& request,json& result,std::string& e){
     if(!action_session::selected_session().current(current,e)||current!=context)return fail(e,e.empty()?"startingpoint Research state common Context changed":e);
     result={{"operation",request.operation},{"token",request.token},{"attempted",false},{"returned",true},{"confirmed",true},{"unknown",false},
         {"read_only",true},{"ready",ui.at("ready")},{"cause",ui.at("cause")},{"ui",ui}};
-    const auto key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_research";
+    const auto key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_research:"+p.tech_key;
     const auto prior=worlds.find(key);result["phase_locked"]=prior!=worlds.end()&&prior->second.locked;
     if(prior!=worlds.end()&&prior->second.locked)result["phase_cause"]=prior->second.cause;
     return true;

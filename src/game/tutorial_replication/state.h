@@ -1,6 +1,7 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
 #include "startingpoint.h"
+#include "research.h"
 #include "staff_display.h"
 #include <cstdint>
 #include <string>
@@ -27,6 +28,7 @@ struct State {
     std::vector<Cursor> active;
     bool initial_complete=false,leveltwo_complete=false;
     std::optional<startingpoint::Row> startingpoint;
+    std::optional<research::Row> research;
     std::optional<staff_display::State> staff_display;
     // Terminal cursors survive the native ScenarioLog's immediate destruction.
     std::vector<Cursor> terminal;

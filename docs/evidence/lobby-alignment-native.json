@@ -1,0 +1,88 @@
+{
+  "passed": true,
+  "scope": "Native visual alignment to the approved lobby concept",
+  "runtime_run_id": "af8250af-b680-403d-bb97-f0704f49a27b",
+  "acceptance_id": "df8048b5-e12a-4849-b88b-a8d9ba6fcf89",
+  "plugin_sha256": "8f34d71aeb45f6c907d034b5987d6051884253106786acace242f8da9d49aa99",
+  "framework_sha256": "23da8b7e4fbe6b236a418262b99944b1c43d512c0171450ba0f3a85e163f3a7d",
+  "content_dimensions": [
+    820,
+    466
+  ],
+  "original_titlebar_height": 30,
+  "changes": [
+    "Correct the content/chrome metric",
+    "Align headings, artwork and roster names",
+    "Vertically center native button captions",
+    "Use native dark editable fields"
+  ],
+  "checks": [
+    "Affected lobby_layout CTest passed",
+    "Framework and Multiplayer builds passed",
+    "Owner inspected all captured affected views against the approved reference"
+  ],
+  "frames": [
+    {
+      "view": "aligned-entry-host",
+      "peer": "host",
+      "image": "_drafts/media/aligned-entry-host.bmp",
+      "file_sha256": "47c1976f8db6a7f55066f156561232667d5d8b047dedb795975f870cdd00c7d7",
+      "pixel_sha256": "92890edc6fcec23a4300943ce79430e5335dbf3a48c08b8b8191f479c3fb31a5"
+    },
+    {
+      "view": "aligned-report-client",
+      "peer": "client-1",
+      "image": "_drafts/media/aligned-report-client.bmp",
+      "file_sha256": "d2d6ec21ca54c963cb8c817957dec3bb1a33bdbe902cb47fd412d6f4410e3aee",
+      "pixel_sha256": "8ffc361fc1dcccf2817f534dbd38b8ffc8b9a8c1c3293ff5921e9bda003f9827"
+    },
+    {
+      "view": "aligned-public-browser-client",
+      "peer": "client-1",
+      "image": "_drafts/media/aligned-public-browser-client.bmp",
+      "file_sha256": "da6fd82a76b298cbe1d68c28159aaf11cb38a3839ae54776a049f1cbe3f22f74",
+      "pixel_sha256": "5bbf177b6033d9e3f1fe4240b4c47f7bbd7e035bb40c04177ca97738aace4aba"
+    },
+    {
+      "view": "aligned-world-picker-host",
+      "peer": "host",
+      "image": "_drafts/media/aligned-world-picker-host.bmp",
+      "file_sha256": "b71705d93801f66fdce0423511a8ad0f4a268e3780e4a35205cb35b0f7a387c2",
+      "pixel_sha256": "c206ebb42f038e8cd7c6c02f1b34d3d7782b10c6bca15e2c80bbc47eac045195"
+    },
+    {
+      "view": "aligned-creating-client",
+      "peer": "client-1",
+      "image": "_drafts/media/aligned-creating-client.bmp",
+      "file_sha256": "3812f946b34ae6af02bc8d79e7a802f72d95292685327c5cdcf6e702803eda55",
+      "pixel_sha256": "9b45cbc9f610edf3b38380a757ad1a23ef4f62b43b840c635475fd586f456f5d"
+    },
+    {
+      "view": "aligned-loading-client",
+      "peer": "client-1",
+      "image": "_drafts/media/aligned-loading-client.bmp",
+      "file_sha256": "8127fe16cabb90e5e36a04de1fda3f207a044717174fb8c72492a55b7802b2b4",
+      "pixel_sha256": "047f6d925ce653b264a357e1c0aa48265f81f33386f92fa1338f86f217f60d5f"
+    },
+    {
+      "view": "aligned-playing-host",
+      "peer": "host",
+      "image": "_drafts/media/aligned-playing-host.bmp",
+      "file_sha256": "6f7ced642e03eef5192a0a4ab22e2abb3d9ff08027e5c251328712adb13f5876",
+      "pixel_sha256": "0524a109d36772547fcb70dfdad54ed439de540a6b53131401497ebb7bf0569d"
+    },
+    {
+      "view": "aligned-playing-client-1",
+      "peer": "client-1",
+      "image": "_drafts/media/aligned-playing-client-1.bmp",
+      "file_sha256": "2562f743147c96932c8cc8e19a443ee2c29a257d8814ff80f06a993770f6a2f4",
+      "pixel_sha256": "3e053fc4268bc6b88b3304141bf3924612c4ddc5d304b206d803aeafae9b5120"
+    }
+  ],
+  "limits": [
+    "No populated online browser or remote account acceptance",
+    "Long online persona names and large-world transfer remain outside this visual check",
+    "Client shared world title can still use the generic fallback",
+    "Gameplay and publication acceptance are separate"
+  ]
+}

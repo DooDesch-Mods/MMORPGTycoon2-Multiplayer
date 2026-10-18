@@ -9,7 +9,8 @@ namespace mt2mp::game::npc_saved_identity_runtime {
 // their retained addresses. The active snapshot and completed world are checked.
 using Current = npc_saved_identity::Current;
 bool current_snapshot_sha(std::string& out, std::string& error);
-bool read_current(std::vector<Current>&, std::string& error);
+// Only the enclosing pure NPC owner reader opts into its metadata lifetime.
+bool read_current(std::vector<Current>&, std::string& error, bool share_metadata=false);
 bool resolve(const std::string& key, Current&, std::string& error);
 bool bind_local(uintptr_t object, uint64_t uid, std::string& key, std::string& error);
 

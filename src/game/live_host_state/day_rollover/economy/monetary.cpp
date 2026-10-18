@@ -135,17 +135,27 @@ static Receipt apply_existing_body(Port& port,const Owners& expected,const State
             ++receipt.stores;
         }
         }
+        {apply_timing::Scope measured(apply_timing::Part::QuestStores);
+        if(!port.begin_quest_stores(expected,receipt.cause)){stop("actual Toon Quest phase admission Unknown");return receipt;}
+        struct QuestScope {Port& port;~QuestScope(){port.end_quest_stores();}} quest_scope{port};
+        const auto quest_rows=[&](std::string& error){
         for(size_t i=0;i<before.subscribers.size();++i){
             const auto& old=before.subscribers[i].quest_state;const auto& after=target.subscribers[i].quest_state;
             if(old==after)continue;receipt.attempted=true;++receipt.attempted_stores;
-            if(!port.store_quest_state(expected,i,old,after,receipt.cause)){stop("actual Toon Quest state Unknown");return receipt;}
+            if(!port.store_quest_state(expected,i,old,after,error))return false;
             ++receipt.stores;
         }
+        return true;
+        };
+        if(!port.with_quest_stores(expected,target,quest_rows,receipt.cause)){stop("actual Toon Quest state Unknown");return receipt;}
+        }
+        {apply_timing::Scope measured(apply_timing::Part::NpcStores);
         for(size_t i=0;i<before.npcs.size();++i){
             const auto& old=before.npcs[i];const auto& after=target.npcs[i];
             if(same_npc_non_pose(old,after))continue;receipt.attempted=true;++receipt.attempted_stores;
             if(!port.store_npc_state(expected,i,old,after,receipt.cause)){stop("actual NPC state Unknown");return receipt;}
             ++receipt.stores;
+        }
         }
         // Native SaveScopes can flush actor movement. Set authoritative poses
         // after those scopes, using the freshly observed local pose as CAS before.

@@ -2,7 +2,7 @@
 #include "../placement_ui_probe/ui_probe.h"
 #include "mt2mp/core/hash.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -59,7 +59,10 @@ public:
         return exchanged||fail(error,"Toon time prior culling cache changed before CAS");
     }
     bool original(uintptr_t toon,float dt,std::string& error){
-        const auto exception=update_call(toon,dt);
+        live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::ToonOriginal);
+        uint32_t exception=0;
+        {live_host_state::apply_timing::PageReadScope boundary(live_host_state::apply_timing::PageBoundary::OriginalCall);
+            exception=update_call(toon,dt);}
         return !exception||fail(error,"Toon original zero-time entry exception="+std::to_string(exception));
     }
 };
@@ -77,7 +80,8 @@ void update(uintptr_t toon,float dt){
         if(callbacks.publish)callbacks.publish(toon,receipt);return;
     }
     entered=true;struct Exit{~Exit(){entered=false;}} exit;
-    normalize(calls,toon,dt,receipt);
+    {live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::ToonNormalize);
+        normalize(calls,toon,dt,receipt);}
     if(receipt.forward){original_update(toon,dt);return;}
     if(callbacks.publish)callbacks.publish(toon,receipt);
 }

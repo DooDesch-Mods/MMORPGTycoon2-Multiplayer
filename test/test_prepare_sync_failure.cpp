@@ -52,7 +52,7 @@ namespace typed_action_runtime {
 struct ControllerStatus{bool started=true,locked=false,pending=false;uint64_t host_revision=1;
 std::string action_uuid,cause;int outcome=0;};
 struct Controller{ControllerStatus value;ControllerStatus status(){++fixture::controller_reads;return value;}};
-struct Runtime{uint32_t thread=7;bool lobby_retiring=false;Controller controller;std::string live_error;};
+struct Runtime{uint32_t thread=7;bool lobby_retiring=false,live_failure_terminal=false;Controller controller;std::string live_error;};
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "sync_failure_controller.inc"
 json status(){++fixture::full_reads;throw std::runtime_error("unexpected full diagnostic economy scan");}

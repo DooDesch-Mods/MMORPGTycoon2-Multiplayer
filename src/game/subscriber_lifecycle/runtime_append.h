@@ -4,6 +4,8 @@
 #include "native_calls.h"
 #include "typed_action/action_session.h"
 #include <filesystem>
+#include <functional>
+#include "save_scope.h"
 namespace mt2mp::game::subscriber_lifecycle_append {
 bool initialize(uintptr_t image,std::string&);
 void* lookup_entrypoint();
@@ -61,6 +63,25 @@ bool ensure_progress(const ProgressRequest&,const std::string& actual_client_ori
 bool retire_progress(const ProgressRequest&,uintptr_t current_progress,
                      const std::string& actual_client_origin,const FrameBinding&,
                      ProgressReceipt&,std::string&);
+
+// A held helper reports its body result. Final confirmation belongs to the batch
+// after original leave and the closed Client owner proof.
+struct QuestEditBatch;
+bool quest_edits_held(const QuestEditBatch&)noexcept;
+bool verify_quest_edits_held(QuestEditBatch&,std::string&);
+bool with_quest_edit_row(QuestEditBatch&,
+    const std::function<bool(QuestEditBatch&,std::string&)>&,
+    const std::function<bool(std::string&)>&,std::string&);
+bool with_quest_edits(const std::string& actual_client_origin,const FrameBinding&,
+    const std::function<bool(QuestEditBatch&,std::string&)>& body,
+    const std::function<bool(std::string&)>& exit_guard,
+    mt2mp::subscriber_lifecycle::SaveScopeReceipt&,std::string&);
+bool bind_quest_instance(QuestEditBatch&,const QuestLinkRequest&,const std::string&,
+                         const FrameBinding&,QuestLinkReceipt&,std::string&);
+bool ensure_progress(QuestEditBatch&,const ProgressRequest&,const std::string&,
+                     const FrameBinding&,ProgressReceipt&,std::string&);
+bool retire_progress(QuestEditBatch&,const ProgressRequest&,uintptr_t,const std::string&,
+                     const FrameBinding&,ProgressReceipt&,std::string&);
 
 bool apply_frame(const nlohmann::json&,const std::string& actual_client_origin,const FrameBinding&,nlohmann::json& receipt,std::string&);
 bool apply_graph(const nlohmann::json&,const std::string& actual_client_origin,nlohmann::json& receipt,std::string&);

@@ -25,9 +25,12 @@ STATUS_PUBLICATION_WAIT_SECONDS = 0.25
 STATUS_PUBLICATION_POLL_SECONDS = 0.01
 OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot", "capture_frame", "set_time_scale", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "probe_building_placement", "place_test_building", "purchase_test_region", "focus_test_camera", "read_subscriber_needs"}
 OPS.add("append_subscriber_record_probe")
+OPS.add("insert_marketing_record_probe")
 OPS.add("read_subscriber_weapon")
+OPS.add("read_vip_alert_owners")
 MUTATIONS = {"set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
+MUTATIONS.add("insert_marketing_record_probe")
 OPS.add("tutorial_welcome_ok")
 OPS.add("tutorial_leveltwo_message_ok")
 OPS.add("tutorial_finish_ok")
@@ -129,6 +132,65 @@ class RuntimeErrorDetail(Exception):
         self.code = code
         self.native_response = native_response
         super().__init__(message)
+
+
+FRAMEWORK_PLUGIN_KIND = "framework-plugin"
+FRAMEWORK_MODULE_NAMES = ("MT2.exe", "steam_api64.dll", "WSOCK32.dll", "MT2Framework.dll", "MT2MultiplayerPlugin.dll")
+
+
+def manifest_runtime_kind(manifest: dict) -> str:
+    """Select one explicit format; plugin-shaped manifests never downgrade."""
+    schema = manifest.get("schema_version")
+    if type(schema) is not int:
+        raise RuntimeErrorDetail("invalid_manifest", "Manifest schema_version must be integer 1 or 2")
+    if schema == 1:
+        if "runtime_kind" in manifest or "framework_profile" in manifest:
+            raise RuntimeErrorDetail("invalid_manifest", "Framework runtime fields require schema 2")
+        return "standalone"
+    if schema == 2 and manifest.get("runtime_kind") == FRAMEWORK_PLUGIN_KIND:
+        return FRAMEWORK_PLUGIN_KIND
+    raise RuntimeErrorDetail("invalid_manifest", "Unknown manifest schema/runtime_kind binding")
+
+
+def selected_multiplayer_module(manifest: dict) -> str:
+    return "MT2MultiplayerPlugin.dll" if manifest_runtime_kind(manifest) == FRAMEWORK_PLUGIN_KIND else "MT2_Multiplayer.dll"
+
+
+def framework_module_paths(manifest: dict) -> dict[str, Path]:
+    if manifest_runtime_kind(manifest) != FRAMEWORK_PLUGIN_KIND:
+        raise RuntimeErrorDetail("invalid_manifest", "Framework module paths require explicit schema-2 plugin binding")
+    root = Path(manifest["runtime_root"])
+    return {name: root / "game" / name if name != "MT2MultiplayerPlugin.dll" else
+            root / "profile" / "mods" / "doodesch.multiplayer" / name for name in FRAMEWORK_MODULE_NAMES}
+
+
+def runtime_diagnostic_directory(manifest: dict) -> Path:
+    root = Path(manifest["runtime_root"])
+    return root / "profile" / "diagnostics" / "multiplayer" if manifest_runtime_kind(manifest) == FRAMEWORK_PLUGIN_KIND else root / "diagnostics"
+
+
+def candidate_binary_receipt(manifest: dict, candidate_binary: Path | None) -> dict:
+    """Hash the explicitly selected artifact, never guess a Framework build."""
+    filename = selected_multiplayer_module(manifest)
+    if candidate_binary is None:
+        raise RuntimeErrorDetail("candidate_required", f"Explicit candidate binary is required for {filename}")
+    candidate = Path(candidate_binary).resolve()
+    if candidate.name != filename:
+        raise RuntimeErrorDetail("candidate_mismatch", f"Selected runtime requires exact candidate filename {filename}")
+    hashes = manifest.get("installed_binary_sha256")
+    if not isinstance(hashes, dict) or not isinstance(hashes.get(filename), str):
+        raise RuntimeErrorDetail("invalid_manifest", f"Manifest lacks installed hash for selected {filename}")
+    digest = hashlib.sha256()
+    try:
+        with candidate.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""):
+                digest.update(block)
+    except OSError as exc:
+        raise RuntimeErrorDetail("candidate_read_failed", f"Read selected candidate {candidate}: {exc}") from exc
+    if digest.hexdigest() != hashes[filename]:
+        raise RuntimeErrorDetail("candidate_mismatch", f"Selected candidate {filename} differs from installed manifest hash")
+    return {"runtime_kind": manifest_runtime_kind(manifest), "module": filename,
+            "candidate_path": str(candidate), "sha256": digest.hexdigest()}
 
 
 def shared_open(path: Path) -> io.BufferedReader:
@@ -295,7 +357,7 @@ def windows_process(pid: int) -> dict | None:
         kernel.CloseHandle(handle)
 
 
-def windows_modules(pid: int) -> list[str]:
+def windows_modules(pid: int, *, details: bool = False) -> list:
     """Read module paths for only the exact owned PID selected by Runtime."""
     if os.name != "nt":
         raise RuntimeErrorDetail("unsupported_platform", "Installed module proof requires Windows")
@@ -328,7 +390,8 @@ def windows_modules(pid: int) -> list[str]:
         while True:
             if len(paths) >= 4096 or not item.szExePath or len(item.szExePath) >= 259:
                 raise RuntimeErrorDetail("module_query_failed", "Module list/path bound exceeded")
-            paths.append(str(Path(item.szExePath).resolve()))
+            path = str(Path(item.szExePath).resolve())
+            paths.append({"path": path, "base": item.modBaseAddr, "size": item.modBaseSize} if details else path)
             if not kernel.Module32NextW(snapshot, ctypes.byref(item)):
                 error = ctypes.get_last_error()
                 if error != 18:
@@ -372,11 +435,85 @@ class Runtime:
         return actual
 
     def _manifest(self, path: Path) -> dict:
+        requested_path = path.absolute()
         path = self._within(path, self.instances_root)
         if path.name != "instance.json":
             raise RuntimeErrorDetail("invalid_manifest", "Manifest filename must be instance.json")
         value = read_json(path)
+        if manifest_runtime_kind(value) == FRAMEWORK_PLUGIN_KIND:
+            self._no_framework_alias(requested_path)
         return self._manifest_value(value, expected_root=path.parent)
+
+    @staticmethod
+    def _no_framework_alias(path: Path) -> None:
+        for ancestor in (path, *path.parents):
+            if ancestor.is_symlink() or (hasattr(ancestor, "is_junction") and ancestor.is_junction()):
+                raise RuntimeErrorDetail("path_escape", f"Framework path contains a reparse alias: {path}")
+
+    def _framework_manifest(self, value: dict, expected_root: Path | None, verify_files: bool = True) -> dict:
+        if value["owner"] != {"kind": "MPTest", "run_id": value["run_id"]}:
+            raise RuntimeErrorDetail("ownership_failed", "Framework manifest owner must identify this MPTest run")
+        if value.get("profile") is not None:
+            raise RuntimeErrorDetail("invalid_manifest", "Framework binding cannot select a legacy profile")
+        raw_root = Path(value["runtime_root"])
+        root = self._within(raw_root, self.instances_root)
+        self._no_framework_alias(raw_root)
+        if raw_root.absolute() != root or (expected_root is not None and root != expected_root):
+            raise RuntimeErrorDetail("path_escape", "Framework instance manifest must use its exact unaliased runtime root")
+        profile = root / "profile"
+        actual = value.get("framework_profile")
+        if not isinstance(actual, str) or not Path(actual).is_absolute():
+            raise RuntimeErrorDetail("invalid_manifest", "framework_profile must be an absolute path")
+        for supplied, expected in ((Path(actual), profile), (Path(value["executable_path"]), root / "game" / "MT2.exe")):
+            self._no_framework_alias(supplied)
+            if supplied.absolute() != expected or supplied.resolve() != expected:
+                raise RuntimeErrorDetail("path_escape", f"Framework path differs from exact owned layout: {supplied}")
+        hashes = value.get("installed_binary_sha256")
+        if not isinstance(hashes, dict) or set(hashes) != set(FRAMEWORK_MODULE_NAMES):
+            raise RuntimeErrorDetail("invalid_manifest", "Framework manifest requires the exact five-module hash receipt")
+        for name, target in framework_module_paths(value).items():
+            self._no_framework_alias(target)
+            if target.resolve() != target:
+                raise RuntimeErrorDetail("path_escape", f"Framework module path contains an alias: {name}")
+            digest = hashes[name]
+            if not isinstance(digest, str) or len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                raise RuntimeErrorDetail("invalid_manifest", f"Framework module hash is invalid: {name}")
+            if verify_files:
+                observed = hashlib.sha256()
+                try:
+                    with target.open("rb") as stream:
+                        for block in iter(lambda: stream.read(1024 * 1024), b""):
+                            observed.update(block)
+                except OSError as exc:
+                    raise RuntimeErrorDetail("module_read_failed", f"Read Framework module {name}: {exc}") from exc
+                if observed.hexdigest() != digest:
+                    raise RuntimeErrorDetail("module_changed", f"Framework module hash differs: {name}")
+        mailbox = runtime_diagnostic_directory(value)
+        self._no_framework_alias(mailbox)
+        if mailbox.resolve() != mailbox:
+            raise RuntimeErrorDetail("path_escape", "Framework Multiplayer mailbox contains an alias")
+        value["runtime_root"] = str(root)
+        value["executable_path"] = str(root / "game" / "MT2.exe")
+        value["framework_profile"] = str(profile)
+        return value
+
+    def _diagnostics_for(self, manifest: dict) -> Path:
+        path = runtime_diagnostic_directory(manifest)
+        if manifest_runtime_kind(manifest) == FRAMEWORK_PLUGIN_KIND:
+            self._no_framework_alias(path)
+        return self._within(path, Path(manifest["runtime_root"]))
+
+    @staticmethod
+    def _check_lock_mode(record: dict, manifest: dict, code: str) -> None:
+        kind = manifest_runtime_kind(manifest)
+        if kind == FRAMEWORK_PLUGIN_KIND:
+            required = {"runtime_kind": FRAMEWORK_PLUGIN_KIND, "framework_profile": manifest["framework_profile"],
+                        "runtime_root": manifest["runtime_root"], "executable_path": manifest["executable_path"]}
+            if record.get("schema_version") != 1 or any(record.get(key) != value for key, value in required.items()) or record.get("owner") != {"kind": "MPTest", "run_id": record.get("run_id")}:
+                raise RuntimeErrorDetail(code, "Mailbox lock does not match the exact Framework plugin layout; retained")
+        elif "runtime_kind" in record or "framework_profile" in record:
+            raise RuntimeErrorDetail(code, "Framework-shaped lock cannot be recovered as a legacy lock; retained")
+
 
     def _installed_manifest(self, value: dict, expected_root: Path | None) -> dict:
         if value["owner"] != {"kind": "MPTest", "run_id": value["run_id"]}:
@@ -438,10 +575,11 @@ class Runtime:
         value["runtime_root"] = str(runtime); value["executable_path"] = str(executable)
         return value
 
-    def _manifest_value(self, value: dict, expected_root: Path | None = None) -> dict:
+    def _manifest_value(self, value: dict, expected_root: Path | None = None, *, verify_framework_files: bool = True) -> dict:
         required = {"schema_version", "run_id", "pid", "process_start_time", "runtime_root", "executable_path", "owner"}
-        if not required.issubset(value) or value.get("schema_version") != 1:
-            raise RuntimeErrorDetail("invalid_manifest", "Manifest missing fields or wrong schema")
+        if not required.issubset(value):
+            raise RuntimeErrorDetail("invalid_manifest", "Manifest missing fields")
+        kind = manifest_runtime_kind(value)
         try:
             uuid.UUID(value["run_id"])
         except (ValueError, TypeError, AttributeError) as exc:
@@ -453,6 +591,8 @@ class Runtime:
         for field in ("runtime_root", "executable_path"):
             if not isinstance(value[field], str) or not Path(value[field]).is_absolute():
                 raise RuntimeErrorDetail("invalid_manifest", f"Manifest {field} must be absolute path")
+        if kind == FRAMEWORK_PLUGIN_KIND:
+            return self._framework_manifest(value, expected_root, verify_framework_files)
         if value.get("profile") == "installed_dropin_proof":
             return self._installed_manifest(value, expected_root)
         root = self._within(Path(value["runtime_root"]), self.instances_root)
@@ -471,15 +611,16 @@ class Runtime:
             evidence_root = Path(__file__).resolve().parents[2] / "test" / "mcp" / "evidence"
             if path.name != "instance.json" or not (path.is_relative_to(self.instances_root) or path.is_relative_to(evidence_root.resolve())):
                 raise RuntimeErrorDetail("invalid_receipt", "Previous manifest must be instance.json inside owned test roots or MCP evidence")
-            previous = self._manifest_value(read_json(path))
+            previous = self._manifest_value(read_json(path), verify_framework_files=False)
             if self.bound and previous["runtime_root"] != self.bound["runtime_root"]:
                 raise RuntimeErrorDetail("ownership_failed", "Previous manifest root differs from bound runtime")
             root = Path(previous["runtime_root"])
-            diagnostics = self._within(root / "diagnostics", root)
+            diagnostics = self._diagnostics_for(previous)
             lock = self._within(diagnostics / "request.lock", diagnostics)
             if not lock.exists():
                 return {"pending": False, "reason": "No pending lock in previous owned runtime"}
             record = read_json(lock)
+            self._check_lock_mode(record, previous, "receipt_mismatch")
             if any(record.get(key) != previous[key] for key in ("run_id", "pid", "process_start_time")):
                 raise RuntimeErrorDetail("receipt_mismatch", "Pending lock does not match previous manifest PID/start/run identity")
             for key in ("runtime_root", "executable_path", "owner"):
@@ -490,7 +631,7 @@ class Runtime:
             except (ValueError, TypeError, AttributeError) as exc:
                 raise RuntimeErrorDetail("invalid_lock", "Pending lock lacks valid request UUID") from exc
             try:
-                alive = self._identity(previous)
+                alive = self._identity(previous, verify_modules=False)
             except RuntimeErrorDetail as exc:
                 if exc.code != "pid_reused":
                     raise
@@ -498,12 +639,12 @@ class Runtime:
                 alive = False
             if alive:
                 raise RuntimeErrorDetail("prior_process_alive", f"Previous process pid={previous['pid']} is still alive; lock retained")
-            self._release(lock, record["id"], expected_run_id=previous["run_id"])
+            self._release(lock, record["id"], expected_run_id=previous["run_id"], expected_manifest=previous)
             LOG.warning("Recovered pending lock after exact previous manifest exit id=%s pid=%s run_id=%s", record["id"], previous["pid"], previous["run_id"])
             return {"pending": False, "abandoned_after_process_exit": True, "request_id": record["id"],
                     "previous_run_id": previous["run_id"], "previous_pid": previous["pid"], "process_exit_verified": True}
 
-    def _identity(self, manifest: dict) -> bool:
+    def _identity(self, manifest: dict, *, verify_modules: bool = True) -> bool:
         observed = self.inspector(manifest["pid"])
         if observed is None:
             return False
@@ -513,6 +654,11 @@ class Runtime:
             raise RuntimeErrorDetail("ownership_failed", f"Executable identity differs for pid={manifest['pid']}")
         if observed.get("owned_by_current_user") is not True:
             raise RuntimeErrorDetail("ownership_failed", f"Process pid={manifest['pid']} belongs to another account")
+        if verify_modules and manifest.get("runtime_kind") == FRAMEWORK_PLUGIN_KIND:
+            loaded = {Path(path).resolve() for path in self.module_inspector(manifest["pid"])}
+            expected = {path.resolve() for path in framework_module_paths(manifest).values()}
+            if not expected.issubset(loaded):
+                raise RuntimeErrorDetail("module_identity_failed", "Framework process lacks an exact selected module path")
         if manifest.get("profile") == "installed_dropin_proof":
             loaded = {Path(path).resolve() for path in self.module_inspector(manifest["pid"])}
             expected = {Path(item["path"]).resolve() for item in manifest["installed_proof"]["modules"].values()}
@@ -540,6 +686,10 @@ class Runtime:
             if self.bound and self.bound != candidate:
                 if self._diagnostics().joinpath("request.lock").exists():
                     raise RuntimeErrorDetail("pending_request", "Resolve existing runtime request before rebinding")
+            if manifest_runtime_kind(candidate) == FRAMEWORK_PLUGIN_KIND:
+                legacy = self._within(Path(candidate["runtime_root"]) / "diagnostics", Path(candidate["runtime_root"]))
+                if (legacy / "request.lock").exists():
+                    raise RuntimeErrorDetail("pending_request", "Legacy mailbox has an unresolved request; recover its exact previous manifest before Framework binding")
             if not self._identity(candidate):
                 raise RuntimeErrorDetail("process_exited", f"Manifest process pid={candidate['pid']} is absent or reused")
             self.bound, self.manifest_path = candidate, Path(manifest_path).resolve()
@@ -549,7 +699,7 @@ class Runtime:
     def _diagnostics(self) -> Path:
         if not self.bound:
             raise RuntimeErrorDetail("not_bound", "Bind one owned runtime before this operation")
-        return self._within(Path(self.bound["runtime_root"]) / "diagnostics", Path(self.bound["runtime_root"]))
+        return self._diagnostics_for(self.bound)
 
     def _current(self) -> dict:
         if not self.bound or not self.manifest_path:
@@ -584,6 +734,10 @@ class Runtime:
                         raise RuntimeErrorDetail("stale_status", "Runtime status identity does not match bound process")
                     if bound.get("profile") == "installed_dropin_proof" and status.get("installed_proof") != bound["installed_proof"]:
                         raise RuntimeErrorDetail("stale_status", "Installed status proof differs from exact bound module/profile receipt")
+                    if manifest_runtime_kind(bound) == FRAMEWORK_PLUGIN_KIND:
+                        for field in ("runtime_kind", "framework_profile", "installed_binary_sha256"):
+                            if status.get(field) != bound[field]:
+                                raise RuntimeErrorDetail("stale_status", f"Framework status {field} differs from exact bound manifest")
                     if type(status.get("game_thread_ready")) is not bool or not isinstance(status.get("capabilities"), dict):
                         raise RuntimeErrorDetail("invalid_status", "Runtime status lacks readiness or capabilities")
                     self._current()
@@ -629,7 +783,12 @@ class Runtime:
             if type(max_bytes) is not int or not 1 <= max_bytes <= 65536:
                 raise RuntimeErrorDetail("invalid_bound", "max_bytes must be integer 1 through 65536")
             root = Path(self.bound["runtime_root"])
-            path = self._within(root / "game" / filename, root) if filename == "mt2mp.log" else self._within(self._diagnostics() / filename, self._diagnostics())
+            if filename == "mt2mp.log" and manifest_runtime_kind(self.bound) == FRAMEWORK_PLUGIN_KIND:
+                path = root / "profile" / "data" / "doodesch.multiplayer" / filename
+                self._no_framework_alias(path)
+                path = self._within(path, root)
+            else:
+                path = self._within(root / "game" / filename, root) if filename == "mt2mp.log" else self._within(self._diagnostics() / filename, self._diagnostics())
             try:
                 with shared_open(path) as stream:
                     stream.seek(0, 2)
@@ -663,7 +822,7 @@ class Runtime:
             self._response_absence_count = 0
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
-        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "focus_test_camera"} else MAX_JSON
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "focus_test_camera", "probe_remove_ui"} else MAX_JSON
         if response_bytes > max_bytes:
             raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:
@@ -676,8 +835,11 @@ class Runtime:
                 raise RuntimeErrorDetail("invalid_response", f"Response id={request_id} lacks error code or message")
         return response
 
-    def _release(self, lock: Path, expected_id: str, expected_run_id: str | None = None) -> None:
+    def _release(self, lock: Path, expected_id: str, expected_run_id: str | None = None, expected_manifest: dict | None = None) -> None:
         actual = read_json(lock)
+        reference = expected_manifest if expected_manifest is not None else self.bound
+        if reference is not None:
+            self._check_lock_mode(actual, reference, "lock_changed")
         if actual.get("id") != expected_id or actual.get("run_id") != (expected_run_id or self.bound["run_id"]):
             raise RuntimeErrorDetail("lock_changed", "Mailbox lock changed; release refused")
         try:
@@ -692,6 +854,7 @@ class Runtime:
             if not lock.exists():
                 return {"pending": False}
             record = read_json(lock)
+            self._check_lock_mode(record, self.bound, "foreign_lock")
             if any(record.get(key) != self.bound[key] for key in ("run_id", "pid", "process_start_time")):
                 return self._observe_previous_run(lock, record)
             try:
@@ -731,7 +894,7 @@ class Runtime:
         if any(record.get(key) != self.bound[key] for key in ("runtime_root", "executable_path")) or record["owner"] != {"kind": "MPTest", "run_id": record["run_id"]}:
             raise RuntimeErrorDetail("foreign_lock", "Prior mailbox lock is not owned by this exact test root; retained")
         try:
-            alive = self._identity(record)
+            alive = self._identity(record, verify_modules=False)
         except RuntimeErrorDetail as exc:
             if exc.code != "pid_reused":
                 raise
@@ -758,6 +921,8 @@ class Runtime:
                       "process_start_time": self.bound["process_start_time"], "op": op,
                       "runtime_root": self.bound["runtime_root"], "executable_path": self.bound["executable_path"],
                       "owner": self.bound["owner"]}
+            if manifest_runtime_kind(self.bound) == FRAMEWORK_PLUGIN_KIND:
+                record.update(runtime_kind=FRAMEWORK_PLUGIN_KIND, framework_profile=self.bound["framework_profile"])
             try:
                 with lock.open("x", encoding="utf-8") as stream:
                     json.dump(record, stream)
@@ -803,6 +968,7 @@ class Runtime:
             if record.get("id") != request_id or record.get("run_id") != self.bound["run_id"]:
                 LOG.error("Publication cleanup refused id=%s cause=lock identity changed; lock retained; original=%s", request_id, failure)
                 return False
+            self._check_lock_mode(record, self.bound, "lock_changed")
             record["publication_state"] = "failed"
             record["publication_error"] = {"type": type(failure).__name__, "message": str(failure)}
             try:

@@ -5,35 +5,44 @@ class QuestMemory final:public npc_census::Memory {
 public:
     bool copy(uintptr_t address,void* out,size_t size,std::string& e)override{return memory.copy(address,out,size,e);}
 };
+bool quest_npc(const Pin& p,const QuestOwner& owner,quest_state::Npc& out,std::string& e){
+    apply_timing::PageReadScope pages(apply_timing::page_read_scope==nullptr);
+    QuestMemory read;
+    quest_state::Npc row;row.key=owner.key;uintptr_t region=0;
+    if(!ap(owner.npc,p.image,0x1742980,e)||!at(owner.npc,0x178,region,e)||
+       !at(region,0x834,row.pose.region,e)||!at(owner.npc,0x6f8,row.level,e)||
+       !at(owner.npc,0x80c,row.type,e))return false;
+    if(!memory.copy(owner.npc+0x100,row.pose.orientation.data(),sizeof row.pose.orientation,e)||
+       !memory.copy(owner.npc+0x110,row.pose.position.data(),sizeof row.pose.position,e)||
+       !memory.copy(owner.npc+0x11c,row.pose.scale.data(),sizeof row.pose.scale,e))return false;
+    if(row.type==0){
+        if(!npc_quest_records::read_daily(read,p.image,owner.npc,0x898,"NPC accepted",row.accepted,e)||
+           !npc_quest_records::read_daily(read,p.image,owner.npc,0x908,"NPC completed",row.completed,e)||
+           !at(owner.npc,0x8f8,row.highest_cache[0],e)||!at(owner.npc,0x968,row.highest_cache[1],e))return false;
+        for(const auto& [sequence,quest]:owner.quests){
+            quest_state::Counters count;count.sequence_id=sequence;
+            if(!npc_quest_records::read_daily(read,p.image,quest,0x100,"accepted",count.accepted,e)||
+               !npc_quest_records::read_daily(read,p.image,quest,0x170,"completed",count.completed,e)||
+               !at(quest,0x160,count.highest_cache[0],e)||!at(quest,0x1d0,count.highest_cache[1],e))return false;
+            row.quests.push_back(std::move(count));
+        }
+    }else if(!owner.quests.empty())return fail(e,"NPC state non-QuestGiver owns Quest rows");
+    out=std::move(row);return true;
+}
 bool quest_npcs(const Pin& p,const std::vector<QuestOwner>& owners,
                 std::vector<quest_state::Npc>& out,std::string& e){
-    QuestMemory read;out.clear();
+    apply_timing::PageReadScope pages(apply_timing::page_read_scope==nullptr);
+    out.clear();
     for(const auto& owner:owners){
-        quest_state::Npc row;row.key=owner.key;uintptr_t region=0;
-        if(!ap(owner.npc,p.image,0x1742980,e)||!at(owner.npc,0x178,region,e)||
-           !at(region,0x834,row.pose.region,e)||!at(owner.npc,0x6f8,row.level,e)||
-           !at(owner.npc,0x80c,row.type,e))return false;
-        if(!memory.copy(owner.npc+0x100,row.pose.orientation.data(),sizeof row.pose.orientation,e)||
-           !memory.copy(owner.npc+0x110,row.pose.position.data(),sizeof row.pose.position,e)||
-           !memory.copy(owner.npc+0x11c,row.pose.scale.data(),sizeof row.pose.scale,e))return false;
-        if(row.type==0){
-            if(!npc_quest_records::read_daily(read,p.image,owner.npc,0x898,"NPC accepted",row.accepted,e)||
-               !npc_quest_records::read_daily(read,p.image,owner.npc,0x908,"NPC completed",row.completed,e)||
-               !at(owner.npc,0x8f8,row.highest_cache[0],e)||!at(owner.npc,0x968,row.highest_cache[1],e))return false;
-            for(const auto& [sequence,quest]:owner.quests){
-                quest_state::Counters count;count.sequence_id=sequence;
-                if(!npc_quest_records::read_daily(read,p.image,quest,0x100,"accepted",count.accepted,e)||
-                   !npc_quest_records::read_daily(read,p.image,quest,0x170,"completed",count.completed,e)||
-                   !at(quest,0x160,count.highest_cache[0],e)||!at(quest,0x1d0,count.highest_cache[1],e))return false;
-                row.quests.push_back(std::move(count));
-            }
-        }else if(!owner.quests.empty())return fail(e,"NPC state non-QuestGiver owns Quest rows");
+        quest_state::Npc row;if(!quest_npc(p,owner,row,e))return false;
         out.push_back(std::move(row));
     }
     return true;
 }
 bool quest_toon(const Pin& p,const std::vector<QuestOwner>& owners,uintptr_t subscriber,
                 std::optional<quest_state::Toon>& out,std::string& e){
+    std::optional<apply_timing::Scope> quest_measured;
+    if(apply_timing::quest_store_depth)quest_measured.emplace(apply_timing::Part::QuestToonRead);
     apply_timing::PageReadScope pages(apply_timing::page_read_scope==nullptr);
     out.reset();uintptr_t toon=0;if(!at(subscriber,0x80,toon,e))return false;
     if(!toon)return true;
@@ -76,7 +85,9 @@ bool quest_toon(const Pin& p,const std::vector<QuestOwner>& owners,uintptr_t sub
     }
     out=std::move(next);return true;
 }
-bool quest_restore_pause(const Pin& p,std::string& e){
+bool quest_restore_pause(const Pin& p,std::string& e,const std::function<void()>& before_set={}){
+    std::optional<apply_timing::Scope> quest_measured;
+    if(apply_timing::quest_store_depth)quest_measured.emplace(apply_timing::Part::QuestRestorePause);
     action_session::Context session;building_mixed_identity::opened_file::CurrentWorld world;
     if(GetCurrentThreadId()!=p.thread)return fail(e,"Quest pause restore requires bound Mainthread");
     if(!action_session::selected_session().current(session,e))return false;
@@ -98,6 +109,7 @@ bool quest_restore_pause(const Pin& p,std::string& e){
     std::array<unsigned char,10> code{};
     if(!memory.copy(p.image+0x259b70,code.data(),code.size(),e))return false;
     if(code!=expected)return fail(e,"Quest pause restore original setter bytes differ");
+    if(before_set)before_set();
     const auto exception=call_capture_pause(p.image+0x259b70,clock,p.pause);
     if(exception)return fail(e,"Quest pause restore original setter exception="+std::to_string(exception)+"; no replay");
     if(!at(clock,0x58,selected,e)||!at(clock,0x5c,pause,e)||selected!=p.selected||pause!=p.pause)
@@ -121,13 +133,16 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
     if(!changed)return true;
     building_mixed_identity::opened_file::CurrentWorld world;
     if(!native_open_runtime::read_current_world(world,e))return false;
+    bool owner_proven=false;
     const auto guard=[&](std::string& error){
         if(!fence(error))return false;
+        if(owner_proven)return true;
         std::vector<QuestOwner> current;
         if(!npc_probe::action_runtime::state_owners(p.context,p.binding,current,error))return false;
         const auto found=std::find_if(current.begin(),current.end(),[&](const auto& item){return item.key==owner.key;});
-        return (found!=current.end()&&found->npc==owner.npc&&found->quests==owner.quests)||
-            fail(error,"DailyCount current canonical NPC/Quest owners changed");
+        if(found==current.end()||found->npc!=owner.npc||found->quests!=owner.quests)
+            return fail(error,"DailyCount current canonical NPC/Quest owners changed");
+        owner_proven=true;return true;
     };
     const auto compare=[&](uintptr_t address,const void* expected,const void* desired,size_t size,std::string& error){
         if(!size||size%4||address>UINTPTR_MAX-size)return fail(error,"DailyCount checked span differs");
@@ -143,14 +158,22 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
         std::array<unsigned char,16> bytes{};
         if(!memory.copy(p.image+0xe8080,bytes.data(),bytes.size(),error))return false;
         if(bytes!=expected)return fail(error,"DailyCount original Reserve entry differs");
-        const auto exception=quest_daily_reserve(p.image+0xe8080,array,capacity);
+        owner_proven=false;
+        uint32_t exception=0;
+        {
+            apply_timing::PageReadScope original(apply_timing::PageBoundary::OriginalCall);
+            exception=quest_daily_reserve(p.image+0xe8080,array,capacity);
+        }
         return !exception||fail(error,"DailyCount original Reserve exception="+std::to_string(exception)+"; no replay");
     };
     const auto body=[&](std::string& error){
+        // SaveScope enter precedes this body. Only fresh post-enter owners qualify.
+        owner_proven=false;
         int32_t day=0;if(!at(p.clock,0x44,day,error))return false;
         const auto apply=[&](uintptr_t object,size_t offset,const npc_quest_records::DailyCount& a,
                              const npc_quest_records::DailyCount& b,int32_t highest_before,int32_t highest){
             if(a==b&&highest_before==highest)return true;
+            apply_timing::PageReadScope pages;
             npc_quest_daily_apply::Receipt receipt;
             return npc_quest_daily_apply::apply_daily(memory,p.image,object,offset,a,b,highest,day,
                 compare,reserve,guard,receipt,error);
@@ -166,12 +189,66 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
         }
         return true;
     };
-    QuestDailyWork work{body,guard};mt2mp::subscriber_lifecycle::SaveScopeReceipt receipt;
+    const auto exit_guard=[&](std::string& error){
+        const bool okay=guard(error);owner_proven=false;return okay;
+    };
+    QuestDailyWork work{body,exit_guard};mt2mp::subscriber_lifecycle::SaveScopeReceipt receipt;
     const mt2mp::subscriber_lifecycle::SaveScopeApi api{
         reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x4a03a0),
         reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x49f6f0)};
     if(!mt2mp::subscriber_lifecycle::with_save_scope(api,world.mode,quest_daily_body,quest_daily_guard,&work,receipt,e))return false;
     return quest_restore_pause(p,e);
+}
+// Pure selected-row proof for avoiding already-satisfied native operations.
+// Keep the original Progress/Instance/Weak predicates and native error causes.
+struct QuestNoopWeak {uintptr_t target=0,proxy=0,proxy_target=0;int32_t id=0;};
+struct QuestNoopRow {
+    uintptr_t npc=0,proxy=0,proxy_target=0;QuestNoopWeak quest;
+    int32_t completed=0,monsters=0;uint8_t visited=0,action=0,complete=0;
+};
+bool quest_noop_weak(const Pin& pin,uintptr_t instance,QuestNoopWeak& out,std::string& e){
+    uintptr_t object_ap=0,link_ap=0,weak_ap=0;
+    if(!instance||instance>UINTPTR_MAX-0x58||
+       !at(instance,0,object_ap,e)||!at(instance,0x18,link_ap,e)||!at(instance,0x38,weak_ap,e))
+        return fail(e,e.empty()?"Quest link Instance extent/read failed":e);
+    if(object_ap!=pin.image+0x17087e0||link_ap!=pin.image+0x1711c30||weak_ap!=pin.image+0x16f9f20)
+        return fail(e,"Quest link Instance/Weak addresspoints differ");
+    if(!at(instance,0x30,out.id,e)||!at(instance,0x40,out.target,e)||!at(instance,0x48,out.proxy,e))return false;
+    if(!out.proxy)return !out.target||fail(e,"Quest link target without Proxy");
+    int32_t references=0;
+    if(!at(out.proxy,0,out.proxy_target,e)||!at(out.proxy,8,references,e))return false;
+    if(references<=0)return fail(e,"Quest link Proxy refcount not positive");
+    // An expired Proxy may still leave a stale target value. Never dereference it.
+    if(!out.proxy_target)return true;
+    uintptr_t ap=0,proxy=0;
+    if(!out.target||out.target>UINTPTR_MAX-0x28||out.proxy_target!=out.target+0x18)
+        return fail(e,"Quest link live Proxy target differs");
+    if(!at(out.target,0,ap,e)||!at(out.target,0x20,proxy,e))return false;
+    return (ap==pin.image+0x174ac10&&proxy==out.proxy)||fail(e,"Quest link live Quest/Proxy binding differs");
+}
+bool quest_noop_row(const Pin& pin,uintptr_t p,QuestNoopRow& out,std::string& e){
+    apply_timing::PageReadScope pages;
+    uintptr_t ap=0,link_ap=0,weak_ap=0;
+    if(!p||p>UINTPTR_MAX-0xb0)return fail(e,"Progress row extent invalid");
+    if(!at(p,0,ap,e)||!at(p,0x18,link_ap,e)||!at(p,0x38,weak_ap,e)||
+       !at(p,0x40,out.npc,e)||!at(p,0x48,out.proxy,e))return false;
+    if(ap!=pin.image+0x172d130||link_ap!=pin.image+0x1711930||weak_ap!=pin.image+0x16f9de0)
+        return fail(e,"Progress row/NPC Weak addresspoints differ");
+    if(!out.proxy){if(out.npc)return fail(e,"Progress NPC target without Proxy");}
+    else{
+        int32_t references=0;
+        if(!at(out.proxy,0,out.proxy_target,e)||!at(out.proxy,8,references,e))return false;
+        if(references<=0)return fail(e,"Progress NPC Proxy refcount not positive");
+        if(out.proxy_target){uintptr_t npc_ap=0,reverse=0;
+            if(!out.npc||out.npc>UINTPTR_MAX-0x30||out.proxy_target!=out.npc+0x20)
+                return fail(e,"Progress NPC live Weak target differs");
+            if(!at(out.npc,0,npc_ap,e)||!at(out.npc,0x28,reverse,e))return false;
+            if(npc_ap!=pin.image+0x1742980||reverse!=out.proxy)return fail(e,"Progress NPC live AP/Proxy differs");
+        }
+    }
+    if(!quest_noop_weak(pin,p+0x58,out.quest,e)||!at(p,0x50,out.completed,e)||!at(p,0xa8,out.monsters,e)||
+       !at(p,0xac,out.visited,e)||!at(p,0xad,out.action,e)||!at(p,0xae,out.complete,e))return false;
+    return (out.visited<=1&&out.action<=1&&out.complete<=1)||fail(e,"Progress Instance bool differs");
 }
 struct QuestFresh {
     const Pin* pin=nullptr;
@@ -180,9 +257,16 @@ struct QuestFresh {
     bool instance_member=false;
     bool absent_npc=false;
     bool clear_quest=false;
+    const Owners* scalar_owners=nullptr;
+    size_t scalar_index=0;
+    bool share_metadata=false;
 };
 bool quest_fresh_link(void* user,const mt2mp::subscriber_lifecycle::ExternalLink& link,std::string& e){
+    std::optional<apply_timing::Scope> quest_measured;
+    if(apply_timing::quest_store_depth)quest_measured.emplace(apply_timing::Part::QuestFreshLinkGuard);
     const auto& check=*static_cast<QuestFresh*>(user);const auto& p=*check.pin;
+    const bool pure_selected=check.share_metadata&&check.scalar_owners&&link.portable_key.empty()&&!link.object;
+    apply_timing::PageReadScope pages(!pure_selected||!apply_timing::page_read_scope);
     action_session::Context session;
     if(!action_session::selected_session().current(session,e)||session!=p.context||p.thread!=GetCurrentThreadId())
         return fail(e,e.empty()?"Quest apply current session/Mainthread differs":e);
@@ -195,7 +279,16 @@ bool quest_fresh_link(void* user,const mt2mp::subscriber_lifecycle::ExternalLink
        !at(manager,0x40,data,e)||!at(manager,0x48,count,e)||!at(manager,0x4c,capacity,e)||
        count<0||capacity<count||count>1000000||(count&&!data))return fail(e,e.empty()?"Quest apply Subscriber census differs":e);
     size_t matches=0;
-    for(int32_t i=0;i<count;++i){uintptr_t pointer=0;if(!at(data,size_t(i)*8,pointer,e))return false;if(pointer==check.subscriber)++matches;}
+    if(check.scalar_owners){
+        const auto& admitted=*check.scalar_owners;
+        if(manager!=admitted.subscriber_manager||data!=admitted.subscriber_data||size_t(count)!=admitted.subscribers.size()||
+           check.scalar_index>=admitted.subscriber_slots.size())return fail(e,"Quest scalar Subscriber census changed");
+        const auto slot=admitted.subscriber_slots[check.scalar_index];uintptr_t pointer=0;
+        if(slot>=size_t(count)||!at(data,slot*8,pointer,e))return fail(e,e.empty()?"Quest scalar Subscriber slot changed":e);
+        matches=pointer==check.subscriber?1:0;
+    }else{
+        for(int32_t i=0;i<count;++i){uintptr_t pointer=0;if(!at(data,size_t(i)*8,pointer,e))return false;if(pointer==check.subscriber)++matches;}
+    }
     if(matches!=1||!ap(check.subscriber,p.image,0x16e75f0,e)||!at(check.subscriber,0x20,id,e)||id!=check.id||
        !at(check.subscriber,0x80,toon,e)||toon!=check.toon||!ap(toon,p.image,0x1744e90,e)||
        !at(toon,0x940,backlink,e)||backlink!=check.subscriber)return fail(e,e.empty()?"Quest apply reciprocal Subscriber/Toon ownership differs":e);
@@ -229,15 +322,120 @@ bool NativePort::store_rewards(const Owners& before,size_t index,size_t field,ui
     if(!current_subscriber(before,index,e))return false;
     return compare_fixed_i32(before.subscribers[index]+offsets[field],std::bit_cast<int32_t>(old),std::bit_cast<int32_t>(target),e);
 }
+bool NativePort::begin_quest_stores(const Owners& before,std::string& e){
+    if(quest_before_||scalar_before_)return fail(e,"Quest store phase is already active; no reentrant batch");
+    clear_quest_span();quest_before_=&before;e.clear();return true;
+}
+void NativePort::clear_quest_span()noexcept{quest_owners_ready_=false;quest_owners_.clear();quest_history_={};}
+void NativePort::end_quest_stores()noexcept{clear_quest_span();quest_before_=nullptr;}
+bool NativePort::with_quest_stores(const Owners& before,const State& target,
+    const std::function<bool(std::string&)>& body,std::string& e){
+    if(quest_before_!=&before||quest_batch_)return fail(e,"Quest phase owner receipt differs or batch reentered");
+    if(before.state.subscribers.size()!=target.subscribers.size())return fail(e,"Quest phase target Subscriber count differs");
+    bool changed=false;
+    for(size_t i=0;i<target.subscribers.size();++i){
+        const auto& old=before.state.subscribers[i].quest_state;
+        const auto& after=target.subscribers[i].quest_state;
+        if(old==after)continue;
+        changed=true;
+    }
+    if(!changed)return body(e);
+    const auto& p=before.history.pin;
+    building_mixed_identity::opened_file::CurrentWorld world;
+    if(!native_open_runtime::read_current_world(world,e))return false;
+    const subscriber_lifecycle_append::FrameBinding frame{p.context,p.binding,p.common_epoch,world.sha256};
+    mt2mp::subscriber_lifecycle::SaveScopeReceipt receipt;
+    subscriber_lifecycle_append::QuestEditBatch* closing_batch=nullptr;
+    const auto edits=[&](subscriber_lifecycle_append::QuestEditBatch& batch,std::string& error){
+        closing_batch=&batch;quest_batch_=&batch;
+        struct Clear {subscriber_lifecycle_append::QuestEditBatch*& slot;~Clear(){slot=nullptr;}} clear{quest_batch_};
+        return body(error);
+    };
+    const auto exit=[&](std::string& error){
+        clear_quest_span();
+        if(!closing_batch)return fail(error,"Quest phase closing batch absent");
+        NativeHistory actual;
+        if(!history_.read_quest_held(actual,*closing_batch,error))return false;
+        auto expected=p;
+        if(expected.pause==1.0f)expected.pause=0.0f;
+        if(actual.pin!=expected||actual.owners!=before.history.owners||actual.records!=before.history.records)
+            return fail(error,"Quest phase exit complete History/finance receipt differs");
+        return fence_.read_current_fence(actual.pin,error);
+    };
+    const bool okay=subscriber_lifecycle_append::with_quest_edits(world.uuid,frame,edits,exit,receipt,e);
+    clear_quest_span();
+    if(!okay)return false;
+    if(!receipt.enter_attempted)return true;
+    if(!receipt.leave_returned||receipt.unknown)return fail(e,"Quest phase original close did not confirm; no replay");
+    if(!quest_restore_pause(p,e))return false;
+    std::vector<QuestOwner> owners;
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+    for(size_t i=0;i<target.subscribers.size();++i){
+        if(before.state.subscribers[i].quest_state==target.subscribers[i].quest_state)continue;
+        if(!current_subscriber(before,i,e))return false;
+        std::optional<quest_state::Toon> actual;
+        if(!quest_toon(p,owners,before.subscribers[i],actual,e)||actual!=target.subscribers[i].quest_state)
+            return fail(e,e.empty()?"Quest phase closed Toon readback differs; no replay":e);
+    }
+    return true;
+}
+bool NativePort::admit_quest_history(const Owners& before,std::string& e){
+    std::optional<apply_timing::Scope> quest_measured;
+    if(apply_timing::quest_store_depth)quest_measured.emplace(apply_timing::Part::QuestAdmitHistory);
+    NativeHistory actual;
+    const bool held=quest_batch_&&subscriber_lifecycle_append::quest_edits_held(*quest_batch_);
+    if(!(held?history_.read_quest_held(actual,*quest_batch_,e):history_.read(actual,e)))return false;
+    auto expected=before.history.pin;
+    if(held&&expected.pause==1.0f)expected.pause=0.0f;
+    if(actual.pin!=expected||actual.owners!=before.history.owners||actual.records!=before.history.records)
+        return fail(e,"Quest scalar phase complete History/finance receipt differs");
+    if(!fence_.read_current_fence(actual.pin,e))return false;
+    quest_history_=std::move(actual);return true;
+}
 bool NativePort::store_quest_state(const Owners& before,size_t index,
     const std::optional<quest_state::Toon>& old,const std::optional<quest_state::Toon>& target,std::string& e){
     if(index>=before.subscribers.size()||scalar_before_)return fail(e,"Quest apply owner slot invalid or scalar phase active");
+    if(quest_before_&&quest_before_!=&before)return fail(e,"Quest store phase expected owner receipt differs");
+    // Equal ordered links keep Progress value stores callback-free. Values
+    // still use the complete fresh before/final reads and original scalar CAS.
+    const bool scalar_only=quest_before_&&old&&target&&same_weapon(*old,*target)&&
+        old->progress.size()==target->progress.size()&&
+        std::equal(old->progress.begin(),old->progress.end(),target->progress.begin(),
+            [](const auto& a,const auto& b){return a.npc==b.npc&&a.quest==b.quest;});
+    if(apply_timing::quest_store_depth)apply_timing::record(scalar_only?apply_timing::Part::QuestScalarQualified:apply_timing::Part::QuestNonqualified,0);
+    if(!scalar_only)clear_quest_span();
     if(!current_subscriber(before,index,e))return false;
     const auto& p=before.history.pin;const auto subscriber=before.subscribers[index];
     std::vector<QuestOwner> owners;std::optional<quest_state::Toon> actual;
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_toon(p,owners,subscriber,actual,e))return false;
+    if(scalar_only&&quest_owners_ready_)owners=quest_owners_;
+    else{
+        if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+        if(scalar_only){
+            if(!admit_quest_history(before,e))return false;
+            // Native owner lookup finishes before this callback-free identity span.
+            // Each selected receiver and all state bytes are still read on every store.
+            {apply_timing::PageReadScope admission_pages;
+            std::set<uintptr_t> unique;
+            if(before.subscriber_slots.size()!=before.subscribers.size())return fail(e,"Quest scalar Subscriber slots differ");
+            for(size_t i=0;i<before.subscribers.size();++i){uintptr_t pointer=0;
+                const auto slot=before.subscriber_slots[i];
+                if(slot>=before.subscribers.size()||!at(before.subscriber_data,slot*8,pointer,e))return fail(e,e.empty()?"Quest scalar Subscriber admission slot differs":e);
+                if(pointer!=before.subscribers[i]||!unique.insert(pointer).second)return fail(e,"Quest scalar Subscriber admission is not unique");
+            }
+            }
+            quest_owners_=owners;quest_owners_ready_=true;
+        }
+    }
+    // Equal links and weapon keep this row callback-free until pause restoration.
+    // Share page metadata only; every owner and value is still read live.
+    std::optional<apply_timing::PageReadScope> scalar_pages;
+    if(scalar_only)scalar_pages.emplace();
+    if(!quest_toon(p,owners,subscriber,actual,e))return false;
     const auto refresh_weapon=[&](){
         if(!target)return true;
+        // Actor creation and costume changes enter the owned Equip hook.
+        // Quest-only value changes do not replace the authoritative weapon.
+        if(old&&same_weapon(*old,*target))return true;
         uintptr_t receiver=0;if(!at(subscriber,0x80,receiver,e))return false;
         toon_weapon_visual::Receipt receipt;
         if(!toon_weapon_visual::refresh(receiver,receipt,e))return false;
@@ -248,6 +446,7 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     if(old&&actual!=old)return fail(e,"Quest apply prior Toon state changed");
     uintptr_t toon=0;if(!at(subscriber,0x80,toon,e))return false;
     QuestFresh fresh{&p,subscriber,toon,0,before.state.subscribers[index].serialized_id,false,false,false};
+    if(scalar_only){fresh.scalar_owners=&before;fresh.scalar_index=index;fresh.share_metadata=true;}
     const auto weapon_fence=[&](std::string& error){return current_subscriber(before,index,error)&&quest_fresh_link(&fresh,{},error);};
     if(!store_toon_weapon(p,toon,*actual,*target,weapon_fence,e)||!refresh_weapon())return false;
     // A freshly captured equal Progress list needs no row stores or native callbacks.
@@ -265,16 +464,72 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
         const auto found=std::find_if(owners.begin(),owners.end(),[&](const auto& owner){return owner.key==key;});
         return found==owners.end()?nullptr:&*found;
     };
-    const auto pointers=[&](std::vector<uintptr_t>& out){
+    const auto pointers=[&](std::vector<uintptr_t>& out,npc_quest_visitor_reader::ArrayHeader* captured=nullptr){
+        apply_timing::PageReadScope pointer_pages(!scalar_only||!apply_timing::page_read_scope);
         QuestMemory read;npc_quest_visitor_reader::ArrayHeader header;
         if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16ee0e0||
            header.count<0||header.count>100000||header.capacity<header.count||(header.count&&!header.data))
             return fail(e,e.empty()?"Quest apply Progress array header differs":e);
+        if(captured)*captured=header;
         out.resize(size_t(header.count));
         for(size_t i=0;i<out.size();++i)if(!at(header.data,i*8,out[i],e)||!ap(out[i],p.image,0x172d130,e))return false;
         return true;
     };
-    std::vector<uintptr_t> rows;if(!pointers(rows)||rows.size()!=actual->progress.size())return fail(e,e.empty()?"Quest apply Progress row shape changed":e);
+    npc_quest_visitor_reader::ArrayHeader scalar_header;
+    std::vector<uintptr_t> rows;if(!pointers(rows,&scalar_header)||rows.size()!=actual->progress.size())return fail(e,e.empty()?"Quest apply Progress row shape changed":e);
+    // Only scalar stores run between this ordered capture and selected checks.
+    // Native helper paths keep the full pointer reader on every row.
+    const auto selected_pointer=[&](size_t row_index){
+        apply_timing::PageReadScope pointer_pages(!scalar_only||!apply_timing::page_read_scope);
+        QuestMemory read;npc_quest_visitor_reader::ArrayHeader header;
+        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16ee0e0||
+           header.count<0||header.count>100000||header.capacity<header.count||(header.count&&!header.data))
+            return fail(e,e.empty()?"Quest apply Progress array header differs":e);
+        if(header.ap!=scalar_header.ap||header.data!=scalar_header.data||header.count!=scalar_header.count||
+           header.capacity!=scalar_header.capacity||row_index>=rows.size())
+            return fail(e,"Quest apply ordered Progress membership differs");
+        uintptr_t pointer=0;if(!at(header.data,row_index*8,pointer,e))return false;
+        if(pointer!=rows[row_index])return fail(e,"Quest apply ordered Progress membership differs");
+        return ap(pointer,p.image,0x172d130,e);
+    };
+    bool owners_current=same_weapon(*actual,*target);
+    const auto current_row=[&](size_t row_index,const quest_state::Progress& wanted,bool& npc_matches,bool& quest_matches){
+        npc_matches=false;quest_matches=false;
+        // Every native helper, including a no-op SaveScope, ends owner reuse.
+        const bool validate_after_callback=!owners_current;
+        if(validate_after_callback){
+            if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+            owners_current=true;
+        }
+        fresh.instance_member=false;
+        if(!quest_fresh_link(&fresh,{},e))return false;
+        // The complete read validates array extent, uniqueness and stable order
+        // at entry and after callbacks. Only checked scalar stores occur between
+        // these reads on the bound mainthread; they cannot change the allocation.
+        if(validate_after_callback){
+            std::optional<quest_state::Toon> live;
+            if(!quest_toon(p,owners,subscriber,live,e))return false;
+            if(!live||!pointers(rows)||rows.size()!=live->progress.size())
+                return fail(e,e.empty()?"Quest apply ordered Progress membership differs":e);
+        }else if(!pointers(rows))return false;
+        if(row_index>=rows.size())return true;
+        QuestNoopRow row;
+        if(!quest_noop_row(p,rows[row_index],row,e))return false;
+        const auto* owner=npc_owner(wanted.npc.npc_key);
+        npc_matches=owner&&wanted.npc.state==quest_state::LinkState::Live&&
+            row.npc==owner->npc&&row.proxy_target==owner->npc+0x20;
+        if(wanted.quest.state==quest_state::LinkState::Empty)
+            quest_matches=!row.quest.target&&!row.quest.proxy;
+        else if(wanted.quest.state==quest_state::LinkState::Live){
+            const auto* quest_owner=npc_owner(wanted.quest.npc_key);uintptr_t quest=0;
+            if(quest_owner)for(const auto& [sequence,pointer]:quest_owner->quests)
+                if(sequence==wanted.quest.sequence_id)quest=pointer;
+            quest_matches=quest&&row.quest.target==quest&&row.quest.proxy_target==quest+0x18;
+        }
+        return true;
+    };
+    const auto edits=[&](subscriber_lifecycle_append::QuestEditBatch& batch,std::string& error){
+    (void)error;
     // Preserve retained rows and remove only rows absent from the authoritative state.
     for(size_t i=actual->progress.size();i-->0;){
         const auto& current=actual->progress[i];bool keep=false;
@@ -288,20 +543,25 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
         subscriber_lifecycle_append::ProgressRequest request{toon,owner?owner->npc:0,
             owner?owner->key:"retired-progress",quest_fresh_link,&fresh};
         subscriber_lifecycle_append::ProgressReceipt receipt;
-        if(!subscriber_lifecycle_append::retire_progress(request,rows[i],world.uuid,frame,receipt,e))return false;
+        if(!subscriber_lifecycle_append::retire_progress(batch,request,rows[i],world.uuid,frame,receipt,e))return false;
+        owners_current=false;
     }
     for(size_t i=0;i<target->progress.size();++i){
         const auto& wanted=target->progress[i];uintptr_t progress=0;
+        bool npc_matches=false,quest_matches=false;
+        if(!same_links&&!current_row(i,wanted,npc_matches,quest_matches))return false;
         const auto* owner=npc_owner(wanted.npc.npc_key);
         fresh.absent_npc=false;fresh.instance_member=false;fresh.clear_quest=false;
-        if(wanted.npc.state==quest_state::LinkState::Live&&!same_links){
+        if(wanted.npc.state==quest_state::LinkState::Live&&!same_links&&!npc_matches){
             if(!owner)return fail(e,"Quest apply requested NPC key is absent");
             const subscriber_lifecycle_append::ProgressRequest request{toon,owner->npc,owner->key,quest_fresh_link,&fresh};
             subscriber_lifecycle_append::ProgressReceipt receipt;
-            if(!subscriber_lifecycle_append::ensure_progress(request,world.uuid,frame,receipt,e))return false;
-            progress=receipt.progress;
+            if(!subscriber_lifecycle_append::ensure_progress(batch,request,world.uuid,frame,receipt,e))return false;
+            progress=receipt.progress;owners_current=false;
+            if(!current_row(i,wanted,npc_matches,quest_matches))return false;
+            owner=npc_owner(wanted.npc.npc_key);
         }
-        if(!pointers(rows)||i>=rows.size()||(progress&&rows[i]!=progress))
+        if(!(scalar_only?selected_pointer(i):pointers(rows))||i>=rows.size()||(progress&&rows[i]!=progress))
             return fail(e,e.empty()?"Quest apply ordered Progress membership differs":e);
         progress=rows[i];fresh.progress=progress;fresh.instance_member=true;
         if(wanted.quest.state==quest_state::LinkState::Live){
@@ -310,18 +570,20 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
             uintptr_t quest=0;
             for(const auto& [sequence,pointer]:quest_owner->quests)if(sequence==wanted.quest.sequence_id)quest=pointer;
             if(!quest)return fail(e,"Quest apply requested Quest sequence is absent");
-            if(!same_links){
+            if(!same_links&&!quest_matches){
                 const subscriber_lifecycle_append::QuestLinkRequest request{progress+0x58,quest,
                     quest_owner->key+"/quest/"+std::to_string(wanted.quest.sequence_id),quest_fresh_link,&fresh};
                 subscriber_lifecycle_append::QuestLinkReceipt receipt;
-                if(!subscriber_lifecycle_append::bind_quest_instance(request,world.uuid,frame,receipt,e))return false;
+                if(!subscriber_lifecycle_append::bind_quest_instance(batch,request,world.uuid,frame,receipt,e))return false;
+                owners_current=false;
             }
         }else if(wanted.quest.state==quest_state::LinkState::Empty&&owner){
-            if(!same_links){
+            if(!same_links&&!quest_matches){
                 fresh.clear_quest=true;
                 const subscriber_lifecycle_append::QuestLinkRequest request{progress+0x58,0,owner->key,quest_fresh_link,&fresh};
                 subscriber_lifecycle_append::QuestLinkReceipt receipt;
-                if(!subscriber_lifecycle_append::bind_quest_instance(request,world.uuid,frame,receipt,e))return false;
+                if(!subscriber_lifecycle_append::bind_quest_instance(batch,request,world.uuid,frame,receipt,e))return false;
+                owners_current=false;
                 fresh.clear_quest=false;
             }
         }else{
@@ -331,13 +593,23 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
         }
         const auto store=[&](size_t offset,int32_t value){int32_t prior=0;return at(progress,offset,prior,e)&&
             (prior==value||compare_fixed_i32(progress+offset,prior,value,e));};
-        fresh.instance_member=true;
+        fresh.instance_member=!scalar_only;
         if(!quest_fresh_link(&fresh,{},e))return false;
         if(!store(0x50,wanted.completed)||!store(0xa8,wanted.monsters_defeated))return false;
         uint32_t flags=0;if(!at(progress,0xac,flags,e))return false;
         const uint32_t required=(flags&0xff000000u)|(wanted.visited?1u:0u)|(wanted.action_performed?0x100u:0u)|(wanted.complete?0x10000u:0u);
         if(flags!=required&&!compare_fixed_i32(progress+0xac,std::bit_cast<int32_t>(flags),std::bit_cast<int32_t>(required),e))return false;
     }
+    return true;
+    };
+    mt2mp::subscriber_lifecycle::SaveScopeReceipt edit_scope;
+    const auto exit_edits=[&](std::string& error){
+        fresh.instance_member=false;
+        return quest_fresh_link(&fresh,{},error);
+    };
+    if(quest_batch_){
+        if(!subscriber_lifecycle_append::with_quest_edit_row(*quest_batch_,edits,exit_edits,e))return false;
+    }else if(!subscriber_lifecycle_append::with_quest_edits(world.uuid,frame,edits,exit_edits,edit_scope,e))return false;
     }
     constexpr size_t offsets[]={0x850,0x820,0x6f8,0x874,0x750,0x778,0x7a0,0x878};
     const std::array<uint32_t,8> values{std::bit_cast<uint32_t>(target->gold),target->xp_bits,
@@ -347,7 +619,10 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     for(size_t i=0;i<values.size();++i){uint32_t prior=0;if(!at(toon,offsets[i],prior,e))return false;
         if(prior!=values[i]&&!compare_fixed_i32(toon+offsets[i],std::bit_cast<int32_t>(prior),std::bit_cast<int32_t>(values[i]),e))return false;
     }
-    if(!quest_restore_pause(p,e))return false;
+    scalar_pages.reset();
+    if(quest_batch_&&subscriber_lifecycle_append::quest_edits_held(*quest_batch_)){
+        if(!subscriber_lifecycle_append::verify_quest_edits_held(*quest_batch_,e))return false;
+    }else if(!quest_restore_pause(p,e,[&](){clear_quest_span();}))return false;
     if(!quest_toon(p,owners,subscriber,actual,e)||actual!=target)return fail(e,e.empty()?"Quest apply complete Toon state readback differs":e);
     return true;
 }
@@ -366,18 +641,22 @@ bool NativePort::store_npc_state(const Owners& before,size_t index,const quest_s
     if(index>=before.state.npcs.size())return fail(e,"NPC state owner/key/type differs or scalar phase active: index="+std::to_string(index)+" before.count="+std::to_string(before.state.npcs.size()));
     if(old.key!=target.key)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc.key",old.key,target.key));
     if(old.type!=target.type)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc["+target.key+"].type",old.type,target.type));
-    if(!current(before,0,true,e))return false;
-    const auto& p=before.history.pin;std::vector<QuestOwner> owners;std::vector<quest_state::Npc> actual;
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
-    if(index>=actual.size()||index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size())+" owners.count="+std::to_string(owners.size()));
+    std::vector<QuestOwner> owners;
+    if(!current_npc_owners(before,owners,e))return false;
+    // Values are read after the fresh identity and ownership admission.
+    // Counter and post-store guards collect again across native callbacks.
+    const auto& p=before.history.pin;quest_state::Npc actual;
+    if(index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(owners.size())+" owners.count="+std::to_string(owners.size()));
     if(owners[index].key!=old.key)return fail(e,"NPC state prior canonical owner/value changed: "+difference("npc.owner.key",owners[index].key,old.key));
-    if(!same_npc_non_pose(actual[index],old))return fail(e,"NPC state prior canonical owner/value changed: "+npc_non_pose_difference(actual[index],old));
+    if(!quest_npc(p,owners[index],actual,e))return false;
+    if(!same_npc_non_pose(actual,old))return fail(e,"NPC state prior canonical owner/value changed: "+npc_non_pose_difference(actual,old));
     const auto npc=owners[index].npc;
     if(!store_npc_counters(p,owners[index],old,target,[&](std::string& error){return fence_.read_current_fence(p,error);},e))return false;
     if(old.level!=target.level&&!compare_fixed_i32(npc+0x6f8,old.level,target.level,e))return false;
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
-    if(index>=actual.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size()));
-    if(!same_npc_non_pose(actual[index],target))return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_non_pose_difference(actual[index],target));
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+    if(index>=owners.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(owners.size()));
+    if(!quest_npc(p,owners[index],actual,e))return false;
+    if(!same_npc_non_pose(actual,target))return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_non_pose_difference(actual,target));
     return true;
 }
 bool NativePort::store_npc_pose(const Owners& before,size_t index,const quest_state::Npc& old,
@@ -387,11 +666,12 @@ bool NativePort::store_npc_pose(const Owners& before,size_t index,const quest_st
     if(old.key!=target.key)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc.key",old.key,target.key));
     if(old.type!=target.type)return fail(e,"NPC state owner/key/type differs or scalar phase active: "+difference("npc["+target.key+"].type",old.type,target.type));
     if(!current(before,0,true,e))return false;
-    const auto& p=before.history.pin;std::vector<QuestOwner> owners;std::vector<quest_state::Npc> actual;
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
-    if(index>=actual.size()||index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size())+" owners.count="+std::to_string(owners.size()));
+    const auto& p=before.history.pin;std::vector<QuestOwner> owners;quest_state::Npc actual;
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+    if(index>=owners.size())return fail(e,"NPC state prior canonical owner/value changed: index="+std::to_string(index)+" actual.count="+std::to_string(owners.size())+" owners.count="+std::to_string(owners.size()));
     if(owners[index].key!=old.key)return fail(e,"NPC state prior canonical owner/value changed: "+difference("npc.owner.key",owners[index].key,old.key));
-    if(actual[index]!=old)return fail(e,"NPC state prior canonical owner/value changed: "+npc_difference({actual[index]},{old}));
+    if(!quest_npc(p,owners[index],actual,e))return false;
+    if(actual!=old)return fail(e,"NPC state prior canonical owner/value changed: "+npc_difference({actual},{old}));
     const auto npc=owners[index].npc;
     if(!same_npc_non_pose(old,target))return fail(e,"NPC final pose requires settled exact non-pose state: "+npc_non_pose_difference(old,target));
     if(old.pose!=target.pose){
@@ -414,8 +694,9 @@ bool NativePort::store_npc_pose(const Owners& before,size_t index,const quest_st
         if(!memory.copy(npc+0x818,spawn_after.data(),sizeof spawn_after,e))return false;
         if(spawn!=spawn_after)return fail(e,"NPC simulation transform changed spawn point or owner Region; no replay: "+difference("npc["+old.key+"].spawn_bits",spawn_after,spawn));
     }
-    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)||!quest_npcs(p,owners,actual,e))return false;
-    if(index>=actual.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(actual.size()));
-    if(actual[index]!=target)return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_difference({actual[index]},{target}));
+    if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+    if(index>=owners.size())return fail(e,"NPC pose/counters full readback differs; no replay: index="+std::to_string(index)+" actual.count="+std::to_string(owners.size()));
+    if(!quest_npc(p,owners[index],actual,e))return false;
+    if(actual!=target)return fail(e,"NPC pose/counters full readback differs; no replay: "+npc_difference({actual},{target}));
     return true;
 }

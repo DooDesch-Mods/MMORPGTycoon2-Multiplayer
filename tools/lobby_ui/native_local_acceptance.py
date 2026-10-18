@@ -46,6 +46,10 @@ def left(value, previous):
 
 
 def button(runner, peer, name, **extra):
+    from runtime import FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind
+    if manifest_runtime_kind(read_json(runner.manifests[peer])) == FRAMEWORK_PLUGIN_KIND:
+        from lobby_ui.framework_acceptance import button as framework_button
+        return framework_button(runner, peer, name, **extra)
     token = str(uuid.uuid4())
     result = runner.single(name + "-" + peer, peer, "game_native_lobby_button",
                            {"acceptance_token": token, "button": name, **extra})

@@ -6,12 +6,13 @@ on:
       - main
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: windows-source-${{ github.ref }}
+  group: windows-source-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -76,6 +77,8 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_bug_repair_acceptance.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_research_acceptance.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_subscriber.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/local_acceptance_test.py
@@ -83,6 +86,16 @@ jobs:
           python -X utf8 -m unittest discover -s test/e2e -p test_building_history.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test -p test_loader_separation.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s test -p test_beta_milestone.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s test -p test_beta_release.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s test -p test_framework_beta.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s tools/packaging -p test_package.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m unittest discover -s tools/packaging -p test_steam_test.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
   compile:
     runs-on: windows-2022
@@ -93,6 +106,23 @@ jobs:
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
+          persist-credentials: false
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.13'
+          architecture: x64
+      - name: Read pinned Framework SDK identity
+        id: sdk
+        run: |
+          $pin = Get-Content -LiteralPath .github/framework-sdk.json -Raw | ConvertFrom-Json
+          if ($pin.repository -ne 'DooDesch-Mods/MMORPGTycoon2-ModFramework' -or $pin.revision -notmatch '^[0-9a-f]{40}$') { throw 'Invalid Framework SDK identity' }
+          "revision=$($pin.revision)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+      - name: Read pinned public Framework SDK
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: DooDesch-Mods/MMORPGTycoon2-ModFramework
+          ref: ${{ steps.sdk.outputs.revision }}
+          path: .ci-deps/framework
           persist-credentials: false
       - name: Restore SDL import library
         id: sdl_import
@@ -125,12 +155,23 @@ jobs:
           if ($library.PSIsContainer -or ($library.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $library.Length -le 0) {
             throw 'SDL import library must be a nonempty regular file'
           }
-      - name: Compile mod, proxy and relay
+      - name: Compile native Framework plugin
+        env:
+          BUILD_COMMIT: ${{ github.sha }}
         run: |
-          cmake -S . -B .ci-build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+          python .github/scripts/framework_beta.py build --sdk .ci-deps/framework --commit $env:BUILD_COMMIT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build .ci-build/mod --config Release --target MT2_Multiplayer steam_api64 mt2mp_sidecar wsock32 --parallel 2
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Keep exact native build for packaging
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: multiplayer-framework-build
+          path: |
+            .ci-build/mod/bin/Release/MT2MultiplayerPlugin.dll
+            .ci-build/mod/bin/Release/framework-build.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+          compression-level: 0
   build:
     if: always()
     needs: [source-tests, compile]

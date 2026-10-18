@@ -13,7 +13,7 @@ for name in ('staff_display_owner.inc','staff_display_ui.inc'):
     data=source.read_bytes();(a.output/name).write_bytes(data)
     hashes[str(source)]=hashlib.sha256(data).hexdigest()
 source=a.source_root/'src/game/tutorial_replication/startingpoint_native.inc'
-text=source.read_text(encoding='utf-8');first=text.index('bool same_world(');last=text.index('bool startingpoint_code(',first)
+text=source.read_text(encoding='utf-8');first=text.index('bool same_world(');last=text.index('#include "research_release.inc"',first)
 (a.output/'same_world.inc').write_text(text[first:last],encoding='utf-8')
 hashes[str(source)]=hashlib.sha256(source.read_bytes()).hexdigest()
 source=a.candidate/'src/game/tutorial_replication/native.cpp'

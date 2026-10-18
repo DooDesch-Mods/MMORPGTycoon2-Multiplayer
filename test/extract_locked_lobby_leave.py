@@ -16,6 +16,12 @@ def extract(root,output):
         'fence_suspend.inc':part(fence,'bool EconomicFence::suspend_snapshot(','bool EconomicFence::rebind_snapshot('),
         'fence_retire.inc':part(fence,'bool EconomicFence::retire_lobby(','bool retire_lobby_fence('),
     }
+    def body(anchor):
+        begin=bridge.index(anchor);end=bridge.index('{',begin)+1;depth=1
+        while depth:
+            depth+=(bridge[end]=='{')-(bridge[end]=='}');end+=1
+        return bridge[begin:end]
+    bodies['bridge_leave.inc']+='\n'+body('bool Bridge::suspend_vips(')+'\n'+body('bool Bridge::reset_vips(')+'\n'
     for name,classname in [('bridge.h','Bridge'),('economic_fence.h','EconomicFence')]:
         text=(folder/name).read_text(encoding='utf-8-sig')
         if text.count('class '+classname)!=1:raise SystemExit('locked Leave test header boundary changed: '+name)

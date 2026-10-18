@@ -2,7 +2,7 @@ set(startingpoint_source "${MT2MP_SOURCE_ROOT}/src/game/tutorial_startingpoint_f
 set(startingpoint_baseline "${MT2MP_SOURCE_ROOT}/docs/evidence/tutorial-development-native.json")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${startingpoint_source}" "${startingpoint_baseline}")
 file(READ "${startingpoint_source}" source)
-string(FIND "${source}" "struct Pin {" pin_begin)
+string(FIND "${source}" "bool same(const World&" pin_begin)
 string(FIND "${source}" "bool pin(" pin_end)
 string(FIND "${source}" "bool before(" guard_begin)
 string(FIND "${source}" "struct BorrowedString" guard_end)

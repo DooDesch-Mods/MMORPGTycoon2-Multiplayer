@@ -12,22 +12,44 @@
 #include "mt2mp/net/net_manager.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/core/logger.h"
+#include "mt2mp/core/reporting.h"
 #include "mt2mp/core/config.h"
 #include "typed_action_runtime.h"
 #include "prepare_flow.h"
 #include "lobby_operations.h"
+#include "lobby_progress.h"
 #include "mt2mp/net/session_wire.h"
+#include "mt2mp/net/chat_runtime.h"
 #include "mt2mp/net/local_session.h"
+#ifndef MT2MP_FRAMEWORK_PLUGIN
 #include "vendor/minhook/include/MinHook.h"
+#endif
 #include <windows.h>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <charconv>
 #include <map>
 #include <algorithm>
 #include <cmath>
+#include <stdexcept>
+#include <cstddef>
+#include <utility>
 #include "world_selection.h"
 
+
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include <deque>
+#include "mt2mp/core/framework_runtime.h"
+#include "mt2mp/net/steam_avatars.h"
+#include "mt2mp/core/hash.h"
+#include "save_cache_guard.h"
+#include "save_cache_refresh.h"
+#include "lobby_layout.h"
+#include "lobby_assets.h"
+#include "initial_release/release_mode_bytes.h"
+#include "native_lobby_framework.inc"
+#else
 namespace mt2mp::game::native_lobby {
 namespace {
 uintptr_t image=0;
@@ -43,10 +65,13 @@ Command original_command=nullptr,original_ingame_command=nullptr;
 bool release_fixture_active=false;void* release_fixture_mode=nullptr;uint64_t release_fixture_callbacks=0;std::string release_fixture_error;
 std::string ui_status="Multiplayer",cause,last_ui_status,selected_world,selected_file;
 bool local_admitted=false;
+std::string chat_error,last_chat_transcript,last_chat_status;uint64_t chat_last_sequence=0;bool chat_draft_clear_failed=false;
 bool current_host_world=false;
 std::string current_host_world_error;
 bool choosing=false,pending=false,load_attempted=false,append_attempted=false;
+bool host_world_pick_requested=false;
 bool playing_close_attempted=false;
+std::string failure_notice_attempted,failure_notice_error;
 std::string departed_host_attempt, departed_host_error;
 uint64_t owner=0,generation=0,last_leave_confirmed=0;
 uint64_t command_count=0;std::string last_command;
@@ -130,10 +155,128 @@ bool label(const char* id,const std::string& value) {
     const auto exception=string_call(0x7f1630,p,value.c_str());
     return !exception||fail("native text setter failed id="+std::string(id)+" exception="+std::to_string(exception));
 }
+DWORD button_caption_call(void* receiver,const char* value){
+    struct alignas(8) ButtonCaption {String text;void* args[3]{};};
+    static_assert(sizeof(ButtonCaption)==0x38);
+    ButtonCaption caption{};bool built=false;DWORD code=0;
+    __try{
+        reinterpret_cast<void(*)(void*,const char*)>(image+0xa16f10)(&caption,value);built=true;
+        // A zero size keeps the Button's authored text size. TextEdit's string
+        // setter writes a different field that is a material name on Buttons.
+        reinterpret_cast<void(*)(void*,const void*,float)>(image+0x6757d0)(receiver,&caption,0.0f);
+    }__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
+    if(built){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&caption);}
+        __except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    return code;
+}
+bool button_label(const char* id,const std::string& value){
+    auto* p=pane(id);if(!p)return false;
+    uintptr_t vtable=0;
+    if(!read(p,0,vtable)||vtable!=image+0x16e3ec0)
+        return fail("native button caption receiver class differs id="+std::string(id));
+    const auto exception=button_caption_call(p,value.c_str());
+    if(exception)return fail("native button caption setter failed id="+std::string(id)+" exception="+std::to_string(exception));
+    std::string actual;
+    if(!text(static_cast<unsigned char*>(p)+0x3e8,actual)||actual!=value)
+        return fail("native button caption readback differs id="+std::string(id));
+    return true;
+}
 bool disable(const char* id,bool disabled) {
     auto* p=pane(id);if(!p)return false;const auto code=set_disabled(p,disabled);
     return !code||fail("native button state failed id="+std::string(id)+" exception="+std::to_string(code));
 }
+std::string chat_transcript(const net::chat::Snapshot& snapshot){
+    std::string result;
+    const auto first=snapshot.entries.size()>3?snapshot.entries.size()-3:0;
+    for(size_t i=first;i<snapshot.entries.size();++i){
+        const auto& entry=snapshot.entries[i];
+        if(!result.empty())result+='\n';
+        result+=entry.origin==snapshot.local_peer?"Du":entry.origin==1?"Host":"Mitspieler "+std::to_string(entry.origin);
+        result+=": "+entry.text;
+        if(entry.origin==snapshot.local_peer){
+            if(entry.delivery==net::chat::Delivery::Queued)result+=" - Wird gesendet";
+            else if(entry.delivery==net::chat::Delivery::Failed)result+=" - Nicht zugestellt";
+        }
+    }
+    return result;
+}
+bool send_chat(){
+    auto& runtime=net::chat::Runtime::instance();
+    const auto reject=[](const std::string& detail){
+        ++command_failures;
+        if(chat_error!=detail)LOG_WARN("[NativeLobby] Chat send failed: {}",detail);
+        chat_error=detail;return false;
+    };
+    if(!admitted()||!runtime.snapshot().connected)return reject("chat requires confirmed lobby and current conversation");
+    auto* input=pane("chat_input");std::string draft;
+    if(!input||!text(static_cast<unsigned char*>(input)+0x2d0,draft,net::chat::max_text_bytes))
+        return reject("native chat input unreadable or exceeds240 UTF-8 bytes");
+    if(!net::chat::valid_text(draft))return reject("chat text must contain1..240 UTF-8 bytes without control characters");
+    std::string error;uint64_t sequence=0;
+    if(!runtime.submit(draft,error,&sequence))return reject(error);
+    chat_last_sequence=sequence;
+    if(!label("chat_input","")){
+        chat_draft_clear_failed=true;
+        chat_error="chat queued sequence="+std::to_string(sequence)+" but native draft clear failed; no replay: "+cause;
+        return false;
+    }
+    chat_draft_clear_failed=false;chat_error.clear();return true;
+}
+bool render_chat(std::string& error){
+    const auto snapshot=net::chat::Runtime::instance().snapshot();
+    const auto transcript=chat_transcript(snapshot);
+    const std::string state=snapshot.retired?"Chat beendet":chat_draft_clear_failed?"Chat - Nachricht vorgemerkt, Eingabe nicht geleert":!chat_error.empty()?"Chat - Nachricht nicht gesendet":
+        snapshot.connected?"Chat":admitted()?"Chat verbindet":"Chat - zuerst Lobby beitreten";
+    if(last_chat_transcript!=transcript){
+        if(!label("chat_transcript",transcript)){error=cause;return false;}
+        last_chat_transcript=transcript;
+    }
+    if(last_chat_status!=state){if(!label("chat_status",state)){error=cause;return false;}last_chat_status=state;}
+    if(!disable("chat_send",!admitted()||!snapshot.connected)){error=cause;return false;}
+    return true;
+}
+std::atomic<uint64_t> toggle_requested{0};
+uint64_t toggle_processed=0,toggle_attempted=0,toggle_returned=0,toggle_confirmed=0,toggle_failed=0;
+std::string toggle_error,toggle_first_error;
+bool panel_visibility(void* window,bool& visible,std::string& error){
+    uint8_t value=0;
+    if(!window||!read(window,0x45f,value)||value>1){error="native Multiplayer Window visibility unreadable";return false;}
+    visible=value!=0;return true;
+}
+nlohmann::json panel_toggle_status(){
+    return {{"requested",toggle_requested.load()},{"processed",toggle_processed},{"attempted",toggle_attempted},
+        {"returned",toggle_returned},{"confirmed",toggle_confirmed},{"failed",toggle_failed},
+        {"last_request",toggle_processed},{"last_error",toggle_error},{"first_error",toggle_first_error}};
+}
+bool process_panel_toggle(bool available,std::string& error){
+    if(toggle_processed==toggle_requested.load())return true;
+    ++toggle_processed;
+    const auto reject=[&](const std::string& detail){
+        ++toggle_failed;toggle_error=detail;if(toggle_first_error.empty())toggle_first_error=detail;
+        error=detail;return fail(detail);
+    };
+    if(!thread||GetCurrentThreadId()!=thread)return reject("native Multiplayer toggle outside bound game thread; no replay");
+    if(!available||!ui_owner||!panel||(ui_mode!=2&&ui_mode!=3))return reject("native Multiplayer toggle requires current Title or InGame panel; no replay");
+    if(choosing)return reject("native Multiplayer toggle unavailable while native browser is open; no replay");
+    void* const expected_owner=ui_owner;void* const expected_panel=panel;
+    const auto owner_current=[&](){
+        void* game=nullptr;void* active=nullptr;void* mode=nullptr;
+        return read(reinterpret_cast<void*>(image),0x13df8f0,game)&&read(game,0x28,active)&&
+            read(game,ui_mode==2?0x350:0x358,mode)&&active==expected_owner&&mode==expected_owner&&
+            ui_owner==expected_owner&&panel==expected_panel;
+    };
+    if(!owner_current())return reject("native Multiplayer toggle owner changed before Show; no replay");
+    bool before=false;if(!panel_visibility(expected_panel,before,error))return reject(error+"; no replay");
+    ++toggle_attempted;
+    const auto exception=show(expected_panel,!before);
+    if(exception)return reject("native Multiplayer toggle Show failed exception="+std::to_string(exception)+"; no replay");
+    ++toggle_returned;
+    if(!owner_current())return reject("native Multiplayer toggle owner changed after Show; no replay");
+    bool after=false;if(!panel_visibility(expected_panel,after,error))return reject(error+" after Show; no replay");
+    if(after==before)return reject("native Multiplayer toggle visibility did not change after Show; no replay");
+    ++toggle_confirmed;toggle_error.clear();return true;
+}
+
 bool close_playing_panel_once(bool ingame_active,const nlohmann::json& preparation,std::string& error){
     if(!ingame_active||!preparation.value("playing",false)||playing_close_attempted)return true;
     playing_close_attempted=true;
@@ -141,6 +284,167 @@ bool close_playing_panel_once(bool ingame_active,const nlohmann::json& preparati
     if(exception){error="native playing panel close failed exception="+std::to_string(exception);return fail(error);}
     return true;
 }
+bool show_failed_panel_once(const nlohmann::json& preparation,std::string& error){
+    const auto detail=preparation.value("error",std::string{});
+    if(detail.empty()||preparation.value("leaving",false))return true;
+    cause=detail;ui_status="Sitzung beendet: Synchronisierungsfehler";
+    if(failure_notice_attempted==detail){error=failure_notice_error;if(!error.empty())cause=error;return error.empty();}
+    failure_notice_attempted=detail;failure_notice_error.clear();
+    const auto exception=show(panel,true);
+    if(exception){error="native failed session panel show failed exception="+std::to_string(exception)+" original="+detail;failure_notice_error=error;return fail(error);}
+    LOG_ERROR("[NativeLobby] Session ended: {}",detail);return true;
+}
+using MenuElements=void(*)(void*,const void*,float);
+using MenuSelect=void(*)(void*,const void*);
+MenuElements original_menu_elements=nullptr;
+MenuSelect original_menu_select=nullptr;
+struct alignas(8) MenuLiteral {String value;void* args[3]{};};
+struct alignas(8) MenuElement {String key;MenuLiteral label;};
+static_assert(sizeof(MenuElement)==0x58);
+struct MenuArray {void* vtable;void* data;int count,capacity;};
+void* start_menu_owner=nullptr;void* start_menu_native=nullptr;
+bool start_menu_readback_confirmed=false;
+uint64_t start_menu_builds=0,start_menu_launches=0,start_menu_failures=0;
+std::vector<std::string> start_menu_forwarded_keys;
+std::string start_menu_error,start_menu_first_error;
+bool menu_fail(const std::string& detail){
+    ++start_menu_failures;start_menu_error=detail;if(start_menu_first_error.empty())start_menu_first_error=detail;
+    return fail(detail);
+}
+bool menu_owner_current(void* start){
+    void* game=nullptr;void* actual=nullptr;void* mode=nullptr;void* registered=nullptr;
+    return image&&thread&&GetCurrentThreadId()==thread&&ui_mode==3&&ui_owner&&panel&&
+        read(reinterpret_cast<void*>(image),0x13df8f0,game)&&read(game,0x28,actual)&&read(game,0x358,mode)&&
+        actual==ui_owner&&mode==ui_owner&&!find_window("startmenu",&registered)&&registered==start;
+}
+DWORD menu_item_construct(MenuElement* item,unsigned* built){
+    __try{
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(&item->key,"mt2mp_multiplayer");*built|=1;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0xa16f10)(&item->label,"Multiplayer...");*built|=2;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
+}
+DWORD menu_item_dispose(MenuElement* item,unsigned built){
+    DWORD code=0;
+    if(built&2){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&item->label);}__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}}
+    if(built&1){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&item->key);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    return code;
+}
+bool read_start_menu(nlohmann::json& result,std::string& error){
+    result={{"elements",nlohmann::json::array()},{"items",nlohmann::json::array()}};
+    void* elements=nullptr;void* items=nullptr;void* window=nullptr;int count=0,item_count=0;
+    if(!start_menu_native||!menu_owner_current(start_menu_owner)||!read(start_menu_native,0x280,window)||window!=start_menu_owner||
+       !read(start_menu_native,0x388,elements)||!read(start_menu_native,0x390,count)||count<1||count>=128||
+       !readable(elements,size_t(count)*sizeof(MenuElement))||!read(start_menu_native,0x370,items)||
+       !read(start_menu_native,0x378,item_count)||item_count<1||item_count>count||!readable(items,size_t(item_count)*sizeof(void*))){
+        error="native start menu copied element/item arrays unreadable";return false;
+    }
+    std::vector<std::string> copied_keys;size_t element_matches=0,item_matches=0;
+    for(int i=0;i<count;++i){
+        auto* element=static_cast<unsigned char*>(elements)+size_t(i)*sizeof(MenuElement);std::string key,caption;
+        if(!text(element,key)||!text(element+0x20,caption)){error="native start menu copied element text unreadable";return false;}
+        copied_keys.push_back(key);result["elements"].push_back({{"key",key},{"caption",caption}});
+        if(key=="mt2mp_multiplayer"){
+            if(caption!="Multiplayer..."){error="native copied Multiplayer menu caption differs";return false;}++element_matches;
+        }
+    }
+    for(int i=0;i<item_count;++i){
+        void* item=nullptr;uintptr_t vtable=0;std::string key,caption;
+        if(!read(items,size_t(i)*sizeof(void*),item)||!read(item,0,vtable)||vtable!=image+0x16dc680||
+           !text(static_cast<unsigned char*>(item)+0x1b0,key)||!text(static_cast<unsigned char*>(item)+0x2c8,caption)){
+            error="native start menu built TextPane class/key/caption unreadable";return false;
+        }
+        result["items"].push_back({{"key",key},{"caption",caption}});
+        if(key=="mt2mp_multiplayer"){
+            void* args_begin=nullptr;void* args_end=nullptr;
+            if(caption!="Multiplayer..."||!read(item,0x2e8,args_begin)||!read(item,0x2f0,args_end)||args_begin!=args_end){
+                error="native built Multiplayer menu literal caption differs";return false;
+            }
+            ++item_matches;
+        }
+    }
+    result["element_count"]=count;result["item_count"]=item_count;
+    result["multiplayer_elements"]=element_matches;result["multiplayer_items"]=item_matches;
+    if(copied_keys!=start_menu_forwarded_keys||element_matches!=1||item_matches!=1){
+        error="native start menu copied keys or unique built Multiplayer entry differ";return false;
+    }
+    error.clear();return true;
+}
+bool confirm_start_menu(void* start,void* menu,std::vector<std::string> keys){
+    start_menu_owner=start;start_menu_native=menu;start_menu_forwarded_keys=std::move(keys);++start_menu_builds;
+    nlohmann::json actual;std::string error;start_menu_readback_confirmed=read_start_menu(actual,error);
+    if(!start_menu_readback_confirmed)return menu_fail(error);
+    start_menu_error.clear();return true;
+}
+void start_menu_elements(void* menu,const void* source,float width){
+    void* start=nullptr;void* owner_window=nullptr;
+    if(!read(menu,0x280,owner_window)||find_window("startmenu",&start)||!start||owner_window!=start||!menu_owner_current(start)){
+        original_menu_elements(menu,source,width);return;
+    }
+    MenuArray array{};size_t inserted=0;std::vector<MenuElement> elements;std::vector<std::string> keys;
+    try{
+        if(!read(source,0,array)||array.count<1||array.count>=128||array.capacity<array.count||
+           !readable(array.data,size_t(array.count)*sizeof(MenuElement)))throw std::runtime_error("native start menu source array differs");
+        inserted=size_t(array.count);
+        for(int index=0;index<array.count;++index){
+            std::string key;if(!text(static_cast<unsigned char*>(array.data)+size_t(index)*sizeof(MenuElement),key))throw std::runtime_error("native start menu key unreadable");
+            keys.push_back(key);
+            if(key=="options")inserted=size_t(index);
+        }
+        if(std::find(keys.begin(),keys.end(),"mt2mp_multiplayer")!=keys.end()){
+            original_menu_elements(menu,source,width);confirm_start_menu(start,menu,std::move(keys));return;
+        }
+        elements.resize(size_t(array.count)+1);
+        std::memcpy(elements.data(),array.data,inserted*sizeof(MenuElement));
+        std::memcpy(elements.data()+inserted+1,static_cast<unsigned char*>(array.data)+inserted*sizeof(MenuElement),
+                    (size_t(array.count)-inserted)*sizeof(MenuElement));
+        keys.insert(keys.begin()+ptrdiff_t(inserted),"mt2mp_multiplayer");
+    }catch(const std::exception& error){menu_fail(error.what());original_menu_elements(menu,source,width);return;}
+    unsigned built=0;const auto construction=menu_item_construct(&elements[inserted],&built);
+    if(construction){
+        const auto cleanup=menu_item_dispose(&elements[inserted],built);
+        menu_fail("native start menu item construction failed exception="+std::to_string(construction)+" cleanup_exception="+std::to_string(cleanup));
+        original_menu_elements(menu,source,width);return;
+    }
+    // Borrow every existing item unchanged. Native SetElements copies synchronously.
+    // Preserve the game's original menu construction through the captured callback.
+    array.data=elements.data();++array.count;array.capacity=array.count;
+    original_menu_elements(menu,&array,width);
+    confirm_start_menu(start,menu,std::move(keys));
+    const auto cleanup=menu_item_dispose(&elements[inserted],built);
+    if(cleanup)menu_fail("native start menu item cleanup failed exception="+std::to_string(cleanup));
+}
+void start_menu_select(void* receiver,const void* key){
+    std::string value;
+    if(!text(key,value)||value!="mt2mp_multiplayer"){original_menu_select(receiver,key);return;}
+    if(!menu_owner_current(receiver)||start_menu_owner!=receiver||!start_menu_readback_confirmed){menu_fail("native Multiplayer start entry owner/thread/readback differs; no replay");return;}
+    bool menu_visible=false;std::string visibility_error;
+    if(!panel_visibility(receiver,menu_visible,visibility_error)||!menu_visible){menu_fail("native Multiplayer start entry requires visible original menu: "+visibility_error);return;}
+    nlohmann::json actual;std::string readback_error;
+    if(!read_start_menu(actual,readback_error)){menu_fail(readback_error+" before Select; no replay");return;}
+    const auto before=command_count,failed=command_failures;
+    const auto closed=show(receiver,false);
+    if(closed){menu_fail("native start menu close failed exception="+std::to_string(closed));return;}
+    const auto opened=string_call(0x4a2f90,ui_owner,"MT2MPOpen");
+    bool visible=false;std::string error;
+    if(opened||command_count!=before+1||command_failures!=failed||!panel_visibility(panel,visible,error)||!visible){
+        menu_fail("native Multiplayer start entry did not open current panel once exception="+std::to_string(opened)+" cause="+(error.empty()?cause:error));return;
+    }
+    ++start_menu_launches;start_menu_error.clear();
+}
+nlohmann::json start_menu_status(){
+    nlohmann::json actual;std::string error;
+    const bool current=start_menu_owner&&menu_owner_current(start_menu_owner);
+    const bool observed=current&&read_start_menu(actual,error);
+    bool visible=false;std::string visibility_error;
+    const bool visibility_read=current&&panel_visibility(start_menu_owner,visible,visibility_error);
+    return {{"registered_on_current_owner",current&&start_menu_readback_confirmed&&observed},
+        {"builds",start_menu_builds},{"launches",start_menu_launches},{"failures",start_menu_failures},
+        {"forwarded_keys",start_menu_forwarded_keys},{"error",start_menu_error},{"first_error",start_menu_first_error},
+        {"readback_ok",observed},{"readback_error",error},{"native",actual},
+        {"window_visibility_read",visibility_read},{"window_visible",visible},{"visibility_error",visibility_error},
+        {"key","mt2mp_multiplayer"},{"label","Multiplayer..."}};
+}
+
 // The game's Desktop owns the entry through its native content array.
 // Mode windows keep the session panels; no entry is added to those arrays.
 void* desktop_attempt_owner=nullptr;bool desktop_append_attempted=false;
@@ -404,7 +708,8 @@ bool admit_local(bool host){
     const auto peer=net::session_wire::local_peer();const auto mask=net::session_wire::peer_mask();
     if(!net::session_wire::connected()||peer<1||peer>4||(mask&3)!=3||!(mask&(1u<<(peer-1))))return fail("local lobby admission awaits confirmed launcher peer membership");
     if(host!=(peer==1))return fail("local lobby action differs from launcher-owned Host/Client role");
-    local_admitted=true;Config::instance().is_host=peer==1;++generation;cause.clear();ui_status="Lokale Lobby offen";return true;
+    net::chat::Runtime::instance().set_lobby_admitted(true);chat_error.clear();chat_last_sequence=0;chat_draft_clear_failed=false;
+    local_admitted=true;Config::instance().is_host=peer==1;host_world_pick_requested=host&&selected_world.empty()&&!current_host_world;++generation;cause.clear();ui_status="Lokale Lobby offen";return true;
 }
 std::array<std::string,4> player_rows(){
     std::array<std::string,4> rows;rows.fill("Freier Platz");
@@ -417,6 +722,63 @@ std::array<std::string,4> player_rows(){
     }
     return rows;
 }
+bool set_pane_visible(const char* id,bool visible){
+    auto* p=static_cast<unsigned char*>(pane(id));if(!p)return false;
+    uint8_t property=0,entity=0;
+    if(!read(p,0x2b4,property)||property>1||!read(p,0x69,entity)||entity>1)return fail("native pane visibility unreadable id="+std::string(id));
+    if(property==uint8_t(visible)&&entity==uint8_t(visible))return true;
+    for(const size_t offset:{size_t(0x2b4),size_t(0x69)}){
+        MEMORY_BASIC_INFORMATION region{};
+        if(!VirtualQuery(p+offset,&region,sizeof(region))||region.State!=MEM_COMMIT||
+           !(region.Protect&(PAGE_READWRITE|PAGE_WRITECOPY))||(region.Protect&(PAGE_GUARD|PAGE_NOACCESS)))
+            return fail("native pane visibility not writable id="+std::string(id)+" offset="+std::to_string(offset));
+    }
+    // The same pane property and inherited entity flag are used by the native Mods app.
+    p[0x2b4]=uint8_t(visible);p[0x69]=uint8_t(visible);
+    if(!read(p,0x2b4,property)||!read(p,0x69,entity)||property!=uint8_t(visible)||entity!=uint8_t(visible))
+        return fail("native pane visibility readback differs id="+std::string(id));
+    return true;
+}
+bool open_world_picker(){
+    if(ui_mode!=2||pending||load_attempted||!lobby_host())return fail("world selection rejected: Host with idle Title lobby required");
+    std::string error;if(!refresh_saved_worlds(error))return fail(error);
+    if(saved_worlds.empty()){ui_status="Keine gespeicherte Welt. Zuerst eine Welt erstellen und speichern.";return true;}
+    choosing=true;list_page=0;list_status="Welt auswählen";
+    const auto hidden=show(panel,false);
+    if(hidden){choosing=false;return fail("native world selection lobby hide failed exception="+std::to_string(hidden));}
+    const auto shown=show(browser_panel,true);
+    if(shown){choosing=false;return fail("native world selection browser show failed exception="+std::to_string(shown));}
+    return true;
+}
+bool process_host_world_picker_request(bool title_active,std::string& error){
+    if(!host_world_pick_requested)return true;
+    host_world_pick_requested=false;
+    if(title_active&&lobby_host()&&!pending&&!load_attempted&&!current_host_world&&selected_world.empty()&&selected_file.empty()){
+        if(!open_world_picker()){error=cause;return false;}
+    }
+    return true;
+}
+bool render_context(bool title_active,bool ingame_active,const nlohmann::json& preparation,std::string& error){
+    const bool member=admitted(),host=lobby_host();
+    const bool entry=title_active&&!member;
+    const bool choose=title_active&&host&&!load_attempted;
+    const bool start=choose&&!preparation.value("start_requested",false);
+    for(const char* id:{"host","host_public","search","join","lobby_id","lobby_id_label"})if(!set_pane_visible(id,entry)){error=cause;return false;}
+    if(!set_pane_visible("invite",member&&!Config::instance().local_test)||!disable("invite",pending||preparation.value("leaving",false))||
+       !set_pane_visible("pick",choose)||!set_pane_visible("start",start)||!set_pane_visible("world",member)||
+       !set_pane_visible("leave",member)||!button_label("leave",ingame_active?"Spiel verlassen":"Lobby verlassen")){
+        error=cause;return false;
+    }
+    for(const char* id:{"player0","player1","player2","player3","chat_status","chat_transcript","chat_input","chat_send"})
+        if(!set_pane_visible(id,member)){error=cause;return false;}
+    for(size_t slot=0;slot<4;++slot)if(!button_label(("list"+std::to_string(slot)).c_str(),choosing?"Auswählen":"Beitreten")){error=cause;return false;}
+    if(member&&!host&&title_active&&preparation.value("state",0)==0&&cause.empty()){
+        ui_status="Warte auf den Host";
+        if(last_ui_status!=ui_status){if(!label("status",ui_status)){error=cause;return false;}last_ui_status=ui_status;}
+    }
+    error.clear();return true;
+}
+
 bool ready_for_start() {
     return lobby_prepare::status().value("ready",false);
 }
@@ -428,8 +790,14 @@ void dispatch(void* mode,const void* value,Command original) {
     if(GetCurrentThreadId()!=thread||mode!=ui_owner){fail("native UI command outside bound active mode thread");return;}
     ++command_count;last_command=cmd;
     auto& mm=net::SteamMatchmaking::instance();
-    if(publication_failed&&cmd!="MT2MPLeave"&&cmd!="MT2MPOpen"){fail("Host metadata unavailable: "+publication_error);return;}
-    if(cmd=="MT2MPOpen") {void* entry=nullptr;bool visible=false;std::string error;if(!current_desktop_entry(&entry,&visible,error)||!visible){fail(error.empty()?"Multiplayer entry requires visible main-menu Desktop":error);return;}const auto e=show(panel,true);if(e)fail("native panel show failed exception="+std::to_string(e));return;}
+    if(publication_failed&&cmd!="MT2MPLeave"&&cmd!="MT2MPOpen"&&cmd!="MT2MPChatSend"){fail("Host metadata unavailable: "+publication_error);return;}
+    if(cmd=="MT2MPChatSend"){const auto failed=command_failures;if(!send_chat()&&command_failures==failed)++command_failures;return;}
+    if(cmd=="MT2MPOpen") {
+        if(ui_mode==2){void* entry=nullptr;bool visible=false;std::string error;
+            if(!current_desktop_entry(&entry,&visible,error)||!visible){fail(error.empty()?"Multiplayer entry requires visible main-menu Desktop":error);return;}
+        }else{void* start=nullptr;if(find_window("startmenu",&start)||!start||!menu_owner_current(start)){fail("Multiplayer entry requires current native in-game menu owner");return;}}
+        const auto e=show(panel,true);if(e)fail("native panel show failed exception="+std::to_string(e));return;
+    }
     if(cmd=="MT2MPRefresh"&&choosing){
         std::string error;if(!refresh_saved_worlds(error)){fail(error);return;}
         list_page=0;list_status=saved_worlds.empty()?"Keine gespeicherten Welten":"Welt auswählen";return;
@@ -468,15 +836,7 @@ void dispatch(void* mode,const void* value,Command original) {
         // Continue through the same callback-confirmed admission path as manual Join.
         cmd="MT2MPJoin";
     }
-    if(cmd=="MT2MPPickWorld") {
-        if(ui_mode!=2||pending||load_attempted||!lobby_host()){fail("world selection rejected: Host with idle Title lobby required");return;}
-        std::string error;
-        if(!refresh_saved_worlds(error)){fail(error);return;}
-        if(saved_worlds.empty()){ui_status="Keine gespeicherte Welt. Zuerst eine kleine Welt erstellen und speichern.";return;}
-        choosing=true;list_page=0;list_status="Welt auswählen";
-        if(show(panel,false)||show(browser_panel,true)){choosing=false;fail("native world selection window visibility failed");}
-        return;
-    }
+    if(cmd=="MT2MPPickWorld") {open_world_picker();return;}
     if(cmd=="MT2MPHost"||cmd=="MT2MPHostPublic"||cmd=="MT2MPJoin") {
         if(ui_mode!=2||pending||admitted()){fail("lobby admission rejected: idle Title and no active lobby required");return;}
         if(Config::instance().local_test){admit_local(cmd!="MT2MPJoin");return;}
@@ -490,11 +850,13 @@ void dispatch(void* mode,const void* value,Command original) {
             }
             pending=false;if(!ok||!id){fail("Steam lobby admission failed");return;}
             Config::instance().is_host=host;owner=net::SteamMatchmaking::instance().host_steam_id();ui_status="Lobby offen";
+            net::chat::Runtime::instance().set_lobby_admitted(true);chat_error.clear();chat_last_sequence=0;chat_draft_clear_failed=false;
             if(host){std::string error;auto& mm=net::SteamMatchmaking::instance();
                 if(!mm.publish_lobby_data("mt2mp","1",error)||!mm.publish_lobby_data("host_name",net::SteamNetworking::instance().get_persona_name(owner),error)||
                    !mm.publish_lobby_data("mt2mp_version",MOD_VERSION,error)||!mm.publish_lobby_data("game_name","Welt wird ausgewählt",error)||
                    !mm.publish_lobby_data("lobby_state","open",error)||!mm.set_lobby_joinable(true,error)){metadata_failure(error);return;}
                 published_state="open";
+                host_world_pick_requested=ui_mode==2&&selected_world.empty()&&!current_host_world;
             }
         };
         if(host)mm.create_lobby(4,completion,public_lobby);
@@ -596,6 +958,16 @@ bool initialize(const std::filesystem::path& assets,uintptr_t base,std::string& 
     const auto launch_enabled=MH_EnableHook(reinterpret_cast<void*>(image+0x609060));
     if(launch_enabled!=MH_OK){error="native DesktopIcon launch hook enable failed: "+std::string(MH_StatusToString(launch_enabled));return false;}
 
+    for(const auto& item:std::array<std::pair<uintptr_t,void*>,2>{{
+        {0x73c200,reinterpret_cast<void*>(&start_menu_elements)},
+        {0x73d8a0,reinterpret_cast<void*>(&start_menu_select)}}}){
+        void** original=item.first==0x73c200?reinterpret_cast<void**>(&original_menu_elements):reinterpret_cast<void**>(&original_menu_select);
+        if(!hooks::create_hook(reinterpret_cast<void*>(image+item.first),item.second,original)){
+            error="native start menu hook creation failed RVA="+std::to_string(item.first);return false;
+        }
+        const auto state=MH_EnableHook(reinterpret_cast<void*>(image+item.first));
+        if(state!=MH_OK){error="native start menu hook enable failed RVA="+std::to_string(item.first)+" cause="+MH_StatusToString(state);return false;}
+    }
     error.clear();return true;
 }
 bool retire_departed_host(const nlohmann::json& preparation,std::string& error) {
@@ -619,6 +991,7 @@ bool retire_departed_host(const nlohmann::json& preparation,std::string& error) 
     }
     ui_status="Host hat die Sitzung beendet";error.clear();return true;
 }
+void request_panel_toggle(){++toggle_requested;}
 bool tick(std::string& error) {
     if(!image){error="native lobby not initialized";return false;}
     if(!thread)thread=GetCurrentThreadId();
@@ -627,19 +1000,23 @@ bool tick(std::string& error) {
     mm.poll();
     if(!Config::instance().local_test&&mm.in_lobby()&&!owner){owner=mm.host_steam_id();Config::instance().is_host=owner!=0&&owner==net::SteamNetworking::instance().local_steam_id();}
     const auto preparation=lobby_prepare::status();
+    mm.update_rich_presence(!Config::instance().local_test, preparation.value("playing",false),
+        preparation.value("state",0)!=0, publication_failed || preparation.value("leaving",false) ||
+        !preparation.value("error",std::string{}).empty() ||
+        (preparation.value("playing",false)&&!net::session_wire::connected()), owner);
     const auto left=preparation.value("leave_confirmed",uint64_t{});
-    if(left!=last_leave_confirmed){last_leave_confirmed=left;playing_close_attempted=false;departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
+    if(left!=last_leave_confirmed){net::chat::Runtime::instance().set_lobby_admitted(false);last_leave_confirmed=left;playing_close_attempted=false;failure_notice_attempted.clear();failure_notice_error.clear();departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;host_world_pick_requested=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Sitzung beendet";}
     if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Sitzung nicht verfügbar"));
     if(!retire_departed_host(preparation,error))return false;
     native::WorldStatus world;
     if(!native::read_world_status(world,error))return false;
     const bool title_active=world.active_mode_index==2&&!world.title_transition_pending;
     const bool ingame_active=world.active_mode_index==3&&native::in_game();
-    if(!title_active&&!ingame_active){ui_owner=nullptr;panel=nullptr;browser_panel=nullptr;ui_mode=-1;append_attempted=false;last_ui_status.clear();error.clear();return true;}
+    if(!title_active&&!ingame_active){start_menu_owner=nullptr;start_menu_native=nullptr;start_menu_readback_confirmed=false;ui_owner=nullptr;panel=nullptr;browser_panel=nullptr;ui_mode=-1;append_attempted=false;last_ui_status.clear();last_chat_transcript.clear();last_chat_status.clear();error.clear();return process_panel_toggle(false,error);}
     void* game=nullptr;void* mode=nullptr;void* active=nullptr;
     const size_t mode_offset=title_active?0x350:0x358;
     if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!read(game,mode_offset,mode)||!read(game,0x28,active)||mode!=active){error="native UI owner differs from actual active mode";return false;}
-    if(ui_owner!=mode||ui_mode!=world.active_mode_index){ui_owner=mode;ui_mode=world.active_mode_index;panel=nullptr;browser_panel=nullptr;append_attempted=false;last_ui_status.clear();}
+    if(ui_owner!=mode||ui_mode!=world.active_mode_index){start_menu_owner=nullptr;start_menu_native=nullptr;start_menu_readback_confirmed=false;ui_owner=mode;ui_mode=world.active_mode_index;panel=nullptr;browser_panel=nullptr;append_attempted=false;last_ui_status.clear();last_chat_transcript.clear();last_chat_status.clear();}
     if(title_active)title=mode;
     if(!adopt_current_host_world(game,ingame_active,title_active,preparation,error))return false;
     void* entry=nullptr;bool entry_visible=false;
@@ -655,7 +1032,8 @@ bool tick(std::string& error) {
         if(show(panel,ingame_active&&admitted())||show(browser_panel,false)){error="native lobby initial visibility failed";return false;}
         LOG_INFO("[NativeLobby] Native panels registered on mode-owned window array mode={}",ui_mode);
     }
-    if(!close_playing_panel_once(ingame_active,preparation,error))return false;
+    if(!process_host_world_picker_request(title_active,error))return false;
+    if(!close_playing_panel_once(ingame_active,preparation,error)||!show_failed_panel_once(preparation,error)||!process_panel_toggle(true,error)||!render_chat(error))return false;
     if(!Config::instance().local_test&&!publication_failed&&mm.in_lobby()&&mm.is_host()){
         const std::string state=preparation.value("leaving",false)?"leaving":preparation.value("playing",false)?"playing":
             (net::session_wire::connected()||(load_attempted&&mm.get_lobby_members().size()>1))?"preparing":"open";
@@ -690,6 +1068,7 @@ bool tick(std::string& error) {
     if(!disable("host_public",!title_active||pending||admitted())||!disable("search",!title_active||pending||admitted()||list_pending)||!disable("host",!title_active||pending||admitted())||!disable("join",!title_active||pending||admitted())||!disable("pick",!title_active||!lobby_host()||pending||load_attempted)||
        !disable("leave",pending||preparation.value("leaving",false))||
        !disable("start",publication_failed||!lobby_host()||(!current_host_world&&selected_file.empty())||pending||load_attempted||preparation.value("start_requested",false)||!preparation.value("error",std::string{}).empty())){error=cause;return false;}
+    if(!render_context(title_active,ingame_active,preparation,error))return false;
     error.clear();return true;
 }
 bool admitted(){return Config::instance().local_test?local_admitted&&net::session_wire::connected():net::SteamMatchmaking::instance().in_lobby();}
@@ -697,7 +1076,7 @@ std::string status(){return cause.empty()?ui_status:cause;}
 bool observe(nlohmann::json& result,std::string& error) {
     if(!image||!thread||GetCurrentThreadId()!=thread){error="native lobby observation requires initialized bound game thread";return false;}
     native::WorldStatus world;if(!native::read_world_status(world,error))return false;
-    if(!tick(error))return false;
+    if(!tick(error)){result["panel_toggle"]=panel_toggle_status();return false;}
     result={{"title_active",world.active_mode_index==2&&!world.title_transition_pending},{"state",status()},
         {"transport",Config::instance().local_test?"local":"steam"},{"admission_source",Config::instance().local_test?"launcher_loopback":"steam_callback"},{"admitted",admitted()},{"host_permission",lobby_host()},
         {"local_admitted",Config::instance().local_test&&local_admitted},{"local_role",Config::instance().local_test?(net::session_wire::local_peer()==1?"host":"client"):"none"},{"local_session_id",Config::instance().local_test?net::session_wire::session_id():0},
@@ -712,7 +1091,14 @@ bool observe(nlohmann::json& result,std::string& error) {
     for(const auto& [token,receipt]:route_receipts)result["route_receipts"].push_back(receipt);
     result["ui_mode"]=ui_mode;result["ui_owner_current"]=ui_owner!=nullptr;
     result["snapshot"]=net::snapshot_progress();result["controller"]=typed_action_runtime::status();
+    result["panel_toggle"]=panel_toggle_status();
+    result["start_menu"]=start_menu_status();
+    result["panel_visible"]=nullptr;
+    if(panel){bool visible=false;if(!panel_visibility(panel,visible,error))return false;result["panel_visible"]=visible;}
     result["physical_handshake"]=net::session_wire::connected();
+    const auto chat=net::chat::Runtime::instance().snapshot();
+    result["chat"]={{"connected",chat.connected},{"retired",chat.retired},{"conversation",chat.conversation},
+        {"last_submit_sequence",chat_last_sequence},{"draft_clear_failed",chat_draft_clear_failed},{"error",chat_error}};
     if(!ui_owner){error.clear();return true;}
     void* entry=nullptr;bool visible=false;if(!current_desktop_entry(&entry,&visible,error))return false;
     result["entry_registered"]=entry!=nullptr;result["entry_visible"]=visible;
@@ -731,13 +1117,14 @@ bool observe(nlohmann::json& result,std::string& error) {
     result["panel_registered"]=panel!=nullptr;
     void* legacy_entry=nullptr;if(find_window("mt2mp_entry",&legacy_entry)){error="native legacy entry registry read failed";return false;}
     result["legacy_entry_window_registered"]=legacy_entry!=nullptr;
-    for(const char* id:{"host","host_public","search","join","pick","start","leave","list_refresh","list_previous","list_next","list_back","list0","list1","list2","list3"}){
+    for(const char* id:{"host","host_public","search","join","pick","start","leave","chat_send","list_refresh","list_previous","list_next","list_back","list0","list1","list2","list3"}){
         auto* p=pane(id);uint8_t disabled=1;std::string actual;
-        if(!p||!read(p,0x46d,disabled)||!text(static_cast<unsigned char*>(p)+0x388,actual)){
+        uint8_t shown=0,entity_shown=0;
+        if(!p||!read(p,0x46d,disabled)||!read(p,0x2b4,shown)||!read(p,0x69,entity_shown)||shown>1||entity_shown>1||!text(static_cast<unsigned char*>(p)+0x388,actual)){
             error="native lobby button field observation failed id="+std::string(id);return false;}
-        result["native_panes"].push_back({{"id",id},{"disabled",disabled!=0},{"native_command",actual}});
+        result["native_panes"].push_back({{"id",id},{"disabled",disabled!=0},{"visible",shown!=0&&entity_shown!=0},{"native_command",actual}});
     }
-    for(const char* id:{"status","world","player0","player1","player2","player3","list_status","list_text0","list_text1","list_text2","list_text3"}){
+    for(const char* id:{"status","world","lobby_id_label","chat_status","chat_transcript","chat_input","player0","player1","player2","player3","list_status","list_text0","list_text1","list_text2","list_text3"}){
         auto* p=pane(id);std::string actual;
         if(!p||!text(static_cast<unsigned char*>(p)+0x2d0,actual)){error="native lobby text readback failed id="+std::string(id);return false;}
         result["native_labels"][id]=actual;
@@ -870,19 +1257,23 @@ bool icon_event_probe(const std::string& token,const std::string& button,nlohman
 bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& error) {
     if(!args.is_object()||args.size()<2||args.size()>3||!args.contains("acceptance_token")||!args.contains("button")||
        !args.at("acceptance_token").is_string()||!args.at("button").is_string()){
-        error="native lobby activation requires exact token/button and optional lobby_id";return false;}
+        error="native lobby activation requires exact token/button and one optional field";return false;}
     const auto token=args.at("acceptance_token").get<std::string>();const auto button=args.at("button").get<std::string>();
     if(token.size()!=36||token.find_first_not_of("0123456789abcdef-")!=std::string::npos||token[8]!='-'||token[13]!='-'||token[18]!='-'||token[23]!='-'){
         error="native lobby acceptance token invalid";return false;}
     if(args.size()==3&&!((button=="join"&&args.contains("lobby_id")&&args.at("lobby_id").is_string())||
-       (button=="pick"&&args.contains("world")&&args.at("world").is_string()))){
-        error="native lobby optional field requires Join lobby_id or Pick world";return false;}
+       (button=="pick"&&args.contains("world")&&args.at("world").is_string())||
+       (button=="chat_send"&&args.contains("text")&&args.at("text").is_string()))){
+        error="native lobby optional field requires Join lobby_id, Pick world or Chat text";return false;}
+    if(args.contains("text")&&!net::chat::valid_text(args.at("text").get<std::string>())){
+        error="native chat text must contain1..240 UTF-8 bytes without control characters";return false;
+    }
     std::string world_name;
     if(args.contains("world")){world_name=args.at("world").get<std::string>();
         if(world_name.empty()||world_name.size()>200||world_name.find_first_of("/\\\"\r\n\t")!=std::string::npos||world_name==".."){
             error="native world selection name invalid";return false;}}
-    const std::map<std::string,std::string> admitted_buttons={{"icon_single",""},{"icon_drag",""},{"open","MT2MPOpen"},{"host","MT2MPHost"},{"host_public","MT2MPHostPublic"},{"search","MT2MPSearch"},{"join","MT2MPJoin"},{"list_refresh","MT2MPRefresh"},{"list_previous","MT2MPListPrevious"},{"list_next","MT2MPListNext"},{"list_back","MT2MPListBack"},{"list0","MT2MPList0"},{"list1","MT2MPList1"},{"list2","MT2MPList2"},{"list3","MT2MPList3"},
-        {"pick","MT2MPPickWorld"},{"prepare","MT2MPStart"},{"start","MT2MPStart"},{"leave","MT2MPLeave"}};
+    const std::map<std::string,std::string> admitted_buttons={{"icon_single",""},{"icon_drag",""},{"start_menu",""},{"open","MT2MPOpen"},{"host","MT2MPHost"},{"host_public","MT2MPHostPublic"},{"search","MT2MPSearch"},{"join","MT2MPJoin"},{"list_refresh","MT2MPRefresh"},{"list_previous","MT2MPListPrevious"},{"list_next","MT2MPListNext"},{"list_back","MT2MPListBack"},{"list0","MT2MPList0"},{"list1","MT2MPList1"},{"list2","MT2MPList2"},{"list3","MT2MPList3"},
+        {"pick","MT2MPPickWorld"},{"prepare","MT2MPStart"},{"start","MT2MPStart"},{"leave","MT2MPLeave"},{"chat_send","MT2MPChatSend"}};
     const auto expected=admitted_buttons.find(button);if(expected==admitted_buttons.end()){error="native lobby button is not admitted; invitation delivery excluded";return false;}
     if(route_receipts.contains(token)){result=route_receipts.at(token);error="native lobby token has already been attempted; read receipt, no replay";return false;}
     if(route_receipts.size()>=64){error="native lobby receipt limit reached required<64";return false;}
@@ -895,7 +1286,62 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
         if(id.empty()||id.size()>20||parsed.ec!=std::errc{}||parsed.ptr!=id.data()+id.size()||!number){error="native Join lobby ID invalid";return false;}
         if(!label("lobby_id",id)){error=cause;return false;}
     }
+    if(button=="chat_send"&&args.contains("text")){
+        const auto draft=args.at("text").get<std::string>();
+        if(!label("chat_input",draft)){error=cause;return false;}
+        auto* input=pane("chat_input");std::string actual;
+        if(!input||!text(static_cast<unsigned char*>(input)+0x2d0,actual,net::chat::max_text_bytes)||actual!=draft){
+            error="native chat input setter readback differs; Send not attempted";return false;
+        }
+    }
     void* target=nullptr;bool entry=button=="open";
+    if(button=="start_menu"){
+        void* start=nullptr;bool visible=false;
+        if(ui_mode!=3||find_window("startmenu",&start)||!start||!menu_owner_current(start)||!panel_visibility(start,visible,error)){
+            if(error.empty())error="original native StartMenu requires current in-game mode";return false;
+        }
+        if(visible){error="original native StartMenu is already visible; read its current native items instead";return false;}
+        const auto before=start_menu_builds,failures_before=command_failures;
+        const auto failure_cause_before=cause;
+        result={{"acceptance_token",token},{"button",button},{"native_event","mmoWindow::Show(startmenu,true)"},
+            {"native_attempted",true},{"native_returned",false},{"handler_reached",false},{"handler_failed",false},{"backend_confirmed",false},
+            {"failures_before",failures_before},{"failure_cause_before",failure_cause_before}};
+        route_receipts[token]=result;
+        const auto exception=show(start,true);
+        const auto actual=start_menu_status();
+        result["native_returned"]=exception==0;result["exception_code"]=exception;
+        result["handler_reached"]=start_menu_builds>before;
+        result["handler_failed"]=exception!=0||command_failures!=failures_before;
+        result["failures_after"]=command_failures;result["failure_cause_after"]=cause;
+        result["sequence_confirmed"]=exception==0&&command_failures==failures_before&&start_menu_builds>before&&actual.value("registered_on_current_owner",false)&&
+            actual.value("readback_ok",false)&&actual.value("window_visibility_read",false)&&actual.value("window_visible",false);
+        result["builds_before"]=before;result["start_menu"]=actual;route_receipts[token]=result;
+        if(!result.at("sequence_confirmed").get<bool>()){
+            error="original native StartMenu Show/build/readback failed exception="+std::to_string(exception)+
+                " builds_before="+std::to_string(before)+" builds_after="+std::to_string(start_menu_builds)+
+                " required_after>before readback="+actual.value("readback_error",std::string{})+" cause="+start_menu_error;return false;
+        }
+        error.clear();return true;
+    }
+    if(button=="open"&&ui_mode==3){
+        void* start=nullptr;
+        if(find_window("startmenu",&start)||!start||start_menu_owner!=start||!menu_owner_current(start)){
+            error="native in-game Multiplayer entry not registered on current start menu";return false;
+        }
+        const auto before=command_count,failed=command_failures,launches=start_menu_launches;
+        result={{"acceptance_token",token},{"button",button},{"native_event","mmoStartMenuWindow::Select"},
+            {"native_attempted",true},{"native_returned",false},{"handler_reached",false},{"backend_confirmed",false}};
+        route_receipts[token]=result;
+        const auto exception=string_call(0x73d8a0,start,"mt2mp_multiplayer");
+        result["native_returned"]=exception==0;result["exception_code"]=exception;
+        result["handler_reached"]=command_count==before+1&&last_command=="MT2MPOpen";
+        result["handler_failed"]=command_failures!=failed;
+        result["sequence_confirmed"]=exception==0&&command_failures==failed&&start_menu_launches==launches+1;
+        result["start_menu"]=start_menu_status();route_receipts[token]=result;
+        if(!result.at("sequence_confirmed").get<bool>()){error="native start menu Multiplayer activation failed: "+start_menu_error;return false;}
+        error.clear();return true;
+    }
+
     if(entry){bool visible=false;if(!current_desktop_entry(&target,&visible,error)||!target||!visible){if(error.empty())error="actual main-menu DesktopIcon unavailable or hidden";return false;}}
     else target=pane(button=="prepare"?"start":button.c_str());
     std::string native_command;uint8_t disabled=0;
@@ -907,7 +1353,7 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
     }else if(!target||!read(target,0x46d,disabled)||disabled||
        !text(static_cast<unsigned char*>(target)+0x388,native_command)||native_command!="MessageTo Mode "+expected->second){
         error="native lobby target disabled or command differs from authored button";return false;}
-    const auto before=command_count,failed=command_failures,admission_before=generation;
+    const auto before=command_count,failed=command_failures,admission_before=generation,chat_sequence_before=chat_last_sequence;
     result={{"acceptance_token",token},{"button",button},{"native_attempted",true},{"native_returned",false},{"handler_reached",false},{"backend_confirmed",false}};
     route_receipts[token]=result;
     result["native_event"]=entry?"mmoDesktopIcon::DoubleClick":"mmoButtonPane::Activate";
@@ -922,6 +1368,7 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
         result["selection_confirmed"]=selection_code==0&&!choosing&&selected_world==world_name&&!selected_file.empty();
     }
     if(Config::instance().local_test&&(button=="host"||button=="host_public"||button=="join")){result["backend"]="launcher_loopback";result["backend_confirmed"]=admitted()&&command_failures==failed;result["callback_completed"]=false;}
+    if(button=="chat_send"){result["chat_sequence"]=chat_last_sequence;result["chat_error"]=chat_error;result["chat_queued"]=chat_last_sequence!=chat_sequence_before;result["chat_draft_clear_failed"]=chat_draft_clear_failed;}
     result["handler_failed"]=command_failures!=failed;result["callback_pending"]=pending;
     if(generation!=admission_before)result["admission_generation"]=generation;
     if(button=="search"||button=="list_refresh"){result["discovery_generation"]=list_generation;result["callback_pending"]=list_pending;result["callback_completed"]=list_callback_completed;result["backend_confirmed"]=list_callback_completed&&list_callback_ok;}
@@ -929,7 +1376,7 @@ bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& err
     route_receipts[token]=result;
     if(code||selection_code||!result.at("handler_reached").get<bool>()||result.at("handler_failed").get<bool>()||
        (!world_name.empty()&&!result.value("selection_confirmed",false))){
-        error="native lobby activation failed button="+button+" exception="+std::to_string(code)+" selection_exception="+std::to_string(selection_code)+" cause="+cause;return false;}
+        error="native lobby activation failed button="+button+" exception="+std::to_string(code)+" selection_exception="+std::to_string(selection_code)+" cause="+(button=="chat_send"?chat_error:cause);return false;}
     error.clear();return true;
 }
 }
@@ -965,3 +1412,5 @@ bool end_initial_release_fixture(uint64_t& callbacks,std::string& error){
     return release_route(mode,error);
 }
 }
+
+#endif

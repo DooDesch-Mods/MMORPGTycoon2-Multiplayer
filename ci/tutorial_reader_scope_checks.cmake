@@ -1,0 +1,15 @@
+if(WIN32)
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+if(NOT DEFINED TUTORIAL_READER_DEPENDENCY_ROOT)
+    get_filename_component(TUTORIAL_READER_DEPENDENCY_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
+endif()
+set(tutorial_reader_generated "${CMAKE_CURRENT_BINARY_DIR}/tutorial_reader_scope_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_tutorial_reader_scope.py"
+    --root "${CMAKE_CURRENT_LIST_DIR}/.." --dependencies "${TUTORIAL_READER_DEPENDENCY_ROOT}" --output "${tutorial_reader_generated}"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_tutorial_reader_scope "${CMAKE_CURRENT_LIST_DIR}/../test/test_tutorial_reader_scope.cpp")
+target_compile_features(test_tutorial_reader_scope PRIVATE cxx_std_20)
+target_compile_options(test_tutorial_reader_scope PRIVATE /W4 /WX /permissive-)
+target_include_directories(test_tutorial_reader_scope PRIVATE "${tutorial_reader_generated}" "${TUTORIAL_READER_DEPENDENCY_ROOT}/src/game" "${TUTORIAL_READER_DEPENDENCY_ROOT}/include")
+add_test(NAME tutorial_reader_scope COMMAND test_tutorial_reader_scope)
+endif()

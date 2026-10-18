@@ -40,15 +40,16 @@ bool guard(Memory& m,uintptr_t image,std::string& e){
     return true;
 }
 }
-bool read_startingpoint_release(Memory& m,uintptr_t image,uintptr_t game_state,
-                               uintptr_t startingpoint,StartingpointRelease& out,std::string& e){
+bool read_research_release(Memory& m,uintptr_t image,uintptr_t game_state,
+                               uintptr_t startingpoint,const std::string& selected,StartingpointRelease& out,std::string& e){
     out={};e.clear();
+    if(selected!="startingpoint"&&selected!="bridges")return fail(e,"research release unsupported Tech key");
     if(!image||image>UINTPTR_MAX-0x1800000||!game_state||!startingpoint)
         return fail(e,"startingpoint release current binding absent");
     if(!guard(m,image,e)||!type(m,game_state,image+0x16de920,"GameState",e)||
        !type(m,startingpoint,image+0x16dc330,"Startingpoint TechItem",e))return false;
     std::string tech_key;if(!key(m,startingpoint,0x20,tech_key,e))return false;
-    if(tech_key!="startingpoint")return fail(e,"startingpoint release supplied Tech key differs");
+    if(tech_key!=selected)return fail(e,"startingpoint release supplied Tech key differs");
     uintptr_t current_state=0,manager=0,current_manager=0,release=0;
     if(!at(m,image,0x13df2a0,current_state,e)||!at(m,game_state,0x190,manager,e)||
        !at(m,image,0x13df4f0,current_manager,e))return false;
@@ -74,4 +75,9 @@ bool read_startingpoint_release(Memory& m,uintptr_t image,uintptr_t game_state,
     }
     out=sample;return true;
 }
+bool read_startingpoint_release(Memory& m,uintptr_t image,uintptr_t state,
+    uintptr_t tech,StartingpointRelease& out,std::string& e){
+    return read_research_release(m,image,state,tech,"startingpoint",out,e);
+}
+
 }

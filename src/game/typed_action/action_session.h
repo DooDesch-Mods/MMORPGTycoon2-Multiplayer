@@ -11,6 +11,7 @@
 #include "zone_action.h"
 #include "bug_fix_action.h"
 #include "../tutorial_replication/startingpoint.h"
+#include "../tutorial_replication/research.h"
 #include "../developer_staff/shared_state.h"
 #include <array>
 #include <cstdint>
@@ -26,7 +27,7 @@ namespace mt2mp::action_session {
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=16384, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -77,6 +78,7 @@ struct Evidence {
     NpcState npc_before,npc_after;
     ZoneState zone_before,zone_after;
     std::optional<game::tutorial_replication::startingpoint::Row> startingpoint_before,startingpoint_after;
+    std::optional<game::tutorial_replication::research::Row> research_before,research_after;
     std::optional<game::developer_staff::PoolState> developers_before,developers_after;
     std::optional<game::bug_authority::Row> bug_before,bug_after;
     std::string region_retired_sha256;
@@ -168,6 +170,9 @@ class Controller {
 public:
     bool submit_bug_fix(const std::string& action_uuid,const BugFixIntent&,uint64_t now,std::string& error);
     bool submit_developer(bool hire,const std::string& action_uuid,uint64_t now,std::string& error);
+    bool submit_start_research(const std::string& action_uuid,const std::string& key,uint64_t now,std::string&);
+    bool submit_research_workers(const std::string& action_uuid,const std::string& key,int32_t desired,uint64_t now,std::string&);
+    bool submit_commit_research(const std::string& action_uuid,const std::string& key,uint64_t now,std::string&);
     bool submit_commit_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
     bool submit_startingpoint_workers(const std::string& action_uuid,int32_t desired,uint64_t now,std::string&);
     bool submit_start_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
@@ -196,8 +201,10 @@ public:
     bool receive(uint64_t authenticated_sender,const uint8_t*,size_t,uint64_t now_ms,std::string& cause);
     bool tick(uint64_t now_ms,std::string& cause);
     Status status() const {return status_;}
+    const Status& status_view() const noexcept {return status_;}
     bool can_retire_lobby() const;
     Context bound_context() const {return context_;}
+    const Context& bound_context_view() const noexcept {return context_;}
     Binding bound_binding() const {return binding_;}
 private:
     struct Cached {

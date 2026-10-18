@@ -1,3 +1,4 @@
+#include "live_host_state/memory_query_timing.h"
 #include "runtime_internal.h"
 #include "codec.h"
 #include "work_runtime.h"
@@ -68,6 +69,7 @@ creation::Lease lease(const Row& row,uintptr_t parent,uintptr_t collection){
         r.context.snapshot_uuid,row.parent_key,row.birth.source+":"+std::to_string(row.birth.sequence)+":"+std::to_string(row.birth.occurrence),r.binding.native_epoch,r.binding.native_generation};
 }
 bool tracker_members(std::vector<uintptr_t>& out,std::string& error){
+    live_host_state::apply_timing::PageReadScope pages;
     auto& r=runtime();uintptr_t data=0;int32_t count=0,capacity=0;
     if(!field(r.tracker,0x18,data,error)||!field(r.tracker,0x20,count,error)||!field(r.tracker,0x24,capacity,error))return false;
     if(count<0||capacity<count||capacity>1024*1024||(count&&!data))return fail(error,"Bug Tracker count/capacity invalid");
@@ -134,7 +136,7 @@ bool prepare(const Context& context,const Binding& binding,uint64_t publication,
     if(!std::is_sorted(target.rows.begin(),target.rows.end(),[](const Row& a,const Row& b){return std::tie(a.parent_kind,a.parent_key,a.birth.kind,a.birth.source,a.birth.sequence,a.birth.occurrence)<std::tie(b.parent_kind,b.parent_key,b.birth.kind,b.birth.source,b.birth.sequence,b.birth.occurrence);}))
         return fail(error,"Bug authority rows are not in stable identity order");
     if(!pin(context,binding,before,error)||!observe(current,error))return false;
-    developer_staff::job_census::Census jobs;if(!developer_staff::job_census::read(reader(),before,jobs,error))return false;
+    developer_staff::job_census::Census jobs;if(!([&]{live_host_state::apply_timing::PageReadScope pages;return developer_staff::job_census::read(reader(),before,jobs,error);}()))return false;
     auto& r=runtime();
     for(const auto& row:target.rows){
         if(row.birth.kind==BirthKind::Snapshot&&row.birth.source!=r.snapshot_sha)return fail(error,"Bug snapshot birth digest differs from original shared capture");
@@ -239,7 +241,7 @@ bool finish_frame(const Context& context,const Binding& binding,uint64_t publica
     developer_staff::Capture before;if(r.frame_bugs!=target||r.frame_publication!=publication||!pin(context,binding,before,error))return fail(error,error.empty()?"Bug finish lost its prepared publication":error);
     try{
         std::vector<Local> removed;for(const auto& local:r.lifetimes.rows())if(!local.retired&&std::none_of(target.rows.begin(),target.rows.end(),[&](const auto& row){return same_identity(row,local.row);}))removed.push_back(local);
-        developer_staff::job_census::Census jobs;if(!developer_staff::job_census::read(reader(),before,jobs,error))throw std::runtime_error(error);
+        developer_staff::job_census::Census jobs;if(!([&]{live_host_state::apply_timing::PageReadScope pages;return developer_staff::job_census::read(reader(),before,jobs,error);}()))throw std::runtime_error(error);
         for(const auto& local:removed){uintptr_t job=0;if(!field(local.bug,0x48,job,error))throw std::runtime_error(error);
             if(job||std::any_of(jobs.jobs.begin(),jobs.jobs.end(),[&](const auto& x){return x.bug.pointer==local.bug;}))throw std::runtime_error("Bug finish still has a native Job reference");
             bool called=false;const bool ok=native_remove(local.collection,local.bug,called,error);attempted|=called;if(!ok)throw std::runtime_error(error);

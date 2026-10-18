@@ -1,10 +1,11 @@
+#include "live_host_state/memory_query_timing.h"
 #include "visual.h"
 #include "probe.h"
 #include "../npc_census.h"
 #include "fingerprints.h"
 #include "mt2mp/core/hash.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <algorithm>
 #include <atomic>
 #include <cstring>
@@ -61,6 +62,7 @@ public:
         RandomMemory reader;return mt2mp::npc_census::read_global_random(reader,image,out,error);
     }
     bool pin(uintptr_t toon,Lease& lease,bool& owned,std::string& error)override{
+        live_host_state::apply_timing::PageReadScope pages;
         owned=false;
         if(!callbacks.owner)return fail(error,"Weapon visual owner provider missing");
         if(!callbacks.owner(toon,lease,owned,error))return false;
@@ -70,13 +72,13 @@ public:
         if(!ready.load(std::memory_order_acquire))return fail(error,"Weapon visual owned hook not ready");
         return verify_hook(error);
     }
-    bool plan(uintptr_t toon,Plan& out,std::string& error)override{return read_plan(memory,image,toon,out,error);}
+    bool plan(uintptr_t toon,Plan& out,std::string& error)override{live_host_state::apply_timing::PageReadScope pages;return read_plan(memory,image,toon,out,error);}
     bool scene(Plan& p,Call& call,std::string& error)override{
         if(!p.shard)return fail(error,"Weapon visual actor has no current shard");
         call.attempted=true;call.exception=scene_call(p.shard,&p.scene);
         return returned(call,error,"GetScene")&&(p.scene!=0||fail(error,"Weapon visual current scene is null"));
     }
-    bool matches(const Plan& p,bool& same,std::string& error)override{return read_attachment(memory,p,same,error);}
+    bool matches(const Plan& p,bool& same,std::string& error)override{live_host_state::apply_timing::PageReadScope pages;return read_attachment(memory,p,same,error);}
     bool remove(const Plan& p,Call& call,std::string& error)override{
         call.attempted=true;call.exception=remove_call(p.toon);return returned(call,error,"RemoveWeaponModel");
     }
@@ -102,6 +104,32 @@ public:
         return returned(call,error,"local attachment matrix")&&(actual==expected||fail(error,"Weapon attachment actual matrix differs from original bone/transform composition"));
     }
 };
+void capture_failure_callers(Receipt& receipt){
+    if(!receipt.hook||!receipt.owned||receipt.confirmed)return;
+    void* frames[32]{};
+    const auto count=CaptureStackBackTrace(0,32,frames,nullptr);
+    if(!count){receipt.native_callers={{"captured",0},{"cause","Weapon caller capture returned no frames"}};return;}
+    HMODULE own=nullptr;
+    if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+        reinterpret_cast<LPCWSTR>(&capture_failure_callers),&own)){
+        receipt.native_callers={{"cause","Weapon caller module lookup failed"},{"win32_error",GetLastError()}};return;
+    }
+    auto rows=nlohmann::json::array();
+    uint32_t lookup_failures=0,first_lookup_error=0;
+    for(USHORT i=0;i<count&&rows.size()<12;++i){
+        HMODULE module=nullptr;
+        if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+            reinterpret_cast<LPCWSTR>(frames[i]),&module)){
+            const auto error=GetLastError();if(!lookup_failures)first_lookup_error=error;++lookup_failures;continue;
+        }
+        const auto base=reinterpret_cast<uintptr_t>(module);
+        if(base!=image&&module!=own)continue;
+        rows.push_back({{"module",base==image?"game":"mod"},{"rva",reinterpret_cast<uintptr_t>(frames[i])-base}});
+    }
+    receipt.native_callers={{"captured",count},{"frames",std::move(rows)},
+        {"module_lookup_failures",lookup_failures},{"first_lookup_error",first_lookup_error},
+        {"cause",lookup_failures?"Weapon caller module lookup incomplete":""}};
+}
 void publish(uintptr_t toon,const Receipt& receipt)noexcept{if(callbacks.publish)callbacks.publish(toon,receipt);}
 void equip(uintptr_t toon,bool rez){
     Receipt receipt;receipt.hook=true;
@@ -121,6 +149,11 @@ void equip(uintptr_t toon,bool rez){
     const bool result=reconcile(calls,toon,receipt,error);
     if(!receipt.owned){receipt.forwarded=true;publish(toon,receipt);original(toon,rez);return;}
     if(!result&&receipt.cause.empty())receipt.cause=error;
+    if(!result){
+        try{capture_failure_callers(receipt);}
+        catch(const std::exception& e){receipt.cause+="; caller diagnostic failed: "+std::string(e.what());}
+        catch(...){receipt.cause+="; caller diagnostic failed: nonstandard exception";}
+    }
     publish(toon,receipt);
 }
 }

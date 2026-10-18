@@ -36,8 +36,22 @@ bool weapon_owner(uintptr_t toon,toon_weapon_visual::Lease& lease,bool& owned,st
     std::vector<toon_weapon_visual::ToonOwner> census;
     if(!toon_weapon_visual::toon_census(weapon_memory,weapon_image,census,error))return false;
     for(const auto& row:census)if(row.toon==toon){
-        if(!toon_weapon_visual::authoritative_tuple(weapon_memory,row,*authority,error))return false;
-        lease.subscriber=row.subscriber;lease.toon=toon;lease.subscriber_id=row.id;return true;
+        lease.subscriber=row.subscriber;lease.toon=toon;lease.subscriber_id=row.id;
+        if(!toon_weapon_visual::authoritative_tuple(weapon_memory,row,*authority,error)){
+            const auto describe=[&](const live_host_state::day::economy::State* state){
+                if(!state)return nlohmann::json(nullptr);
+                size_t matches=0,quest_matches=0;
+                for(const auto& member:state->subscribers)if(member.serialized_id==row.id){++matches;if(member.quest_state)++quest_matches;}
+                return nlohmann::json{{"revision",state->day.frame.revision},{"snapshot",state->day.frame.snapshot},
+                    {"subscriber_count",state->subscribers.size()},{"id_matches",matches},{"quest_matches",quest_matches}};
+            };
+            const auto* committed=runtime->live_state->committed_economy();
+            lease.authority_failure={{"subscriber_id",row.id},{"actual_subscriber_count",census.size()},
+                {"selected",authority==committed?"committed":"applying"},
+                {"selected_frame",describe(authority)},{"committed_frame",describe(committed)}};
+            return false;
+        }
+        return true;
     }
     return toon_weapon_visual::visual_fail(error,"Weapon Toon absent from actual Subscriber census");
 }
@@ -86,6 +100,7 @@ nlohmann::json weapon_receipt_status(const toon_weapon_visual::Receipt& r,uintpt
         {"owned",r.owned},{"attempted",r.attempted},{"confirmed",r.confirmed},{"unknown",r.unknown},{"deferred",r.deferred},
         {"hook",r.hook},{"forwarded",r.forwarded},{"ilvl",r.ilvl},{"category",r.category},{"variant",r.variant},
         {"model_id",r.model_id},{"bone",r.bone},{"attack",r.attack},{"cause",r.cause},
+        {"authority_failure",r.authority_failure},{"native_callers",r.native_callers},
         {"random",{{"before_observed",r.random.before_observed},{"after_observed",r.random.after_observed},
             {"observed",r.random.observed},{"unchanged",r.random.unchanged},{"before",r.random.before},{"after",r.random.after},
             {"before_cause",r.random.before_cause},{"after_cause",r.random.after_cause},{"cause",r.random.cause}}},

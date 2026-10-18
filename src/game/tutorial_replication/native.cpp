@@ -1,5 +1,7 @@
+#include "live_host_state/memory_query_timing.h"
 #include "developer_staff/action_native.h"
 #include "native.h"
+#include "bug_authority/codec.h"
 #include "lifecycle.h"
 #include "owned_scenario_start_entry.h"
 #include "owned_advance_entry.h"
@@ -56,11 +58,15 @@ void allocate_current(void*,int32_t);
 bool pay_current(void*);
 bool intent_uuid(std::string&,std::string&);
 struct CommitReceipt {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;};
-CommitReceipt commit_receipt;
+CommitReceipt commit_receipt,research_commit_receipt;
+World research_proof_origin;
+nlohmann::json research_commit_proof=nullptr;
 bool client_commit_suppressed=false;
 std::string client_commit_action,client_commit_cause;
 bool client_commit_submitted=false;
 bool submit_client_commit(void* lounge,std::string&);
+bool submit_client_research_commit(void*,std::string&);
+bool research_capture(const action_session::Context&,const action_session::Binding&,const World&,State&,std::string&);
 void commit_current(void* lounge);
 bool same_world(const World&,const World&);
 struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;std::set<uintptr_t> quarantined;} load;
@@ -126,13 +132,20 @@ bool origin(const action_session::Context& c,const action_session::Binding& b,Wo
     if(c.role==action_session::Role::Client&&(!load.armed||!load.ready||load.uuid!=w.uuid||load.generation!=w.generation))return fail(e,"tutorial Client joined-load scope differs from local origin");
     if(!fault.empty())return fail(e,fault);return true;
 }
+bool current_project_key(void* receiver,std::string& key,std::string& e){
+    const auto lounge=reinterpret_cast<uintptr_t>(receiver);uintptr_t project=0;
+    if(!type(lounge,0x16de6c0,e)||!at(lounge,0xa8,project,e)||!type(project,0x16e48c0,e))return false;
+    int32_t kind=0;if(!at(project,0x18,kind,e)||!str(project,0x20,key,e))return false;
+    return kind==0&&(key=="startingpoint"||key=="bridges")||fail(e,"Research current project kind/key unsupported");
+}
 #include "lifecycle_owner.inc"
 #include "lifecycle_code.inc"
 #include "staff_display_owner.inc"
 #include "staff_display_values.inc"
 #include "staff_display_ui.inc"
 #include "staff_display_hook.inc"
-bool native_state(const action_session::Context& c,const action_session::Binding& b,State& out,std::vector<NativeCursor>& cursors,std::string& e){
+bool native_state(const action_session::Context& c,const action_session::Binding& b,State& out,std::vector<NativeCursor>& cursors,std::string& e,bool share_metadata=false){
+    mt2mp::game::live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
     World w;if(!origin(c,b,w,e))return false;nlohmann::json observed;if(!tutorial_observer::read(observed,e))return false;
     out={};cursors.clear();out.initial_complete=observed.at("initial_tutorial_complete").get<bool>();out.leveltwo_complete=observed.at("leveltwo_tutorial_complete").get<bool>();
     uintptr_t log=0,active=0;int32_t count=0;if(!at(reinterpret_cast<uintptr_t>(w.state),0x1e8,log,e)||!at(log,0x20,active,e)||!at(log,0x28,count,e))return false;
@@ -150,20 +163,21 @@ bool native_state(const action_session::Context& c,const action_session::Binding
     }
     for(const auto& cursor:out.active)if(cursor.scenario=="initial_tutorial"){
         tutorial_development::StartingpointSnapshot snapshot;nlohmann::json diagnostic;
-        if(!tutorial_development::read_startingpoint(snapshot,diagnostic,e,true))return false;
+        if(!tutorial_development::read_startingpoint(snapshot,diagnostic,e,true,true))return false;
         if(snapshot.origin.game!=w.game||snapshot.origin.mode!=w.mode||snapshot.origin.state!=w.state||snapshot.origin.world!=w.world||snapshot.origin.map!=w.map||snapshot.origin.uuid!=w.uuid||snapshot.origin.sha256!=w.sha256||snapshot.origin.bytes!=w.bytes||snapshot.origin.world_epoch!=w.world_epoch||snapshot.origin.generation!=w.generation)
             return fail(e,"tutorial development full Origin differs during capture");
         out.startingpoint=snapshot.row;
-        if(!display_native::capture(c,b,snapshot,out.staff_display,e))return false;
+        if(!display_native::capture(c,b,snapshot,out.staff_display,e,true))return false;
         if(out.startingpoint&&out.startingpoint->deployed&&commit_receipt.bugs&&same_world(w,commit_receipt.origin)&&snapshot.tech==commit_receipt.tech&&snapshot.record==commit_receipt.record)
             out.startingpoint->commit_bugs=commit_receipt.bugs;
     }
     World after;if(!origin(c,b,after,e)||after.game!=w.game||after.mode!=w.mode||after.state!=w.state||after.world!=w.world||after.map!=w.map||after.uuid!=w.uuid||after.sha256!=w.sha256||after.bytes!=w.bytes||after.world_epoch!=w.world_epoch||after.generation!=w.generation)return fail(e,e.empty()?"tutorial origin changed during capture":e);
-    if(!lifecycle_native::decorate(w,c,out,e))return false;
+    if(!lifecycle_native::decorate(w,c,out,e)||!research_capture(c,b,w,out,e))return false;
     return valid(out,e);
 }
 #include "lifecycle_hook.inc"
 bool interval(const NativeCursor& n,const Cursor& target,const std::optional<startingpoint::Row>& technology,std::string& e){
+    mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
     if(n.value.count!=target.count||n.value.next>target.next||(n.value.complete&&!target.complete))return fail(e,"tutorial backward/count/completion transition differs");
     std::set<std::string> ids;
     for(int32_t i=0;i<target.count;++i){uintptr_t step=0;std::string id;if(!at(n.steps,size_t(i)*8,step,e)||!str(step,0x20,id,e))return false;if(!id.empty())ids.insert(id);
@@ -209,6 +223,7 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 #include "start_action_native.inc"
 #include "start_capture_native.inc"
 #include "staff_native.inc"
+#include "research_native.inc"
 #include "lifecycle_apply.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
@@ -284,7 +299,7 @@ bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_syn
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
     display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
-    commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
+    commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
     pending=false;
@@ -323,7 +338,7 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;display_native::clear();lifecycle_native::clear();}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;
@@ -347,25 +362,58 @@ bool read_progress(nlohmann::json& out,std::string& e){
              {"client_start_presentation_cause",client_start_presentation_cause},
              {"client_commit_suppressed",client_commit_suppressed},
              {"client_commit_cause",client_commit_cause},{"client_commit_action_uuid",client_commit_action},{"client_commit_submitted",client_commit_submitted},
-             {"host_commit_receipt_cause",commit_receipt.cause}};
+             {"host_commit_receipt_cause",commit_receipt.cause},{"research_commit_receipt_cause",research_commit_receipt.cause},{"research_commit_proof",research_commit_proof}};
         e.clear();return true;
     }catch(const std::exception& cause){out=nullptr;return fail(e,std::string("tutorial progress read: ")+cause.what());}
 }
-bool preflight(const action_session::Context& c,const action_session::Binding& b,const State& target,std::string& e){
+static bool research_progress_only(const State& local,const State& target,bool& result,std::string& e){
+    result=false;research::Plan operation;
+    if(!research::plan(local.research,target.research,operation,e))return false;
+    if(operation!=research::Plan::Project||!local.research||!target.research||
+       !local.research->value.project_present||!target.research->value.project_present)return true;
+    State projected=local;projected.research=target.research;projected.staff_display=target.staff_display;
+    result=projected==target;return true;
+}
+static bool preflight_local(const action_session::Context& c,const action_session::Binding& b,State& target,
+                            State& local,std::vector<NativeCursor>& native,std::string& e,StartingpointCalls* progress_pin=nullptr){
+    live_host_state::apply_timing::PageReadScope pages;
     if(!message_progress::verify_code(memory,image,e))return false;
     if(c.role!=action_session::Role::Client||!valid(target,e))return fail(e,e.empty()?"tutorial apply requires Client":e);
-    State local;std::vector<NativeCursor> native;if(!native_state(c,b,local,native,e))return false;
+    if(!native_state(c,b,local,native,e,true))return false;
+    if(local.research&&target.research&&local.research->key==target.research->key){
+        const auto stamp=local.research->value.release_counter;
+        const bool deploying=!local.research->value.deployed&&target.research->value.deployed;
+        if(deploying&&stamp==UINT32_MAX)return fail(e,"Research local Release counter exhausted before deployment");
+        // Bind this comparison copy to the fresh local stamp. No native counter
+        // is stored. Native Deploy still proves its own exact before/after +1.
+        target.research->value.release_counter=stamp+uint32_t(deploying);
+        if(local.startingpoint&&target.startingpoint&&local.startingpoint->deployed&&target.startingpoint->deployed)
+            target.startingpoint->release_counter=target.research->value.release_counter;
+    }
     lifecycle::Plan plan;std::optional<startingpoint::Row> local_technology;
-    if(!lifecycle_native::prepare(c,b,local,target,plan,local_technology,e))return false;
-    return display_native::admit(c,b,target.staff_display,e,false);
+    bool progress_only=false;if(progress_pin&&!research_progress_only(local,target,progress_only,e))return false;
+    State projected;if(!research_preflight(c,b,local,target,projected,e,progress_only?progress_pin:nullptr)||
+       !lifecycle_native::prepare(c,b,projected,target,plan,local_technology,e))return false;
+    return display_native::admit(c,b,target.staff_display,e,false,target.research&&target.research->value.project_present?target.research->key:"startingpoint",true);
 }
-bool apply(const action_session::Context& c,const action_session::Binding& b,const State& target,bool& attempted,bool& unknown,std::string& e){
-    attempted=unknown=false;if(!preflight(c,b,target,e))return false;
-    State before;std::vector<NativeCursor> native;if(!native_state(c,b,before,native,e))return false;if(before==target)return true;
+bool preflight(const action_session::Context& c,const action_session::Binding& b,const State& host_target,std::string& e){
+    State target=host_target,local;std::vector<NativeCursor> native;return preflight_local(c,b,target,local,native,e);
+}
+bool apply(const action_session::Context& c,const action_session::Binding& b,const State& host_target,bool& attempted,bool& unknown,std::string& e){
+    attempted=unknown=false;State target=host_target,before;std::vector<NativeCursor> native;StartingpointCalls progress_pin{c,b};
+    if(!preflight_local(c,b,target,before,native,e,&progress_pin))return false;if(before==target)return true;
     try{
         World world;if(!origin(c,b,world,e))throw std::runtime_error(e);
         lifecycle::Plan plan;std::optional<startingpoint::Row> local_technology;
-        if(!lifecycle_native::prepare(c,b,before,target,plan,local_technology,e))throw std::runtime_error(e);
+        bool progress_only=false;if(!research_progress_only(before,target,progress_only,e))throw std::runtime_error(e);
+        tutorial_development::StartingpointSnapshot progress_observed;
+        // The local preflight and this call are separated only by pure guards.
+        if(!research_apply(c,b,before,target,attempted,unknown,e,progress_only?&progress_pin:nullptr,
+                           progress_only?&progress_observed:nullptr))throw std::runtime_error(e);
+        // A Project-only update leaves every lifecycle field unchanged. Its
+        // targeted readback precedes Staff adoption and the complete final read.
+        if(!progress_only){
+        if(!native_state(c,b,before,native,e)||!lifecycle_native::prepare(c,b,before,target,plan,local_technology,e))throw std::runtime_error(e);
         const auto target_technology=lifecycle::technology(target);StartingpointCalls calls{c,b,{}};
         if(!startingpoint::apply(local_technology,target_technology,calls,attempted,unknown,e))throw std::runtime_error(e);
         if(local_technology&&target_technology&&!local_technology->deployed&&target_technology->deployed)
@@ -383,13 +431,16 @@ bool apply(const action_session::Context& c,const action_session::Binding& b,con
         auto& proof=lifecycle_native::cache->proof;
         proof.terminal=target.terminal;proof.terminal_startingpoint=target.terminal_startingpoint;
         proof.terminal_version=target.terminal_version;proof.lifecycle_order=target.lifecycle_order;proof.leveltwo_initial_next=target.leveltwo_initial_next;
-        if(!display_native::admit(c,b,target.staff_display,e,true))throw std::runtime_error(e);
+        }
+        if(!display_native::admit(c,b,target.staff_display,e,true,target.research&&target.research->value.project_present?target.research->key:"startingpoint",false,
+                                  progress_only?&progress_observed:nullptr))throw std::runtime_error(e);
         State observed;std::vector<NativeCursor> rows;
         if(!native_state(c,b,observed,rows,e)||observed!=target)throw std::runtime_error(e.empty()?"tutorial full cursor/history/lifecycle readback differs":e);
         return true;
     }catch(const std::exception& x){unknown=attempted;e=std::string("tutorial native Apply failed: ")+x.what();block(e);return false;}
 }
 #include "startingpoint_commit_intent.inc"
+#include "research_public.inc"
 }
 
 namespace mt2mp::game::tutorial_replication {

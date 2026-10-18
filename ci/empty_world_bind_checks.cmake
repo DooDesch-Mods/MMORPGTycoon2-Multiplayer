@@ -14,7 +14,9 @@ file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/empty_world_bind_body.inc" "${empty_bind
 add_executable(test_empty_world_bind "${MT2MP_SOURCE_ROOT}/test/test_empty_world_bind.cpp")
 target_include_directories(test_empty_world_bind PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${MT2MP_SOURCE_ROOT}/include")
 if(MSVC)
-    target_compile_options(test_empty_world_bind PRIVATE /W4 /WX /utf-8)
+    target_compile_options(test_empty_world_bind PRIVATE /W4 /WX /utf-8 /UNDEBUG)
+else()
+    target_compile_options(test_empty_world_bind PRIVATE -UNDEBUG)
 endif()
 add_test(NAME empty_world_bind COMMAND test_empty_world_bind)
 set_tests_properties(empty_world_bind PROPERTIES TIMEOUT 60)
@@ -24,7 +26,7 @@ set(binding_source "${MT2MP_SOURCE_ROOT}/src/game/remove_diagnostics.cpp")
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${binding_source}")
 file(READ "${binding_source}" binding_source_text)
 string(FIND "${binding_source_text}" "    const auto capture=building_capture_identity::status();" binding_source_begin)
-string(FIND "${binding_source_text}" "    if(!attach_refunds(world,list,error))" binding_source_end)
+string(FIND "${binding_source_text}" "    if(details==BindingDetails::Refund&&!attach_refunds(world,list,error))" binding_source_end)
 if(binding_source_begin LESS 0 OR binding_source_end LESS binding_source_begin)
     message(FATAL_ERROR "Native binding source selection boundaries changed; update the affected extraction")
 endif()
@@ -32,3 +34,12 @@ math(EXPR binding_source_size "${binding_source_end}-${binding_source_begin}")
 string(SUBSTRING "${binding_source_text}" ${binding_source_begin} ${binding_source_size} binding_source_body)
 file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/snapshot_binding_source_body.inc" "${binding_source_body}")
 target_include_directories(test_empty_world_bind PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+
+# The same target exercises the full identity collector and target resolvers.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"
+    "${MT2MP_SOURCE_ROOT}/test/identity_refund_split_cases.inc")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"
+    --root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}"
+    COMMAND_ERROR_IS_FATAL ANY)

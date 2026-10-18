@@ -1,3 +1,7 @@
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/framework_open_paths.h"
+#endif
+#include "mt2mp/core/runtime_paths.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
@@ -64,6 +68,7 @@ static bool snapshot_failed=false;
 static bool snapshot_world_valid=false;
 static uint64_t discarded_after_failure=0;
 static std::string snapshot_failure;
+static json host_failure_notice=nullptr;
 static uint32_t outbound_queued_chunks=0;
 namespace network_meta=network_identity_metadata;
 static std::optional<network_meta::Metadata> incoming_network,outbound_network;
@@ -96,11 +101,15 @@ static std::filesystem::path write_root() {
     auto function=module?reinterpret_cast<const char*(*)()>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
     const char* path=function?function():nullptr;
     if(!path) throw std::runtime_error("PHYSFS write directory unavailable");
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    return framework_open_paths::verified_write_root(framework_open_paths::absolute(Config::instance().runtime_root),path);
+#else
     auto root=std::filesystem::weakly_canonical(path);
     auto owned=std::filesystem::weakly_canonical(Config::instance().user_data_dir);
     auto relative=root.lexically_relative(owned);
     if(relative.empty()||relative.native().find(L"..")!=std::wstring::npos) throw std::runtime_error("PHYSFS directory outside owned test root");
     return root;
+#endif
 }
 static void fail(const std::string& error) {
     if(snapshot_failed) {
@@ -118,10 +127,42 @@ static void fail(const std::string& error) {
         catch(const std::exception& send_error) { LOG_NET_ERROR("[SNAPSHOT] Failure acknowledgement rejected: {}",send_error.what()); }
     }
 }
+static bool receive_host_world_failure(uint64_t sender,const json& value) {
+    if(Config::instance().is_host||value.at("type")!="snapshot_error")return false;
+    if(sender!=1||value.size()!=3||!value.at("id").is_string()||!value.at("cause").is_string())
+        throw std::runtime_error("Host world failure requires exact current Host/id/cause fields");
+    const auto id=value.at("id").get<std::string>();
+    const auto cause=value.at("cause").get<std::string>();
+    if(!valid_id(id)||id!=last_loaded||id!=incoming_id||receiving||load_pending||cause.empty())
+        throw std::runtime_error("Host world failure snapshot or completed-load identity differs");
+    fail("Host synchronization failed: "+cause);return true;
+}
+bool fail_host_world(const std::string& expected_snapshot,const std::string& cause,std::string& error) {
+    if(!Config::instance().is_host||!valid_id(expected_snapshot)||expected_snapshot!=outbound_id||cause.empty()) {
+        error="Host world failure requires exact bound Host snapshot and original cause";return false;
+    }
+    if(snapshot_failed){error=snapshot_failure;return false;}
+    // Invalidate local authority before sending, so no local Apply can resume
+    // while the failure notice waits in the existing reliable control queue.
+    host_failure_notice={{"id",expected_snapshot},{"cause",cause},{"attempted",false},{"queued",false},{"send_error",""}};
+    fail(cause);
+    try {
+        const auto payload=json{{"type","snapshot_error"},{"id",expected_snapshot},{"cause",cause}};
+        if(payload.dump().size()>8192)throw std::runtime_error("Host world failure exceeds existing 8192-byte snapshot control bound");
+        host_failure_notice["attempted"]=true;
+        message(payload);
+        host_failure_notice["queued"]=true;error.clear();return true;
+    }catch(const std::exception& send_error){
+        error=std::string("Host world failure notice queue failed original=")+send_error.what()+" transport="+session_wire::failure_reason();
+        host_failure_notice["send_error"]=error;
+        LOG_NET_ERROR("[SNAPSHOT] {} retained_failure={}",error,snapshot_failure);return false;
+    }
+}
 static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length) {
     try {
         if(length>8192) throw std::runtime_error("control exceeds 8192 bytes");
         auto value=json::parse(data,data+length); auto type=value.at("type").get<std::string>();
+        if(receive_host_world_failure(sender,value))return;
         if(Config::instance().is_host) {
             if(type=="snapshot_ready"||type=="snapshot_chunk_ack"||type=="snapshot_verified"||type=="snapshot_load_progress"||type=="snapshot_loaded"||type=="snapshot_error") {
                 auto id=value.at("id").get<std::string>();
@@ -214,11 +255,17 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         if(chunks>std::numeric_limits<uint32_t>::max()) throw std::runtime_error("snapshot chunk count exceeds uint32");
         auto software=parse_initial_software_cache(value.at("software"));
         std::string error;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        const auto write=write_root();
+        auto path=framework_open_paths::snapshot(framework_open_paths::absolute(Config::instance().runtime_root),snapshot_world_path::utf8(write).c_str(),world_name,id,true);
+#else
         auto path=snapshot_world_path::physical(write_root(),world_name,id); std::filesystem::create_directories(path.parent_path());
+#endif
         auto staging=path; staging+=".incoming";
         if(!buffer.begin(value.at("bytes").get<uint64_t>(),uint32_t(chunks),staging,path,hash,error)) throw std::runtime_error(error);
         if(snapshot_failed) LOG_NET_INFO("[SNAPSHOT] New transfer accepted after failure id={} discarded_events={}",id,discarded_after_failure);
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
+        host_failure_notice=nullptr;
         incoming_id=id; incoming_hash=hash; incoming_world_name=world_name; incoming_software=software; incoming_epoch=software_epoch(id); incoming_started=snapshot_now(); incoming_load={}; receiving=true; status="Snapshot wird empfangen";
         incoming_network=std::move(metadata); incoming_network_error.clear(); last_loaded_ack=nullptr;
         snapshot_world_valid=false;
@@ -239,8 +286,12 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         if(!buffer.complete()) return;
         if(!buffer.commit(error)) throw std::runtime_error(error);
         auto path=buffer.target();
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        auto runtime=framework_open_paths::absolute(Config::instance().runtime_root);
+#else
         auto runtime=std::filesystem::path(Config::instance().runtime_root);
-        { std::ofstream stream(runtime/"diagnostics"/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",snapshot_world_path::utf8(path)},{"world_name",incoming_world_name}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
+#endif
+        { std::ofstream stream(runtime_paths::diagnostics(runtime)/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",snapshot_world_path::utf8(path)},{"world_name",incoming_world_name}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
         receiving=false; status="Snapshot vollständig geprüft";
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);
         message({{"type","snapshot_verified"},{"id",id},{"sha256",incoming_hash}},1);
@@ -296,6 +347,7 @@ bool distribute_snapshot(const std::string& id,const std::string& digest,const s
         error="snapshot distribution requires idle host"; LOG_NET_ERROR("[SNAPSHOT] Distribution rejected: {}",error); return false;
     }
     try {
+        host_failure_notice=nullptr;
         outbound_id=id; incoming_hash=digest; outbound_peers.clear(); outbound_expected_peers=0; outbound_queued_chunks=0;
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
         const auto peers=session_wire::peers();
@@ -459,7 +511,7 @@ nlohmann::json snapshot_progress() {
         {"native_load",host?json(nullptr):load_watch_json(incoming_load,now)},{"peer_loads",peer_loads},
         {"world_authority_valid",snapshot_world_valid&&!snapshot_failed},
         {"network_manifest_offered",host?outbound_network.has_value():incoming_network.has_value()},{"network_identity_error",host?std::string{}:incoming_network_error},
-        {"pending_load",load_pending},{"transfer_active",host?outbound_active:receiving},{"first_failure",snapshot_failure},{"discarded_after_failure",discarded_after_failure}};
+        {"pending_load",load_pending},{"transfer_active",host?outbound_active:receiving},{"first_failure",snapshot_failure},{"host_failure_notice",host_failure_notice},{"discarded_after_failure",discarded_after_failure}};
 }
 #ifdef MT2MP_SNAPSHOT_TEST
 namespace testing { void advance_snapshot_clock(uint32_t seconds) { test_clock_offset+=std::chrono::seconds(seconds); } }

@@ -1,4 +1,5 @@
 #include "tutorial_startingpoint_fixture/client_admission.h"
+#include "tutorial_startingpoint_fixture/begin_guards.h"
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -7,7 +8,7 @@ using namespace mt2mp::game::tutorial_startingpoint_fixture;
 namespace {
 const std::string action="11111111-1111-1111-1111-111111111111";
 struct World{uint64_t owner=1;};
-struct Pin{World world;uintptr_t image=1,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development={{"present",true}},tutorial={{"index",93}};};
+struct Pin{World world;std::string tech_key="startingpoint";uintptr_t image=1,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development={{"present",true}},tutorial={{"index",93}};};
 struct Request{std::string token,origin_uuid,operation;uint64_t epoch=1,generation=1;json expected_development={{"present",true}};};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;

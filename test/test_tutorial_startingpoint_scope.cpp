@@ -1,3 +1,5 @@
+// The extracted portable policy cases do not access native process memory.
+namespace mt2mp::game::live_host_state::apply_timing {struct PageReadScope {~PageReadScope(){}};}
 #include "tutorial_replication/state.h"
 #include <cstring>
 #include <iostream>

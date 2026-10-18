@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "live_host_state/day_rollover/economy/state_difference.h"
 #include <functional>
 #include <iostream>
@@ -17,6 +18,13 @@ bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 void need(bool value,const std::string& e){if(!value)throw std::runtime_error(e);++checks;}
 namespace npc_probe::action_runtime {bool state_owners(const auto&,const auto&,std::vector<QuestOwner>& out,std::string& e){if(read_error)return fail(e,"original owner read failed");out=native_owners;return true;}}
 bool quest_npcs(const Pin&,const std::vector<QuestOwner>&,std::vector<quest_state::Npc>& out,std::string&){++reads;out=native_rows;if(reads==2){if(corrupt_post)out[0].completed.today+=1;if(empty_post)out.clear();}return true;}
+bool quest_npc(const Pin& pin,const QuestOwner& owner,quest_state::Npc& out,std::string& e){
+ std::vector<quest_state::Npc> rows;if(!quest_npcs(pin,native_owners,rows,e))return false;
+ const auto found=std::find_if(native_owners.begin(),native_owners.end(),[&](const auto& item){return item.key==owner.key;});
+ const auto index=size_t(found-native_owners.begin());
+ if(found==native_owners.end()||index>=rows.size())return fail(e,"selected NPC value read failed actual.count="+std::to_string(rows.size()));
+ out=rows[index];return true;
+}
 bool store_npc_counters(const Pin&,const QuestOwner&,const quest_state::Npc&,const quest_state::Npc& target,const std::function<bool(std::string&)>& guard,std::string& e){++counters;if(!guard(e))return false;if(counter_error)return fail(e,"original DailyCount CAS failed");const auto pose=native_rows[0].pose;native_rows[0]=target;native_rows[0].pose=pose;if(flush_counter)native_rows[0].pose.position[0]+=100;return true;}
 struct Memory {bool copy(uintptr_t,void* out,size_t size,std::string& e){if(size!=12)return fail(e,"unexpected spawn size");std::array<uint32_t,3> spawn{1,2,3};if(transforms&&spawn_drift)spawn[0]=99;std::memcpy(out,spawn.data(),size);return true;}} memory;
 template<class T>bool at(uintptr_t,size_t offset,T& out,std::string& e){
@@ -29,7 +37,8 @@ struct Fence {bool read_current_fence(const Pin&,std::string&){return true;}};
 void npc_transform(uintptr_t,uintptr_t,const mt2mp::game::subscriber_motion::Pose& pose){++transforms;native_rows[0].pose=pose;}
 struct NativePort {
  const Owners* scalar_before_=nullptr;Fence fence_;
- bool current(const Owners&,uintptr_t,bool,std::string& e){return !current_error||fail(e,"original current owner failed");}
+ bool current(const Owners& before,uintptr_t,bool,std::string& e,std::vector<QuestOwner>* owners=nullptr){if(current_error)return fail(e,"original current owner failed");return !owners||npc_probe::action_runtime::state_owners(before.history.pin.context,before.history.pin.binding,*owners,e);}
+ bool current_npc_owners(const Owners& before,std::vector<QuestOwner>& owners,std::string& e){return current(before,0,true,e,&owners);}
  bool store_npc_state(const Owners&,size_t,const quest_state::Npc&,const quest_state::Npc&,std::string&);
  bool store_npc_pose(const Owners&,size_t,const quest_state::Npc&,const quest_state::Npc&,std::string&);
 };

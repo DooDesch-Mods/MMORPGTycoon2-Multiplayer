@@ -16,7 +16,7 @@
 #include "mt2mp/net/session_wire.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <intrin.h>
 #include <bcrypt.h>
 #include <atomic>

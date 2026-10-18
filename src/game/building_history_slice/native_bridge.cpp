@@ -10,7 +10,7 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/core/logger.h"
 #include <Windows.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <bcrypt.h>
 #include <array>
 #include <atomic>

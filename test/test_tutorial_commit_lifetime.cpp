@@ -12,12 +12,14 @@ struct Session{bool available=true;Role role=Role::Host;bool current(Context& ou
 Session& selected_session(){return session;}
 }
 namespace {
-struct CommitReceipt{World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;} commit_receipt;
+struct CommitReceipt{World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;std::string cause;} commit_receipt,research_commit_receipt;
 struct {bool armed=false;} load;
 bool client_commit_suppressed=false,entry_valid=true;
 bool client_commit_submitted=false,intent_accept=false;
 std::string client_commit_action,client_commit_cause;
-unsigned intent_calls=0;
+unsigned intent_calls=0,research_intent_calls=0;std::string selected_key="startingpoint";
+bool current_project_key(void*,std::string& out,std::string&){out=selected_key;return true;}
+bool submit_client_research_commit(void*,std::string& e){++research_intent_calls;if(!intent_accept){e="original Controller request pending";return false;}client_commit_action="bridges-intent";return true;}
 bool submit_client_commit(void*,std::string& e){++intent_calls;if(!intent_accept){e="original Controller request pending";return false;}client_commit_action="fixed-intent";return true;}
 uintptr_t image=0x140000000;uint32_t mainthread=7,thread=7;
 unsigned originals=0,read_calls=0,tests=0;
@@ -40,6 +42,12 @@ bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& 
     if(read_calls>samples.size()){e="fixture snapshot absent";return false;}out=samples[read_calls-1];return true;
 }
 }
+namespace mt2mp::game::tutorial_development {
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation){
+    if(key!=selected_key){e="fixture selected Commit key differs";return false;}
+    return read_startingpoint(out,diagnostic,e,creation);
+}
+}
 namespace {
 #include "native_commit.inc"
 tutorial_development::StartingpointSnapshot project(){
@@ -48,7 +56,7 @@ tutorial_development::StartingpointSnapshot project(){
     startingpoint::Row row;row.project_present=row.purchased=true;out.row=row;return out;
 }
 auto deployed(){auto out=project();out.project=0;out.row->project_present=false;out.row->deployed=true;out.row->inventory_count=1;out.row->release_change_count=1;out.row->release_feature_count=1;out.row->release_counter=1;return out;}
-void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=0;commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};}
+void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=research_intent_calls=0;selected_key="startingpoint";commit_receipt={};research_commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};}
 void saved_receipt(){auto old=deployed();commit_receipt={old.origin,old.tech,old.record,startingpoint::CommitBugs{0,0},{}};}
 void need(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 void pass(const char* name){++tests;std::cout<<"PASS "<<name<<'\n';}
@@ -64,5 +72,8 @@ int main(){try{
     {reset();auto before=project(),after=deployed();after.record+=8;samples={before,after};commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&!commit_receipt.bugs&&commit_receipt.cause=="startingpoint original Commit owner/retirement readback differs","changed actual native record authorized receipt");pass("post-Commit record mismatch cannot confirm original effects");}
     {reset();auto before=project();samples={before,deployed()};fail_read=2;commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&!commit_receipt.bugs&&commit_receipt.cause=="original Startingpoint read failed","post-effect read failure was success-shaped");pass("post-Commit read failure preserves original partial-observation cause");}
     {reset();entry_valid=false;samples={project()};commit_current(reinterpret_cast<void*>(0x200000));need(originals==1&&!read_calls&&!commit_receipt.bugs&&!messages.empty()&&messages.back().find("original owned Commit route failed")!=std::string::npos,"unowned route fabricated Commit receipt");pass("optional exact-hook guard failure preserves original Host call but yields no receipt");}
+    {reset();selected_key="bridges";load.armed=true;intent_accept=true;commit_current(reinterpret_cast<void*>(0x200000));need(!originals&&!read_calls&&!intent_calls&&research_intent_calls==1&&client_commit_action=="bridges-intent"&&client_commit_submitted,"Client Bridges Commit routed to fixed Startingpoint intent");pass("joined Client selects Bridges Commit intent without native Commit");}
+    {reset();saved_receipt();selected_key="bridges";auto before=project();before.row->bugs_total=5;before.row->bugs_known=3;before.tech+=0x100;before.record+=0x100;auto after=deployed();after.tech=before.tech;after.record=before.record;samples={before,after};commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&read_calls==2&&research_commit_receipt.bugs==startingpoint::CommitBugs{5,3}&&research_commit_receipt.tech==before.tech&&commit_receipt.bugs==startingpoint::CommitBugs{0,0}&&commit_receipt.tech!=before.tech,"Bridges Commit lost actual bugs or overwrote historical Startingpoint receipt");pass("Host Bridges original Commit records actual bugs in separate receipt");}
+    {reset();selected_key="bridges";auto before=project();samples={before,deployed()};fail_read=2;commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&!research_commit_receipt.bugs&&research_commit_receipt.cause=="original Startingpoint read failed"&&commit_receipt.cause.empty(),"Bridges post-effect read failure was hidden or polluted Startingpoint receipt");pass("Bridges partial read failure remains on selected receipt");}
     std::cout<<tests<<" actual Commit lifetime scenarios passed\n";return 0;
 }catch(const std::exception& cause){std::cerr<<"error: "<<cause.what()<<'\n';return 1;}}

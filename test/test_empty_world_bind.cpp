@@ -131,6 +131,8 @@ void checks(){
 }
 }
 
+#include "identity_refund_split_cases.inc"
+
 int main(){try{
     std::string error;Engine engine;
     reset();need(run(engine,error),"confirmed zero-building Host capture rejected");
@@ -154,6 +156,7 @@ int main(){try{
     reset();engine={};remove_diagnostics::source.erase("baseline_sha256");
     need(!run(engine,error)&&!engine.world_.bound,"missing SHA authority accepted");
     source_fixture::checks();
+    identity_refund_fixture::checks();
     std::cout << "PASS " << assertions << " actual binding/identity assertions\n";
     return assertions<12?1:0;
 }catch(const std::exception& failure){std::cerr << failure.what() << "\n";return 1;}

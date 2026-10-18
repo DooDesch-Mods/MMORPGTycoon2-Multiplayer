@@ -13,6 +13,38 @@ spec.loader.exec_module(driver)
 
 
 class Tests(unittest.TestCase):
+    def test_sample_requires_schema_and_component_for_current_vip_arming(self):
+        class Runner:
+            def __init__(self, armed, schema, component):
+                frame = {'schema': schema}
+                if component is not None:
+                    frame['vips'] = component
+                self.engine = {'clock': {'scale': 0, 'paused': True}, 'typed_actions': {
+                    'initialized': True, 'started': True, 'locked': False, 'pending': False,
+                    'failed': 0, 'vip_frame': {'armed': armed},
+                    'live_state': {'active': True, 'locked': False, 'confirmed': True},
+                    'native_economy': {'day': {'frame': frame}}}}
+
+            def inspect(self, *_):
+                return self.engine
+
+            def single(self, *_):
+                return {'observed': True, 'developer_movement': {'observed': True},
+                        'jobs': {'queue_count': 0, 'jobs': []}}
+
+        for armed, schema, component, accepted in (
+                (False, 12, None, True), (True, 13, {}, True),
+                (False, 13, {}, False), (True, 12, None, False),
+                (True, 13, None, False), (True, 13, [], False),
+                (False, 12, {}, False)):
+            with self.subTest(armed=armed, schema=schema, component=component):
+                runner = Runner(armed, schema, component)
+                if accepted:
+                    driver.sample(runner, 'client-1', 'schema', require_bug_work=False)
+                else:
+                    with self.assertRaises(driver.AcceptanceError):
+                        driver.sample(runner, 'client-1', 'schema', require_bug_work=False)
+
     def values(self):
         selected = {'bug': [0, 'parent', 0, 'snapshot', 0, 0], 'job': [0, 'snapshot', 0, 34], 'fixed': [0, 0, 0, 1, 0]}
         frame = {'bugs': [], 'developers': {'construction': {'bug_jobs': [], 'bug_parents': [[0, 'parent', 2]], 'job_fixed': selected['fixed'][:]}}}

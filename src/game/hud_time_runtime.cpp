@@ -2,11 +2,10 @@
 #include "hud_time_reader_process.h"
 #include "hud_time_writer_process.h"
 #include "time_integration.h"
-#include "mt2mp/core/config.h"
+#include "session_provider.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_engine.h"
-#include "mt2mp/net/local_session.h"
-#include "mt2mp/net/sidecar_client.h"
+#include "mt2mp/net/session_wire.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include <array>
 #include <atomic>
@@ -54,15 +53,23 @@ bool authority(void*,hud_time::Authority& out,std::string& error) {
     if(!time_integration::instance().status(current,error))return false;
     const auto& runtime=current.runtime;
     const auto& applied=runtime.controller.applied;
-    const auto& config=Config::instance();
-    out.client=config.local_test&&!config.is_host;
     out.epoch=runtime.epoch;out.revision=applied.revision;
     out.selected_scale=applied.clock.selected;out.pause_scale=applied.clock.pause;
-    auto& transport=net::SidecarClient::instance();
-    out.available=out.client&&runtime.phase==time_runtime::Phase::Active&&runtime.hook_mask==3&&
+    const bool active=runtime.phase==time_runtime::Phase::Active&&runtime.hook_mask==3&&
         !runtime.presentation_uncertain&&!runtime.controller.write_locked&&applied.present&&!applied.uncertain&&
-        out.epoch!=0&&out.epoch==net::current_world_epoch()&&net::local_session_connected()&&
-        (net::local_session_peer_mask()&1u)&&transport.connected()&&transport.ready()&&net::pending_snapshot_load_id().empty();
+        out.epoch!=0&&out.epoch==net::current_world_epoch()&&net::session_wire::connected()&&net::pending_snapshot_load_id().empty();
+    if(!active){error.clear();return true;}
+    action_session::Context session;
+    if(!action_session::selected_session().current(session,error))return false;
+    if(!session.session||session.session!=net::session_wire::session_id()||session.snapshot_uuid.empty()||session.snapshot_uuid!=net::current_snapshot_id()||
+       session.host_peer!=1||session.local_peer<1||session.local_peer>4||session.local_peer!=net::session_wire::local_peer()||
+       session.peer_mask!=net::session_wire::peer_mask()||(session.peer_mask&0xf0)||!(session.peer_mask&1u)||
+       !(session.peer_mask&(1u<<(session.local_peer-1)))||
+       (session.role!=action_session::Role::Host&&session.role!=action_session::Role::Client)||
+       (session.role==action_session::Role::Host)!=(session.local_peer==1)){
+        error="HUD Time actual Session/slot/membership differs";return false;
+    }
+    out.client=session.role==action_session::Role::Client;out.available=out.client;
     error.clear();return true;
 }
 void show(void* window,bool visible,bool immediate) {

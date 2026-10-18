@@ -13,7 +13,7 @@ def require(value, cause):
     if not value:
         raise AcceptanceError(cause)
 
-def sample(runner, peer, label, paused=False):
+def sample(runner, peer, label, paused=False, require_bug_work=True, extended_frames=False):
     engine = runner.inspect(label + '-' + peer, peer)
     controller = engine['typed_actions']
     live = controller['live_state']
@@ -26,9 +26,19 @@ def sample(runner, peer, label, paused=False):
     if peer == 'client-1':
         require(live['confirmed'], 'Client last authoritative frame is not confirmed')
     frame = controller['native_economy']['day']['frame']
-    require(frame['schema'] == 12, peer + ' expected current Type7 frame schema12')
-    work = frame['developers']['construction']
-    require(all(k in work for k in ('bug_jobs', 'bug_parents', 'job_created', 'job_fixed')), peer + ' complete Work state absent')
+    vip_armed = controller.get('vip_frame', {}).get('armed', False)
+    expected_schemas = ((13, 14, 15, 16) if extended_frames else (13,)) if vip_armed else (12,)
+    require(frame['schema'] in expected_schemas,
+            peer + ' expected frame schemas' + str(expected_schemas) + ' for current VIP arming')
+    require(isinstance(frame.get('vips'), dict) if vip_armed else 'vips' not in frame,
+            peer + ' VIP frame component differs from current arming')
+    if frame['schema'] >= 15:
+        require(isinstance(frame.get('marketing'), dict)
+                and controller.get('marketing_frame', {}).get('unknown') is False,
+                peer + ' Marketing frame component or native acknowledgement absent')
+    if require_bug_work:
+        work = frame['developers'].get('construction', {})
+        require(all(k in work for k in ('bug_jobs', 'bug_parents', 'job_created', 'job_fixed')), peer + ' complete Work state absent')
     native = runner.single(label + '-native-' + peer, peer, 'game_read_native_developers')
     require(native['observed'] and native['developer_movement']['observed']
             and native['jobs']['queue_count'] == len(native['jobs']['jobs']), peer + ' native graph observation incomplete')

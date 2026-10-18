@@ -1,7 +1,15 @@
 #pragma once
 #include "state.h"
+#include "bug_authority/state.h"
 #include "typed_action/action_session.h"
 namespace mt2mp::game::tutorial_replication {
+bool read_research_row(const action_session::Context&,const action_session::Binding&,const std::string&,research::Row&,std::string&);
+bool start_research(const action_session::Context&,const action_session::Binding&,const action_session::Ledger&,const research::Row&,action_session::Ledger&,research::Row&,bool&,std::string&);
+bool apply_research_start(const action_session::Context&,const action_session::Binding&,const std::string&,const action_session::Ledger&,const action_session::Ledger&,const research::Row&,const research::Row&,bool&,bool&,std::string&);
+bool set_research_workers(const action_session::Context&,const action_session::Binding&,const research::Row&,int32_t,bool&,std::string&);
+bool commit_research(const action_session::Context&,const action_session::Binding&,const research::Row&,bool&,std::string&);
+bool apply_research_commit(const action_session::Context&,const action_session::Binding&,const research::Row&,const research::Row&,bool&,bool&,std::string&);
+bool retain_research_commit_effect(const action_session::Context&,const action_session::Binding&,const std::string&,const bug_authority::State*,const bug_authority::State*,std::string&);
 bool initialize(uintptr_t image,std::string&);
 bool hooks_enabled(std::string&);
 bool verify_sequence_entry(uintptr_t address,std::string&);

@@ -17,9 +17,10 @@ bool ap(initial_release::Memory& m,uintptr_t p,uintptr_t wanted,std::string& e){
     uintptr_t actual=0;return at(m,p,0,actual,e)&&(actual==wanted||fail(e,"startingpoint admission owner address point differs"));
 }
 }
-bool read_admission(initial_release::Memory& m,uintptr_t image,uintptr_t state,
-                    uintptr_t tech,Admission& out,std::string& e){
+bool read_research_admission(initial_release::Memory& m,uintptr_t image,uintptr_t state,
+                    uintptr_t tech,const std::string& selected,Admission& out,std::string& e){
     out={};e.clear();
+    if(selected!="startingpoint"&&selected!="bridges")return fail(e,"research admission unsupported Tech key");
     if(!image||image>UINTPTR_MAX-0x1b00000)return fail(e,"startingpoint admission image range invalid");
     for(const auto& guard:code_guards){std::array<unsigned char,16> actual{};
         if(!m.copy(image+guard.rva,actual.data(),actual.size(),e)){if(e.empty())e="startingpoint admission code read failed";return false;}
@@ -33,9 +34,9 @@ bool read_admission(initial_release::Memory& m,uintptr_t image,uintptr_t state,
        !ap(m,out.release,image+0x16c12b0,e)||!ap(m,tech,image+0x16dc330,e))return false;
     uintptr_t key=0;uint64_t key_size=0;std::array<char,14> name{};
     if(!at(m,tech,0x20,key,e)||!at(m,tech,0x28,key_size,e))return false;
-    if(key_size!=13)return fail(e,"startingpoint admission Tech key length differs");
-    if(!m.copy(key,name.data(),name.size(),e)){if(e.empty())e="startingpoint admission Tech key read failed";return false;}
-    if(std::memcmp(name.data(),"startingpoint",14))return fail(e,"startingpoint admission Tech key differs");
+    if(key_size!=selected.size())return fail(e,"startingpoint admission Tech key length differs");
+    if(!m.copy(key,name.data(),selected.size()+1,e)){if(e.empty())e="startingpoint admission Tech key read failed";return false;}
+    if(std::memcmp(name.data(),selected.c_str(),selected.size()+1))return fail(e,"startingpoint admission Tech key differs");
     if(!at(m,tech,0xf9,out.repeatable,e)||!at(m,tech,0x160,out.modifiers,e)||
        !at(m,tech,0xe0,out.art_pack_bytes,e)||!at(m,tech,0x210,out.item_feature,e)||
        !at(m,image,0x13b9820,out.events_enabled,e))return false;
@@ -64,4 +65,9 @@ bool read_admission(initial_release::Memory& m,uintptr_t image,uintptr_t state,
         return fail(e,"startingpoint admission event38 listener is not current Release subobject/thunk");
     return true;
 }
+bool read_admission(initial_release::Memory& m,uintptr_t image,uintptr_t state,
+    uintptr_t tech,Admission& out,std::string& e){
+    return read_research_admission(m,image,state,tech,"startingpoint",out,e);
+}
+
 }

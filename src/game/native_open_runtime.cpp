@@ -1,5 +1,8 @@
 #include "native_open_runtime.h"
 #include "native_open_witness.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/core/framework_open_paths.h"
+#endif
 #include "mt2mp/hooks/hook_engine.h"
 #include "mt2mp/core/logger.h"
 #include <windows.h>
@@ -118,11 +121,21 @@ bool prepare(const std::filesystem::path& root,const std::string& uuid,const std
     const auto getter=module?reinterpret_cast<GetWriteDir>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
     const auto* actual=getter?getter():nullptr;
     if(!actual||!*actual){error="actual PhysFS write directory unavailable";return false;}
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    std::string steam_id;
+    try {
+        const auto binding=framework_open_paths::bind(root);
+        const auto measured=framework_open_paths::actual_write(binding,actual);
+        if(!private_profile::equal(measured,binding.data))steam_id=measured.filename().string();
+    }
+    catch(const std::exception& problem) {error=problem.what();return false;}
+#else
     auto write=std::filesystem::weakly_canonical(actual);
     if(write.filename().empty())write=write.parent_path();
     const auto parent=std::filesystem::weakly_canonical(root/"data");
     if(write.parent_path()!=parent){error="actual PhysFS write directory outside own data/SteamID";return false;}
     const auto steam_id=write.filename().string();
+#endif
     if(next_generation==std::numeric_limits<uint64_t>::max()){error="native open generation exhausted";return false;}
     const auto next=++next_generation;
     if(!witness::begin(root,steam_id,uuid,sha,bytes,next,error,world_name))return false;

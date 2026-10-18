@@ -1,5 +1,9 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_quest_state.inc")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+ "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_quest_state.inc"
+ "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_monetary.cpp"
+ "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/save_scope.cpp"
+ "${MT2MP_SOURCE_ROOT}/test/extract_npc_state_guard.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_npc_state_guard.py" --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/npc_state_guard_extracted" COMMAND_ERROR_IS_FATAL ANY)
 add_executable(test_npc_state_guard "${MT2MP_SOURCE_ROOT}/test/test_npc_state_guard.cpp")
 target_include_directories(test_npc_state_guard PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${CMAKE_CURRENT_BINARY_DIR}/npc_state_guard_extracted")

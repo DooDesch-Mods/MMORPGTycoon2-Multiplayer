@@ -14,6 +14,8 @@ import time
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(Path(__file__).resolve().parent / "mcp"))
+from runtime import Runtime, FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind, runtime_diagnostic_directory
 LEDGER_FIELDS = ("cash", "record_present", "record_day", "record_cash", "record_income", "record_expense", "line_counts", "line_income")
 
 
@@ -37,7 +39,20 @@ def write_json(path, value):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    temporary.replace(path)
+    for attempt in range(5):
+        try:
+            temporary.replace(path)
+        except PermissionError as error:
+            if attempt == 4:
+                log("error", f"acceptance summary replace failed target={path}: {error}")
+                raise
+            if attempt == 0:
+                log("warn", f"acceptance summary replace temporarily blocked target={path}: {error}")
+            time.sleep(0.025 * 2 ** attempt)
+        else:
+            if attempt:
+                log("info", f"acceptance summary replace recovered target={path} retries={attempt}")
+            return
 
 
 def hash_file(path):
@@ -247,7 +262,9 @@ class AcceptanceRunner:
             identity = read_json(path)
             run_id = identity.get("run_id")
             uuid.UUID(run_id)
-            if identity.get("schema_version") != 1 or identity.get("owner") != {"kind": "MPTest", "run_id": run_id}:
+            if identity.get("schema_version") == 2:
+                identity = Runtime(self.root)._manifest_value(identity, expected_root=path.parent)
+            if identity.get("schema_version") not in (1, 2) or identity.get("owner") != {"kind": "MPTest", "run_id": run_id}:
                 raise AcceptanceError(f"manifest ownership invalid: {path}")
             if identity.get("peer_id") != peer or Path(identity.get("runtime_root", "")).resolve() != (self.root / name).resolve():
                 raise AcceptanceError(f"manifest peer/runtime differs: {path}")
@@ -257,6 +274,9 @@ class AcceptanceRunner:
             self.manifests[name] = path
         if any(identity['run_id'] != identities['host']['run_id'] for identity in identities.values()):
             raise AcceptanceError("host/client instance manifests refer to different runs")
+        kinds = {manifest_runtime_kind(identity) for identity in identities.values()}
+        if FRAMEWORK_PLUGIN_KIND in kinds and len(kinds) != 1:
+            raise AcceptanceError("Framework and standalone peers cannot share this acceptance candidate")
         self.summary["runtime_run_id"] = identities["host"]["run_id"]
         self.checked("instance-manifest-identity", identities)
 
@@ -426,7 +446,9 @@ class AcceptanceRunner:
 
     def capture(self, peer):
         frame = self.single(f"{peer}-frame", peer, "game_capture_frame")
-        path = within(frame["path"], self.root / peer / "diagnostics")
+        identity = read_json(self.manifests[peer])
+        boundary = runtime_diagnostic_directory(identity) if identity.get("schema_version") == 2 else self.root / peer / "diagnostics"
+        path = within(frame["path"], boundary)
         if path.stat().st_size != frame.get("bytes") or frame.get("width", 0) <= 0 or frame.get("height", 0) <= 0:
             raise AcceptanceError(f"native frame file/readback differs peer={peer} path={path}")
         self.checked("native-frame-artifact", {"peer": peer, **frame, "file_sha256": hash_file(path),

@@ -5,6 +5,9 @@
 
 namespace mt2mp::game::ui_remove_runtime {
 bool enable(std::string&);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+bool framework_retire(std::string&);
+#endif
 bool enabled()noexcept;
 bool requested()noexcept;
 bool make_replay(const std::string& snapshot,const std::string& key,const std::string& action,

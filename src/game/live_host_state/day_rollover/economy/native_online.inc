@@ -18,6 +18,7 @@ OnlineCalls online_calls(uintptr_t image){
 struct OnlineOwner {
     MotionOwner motion;
     uint64_t uid=0;
+    bool initialize_last_region=false;
     std::vector<uintptr_t> registered,on,off;
 };
 bool online_array(uintptr_t owner,size_t base,std::vector<uintptr_t>& out,std::string& e){
@@ -64,7 +65,13 @@ bool online_prepare(const Owners& before,size_t index,const std::optional<Motion
        !at(owner.toon,0x6f0,actor,e))return fail(e,e.empty()?"Subscriber lifecycle native identity unreadable":e);
     if(generated!=1||logged!=uint8_t(old.has_value())||logging_out||queued||bool(actor)!=bool(old))return fail(e,"Subscriber lifecycle prior state differs id="+std::to_string(id)+" generated="+std::to_string(generated)+" logged="+std::to_string(logged)+" required_logged="+std::to_string(old.has_value())+" actor_present="+std::to_string(bool(actor))+" logging_out="+std::to_string(logging_out)+" queued="+std::to_string(queued));
     if(!motion_world(p,owner,e)||!at(owner.toon,0x170,shard,e)||!at(owner.toon,0x178,owner.region,e)||
-       !at(owner.toon,0x9a8,last,e)||shard!=owner.root||last!=owner.region||!at(owner.region,0x834,region_id,e))return fail(e,e.empty()?"Subscriber lifecycle root/registered Region differs":e);
+       !at(owner.toon,0x9a8,last,e)||!at(owner.region,0x834,region_id,e))return fail(e,e.empty()?"Subscriber lifecycle root/registered Region differs":e);
+    out.initialize_last_region=target.has_value()&&!old&&last==0;
+    if(shard!=owner.root||(!out.initialize_last_region&&last!=owner.region))return fail(e,"Subscriber lifecycle root/registered Region differs");
+    if(out.initialize_last_region){
+        uint8_t on_map=1;
+        if(!at(owner.toon,0x368,on_map,e)||on_map)return fail(e,e.empty()?"Subscriber loaded offline Toon is already on map":e);
+    }
     uintptr_t resolved=0;
     if(!motion_region(p,owner,region_id,owner.region,resolved,e)||!motion_manager(p,owner.region,owner.manager,out.registered,e)||
        !at(owner.manager,0x18,resolved,e)||resolved!=owner.region||!at(owner.toon,0x30,render,e)||!at(render,0x38,callback,e)||callback!=p.image+0x3e82a0)return fail(e,e.empty()?"Subscriber lifecycle native Region/manager/callback differs":e);
@@ -87,6 +94,20 @@ template<class Move>bool online_apply(const Owners& before,size_t index,const st
     if(!online_prepare(before,index,target,calls,held,e))return false;
     auto& owner=held.motion;
     if(target){
+        if(held.initialize_last_region){
+            OnlineOwner fresh;
+            if(!online_prepare(before,index,target,calls,fresh,e))return false;
+            const auto& actual=fresh.motion;
+            if(!fresh.initialize_last_region||fresh.uid!=held.uid||actual.map!=owner.map||actual.root!=owner.root||
+               actual.toon!=owner.toon||actual.region!=owner.region||actual.manager!=owner.manager||
+               fresh.registered!=held.registered||fresh.on!=held.on||fresh.off!=held.off)
+                return fail(e,"Subscriber loaded login owner changed before last Region initialization");
+            // DoLogIn sets this field before Manager::LogIn; offline PostResolve leaves it null.
+            if(!compare_owned_pointer(owner.toon+0x9a8,0,owner.region,e))return false;
+            uintptr_t last=0;
+            if(!at(owner.toon,0x9a8,last,e)||last!=owner.region)
+                return fail(e,e.empty()?"Subscriber loaded login last Region initialization readback differs; no replay":e);
+        }
         // Native login owns actor creation, OnMap, Region registration and NotifyLogin.
         calls.login(owner.manager,owner.toon);
     }else {
@@ -100,6 +121,12 @@ template<class Move>bool online_apply(const Owners& before,size_t index,const st
     if(!at(subscriber,0x80,toon,e)||toon!=owner.toon||!at(toon,0x18,uid,e)||uid!=held.uid||
        !at(toon,0x940,reverse,e)||reverse!=subscriber||!at(toon,0x825,logged,e)||logged!=uint8_t(target.has_value())||
        !at(toon,0x9ed,logging_out,e)||logging_out||!at(toon,0x9ec,queued,e)||queued||!at(toon,0x6f0,actor,e)||bool(actor)!=bool(target))return fail(e,e.empty()?"Subscriber original lifecycle Toon/UID/actor readback differs; no replay":e);
+    if(target){
+        uintptr_t last=0,region=0,shard=0;
+        if(!at(owner.toon,0x9a8,last,e)||!at(owner.toon,0x178,region,e)||!at(owner.toon,0x170,shard,e)||
+           last!=owner.region||region!=owner.region||shard!=owner.root)
+            return fail(e,e.empty()?"Subscriber original login registered Region readback differs; no replay":e);
+    }
     if(!online_queues(owner.manager,{},calls,e))return false;
     OnlineOwner after;if(!online_partition(before,after,e))return false;
     auto members=[](const std::vector<uintptr_t>& rows){return std::set<uintptr_t>(rows.begin(),rows.end());};

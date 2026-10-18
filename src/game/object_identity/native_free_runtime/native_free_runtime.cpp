@@ -13,7 +13,7 @@
 #endif
 #include <Windows.h>
 #include <bcrypt.h>
-#include <MinHook.h>
+#include "mt2mp/hooks/minhook_backend.h"
 #include <intrin.h>
 #include <cstring>
 #include <limits>
@@ -144,6 +144,7 @@ bool read_heap_module_receipt(HeapModuleReceipt& out,std::string& error){
 }
 namespace detail {
 bool verify_live_bytes(uintptr_t address,const unsigned char* expected,size_t count,std::string& error){return bytes(address,expected,count,error);}
+#if !defined(MT2MP_FRAMEWORK_PLUGIN)
 ExchangeReceipt replace_import_once(uintptr_t slot,uintptr_t expected,uintptr_t replacement)noexcept{
     ExchangeReceipt result;DWORD before=0,unused=0;
     if(!slot||slot%alignof(void*)||!expected||!replacement){result.win32_error=ERROR_INVALID_PARAMETER;return result;}
@@ -155,6 +156,7 @@ ExchangeReceipt replace_import_once(uintptr_t slot,uintptr_t expected,uintptr_t 
     if(!result.protection_restored)result.win32_error=GetLastError();else if(!result.exchanged&&!result.seh_code)result.win32_error=ERROR_INVALID_STATE;
     return result;
 }
+#endif
 }
 Runtime& Runtime::instance()noexcept{alignas(Runtime) static unsigned char storage[sizeof(Runtime)];static Runtime* const runtime=new(storage)Runtime;return *runtime;}
 bool Runtime::fail(Phase phase,const char* cause,std::string& error,uint32_t win32,int32_t mh,uint32_t seh)noexcept{receipt_.phase=phase;text(receipt_.cause,cause);receipt_.win32_error=win32;receipt_.minhook_status=mh;receipt_.seh_code=seh;journal_.error("native-free-runtime",cause,seh);try{error=receipt_.cause.data();}catch(const std::exception& ex){journal_.error("failure-output",ex.what(),0);}catch(...){journal_.error("failure-output","error: non-standard failure output allocation exception",0);}return false;}
@@ -181,6 +183,15 @@ bool Runtime::routes(std::string& error){
     if(thunk[0]!=0xff||thunk[1]!=0x25||base+0xa915e8+6+intptr_t(delta)!=base+free_iat_rva){error="error: actual free import thunk route differs";return false;}
     if(sized_visible_){if(!jump(base+sized_rva,receipt_.sized_trampoline+14,error)||!abs_jump(receipt_.sized_trampoline,base+0xa01260,error)||!abs_jump(receipt_.sized_trampoline+14,uintptr_t(&sized_entry),error))return false;}
     else if(!jump(base+sized_rva,base+0xa01260,error))return false;
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+    if(receipt_.originals_published){
+        MT2FW_MT2_FreeReceipt actual{};
+        if(!hooks::framework::process_backend().read_free(actual,error))return false;
+        if(actual.original!=receipt_.heap.free_export.resolved||actual.malloc_original!=receipt_.heap.malloc_export.resolved||
+           actual.slot!=receipt_.free_iat||actual.malloc_slot!=receipt_.malloc_iat||
+           actual.replacement!=uintptr_t(&free_entry)||actual.current!=free_actual){error="error: Framework free proof differs from independently guarded native route";return false;}
+    }
+#endif
     return true;
 }
 bool Runtime::prepare_and_enable(std::string& error)try{
@@ -193,20 +204,39 @@ bool Runtime::prepare_and_enable(std::string& error)try{
     if(!module(uintptr_t(&free_entry),receipt_.self,error)||!read_heap_module_receipt(receipt_.heap,error)||!imported(receipt_.image,"malloc",uint32_t(malloc_iat_rva),error)||!imported(receipt_.image,"free",uint32_t(free_iat_rva),error)||!committed(receipt_.image+free_iat_rva,8,receipt_.image,false,error)||!committed(receipt_.image+malloc_iat_rva,8,receipt_.image,false,error)||!routes(error))return fail(Phase::Failed,error.c_str(),error);
     for(const auto* observed:{&receipt_.executable,&receipt_.self,&receipt_.heap.imported_crt,&receipt_.heap.malloc_owner,&receipt_.heap.free_owner})if(!observed->version_present){const auto warning="warn: actual module has no fixed version resource; file SHA/path remain in receipt; win32="+std::to_string(observed->version_error);journal_.error("warn:module-version-absent",warning.c_str(),0);}
     receipt_.malloc_iat=receipt_.image+malloc_iat_rva;receipt_.free_iat=receipt_.image+free_iat_rva;receipt_.sized_target=receipt_.image+sized_rva;receipt_.crt_confirmed=true;
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+    MT2FW_MT2_FreeReceipt imported_free{};
+    if(!hooks::framework::process_backend().prepare_free(&free_entry,imported_free,error))return fail(Phase::Failed,error.c_str(),error,imported_free.win32_error,0,imported_free.seh_code);
+    if(imported_free.original!=receipt_.heap.free_export.resolved||imported_free.malloc_original!=receipt_.heap.malloc_export.resolved||
+       imported_free.slot!=receipt_.free_iat||imported_free.malloc_slot!=receipt_.malloc_iat||
+       imported_free.imported_crt.base!=receipt_.heap.imported_crt.base||imported_free.free_provider.base!=receipt_.heap.free_owner.base||
+       imported_free.malloc_provider.base!=receipt_.heap.malloc_owner.base)return fail(Phase::Failed,"error: Framework free preparation differs from independent CRT proof",error);
+#endif
     void* original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(receipt_.sized_target),reinterpret_cast<void*>(&sized_entry),&original);
     if(created!=MH_OK)return fail(Phase::Failed,"error: concrete sized MinHook creation failed",error,0,created);
     hook_created_=true;receipt_.sized_trampoline=uintptr_t(original);
     if(!original||!abs_jump(uintptr_t(original),receipt_.image+0xa01260,error)||!abs_jump(uintptr_t(original)+14,uintptr_t(&sized_entry),error))return fail(Phase::Failed,error.c_str(),error);
     receipt_.trampoline_route=true;observer_.emplace(receipt_.main_thread,journal_);
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+    if(!observer_->publish_disabled(reinterpret_cast<native_free::SizedFn>(original),reinterpret_cast<native_free::FreeFn>(imported_free.original)))return fail(Phase::Failed,"error: typed originals disabled publication failed",error);
+#else
     if(!observer_->publish_disabled(reinterpret_cast<native_free::SizedFn>(original),reinterpret_cast<native_free::FreeFn>(receipt_.heap.free_export.resolved)))return fail(Phase::Failed,"error: typed originals disabled publication failed",error);
+#endif
     published_.store(&*observer_,std::memory_order_release);receipt_.originals_published=true;receipt_.phase=Phase::Prepared;
     const auto enabled=MH_EnableHook(reinterpret_cast<void*>(receipt_.sized_target));
     if(enabled!=MH_OK)return fail(Phase::Unknown,"error: concrete sized hook enable failed; visibility requires inspection",error,0,enabled);
     sized_visible_=true;receipt_.hook_mask=1;
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+    MT2FW_MT2_FreeReceipt iat{};
+    if(!hooks::framework::process_backend().enable_free(iat,error))return fail(Phase::Unknown,error.c_str(),error,iat.win32_error,0,iat.seh_code);
+    original_iat_protection_=iat.initial_protection;
+    iat_visible_=iat.exchanged!=0;receipt_.iat_protection_restored=iat.protection_restored!=0;
+#else
     const auto iat=detail::replace_import_once(receipt_.free_iat,receipt_.heap.free_export.resolved,uintptr_t(&free_entry));
     original_iat_protection_=iat.previous_protection;
     iat_visible_=iat.exchanged;receipt_.iat_protection_restored=iat.protection_restored;
     if(!iat.exchanged||!iat.protection_restored)return fail(Phase::Unknown,"error: concrete Game free IAT replace or protection restore failed",error,iat.win32_error,0,iat.seh_code);
+#endif
     receipt_.hook_mask=3;
     if(!routes(error)||!actual_world(receipt_.world,error))return fail(Phase::Unknown,error.c_str(),error);
     if(!observer_->confirm_hooks(3)||!observer_->enable())return fail(Phase::Unknown,"error: actual typed hook mask3 ACK/Observer enable failed",error);
@@ -262,8 +292,14 @@ bool Runtime::retire_routes(std::string& error){
     if(jump(receipt_.sized_target,receipt_.image+0xa01260,sized_error))sized_visible_=false;
     else if(receipt_.sized_trampoline&&jump(receipt_.sized_target,receipt_.sized_trampoline+14,sized_error))sized_visible_=true;
     else return fail(Phase::Unknown,"error: actual sized code belongs to an unknown/partial route; no blind reversal",error);
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+    MT2FW_MT2_FreeReceipt restored{};
+    if(!hooks::framework::process_backend().disable_free(restored,error))return fail(Phase::Unknown,error.c_str(),error,restored.win32_error,0,restored.seh_code);
+    iat_visible_=false;receipt_.iat_protection_restored=restored.current_protection==restored.initial_protection;
+#else
     if(iat_visible_){const auto restored=detail::replace_import_once(receipt_.free_iat,uintptr_t(&free_entry),receipt_.heap.free_export.resolved);if(!restored.exchanged||!restored.protection_restored)return fail(Phase::Unknown,"error: own Game free IAT retirement failed",error,restored.win32_error,0,restored.seh_code);iat_visible_=false;}
     if(original_iat_protection_){DWORD unused=0;if(!VirtualProtect(reinterpret_cast<void*>(receipt_.free_iat),8,original_iat_protection_,&unused))return fail(Phase::Unknown,"error: own Game free IAT initial protection retirement failed",error,GetLastError());}
+#endif
     if(sized_visible_){const auto disabled=MH_DisableHook(reinterpret_cast<void*>(receipt_.sized_target));if(disabled!=MH_OK&&disabled!=MH_ERROR_DISABLED)return fail(Phase::Unknown,"error: own sized MinHook retirement failed",error,0,disabled);sized_visible_=false;}
     receipt_.hook_mask=0;receipt_.hooks_confirmed=false;if(!routes(error))return fail(Phase::Unknown,error.c_str(),error);
     receipt_.phase=Phase::Retired;text(receipt_.cause,"info: own native Free routes retired; originals, modules and trampoline retained for late entries");return true;
