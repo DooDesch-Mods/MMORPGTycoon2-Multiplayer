@@ -8,7 +8,7 @@ This repository contains the Windows x64 Multiplayer plugin, build tools and leg
 
 ## Install with Vortex
 
-Install MT2 Mod Framework Runtime 0.1.6 and the MMORPG Tycoon 2 Vortex Extension 0.1.2 once, using the matching downloads listed with the Multiplayer release. Both players need the same Multiplayer version and dependencies.
+Install MT2 Mod Framework Runtime 0.2.0 and the MMORPG Tycoon 2 Vortex Extension 0.1.2 once, using the matching downloads listed with the Multiplayer release. Both players need the same Multiplayer version and dependencies.
 
 1. Close the game and import the Multiplayer ZIP into Vortex for MMORPG Tycoon 2.
 2. Enable Multiplayer and deploy.

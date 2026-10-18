@@ -1,0 +1,35 @@
+{
+  "passed": true,
+  "scope": "Beta14 with Framework0.2: two-peer native shared load and in-game menu",
+  "plugin_sha256": "8f34d71aeb45f6c907d034b5987d6051884253106786acace242f8da9d49aa99",
+  "plugin_source_commit": "bcc1e374d064684b63b2c1e62f80220930d71678",
+  "framework_version": "0.2.0",
+  "framework_sha256": "6ef1888ccae0ff2b292daf4cc4c4fbea02330564a94b29ce5df9210c591b0422",
+  "loader_sha256": "95a6a59311b9233a2e1e7edf6c6008ed0f7f374671ca405abbc39372a5a4facb",
+  "runtime_run_id": "aae3bd4f-4fce-4592-9997-2a8ad16fd950",
+  "snapshot_id": "55da1b1b-f98e-4dab-976a-c5f10c7cac81",
+  "setup_summary": "artifacts\\acceptance\\41f9594d-51d6-40b4-a449-269f16c1d5e7\\summary.json",
+  "ui_summary": "artifacts\\acceptance\\14d85e52-15c7-4a53-8b34-9426e47be937\\summary.json",
+  "ready_peers": [
+    "host",
+    "client-1"
+  ],
+  "checks": [
+    "Both peers acknowledged one shared snapshot",
+    "Native readiness, capture hooks, started controllers and world authority valid on both peers",
+    "Client live-state application confirmed and neither controller locked",
+    "Native desktop app opened before loading; native in-game Client app opened after loading",
+    "Owner inspected the actual in-game Client capture"
+  ],
+  "image": {
+    "path": "_drafts/media/framework02-multiplayer-client.bmp",
+    "file_sha256": "f18e0e627a832bb923923b60d312867b5cbcd3fffdffb9d2a06faa124a69ea1f",
+    "pixel_sha256": "cc180b5801b76fc879b5a1aecf4754da9801d98f5ac127df651245b1c6244600"
+  },
+  "actors": "Exact owned games, bridges and relay stopped after acceptance; profiles retained",
+  "limits": [
+    "No repeated gameplay-family acceptance or new FPS claim",
+    "Four-player, large-world and separate-account online acceptance remain open",
+    "The Client can still show the generic shared-world name"
+  ]
+}
