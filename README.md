@@ -2,66 +2,51 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Build together in one Host world. This is an early beta in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of saves you care about.
+[Download on Nexus Mods](https://www.nexusmods.com/mmorpgtycoon2/mods/28) | [GitHub releases](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases) | [Changelog](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/CHANGELOG.md)
 
-This repository contains the Windows x64 Multiplayer plugin, build tools and legacy standalone tools. Game files, saves, personal settings and native test artifacts are excluded.
+![MT2 Multiplayer - Build your world together. Early Beta, in active development.](https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/multiplayer-cover.png)
 
-## Install with Vortex
+Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2. Share one world through the game's familiar tools, then save and continue together later.
 
-Install MT2 Mod Framework Runtime 0.2.0 and the MMORPG Tycoon 2 Vortex Extension 0.1.2 once, using the matching downloads listed with the Multiplayer release. Both players need the same Multiplayer version and dependencies.
+**Early Beta:** Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
 
-1. Close the game and import the Multiplayer ZIP into Vortex for MMORPG Tycoon 2.
-2. Enable Multiplayer and deploy.
-3. Start the game through Steam.
-4. Double-click Multiplayer on the game desktop, or choose Mods... > Multiplayer > Open while in a world.
-5. Host a lobby and create or load a small world, or join your friend's lobby.
+## Build together
 
-Vortex manages the files and profile. No manual profile path or configuration edit is required. Close the game before updating, disabling or removing this native plugin. Keep your saves and profile data.
+- **Steam lobbies** - Host a session or join a friend's lobby from the Multiplayer window.
+- **A shared world** - Place, move and remove supported buildings. Share region purchases, biome styles and region levels.
+- **The same pace** - Keep pause and game speed in sync between players.
+- **Pick up where you left off** - Save the Host world and resume a session from that save.
 
-Use the downloads supplied together with the release. Do not combine the Framework plugin with an older standalone Multiplayer loader or Steam proxy. Historical standalone packages are documented in the [beta guide](docs/BETA.md).
+![A shared building in MMORPG Tycoon 2.](https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/building-together.png)
 
-## Build and test
+## Start playing
 
-Building requires Windows x64, Visual Studio 2022 with C++, the Windows SDK and MASM, CMake, and Python 3. The mod build needs an import library matching the included SDL 3.2.24 headers. CI builds that library from pinned official SDL source without using a game DLL.
+You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.0](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
 
-```powershell
-cmake -S ci -B build/unit -A x64
-cmake --build build/unit --config Release --parallel 2
-ctest --test-dir build/unit -C Release --output-on-failure --no-tests=error
-python -m unittest discover -s test -p test_build_input_guard.py
-```
+1. Close the game and install the Framework Runtime and Vortex Extension.
+2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.
+3. Enable the mod, deploy and start the game through Steam.
+4. Open the **Multiplayer** desktop icon, or choose **Mods... > Multiplayer > Open**.
+5. Host a lobby and create or load a small world, or join your friend's lobby. Wait until both players are ready before building.
 
-The [Windows workflow](.github/workflows/windows.yml) runs the game-independent tests and builds `MT2_Multiplayer`, `wsock32`, `steam_api64` and `mt2mp_sidecar`. It does not launch the game or load the mod DLL. A successful build does not prove gameplay behavior.
+The download contains the Multiplayer plugin. Install the Framework Runtime separately. Remove an older standalone Multiplayer loader or Steam proxy before switching to this plugin.
 
-Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
+## Report a problem in game
 
-```powershell
-python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.14 --target MT2MultiplayerPlugin
-```
+Open **Report a problem** in the Multiplayer window, add an optional description and choose **Send report privately**. The mod prepares the technical details for you. Keep the confirmed report number and include it when [contacting support](https://support.doodesch.de/multiplayer).
 
-Framework mode needs a matching Framework source checkout with the native service, route and ownership headers. It writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
+Reports stay private for 30 days. They do not include saves, chat, screenshots or Steam account IDs. Automatic technical reports are optional and off by default. Please keep passwords and personal information out of the description.
 
-The Framework version defaults to `mod.json`; an explicit version must match it. A matching CMake cache skips the redundant configure step while retaining CMake's automatic regeneration. Use `--reconfigure` to configure explicitly. The build writes `build/framework/build-receipt.json` with the exact DLL hash and version.
+## Update or remove
 
-Package that local plugin with the canonical manifest:
+Close the game, then update, disable or remove Multiplayer through Vortex. Keep your saves and profile data. Native plugins require a game restart after an update.
 
-```powershell
-python -X utf8 tools/package.py --mode vortex --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip
-```
+## For developers
 
-Packaging reads back every ZIP entry and rejects a changed DLL or mismatched manifest version. Keep a copy of a package before the next build if you need its exact bytes later.
+See [Build from source](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BUILDING.md) for the native plugin, packaging and test commands. The [beta guide](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md) also documents historical standalone packages.
 
-To build the legacy standalone tools:
+## Credits and permissions
 
-```powershell
-cmake -S . -B build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-cmake --build build/mod --config Release --target MT2_Multiplayer wsock32 steam_api64 mt2mp_sidecar --parallel 2
-```
+Created by DooDesch. The [Multiplayer license](LICENSE.md) allows source access and personal changes. Public redistribution and modified public releases require permission.
 
-The separate CI test entry avoids linking every test to the injected mod DLL. Launcher and MCP tools require a legally installed copy of the game and explicit local runtime paths. CI does not run these tools.
-
-## Dependencies
-
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for MinHook, Dear ImGui, nlohmann/json and SDL. The Steam declarations are a small local interface stub; the Steamworks SDK and original Steam DLLs are not included.
-
-The source-check workflow has read-only access to repository contents. The beta workflow builds and checks tags such as `v0.1.0-beta.1`, then publishes a prerelease with a ZIP and SHA256 file. Only its release job has write permission. Mod-authored code, documentation and assets are covered by the [project license](LICENSE.md). Third-party components retain their own licenses.
+MinHook, Dear ImGui, nlohmann/json and SDL retain their own licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md). [MT2 Mod Framework](https://github.com/DooDesch-Mods/MMORPGTycoon2-ModFramework) is MIT-licensed. MMORPG Tycoon 2 and its game artwork are by VectorStorm.
