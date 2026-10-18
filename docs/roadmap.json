@@ -1,0 +1,31 @@
+{
+  "product": "MMORPG Tycoon 2 Multiplayer",
+  "support_slug": "multiplayer",
+  "repository_url": "https://github.com/DooDesch/MMORPGTycoon2-Multiplayer",
+  "version_label": "Early Beta 15",
+  "release_label": "Early Beta 15 - Shared building is available now",
+  "graphic_title": "The road to a shared MMO world.",
+  "asset_directory": "docs/images",
+  "overview_heading": "What works in co-op?",
+  "overview_intro": "Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
+  "stages": [
+    {"label": "Available now", "title": "Build together", "items": ["Steam lobbies and worlds", "Buildings and regions", "Shared pause and speed"]},
+    {"label": "Next priorities", "title": "A living world", "items": ["Live monster gameplay", "More NPC and quest tools", "More complete save support"]},
+    {"label": "Longer term", "title": "Grow your world", "items": ["More building tools", "More gameplay systems", "Four-player, larger worlds"]}
+  ],
+  "features": [
+    {"name": "Steam lobbies", "status": "available", "scope": "Host a lobby or join a friend's session from the Multiplayer window."},
+    {"name": "A shared world", "status": "available", "scope": "The Host creates or loads a world; the joining player receives it."},
+    {"name": "Session chat", "status": "partial", "scope": "Basic session messages in the Multiplayer window."},
+    {"name": "Buildings and scenery", "status": "partial", "scope": "Place, move and remove supported buildings and individual scenery objects."},
+    {"name": "Terrain and roads", "status": "partial", "scope": "Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned."},
+    {"name": "Regions", "status": "available", "scope": "Share region purchases, biome styles and region levels."},
+    {"name": "Pause and game speed", "status": "available", "scope": "Keep the same pause state and simulation speed."},
+    {"name": "Research", "status": "partial", "scope": "Start Bridges research, assign workers and unlock it together. Other research is not covered by this overview."},
+    {"name": "NPC placement", "status": "partial", "scope": "Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority."},
+    {"name": "Elite monsters", "status": "partial", "scope": "Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority."},
+    {"name": "Save and resume", "status": "partial", "scope": "Continue from the Host's saved world. Wider support for saved objects is a next priority."},
+    {"name": "More quests and combat", "status": "planned", "scope": "More quest tools and live monster gameplay are in development for future releases."},
+    {"name": "Four players and larger worlds", "status": "planned", "scope": "The current focus is two-player co-op in small worlds."}
+  ]
+}

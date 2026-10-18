@@ -40,6 +40,11 @@ Inspect acknowledgements, logs and real game captures. State the tested scope
 accurately; local peers do not establish separate-account online compatibility.
 Documentation-only changes do not require replaying unchanged gameplay tests.
 
+Public roadmap stages and feature coverage originate in `docs/roadmap.json`.
+Run `python tools/render_roadmap.py` after changing it. Its `--check` mode verifies
+the README, text roadmap and desktop/mobile SVGs without writing. Mark only
+released behavior as available; private acceptance does not make a feature public.
+
 ## Prepare a release
 
 Keep the manifest, package version, release tag and changelog consistent. Package
