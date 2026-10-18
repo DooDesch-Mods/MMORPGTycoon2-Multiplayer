@@ -9,8 +9,13 @@ using SDL_Window=int;
 Fixture fixture;FocusReceipt focus_receipt;
 Snapshot native_snapshot{"22222222-2222-4222-8222-222222222222",1,2,3,4,5,0,0,false,false,false};
 bool observed=true,raise_ok=true;unsigned raises=0;
+FocusWindowState window_observation;unsigned window_observations=0;
 bool reject(std::string& e,const std::string& cause){e=cause;return false;}
 bool observe(void*,Snapshot& out,std::string& e){if(!observed)return reject(e,"original Host ownership read failed");out=native_snapshot;return true;}
+FocusWindowState observe_focus_window(const Snapshot& owner){
+    if(owner.window!=native_snapshot.window||owner.hwnd!=native_snapshot.hwnd)throw std::runtime_error("focus observation targeted a different window");
+    ++window_observations;return window_observation;
+}
 bool SDL_RaiseWindow(SDL_Window* target){if(reinterpret_cast<uintptr_t>(target)!=native_snapshot.window)throw std::runtime_error("raise targeted a different window");++raises;return raise_ok;}
 const char* SDL_GetError(){return "original SDL raise failure";}
 }
@@ -36,12 +41,16 @@ unsigned run_focus_checks(){
     tutorial_replication::Cursor step;step.scenario="initial_tutorial";step.next=7;step.message_progress=tutorial_replication::MessageProgress{true,0,0,100};
     require(wasd_admission(step,error),"native_snapshot WASD current index6/next7 rejected");step.next=6;
     require(!wasd_admission(step,error)&&error.find("index6/next7")!=std::string::npos,"off-by-one cursor accepted");pass("native_snapshot native admission predicate accepts next7 and rejects next6");
+    window_observation.observed=true;window_observation.hidden=true;window_observation.sdl_flags=37;
     require(request_focus(native_snapshot.origin,error)&&raises==1,"exact own Host focus was not requested");
     require(read_focus(result,error)&&result.attempted&&result.returned&&!result.ready,"raise request was confused with delivered focus");
+    require(window_observations==1&&result.window_state.observed&&result.window_state.hidden&&result.window_state.sdl_flags==37,"current focus window diagnostics were not retained");
     native_snapshot.keyboard_focus=true;require(read_focus(result,error)&&!result.ready,"SDL focus alone admitted native key");
     native_snapshot.input_enabled=true;require(read_focus(result,error)&&result.ready,"native focus plus input admission not observed");
     require(!request_focus(native_snapshot.origin,error)&&raises==1,"focus repeated automatically");pass("native_snapshot request/read bodies distinguish raised, SDL focus, native admission and no replay");
-    observed=false;require(!read_focus(result,error)&&!result.ready&&error=="original Host ownership read failed","failed focus read retained ready success");pass("failed current-owner read clears ready and preserves original cause");
+    const auto window_reads=window_observations;
+    observed=false;require(!read_focus(result,error)&&!result.ready&&error=="original Host ownership read failed","failed focus read retained ready success");
+    require(window_observations==window_reads&&!result.window_state.observed&&result.window_state.sdl_flags==0,"failed owner read retained stale window diagnostics or observed a window");pass("failed current-owner read clears ready and preserves original cause");
     focus_receipt={};require(!request_focus(native_snapshot.origin,error)&&raises==1,"Host guard failure raised window");pass("native_snapshot Host/world admission failure has no raise effect");
     observed=true;require(!request_focus("11111111-1111-4111-8111-111111111111",error)&&raises==1,"mismatched origin raised window");pass("native_snapshot exact native origin is required before raise");
     focus_receipt={};native_snapshot.keyboard_focus=false;native_snapshot.input_enabled=false;raise_ok=false;

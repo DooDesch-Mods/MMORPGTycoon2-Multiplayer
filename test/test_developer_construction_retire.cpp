@@ -16,7 +16,7 @@ struct Model {
     std::map<uintptr_t,job_census::Job> jobs;
     std::set<uintptr_t> destroyed;
     bool fail_shift=false,fail_count=false,fail_destroy=false,corrupt_selected=false,corrupt_survivor=false;
-    bool shifted=false,expired=false,fail_proxy=false;int reads_after_free=0,destroy_calls=0,building_calls=0,cached_reads=0;
+    bool shifted=false,expired=false,fail_proxy=false,fail_census=false;int reads_after_free=0,destroy_calls=0,building_calls=0,cached_reads=0;
     uintptr_t fresh_building=0;uint8_t fresh_active=1;
 } model;
 }
@@ -52,6 +52,10 @@ struct Memory {bool copy(uintptr_t p,void* output,size_t n,std::string& e){auto&
     return true;
 }} memory;
 const job_census::Read copy=[](auto p,auto out,auto n,auto& e){return memory.copy(p,out,n,e);};
+bool read_jobs(const Capture& capture,job_census::Census& out,std::string& e){
+    if(fixture::model.fail_census)return fail(e,"original Job census failed");
+    return job_census::read(copy,capture,out,e);
+}
 struct Work {Capture before;bool attempted=false;bool fresh(std::string&){return true;}};
 struct Target {struct Binding{uintptr_t object=0;} binding;uintptr_t region=0;uint8_t active=1;};
 bool owners(const Capture&,const Capture&,std::string&){return true;}
@@ -86,6 +90,8 @@ void reset(){fixture::model={};auto& m=fixture::model;m.original.queue=1000;m.or
 }
 }
 int main(){try{using namespace mt2mp::game::developer_staff::construction;size_t cases=0;
+    reset();fixture::model.fail_census=true;{Work w;std::string e;
+        require(!retire(w,link(3000,5000),e)&&!w.attempted&&fixture::model.destroy_calls==0&&e=="original Job census failed","census failure reached retirement or lost original cause");++cases;}
     for(size_t selected:{size_t(0),size_t(1),size_t(2)}){reset();auto& m=fixture::model;m.original.developers.clear();m.jobs.at(m.slots[2]).developer=0;
         const auto pointer=m.slots[selected];Work w;std::string e;
         require(retire(w,link(pointer,5000+selected),e),"selected native retirement failed");

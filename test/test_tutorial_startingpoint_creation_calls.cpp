@@ -73,12 +73,12 @@ DWORD call_set_current_project(uintptr_t base,uintptr_t lounge,uintptr_t source)
 }
 }
 namespace mt2mp::game::tutorial_development {
-bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string&,bool creation){++snapshot_reads;if(during_read)during_read(snapshot_reads);out=physical;if(!creation)out.creation.reset();return true;}
+bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string&,bool creation,bool){++snapshot_reads;if(during_read)during_read(snapshot_reads);out=physical;if(!creation)out.creation.reset();return true;}
 }
 namespace mt2mp::game::tutorial_development {
-bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation){
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation,bool share_metadata){
     if(key!="startingpoint")throw std::runtime_error("Startingpoint selected another Research key");
-    return read_startingpoint(out,diagnostic,e,creation);
+    return read_startingpoint(out,diagnostic,e,creation,share_metadata);
 }
 }
 namespace mt2mp::game::native {
@@ -87,6 +87,7 @@ bool read_clock(ClockState& out,std::string&){out=clock_status;return true;}
 bool read_world_status(WorldStatus& out,std::string&){out=world_status;return true;}
 }
 namespace mt2mp::game::live_host_state {
+bool NativePort::publication_ready(uint64_t,bool&,std::string&){throw std::runtime_error("Startingpoint entered Host publication readiness");}
 bool NativePort::read(Pin& out,std::string& e){++economy_reads;if(economy_reads==fail_economy_read){e="original physical Economy read failed";return false;}out=economy_pin;return true;}
 bool NativePort::store(const Pin&,size_t,int32_t,int32_t,std::string& e){e="unexpected Economy store in creation fixture";return false;}
 }

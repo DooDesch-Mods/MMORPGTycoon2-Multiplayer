@@ -10,6 +10,12 @@ struct Economy {
         ++calls;peer=p;mask=m;revision=r;rows=value;e=failure;return failure.empty();
     }
 };
+struct Marketing {
+    unsigned calls=0;uint64_t sender=0,revision=0;std::string failure;
+    bool acknowledge(uint64_t peer,uint64_t frame,std::string& e){
+        ++calls;sender=peer;revision=frame;e=failure;return failure.empty();
+    }
+};
 struct Bridge {
     bool suspended_=false,locked_=false,day_=false;
     Context context_;action_session::Binding binding_;
@@ -19,7 +25,7 @@ struct Bridge {
     struct Transport {std::vector<std::vector<uint8_t>> packets;std::string failure;bool send(uint64_t,const std::vector<uint8_t>& bytes,std::string& e){if(!failure.empty()){e=failure;return false;}packets.push_back(bytes);return true;}} transport_;
     bool acknowledge_vips(uint64_t,uint64_t,std::string& e){e.clear();return true;}
     bool acknowledge_frame(const Frame&,std::string&);
-    Economy* economy_=nullptr;unsigned received=0;uint64_t received_sender=0;
+    Economy* economy_=nullptr;Marketing* marketing_port_=nullptr;unsigned received=0;uint64_t received_sender=0;
     std::vector<uint8_t> received_bytes;std::string receive_failure;
     explicit Bridge(const Frame& f):context_(context(f)),binding_{1,f.source_generation},
         common_epoch_(f.epoch),source_generation_(f.source_generation),host_revision_(f.revision){}
@@ -119,6 +125,16 @@ void checks(const Frame& f){
         {"source_generation",f.source_generation},{"frame_revision",f.revision},{"rows",Json::array()}};
     need(route_json(host,2,ack)&&handled&&economy.calls==1&&economy.peer==2&&economy.mask==2&&economy.revision==f.revision,"Subscriber ACK no longer routed");
     need(host.apply_acks_.pending()==0&&host.apply_acks_.peers()[1].revision==f.revision,"validated actual ACK advances full-Apply progress");
+    for(bool reject:{false,true}){
+        Bridge target(f);Marketing marketing;target.context_.role=Role::Host;target.context_.local_peer=1;
+        target.economy_=&economy;target.marketing_port_=&marketing;
+        target.apply_acks_.sent(f.revision,2,std::chrono::steady_clock::now());
+        if(reject)marketing.failure="original Marketing ACK failure";
+        const bool accepted=route_json(target,2,ack);
+        need(marketing.calls==1&&marketing.sender==2&&marketing.revision==f.revision,"Marketing ACK owner/revision was not forwarded once");
+        need(accepted==!reject&&handled&&target.locked_==reject&&target.apply_acks_.pending()==(reject?2:0),"Marketing ACK failure confirmed full frame or failed to lock");
+        if(reject)need(e==marketing.failure,"Marketing ACK original cause changed");
+    }
     auto conflicting=ack;conflicting["rows"]=Json::array({{{"id",1},{"sha256",std::string(64,'a')}}});
     const auto prior_calls=economy.calls;
     need(!route_json(host,2,conflicting)&&e.find("duplicate applied Frame ACK")!=std::string::npos&&economy.calls==prior_calls,"conflicting duplicate rejected before Subscriber cache mutation");

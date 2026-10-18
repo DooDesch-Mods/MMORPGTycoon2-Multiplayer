@@ -103,7 +103,8 @@ bool read_world_status(WorldStatus& out, std::string& error) {
 }
 
 namespace mt2mp::game::live_host_state::apply_timing {
-SIZE_T virtual_query(LPCVOID, PMEMORY_BASIC_INFORMATION memory, SIZE_T size) {
+enum class Part { QueryEngine };
+SIZE_T virtual_query(LPCVOID, PMEMORY_BASIC_INFORMATION memory, SIZE_T size, Part) {
     if (size != sizeof(*memory)) return 0;
     memory->Protect = mt2mp::game::native::memory_writable ? PAGE_READWRITE : PAGE_READONLY;
     return sizeof(*memory);
