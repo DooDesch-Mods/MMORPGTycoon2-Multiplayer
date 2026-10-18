@@ -4,7 +4,7 @@
 #include <vector>
 #include <cstdint>
 namespace mt2mp::action_session::ui_capture {struct Replay;}
-namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct BugFixIntent;struct ZoneIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
+namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct BugFixIntent;struct ZoneIntent;struct MonsterIntent;struct MonsterMoveIntent;struct MonsterRemoveIntent;struct NpcIntent;struct Binding;struct Context;enum class Action:uint8_t;}
 
 namespace mt2mp::game::developer_staff::construction {struct LocalJob;}
 namespace mt2mp::game::typed_action_runtime {
@@ -28,6 +28,9 @@ bool submit_bug_fix(const std::string&,const action_session::BugFixIntent&,std::
 bool submit_startingpoint_workers(const std::string& id,int32_t desired,std::string& error);
 bool submit_start_startingpoint(const std::string& action_uuid,std::string&);
 bool submit_prices(const std::string& action_uuid,const action_session::PriceIntent&,std::string&);
+bool submit_remove_monster(const std::string&,const std::string&,const action_session::MonsterRemoveIntent&,std::string&);
+bool submit_move_monster(const std::string&,const std::string&,const action_session::MonsterMoveIntent&,std::string&);
+bool submit_monster(const std::string&,const action_session::MonsterIntent&,std::string&);
 bool submit_zone(const std::string&,const action_session::ZoneIntent&,std::string&);
 bool submit_npc(const std::string& action_uuid,const action_session::NpcIntent&,std::string&);
 bool submit_remove_npc(const std::string& action_uuid,const std::string& target_action_uuid,std::string&);

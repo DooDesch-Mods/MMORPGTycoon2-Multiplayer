@@ -9,6 +9,7 @@
 #include "typed_action_runtime.h"
 #include "remove_diagnostics.h"
 #include "npc_probe.h"
+#include "monster_action_runtime.h"
 #include "object_identity/native_free_runtime/native_free_runtime.h"
 #include "object_identity/remove_runtime/remove_runtime.h"
 #include "mt2mp/core/config.h"
@@ -99,6 +100,8 @@ public:
         if(!memory.copy(object,&ap,sizeof ap,error))return false;
         if(ap==image+0x1742980)
             return npc_probe::action_runtime::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x16c0770)
+            return npc_probe::monster_action_runtime::remove_local_binding(manager,object,out,error);
         remove_diagnostics::LocalTarget actual;
         if(!remove_diagnostics::resolve_local_target(manager,object,actual,error))return false;
         if(!actual.normal_building&&!actual.normal_scenery){error=actual.kind_cause.empty()?"UI Remove target is not an actual normal Building":actual.kind_cause;return false;}
@@ -125,7 +128,12 @@ public:
         npc_probe::action_runtime::remove_submitted(intent.action_uuid,target);
         return true;
     }
+    bool submit_monster(const ui::Intent& intent,std::string& error)override {
+        if(!npc_probe::monster_action_runtime::submit_remove(intent,error))return false;
+        last_intent=intent;return true;
+    }
     bool authorize_replay(const ui::Replay& replay,std::string& error)override {
+        if(replay.binding.supported_monster)return npc_probe::monster_action_runtime::authorize_remove_replay(replay,error);
         if(replay.binding.supported_npc)return npc_probe::action_runtime::authorize_remove_replay(replay,error);
         return typed_action_runtime::authorize_ui_replay(replay,error);
     }

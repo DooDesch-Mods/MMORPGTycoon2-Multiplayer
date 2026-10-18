@@ -87,19 +87,16 @@ bool effect(Memory& m,const Pin& p,d::Sample& sample,a::ZoneState& out,std::stri
     if(!npc_quest_target_runtime::read_current(p.region.saved_region,targets,e)||targets.monster_zone_keys.size()!=sample.state.zones.size())return fail(e,e.empty()?"Zone canonical membership count differs":e);
     json content=d::state_json(sample.state);content.erase("local_identity_scope");
     content.erase("global_random");content.erase("region_random");content.erase("next_monster_tag");content.erase("created_monsters");
-    std::map<uint64_t,std::string> zone_keys,monster_keys;
+    std::map<uint64_t,std::string> zone_keys;
     for(size_t i=0;i<sample.state.zones.size();++i)zone_keys.emplace(sample.state.zones[i].value.uid,targets.monster_zone_keys[i]);
-    for(const auto& row:sample.state.monsters){
-        const auto z=std::find_if(sample.state.zones.begin(),sample.state.zones.end(),[&](const auto& v){return v.value.pointer==row.zone;});
-        if(z==sample.state.zones.end())return fail(e,"Zone canonical Monster lacks reciprocal Zone");
-        const auto member=std::find(z->monsters.begin(),z->monsters.end(),row.uid);
-        if(member==z->monsters.end())return fail(e,"Zone canonical Monster missing member ordinal");
-        monster_keys.emplace(row.uid,zone_keys.at(z->value.uid)+":monster:"+std::to_string(member-z->monsters.begin()));
-    }
-    for(auto& row:content["zones"]){const auto uid=row.at("local_uid").get<uint64_t>();row.erase("local_uid");row["key"]=zone_keys.at(uid);
-        json members=json::array();for(const auto& v:row.at("monster_local_uids"))members.push_back(monster_keys.at(v.get<uint64_t>()));row.erase("monster_local_uids");row["monsters"]=std::move(members);}
-    for(auto& row:content["monsters"]){const auto uid=row.at("local_uid").get<uint64_t>(),zone=row.at("zone_local_uid").get<uint64_t>();
-        row.erase("local_uid");row.erase("zone_local_uid");row["key"]=monster_keys.at(uid);row["zone"]=zone_keys.at(zone);}
+    direct_monster_identity::Scope scope{p.world.origin.uuid,p.world.origin.world_epoch,p.world.origin.generation,
+        p.world.root,p.region.region,sample.state.monster_manager};
+    host::LookupApi api;if(!host::resolve_lookup(m.process,p.region.image,exe_sha,api,e))return false;
+    const auto verify=[&](const monster_zone_read::Monster& row,std::string& cause){
+        uintptr_t found=0;const auto seh=lookup(api.find,row.uid,found);
+        return (!seh&&found==row.pointer)||fail(cause,"Zone/Monster full UID registry differs exception="+std::to_string(seh));};
+    const auto generated_name=[&](uintptr_t object,std::string& value,std::string& cause){return npc_census::read_name(m,object,value,cause);};
+    if(!monster_canonical::normalize(sample.state,zone_keys,scope,content,generated_name,verify,e))return false;
     out.zones=uint32_t(sample.state.zones.size());out.monsters=uint32_t(sample.state.monsters.size());out.undo_count=uint32_t(sample.undo.undo.size());
     out.next_tag=sample.state.next_monster_tag;out.created_monsters=sample.state.created_monsters;out.global_random=sample.state.global_random;
     out.region_random=sample.state.region_random;out.release_edits=sample.release_edits;

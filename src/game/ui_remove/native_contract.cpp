@@ -1,5 +1,6 @@
 #include "native_contract.h"
 #include "native_contract_bytes.h"
+#include "mt2mp/core/hash.h"
 #include <array>
 #include <cstring>
 #include <limits>
@@ -28,6 +29,19 @@ bool executable(Memory& memory,uintptr_t address,Region& region,std::string& cau
 bool relative(uintptr_t next,int32_t displacement,uintptr_t& target) {
     if(displacement<0){const auto offset=uint64_t(-int64_t(displacement));if(next<offset)return false;target=next-uintptr_t(offset);}
     else {if(next>UINTPTR_MAX-uint32_t(displacement))return false;target=next+uintptr_t(displacement);}
+    return true;
+}
+bool monster_frames(Memory& memory,uintptr_t image,std::string& cause){
+    struct Code {uintptr_t rva;size_t size;const char* sha;};
+    constexpr Code codes[]{
+        {0x7490c0,2144,"e6242e22cca51685d273afcf28ad8d9cfb8e6fc17046f4d56ea444125a743c6a"},
+        {0x3bc9a0,768,"e6277d4d6740da834e76de74780af680e656cdd86461f8771bd9ddc72e03925d"}};
+    for(const auto& code:codes){std::vector<unsigned char> body(code.size);
+        if(!memory.copy(image+code.rva,body.data(),body.size(),cause))return false;
+        if(mt2mp::sha256(body)!=code.sha){cause="Monster Remove exact original UI/Command frame body differs RVA="+std::to_string(code.rva);return false;}}
+    uintptr_t target=0;
+    if(!memory.copy(image+0x16c0770+0xb0,&target,sizeof target,cause))return false;
+    if(target!=image+0x3bc9a0){cause="Monster Remove original Command virtual target differs";return false;}
     return true;
 }
 bool frames(Memory& memory,uintptr_t image,std::string& cause) {
@@ -90,6 +104,15 @@ bool classify_origin(Memory& memory,uintptr_t image,uintptr_t return_slot,Origin
     else {cause.clear();return true;}
     if(return_slot>UINTPTR_MAX-offset){cause="UI Remove native frame slot overflows address range";return false;}
     uintptr_t outer=0;if(!memory.copy(return_slot+offset,&outer,sizeof outer,cause))return false;
+    if(target==0x2d5520&&outer==image+0x3bcb34){
+        if(return_slot>UINTPTR_MAX-0x2d0){cause="Monster Remove InfoWindow frame slot overflows";return false;}
+        uintptr_t window=0;
+        if(!memory.copy(return_slot+0x2d0,&window,sizeof window,cause))return false;
+        if(window==image+0x749454){
+            if(!monster_frames(memory,image,cause))return false;
+            out=Origin::MonsterWindow;cause.clear();return true;
+        }
+    }
     for(const auto& call:ui_calls)if(call.target==target&&outer==image+call.pc+5){out=call.origin;break;}
     cause.clear();return true;
 }

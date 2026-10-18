@@ -14,7 +14,7 @@ The [Windows workflow](../.github/workflows/windows.yml) runs the game-independe
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
 ```powershell
-python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.14 --target MT2MultiplayerPlugin
+python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.15 --target MT2MultiplayerPlugin
 ```
 
 Framework mode needs a matching Framework source checkout with the native service, route and ownership headers. It writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.

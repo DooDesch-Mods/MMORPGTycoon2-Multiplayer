@@ -8,7 +8,7 @@ namespace mt2mp::action_session::ui_capture {
 struct NativePropArray {uintptr_t addresspoint=0;uintptr_t* data=nullptr;int32_t count=0,capacity=0;};
 static_assert(sizeof(NativePropArray)==0x18&&offsetof(NativePropArray,data)==8&&offsetof(NativePropArray,count)==0x10);
 using DestroyProps=void(*)(void* manager,NativePropArray* native_array);
-enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow };
+enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow };
 enum class Policy:uint8_t { Standalone,AuthorityRequired,Unavailable };
 enum class Disposition:uint8_t { ForeignOriginal,StandaloneOriginal,EmptyOriginal,IntentCaptured,Rejected,OwnReplayOriginal };
 enum class ReplayPurpose:uint8_t { HostExecution,ConfirmedHostApplication };
@@ -16,7 +16,7 @@ struct LocalBinding {
     uintptr_t manager=0,object=0;
     uint64_t uid=0,native_epoch=0,native_generation=0;
     std::string snapshot_uuid,canonical_record_key;
-    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false;
+    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false,supported_monster=false;
     bool operator==(const LocalBinding&)const=default;
 };
 struct Intent {std::string action_uuid,snapshot_uuid,canonical_record_key;};
@@ -41,6 +41,7 @@ public:
     // Same shared typed Controller for Host and Client; no native execute in this adapter.
     virtual bool submit(const Intent&,std::string& cause)=0;
     virtual bool submit_npc(const Intent&,std::string& cause){cause="NPC UI submit service unavailable";return false;}
+    virtual bool submit_monster(const Intent&,std::string& cause){cause="Monster UI submit service unavailable";return false;}
     // Root admits this private scope only from its actual authoritative engine bridge.
     virtual bool authorize_replay(const Replay&,std::string& cause)=0;
     virtual void original(DestroyProps,void*,NativePropArray*)=0;
@@ -63,7 +64,7 @@ public:
 private:
     Services& services_;DestroyProps original_=nullptr;
     bool enabled_=false,capturing_=false,authorizing_=false;Replay replay_;Status status_;
-    std::string last_error_;
+    std::string last_error_,replay_failure_;
     Report forward(Disposition,void*,NativePropArray*,bool replay=false);
     Report forward_worker(void*,NativePropArray*);
     Report reject(const std::string&);

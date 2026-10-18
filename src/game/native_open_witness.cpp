@@ -36,9 +36,22 @@ std::filesystem::path configured_root,physical;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 framework_open_paths::Binding configured_paths;
 std::filesystem::path configured_write;
-bool framework_binding(std::string& error) {
+DWORD WINAPI timed_account_attributes(LPCWSTR path) {
+    const auto incoming=GetLastError();
+    DWORD attributes=0,error=0;
+    {
+        mt2mp::game::live_host_state::apply_timing::Scope timing(
+            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenAccountAttributes);
+        SetLastError(incoming);
+        attributes=GetFileAttributesW(path);
+        error=GetLastError();
+    }
+    SetLastError(error);
+    return attributes;
+}
+bool framework_binding(std::string& error,framework_open_paths::AttributeReader& read_attributes=GetFileAttributesW) {
     try {
-        const auto actual=framework_open_paths::live_write(configured_paths);
+        const auto actual=framework_open_paths::live_write(configured_paths,read_attributes);
         if(configured_write.empty()||!private_profile::equal(actual,configured_write)) {
             error="Framework native open actual write root changed during bound origin";return false;
         }
@@ -260,8 +273,14 @@ bool task_owner(void* task,void*& mode,std::string& error) {
 }
 bool world_witness(WorldWitness& w,std::string& error) {
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-    if(!framework_binding(error))return fail(error,error);
+    {
+        mt2mp::game::live_host_state::apply_timing::Scope timing(
+            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
+        if(!framework_binding(error,timed_account_attributes))return fail(error,error);
+    }
 #endif
+    mt2mp::game::live_host_state::apply_timing::Scope timing(
+        mt2mp::game::live_host_state::apply_timing::Part::NativeOpenWorldFields);
     void* active=nullptr;void* world=nullptr;void* map=nullptr;
     int32_t state=-1;
     if(!mode_singleton(w.mode,error)||w.mode!=native_mode||!vt(w.mode,0x16e6730,error)||!read(w.mode,0x2c4,state,error)||state!=4)

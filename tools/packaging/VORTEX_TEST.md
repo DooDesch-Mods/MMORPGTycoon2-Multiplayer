@@ -8,7 +8,7 @@ This package contains the native Multiplayer plugin for the supported Windows x6
 
 ## Install with Vortex
 
-Use the MMORPG Tycoon 2 Vortex extension and the MT2 Mod Framework Runtime 0.2.0 listed with this Early Beta release. Install these dependencies through Vortex once. The runtime is a separate package; it is not included here.
+Use the MMORPG Tycoon 2 Vortex extension and the MT2 Mod Framework Runtime 0.2.1 listed with this Early Beta release. Install these dependencies through Vortex once. The runtime is a separate package; it is not included here.
 
 1. Close the game and import this ZIP into Vortex for MMORPG Tycoon 2.
 2. Enable Multiplayer and deploy.

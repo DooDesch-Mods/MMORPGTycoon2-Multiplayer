@@ -277,6 +277,8 @@ json status() {
         {"cause",state.cause},{"operations",operations},{"ui_jobs",state.ui_jobs}};
 }
 bool native_ui(const json& args,json& result,std::string& error) {
+    if(args.is_object()&&args.contains("tool")&&args.at("tool").is_string()&&args.at("tool")=="item_elitemonster")
+        return monster_action_runtime::native_ui(args,result,error);
     result=json::object();
     if(!args.is_object()||args.size()!=6||!args.contains("token")||
        !args.contains("region_id")||!args.contains("tool")||

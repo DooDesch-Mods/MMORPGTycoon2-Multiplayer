@@ -23,7 +23,9 @@ struct Controller {action::Context context;action::Binding binding;Status value;
     const Status& status_view()const noexcept{++status_views;return value;}
     const action::Context& bound_context_view()const noexcept{++context_views;return context;}
     action::Binding bound_binding()const{return binding;}};
-struct Session {action::Context context;unsigned reads=0;bool current(action::Context& out,std::string&){++reads;out=context;return true;}};
+struct Session {action::Context context;unsigned reads=0;bool valid=true,throws=false;
+    bool current(action::Context& out,std::string& error){++reads;if(throws)throw std::runtime_error("exact Session exception");
+        if(!valid){error="exact Session unavailable";return false;}out=context;return true;}};
 struct Engine {bool valid=true;bool current(const action::Binding&,const std::string&,std::string& e){if(!valid)e="exact native world changed";return valid;}};
 struct Bridge {economy::State state;bool has=true,is_locked=false;bool locked()const{return is_locked;}
     const economy::State* weapon_economy()const{return has?&state:nullptr;}const economy::State* committed_economy()const{return weapon_economy();}};
@@ -31,13 +33,13 @@ struct Fence {bool is_locked=false;std::string failure;bool locked()const{return
     void journal_failed(const std::string& e){is_locked=true;failure=e;}};
 Fence fence;
 mt2mp::game::building_mixed_identity::opened_file::CurrentWorld world;
-float scale=0;unsigned refresh_calls=0,world_reads=0,clock_reads=0;bool world_ok=true;uintptr_t unreadable=0;
+float scale=0;unsigned refresh_calls=0,world_reads=0,clock_reads=0;bool world_ok=true,clock_ok=true;unsigned throw_provider=0;uintptr_t unreadable=0;
 }
 namespace placement_ui_probe {
 bool ProcessMemory::copy(uintptr_t address,void* out,size_t size,std::string& error){if(address==fixture::unreadable){error="exact AP read failure";return false;}std::memcpy(out,reinterpret_cast<const void*>(address),size);return true;}
 }
-namespace mt2mp::game::native_open_runtime {bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& error){if(!fixture::world_ok){error="exact world unavailable";return false;}++fixture::world_reads;out=fixture::world;return true;}}
-namespace mt2mp::game::native {bool read_clock(ClockState& out,std::string&){++fixture::clock_reads;out.time_scale=fixture::scale;return true;}}
+namespace mt2mp::game::native_open_runtime {bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& error){if(fixture::throw_provider==2)throw std::runtime_error("exact NativeOpen exception");if(!fixture::world_ok){error="exact world unavailable";return false;}++fixture::world_reads;out=fixture::world;return true;}}
+namespace mt2mp::game::native {bool read_clock(ClockState& out,std::string& error){++fixture::clock_reads;if(fixture::throw_provider==3)throw std::runtime_error("exact Clock exception");if(!fixture::clock_ok){error="exact Clock unavailable";return false;}out.time_scale=fixture::scale;return true;}}
 namespace mt2mp::net {uint64_t current_world_epoch(){return 7;}}
 namespace mt2mp::game::live_host_state {fixture::Fence& economic_fence(){return fixture::fence;}}
 
@@ -64,7 +66,7 @@ template<class T>void put(void* object,size_t offset,T value){std::memcpy(static
 struct World {
     std::array<unsigned char,0xb0> subscriber{};std::array<unsigned char,0xb00> toon{};rt::Runtime runtime;
     World(){
-        fixture::fence={};fixture::world_reads=fixture::clock_reads=0;fixture::scale=0;fixture::world_ok=true;fixture::unreadable=0;
+        fixture::fence={};fixture::world_reads=fixture::clock_reads=0;fixture::scale=0;fixture::world_ok=fixture::clock_ok=true;fixture::throw_provider=0;fixture::unreadable=0;
         put(subscriber.data(),0,rt::weapon_image+0x16e75f0);put(subscriber.data(),0x20,int32_t(60));put(subscriber.data(),0x80,uintptr_t(toon.data()));
         put(toon.data(),0,rt::weapon_image+0x1744e90);put(toon.data(),0x940,uintptr_t(subscriber.data()));put(toon.data(),0x170,uintptr_t(0xabc000+0x1c0));
         runtime.controller.context={1,2,1,3,action::Role::Client,"common"};runtime.controller.binding={2,3};runtime.session.context=runtime.controller.context;
@@ -140,10 +142,58 @@ void ap_read_failure(){
         "unreadable active Client receiver silently suppressed original/read cause");
 }
 
+
+void owner_timing_checks(){
+    namespace timing=mt2mp::game::live_host_state::apply_timing;
+    const auto count=[](timing::Part part){return timing::totals[size_t(part)].count;};
+    const auto counts=[&](uint64_t session,uint64_t world,uint64_t clock){
+        need(count(timing::Part::ToonOwnerSession)==session&&count(timing::Part::ToonOwnerNativeOpen)==world&&
+            count(timing::Part::ToonOwnerClock)==clock,"owner timing counts differ from actually entered providers");
+    };
+    {
+        World w;FreshOwnerCalls calls;tf::Receipt receipt;timing::totals={};
+        {timing::Scope take(timing::Part::Take);timing::Scope economy_phase(timing::Part::AfterDay);
+            timing::Scope normalize(timing::Part::ToonNormalize);
+            need(tf::normalize(calls,uintptr_t(w.toon.data()),0,receipt)&&receipt.confirmed,"timed normalization failed");
+            counts(3,3,3);
+            need(timing::take_depth==1&&timing::query_phase==timing::QueryPhase::Economy,
+                "owner scopes changed enclosing Take depth or query attribution");
+        }
+        need(timing::take_depth==0&&timing::query_phase==timing::QueryPhase::Other&&
+            count(timing::Part::Take)==1&&count(timing::Part::ToonNormalize)==1,
+            "owner scopes changed existing parent counters or failed to restore phase");
+        const auto json=timing::snapshot();
+        need(json.at("toon_owner_session").at("count")==3&&json.at("toon_owner_native_open").at("count")==3&&
+            json.at("toon_owner_clock").at("count")==3&&json.contains("toon_normalize")&&json.contains("toon_original"),
+            "additive owner timer export lost existing names or counters");
+    }
+    for(unsigned phase=1;phase<=3;++phase)for(bool throws:{false,true}){
+        World w;FreshOwnerCalls calls;tf::Receipt receipt;timing::totals={};
+        if(throws){if(phase==1)w.runtime.session.throws=true;else fixture::throw_provider=phase;}
+        else if(phase==1)w.runtime.session.valid=false;
+        else if(phase==2)fixture::world_ok=false;
+        else fixture::clock_ok=false;
+        const std::string provider=phase==1?"Session":phase==2?"NativeOpen":"Clock";
+        const std::string failure=throws?"Toon time boundary exception: exact "+provider+" exception":
+            phase==2?"exact world unavailable":"exact "+provider+" unavailable";
+        need(!tf::normalize(calls,uintptr_t(w.toon.data()),0,receipt)&&!receipt.confirmed&&!receipt.unknown&&
+            !calls.originals&&!calls.clears&&receipt.cause==failure,"provider timing changed failure/exception semantics");
+        counts(1,phase>=2?1:0,phase>=3?1:0);
+        need(timing::take_depth==0&&timing::query_phase==timing::QueryPhase::Other,
+            "early failure or exception leaked timer context");
+    }
+    {
+        World w;w.runtime.controller.context.role=action::Role::Host;timing::totals={};
+        bool owned=true;std::string error;
+        need(w.owner(owned,error)&&!owned,"Host forwarding changed by owner timers");counts(0,0,0);
+    }
+}
+
 int main(int argc,char**){try{
     ap_read_failure();
     if(argc>1){std::cout<<checks<<" actual unreadable receiver check passed\n";return 0;}
     fresh_owner_checks();
+    owner_timing_checks();
     {World w;bool owned=false;std::string error;need(rt::toon_time_client_active()&&w.owner(owned,error)&&owned,"exact owner rejected");}
     {World w;tf::Owner out;bool owned=false;std::string error;need(rt::toon_time_owner(uintptr_t(w.toon.data()),out,owned,error)&&out.subscriber_id==60&&out.toon==uintptr_t(w.toon.data())&&out.origin[4]==0xabc000,"owner receipt identity differs");}
     {World w;w.runtime.controller.context.role=action::Role::Host;bool owned=true;std::string error;need(!rt::toon_time_client_active()&&w.owner(owned,error)&&!owned,"Host not passed through");}

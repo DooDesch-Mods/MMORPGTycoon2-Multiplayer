@@ -321,6 +321,7 @@ void remove_submitted(const std::string& id,const std::string& target) {
 }
 
 bool native_remove_ui(const json& args,json& result,std::string& error) {
+    if(args.is_object()&&args.value("family",std::string{})=="monster")return monster_action_runtime::native_remove_ui(args,result,error);
     result=json::object();
     if(!args.is_object()||args.size()!=2||!args.contains("token")||
        args.contains("target_action_uuid")==args.contains("record_key")||!args.at("token").is_string()||

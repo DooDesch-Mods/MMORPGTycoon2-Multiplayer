@@ -9,6 +9,8 @@
 #include "network_pipe_action.h"
 #include "npc_action.h"
 #include "zone_action.h"
+#include "monster_action.h"
+#include "monster_quest_retirement.h"
 #include "bug_fix_action.h"
 #include "../tutorial_replication/startingpoint.h"
 #include "../tutorial_replication/research.h"
@@ -27,7 +29,7 @@ namespace mt2mp::action_session {
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=16384, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27,PlaceMonster=28,MoveMonster=29,RemoveMonster=30 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -54,6 +56,9 @@ struct Request {
     NetworkPipeIntent network_pipe;
     NpcIntent npc;
     ZoneIntent zone;
+    MonsterIntent monster;
+    MonsterMoveIntent monster_move;
+    MonsterRemoveIntent monster_remove;
     BugFixIntent bug_fix;
     int32_t desired_workers=0;
     bool operator==(const Request&) const = default;
@@ -77,6 +82,8 @@ struct Evidence {
     NetworkState network_before,network_after;
     NpcState npc_before,npc_after;
     ZoneState zone_before,zone_after;
+    MonsterState monster_before,monster_after;
+    MonsterQuestRetirement monster_quests;
     std::optional<game::tutorial_replication::startingpoint::Row> startingpoint_before,startingpoint_after;
     std::optional<game::tutorial_replication::research::Row> research_before,research_after;
     std::optional<game::developer_staff::PoolState> developers_before,developers_after;
@@ -193,6 +200,9 @@ public:
     bool submit_region(const std::string& action_uuid,const RegionIntent&,uint64_t now_ms,std::string& cause);
     bool submit_region_property(const std::string& action_uuid,const RegionPropertyIntent&,uint64_t now_ms,std::string& cause);
     bool submit_prices(const std::string& action_uuid,const PriceIntent&,uint64_t now_ms,std::string& cause);
+    bool submit_remove_monster(const std::string&,const std::string&,const MonsterRemoveIntent&,uint64_t,std::string&);
+    bool submit_move_monster(const std::string&,const std::string&,const MonsterMoveIntent&,uint64_t,std::string&);
+    bool submit_monster(const std::string&,const MonsterIntent&,uint64_t,std::string&);
     bool submit_zone(const std::string& action_uuid,const ZoneIntent&,uint64_t now_ms,std::string& cause);
     bool submit_npc(const std::string& action_uuid,const NpcIntent&,uint64_t now_ms,std::string& cause);
     // NPC targets accept a confirmed Place UUID or a canonical saved-record key.

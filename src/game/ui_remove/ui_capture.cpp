@@ -11,7 +11,7 @@ bool valid(const Intent& i) {
     return std::regex_match(i.action_uuid,uuid)&&std::regex_match(i.snapshot_uuid,uuid)&&(game::npc_target_key::valid(i.canonical_record_key)||game::snapshot_building_key::valid(i.canonical_record_key));
 }
 bool local(const LocalBinding& b) {return b.manager&&b.object&&b.uid&&b.native_epoch&&b.native_generation&&
-    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)==1);}
+    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)+unsigned(b.supported_monster)==1);}
 template<class Function>bool read(Function f,std::string& cause) {
     try {const bool okay=f();if(!okay&&cause.empty())cause="native UI adapter failed without original cause";return okay;}
     catch(const std::exception& e){cause=e.what();return false;}
@@ -19,6 +19,7 @@ template<class Function>bool read(Function f,std::string& cause) {
 }
 }
 void Capture::error(const std::string& cause) {
+    if(status_.replay_active&&replay_failure_.empty())replay_failure_=cause;
     status_.cause=cause;
     if(last_error_!=cause){last_error_=cause;services_.log("error","UI Remove capture",cause);}
     else ++status_.suppressed_errors;
@@ -107,12 +108,15 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
     if(!read([&]{return services_.resolve(uintptr_t(manager),view.object,target,cause);},cause))return reject("UI Remove target: "+cause);
     if(!local(target)||target.manager!=uintptr_t(manager)||target.object!=view.object)return reject("UI Remove target is not a current shared prop");
     if(target.supported_npc&&origin!=Origin::NpcWindow)return reject("NPC Remove requires original NPC InfoWindow DestroyNPC caller");
+    if(target.supported_monster&&origin!=Origin::MonsterWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Monster Remove requires original Monster InfoWindow, DestroyCursor or SelectionWindow caller");
     Intent intent;intent.snapshot_uuid=target.snapshot_uuid;intent.canonical_record_key=target.canonical_record_key;
     if(!read([&]{return services_.fresh_action_uuid(intent.action_uuid,cause);},cause))return reject("UI Remove action identity: "+cause);
     if(!valid(intent))return reject("UI Remove action identity: invalid action UUID, snapshot UUID or canonical key");
-    if(!read([&]{return target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
+    if(!read([&]{return target.supported_monster?services_.submit_monster(intent,cause):target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
     ++status_.captured;Report out;out.disposition=Disposition::IntentCaptured;
-    services_.log("info","UI Remove capture",target.supported_npc?
+    services_.log("info","UI Remove capture",target.supported_monster?
+        "typed RemoveMonster intent submitted; native effects await Host authority":target.supported_npc?
         "typed RemoveNPC intent submitted; native effects await Host authority":
         "typed RemoveSnapshotBuilding intent submitted; native effects await Host authority");return out;
 }
@@ -126,14 +130,16 @@ bool Capture::with_replay(const Replay& value,const std::function<bool(std::stri
     const bool authorized=read([&]{return services_.authorize_replay(value,cause);},cause);
     authorizing_=false;
     if(!authorized){error("own replay authorization: "+cause);return false;}
-    replay_=value;status_.replay_active=true;status_.replay_consumed=false;status_.replay_returned=false;
-    struct Reset {Status& status;Replay& replay;~Reset(){status.replay_active=false;replay={};}} reset{status_,replay_};
+    replay_=value;replay_failure_.clear();status_.replay_active=true;status_.replay_consumed=false;status_.replay_returned=false;
+    struct Reset {Status& status;Replay& replay;std::string& failure;
+        ~Reset(){status.replay_active=false;replay={};failure.clear();}} reset{status_,replay_,replay_failure_};
     bool accepted=false;
     try {accepted=native_call(cause);}
-    catch(const std::exception& e){status_.unknown=true;error("own native replay exception: "+std::string(e.what()));throw;}
-    catch(...){status_.unknown=true;error("own native replay nonstandard exception");throw;}
+    catch(const std::exception& e){status_.unknown=true;cause=replay_failure_.empty()?"own native replay exception: "+std::string(e.what()):replay_failure_;error(cause);throw;}
+    catch(...){status_.unknown=true;cause=replay_failure_.empty()?"own native replay nonstandard exception":replay_failure_;error(cause);throw;}
     if(!accepted||!status_.replay_consumed||!status_.replay_returned||status_.unknown) {
-        if(cause.empty())cause="own native replay did not return exactly one expected DestroyProps original";
+        if(!replay_failure_.empty())cause=replay_failure_;
+        else if(cause.empty())cause="own native replay did not return exactly one expected DestroyProps original";
         if(status_.replay_consumed)status_.unknown=true;
         error(cause);return false;
     }

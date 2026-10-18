@@ -35,9 +35,11 @@ bool Capture::read_intent(uintptr_t b,const Origin& o,Intent& out,std::string& e
     if(!read(memory_,records,8,out.ghost,e)||!read(memory_,records,0x10,out.target,e)||!read(memory_,out.target,0x18,out.local_uid,e))return false;
     if(!out.ghost||out.ghost==out.target||!out.local_uid||out.ghost>std::numeric_limits<uintptr_t>::max()-0x16c)return fail(e,"move_ghost_target_identity");
     if(!read(memory_,out.ghost,0,ap,e)||ap!=image_+0x1705230)return e.empty()?fail(e,"move_ghost_addresspoint"):false;
-    if(!services_.bind_target(o,out.ghost,out.target,out.local_uid,out.before,out.object_key,e))return false;
-    const bool npc=out.before.type.empty()&&out.before.variant.empty()&&
-        game::npc_target_key::valid(out.object_key);
+    if(!services_.bind_target(o,out.ghost,out.target,out.local_uid,out.before,out.object_key,out.family,e))return false;
+    const bool npc=out.family==Family::Npc||out.family==Family::DirectMonster;
+    if(out.family!=Family::Prop&&!npc)return fail(e,"move_target_family_invalid");
+    if(npc&&!game::npc_target_key::valid(out.object_key))return fail(e,"move_character_key_invalid");
+    if(out.family==Family::DirectMonster&&!out.object_key.starts_with("action:"))return fail(e,"move_monster_birth_key_required");
     if(out.object_key.empty()||!live(out.before,npc))return fail(e,"move_registry_state_invalid");
     out.after=out.before;
     if(!memory_.read(out.ghost+0x100,out.after.rotation.data(),sizeof(float)*4,e)||
@@ -78,6 +80,7 @@ static bool write_transform(const State& s,std::array<unsigned char,0x6c>& out,s
 bool transform(const State& s,std::array<unsigned char,0x6c>& out,std::string& e){
     return write_transform(s,out,e,false);
 }
+bool character_transform(const State& s,std::array<unsigned char,0x6c>& out,std::string& e){return write_transform(s,out,e,true);}
 bool npc_transform(const State& s,std::array<unsigned char,0x6c>& out,std::string& e){
     return write_transform(s,out,e,true);
 }

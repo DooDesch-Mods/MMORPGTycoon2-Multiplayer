@@ -4,14 +4,10 @@
 
 Build your world together. Host a Steam lobby and invite a friend to join you in MMORPG Tycoon 2.
 
-## New in Beta 14
+## New in Beta 15
 
-- Open Multiplayer from its own desktop icon or the central Mods window.
-- Create a new world with the original game wizard. The Client follows the Host automatically.
-- Multiplayer menus and problem reporting now use English. See when the Host is creating or loading a world, with aligned icons, player portraits and button labels.
-- Share supported building placement, movement and removal, region purchases, biome styles and region levels.
-- Keep pause and game speed in sync, and continue together after loading the Host's saved world.
-- Report a problem from the Multiplayer window and send technical details privately. Keep the confirmed report number when contacting support. Automatic technical reports are optional and off by default.
+- Place, move and remove individual Elite monsters together while the world is paused, using the game's original tools.
+- Keep monster selection and the active tool consistent after a shared edit.
 
 ## Install
 

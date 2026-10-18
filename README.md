@@ -14,6 +14,7 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 - **Steam lobbies** - Host a session or join a friend's lobby from the Multiplayer window.
 - **A shared world** - Place, move and remove supported buildings. Share region purchases, biome styles and region levels.
+- **Elite monster editing** - Place, move and remove individual Elite monsters together while the world is paused.
 - **The same pace** - Keep pause and game speed in sync between players.
 - **Pick up where you left off** - Save the Host world and resume a session from that save.
 
@@ -21,7 +22,7 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 ## Start playing
 
-You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.0](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
+You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.1](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

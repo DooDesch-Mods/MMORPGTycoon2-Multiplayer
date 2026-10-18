@@ -22,11 +22,13 @@ bool toon_time_owner(uintptr_t toon,toon_time_fence::Owner& owner,bool& owned,st
        live_host_state::economic_fence().locked()||!runtime->live_error.empty()){
         error="Toon time Client authority locked: "+runtime->live_error+" fence="+live_host_state::economic_fence().cause();return false;
     }
-    if(!runtime->session.current(owner.context,error))return false;
+    {live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::ToonOwnerSession);
+        if(!runtime->session.current(owner.context,error))return false;}
     owner.binding=runtime->controller.bound_binding();
     if(owner.context!=runtime->controller.bound_context_view())return rejected("Toon time current Session differs from Controller");
     building_mixed_identity::opened_file::CurrentWorld world;
-    if(!native_open_runtime::read_current_world(world,error))return false;
+    {live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::ToonOwnerNativeOpen);
+        if(!native_open_runtime::read_current_world(world,error))return false;}
     if(world.world_epoch!=owner.binding.native_epoch||world.generation!=owner.binding.native_generation)
         return rejected("Toon time NativeOpen lifetime differs from Controller");
     owner.origin={uintptr_t(world.game),uintptr_t(world.mode),uintptr_t(world.state),uintptr_t(world.world),uintptr_t(world.map)};
@@ -34,7 +36,9 @@ bool toon_time_owner(uintptr_t toon,toon_time_fence::Owner& owner,bool& owned,st
     const auto& frame=runtime->live_state->committed_economy()->day.frame;
     if(frame.session!=owner.context.session||frame.snapshot!=owner.context.snapshot_uuid||frame.epoch!=net::current_world_epoch())
         return rejected("Toon time committed Economy Context/common epoch differs");
-    native::ClockState clock;if(!native::read_clock(clock,error))return false;
+    native::ClockState clock;
+    {live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::ToonOwnerClock);
+        if(!native::read_clock(clock,error))return false;}
     if(clock.time_scale!=0)return rejected("Toon time Client actual simulation Clock is not zero");
     if(!read(toon,0x940,owner.subscriber)||!read(owner.subscriber,0,ap)||ap!=weapon_image+0x16e75f0||
        !read(owner.subscriber,0x80,reverse)||reverse!=toon||!read(owner.subscriber,0x20,owner.subscriber_id)||owner.subscriber_id<0)

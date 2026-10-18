@@ -50,7 +50,8 @@ inline void unchanged(const Binding& b) {
        cfg.diagnostic_mailbox_enabled!=b.diagnostic_mailbox||cfg.local_test!=b.local_test)
         throw std::runtime_error("Framework open verified profile binding changed");
 }
-inline fs::path actual_write(const Binding& b,const char* actual) {
+using AttributeReader=DWORD(WINAPI)(LPCWSTR);
+inline fs::path actual_write(const Binding& b,const char* actual,AttributeReader& read_attributes=GetFileAttributesW) {
     unchanged(b);
     if(!actual||!*actual)throw std::runtime_error("actual PhysFS write directory unavailable");
     const auto path=absolute(actual);
@@ -59,18 +60,18 @@ inline fs::path actual_write(const Binding& b,const char* actual) {
     if(!private_profile::equal(path.parent_path(),b.data)||account.empty()||account.size()>20||
        !std::all_of(account.begin(),account.end(),[](wchar_t c){return c>=L'0'&&c<=L'9';}))
         throw std::runtime_error("actual PhysFS write directory requires Framework base or one decimal account child");
-    const auto attributes=GetFileAttributesW(path.c_str());
+    const auto attributes=read_attributes(path.c_str());
     if(attributes==INVALID_FILE_ATTRIBUTES)
         throw std::runtime_error("actual Framework account directory unavailable Win32="+std::to_string(GetLastError()));
     if(!(attributes&FILE_ATTRIBUTE_DIRECTORY)||(attributes&FILE_ATTRIBUTE_REPARSE_POINT))
         throw std::runtime_error("actual Framework account directory reparse or non-directory refused");
     return path;
 }
-inline fs::path live_write(const Binding& b) {
+inline fs::path live_write(const Binding& b,AttributeReader& read_attributes=GetFileAttributesW) {
     using Getter=const char*(*)();
     const auto module=GetModuleHandleW(L"libphysfs.dll");
     const auto getter=module?reinterpret_cast<Getter>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
-    return actual_write(b,getter?getter():nullptr);
+    return actual_write(b,getter?getter():nullptr,read_attributes);
 }
 inline fs::path verified_write_root(const fs::path& runtime,const char* actual) {
     return actual_write(bind(runtime),actual);

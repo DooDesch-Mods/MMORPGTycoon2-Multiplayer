@@ -135,6 +135,7 @@ bool move_capture_binding(const std::string& snapshot,uint64_t epoch,uint64_t ge
 bool submit_restored_move(const move_kiss::Intent& intent,const std::string& action_uuid,
                           std::string& error) {
     if(!state.ready||GetCurrentThreadId()!=state.thread||
+       intent.family!=move_kiss::Family::Npc||
        !npc_move_visibility::target(intent.before,intent.object_key)||
        !npc_target_key::valid(intent.object_key))
         return fail(error,"NPC Move visibility restore requires bound captured NPC intent");
@@ -361,6 +362,7 @@ bool move_retire(const action::Binding& binding,const action::Request& request,s
     op.retired=true;error.clear();return true;
 }
 bool native_move_ui(const json& args,json& result,std::string& error) {
+    if(args.is_object()&&args.value("family",std::string{})=="monster")return monster_action_runtime::native_move_ui(args,result,error);
     result=json::object();
     if(!args.is_object()||args.size()!=3||!args.contains("token")||
        args.contains("target_action_uuid")==args.contains("record_key")||!args.contains("position")||

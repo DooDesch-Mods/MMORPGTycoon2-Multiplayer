@@ -76,6 +76,7 @@
 {"mp.building-and-scenery-capture.593cc0",0x593cc0,false},
 {"mp.region-properties.5956f0",0x5956f0,false},
 {"mp.region-properties.5b9610",0x5b9610,false},
+{"mp.monster-release-capture.5bf3c0",0x5bf3c0,false},
 {"mp.move-purchase-capture.5c25b0",0x5c25b0,false},
 {"mp.npc-release-capture.5c3ef0",0x5c3ef0,false},
 {"mp.network-node-ui.5c5580",0x5c5580,false},

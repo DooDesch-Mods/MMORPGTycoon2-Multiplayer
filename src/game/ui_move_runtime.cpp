@@ -6,6 +6,7 @@
 #include "move_ui_probe/contract.h"
 #include "typed_action_runtime.h"
 #include "npc_probe.h"
+#include "monster_action_runtime.h"
 #include "remove_diagnostics.h"
 #include "multiplayer_world/native_binding_adapter.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
@@ -45,7 +46,7 @@ struct Services final:move_kiss::Services {
     Runtime& runtime;explicit Services(Runtime& r):runtime(r){}
     bool main_thread()const noexcept override;
     bool active(move_kiss::Origin&,std::string&)override;
-    bool bind_target(const move_kiss::Origin&,uintptr_t ghost,uintptr_t target,uint64_t uid,action::BuildingState&,std::string&,std::string&)override;
+    bool bind_target(const move_kiss::Origin&,uintptr_t ghost,uintptr_t target,uint64_t uid,action::BuildingState&,std::string&,move_kiss::Family&,std::string&)override;
     bool submit_move(const move_kiss::Intent&,std::string&)override;
     void reject(const std::string&)noexcept override;
 };
@@ -84,7 +85,7 @@ bool current_prop(Runtime& r,const remove_diagnostics::LocalTarget& target,host:
 uint32_t can_move(uintptr_t image,uintptr_t target,bool& movable){
     __try{
         auto* object=reinterpret_cast<void*>(target);auto* table=*reinterpret_cast<uintptr_t**>(target);
-        const auto expected=uintptr_t(table)==image+0x1742980?uintptr_t(0xd32130):
+        const auto expected=(uintptr_t(table)==image+0x1742980||uintptr_t(table)==image+0x16c0770)?uintptr_t(0xd32130):
             scenery_kiss::can_move_rva(image,uintptr_t(table));
         if(!expected||table[0xd0/8]!=image+expected)return 0xE0010001;
         constexpr unsigned char original[]{0xb8,1,0,0,0,0xc3};
@@ -99,7 +100,7 @@ std::string uuid(std::string& e){
     std::snprintf(text,sizeof text,"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15]);return text;
 }
 bool npc_intent(const move_kiss::Intent& intent){
-    return npc_move_visibility::target(intent.before,intent.object_key);
+    return intent.family==move_kiss::Family::Npc;
 }
 bool Services::main_thread()const noexcept{return runtime.thread==GetCurrentThreadId();}
 bool Services::active(move_kiss::Origin& o,std::string& e){
@@ -109,12 +110,20 @@ bool Services::active(move_kiss::Origin& o,std::string& e){
     const auto snapshot=net::current_snapshot_id();if(snapshot.empty()){e="move session snapshot unavailable";return false;}
     o={snapshot,w.origin.world_epoch,w.origin.generation,uintptr_t(w.origin.world)};return true;
 }
-bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t object,uint64_t uid,action::BuildingState& state,std::string& key,std::string& e){
+bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t object,uint64_t uid,action::BuildingState& state,std::string& key,move_kiss::Family& family,std::string& e){
     uintptr_t object_ap=0;
     if(!runtime.memory.read(object,&object_ap,sizeof object_ap,e))return false;
-    if(object_ap==runtime.image+0x1742980)
+    if(object_ap==runtime.image+0x16c0770){
+        family=move_kiss::Family::DirectMonster;
+        return npc_probe::monster_action_runtime::move_capture_binding(o.snapshot_uuid,o.world_epoch,
+            o.generation,object,uid,state,key,e);
+    }
+    if(object_ap==runtime.image+0x1742980){
+        family=move_kiss::Family::Npc;
         return npc_probe::action_runtime::move_capture_binding(o.snapshot_uuid,o.world_epoch,
             o.generation,object,uid,state,key,e);
+    }
+    family=move_kiss::Family::Prop;
     host::WorldState w;if(!world(runtime,w,e))return false;
     remove_diagnostics::LocalTarget target;
     if(!remove_diagnostics::resolve_local_target(w.selection,object,target,e)||target.uid!=uid||target.snapshot_id!=o.snapshot_uuid||
@@ -135,12 +144,15 @@ bool Services::submit_move(const move_kiss::Intent& intent,std::string& e){
     auto id=uuid(e);if(id.empty())return false;
     if(npc_intent(intent)){
         if(!npc_probe::action_runtime::move_captured(intent,id,e))return false;
+    }else if(intent.family==move_kiss::Family::DirectMonster){
+        if(!npc_probe::monster_action_runtime::move_ui_captured(intent,id,e))return false;
     }else if(!move_ui_probe::captured(intent,id,e))return false;
     runtime.pending=intent;runtime.pending_id=id;runtime.last_ui_cleaned=false;++runtime.captured;return true;
 }
 void Services::reject(const std::string& e)noexcept{
     move_ui_probe::failed(runtime.pending?runtime.pending->target:0,e);
     npc_probe::action_runtime::move_failed(e);
+    npc_probe::monster_action_runtime::move_ui_failed(e);
     ++runtime.rejected;if(runtime.cause!=e){runtime.cause=e;LOG_ERROR("[UIMove] Rejected cause={}",e);}
 }
 bool purchase_entry(void* receiver){
@@ -270,10 +282,13 @@ void tick(){
     auto* r=published.load(std::memory_order_acquire);if(!r||!enabled()||!r->pending)return;
     const auto intent=*r->pending;const auto id=r->pending_id;r->pending.reset();r->pending_id.clear();std::string e;
     move_kiss::Origin fresh;remove_diagnostics::LocalTarget target;native::BuildingState actual;
-    const bool npc=npc_intent(intent);
+    const bool npc=npc_intent(intent),monster=intent.family==move_kiss::Family::DirectMonster;
     action::BuildingState npc_before;std::string npc_key;
     if(!cleanup(*r,intent,e)||!r->services.active(fresh,e)||fresh!=intent.origin||
-       (npc?!npc_probe::action_runtime::move_capture_binding(intent.origin.snapshot_uuid,
+       (monster?!npc_probe::monster_action_runtime::move_capture_binding(intent.origin.snapshot_uuid,
+                  intent.origin.world_epoch,intent.origin.generation,intent.target,intent.local_uid,
+                  npc_before,npc_key,e)||npc_key!=intent.object_key||npc_before!=intent.before:
+         npc?!npc_probe::action_runtime::move_capture_binding(intent.origin.snapshot_uuid,
                  intent.origin.world_epoch,intent.origin.generation,intent.target,intent.local_uid,
                  npc_before,npc_key,e)||npc_key!=intent.object_key||npc_before!=intent.before:
             !remove_diagnostics::resolve_record_target(intent.origin.snapshot_uuid,intent.object_key,target,e)||
@@ -281,13 +296,14 @@ void tick(){
                  !scenery_kiss::read_action_prop(target.uid,actual,e)||
                  world_state::building_state(actual)!=intent.before)){
         if(e.empty())e="move cleanup world/target or old pose changed";
-        if(!npc)move_ui_probe::failed(intent.target,e);r->services.reject(e);return;}
+        if(!npc&&!monster)move_ui_probe::failed(intent.target,e);r->services.reject(e);return;}
     r->last_ui_action=id;r->last_ui_cleaned=true;
-    if(!(npc?npc_probe::action_runtime::submit_restored_move(intent,id,e):
+    if(!(monster?npc_probe::monster_action_runtime::submit_restored_move(intent,id,e):
+         npc?npc_probe::action_runtime::submit_restored_move(intent,id,e):
          typed_action_runtime::submit_move(id,intent.object_key,intent.after,e))){
-        if(!npc)move_ui_probe::failed(intent.target,e);r->services.reject(e);return;}
+        if(!npc&&!monster)move_ui_probe::failed(intent.target,e);r->services.reject(e);return;}
     if(npc)npc_probe::action_runtime::move_submitted(id);
-    else move_ui_probe::submitted(id);
+    else if(!monster)move_ui_probe::submitted(id);
     ++r->submitted;
 }
 bool move(const action::Request& req,action::BuildingState& state,json& receipt,std::string& e){

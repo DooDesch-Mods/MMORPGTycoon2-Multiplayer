@@ -87,9 +87,11 @@ BUILDING_STATE = object_schema({
     "alive": {"type": "boolean", "const": True}}, ("type", "variant", "x", "y", "z", "rotation", "scale", "alive"))
 
 
-def npc_target_schema(move=False):
+def npc_target_schema(move=False, monster=False):
     properties = {"token": TIME_TOKEN, "target_action_uuid": TIME_TOKEN,
                   "record_key": {"type": "string", "minLength": 1, "maxLength": 256}}
+    if monster:
+        properties["family"] = {"type": "string", "const": "monster"}
     required = ["token"]
     if move:
         properties["position"] = {"type": "array", "minItems": 3, "maxItems": 3,
@@ -100,11 +102,14 @@ def npc_target_schema(move=False):
     return schema
 
 
-def validate_npc_target(arguments, move=False):
+def validate_npc_target(arguments, move=False, monster=False):
     if not isinstance(arguments, dict):
         raise RuntimeErrorDetail("invalid_args", "NPC UI requires an object with exactly one target")
+    if "family" in arguments:
+        if not monster or arguments["family"] != "monster" or "record_key" in arguments:
+            raise RuntimeErrorDetail("invalid_args", "Monster UI requires family monster and confirmed birth UUID")
     targets = set(arguments) & {"target_action_uuid", "record_key"}
-    required = {"token"} | targets | ({"position"} if move else set())
+    required = {"token"} | targets | ({"position"} if move else set()) | ({"family"} if "family" in arguments else set())
     if len(targets) != 1 or set(arguments) != required:
         raise RuntimeErrorDetail("invalid_args", "NPC UI requires token and exactly one placement UUID or saved record key")
     if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
@@ -156,14 +161,15 @@ OP_SCHEMAS = {
             "items": {"type": "number"}}},
         ("token", "region_id", "tool", "character_slot", "character_type", "position")),
     "native_npc_place_ui": object_schema({"token": TIME_TOKEN, "region_id": SUBSCRIBER_ID,
-        "tool": {"type": "string", "enum": ["Guard", "ClassTrainer", "QuestGiver"]},
+        "tool": {"type": "string", "enum": ["Guard", "ClassTrainer", "QuestGiver", "item_elitemonster"]},
         "character_slot": {"type": "integer", "minimum": 0, "maximum": 2147483647},
         "character_type": {"type": "integer", "minimum": 0, "maximum": 2147483647},
+        "level": {"type": "integer", "minimum": 1, "maximum": 2147483647},
         "position": {"type": "array", "minItems": 3, "maxItems": 3,
             "items": {"type": "number"}}},
         ("token", "region_id", "tool", "character_slot", "character_type", "position")),
-    "native_npc_remove_ui": npc_target_schema(),
-    "native_npc_move_ui": npc_target_schema(move=True),
+    "native_npc_remove_ui": npc_target_schema(monster=True),
+    "native_npc_move_ui": npc_target_schema(move=True, monster=True),
     "read_prices": EMPTY,
     "native_price_ui": object_schema({"diagnostic_uuid": TIME_TOKEN,
         "purchase_fee": {"type": "integer", "minimum": 0, "maximum": 2147483647},
@@ -293,9 +299,9 @@ OP_DESCRIPTIONS = {
     "read_npc_region": "Read actual NPC rows, local UID lookup, tools and bounded visitor Quest progress samples with reward values in one saved region. Visitor identity keys are diagnostic only.",
     "native_npc_tool_ui": "Open an actual Guard or Trainer item button and list ThemeWindow CharacterTypeIDs, or select one original ThemeList entry. Uses a fresh token for each UI attempt; open requires CharacterTypeID [-1,-1].",
     "native_npc_place_probe": "In an isolated MPTest world only, call original NPC MouseOver and Release once after ThemeWindow selection. Measure actual NPC rows, RNG, full Ledger and Undo. This mutates the test world; never replay an attempted token.",
-    "native_npc_place_ui": "On a connected peer, call genuine Cursor Release after actual NPC Open/Select. Capture one Host-ordered Guard or Trainer placement; inspect npc_action UI job and Controller ACK before any further action. Never replay an attempted token.",
-    "native_npc_remove_ui": "Select one NPC from its confirmed placement action and invoke the original NPCInfoWindow DestroyNPC command. Capture one Host-ordered removal; inspect ui_npc and Controller ACK before another action. Never replay an attempted or unknown token.",
-    "native_npc_move_ui": "Move one NPC from its confirmed placement action through the original NPCInfoWindow Move and cursor placement. Capture one Host-ordered move; inspect npc_action and Controller ACK before another action. Never replay an attempted or unknown token.",
+    "native_npc_place_ui": "On a connected peer, capture one Host-ordered placement through the original Cursor Release dispatcher. Guard/ClassTrainer/QuestGiver use the existing active NPC UI. item_elitemonster additionally requires level and performs original Region/tool/selection/level preparation. Inspect ui_npc or ui_monster UI job and Controller ACK. Never replay an attempted token.",
+    "native_npc_remove_ui": "Select one NPC from its confirmed placement action and invoke original DestroyNPC. With family=monster, select one confirmed direct Monster birth and invoke original MonsterInfoWindow Destroy. Capture one Host-ordered removal; inspect ui_npc and Controller ACK before another action. Never replay an attempted or unknown token.",
+    "native_npc_move_ui": "With family=monster, use a confirmed direct Monster birth and original MonsterInfoWindow Move, then normal Update/Purchase capture. Move one NPC from its confirmed placement action through the original NPCInfoWindow Move and cursor placement. Capture one Host-ordered move; inspect npc_action and Controller ACK before another action. Never replay an attempted or unknown token.",
     "read_prices": "Read the actual bound Business purchase and subscription fees plus the full current Ledger.",
     "native_price_ui": "Set the actual Overview PropertyPane input values and invoke original UpdateSaleValues once. Observe ui_price.ui_attempts and the Controller ACK; never replay an attempted diagnostic UUID.",
     "native_region_styles_ui": "Select the actual RegionWidget, set four original Terrain combo values and dispatch TerrainApply once. Observe ui_region.last_action_uuid for Host confirmation; never replay the diagnostic UUID.",
@@ -604,10 +610,15 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             if not isinstance(point, list) or len(point) != 3 or any(type(value) not in (int, float) or abs(value) > 3.4028234663852886e38 or not math.isfinite(value) for value in point):
                 raise RuntimeErrorDetail("invalid_args", "NPC place probe requires finite float32 position")
         if op in {"native_npc_remove_ui", "native_npc_move_ui"}:
-            validate_npc_target(arguments, move=op == "native_npc_move_ui")
+            validate_npc_target(arguments, move=op == "native_npc_move_ui", monster=op in {"native_npc_move_ui", "native_npc_remove_ui"})
         if op == "native_npc_place_ui":
             required = {"token", "region_id", "tool", "character_slot", "character_type", "position"}
-            if not isinstance(arguments, dict) or set(arguments) != required or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647 or arguments["tool"] not in ("Guard", "ClassTrainer", "QuestGiver"):
+            elite = isinstance(arguments, dict) and arguments.get("tool") == "item_elitemonster"
+            if elite:
+                required.add("level")
+                if type(arguments.get("level")) is not int or not 1 <= arguments["level"] <= 2147483647 or arguments.get("character_slot") != 1:
+                    raise RuntimeErrorDetail("invalid_args", "Elite UI requires positive actual level and CharacterTypeID slot1")
+            if not isinstance(arguments, dict) or set(arguments) != required or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647 or arguments["tool"] not in ("Guard", "ClassTrainer", "QuestGiver", "item_elitemonster"):
                 raise RuntimeErrorDetail("invalid_args", "NPC place UI requires exact token, region, tool, CharacterTypeID and position")
             if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None or any(type(arguments[key]) is not int or not 0 <= arguments[key] <= 2147483647 for key in ("character_slot", "character_type")):
                 raise RuntimeErrorDetail("invalid_args", "NPC place UI token or CharacterTypeID invalid")

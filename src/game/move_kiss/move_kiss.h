@@ -11,16 +11,18 @@ struct Origin {
     std::string snapshot_uuid; uint64_t world_epoch=0, generation=0; uintptr_t world=0;
     bool operator==(const Origin&) const = default;
 };
+enum class Family:uint8_t { Prop,Npc,DirectMonster };
 struct Intent {
     Origin origin; uintptr_t behaviour=0, record=0, ghost=0, target=0;
     uint64_t local_uid=0; std::string object_key; State before, after;
+    Family family=Family::Prop;
     bool operator==(const Intent&) const = default;
 };
 struct Services {
     virtual ~Services() = default;
     virtual bool main_thread() const noexcept = 0;
     virtual bool active(Origin&, std::string&) = 0;
-    virtual bool bind_target(const Origin&, uintptr_t ghost, uintptr_t target, uint64_t uid, State&, std::string& key, std::string&) = 0;
+    virtual bool bind_target(const Origin&, uintptr_t ghost, uintptr_t target, uint64_t uid, State&, std::string& key, Family&, std::string&) = 0;
     virtual bool submit_move(const Intent&, std::string&) = 0;
     virtual void reject(const std::string&) noexcept = 0;
 };
@@ -55,6 +57,7 @@ struct Receipt {
     uintptr_t graph=0;
 };
 // Local transform cache bytes never enter a transport envelope.
+bool character_transform(const State&, std::array<unsigned char,0x6c>&, std::string&);
 bool transform(const State&, std::array<unsigned char,0x6c>&, std::string&);
 // The caller reserves its action UUID before invoking this one-shot native call.
 bool execute_once(const Calls&, uintptr_t target, const std::array<unsigned char,0x6c>&, Receipt&, std::string&);

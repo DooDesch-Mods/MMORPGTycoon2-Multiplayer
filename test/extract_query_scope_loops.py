@@ -77,8 +77,13 @@ for anchor,digest in guards:
     baseline_part=part
     if anchor=='bool world_witness(':
         binding='#ifdef MT2MP_FRAMEWORK_PLUGIN\n    if(!framework_binding(error))return fail(error,error);\n#endif\n'
-        assert part.count(binding)==1, 'Framework completed-world binding changed'
-        baseline_part=part.replace(binding,'',1)
+        timed_binding='#ifdef MT2MP_FRAMEWORK_PLUGIN\n    {\n        mt2mp::game::live_host_state::apply_timing::Scope timing(\n            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);\n        if(!framework_binding(error,timed_account_attributes))return fail(error,error);\n    }\n#endif\n'
+        fields_timing='    mt2mp::game::live_host_state::apply_timing::Scope timing(\n        mt2mp::game::live_host_state::apply_timing::Part::NativeOpenWorldFields);\n'
+        assert part.count(timed_binding)==1, 'Framework completed-world timing boundary changed'
+        assert part.count(fields_timing)==1, 'Completed-world fields timing boundary changed'
+        baseline_part=part.replace(timed_binding,binding,1).replace(fields_timing,'',1)
+        assert baseline_part.count(binding)==1, 'Framework completed-world binding changed'
+        baseline_part=baseline_part.replace(binding,'',1)
     assert hashlib.sha256(baseline_part.encode()).hexdigest()==digest, 'Completed-world dependency changed: '+anchor
     if anchor=='DWORD copy(':part=part.replace('DWORD copy(', 'DWORD native_copy(',1)
     pieces.append(part)

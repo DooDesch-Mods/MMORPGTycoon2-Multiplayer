@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-beta.15
+
+### Added
+
+- Place, move and remove individual Elite monsters together while the world is paused, using the game's original tools.
+
+### Fixed
+
+- Keep monster selection and the active tool consistent after a shared edit.
+
 ## 0.1.0-beta.14
 
 ### Added

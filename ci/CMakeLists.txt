@@ -3,7 +3,6 @@ project(MT2MP_SourceChecks LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(MT2MP_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." CACHE PATH "Canonical source root")
-get_filename_component(MT2MP_SOURCE_ROOT "${MT2MP_SOURCE_ROOT}" REALPATH)
 enable_testing()
 foreach(name action_order software_snapshot snapshot_buffer)
     add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
@@ -146,6 +145,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/developer_construction_portable_checks.cmake"
 include("${CMAKE_CURRENT_LIST_DIR}/developer_construction_native_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/monster_zone_action_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/direct_monster_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/developer_job_target_checks.cmake")
 
@@ -249,14 +249,3 @@ include(steam_avatar_checks.cmake)
 include(lobby_layout_checks.cmake)
 include(lobby_assets_checks.cmake)
 include("${CMAKE_CURRENT_LIST_DIR}/lobby_handoff_checks.cmake")
-
-# Extraction checks can name the same native input through different relative paths.
-# Keep one dependency per file so Ninja can regenerate without duplicate outputs.
-get_property(configure_inputs DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS)
-set(canonical_configure_inputs)
-foreach(input IN LISTS configure_inputs)
-    get_filename_component(canonical_input "${input}" REALPATH BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
-    list(APPEND canonical_configure_inputs "${canonical_input}")
-endforeach()
-list(REMOVE_DUPLICATES canonical_configure_inputs)
-set_property(DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS "${canonical_configure_inputs}")
