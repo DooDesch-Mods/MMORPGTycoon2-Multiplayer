@@ -104,7 +104,7 @@ IDLE_TICK(ui_move_runtime) IDLE_TICK(ui_region_runtime) IDLE_TICK(ui_price_runti
 IDLE_TICK(ui_terrain_runtime) IDLE_TICK(ui_path_runtime) IDLE_TICK(ui_network_runtime)
 namespace developer_staff {IDLE_TICK(action_runtime)}
 namespace bug_authority {IDLE_TICK(manual_action)}
-namespace npc_probe {IDLE_TICK(action_runtime) IDLE_TICK(zone_action_runtime)}
+namespace npc_probe {IDLE_TICK(action_runtime) IDLE_TICK(zone_action_runtime) IDLE_TICK(monster_action_runtime)}
 #include "host_failure_runtime.inc"
 }
 namespace panel_fixture {

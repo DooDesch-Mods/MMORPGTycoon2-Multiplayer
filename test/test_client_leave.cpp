@@ -138,6 +138,7 @@ namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
 namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
 namespace npc_probe::zone_action_runtime {bool pending_ui(){return fixture::captures.value("zone_pending",false);}}
+namespace npc_probe::monster_action_runtime {bool pending_ui(){return fixture::captures.value("monster_pending",false);}}
 namespace bug_authority::manual_action {
 bool pending_ui(){return fixture::captures.value("bug_pending",false);}
 bool retire_lobby(std::string& e){
@@ -334,7 +335,7 @@ void pending_and_unknown(){
 }
 void other_guards(){
     Pair p;p.cs.available=false;require(!p.client.tick(2,p.error),"setup failed");
-    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending"}){
+    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending","monster_pending"}){
         fixture::reset();fixture::captures[key]=true;
         auto* owner=new runtime::Runtime(p.client);runtime::published_runtime.store(owner);
         require(!runtime::begin_lobby_leave(p.error)&&fixture::suspended==0,"pending UI capture admitted retirement");
