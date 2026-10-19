@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 16](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 ## Available now: Build together
 

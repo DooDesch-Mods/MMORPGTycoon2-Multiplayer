@@ -2,9 +2,9 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-[Download on Nexus Mods](https://www.nexusmods.com/mmorpgtycoon2/mods/28) | [GitHub releases](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases) | [Changelog](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/CHANGELOG.md)
+[Download on Nexus Mods](https://www.nexusmods.com/mmorpgtycoon2/mods/28) | [GitHub releases](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases) | [Changelog](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/blob/main/CHANGELOG.md)
 
-![MT2 Multiplayer - Build your world together. Early Beta, in active development.](https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/multiplayer-cover.png)
+![MT2 Multiplayer - Build your world together. Early Beta, in active development.](https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/multiplayer-cover.png)
 
 Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2. Share one world through the game's familiar tools, then save and continue together later.
 
@@ -15,10 +15,10 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 16](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 <picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
   <img src="docs/images/coverage.svg" alt="Feature coverage: 4 available, 8 partial, 1 planned, across 13 tracked areas" width="1200">
 </picture>
 
@@ -48,14 +48,14 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 ## Roadmap
 
 <picture>
-  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/roadmap-mobile.svg">
+  <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/roadmap-mobile.svg">
   <img src="docs/images/roadmap.svg" alt="Roadmap: Available now - Build together. Next priorities - A living world. Longer term - Grow your world" width="1200">
 </picture>
 
 [Read the roadmap in text](docs/ROADMAP.md).
 <!-- roadmap:end -->
 
-![A shared building in MMORPG Tycoon 2.](https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/building-together.png)
+![A shared building in MMORPG Tycoon 2.](https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/building-together.png)
 
 ## Start playing
 
@@ -81,7 +81,7 @@ Close the game, then update, disable or remove Multiplayer through Vortex. Keep 
 
 ## For developers
 
-See [Build from source](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BUILDING.md) for the native plugin, packaging and test commands. The [beta guide](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md) also documents historical standalone packages.
+See [Build from source](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/blob/main/docs/BUILDING.md) for the native plugin, packaging and test commands. The [beta guide](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/blob/main/docs/BETA.md) also documents historical standalone packages.
 
 ## Credits and permissions
 

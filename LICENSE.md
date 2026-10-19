@@ -48,7 +48,7 @@ free right to use, change and publish it as part of the Software, under this lic
 
 - The DooDesch namespace on Thunderstore
 - The DooDesch pages on Nexus Mods
-- https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases
+- https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases
 
 ## Parts by other authors
 

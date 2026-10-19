@@ -1,14 +1,14 @@
 {
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
-  "repository_url": "https://github.com/DooDesch/MMORPGTycoon2-Multiplayer",
+  "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
   "version_label": "Early Beta 16",
   "release_label": "Early Beta 16 - Build worlds and quests together",
   "graphic_title": "The road to a shared MMO world.",
   "coverage_title": "Co-op feature coverage",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
+  "overview_intro": "Coverage in [Early Beta 16](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
   "stages": [
     {"label": "Available now", "title": "Build together", "items": ["Steam lobbies and worlds", "Buildings and regions", "Shared pause and speed"]},
     {"label": "Next priorities", "title": "A living world", "items": ["Live monster gameplay", "More NPC and quest tools", "More complete save support"]},

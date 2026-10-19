@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Tester prereleases are in the private [GitHub repository](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases). Download access requires repository access. A new drop-in release requires the maintainer's native acceptance first; CI does not perform that acceptance.
+Tester prereleases are in the private [GitHub repository](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases). Download access requires repository access. A new drop-in release requires the maintainer's native acceptance first; CI does not perform that acceptance.
 
 ## Install a drop-in beta
 

@@ -10,7 +10,7 @@ import urllib.parse
 import urllib.request
 from build_beta import validate
 
-REPOSITORY = 'DooDesch/MMORPGTycoon2-Multiplayer'
+REPOSITORY = 'DooDesch-Mods/MMORPGTycoon2-Multiplayer'
 
 
 def api(method, url, payload=None, content_type='application/json', missing=False):
