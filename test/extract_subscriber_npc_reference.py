@@ -10,14 +10,14 @@ body=header[header.index('namespace mt2mp::game::subscriber_npc_references {'):]
 (a.output/'subscriber_npc_pins.inc').write_text(body,encoding='utf-8')
 capture=(base/'runtime_capture.cpp').read_text(encoding='utf-8');append=(base/'runtime_append.cpp').read_text(encoding='utf-8')
 assert capture.index('npc_pins.prepare(')<capture.index('callbacks.body =')<capture.index('local::with_save_scope(')
-assert 'before.world.map), &building_pins, &npc_pins}' in capture
+assert 'before.world.map), &building_pins, &npc_pins, parties}' in capture
 assert 'row["portable_owner"]["npc_key"]=key.npc_key;' in capture
 assert 'building_pins.verify_used(e)&&npc_pins.verify_used(e)' in capture
 assert '!building_pins.verify_used(cause)||!npc_pins.verify_used(cause)' in capture
 start=append.index('bool apply_impl(');apply=append[start:]
 assert apply.index('work.npc_pins.prepare(')<apply.index('local::with_save_scope(')
 assert '!work.building_pins.verify_used(e)||!work.npc_pins.verify_used(e)' in apply
-assert append.count('&w.building_pins,&w.npc_pins}')==2
+assert append.count('&w.building_pins,&w.npc_pins,w.parties}')==2
 assert '&&w.building_pins.verify_used(e)&&w.npc_pins.verify_used(e)' in append
 assert '+ref.key.building_key+ref.key.npc_key+' in append
 fresh=append[append.index('bool fresh_link('):append.index('bool toon_array(')]

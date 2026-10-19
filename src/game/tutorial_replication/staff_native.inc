@@ -86,6 +86,8 @@ struct StaffCaptureCalls {
     bool submit(const std::string& id,std::string& e){return key=="bridges"?typed_action_runtime::submit_research_workers(id,key,desired,e):typed_action_runtime::submit_startingpoint_workers(id,desired,e);}
 };
 void allocate_current(void* receiver,int32_t desired){
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25ec40,receiver,desired,project_handled);
+    if(project_handled){if(project_allowed)original_allocate(receiver,desired);return;}
     if(load.armed&&GetCurrentThreadId()!=mainthread){block("Client staff allocation thread differs");return;}
     StaffCaptureCalls calls{receiver,desired};staff::Receipt receipt;
     staff::capture(staff::capture_route(load.armed,GetCurrentThreadId()==mainthread,image,reinterpret_cast<uintptr_t>(_ReturnAddress())),desired,calls,receipt);

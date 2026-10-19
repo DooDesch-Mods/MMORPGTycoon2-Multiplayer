@@ -186,6 +186,8 @@ struct StartingpointCalls {
     }
 };
 void commit_current(void* lounge){
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25fb10,lounge,0,project_handled);
+    if(project_handled){if(project_allowed)original_commit(lounge);return;}
     // Joined Clients adopt the Host's original Deploy and cleanup below. Their
     // ordinary Commit button must not run a second independent Commit.
     if(load.armed){

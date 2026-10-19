@@ -196,6 +196,12 @@ bool NativePort::suspend(std::string& e){return impl_->notices.suspend(e);}
 bool NativePort::sent(const live::Frame& f,std::string& e){return impl_->notices.sent(f,e);}
 bool NativePort::acknowledge(uint64_t peer,uint64_t revision,std::string& e){return impl_->notices.acknowledge(peer,revision,e);}
 bool NativePort::admit(const live::Frame& f,const live::Frame* prior,std::string& e){return impl_->notices.admit(f,prior,e);}
+bool NativePort::read_current(const action_session::Context& context,const action_session::Binding& binding,const live::Frame& lineage,State& out,std::string& error){
+    out={};if(impl_->unknown)return fail(error,"current read locked after uncertain original call");
+    Pin actual;if(!read(context,binding,lineage,false,actual,error)||!pins(actual.image,error))return false;
+    State value{actual.snapshot.values};if(!valid(value,lineage.values.calendar[3],error,false))return false;
+    out=std::move(value);error.clear();return true;
+}
 bool NativePort::capture(const action_session::Context& c,const action_session::Binding& b,const live::Frame& frame,State& out,std::string& e){
     out={};if(impl_->unknown)return fail(e,"capture locked after uncertain call; no replay");if(c.role!=action_session::Role::Host)return fail(e,"capture requires Host");
     Pin observed;

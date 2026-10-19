@@ -17,6 +17,8 @@
 #include "../game/ui_build_runtime.h"
 #include "../game/ui_move_runtime.h"
 #include "../game/ui_remove_runtime.h"
+#include "../game/coop_cursor/production.h"
+#include "../game/release_runtime.h"
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -34,6 +36,7 @@ struct State {
     MT2FW_MT2_ServiceV1 service{};
     MT2FW_MT2_RoutesV1 routes{};
     MT2FW_MT2_OwnershipV1 ownership{};
+    MT2FW_MT2_ReleaseV1 release{};
     framework_profile::Paths paths;
     std::optional<framework_profile::LocalTest> test;
     json modules;
@@ -42,6 +45,7 @@ struct State {
     DWORD thread=0;
     std::chrono::steady_clock::time_point reporting_previous_begin{};
     bool attempted=false,prepared=false,pair_active=false,ready=false,retired=false,stop_requested=false,reporting_started=false;
+    bool runtime_announced=false;
     std::string failure;
 };
 State state;
@@ -114,6 +118,10 @@ void MT2FW_CALL end(void* owner,const MT2FW_MT2_Frame* frame) noexcept {
             --state.entered_frames;
         }
         if(!passed)fail("GameUpdate end",error);
+        else if(!state.runtime_announced&&state.failure.empty()&&!state.stop_requested) {
+            state.runtime_announced=true;
+            LOG_INFO("[Framework] Actual Multiplayer engine/session runtime ready; SDL/renderer/filesystem owned by Framework");
+        }
         if(state.stop_requested&&!state.entered_frames)retire();
     }catch(const std::exception& error){fail("GameUpdate end",error.what());}
     catch(...){fail("GameUpdate end","unknown native exception");}
@@ -125,10 +133,12 @@ void prepare() {
     const auto query=reinterpret_cast<MT2FW_MT2_QueryServiceFn>(GetProcAddress(provider,"MT2FW_MT2_QueryService"));
     const auto query_routes=reinterpret_cast<MT2FW_MT2_QueryRoutesFn>(GetProcAddress(provider,"MT2FW_MT2_QueryRoutes"));
     const auto query_ownership=reinterpret_cast<MT2FW_MT2_QueryOwnershipFn>(GetProcAddress(provider,"MT2FW_MT2_QueryOwnership"));
-    if(!query||!query_routes||!query_ownership)throw std::runtime_error("Framework private native services are unavailable");
+    const auto query_release=reinterpret_cast<MT2FW_MT2_QueryReleaseFn>(GetProcAddress(provider,"MT2FW_MT2_QueryRelease"));
+    if(!query||!query_routes||!query_ownership||!query_release)throw std::runtime_error("Framework private native services are unavailable");
     if(query(state.host,MT2FW_MT2_SERVICE_VERSION,&state.service,sizeof(state.service))!=MT2FW_MT2_OK||
        query_routes(state.host,MT2FW_MT2_ROUTES_VERSION,&state.routes,sizeof(state.routes))!=MT2FW_MT2_OK||
-       query_ownership(state.host,MT2FW_MT2_OWNERSHIP_VERSION,&state.ownership,sizeof(state.ownership))!=MT2FW_MT2_OK)
+       query_ownership(state.host,MT2FW_MT2_OWNERSHIP_VERSION,&state.ownership,sizeof(state.ownership))!=MT2FW_MT2_OK||
+       query_release(state.host,MT2FW_MT2_RELEASE_VERSION,&state.release,sizeof(state.release))!=MT2FW_MT2_OK)
         throw std::runtime_error("Framework native service query rejected active plugin owner");
     const auto& api=state.service;
     if(!api.frame_subscribe||!api.frame_unsubscribe||!api.section_register||!api.scope_begin||!api.scope_end)
@@ -155,6 +165,7 @@ void prepare() {
     std::string error;
     if(!game::native_lobby::framework_bind(state.host,&state.routes,&state.ownership,error))throw std::runtime_error("Framework lobby bind failed: "+error);
     if(!initialize(state.module))throw std::runtime_error("Multiplayer engine initialization failed; see original runtime cause");
+    if(!game::coop_cursor::production::bind(state.host,error))throw std::runtime_error("Multiplayer cursor binding failed: "+error);
     if(!framework_input::bind(state.ownership,state.thread,error))throw std::runtime_error("Framework accepted-input observer bind failed: "+error);
     for(size_t i=0;i<state.sections.size();++i){
         state.sections[i]=api.section_register(api.context,game_update_pair::section_names[i]);
@@ -166,7 +177,7 @@ void prepare() {
     if(!state.pair_token)throw std::runtime_error("Framework actual Multiplayer GameUpdate pair registration failed");
     state.ready=true;
     publish_instance();
-    LOG_INFO("[Framework] Actual Multiplayer engine/session runtime ready; SDL/renderer/filesystem owned by Framework");
+    LOG_INFO("[Framework] Multiplayer GameUpdate callbacks installed; required game-thread initialization pending");
 }
 void MT2FW_CALL update(void* owner,const char*,size_t) noexcept {
     try{if(callback(owner)){if(!state.attempted)prepare();if(state.ready)reporting::tick_session();}}
@@ -192,6 +203,7 @@ void MT2FW_CALL stop(void* owner,const char*,size_t) noexcept {
             catch(...){fail(operation,"unknown native exception");}
         };
         once("stop session admission",[]{net::session_wire::suspend_actions();});
+        once("stop world cursors",[]{std::string error;if(!game::coop_cursor::production::retire(error))throw std::runtime_error(error);});
         once("stop Steam lobby",[]{net::SteamMatchmaking::instance().shutdown();});
         once("stop Steam transport",[]{net::SteamNetworking::instance().shutdown();});
         once("stop local transport",[]{net::SidecarClient::instance().shutdown();});
@@ -206,6 +218,7 @@ void configure(){if(!prepared())throw std::runtime_error("Framework runtime path
 const framework_profile::Paths& paths(){if(!prepared())throw std::runtime_error("Framework paths unavailable");return state.paths;}
 const json& modules(){if(!prepared())throw std::runtime_error("Framework module evidence unavailable");return state.modules;}
 const MT2FW_MT2_RoutesV1& routes(){if(!prepared())throw std::runtime_error("Framework routes unavailable");return state.routes;}
+const MT2FW_MT2_ReleaseV1& release(){if(!state.prepared)throw std::runtime_error("Framework Release service is not prepared");return state.release;}
 const MT2FW_MT2_OwnershipV1& ownership(){if(!prepared())throw std::runtime_error("Framework ownership unavailable");return state.ownership;}
 void publish_instance(){
     if(!state.test)return;
@@ -246,6 +259,7 @@ void retire(){
         if(!game::ui_build_runtime::framework_retire(error))throw std::runtime_error("Framework Create observer retirement unconfirmed: "+error);
         if(!game::ui_remove_runtime::framework_retire(error))throw std::runtime_error("Framework Remove authority retirement unconfirmed: "+error);
     }
+    {std::string error;if(!game::release_runtime::framework_retire(error))throw std::runtime_error("Framework Release delegate retirement unconfirmed: "+error);}
     if(framework_input::read().subscribed){std::string error;if(!framework_input::unbind(error))throw std::runtime_error("Framework input observer retirement unconfirmed: "+error);}
     if(state.prepared){std::string error;if(!game::native_lobby::framework_unbind(error))throw std::runtime_error("Framework native menu retirement unconfirmed: "+error);}
     stop_reporting();

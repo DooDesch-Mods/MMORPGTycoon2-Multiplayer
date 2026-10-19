@@ -1,0 +1,14 @@
+{
+  "state": "passed",
+  "tests": 28,
+  "failures": 0,
+  "errors": 0,
+  "scope": "fixtures only; no games or MCP live acceptance",
+  "fixture_cleanup": true,
+  "log": "F:\\Projects\\Mods\\MMORPGTycoon2\\test\\mcp\\large_save_guards.log",
+  "report_links": {
+    "../test/mcp/large_save_guards.json": true,
+    "../test/mcp/large_save_guards.log": true
+  },
+  "plain_dashes": true
+}

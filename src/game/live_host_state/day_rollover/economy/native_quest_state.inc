@@ -24,6 +24,7 @@ bool quest_npc(const Pin& p,const QuestOwner& owner,quest_state::Npc& out,std::s
             if(!npc_quest_records::read_daily(read,p.image,quest,0x100,"accepted",count.accepted,e)||
                !npc_quest_records::read_daily(read,p.image,quest,0x170,"completed",count.completed,e)||
                !at(quest,0x160,count.highest_cache[0],e)||!at(quest,0x1d0,count.highest_cache[1],e))return false;
+            if(!npc_quest_runtime::read(read,p.image,quest,count.runtime,e))return false;
             row.quests.push_back(std::move(count));
         }
     }else if(!owner.quests.empty())return fail(e,"NPC state non-QuestGiver owns Quest rows");
@@ -38,6 +39,21 @@ bool quest_npcs(const Pin& p,const std::vector<QuestOwner>& owners,
         out.push_back(std::move(row));
     }
     return true;
+}
+nlohmann::json last_quest_completion={{"observed",false}};
+bool quest_completion_sample(const Pin& p,const std::vector<QuestOwner>& owners,const std::vector<quest_state::Npc>& rows,
+                             npc_quest_completion::Snapshot& out,std::string& e,bool require_count=true){
+    QuestMemory read;const bool okay=npc_quest_completion::read(read,p.image,owners,rows,out,e,require_count);
+    last_quest_completion={{"observed",true},{"confirmed",okay},{"cause",e},{"snapshot",p.context.snapshot_uuid},
+        {"native_epoch",p.binding.native_epoch},{"native_generation",p.binding.native_generation},
+        {"global_quests",out.quests.size()},{"canonical_owners",owners.size()},{"completed",out.completed},
+        {"derived_completed",out.derived},{"aggregate_required",require_count}};
+    return okay;
+}
+bool quest_completion_current(const Pin& p,npc_quest_completion::Snapshot& out,std::string& e,bool require_count=true){
+    std::vector<QuestOwner> owners;std::vector<quest_state::Npc> rows;
+    return npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e)&&quest_npcs(p,owners,rows,e)&&
+        quest_completion_sample(p,owners,rows,out,e,require_count);
 }
 bool quest_toon(const Pin& p,const std::vector<QuestOwner>& owners,uintptr_t subscriber,
                 std::optional<quest_state::Toon>& out,std::string& e){
@@ -125,6 +141,7 @@ struct QuestDailyWork {
 };
 bool quest_daily_body(void* user,std::string& e){return static_cast<QuestDailyWork*>(user)->body(e);}
 bool quest_daily_guard(void* user,std::string& e){return static_cast<QuestDailyWork*>(user)->guard(e);}
+#include "native_quest_runtime.inc"
 bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::Npc& old,
                         const quest_state::Npc& target,const std::function<bool(std::string&)>& fence,std::string& e){
     if(old.type!=0)return true;
@@ -170,6 +187,10 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
         // SaveScope enter precedes this body. Only fresh post-enter owners qualify.
         owner_proven=false;
         int32_t day=0;if(!at(p.clock,0x44,day,error))return false;
+        int32_t completion_delta=0;
+        for(size_t i=0;i<old.quests.size();++i)completion_delta+=int32_t(target.quests[i].completed.total>0)-int32_t(old.quests[i].completed.total>0);
+        npc_quest_completion::Snapshot completion_before;
+        if(completion_delta&&(!guard(error)||!quest_completion_current(p,completion_before,error)))return false;
         const auto apply=[&](uintptr_t object,size_t offset,const npc_quest_records::DailyCount& a,
                              const npc_quest_records::DailyCount& b,int32_t highest_before,int32_t highest){
             if(a==b&&highest_before==highest)return true;
@@ -186,7 +207,11 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
             if(!quest)return fail(error,"DailyCount canonical Quest sequence missing");
             if(!apply(quest,0x100,a.accepted,b.accepted,a.highest_cache[0],b.highest_cache[0])||
                !apply(quest,0x170,a.completed,b.completed,a.highest_cache[1],b.highest_cache[1]))return false;
+            if(a.runtime!=b.runtime&&!store_quest_runtime(p,owner,quest,a.sequence_id,a.runtime,b.runtime,guard,error))return false;
         }
+        if(completion_delta&&!npc_quest_completion::finish(completion_before,completion_delta,
+            [&](auto& snapshot,std::string& cause,bool exact){return quest_completion_current(p,snapshot,cause,exact);},
+            guard,compare_fixed_i32,error))return false;
         return true;
     };
     const auto exit_guard=[&](std::string& error){

@@ -87,7 +87,18 @@ int main(){try{std::string e;unsigned count=0;const auto req=request().request;c
  reset();need(perform(binding,preview,&elite_authority,e)==a::Outcome::Confirmed,e);need(model.seed==1&&model.release==1,"Elite Client original Release differs");++count;
  reset();model.fault="actor_scale";need(perform(binding,preview,nullptr,e)==a::Outcome::Unknown&&e=="Monster original transition: actor native unit scale differs",e);
  need(perform(binding,preview,nullptr,e)==a::Outcome::Unknown&&model.release==1,"bad native scale was replayed");++count;
- reset();auto wrong=authority;++wrong.monster_before.roster.next_tag;need(perform(binding,req,&wrong,e)==a::Outcome::Unknown&&!model.seed&&!model.release,"wrong Host BEFORE reached RNG/Release");++count;
+ reset();auto wrong=authority;wrong.monster_before.roster.content_sha256=std::string(64,'c');need(perform(binding,req,&wrong,e)==a::Outcome::Unknown&&!model.seed&&!model.release,"wrong Host BEFORE reached RNG/Release");++count;
+ // Loaded members retain their local serial; a fresh Spawn may reuse that value.
+ auto loaded=[&](int32_t tag,int32_t next,int32_t created){reset();model.value.roster.monsters=1;
+  model.value.roster.next_tag=model.sample.state.next_monster_tag=next;
+  model.value.roster.created_monsters=model.sample.state.created_monsters=created;
+  z::Monster old;old.pointer=9000;old.uid=0x100000001ull;old.tag=tag;model.sample.state.monsters={old};};
+ loaded(-11752269,0,3);need(perform(binding,req,nullptr,e)==a::Outcome::Confirmed,e);const auto loaded_host=state.operations.at(action_id).evidence;
+ loaded(7,7,3);need(perform(binding,req,&loaded_host,e)==a::Outcome::Confirmed,e);
+ const auto& local=state.operations.at(action_id).evidence;
+ need(model.release==1&&model.sample.state.monsters.size()==2&&model.sample.state.monsters[0].tag==7&&model.sample.state.monsters[1].tag==7&&
+  local.monster_before.roster.next_tag==7&&local.monster_after.roster.next_tag==8&&local.monster_after.actor.tag==7&&local.monster_after.roster.created_monsters==4,
+  "normal Place after reload lost local serial/counter witnesses");++count;
  reset();model.fault="exception";need(perform(binding,req,nullptr,e)==a::Outcome::Unknown&&e.find("current owner read exception")!=std::string::npos,"boundary exception cause hidden");++count;
  std::cout<<count<<" actual native perform body cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -2,6 +2,9 @@
 #define NOMINMAX
 #endif
 #include "mt2mp/net/session_wire.h"
+#include "mt2mp/net/session_binding.h"
+#include <windows.h>
+#include <bcrypt.h>
 #include "mt2mp/net/steam_module.h"
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/steam_networking.h"
@@ -46,47 +49,7 @@ bool fail(const std::string& cause,std::string& error) {
     }else ++repeats;
     return false;
 }
-std::array<uint64_t,5> actual_members() {
-    auto& mm=SteamMatchmaking::instance();auto members=mm.get_lobby_members();
-    const auto host=mm.host_steam_id();
-    if(members.size()==1)throw std::runtime_error("info: awaiting 1..3 Steam peers");
-    if(members.size()<2||members.size()>4||!host||std::find(members.begin(),members.end(),host)==members.end())throw std::runtime_error("Steam lobby requires Host and 1..3 peers");
-    std::sort(members.begin(),members.end());
-    if(members.front()==0||std::adjacent_find(members.begin(),members.end())!=members.end())throw std::runtime_error("Steam lobby member list invalid");
-    std::array<uint64_t,5> slots{};slots[1]=host;size_t i=2;for(auto member:members)if(member!=host)slots[i++]=member;
-    return slots;
-}
-json metadata(const std::array<uint64_t,5>& slots,uint64_t id) {
-    json members=json::array();for(size_t i=1;i<slots.size();++i)if(slots[i])members.push_back(slots[i]);
-    return {{"revision",1},{"lobby",id},{"session",id},{"host",slots[1]},
-            {"mod",MOD_VERSION},{"game","bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"},{"members",members}};
-}
-bool binding(std::string& error,bool publish) {
-    if(ended)return fail("Steam session wire ended: "+failure,error);
-    auto& mm=SteamMatchmaking::instance();
-    if(!mm.in_lobby())return fail(bound?"Steam lobby disconnected":"info: awaiting confirmed Steam lobby",error);
-    const auto slots=actual_members();const auto id=mm.current_lobby_id();
-    const auto physical_local=SteamNetworking::instance().local_steam_id();
-    const auto mine=std::find(slots.begin()+1,slots.end(),physical_local);
-    if(mine==slots.end())return fail("physical local Steam account absent from confirmed lobby",error);
-    const auto required=metadata(slots,id);
-    auto value=mm.get_lobby_data("mt2mp_session");
-    if(value.empty()&&publish&&physical_local==slots[1]) {
-        mm.set_lobby_data("mt2mp_session",required.dump().c_str());
-        value=mm.get_lobby_data("mt2mp_session");
-    }
-    if(value.empty())return fail("info: awaiting Host session metadata",error);
-    if(value.size()>2048||json::parse(value)!=required)return fail("Steam Host session metadata differs from physical membership/version/build",error);
-    if(bound&&(ids!=slots||lobby!=id||own!=uint64_t(mine-slots.begin())))return fail("Steam frozen membership or Host changed; session ended",error);
-    if(!bound){
-        ids=slots;lobby=id;own=uint64_t(mine-slots.begin());mask=0;
-        for(size_t i=1;i<ids.size();++i)if(ids[i])mask|=uint8_t(1u<<(i-1));
-        auto& cfg=Config::instance();cfg.session_id=id;cfg.peer_id=own;cfg.is_host=own==1;
-        bound=true;
-        LOG_NET_INFO("[SessionWire] Owner metadata acknowledged lobby={} slot={} peer_mask={}; world ACK still required",id,own,mask);
-    }
-    error.clear();return true;
-}
+#include "session_membership.inc"
 bool initialize_api(std::string& error) {
     if(api)return true;
     auto dll=mt2mp::net::steam_module();using Access=void*(*)();
@@ -102,32 +65,23 @@ bool emit(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target,std
     if(channel<3||channel>31||!bytes||!size||size>65536||target>4||!bound||!api)return fail("Steam wire send channel/length/target/authority invalid",error);
     if(target&&(!ids[target]||target==own))return fail("Steam wire target absent or local",error);
     std::vector<uint8_t> packet(sizeof(Header)+size);
-    Header header{{'M','T','2','W'},1,lobby,lobby};
+    Header header{{'M','T','2','W'},2,lobby,current_session};
     std::memcpy(packet.data(),&header,sizeof(header));std::memcpy(packet.data()+sizeof(header),bytes,size);
     for(size_t i=1;i<ids.size();++i)if(ids[i]&&i!=own&&(!target||target==i)) {
         if(!raw_send(api,ids[i],packet.data(),uint32_t(packet.size()),2,channel))return fail("Steam wire packet queue rejected channel="+std::to_string(channel)+" slot="+std::to_string(i),error);
     }
     error.clear();return true;
 }
-bool control(uint64_t sender,const uint8_t* data,uint32_t size,std::string& error) {
-    if(size>1024)return fail("Steam wire handshake exceeds1024 bytes",error);
-    const auto value=json::parse(data,data+size);
-    if(value.size()!=3||value.at("session")!=lobby||value.at("lobby")!=lobby)return fail("Steam wire handshake identity differs",error);
-    const auto type=value.at("type").get<std::string>();
-    if(type=="hello") {
-        const auto bytes=json{{"type","ack"},{"session",lobby},{"lobby",lobby}}.dump();
-        return emit(3,reinterpret_cast<const uint8_t*>(bytes.data()),uint32_t(bytes.size()),sender,error);
-    }
-    if(type!="ack")return fail("Steam wire handshake type invalid",error);
-    hello_ack|=uint8_t(1u<<(sender-1));return true;
-}
+#include "session_control.inc"
+
 }
 bool prepare(std::string& error) {
     if(local()){error.clear();return SidecarClient::instance().connected()&&SidecarClient::instance().ready();}
     try {
         if(!binding(error,true)||!initialize_api(error))return false;
         if(!hello_sent) {
-            const auto bytes=json{{"type","hello"},{"session",lobby},{"lobby",lobby}}.dump();
+            if(!local_instance)local_instance=nonce();
+            const auto bytes=json{{"type","hello"},{"session",current_session},{"lobby",lobby},{"instance",local_instance},{"for_instance",uint64_t(0)}}.dump();
             if(!emit(3,reinterpret_cast<const uint8_t*>(bytes.data()),uint32_t(bytes.size()),0,error))return false;
             hello_sent=true;hello_started=Clock::now();hello_ack=uint8_t(1u<<(own-1));
             LOG_NET_INFO("[SessionWire] Symmetric hello queued; awaiting physical peer ACK mask={} required={}",hello_ack,mask);
@@ -148,9 +102,10 @@ bool tick(std::string& error) {
             std::vector<uint8_t> packet(size);uint32_t actual=0;uint64_t physical_sender=0;
             if(!raw_read(api,packet.data(),size,&actual,&physical_sender,channel)||actual!=size)return fail("Steam wire advertised packet read/length failed",error);
             const auto found=std::find(ids.begin()+1,ids.end(),physical_sender);
-            if(found==ids.end()||physical_sender==ids[own])return fail("Steam physical sender absent from frozen lobby",error);
+            if(found==ids.end()||physical_sender==ids[own]){if(++discarded_unknown_packets==1)LOG_NET_WARN("[SessionWire] Ignored packet outside current physical binding; repeats counted");continue;}
             Header header{};std::memcpy(&header,packet.data(),sizeof(header));
-            if(std::memcmp(header.magic,"MT2W",4)||header.revision!=1||header.session!=lobby||header.lobby!=lobby)return fail("Steam wire packet protocol/session differs",error);
+            if(std::memcmp(header.magic,"MT2W",4)||header.revision!=2||header.lobby!=lobby)return fail("Steam wire packet protocol/lobby differs",error);
+            if(header.session!=current_session){if(++discarded_epoch_packets==1)LOG_NET_WARN("[SessionWire] Ignored packet from retired session epoch; repeats counted");continue;}
             const auto peer=uint64_t(found-ids.begin());const auto* data=packet.data()+sizeof(header);const auto length=actual-uint32_t(sizeof(header));
             if(channel==3){if(!control(peer,data,length,error))return false;}
             else {
@@ -169,7 +124,7 @@ bool connected(){return local()?SidecarClient::instance().connected()&&SidecarCl
 size_t peers(){return local()?local_session_peers():connected()?size_t(std::count_if(ids.begin()+1,ids.end(),[](auto id){return id!=0;}))-1:0;}
 uint8_t peer_mask(){return local()?local_session_peer_mask():connected()?mask:0;}
 uint64_t local_peer(){return local()?Config::instance().peer_id:own;}
-uint64_t session_id(){return local()?Config::instance().session_id:lobby;}
+uint64_t session_id(){return local()?Config::instance().session_id:current_session;}
 bool send(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target) {
     if(local()){if(channel==9&&actions_suspended)return false;return SidecarClient::instance().send(channel,bytes,size,target);}
     std::string error;
@@ -204,7 +159,7 @@ bool claim_handler(uint8_t channel,SidecarHandler handler,std::string& error) {
         actions_suspended=false;error.clear();return true;
     }
     if(channel<4||channel>31||!handler||handlers.contains(channel)){error="Steam application handler channel already owned or invalid";return false;}
-    handlers.emplace(channel,std::move(handler));error.clear();return true;
+    handlers.emplace(channel,std::move(handler));if(channel==9)actions_suspended=false;error.clear();return true;
 }
 std::string failure_reason(){return local()?SidecarClient::instance().failure_reason():failure;}
 bool read_binding(std::array<uint64_t,5>& out,uint64_t& id,uint64_t& mine,std::string& error) {
@@ -215,6 +170,7 @@ bool read_binding(std::array<uint64_t,5>& out,uint64_t& id,uint64_t& mine,std::s
 }
 
 namespace mt2mp::net::session_wire {
+#include "session_refresh.inc"
 void suspend_actions(){
     if(local()){const auto old=current_snapshot_id();if(!old.empty()&&std::find(retired_local_snapshots.begin(),retired_local_snapshots.end(),old)==retired_local_snapshots.end())retired_local_snapshots.push_back(old);}
     actions_suspended=true;
@@ -225,7 +181,8 @@ bool retire_lobby(std::string& error){
         return SidecarClient::instance().retire_action_handler(error);
     }
     if(SteamMatchmaking::instance().in_lobby()){error="wire retirement requires confirmed lobby absence";return false;}
-    handlers.erase(9);ids={};lobby=own=0;mask=hello_ack=0;bound=hello_sent=ended=actions_suspended=false;
+    handlers.erase(9);ids={};lobby=own=current_session=pending_session=last_refresh_session=0;mask=hello_ack=0;bound=hello_sent=ended=actions_suspended=false;
+    refresh_allowed=restart_pending=false;remote_instances={};observed_slots={};discarded_epoch_packets=discarded_unknown_packets=0;
     failure.clear();last_logged.clear();repeats=retiring_packets=0;hello_started={};error.clear();return true;
 }
 }

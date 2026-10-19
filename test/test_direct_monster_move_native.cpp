@@ -1,4 +1,6 @@
 #include "direct_monster_fixture.h"
+#include "monster_target_key.h"
+namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "monster_move_read.h"
 #include "move_kiss/move_kiss.h"
 #include <iostream>
@@ -49,6 +51,7 @@ bool execute_once(const Calls&,uintptr_t,const std::array<unsigned char,0x6c>& p
  auto& row=model.sample.state.monsters[0];std::memcpy(row.position.data(),pose.data()+0x10,12);model.value.actor.position=row.position;
  model.actor.spawn=row.position;++model.value.roster.undo_count;model.value.roster.content_sha256=std::string(64,'c');model.sample.undo.undo.push_back(500);
  if(model.fault=="uid")++row.uid;if(model.fault=="spawn")++model.actor.spawn[0];if(model.fault=="hidden")model.actor.visible=false;if(model.fault=="offmap")model.actor.on_map=false;
+ if(model.fault=="tag"){++row.tag;++model.value.actor.tag;}if(model.fault=="counter")++model.value.roster.next_tag;
  if(model.fault=="release")++model.value.roster.release_edits[6];if(model.fault=="ledger")++model.sample.money.cash;
  if(model.fault=="region_rng")++model.value.roster.region_random[0];return true;
 }
@@ -61,7 +64,7 @@ void reset(){moves.clear();move_fault=false;state={};model={};move_preflight=jso
 a::Request moving(){auto r=request().request;r.action=Action::MoveMonster;r.action_uuid=move_id;r.target_action_uuid=action_id;r.monster={};r.monster_move={63,{8030,70.576828f,8560}};return r;}
 int main(){try{unsigned checks=0;std::string e;const auto req=moving();const a::Binding binding{3,4};
  for(const char* fault:{"code","calls","lookup","region","effect","actor","transform"}){reset();model.fault=fault;need(move_perform(binding,req,nullptr,e)==a::Outcome::RejectedNoEffect&&!model.calls&&!e.empty(),std::string("pre-effect guard ")+fault);++checks;}
- for(const char* fault:{"native","after_lookup","owner","uid","after_effect","spawn","offmap","graph","undo","inverse","selected","release","ledger","region_rng"}){
+ for(const char* fault:{"native","after_lookup","owner","uid","after_effect","spawn","offmap","graph","undo","inverse","selected","release","ledger","region_rng","tag","counter"}){
   reset();model.fault=fault;need(move_perform(binding,req,nullptr,e)==a::Outcome::Unknown&&model.calls==1&&!e.empty(),std::string("unknown guard ")+fault+": "+e);
   need(move_perform(binding,req,nullptr,e)==a::Outcome::Unknown&&model.calls==1,"native failure replayed");++checks;}
  reset();model.actor.on_map=false;e.clear();need(move_perform(binding,req,nullptr,e)==a::Outcome::RejectedNoEffect&&!model.calls&&moves.empty(),"off-map target mutated");
@@ -76,6 +79,10 @@ int main(){try{unsigned checks=0;std::string e;const auto req=moving();const a::
  model.actor.on_map=true;++model.actor.skeleton;need(!move_observe(binding,req,host,e),"ACK accepted replaced skeleton");++checks;
  reset();model.value.roster.region_random={1,2,3,4};model.sample.state.region_random=model.value.roster.region_random;
  need(move_perform(binding,req,&host,e)==a::Outcome::Confirmed&&model.calls==1&&model.seeds==1,e);++checks;
+ reset();model.value.actor.tag=model.sample.state.monsters[0].tag=-11752269;
+ model.value.roster.next_tag=model.sample.state.next_monster_tag=7;
+ need(move_perform(binding,req,&host,e)==a::Outcome::Confirmed&&model.calls==1&&model.seeds==1,e);
+ need(moves.at(move_id).evidence.monster_after.actor.tag==-11752269&&moves.at(move_id).evidence.monster_after.roster.next_tag==7,"Move replaced local serial/counter");++checks;
  for(const char* fault:{"seed","seed_region"}){reset();model.fault=fault;need(move_perform(binding,req,&host,e)==a::Outcome::Unknown&&!model.calls&&model.seeds==1,e);need(move_perform(binding,req,&host,e)==a::Outcome::Unknown&&model.seeds==1,"seed replayed");++checks;}
  std::cout<<checks<<" actual MoveMonster adapter body cases passed\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

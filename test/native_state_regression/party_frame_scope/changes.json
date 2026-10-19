@@ -1,0 +1,92 @@
+[
+  {
+    "path": "src/game/party_live_native.cpp",
+    "sha256": "7980501eeadd5397b6824f2ff3916fa82be9d473495c649eb406370f1f1a3849",
+    "changes": [
+      {
+        "old": "    if(current.scope.snapshot!=context.snapshot_uuid||current.scope.epoch!=binding.native_epoch||current.scope.generation!=binding.native_generation)\n        return fail(error,\"Party live raw census differs from actual Frame binding\");",
+        "new": "    if(current.scope.snapshot!=current.world.uuid||current.scope.epoch!=current.world.world_epoch||current.scope.generation!=current.world.generation||\n       current.scope.epoch!=binding.native_epoch||current.scope.generation!=binding.native_generation||current.scope.root!=uintptr_t(current.world.map)+0x1c0)\n        return fail(error,\"Party live raw census differs from actual Frame binding: session_snapshot=\"+context.snapshot_uuid+\n            \" native_snapshot=\"+current.world.uuid+\" scope_snapshot=\"+current.scope.snapshot+\n            \" native_epoch=\"+std::to_string(current.world.world_epoch)+\" scope_epoch=\"+std::to_string(current.scope.epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(current.world.generation)+\" scope_generation=\"+std::to_string(current.scope.generation)+\" binding_generation=\"+std::to_string(binding.native_generation)+\n            \" native_root=\"+std::to_string(uintptr_t(current.world.map)+0x1c0)+\" scope_root=\"+std::to_string(current.scope.root));"
+      }
+    ]
+  },
+  {
+    "path": "src/game/party_live.cpp",
+    "sha256": "41a42a6a00386e83548bff5ed97367ea427413c080953747beec670d5fe53d1f",
+    "changes": [
+      {
+        "old": "    if(!party_identity::valid(raw.scope)||raw.scope.snapshot!=context.snapshot_uuid||raw.scope.epoch!=binding.native_epoch||raw.scope.generation!=binding.native_generation)\n        return fail(error,\"Party native census has a foreign actual Frame/Session lifetime\");",
+        "new": "    if(!party_identity::valid(raw.scope)||raw.scope.snapshot!=raw.world.uuid||raw.scope.epoch!=raw.world.world_epoch||raw.scope.generation!=raw.world.generation||\n       raw.scope.epoch!=binding.native_epoch||raw.scope.generation!=binding.native_generation||raw.scope.root!=uintptr_t(raw.world.map)+0x1c0)\n        return fail(error,\"Party native census has a foreign actual Frame/Session lifetime: session_snapshot=\"+context.snapshot_uuid+\n            \" native_snapshot=\"+raw.world.uuid+\" scope_snapshot=\"+raw.scope.snapshot+\n            \" native_epoch=\"+std::to_string(raw.world.world_epoch)+\" scope_epoch=\"+std::to_string(raw.scope.epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(raw.world.generation)+\" scope_generation=\"+std::to_string(raw.scope.generation)+\" binding_generation=\"+std::to_string(binding.native_generation)+\n            \" native_root=\"+std::to_string(uintptr_t(raw.world.map)+0x1c0)+\" scope_root=\"+std::to_string(raw.scope.root));"
+      },
+      {
+        "old": "bool fail(std::string& error,const char* cause)",
+        "new": "bool fail(std::string& error,const std::string& cause)"
+      }
+    ]
+  },
+  {
+    "path": "src/game/party_frame_native.cpp",
+    "sha256": "0b0db5f91f62d4b77466c85db18a435ac25c76547eabb73db62909018b595ed4",
+    "changes": [
+      {
+        "old": "        return (context==context_&&binding==binding_&&world.uuid==context_.snapshot_uuid&&world.world_epoch==binding_.native_epoch&&\n            world.generation==binding_.native_generation&&uintptr_t(world.map)+0x1c0==prior_.scope.root)||fail(error,\"actual Session/native world owner changed\");",
+        "new": "        return (context==context_&&binding==binding_&&world.uuid==prior_.scope.snapshot&&world.world_epoch==binding_.native_epoch&&\n            world.generation==binding_.native_generation&&uintptr_t(world.map)+0x1c0==prior_.scope.root)||fail(error,\"actual Session/native world owner changed: session_snapshot=\"+context.snapshot_uuid+\n                \" bound_session_snapshot=\"+context_.snapshot_uuid+\" native_snapshot=\"+world.uuid+\" bound_native_snapshot=\"+prior_.scope.snapshot+\n                \" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(binding_.native_epoch)+\n                \" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(binding_.native_generation)+\n                \" native_root=\"+std::to_string(uintptr_t(world.map)+0x1c0)+\" bound_root=\"+std::to_string(prior_.scope.root));"
+      }
+    ]
+  },
+  {
+    "path": "src/game/intervention_actor_live.cpp",
+    "sha256": "5e3a4e20f3f416d8a0e9ff292eb556e2ee40c4faff161b0b04b4622d95702e68",
+    "changes": [
+      {
+        "old": "    std::string cause,action;uint32_t ordinal=0;",
+        "new": "    std::string cause,action,native_snapshot;uint32_t ordinal=0;"
+      },
+      {
+        "old": "    if(current.uuid!=state.context.snapshot_uuid||current.world_epoch!=state.binding.native_epoch||current.generation!=state.binding.native_generation)return fail(error,\"Actor24 callback actual NativeOpen epoch/generation/snapshot differs\");",
+        "new": "    if(current.uuid!=state.native_snapshot||current.world_epoch!=state.binding.native_epoch||current.generation!=state.binding.native_generation)\n        return fail(error,\"Actor24 callback actual NativeOpen epoch/generation/snapshot differs: session_snapshot=\"+state.context.snapshot_uuid+\n            \" native_snapshot=\"+current.uuid+\" bound_native_snapshot=\"+state.native_snapshot+\n            \" native_epoch=\"+std::to_string(current.world_epoch)+\" binding_epoch=\"+std::to_string(state.binding.native_epoch)+\n            \" native_generation=\"+std::to_string(current.generation)+\" binding_generation=\"+std::to_string(state.binding.native_generation));"
+      },
+      {
+        "old": "    state.context=context;state.binding=binding;state.epoch=epoch;state.origin=origin;state.root=uintptr_t(world.map)+0x1c0;",
+        "new": "    if(world.uuid.empty()||world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)\n        return fail(error,\"Actor24 bind actual NativeOpen differs: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation));\n    state.context=context;state.binding=binding;state.epoch=epoch;state.origin=origin;state.root=uintptr_t(world.map)+0x1c0;state.native_snapshot=world.uuid;"
+      }
+    ]
+  },
+  {
+    "path": "src/game/dungeon_instance_native.cpp",
+    "sha256": "a1e19515d32acc95fc50d7e01135d16ce5a5f3c09f6854c0d9b85a697521db8e",
+    "changes": [
+      {
+        "old": "    if(world.uuid!=context.snapshot_uuid||world.world_epoch!=frame.native_epoch||world.generation!=frame.native_generation||\n       !census(*next,next->owners,error))return life::fail(error,error.empty()?\"binding completed native world differs\":error);",
+        "new": "    if(world.uuid.empty()||world.world_epoch!=frame.native_epoch||world.generation!=frame.native_generation)\n        return life::fail(error,\"binding completed native world differs: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(frame.native_epoch)+\n            \" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(frame.native_generation));\n    if(!census(*next,next->owners,error))return life::fail(error,error.empty()?\"binding completed native world differs\":error);"
+      }
+    ]
+  },
+  {
+    "path": "src/game/scene_clone/runtime.cpp",
+    "sha256": "4f355693eb4d40d7ad84920c445da9dc3af0fe91da9df883949b1469b70e9148",
+    "changes": [
+      {
+        "old": "    gizmo::Census census;if(!read_raw(ready->baseline,e)||ready->baseline.world.uuid!=context.snapshot_uuid||ready->baseline.world.world_epoch!=binding.native_epoch||ready->baseline.world.generation!=binding.native_generation||!gizmo::read_current(census,e)||!same_world(census.world,ready->baseline.world)||!verify_direct(ready->baseline,direct::registry,e)||!identities(ready->baseline,direct::registry,e))return fail(e,e.empty()?\"Scene clone initial confirmed raw world/registry differs\":e);",
+        "new": "    gizmo::Census census;if(!read_raw(ready->baseline,e))return fail(e,e.empty()?\"Scene clone initial confirmed raw world/registry differs\":e);\n    if(ready->baseline.world.uuid.empty()||ready->baseline.world.world_epoch!=binding.native_epoch||ready->baseline.world.generation!=binding.native_generation)\n        return fail(e,\"Scene clone initial native binding differs: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+ready->baseline.world.uuid+\n            \" native_epoch=\"+std::to_string(ready->baseline.world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(ready->baseline.world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation));\n    if(!gizmo::read_current(census,e)||!same_world(census.world,ready->baseline.world)||!verify_direct(ready->baseline,direct::registry,e)||!identities(ready->baseline,direct::registry,e))return fail(e,e.empty()?\"Scene clone initial confirmed raw world/registry differs\":e);"
+      }
+    ]
+  },
+  {
+    "path": "test/test_party_live.cpp",
+    "sha256": "6aa3b3e8d686a1b07991481fd77fc9670ad2d818a82f73ff900122b602f7e34f",
+    "changes": [
+      {
+        "old": "const identity::Scope world_scope{snapshot,3,4,100};",
+        "new": "const identity::Scope world_scope{snapshot,3,4,0x1000};"
+      },
+      {
+        "old": "Native(){raw.scope=world_scope;mt2mp::game::dungeon_party_census::Pool pool;",
+        "new": "Native(){raw.scope=world_scope;raw.world.uuid=snapshot;raw.world.world_epoch=3;raw.world.generation=4;raw.world.map=reinterpret_cast<void*>(world_scope.root-0x1c0);mt2mp::game::dungeon_party_census::Pool pool;"
+      },
+      {
+        "old": "    auto target=record();check(live::validate(target,error),error);",
+        "new": "    const std::string native_snapshot=\"113d3d9d-8848-49a7-b0c3-c23124fa283b\",shared_snapshot=\"8aa73b94-2fae-4293-9f6c-705b0aa015b8\";\n    auto measured_host=host;measured_host.snapshot_uuid=shared_snapshot;const typed::Binding measured_binding{1,1};\n    Native measured;measured.raw.scope={native_snapshot,1,1,0x1000};measured.raw.world.uuid=native_snapshot;\n    measured.raw.world.world_epoch=1;measured.raw.world.generation=1;measured.raw.world.map=reinterpret_cast<void*>(0xe40);\n    live::Adapter measured_adapter(measured);live::Raw observed;\n    check(measured_adapter.raw_current(measured_host,measured_binding,observed,error),\"Host local load UUID must not equal shared transfer UUID\");\n    check(observed.scope.snapshot==native_snapshot&&measured.calls==0,\"Scope admission rewrote native identity or caused an original effect\");\n    const auto valid_raw=measured.raw;\n    for(unsigned field=0;field<7;++field){measured.raw=valid_raw;\n        if(field==0)measured.raw.scope.snapshot=shared_snapshot;\n        if(field==1)++measured.raw.scope.epoch;\n        if(field==2)++measured.raw.scope.generation;\n        if(field==3)++measured.raw.scope.root;\n        if(field==4)measured.raw.world.uuid=shared_snapshot;\n        if(field==5)++measured.raw.world.world_epoch;\n        if(field==6)++measured.raw.world.generation;\n        error.clear();check(!measured_adapter.raw_current(measured_host,measured_binding,observed,error),\"Foreign native census scope accepted\");\n        check(error.find(\"session_snapshot=\"+shared_snapshot)!=std::string::npos&&error.find(\"binding_epoch=1\")!=std::string::npos&&error.find(\"binding_generation=1\")!=std::string::npos,\n              \"Native scope diagnostic omitted actual Session or expected Binding values\");\n    }\n    measured.raw=valid_raw;measured.raw.scope.snapshot=shared_snapshot;measured.raw.world.uuid=shared_snapshot;\n    auto measured_client=client;measured_client.snapshot_uuid=shared_snapshot;\n    check(measured_adapter.raw_current(measured_client,measured_binding,observed,error),\"Client shared load UUID no longer admitted\");\n    auto target=record();check(live::validate(target,error),error);"
+      }
+    ]
+  }
+]

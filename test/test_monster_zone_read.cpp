@@ -47,6 +47,15 @@ int main(){try{
     bad([](Fixture& f){f.m.put(0x83000,uintptr_t(99));},"reciprocal member");
     bad([](Fixture& f){f.m.put(f.mm+0x48,int32_t(4097));},"bounds");
     bad([](Fixture& f){f.m.put(f.monster+0x110,std::numeric_limits<float>::quiet_NaN());},"not finite");
+    {Fixture f;const uintptr_t direct=0xb0000;f.m.space(direct,0x1000);
+        for(size_t i=0;i<0x1000;++i)f.m.data[direct+i]=f.m.data.at(f.monster+i);
+        f.m.put(direct+0x18,uint64_t(0x100000042));f.m.put(direct+0x8d0,uintptr_t(0));f.m.put(direct+0x8d8,uintptr_t(0));
+        f.m.put(f.monster+0x820,int32_t(-11752269));f.m.put(direct+0x820,int32_t(-11752269));
+        f.m.put(f.mm+0x48,int32_t(2));f.m.put(f.mm+0x4c,int32_t(2));f.m.put(0x71008,direct);
+        z::State out;std::string e;require(z::read(f.m,f.w,out,e)&&out.monsters.size()==2&&out.monsters[0].tag==out.monsters[1].tag,"duplicate negative local serial rejected complete census: "+e);++count;
+        f.m.put(direct+0x18,uint64_t(66));require(!z::read(f.m,f.w,out,e)&&e.find("full UID")!=std::string::npos,"duplicate full UID admitted");++count;
+        f.m.put(direct+0x18,uint64_t(0x100000042));f.m.put(0x71008,f.monster);
+        require(!z::read(f.m,f.w,out,e)&&e.find("pointer")!=std::string::npos,"duplicate native pointer admitted");++count;}
     // The actual existing saved-pool guard must continue to reject unrecorded changes.
     {Fixture f;q::Array before;std::string e;q::Budget b{128,512,8192,4096};auto link=[](uintptr_t,int32_t& id,std::string&){id=0;return true;};require(q::observe_array(f.m,f.w.image,f.zm+0x48,b,link,before,e),e);q::SavedPool saved{f.w.origin,67,before};require(q::validate_capture(f.m,f.w,saved,b,e),e);f.m.put(f.zone+0x560,int32_t(3));require(!q::validate_capture(f.m,f.w,saved,b,e)&&e=="quest zone saved membership/order/content changed",e);++count;}
     {Fixture f;q::Array before;std::string e;q::Budget b{128,512,8192,4096};auto link=[](uintptr_t,int32_t& id,std::string&){id=0;return true;};require(q::observe_array(f.m,f.w.image,f.zm+0x48,b,link,before,e),e);q::SavedPool saved{f.w.origin,67,before};f.m.put(f.zm+0x58,int32_t(2));f.m.put(f.zm+0x5c,int32_t(2));f.m.put(0x61008,uintptr_t(0xb0000));f.m.space(0xb0000,0x700);f.m.put(0xb0018,uint64_t(77));require(!q::validate_capture(f.m,f.w,saved,b,e)&&e=="quest zone is absent from the bound snapshot array",e);++count;}

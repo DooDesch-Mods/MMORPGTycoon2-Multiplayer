@@ -33,13 +33,12 @@ bool array(Memory& m, uintptr_t record, size_t offset, uintptr_t& data, int32_t&
     if (count < 0 || capacity < count || (count && !data)) return fail(e, "native record array count/capacity invalid");
     return true;
 }
-}
-bool read_graph(Memory& m, uintptr_t root, uintptr_t context, const Budget& budget, Graph& out, std::string& e) {
-    out = {};
+bool tree(Memory& m, uintptr_t root, const Budget& budget, std::vector<Record>& out,
+          std::set<int32_t>& definitions, std::string& e) {
+    out.clear(); definitions.clear();
     struct Pending { uintptr_t object; size_t parent, index; };
     std::vector<Pending> queue{{root, SIZE_MAX, 0}};
     std::set<uintptr_t> visited;
-    std::set<int32_t> definitions;
     size_t tokens = 0, text_bytes = 0;
     for (size_t i = 0; i < queue.size(); ++i) {
         if (queue.size() > budget.records) return fail(e, "native record graph exceeds supplied record budget");
@@ -69,13 +68,25 @@ bool read_graph(Memory& m, uintptr_t root, uintptr_t context, const Budget& budg
         }
         if (static_cast<size_t>(child_count) > budget.records || queue.size() > budget.records - static_cast<size_t>(child_count))
             return fail(e, "native record children exceed supplied record budget");
-        out.records.push_back(std::move(row));
+        out.push_back(std::move(row));
         for (int32_t n = 0; n < child_count; ++n) {
             uintptr_t child = 0;
             if (!at(m, children, static_cast<size_t>(n) * 8, child, e)) return false;
             queue.push_back({child, i, static_cast<size_t>(n)});
         }
     }
+    return true;
+}
+}
+bool read_owned_record(Memory& m, uintptr_t root, const Budget& budget, std::vector<Record>& out, std::string& e) {
+    std::set<int32_t> definitions;
+    if (!tree(m, root, budget, out, definitions, e)) return false;
+    e.clear(); return true;
+}
+bool read_graph(Memory& m, uintptr_t root, uintptr_t context, const Budget& budget, Graph& out, std::string& e) {
+    out = {};
+    std::set<int32_t> definitions;
+    if (!tree(m, root, budget, out.records, definitions, e)) return false;
     uintptr_t table = 0, node = 0; uint64_t count = 0;
     if (!at(m, context, 0, table, e) || !at(m, table, 0x10, node, e) || !at(m, table, 0x18, count, e)) return false;
     if (count > budget.links) return fail(e, "native SaveContext exceeds supplied link budget");

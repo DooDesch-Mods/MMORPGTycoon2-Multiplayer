@@ -28,8 +28,8 @@ struct EngineMock:Engine {
     Outcome apply_action(const Binding&,const Request& request,const Evidence& host,std::string& e)override{
         need(request.action==Action::PlaceMonster,"wrong Client action");
         if(!monster_shared_state(row,host.monster_before)||cash!=host.before){e="Monster Client BEFORE state differs";return Outcome::RejectedNoEffect;}
-        ++applied;const auto local_region=row.roster.region_random;row=host.monster_after;row.roster.region_random=local_region;
-        cash=host.after;receipt=host;receipt.monster_before.roster.region_random=local_region;receipt.monster_after=row;receipt.retirement_confirmed=false;
+        ++applied;const auto local_before=row;row=born(row);
+        cash=host.after;receipt=host;receipt.monster_before=local_before;receipt.monster_after=row;receipt.retirement_confirmed=false;
         if(region_drift){++row.roster.region_random[0];receipt.monster_after=row;}
         if(partial){e="Monster original AddPaint partial failure";return Outcome::Unknown;}return Outcome::Confirmed;
     }
@@ -50,6 +50,7 @@ void flow(int mode){
     he.reject=mode==1;ce.partial=mode==2;ce.wait=mode==3;he.retirement_bad=mode==4;he.spawn=mode==5?0:4;
     if(mode>=6){he.row.roster.region_random={10238309950409534676ull,84209630741485398ull,17637438588495041383ull,8573256517064726746ull};
         ce.row.roster.region_random={11031208541562408887ull,7264565988762834373ull,9860586388526540594ull,17295355788292699441ull};}
+    ce.row.roster.next_tag=7;
     ce.region_drift=mode==7;ce.retirement_region_drift=mode==8;const auto client_before=ce.row;
     Controller host(hs,he,hw,{}),client(cs,ce,cw,{});std::string e;
     need(host.start(0,e)&&client.start(0,e),e);need(client.submit_monster(id,intent(),0,e),e);
@@ -64,6 +65,9 @@ void flow(int mode){
     need(ce.applied==1&&monster_shared_state(ce.row,he.row)&&ce.row.roster.region_random==client_before.roster.region_random&&ce.cash==he.cash&&ce.cash==money()&&!client.status().confirmed,"Client state/ledger/ACK ordering wrong");
     const auto ack_packet=packets.front();Message actual_ack;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),actual_ack,e),e);
     need(actual_ack.evidence.monster_before.roster.region_random==client_before.roster.region_random&&actual_ack.evidence.monster_after.roster.region_random==client_before.roster.region_random,"wire ACK falsified Client Region RNG");
+    need(actual_ack.evidence.monster_before.roster.next_tag==client_before.roster.next_tag&&
+        actual_ack.evidence.monster_before.roster.created_monsters==client_before.roster.created_monsters&&
+        actual_ack.evidence.monster_before.actor.tag==client_before.actor.tag,"wire ACK falsified local serial/counters");
     if(mode==9){++actual_ack.evidence.monster_after.roster.global_random[0];need(encode(actual_ack,packets.front().bytes,e),e);
         need(deliver(),e);need(host.status().locked&&!host.status().confirmed&&host.status().cause.find("differs from Host")!=std::string::npos,"Host accepted changed shared global RNG");return;}
     need(deliver(),e);need(deliver(),e);need(host.status().confirmed==1&&client.status().confirmed==1,"full peer ACK missing");

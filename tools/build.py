@@ -39,7 +39,11 @@ build = ROOT / ('build/framework' if args.mode == 'framework' else 'build')
 
 def matching_cache():
     path = build / 'CMakeCache.txt'
-    if args.reconfigure or not path.is_file():
+    # CMake can write its cache before configuration fails. Only generated build
+    # files establish that this cached configuration is usable.
+    if (args.reconfigure or not path.is_file() or
+            not (build / 'CMakeFiles/generate.stamp').is_file() or
+            not (build / 'MT2_Multiplayer.sln').is_file()):
         return False
     cache = {}
     for line in path.read_text(encoding='utf-8').splitlines():

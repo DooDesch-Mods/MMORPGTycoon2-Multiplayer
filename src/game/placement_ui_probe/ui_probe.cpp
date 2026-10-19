@@ -1,4 +1,6 @@
 #include "ui_probe.h"
+#include "../control_input/control_runtime.h"
+#include "mt2mp/core/hash.h"
 #include "codeguards.h"
 #include "scenery_probe_guards.h"
 #include "scene_mode_guards.h"
@@ -47,7 +49,13 @@ bool call_seh(unsigned step,const Binding& b,const Request& r,std::uintptr_t lis
 }
 }
 bool ProcessMemory::copy(std::uintptr_t p,void* out,std::size_t n,std::string& e){if(!p||!n||p>UINTPTR_MAX-(n-1))return fail(e,"error: native placement UI memory range invalid");MEMORY_BASIC_INFORMATION page{};if(!mt2mp::game::live_host_state::apply_timing::virtual_query(reinterpret_cast<const void*>(p),&page,sizeof(page),mt2mp::game::live_host_state::apply_timing::Part::QueryPlacement)||page.State!=MEM_COMMIT||(page.Protect&(PAGE_GUARD|PAGE_NOACCESS))||n>page.RegionSize||p-std::uintptr_t(page.BaseAddress)>page.RegionSize-n)return fail(e,"error: native placement UI page unreadable");auto code=copy_seh(p,out,n);if(code){e="error: native placement UI read SEH="+std::to_string(code);return false;}return true;}
-bool Probe::initialize(const Context& c,std::string& e){if(context_.image)return fail(e,"error: placement UI probe already initialized");if(!context_actual(c,e))return false;ProcessMemory memory;for(const auto& g:guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
+bool Probe::initialize(const Context& c,std::string& e){if(context_.image)return fail(e,"error: placement UI probe already initialized");if(!context_actual(c,e))return false;ProcessMemory memory;for(const auto& g:guards){
+    if(g.rva==0x207820){bool owned=false;
+        const auto sha=mt2mp::sha256(std::vector<unsigned char>(g.bytes,g.bytes+g.size));
+        if(!mt2mp::control_input::runtime::verify_item_activate(c.image,g.size,sha,owned,e))return false;
+        if(owned)continue;
+    }
+    std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
 Receipt Probe::arm(const Request& r,RootServices& services){Receipt receipt;receipt.token=r.token;Binding binding;ProcessMemory memory;
     try{
         Context c;if(!context_.image||!scalar_request(r,receipt.cause)||!services.actual_context(c,receipt.cause)||!context_actual(c,receipt.cause)||c!=context_){if(receipt.cause.empty())receipt.cause="error: placement UI probe context changed";services.record_receipt(r,receipt);return receipt;}

@@ -20,6 +20,7 @@ from mcp.server.stdio import stdio_server
 from runtime import Runtime, RuntimeErrorDetail, OPS, MUTATIONS
 import placement_ui_ops
 import move_ui_ops
+import object_ui_ops
 import live_ops
 import monster_zone_probe_ops
 import native_tool_prepare_ops
@@ -87,11 +88,19 @@ BUILDING_STATE = object_schema({
     "alive": {"type": "boolean", "const": True}}, ("type", "variant", "x", "y", "z", "rotation", "scale", "alive"))
 
 
+def saved_monster_key(value):
+    if not isinstance(value, str):
+        return False
+    match = re.fullmatch(r"[0-9a-f]{64}:world:monster:(?:([1-9][0-9]{0,9})|inline:region\{(0|[1-9][0-9]{0,9})\}/monsterManager/monster\[(0|[1-9][0-9]{0,9})\])", value)
+    return match is not None and all(int(n) <= 2147483647 for n in match.groups() if n is not None)
+
+
 def npc_target_schema(move=False, monster=False):
     properties = {"token": TIME_TOKEN, "target_action_uuid": TIME_TOKEN,
                   "record_key": {"type": "string", "minLength": 1, "maxLength": 256}}
     if monster:
         properties["family"] = {"type": "string", "const": "monster"}
+        properties["target_action_uuid"] = {"type": "string", "minLength": 36, "maxLength": 256}
     required = ["token"]
     if move:
         properties["position"] = {"type": "array", "minItems": 3, "maxItems": 3,
@@ -107,7 +116,7 @@ def validate_npc_target(arguments, move=False, monster=False):
         raise RuntimeErrorDetail("invalid_args", "NPC UI requires an object with exactly one target")
     if "family" in arguments:
         if not monster or arguments["family"] != "monster" or "record_key" in arguments:
-            raise RuntimeErrorDetail("invalid_args", "Monster UI requires family monster and confirmed birth UUID")
+            raise RuntimeErrorDetail("invalid_args", "Monster UI requires family monster and one confirmed canonical target")
     targets = set(arguments) & {"target_action_uuid", "record_key"}
     required = {"token"} | targets | ({"position"} if move else set()) | ({"family"} if "family" in arguments else set())
     if len(targets) != 1 or set(arguments) != required:
@@ -117,7 +126,8 @@ def validate_npc_target(arguments, move=False, monster=False):
     target = next(iter(targets))
     value = arguments[target]
     if target == "target_action_uuid":
-        if not isinstance(value, str) or re.fullmatch(TIME_TOKEN_PATTERN, value) is None:
+        saved = arguments.get("family") == "monster" and saved_monster_key(value)
+        if not isinstance(value, str) or (re.fullmatch(TIME_TOKEN_PATTERN, value) is None and not saved):
             raise RuntimeErrorDetail("invalid_args", "NPC UI placement UUID invalid")
     elif not isinstance(value, str) or not 1 <= len(value) <= 256 or "\0" in value:
         raise RuntimeErrorDetail("invalid_args", "NPC UI saved record key must contain 1 through 256 characters")
@@ -126,6 +136,53 @@ def validate_npc_target(arguments, move=False, monster=False):
         point = arguments["position"]
         if not isinstance(point, list) or len(point) != 3 or any(type(value) not in (int, float) or abs(value) > 1000000 or not math.isfinite(value) for value in point):
             raise RuntimeErrorDetail("invalid_args", "NPC move UI requires finite bounded position")
+
+
+def validate_npc_quest_edit(arguments):
+    if not isinstance(arguments, dict) or set(arguments) != {"token", "owner_key", "region_id", "remove_slot", "edit"}:
+        raise RuntimeErrorDetail("invalid_args", "Quest edit UI requires token, owner_key, region_id, current remove_slot and edit")
+    validate_npc_quest_list({key: value for key, value in arguments.items() if key != "edit"})
+    value = arguments["edit"]
+    if arguments["remove_slot"] < 0 or not isinstance(value, dict) or set(value) != {"kind", "title", "kills", "xp", "gold", "defaults"}:
+        raise RuntimeErrorDetail("invalid_args", "Quest edit requires an existing slot and exact editor fields")
+    if type(value["kind"]) is not int or value["kind"] not in (1, 2, 3) or not isinstance(value["title"], str) or len(value["title"].encode("utf-8")) > 1024 or "\0" in value["title"] or type(value["defaults"]) is not bool:
+        raise RuntimeErrorDetail("invalid_args", "Quest edit kind/title/defaults outside domain")
+    if any(type(value[key]) is not int or not 0 <= value[key] <= limit for key, limit in (("kills", 1000000), ("xp", 2147483647), ("gold", 2147483647))):
+        raise RuntimeErrorDetail("invalid_args", "Quest edit integer outside domain")
+    if ((value["kind"] == 1 and (not value["title"] or value["kills"] or value["xp"] or value["gold"] or value["defaults"])) or
+            (value["kind"] == 2 and (value["title"] or value["xp"] or value["gold"] or value["defaults"])) or
+            (value["kind"] == 3 and (value["title"] or value["kills"] or (value["defaults"] and (value["xp"] or value["gold"]))))):
+        raise RuntimeErrorDetail("invalid_args", "Quest edit carries unrelated command values")
+
+
+def validate_npc_quest_list(arguments):
+    if not isinstance(arguments, dict) or set(arguments) != {"token", "owner_key", "region_id", "remove_slot"}:
+        raise RuntimeErrorDetail("invalid_args", "Quest list UI requires exact token, owner_key, region_id and remove_slot")
+    if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Quest list UI requires a canonical token UUID")
+    if not isinstance(arguments["owner_key"], str) or not 1 <= len(arguments["owner_key"]) <= 256 or "\0" in arguments["owner_key"]:
+        raise RuntimeErrorDetail("invalid_args", "Quest list canonical owner key invalid")
+    if type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647 or type(arguments["remove_slot"]) is not int or not -1 <= arguments["remove_slot"] <= 4:
+        raise RuntimeErrorDetail("invalid_args", "Quest list region or current slot outside domain")
+
+
+def validate_npc_quest_target(arguments):
+    required = {"token", "owner_key", "sequence_id", "region_id", "destination_region", "destination_key", "family"}
+    if not isinstance(arguments, dict) or set(arguments) != required:
+        raise RuntimeErrorDetail("invalid_args", "Quest target UI requires exact existing owner slot and destination fields")
+    if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Quest target UI requires a canonical token UUID")
+    for key in ("owner_key", "destination_key"):
+        if not isinstance(arguments[key], str) or not 1 <= len(arguments[key]) <= 256 or "\0" in arguments[key]:
+            raise RuntimeErrorDetail("invalid_args", "Quest target canonical keys require 1 through 256 characters")
+    if any(type(arguments[key]) is not int or not 0 <= arguments[key] <= 2147483647 for key in ("region_id", "destination_region")) or type(arguments["sequence_id"]) is not int or not 0 <= arguments["sequence_id"] <= 4095:
+        raise RuntimeErrorDetail("invalid_args", "Quest target region or existing slot outside domain")
+    if arguments["family"] not in ("building", "zone", "monster", "npc"):
+        raise RuntimeErrorDetail("invalid_args", "Quest target family must be building, zone, monster or npc")
+    if arguments["family"] == "monster" and not saved_monster_key(arguments["destination_key"]) and (
+            not arguments["destination_key"].startswith("action:") or
+            re.fullmatch(TIME_TOKEN_PATTERN, arguments["destination_key"][len("action:"):]) is None):
+        raise RuntimeErrorDetail("invalid_args", "Quest direct Monster destination requires a confirmed canonical Monster key")
 
 
 OP_SCHEMAS = {
@@ -170,6 +227,12 @@ OP_SCHEMAS = {
         ("token", "region_id", "tool", "character_slot", "character_type", "position")),
     "native_npc_remove_ui": npc_target_schema(monster=True),
     "native_npc_move_ui": npc_target_schema(move=True, monster=True),
+    "native_npc_quest_edit_ui": object_schema({"token": TIME_TOKEN, "owner_key": {"type": "string", "minLength": 1, "maxLength": 256}, "region_id": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "remove_slot": {"type": "integer", "minimum": 0, "maximum": 4}, "edit": object_schema({"kind": {"type": "integer", "minimum": 1, "maximum": 3}, "title": {"type": "string", "maxLength": 1024}, "kills": {"type": "integer", "minimum": 0, "maximum": 1000000}, "xp": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "gold": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "defaults": {"type": "boolean"}})}),
+    "native_npc_quest_list_ui": object_schema({"token": TIME_TOKEN, "owner_key": {"type": "string", "minLength": 1, "maxLength": 256}, "region_id": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "remove_slot": {"type": "integer", "minimum": -1, "maximum": 4}}),
+    "native_npc_quest_target_ui": object_schema({"token": TIME_TOKEN, "owner_key": {"type": "string", "minLength": 1, "maxLength": 256},
+        "sequence_id": {"type": "integer", "minimum": 0, "maximum": 4095}, "region_id": SUBSCRIBER_ID, "destination_region": SUBSCRIBER_ID,
+        "destination_key": {"type": "string", "minLength": 1, "maxLength": 256}, "family": {"type": "string", "enum": ["building", "zone", "monster", "npc"]}},
+        ("token", "owner_key", "sequence_id", "region_id", "destination_region", "destination_key", "family")),
     "read_prices": EMPTY,
     "native_price_ui": object_schema({"diagnostic_uuid": TIME_TOKEN,
         "purchase_fee": {"type": "integer", "minimum": 0, "maximum": 2147483647},
@@ -211,6 +274,7 @@ OP_SCHEMAS = {
     "native_chat_ui_key": object_schema({"key": {"type": "string", "enum": ["F9", "F10", "ENTER", "ESCAPE", "PROBE"]}}, ("key",)),
     "native_chat_ui_text": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
     "inspect_engine": EMPTY,
+    "resync_world": EMPTY,
     "read_network_state": EMPTY,
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
@@ -301,6 +365,9 @@ OP_DESCRIPTIONS = {
     "native_npc_place_probe": "In an isolated MPTest world only, call original NPC MouseOver and Release once after ThemeWindow selection. Measure actual NPC rows, RNG, full Ledger and Undo. This mutates the test world; never replay an attempted token.",
     "native_npc_place_ui": "On a connected peer, capture one Host-ordered placement through the original Cursor Release dispatcher. Guard/ClassTrainer/QuestGiver use the existing active NPC UI. item_elitemonster additionally requires level and performs original Region/tool/selection/level preparation. Inspect ui_npc or ui_monster UI job and Controller ACK. Never replay an attempted token.",
     "native_npc_remove_ui": "Select one NPC from its confirmed placement action and invoke original DestroyNPC. With family=monster, select one confirmed direct Monster birth and invoke original MonsterInfoWindow Destroy. Capture one Host-ordered removal; inspect ui_npc and Controller ACK before another action. Never replay an attempted or unknown token.",
+    "native_npc_quest_edit_ui": "Run original QuestSelector SetTitle(kind1), SetKills(kind2), or SetRewards(kind3) for an existing current slot. Inspect ui_npc_quest_list and ACK3; never replay an attempted/unknown token.",
+    "native_npc_quest_list_ui": "Run original NPCInfoWindow AddQuest for remove_slot=-1 or QuestSelector Destroy for an existing current slot0..4. Inspect ui_npc_quest_list and ACK3; never replay an attempted or unknown token.",
+    "native_npc_quest_target_ui": "Edit one existing NPC Quest slot through original QuestSelector SetTarget and Cursor Press. Resolve a Building, MonsterZone, canonical NPC or confirmed direct Monster destination in the current world. Inspect ui_npc_quest and Controller ACK; never replay an attempted or unknown token. Does not add or delete a Quest.",
     "native_npc_move_ui": "With family=monster, use a confirmed direct Monster birth and original MonsterInfoWindow Move, then normal Update/Purchase capture. Move one NPC from its confirmed placement action through the original NPCInfoWindow Move and cursor placement. Capture one Host-ordered move; inspect npc_action and Controller ACK before another action. Never replay an attempted or unknown token.",
     "read_prices": "Read the actual bound Business purchase and subscription fees plus the full current Ledger.",
     "native_price_ui": "Set the actual Overview PropertyPane input values and invoke original UpdateSaleValues once. Observe ui_price.ui_attempts and the Controller ACK; never replay an attempted diagnostic UUID.",
@@ -325,6 +392,7 @@ OP_DESCRIPTIONS = {
     "native_chat_ui_key": "Queue one F9, F10, Enter or Escape key through the existing SDL hook, or a harmless key-up probe after closing overlays. F10 requests the native Multiplayer panel toggle; read_native_lobby confirms actual application. Read chat UI counters for other key consumption or forwarding.",
     "native_chat_ui_text": "Queue bounded UTF-8 text through SDL text input only while the actual chat field is active. Read the rendered draft afterward.",
     "inspect_engine": "Inspect verified engine metadata on the game thread.",
+    "resync_world": "Request a fresh shared snapshot through the existing Host and owned native load path. The receipt confirms queue admission only. Observe game_status.world_reload for completion/failure; never replay a timed-out request.",
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
@@ -391,9 +459,11 @@ OP_SCHEMAS.update(lobby_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(lobby_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(placement_ui_ops.SCHEMAS)
 OP_SCHEMAS.update(move_ui_ops.SCHEMAS)
+OP_SCHEMAS.update(object_ui_ops.SCHEMAS)
 OP_SCHEMAS.update(live_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(live_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(move_ui_ops.DESCRIPTIONS)
+OP_DESCRIPTIONS.update(object_ui_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(monster_zone_probe_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(monster_zone_probe_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(native_tool_prepare_ops.SCHEMAS)
@@ -414,7 +484,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -437,6 +507,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
         return runtime.recover_pending(arguments["previous_manifest_path"])
     if name.startswith("game_") and name[5:] in OPS:
         op = name[5:]
+        if op == "resync_world" and (not isinstance(arguments, dict) or arguments):
+            raise RuntimeErrorDetail("invalid_args", "resync_world requires empty object arguments")
         if op == "read_building_history_ui" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "read_building_history_ui requires empty object arguments")
         if op == "native_building_history_ui":
@@ -533,6 +605,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             native_tool_prepare_ops.validate(op, arguments)
         if op in move_ui_ops.SCHEMAS:
             move_ui_ops.validate(op, arguments)
+        if op in object_ui_ops.SCHEMAS:
+            object_ui_ops.validate(op, arguments)
         if op in placement_ui_ops.SCHEMAS:
             placement_ui_ops.validate(op, arguments)
         if op in {"start_typed_actions", "enable_ui_remove", "enable_ui_build", "enable_ui_move", "enable_ui_region", "enable_ui_terrain", "enable_ui_path", "enable_ui_network"} and (not isinstance(arguments, dict) or arguments):
@@ -609,6 +683,12 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             point = arguments["position"]
             if not isinstance(point, list) or len(point) != 3 or any(type(value) not in (int, float) or abs(value) > 3.4028234663852886e38 or not math.isfinite(value) for value in point):
                 raise RuntimeErrorDetail("invalid_args", "NPC place probe requires finite float32 position")
+        if op == "native_npc_quest_edit_ui":
+            validate_npc_quest_edit(arguments)
+        if op == "native_npc_quest_list_ui":
+            validate_npc_quest_list(arguments)
+        if op == "native_npc_quest_target_ui":
+            validate_npc_quest_target(arguments)
         if op in {"native_npc_remove_ui", "native_npc_move_ui"}:
             validate_npc_target(arguments, move=op == "native_npc_move_ui", monster=op in {"native_npc_move_ui", "native_npc_remove_ui"})
         if op == "native_npc_place_ui":

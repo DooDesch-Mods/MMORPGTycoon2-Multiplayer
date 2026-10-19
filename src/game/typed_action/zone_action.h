@@ -42,7 +42,7 @@ inline bool valid_zone_state(const ZoneState& v){
 // Region RNG is observed locally but is not consumed by this original action.
 inline bool zone_shared_content(const ZoneState& a,const ZoneState& b){
     return a.zones==b.zones&&a.monsters==b.monsters&&a.undo_count==b.undo_count&&
-        a.next_tag==b.next_tag&&a.created_monsters==b.created_monsters&&
+        a.created_monsters==b.created_monsters&&
         a.release_edits==b.release_edits&&a.content_sha256==b.content_sha256;
 }
 inline bool zone_shared_state(const ZoneState& a,const ZoneState& b){

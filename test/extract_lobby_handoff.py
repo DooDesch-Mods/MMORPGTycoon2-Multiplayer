@@ -33,6 +33,14 @@ edge='if(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,u
 assert render.count(edge)==1, 'Render handoff edge changed; update only the affected extraction'
 assert render.index(edge)<render.index('if(!framework_open&&!framework_observed_open)'), 'Passive observation must survive hidden Multiplayer panels'
 a.output.mkdir(parents=True,exist_ok=True)
+view=(a.root/'src/game/framework_lobby_view.inc').read_text(encoding='utf-8')
+actions=(a.root/'src/game/framework_lobby_actions.inc').read_text(encoding='utf-8')
+input_functions=[body(view, anchor) for anchor in (
+    'bool framework_effectively_visible(', 'bool framework_reject_unattempted(', 'bool framework_apply_response(')]
+input_functions.append(body(actions,'bool framework_process_action('))
+assert 'if(!framework_apply_response(response,error))return false;' in render
+assert 'return framework_process_action(error);' in tick
+(a.output/'lobby_input_bodies.inc').write_text('\n\n'.join(input_functions)+'\n',encoding='utf-8')
 (a.output/'lobby_handoff_bodies.inc').write_text('\n\n'.join(functions)+'\n',encoding='utf-8')
 (a.output/'lobby_handoff_render_edge.inc').write_text(edge+'\n',encoding='utf-8')
 (a.output/'source_receipt.json').write_text(json.dumps({

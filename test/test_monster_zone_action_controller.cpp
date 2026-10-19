@@ -32,8 +32,10 @@ struct EngineMock:Engine {
     Outcome apply_action(const Binding&,const Request& request,const Evidence& host,std::string& e)override{
         need(request.action==Action::PlaceMonsterZone,"wrong Client action");
         if(!zone_shared_state(row,host.zone_before)||cash!=host.before){e="Zone Client BEFORE state differs";return Outcome::RejectedNoEffect;}
-        ++applied;const auto local_region=row.region_random;row=host.zone_after;row.region_random=local_region;
-        cash=host.after;receipt=host;receipt.zone_before.region_random=local_region;receipt.zone_after=row;receipt.retirement_confirmed=false;
+        ++applied;const auto local_before=row;const auto spawned=host.zone_after.monsters-host.zone_before.monsters;
+        ++row.zones;++row.undo_count;row.monsters+=spawned;row.next_tag+=int32_t(spawned);row.created_monsters+=int32_t(spawned);
+        ++row.release_edits[5];row.content_sha256=host.zone_after.content_sha256;
+        cash=host.after;receipt=host;receipt.zone_before=local_before;receipt.zone_after=row;receipt.retirement_confirmed=false;
         if(region_drift){++row.region_random[0];receipt.zone_after=row;}
         if(partial){e="Zone original AddPaint partial failure";return Outcome::Unknown;}return Outcome::Confirmed;
     }
@@ -54,6 +56,7 @@ void flow(int mode){
     he.reject=mode==1;ce.partial=mode==2;ce.wait=mode==3;he.retirement_bad=mode==4;he.spawn=mode==5?0:4;
     if(mode>=6){he.row.region_random={10238309950409534676ull,84209630741485398ull,17637438588495041383ull,8573256517064726746ull};
         ce.row.region_random={11031208541562408887ull,7264565988762834373ull,9860586388526540594ull,17295355788292699441ull};}
+    ce.row.next_tag=7;
     ce.region_drift=mode==7;ce.retirement_region_drift=mode==8;const auto client_before=ce.row;
     Controller host(hs,he,hw,{}),client(cs,ce,cw,{});std::string e;
     need(host.start(0,e)&&client.start(0,e),e);need(client.submit_zone(id,intent(),0,e),e);
@@ -68,6 +71,8 @@ void flow(int mode){
     need(ce.applied==1&&zone_shared_state(ce.row,he.row)&&ce.row.region_random==client_before.region_random&&ce.cash==he.cash&&ce.cash==money()&&!client.status().confirmed,"Client state/ledger/ACK ordering wrong");
     const auto ack_packet=packets.front();Message actual_ack;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),actual_ack,e),e);
     need(actual_ack.evidence.zone_before.region_random==client_before.region_random&&actual_ack.evidence.zone_after.region_random==client_before.region_random,"wire ACK falsified Client Region RNG");
+    need(actual_ack.evidence.zone_before.next_tag==7&&actual_ack.evidence.zone_before.created_monsters==0&&
+        actual_ack.evidence.zone_after.next_tag==7+int32_t(he.spawn)&&actual_ack.evidence.zone_after.created_monsters==int32_t(he.spawn),"Zone ACK replaced local counters");
     if(mode==9){++actual_ack.evidence.zone_after.global_random[0];need(encode(actual_ack,packets.front().bytes,e),e);
         need(deliver(),e);need(host.status().locked&&!host.status().confirmed&&host.status().cause.find("differs from Host")!=std::string::npos,"Host accepted changed shared global RNG");return;}
     need(deliver(),e);need(deliver(),e);need(host.status().confirmed==1&&client.status().confirmed==1,"full peer ACK missing");

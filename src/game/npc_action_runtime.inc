@@ -4,6 +4,8 @@ namespace action=mt2mp::action_session;
 namespace undo=build_actions::private_native;
 namespace ui=action::ui_capture;
 using Release=void(__fastcall*)(void*,void*,const float*);
+struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string snapshot,key;};
+std::optional<PropertyPending> property_pending;
 struct Pending {action::NpcIntent intent;action::Binding binding;std::string snapshot,token;};
 struct Operation {
     action::Binding binding;action::Request request;action::Evidence evidence;
@@ -187,6 +189,10 @@ bool remove_retire(const action::Binding&,const action::Request&,std::string&);
 action::Outcome move_perform(const action::Binding&,const action::Request&,const action::Evidence*,std::string&);
 bool move_observe(const action::Binding&,const action::Request&,action::Evidence&,std::string&);
 bool move_retire(const action::Binding&,const action::Request&,std::string&);
+bool property_enable(std::string&);
+void property_tick();
+action::Outcome property_perform(const action::Binding&,const action::Request&,const action::Evidence*,std::string&);
+bool property_observe(const action::Binding&,const action::Request&,action::Evidence&,std::string&);
 bool enable(std::string& error) {
     const auto install_fail=[&](const std::string& cause){error=state.install_cause=cause;return false;};
     if(!state.install_attempted)state.thread=GetCurrentThreadId();
@@ -196,7 +202,7 @@ bool enable(std::string& error) {
         for(const auto& [id,op]:state.operations)if(!op.retired)
             return fail(error,"NPC previous session has unretired action="+id);
         state.operations.clear();state.ui_jobs.clear();state.move_ui_token.clear();state.capture_failed=false;
-        state.cause.clear();state.last_action.clear();error.clear();return true;
+        state.cause.clear();state.last_action.clear();error.clear();return property_enable(error);
     }
     if(state.install_attempted)return fail(error,"NPC Release hook prior installation failed: "+state.install_cause);
     state.install_attempted=true;uint32_t thread=0;std::string sha;
@@ -210,9 +216,10 @@ bool enable(std::string& error) {
     if(created!=MH_OK||!state.release)return install_fail("NPC Release MH_CreateHook status="+std::to_string(created));
     const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x5c3ef0));
     if(enabled!=MH_OK)return install_fail("NPC Release MH_EnableHook status="+std::to_string(enabled));
-    state.ready=true;state.install_cause.clear();error.clear();return true;
+    state.ready=true;state.install_cause.clear();error.clear();return property_enable(error);
 }
 void tick() {
+    property_tick();
     const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:state.ui_jobs){
         if(!job.value("submitted",false)||job.value("terminal",false))continue;
@@ -237,7 +244,7 @@ void tick() {
     if(!pending.token.empty()){auto& job=state.ui_jobs.at(pending.token);
         job["submitted"]=true;job["action_uuid"]=id;}
 }
-bool pending_ui(){return bool(state.pending);}
+bool pending_ui(){return bool(state.pending)||bool(property_pending);}
 json status() {
     const auto npc_state=[](const action::NpcState& value){
         const auto& created=value.created;
@@ -253,7 +260,7 @@ json status() {
     json operations=json::object();for(const auto& [id,op]:state.operations){
         const char* operation=op.request.action==action::Action::PlaceNPC?"place":
             op.request.action==action::Action::RemoveNPC?"remove":
-            op.request.action==action::Action::MoveNPC?"move":"unknown";
+            op.request.action==action::Action::MoveNPC?"move":op.request.action==action::Action::EditNpcProperty?"property":"unknown";
         operations[id]={{"operation",operation},
             {"attempted_mask",op.attempted},{"returned_mask",op.returned},
             {"confirmed",op.confirmed},{"retired",op.retired},{"local_uid",op.local_uid},
@@ -271,7 +278,18 @@ json status() {
             {"quest_retirement",op.quest_retirement},
             {"npc_before",npc_state(op.evidence.npc_before)},
             {"npc_after",npc_state(op.evidence.npc_after)},
-            {"cause",op.cause}};}
+            {"cause",op.cause}};
+        if(op.request.action==action::Action::EditNpcProperty){
+            const auto property_state=[&](const std::optional<action::NpcPropertyState>& value)->json{
+                if(!value)return nullptr;return {{"actor",npc_state(value->actor)},{"online",value->online},
+                    {"force_tint",value->force_tint},{"tint",value->tint},{"command_level",value->command_level},
+                    {"region_min",value->region_min},{"region_max",value->region_max}};};
+            operations[id]["property_intent"]={{"kind",uint8_t(op.request.npc_property.kind)},
+                {"name",op.request.npc_property.name},{"online",op.request.npc_property.online}};
+            operations[id]["property_before"]=property_state(op.evidence.npc_property_before);
+            operations[id]["property_after"]=property_state(op.evidence.npc_property_after);
+        }
+    }
     return {{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},
         {"rejected",state.rejections},{"pending_ui",pending_ui()},{"last_action",state.last_action},
         {"cause",state.cause},{"operations",operations},{"ui_jobs",state.ui_jobs}};
@@ -407,6 +425,7 @@ bool native_ui(const json& args,json& result,std::string& error) {
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,
                         const action::Evidence* authority,std::string& error) {
+    if(request.action==action::Action::EditNpcProperty)return property_perform(binding,request,authority,error);
     if(request.action==action::Action::RemoveNPC)return remove_perform(binding,request,authority,error);
     if(request.action==action::Action::MoveNPC)return move_perform(binding,request,authority,error);
     if(!state.ready||GetCurrentThreadId()!=state.thread||request.action!=action::Action::PlaceNPC||
@@ -563,6 +582,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     op.confirmed=true;error.clear();return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error) {
+    if(request.action==action::Action::EditNpcProperty)return property_observe(binding,request,out,error);
     if(request.action==action::Action::RemoveNPC)return remove_observe(binding,request,out,error);
     if(request.action==action::Action::MoveNPC)return move_observe(binding,request,out,error);
     const auto found=state.operations.find(request.action_uuid);
@@ -601,6 +621,36 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
 }
 #include "npc_remove_runtime.inc"
 #include "npc_move_runtime.inc"
+#include "npc_property_runtime.inc"
+bool confirm_character_membership_retirements(const action::Binding& binding,const action::Request& request,
+    const std::vector<CharacterNpcRetirement>& removed,std::string& error){
+    const auto controller=typed_action_runtime::controller_status();
+    if(!state.ready||GetCurrentThreadId()!=state.thread||request.action!=action::Action::EditCharacterMembership||
+       request.character_membership.command!=action::CharacterMembershipCommand::Destroy||!controller.value("pending",false)||
+       controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid)
+        return fail(error,"Character NPC alias retirement requires its exact pending original TypeDestroy");
+    Memory memory;host::LookupApi api;host::NativeOrigin origin;host::WorldState world;
+    if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;
+    host::Reader reader(memory.process,origin,state.image,state.thread,api);
+    if(!reader.current(world,true,error)||!bound(world,binding,request.snapshot_uuid,error))return false;
+    std::set<std::pair<uintptr_t,uint64_t>> exact;std::map<uintptr_t,npc_census::State> regions;std::vector<Operation*> retire;
+    for(const auto& row:removed){
+        if(!row.pointer||!row.region||!row.uid||!exact.emplace(row.pointer,row.uid).second)return fail(error,"Character NPC retirement pre-witness is empty or repeated");
+        uintptr_t found=0;const auto seh=lookup(api.find,row.uid,found);
+        if(seh||found)return fail(error,"Character NPC original full UID removal is incomplete SEH="+std::to_string(seh));
+        if(!regions.contains(row.region)&&!npc_census::read(memory,state.image,row.region,regions[row.region],error))return false;
+        for(const auto& current:regions.at(row.region).rows)if(current.local_uid==row.uid||current.local_pointer==row.pointer)
+            return fail(error,"Character NPC remains in its actual complete Region census");
+        for(auto& [id,op]:state.operations){
+            if(op.request.action!=action::Action::PlaceNPC||op.local_pointer!=row.pointer||op.local_uid!=row.uid||op.target_absent)continue;
+            if(op.binding!=binding||op.request.snapshot_uuid!=request.snapshot_uuid||!op.confirmed||!op.retired)
+                return fail(error,"Character NPC retirement matched a pending or foreign PlaceNPC alias");
+            retire.push_back(&op);
+        }
+    }
+    host::WorldState after;if(!reader.current(after,true,error)||!same_world(world,after))return fail(error,error.empty()?"Character NPC retirement current World changed":error);
+    for(auto* op:retire)op->target_absent=true;error.clear();return true;
+}
 bool bug_parent(const action::Context& context,const action::Binding& binding,const std::string& key,uintptr_t& object,std::string& error){
     object=0;ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
     if(!target_binding(npc_target_key::argument(key),binding,context.snapshot_uuid,local,region,census,error))return false;

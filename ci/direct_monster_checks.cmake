@@ -1,61 +1,131 @@
 set(DIRECT_MONSTER_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/direct_monster")
+
 file(MAKE_DIRECTORY "${DIRECT_MONSTER_GENERATED}")
+
 set(DIRECT_MONSTER_SOURCE "${MT2MP_SOURCE_ROOT}/src/game/monster_action_runtime.inc")
+
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${DIRECT_MONSTER_SOURCE}")
+
 file(READ "${DIRECT_MONSTER_SOURCE}" DIRECT_MONSTER_NATIVE)
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "void release_entry(void* receiver" DIRECT_MONSTER_BEGIN)
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "\n}\n\nbool enable" DIRECT_MONSTER_END)
+
 math(EXPR DIRECT_MONSTER_SIZE "${DIRECT_MONSTER_END}-${DIRECT_MONSTER_BEGIN}")
+
 if(DIRECT_MONSTER_BEGIN LESS 0 OR DIRECT_MONSTER_SIZE LESS 1)
+
     message(FATAL_ERROR "Direct Monster actual capture body anchors missing")
+
 endif()
+
 string(SUBSTRING "${DIRECT_MONSTER_NATIVE}" ${DIRECT_MONSTER_BEGIN} ${DIRECT_MONSTER_SIZE} DIRECT_MONSTER_BODY)
+
 file(WRITE "${DIRECT_MONSTER_GENERATED}/monster_capture_body.inc" "${DIRECT_MONSTER_BODY}\n")
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "a::Outcome perform(" DIRECT_MONSTER_BEGIN)
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "\nbool observe(" DIRECT_MONSTER_END)
+
 math(EXPR DIRECT_MONSTER_SIZE "${DIRECT_MONSTER_END}-${DIRECT_MONSTER_BEGIN}")
+
 if(DIRECT_MONSTER_BEGIN LESS 0 OR DIRECT_MONSTER_SIZE LESS 1)
+
     message(FATAL_ERROR "Direct Monster actual perform body anchors missing")
+
 endif()
+
 string(SUBSTRING "${DIRECT_MONSTER_NATIVE}" ${DIRECT_MONSTER_BEGIN} ${DIRECT_MONSTER_SIZE} DIRECT_MONSTER_BODY)
+
 file(WRITE "${DIRECT_MONSTER_GENERATED}/monster_perform_body.inc" "${DIRECT_MONSTER_BODY}\n")
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "bool native_ui(" DIRECT_MONSTER_BEGIN)
+
 string(FIND "${DIRECT_MONSTER_NATIVE}" "a::Outcome perform(" DIRECT_MONSTER_END)
+
 math(EXPR DIRECT_MONSTER_SIZE "${DIRECT_MONSTER_END}-${DIRECT_MONSTER_BEGIN}")
+
 if(DIRECT_MONSTER_BEGIN LESS 0 OR DIRECT_MONSTER_SIZE LESS 1)
+
     message(FATAL_ERROR "Direct Monster actual native UI body anchors missing")
+
 endif()
+
 string(SUBSTRING "${DIRECT_MONSTER_NATIVE}" ${DIRECT_MONSTER_BEGIN} ${DIRECT_MONSTER_SIZE} DIRECT_MONSTER_BODY)
+
 file(WRITE "${DIRECT_MONSTER_GENERATED}/monster_ui_body.inc" "${DIRECT_MONSTER_BODY}\n")
 
+
+
 foreach(name protocol controller mixed_identity capture native ui)
+
     set(target "test_direct_monster_${name}")
+
     add_executable(${target} "${MT2MP_SOURCE_ROOT}/test/${target}.cpp")
+
     if(name STREQUAL "protocol" OR name STREQUAL "controller")
+
         target_sources(${target} PRIVATE
+
             "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+
             "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+
             "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+
     endif()
+
     target_include_directories(${target} PRIVATE "${DIRECT_MONSTER_GENERATED}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+
     target_compile_features(${target} PRIVATE cxx_std_20)
+
     target_compile_definitions(${target} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+
     target_compile_options(${target} PRIVATE /W4 /WX /utf-8 /EHsc)
+
     add_test(NAME direct_monster_${name} COMMAND ${target})
+
     set_tests_properties(direct_monster_${name} PROPERTIES TIMEOUT 60)
+
 endforeach()
 
+
+
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 add_test(NAME direct_monster_mcp_schema COMMAND "${Python3_EXECUTABLE}" -X utf8
+
     "${MT2MP_SOURCE_ROOT}/test/mcp/test_direct_monster_ui.py" "${MT2MP_SOURCE_ROOT}/tools/mcp/server.py")
+
 set_tests_properties(direct_monster_mcp_schema PROPERTIES TIMEOUT 60)
+
+
 
 include("${CMAKE_CURRENT_LIST_DIR}/monster_hook_admission_checks.cmake")
 
+
+
 include("${CMAKE_CURRENT_LIST_DIR}/monster_prepare_checks.cmake")
+
+
 
 include("${CMAKE_CURRENT_LIST_DIR}/direct_monster_move_checks.cmake")
 
+
+
 include("${CMAKE_CURRENT_LIST_DIR}/monster_move_ui_checks.cmake")
 
+
+
 include("${CMAKE_CURRENT_LIST_DIR}/monster_remove_checks.cmake")
+
+
+
+include("${CMAKE_CURRENT_LIST_DIR}/monster_live_checks.cmake")
+
+
+include("${CMAKE_CURRENT_LIST_DIR}/npc_quest_authoring_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/quest_completion_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/saved_direct_monster_checks.cmake")

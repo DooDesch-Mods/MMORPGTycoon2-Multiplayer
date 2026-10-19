@@ -3,10 +3,12 @@
 #include "npc_probe.h"
 #include "live_host_state/day_rollover/native_day.h"
 namespace mt2mp::game::live_host_state::day::economy {
+nlohmann::json quest_completion_status();
 class NativePort final:public Port {
     friend class LoanLifecycle;
     day::NativePort& history_;
     EconomicBoundary& fence_;
+    mt2mp::subscriber_lifecycle::first_append::PartyReferences* parties_=nullptr;
     Target actual_day_receipt_;
     const Owners* scalar_before_=nullptr;
     NativeHistory scalar_history_;
@@ -37,6 +39,7 @@ public:
     bool begin_quest_stores(const Owners&,std::string&)override;
     void end_quest_stores()noexcept override;
     bool with_quest_stores(const Owners&,const State&,const std::function<bool(std::string&)>&,std::string&)override;
+    bool bind_party_references(mt2mp::subscriber_lifecycle::first_append::PartyReferences*,std::string&)override;
     bool capture_subscriber(int32_t,nlohmann::json&,std::string&)override;
     bool append_subscriber(const nlohmann::json&,nlohmann::json&,std::string&)override;
     bool subscriber_retirements(const Owners&,std::vector<mt2mp::subscriber_lifecycle::additions::Retirement>&,std::string&)override;

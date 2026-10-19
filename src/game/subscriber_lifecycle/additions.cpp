@@ -42,7 +42,7 @@ bool Cache::host(const std::vector<int32_t>& actual,int32_t next,uint64_t revisi
 }
 catch(const std::exception& x){locked_=true;return fail(e,std::string("Subscriber Host capture exception original=")+x.what());}
 catch(...){locked_=true;return fail(e,"Subscriber Host capture nonstandard exception; no replay");}
-bool Cache::client(const std::vector<int32_t>& actual,const std::vector<int32_t>& target,const State& state,Append append,Json& receipt,std::string& e,Retire retire)try{
+bool Cache::client(const std::vector<int32_t>& actual,const std::vector<int32_t>& target,const State& state,Append append,Json& receipt,std::string& e,Retire retire,AppendBatch batch)try{
     receipt={{"attempted",false},{"confirmed",false},{"unknown",false},{"created_ids",Json::array()},{"retired_ids",Json::array()},{"skipped_retired_ids",Json::array()},{"native_receipts",Json::array()}};
     if(locked_||!state.available||!ids_valid(actual)||!ids_valid(target)||!valid(state,e))return fail(e,e.empty()?"Subscriber Client membership locked/invalid":e);
     if(!bound_){baseline_=actual;bound_=true;}
@@ -61,10 +61,32 @@ bool Cache::client(const std::vector<int32_t>& actual,const std::vector<int32_t>
     }
     std::vector<int32_t> missing;for(auto id:target){if(id<0||id>=state.next_id)return fail(e,"Subscriber live target outside Host nextID");if(!present.contains(id)){if(retired_.contains(id)||!prepared.contains(id))return fail(e,"Subscriber absent live ID lacks its original constructor graph");missing.push_back(id);}}
     for(const auto& [id,row]:prepared)if(!entries_.contains(id)&&present.contains(id))return fail(e,"Subscriber preexisting non-baseline ID has no local constructor receipt");
-    auto available=present;for(auto id:missing){for(auto dependency:dependencies[id])if(!available.contains(dependency))return fail(e,"Subscriber Toon dependency absent before all native effects subscriber_id="+std::to_string(id)+" owner_id="+std::to_string(dependency));available.insert(id);}
+    auto available=present;if(batch)available.insert(missing.begin(),missing.end());for(auto id:missing){for(auto dependency:dependencies[id])if(!available.contains(dependency))return fail(e,"Subscriber Toon dependency absent before all native effects subscriber_id="+std::to_string(id)+" owner_id="+std::to_string(dependency));available.insert(id);}
+    if(!batch&&!append&&!missing.empty())return fail(e,"Subscriber original constructor callback unavailable");
     for(auto id:actual)if(!wanted.contains(id)&&!retire)return fail(e,"Subscriber original Manager retirement callback unavailable");
     auto unknown=[&](){locked_=receipt.value("attempted",false);receipt["unknown"]=locked_;};
+    if(batch){
+        std::vector<Json> graphs;for(auto id:missing)graphs.push_back(prepared.at(id).first);
+        Json native;const bool okay=batch(graphs,native,e);
+        bool effect=native.value("attempted",false)||native.value("unknown",false)||native.value("confirmed",false)||native.value("subscriber_creation_attempted",false);
+        if(native.contains("rows")&&native.at("rows").is_array())for(const auto& row:native.at("rows"))
+            if(row.is_object())effect=effect||row.value("state",std::string{})=="confirmed"||row.value("state",std::string{})=="unknown";
+        receipt["attempted"]=receipt.value("attempted",false)||effect;
+        receipt["native_receipts"].push_back(native);
+        if(!okay||!native.value("confirmed",false)||native.value("unknown",false)||!native.contains("rows")||
+           !native.at("rows").is_array()||native.at("rows").size()!=missing.size()){
+            unknown();return fail(e,e.empty()?"Subscriber grouped original constructor receipt unconfirmed":e);
+        }
+        for(size_t i=0;i<missing.size();++i){const auto& row=native.at("rows")[i];
+            if(!row.is_object()||!row.contains("id")||!row.at("id").is_number_integer()||row.at("id")!=missing[i]||
+               row.value("state",std::string{})!="confirmed"){
+                unknown();return fail(e,"Subscriber grouped original constructor row/order unconfirmed");
+            }
+        }
+        for(auto id:missing){receipt["created_ids"].push_back(id);entries_[id]=prepared.at(id).second;}
+    }else{
     for(auto id:missing){Json native;const bool ok=append(prepared.at(id).first,native,e);const auto outcome=native.value("state",std::string{});receipt["attempted"]=receipt.value("attempted",false)||native.value("subscriber_creation_attempted",false)||native.value("attempted",false)||outcome=="unknown"||outcome=="confirmed";if(!ok||outcome!="confirmed"){receipt["native_receipts"].push_back(native);unknown();return fail(e,e.empty()?"Subscriber original C1 receipt unconfirmed":e);}receipt["native_receipts"].push_back(native);receipt["created_ids"].push_back(id);entries_[id]=prepared.at(id).second;}
+    }
     for(auto id:actual)if(!wanted.contains(id)){Json native;const bool ok=retire(id,dead.at(id),native,e);receipt["attempted"]=receipt.value("attempted",false)||native.value("attempted",false)||native.value("unknown",false)||native.value("confirmed",false);if(!ok||!native.value("confirmed",false)){receipt["native_receipts"].push_back(native);unknown();return fail(e,e.empty()?"Subscriber original Manager retirement receipt unconfirmed":e);}receipt["native_receipts"].push_back(native);receipt["retired_ids"].push_back(id);retired_[id]=dead.at(id);}
     for(const auto& [id,reason]:dead)if(!retired_.contains(id)){receipt["skipped_retired_ids"].push_back(id);retired_[id]=reason;}
     receipt["confirmed"]=true;e.clear();return true;

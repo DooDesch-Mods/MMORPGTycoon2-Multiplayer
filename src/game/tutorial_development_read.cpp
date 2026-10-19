@@ -241,13 +241,13 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
                !r.bytes(snapshot->slots,snapshot->items.data(),sizeof(snapshot->items),error))return false;
             const bool fixed_project=dev.at("present")==true&&dev.at("kind")==0&&dev.at("tech_key")==selected;
             const bool retired=!fixed_project&&tech.at("deployed")==true;
-            const bool baseline=!snapshot->project&&tech.at("deployed")==false&&tech.at("custom")==false;
+            const bool baseline=!fixed_project&&tech.at("deployed")==false&&tech.at("custom")==false;
             if(tech.at("record_present")==true&&(fixed_project||retired||baseline)){
                 tutorial_replication::startingpoint::Row row;
                 row.project_present=fixed_project;
                 // This row describes only the current Startingpoint project.
                 // Later unrelated projects remain in the ordinary diagnostic.
-                if(fixed_project||baseline){row.work=dev.at("work").get<float>();row.lines=dev.at("lines").get<int32_t>();
+                if(fixed_project){row.work=dev.at("work").get<float>();row.lines=dev.at("lines").get<int32_t>();
                     row.desired_workers=dev.at("desired_workers").get<int32_t>();row.bugs_total=dev.at("bugs_total").get<int32_t>();row.bugs_known=dev.at("bugs_known").get<int32_t>();}
                 row.purchased=tech.at("purchased").get<bool>();row.deployed=tech.at("deployed").get<bool>();row.custom=tech.at("custom").get<bool>();
                 row.inventory_count=item_count;row.release_change_count=release.change_count;row.release_feature_count=release.feature_count;row.release_counter=release.mutation_counter;

@@ -4,6 +4,7 @@
 #include "live_host_state/memory_query_timing.h"
 #include "subscriber_quest_state.h"
 #include "npc_quest_records.h"
+#include "npc_quest_runtime_apply.h"
 #include "npc_quest_visitor_reader.h"
 #include "live_host_state/day_rollover/economy/monetary.h"
 #include <iostream>
@@ -15,6 +16,7 @@ namespace live_host_state=mt2mp::game::live_host_state;
 namespace apply_timing=timing;
 namespace quest_state=mt2mp::subscriber_quest_state;
 namespace npc_quest_records=mt2mp::npc_quest_records;
+namespace npc_quest_runtime=mt2mp::npc_quest_runtime;
 namespace npc_quest_visitor_reader=mt2mp::npc_quest_visitor_reader;
 int checks=0;
 void need(bool okay,const char* message){++checks;if(!okay)throw std::runtime_error(message);}
@@ -115,15 +117,19 @@ int main(){try{
     std::memset(allocation,0,16384);put(npc,0,image+0x1742980);put(npc,0x178,region);put(region,0x834,int32_t(67));
     put(npc,0x6f8,int32_t(2));put(npc,0x80c,int32_t(0));put(data,0,int32_t(4));put(data,4,int32_t(5));
     daily(npc,0x898,image,data);daily(npc,0x908,image,data);daily(quest,0x100,image,data);daily(quest,0x170,image,data);
+    put(quest,0,image+0x174ac10);put(quest,0x1e0,image+0x1787870);
+    const npc_quest_runtime::Value runtime{{std::bit_cast<uint32_t>(0.25f),std::bit_cast<uint32_t>(0.5f),std::bit_cast<uint32_t>(0.75f)},true,12,7};
+    put(quest,0x1f8,runtime.rating_bits);put(quest,0x204,uint8_t(runtime.rating_set));put(quest,0x88,runtime.xp_reward);put(quest,0x8c,runtime.gold_reward);
     const std::vector<QuestOwner> owners={{"snapshot:fixture",npc,{{7,quest}}}};
     std::vector<quest_state::Npc> rows;auto start=queries();e.clear();
     need(quest_npcs({image},owners,rows,e),"actual complete NPC and Quest counter reader");
     need(queries()-start<10,"actual NPC counter reader caches page metadata");
     need(rows.size()==1&&rows[0].level==2&&rows[0].pose.region==67&&rows[0].accepted.history==std::vector<int32_t>({4,5})&&rows[0].quests[0].sequence_id==7,"actual complete values retained");
+    need(rows[0].quests[0].runtime==runtime,"actual Quest sampler lost complete RuntimeValue");
     put(npc,0x6f8,int32_t(3));put(data,4,int32_t(9));need(quest_npcs({image},owners,rows,e)&&rows[0].level==3&&rows[0].quests[0].completed.history[1]==9,"next NPC read sees changed data");
     const uintptr_t second_npc=npc+16384,second_quest=npc+20480;
     std::memcpy(reinterpret_cast<void*>(second_npc),reinterpret_cast<void*>(npc),0x980);
-    std::memcpy(reinterpret_cast<void*>(second_quest),reinterpret_cast<void*>(quest),0x200);
+    std::memcpy(reinterpret_cast<void*>(second_quest),reinterpret_cast<void*>(quest),0x220);
     std::vector<QuestOwner> pair=owners;pair.push_back({"snapshot:second",second_npc,{{7,second_quest}}});
     value_reads=0;need(quest_npcs({image},pair,rows,e)&&rows.size()==2,"full pair value reader");
     const auto full_reads=value_reads;const auto expected_pair=rows;
@@ -133,6 +139,9 @@ int main(){try{
     const auto selected_reads=value_reads;
     put(second_npc,0x6f8,int32_t(14));need(quest_npc({image},pair[1],selected,e)&&selected.level==14,"selected changed level remains fresh");
     put(second_quest,0x100+0x54,int32_t(19));need(quest_npc({image},pair[1],selected,e)&&selected.quests[0].accepted.total==19,"selected changed Quest counter remains fresh");
+    put(second_quest,0x88,int32_t(33));need(quest_npc({image},pair[1],selected,e)&&selected.quests[0].runtime.xp_reward==33,"selected RuntimeValue remained cached");
+    put(second_quest,0x1e0,uintptr_t(0));e.clear();need(!quest_npc({image},pair[1],selected,e)&&e=="Quest rating AP, bool or finite values differ","selected RuntimeValue rating class guard missing");
+    put(second_quest,0x1e0,image+0x1787870);
     put(second_npc,0,uintptr_t(0));e.clear();need(!quest_npc({image},pair[1],selected,e)&&e=="original NPC class differs","selected class mismatch rejected");
     put(second_npc,0,image+0x1742980);
     put(second_quest,0x100+0x38,uintptr_t(0));e.clear();

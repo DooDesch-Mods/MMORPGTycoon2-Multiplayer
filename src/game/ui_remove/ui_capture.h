@@ -8,7 +8,7 @@ namespace mt2mp::action_session::ui_capture {
 struct NativePropArray {uintptr_t addresspoint=0;uintptr_t* data=nullptr;int32_t count=0,capacity=0;};
 static_assert(sizeof(NativePropArray)==0x18&&offsetof(NativePropArray,data)==8&&offsetof(NativePropArray,count)==0x10);
 using DestroyProps=void(*)(void* manager,NativePropArray* native_array);
-enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow };
+enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow,NetworkWindow };
 enum class Policy:uint8_t { Standalone,AuthorityRequired,Unavailable };
 enum class Disposition:uint8_t { ForeignOriginal,StandaloneOriginal,EmptyOriginal,IntentCaptured,Rejected,OwnReplayOriginal };
 enum class ReplayPurpose:uint8_t { HostExecution,ConfirmedHostApplication };
@@ -16,7 +16,7 @@ struct LocalBinding {
     uintptr_t manager=0,object=0;
     uint64_t uid=0,native_epoch=0,native_generation=0;
     std::string snapshot_uuid,canonical_record_key;
-    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false,supported_monster=false;
+    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false,supported_monster=false,supported_network=false,supported_group=false;
     bool operator==(const LocalBinding&)const=default;
 };
 struct Intent {std::string action_uuid,snapshot_uuid,canonical_record_key;};
@@ -42,6 +42,8 @@ public:
     virtual bool submit(const Intent&,std::string& cause)=0;
     virtual bool submit_npc(const Intent&,std::string& cause){cause="NPC UI submit service unavailable";return false;}
     virtual bool submit_monster(const Intent&,std::string& cause){cause="Monster UI submit service unavailable";return false;}
+    virtual bool submit_network(const Intent&,std::string& cause){cause="Network UI submit service unavailable";return false;}
+    virtual bool submit_group(const Intent&,std::string& cause){cause="Group UI submit service unavailable";return false;}
     // Root admits this private scope only from its actual authoritative engine bridge.
     virtual bool authorize_replay(const Replay&,std::string& cause)=0;
     virtual void original(DestroyProps,void*,NativePropArray*)=0;

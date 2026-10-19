@@ -1,0 +1,25 @@
+bool enable(std::string& e){
+    if(installed)return true;if(install_attempted){e="Group previous hook installation failed: "+install_cause;return false;}install_attempted=true;
+    auto* r=published.load(std::memory_order_acquire);
+    if(!r||!r->image||r->thread!=GetCurrentThreadId()){e=install_cause="Group hook requires bound Mainthread";return false;}
+    struct Guard{uintptr_t rva;std::array<uint8_t,16> bytes;};
+    const Guard guards[]={{0x278bb0,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x28}},
+        {0x4cf6e0,{0x48,0x89,0x91,0x70,0x01,0x00,0x00,0xc3,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00}},
+        {0x4d0140,{0x48,0x89,0x91,0x78,0x01,0x00,0x00,0x48,0x8b,0x52,0x70,0x48,0x39,0x91,0x70,0x01}},
+        {0x2d5910,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x80,0xb9,0xd1,0x00,0x00,0x00}},
+        {0x2d58f0,{0x48,0x8b,0x02,0x48,0x89,0x81,0xc8,0x00,0x00,0x00,0x0f,0xb6,0x42,0x08,0x88,0x81}},
+        {0x4cf170,{0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0xe8,0x13,0xfd,0xff,0xff,0xba,0x40,0x02}},
+        {0x47ce20,{0x53,0x45,0x31,0xc0,0x48,0x85,0xc9,0x74,0x31,0x48,0x83,0x3d,0xa7,0x95,0x5b,0x01}}};
+    for(const auto& guard:guards){std::array<uint8_t,16> actual{};
+        if(!r->memory.read(r->image+guard.rva,actual.data(),actual.size(),e)||actual!=guard.bytes){
+            if(e.empty())e="Group original helper entry differs RVA="+std::to_string(guard.rva);install_cause=e;return false;}}
+    struct Hook{uintptr_t rva;void* entry;void** original;};
+    const Hook hooks[]{{0x2d7380,reinterpret_cast<void*>(&group_entry),reinterpret_cast<void**>(&original_group)},
+        {0x2d5d10,reinterpret_cast<void*>(&ungroup_entry),reinterpret_cast<void**>(&original_ungroup)},
+        {0x2d6650,reinterpret_cast<void*>(&single_entry),reinterpret_cast<void**>(&original_single)}};
+    for(const auto& hook:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+hook.rva),hook.entry,hook.original);
+        if(result!=MH_OK||!*hook.original){e=install_cause="Group hook create RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
+    for(const auto& hook:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+hook.rva));
+        if(result!=MH_OK){e=install_cause="Group hook enable RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
+    installed=true;return true;
+}

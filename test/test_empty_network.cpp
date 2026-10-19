@@ -3,6 +3,8 @@
 #include "mt2mp/game/normal_load_identity.h"
 #include "mt2mp/core/logger.h"
 #include "network_identity.h"
+#include "native_open_runtime.h"
+#include "typed_action_runtime.h"
 #include <windows.h>
 #include <array>
 #include <cstring>
@@ -12,8 +14,11 @@
 namespace {
 uintptr_t image=0;
 bool active=true;
+bool original_completion=false;
 int32_t map_capacity=0;
 mt2mp::game::normal_load_identity::Status loaded;
+void* current_map=nullptr;
+const std::string origin_uuid="33333333-3333-4333-8333-333333333333";
 void require(bool condition,const std::string& message) {
     if(!condition) throw std::runtime_error(message);
 }
@@ -43,7 +48,15 @@ bool read_world_status(WorldStatus& out,std::string& error) {
 }
 }
 namespace mt2mp::game::normal_load_identity {
-Status status() { return loaded; }
+Status status() { if(original_completion)throw std::runtime_error("Original load completion re-entered the locked public identity status");return loaded; }
+}
+namespace mt2mp::game::native_open_runtime {
+bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& e){
+    out={};out.map=current_map;out.uuid=origin_uuid;out.sha256=std::string(64,'a');out.world_epoch=7;out.generation=9;e.clear();return current_map!=nullptr;
+}
+}
+namespace mt2mp::game::typed_action_runtime {
+nlohmann::json controller_status(){throw std::runtime_error("Empty saved Network cannot require an action Controller");}
 }
 int main() {
     using namespace mt2mp::game;
@@ -65,6 +78,7 @@ int main() {
             {0x89e0f0,"\x53\x48\x8b\x09\x48\x83\x79\x18\x00\x41\x89\xd0\x75\x32\x48\x8b",16}};
         for(const auto& guard:guards) std::memcpy(memory+guard.rva,guard.bytes,guard.size);
         std::array<uint8_t,0x380> map{};
+        current_map=map.data();
         std::array<void*,4> regions{};
         put(memory,0x13df8c0,map.data());
         put(map.data(),0,image+0x1742860);
@@ -88,11 +102,18 @@ int main() {
             const auto host=network_identity::status_json(0);
             require(host.at("ready").get<bool>()&&host.at("staged_nodes")==0,"host receipt not ready");
             loaded.snapshot_uuid=uuid; loaded.snapshot_sha256=sha;
+            require(network_identity::prepare_aliases(uuid,sha,{},error),"explicit legacy alias decision: "+error);
             require(network_identity::begin_client_load(uuid,sha,0,error),"empty client begin: "+error);
             require(network_identity::finalize_client_load(error),"empty client finalize: "+error);
             const auto client=network_identity::status_json(0);
             require(client.at("ready").get<bool>()&&client.at("keys_sha256")==host.at("keys_sha256"),"host/client receipt differs");
         }
+        require(network_identity::prepare_aliases(origin_uuid,sha,{},error),"original legacy alias decision: "+error);
+        require(network_identity::begin_original_load(origin_uuid,sha,error),"original local NativeOpen arm: "+error);
+        original_completion=true;
+        require(network_identity::finalize_original_load(origin_uuid,sha,error),"saved callback completion: "+error);
+        original_completion=false;
+        require(network_identity::finalize_client_load(error),"exact completed mapping can be observed again: "+error);
         for(const auto bad:std::array<std::array<int32_t,2>,4>{{{{-1,4}},{{1,0}},{{16385,16385}},{{0,-1}}}}) {
             layout(bad[0],bad[1],regions.data()); native_network::State state;
             require(!native_network::read_state(state,error),"invalid bounds accepted by network");

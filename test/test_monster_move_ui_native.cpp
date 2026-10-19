@@ -1,4 +1,6 @@
 #include "typed_action/action_session.h"
+#include "monster_target_key.h"
+namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include <iostream>
 #include <map>

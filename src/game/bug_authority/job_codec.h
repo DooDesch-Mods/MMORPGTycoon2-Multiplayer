@@ -20,7 +20,7 @@ inline bool birth(const Birth& value,std::string& e){
 }
 inline float scalar(const Json& j){
     if(!j.is_number())throw std::runtime_error("Bug Work numeric scalar required");
-    const double n=j.get<double>();if(!std::isfinite(n)||std::abs(n)>std::numeric_limits<float>::max())throw std::runtime_error("Bug Work finite float required");
+    const double n=j.get<double>();if(!std::isfinite(n)||std::abs(n)>(std::numeric_limits<float>::max)())throw std::runtime_error("Bug Work finite float required");
     return static_cast<float>(n);
 }
 inline bool counter(const JobCounter& c,std::string& e){

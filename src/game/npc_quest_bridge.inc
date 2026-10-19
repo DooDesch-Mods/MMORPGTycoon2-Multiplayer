@@ -46,8 +46,13 @@ bool records(Memory& memory,uintptr_t image,int32_t saved_region,const npc_censu
     if(!targets::read_current(saved_region,current,error)||
        current.saved_region!=saved_region||current.snapshot_uuid!=net::current_snapshot_id())
         return fail(error,error.empty()?"NPC Quest destination pool snapshot differs":error);
-    const auto destination=[saved_region,&current](uintptr_t pointer,std::string& key,std::string& cause){
-        if(!targets::bind_destination(saved_region,pointer,key,cause))return false;
+    const auto destination=[&current,&memory,image](uintptr_t pointer,std::string& key,std::string& cause){
+        uintptr_t ap=0;if(!field(memory,pointer,0,ap,cause))return false;
+        if(ap==image+0x16c0770)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
+        if(ap==image+0x1742980)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
+        bool in_dungeon=false;
+        if(!targets::bind_current_destination(pointer,key,in_dungeon,cause))return false;
+        if(in_dungeon)return true;
         const auto building=std::find(current.building_keys.begin(),current.building_keys.end(),key);
         const auto zone=std::find(current.monster_zone_keys.begin(),current.monster_zone_keys.end(),key);
         return building!=current.building_keys.end()||zone!=current.monster_zone_keys.end()||

@@ -27,8 +27,9 @@ public:
     using Capture=std::function<bool(int32_t,Json&,std::string&)>;
     using Append=std::function<bool(const Json&,Json&,std::string&)>;
     using Retire=std::function<bool(int32_t,int32_t,Json&,std::string&)>;
+    using AppendBatch=std::function<bool(const std::vector<Json>&,Json&,std::string&)>;
     bool host(const std::vector<int32_t>& actual,int32_t next,uint64_t revision,Capture,State&,std::string&,const std::vector<Retirement>& receipts={});
-    bool client(const std::vector<int32_t>& actual,const std::vector<int32_t>& target,const State&,Append,Json&,std::string&,Retire={});
+    bool client(const std::vector<int32_t>& actual,const std::vector<int32_t>& target,const State&,Append,Json&,std::string&,Retire={},AppendBatch={});
     bool acknowledge(uint8_t peer,uint8_t peers,uint64_t revision,const Json& rows,std::string&);
     static Json acknowledgement(const State&);
     void clear(){*this=Cache{};}

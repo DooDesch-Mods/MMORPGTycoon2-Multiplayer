@@ -16,7 +16,7 @@ bool quest_text(const std::string& s) {
 }
 bool valid_quest(const npc_quest_records::Record& v) {
     return v.sequence_id>=0&&quest_text(v.name)&&quest_text(v.description)&&
-        (key(v.destination_key)||game::snapshot_zone_key::valid(v.destination_key))&&
+        (key(v.destination_key)||game::snapshot_zone_key::valid(v.destination_key)||game::snapshot_monster_key::valid(v.destination_key)||game::npc_target_key::valid(v.destination_key))&&
         v.accepted.history.size()<=100000&&v.completed.history.size()<=100000&&
         std::isfinite(v.rating.beauty)&&std::isfinite(v.rating.convenience)&&std::isfinite(v.rating.danger);
 }

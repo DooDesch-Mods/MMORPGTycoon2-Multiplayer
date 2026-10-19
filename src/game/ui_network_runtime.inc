@@ -1,4 +1,8 @@
 #include "ui_network_runtime.h"
+#include "network_remove_runtime.h"
+#include "ui_remove_runtime.h"
+#include "network_identity.h"
+#include "network_history_runtime.h"
 #include "network_admission.h"
 #include "connected_network_reader.h"
 #include "network_pipe_preview.h"
@@ -181,6 +185,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(view_shard!=before.world.root){e="network original Purchase requires target root to be actual view shard";return action::Outcome::RejectedNoEffect;}
     if(!native_error(preflight(r->image,tool,cursor,request.network,actual_region,height,legal),"position preflight",e)||!legal||actual_region!=before.region||!std::isfinite(height)){if(e.empty())e="network original position/region preflight rejected";return action::Outcome::RejectedNoEffect;}
     if(authority&&(money!=authority->before||network!=authority->network_before)){e="network client before differs from Host";return action::Outcome::RejectedNoEffect;}
+    network_history_runtime::Snapshot history_before;if(!network_history_runtime::capture(before_graph,{},history_before,e))return action::Outcome::RejectedNoEffect;
     auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.evidence.before=money;op.evidence.network_before=network;op.attempted=true;
     auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};auto surface=request.network.position;surface[1]=height;CommitStorage storage;
     const auto called=commit(*r,tool,manager,def,op,surface,storage);const auto cleaned=cleanup(r->image,storage);
@@ -195,6 +200,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!inverse(*r,before_undo,after_undo,op,surface,e))return unknown();op.evidence.undo_confirmed=true;
     if(!action::network_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.network_after!=authority->network_after)){e="network original commit differs from Host result";return unknown();}
+    network_history_runtime::Snapshot history_after;if(!network_history_runtime::capture(after_graph,{{op.uid,network_object_identity::birth(request.action_uuid,network_object_identity::Kind::Node)}},history_after,e)||!network_history_runtime::record(binding,request,history_before,history_after,after_undo.undo.back(),request.network.quoted_cost,e))return unknown();
     op.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
@@ -206,7 +212,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     if(network!=op.evidence.network_after||money!=op.evidence.after||std::none_of(graph_now.nodes.begin(),graph_now.nodes.end(),[&](const auto& n){return n.object==op.created&&n.uid==op.uid;}))return fail(e,"network actual state changed after original return");
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }
-bool retire(const action::Binding& binding,const action::Request& request,std::string& e){if(request.action==action::Action::PlaceNetworkPipe)return pipe::retire(binding,request,e);action::Evidence evidence;if(!observe(binding,request,evidence,e))return false;auto& op=state.operations.at(request.action_uuid);if(op.retired)return fail(e,"network operation already retired");op.retired=true;return true;}
+bool retire(const action::Binding& binding,const action::Request& request,std::string& e){if(request.action==action::Action::PlaceNetworkPipe)return pipe::retire(binding,request,e);action::Evidence evidence;if(!observe(binding,request,evidence,e))return false;auto& op=state.operations.at(request.action_uuid);if(op.retired)return fail(e,"network operation already retired");if(!network_identity::register_place(request.action_uuid,op.created,op.uid,e)||!network_history_runtime::retire_source(binding,request,e))return false;op.retired=true;return true;}
 bool admitted_node(const std::string& id,Admission& out,std::string& e){
     out={};auto* r=runtime(e);if(!r)return false;const auto it=state.operations.find(id);
     if(it==state.operations.end()||!it->second.confirmed||!it->second.retired)return fail(e,"network admission requires confirmed retired original operation");
@@ -239,7 +245,7 @@ bool refresh_snapshot_node(const Admission& pin,Admission& out,std::string& e){
     if(it==actual.nodes.end()||!network_admission::same_identity(*it,pin))return fail(e,"network snapshot admission private node identity changed");
     out=pin;return true;
 }
-bool unresolved(){if(pipe::unresolved())return true;if(state.capture_failed||state.pending||state.captured)return true;for(const auto& [id,op]:state.operations){(void)id;if(!op.retired)return true;}for(const auto& [token,job]:state.jobs){(void)token;if(!job.value("terminal",false))return true;}return false;}
+bool unresolved(){if(network_remove_runtime::unresolved())return true;if(pipe::unresolved())return true;if(state.capture_failed||state.pending||state.captured)return true;for(const auto& [id,op]:state.operations){(void)id;if(!op.retired)return true;}for(const auto& [token,job]:state.jobs){(void)token;if(!job.value("terminal",false))return true;}return false;}
 void tick(){
     if(!state.ready)return;pipe::tick();const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:state.jobs){(void)token;const auto id=job.value("action_uuid",std::string{});if(id.empty()||job.value("terminal",false))continue;
@@ -250,7 +256,7 @@ void tick(){
     ++state.submits;state.last_action=id;if(!pending.token.empty()){state.jobs[pending.token]["action_uuid"]=id;state.jobs[pending.token]["submitted"]=true;}
 }
 json status(){json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"native_calls",op.calls},{"cause",op.cause},{"before",op.evidence.network_before.graph_sha256},{"after",op.evidence.network_after.graph_sha256}};
-    return {{"pipe",pipe::status()},{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},{"rejected",state.rejections},{"pending",bool(state.pending)||bool(state.captured)},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.jobs}};}
+    return {{"remove",network_remove_runtime::status()},{"pipe",pipe::status()},{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},{"rejected",state.rejections},{"pending",bool(state.pending)||bool(state.captured)},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.jobs}};}
 bool query(const json& args,json& out,std::string& e){
     if(!args.is_object()||args.size()!=1||!args.contains("id")||!args.at("id").is_number_integer())return fail(e,"read network placement requires exact region id");
     const auto id=args.at("id").get<int64_t>();if(id<0||id>INT32_MAX)return fail(e,"network region ID outside int32");auto* r=runtime(e);if(!r)return false;
@@ -284,3 +290,6 @@ bool native_place(const json& args,json& out,std::string& e){
     job["captured"]=true;job["type"]=intent.type;job["key"]=intent.key;job["position"]=intent.position;job["cost"]=intent.quoted_cost;out=job;return true;
 }
 }
+
+#include "network_remove_runtime.inc"
+#include "network_history_runtime.inc"

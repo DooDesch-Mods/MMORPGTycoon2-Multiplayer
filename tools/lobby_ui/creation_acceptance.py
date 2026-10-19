@@ -22,6 +22,7 @@ parser.add_argument('--desktop-proof',type=Path)
 parser.add_argument('--handoff-proof',type=Path)
 parser.add_argument('--wizard-observe-only',action='store_true')
 parser.add_argument('--saved-world-setup',help='Load one exact owned saved fixture through the previously accepted shared-load route')
+parser.add_argument('--resume-world-picker',type=Path,help='Continue an exact failed setup that stopped before selecting its saved world')
 args=parser.parse_args()
 args.players,args.cleanup,args.step_timeout,args.wait_seconds=2,False,45,120
 runner=AcceptanceRunner(args)
@@ -44,6 +45,25 @@ def icon(ui,event):
         require(receipt['cursor_screen_before']==receipt['cursor_screen_after'],'Actual cursor moved')
     return receipt
 
+def load_saved_fixture(host,client):
+    hosted=host.wait(lambda v:not v['discovery_pending'],'saved-fixture-discovery-complete')
+    require(hosted['discovery_state'] in ('Saved worlds','No saved worlds yet'),
+            'Owned saved-world discovery failed: '+hosted['discovery_state'])
+    require(hosted['saved_worlds'].count(args.saved_world_setup)==1,'Exact owned saved fixture is absent or duplicated')
+    page,slot=divmod(hosted['saved_worlds'].index(args.saved_world_setup),hosted['ui_page_size'])
+    for n in range(page):host.click('list_next',lambda v,target=n+1:v['discovery_page']==target)
+    host.click('list'+str(slot),lambda v:v['selected_world']==args.saved_world_setup and
+               (v['prepare']['start_requested'] or v['prepare']['playing']))
+    states={peer:ui.wait(lambda v:v['prepare']['playing'],'saved-fixture-playing') for peer,ui in [('host',host),('client-1',client)]}
+    require(states['host']['prepare']['snapshot_id']==states['client-1']['prepare']['snapshot_id'],
+            'Owned fixture peers did not acknowledge the same snapshot')
+    runner.summary.update(passed=True,state='owned-shared-fixture-loaded',finished_utc=utc(),
+                          scope='Measurement setup through previously accepted native shared-load route; no gameplay reacceptance',
+                          dll_sha256=hashlib.sha256(args.candidate_binary.read_bytes()).hexdigest(),
+                          loaded_world=args.saved_world_setup,
+                          snapshot_id=states['host']['prepare']['snapshot_id'])
+    runner.persist();print(runner.summary_path)
+
 try:
     runner.load_manifests()
     require(runner.summary['runtime_run_id']==args.expected_run_id,'Exact owned run differs')
@@ -56,7 +76,22 @@ try:
         desktop=state['framework_app']['desktop']
         require(state['title_active'] and desktop['requested'] and desktop['visibility_known'] and desktop['visible'] is True and not desktop['error'],
                 'Actual native Desktop entry is not visible and confirmed')
-        require(not visible(state),'Registration opened the app without input')
+        if not args.resume_world_picker:require(not visible(state),'Registration opened the app without input')
+    if args.resume_world_picker:
+        previous=json.loads(args.resume_world_picker.read_text(encoding='utf-8'))
+        require(args.saved_world_setup and previous['runtime_run_id']==args.expected_run_id and
+                previous['parameters']['saved_world_setup']==args.saved_world_setup and
+                previous['state']=='failed-no-replay' and previous['error']['cause']=='Exact owned saved fixture is absent or duplicated',
+                'Resume requires the exact pre-selection discovery failure in this owned run')
+        for peer,ui in [('host',host),('client-1',client)]:
+            current=ui.read()
+            require(current['title_active'] and visible(current) and current['admitted'] and current['local_admitted'] and
+                    not current['selected_world'] and not current['prepare']['start_requested'] and not current['prepare']['playing'] and
+                    not current['snapshot']['transfer_active'],peer+' no longer has an idle admitted Title picker')
+            require(current['world_selection_open']==(peer=='host'),peer+' picker role differs')
+        runner.checked('retained-pre-selection-failure',{'path':str(args.resume_world_picker),
+            'sha256':hashlib.sha256(args.resume_world_picker.read_bytes()).hexdigest(),'previous_acceptance_id':previous['acceptance_id']})
+        load_saved_fixture(host,client);sys.exit(0)
     if args.wizard_observe_only:
         observed=host.request('desktop_activate',{'target':'wizard:doodesch.multiplayer:next','observe':True})
         require(observed.get('native_attempted') is False and isinstance(observed.get('guards'),dict),
@@ -85,20 +120,7 @@ try:
     client.click('join',lambda v:v['admitted'] and v['local_admitted'])
     hosted=host.click('host',lambda v:v['admitted'] and v['world_selection_open'])
     if args.saved_world_setup:
-        require(hosted['saved_worlds'].count(args.saved_world_setup)==1,'Exact owned saved fixture is absent or duplicated')
-        page,slot=divmod(hosted['saved_worlds'].index(args.saved_world_setup),hosted['ui_page_size'])
-        for n in range(page):host.click('list_next',lambda v,target=n+1:v['discovery_page']==target)
-        host.click('list'+str(slot),lambda v:v['selected_world']==args.saved_world_setup and
-                   (v['prepare']['start_requested'] or v['prepare']['playing']))
-        states={peer:ui.wait(lambda v:v['prepare']['playing'],'saved-fixture-playing') for peer,ui in [('host',host),('client-1',client)]}
-        require(states['host']['prepare']['snapshot_id']==states['client-1']['prepare']['snapshot_id'],
-                'Owned fixture peers did not acknowledge the same snapshot')
-        runner.summary.update(passed=True,state='owned-shared-fixture-loaded',finished_utc=utc(),
-                              scope='Measurement setup through previously accepted native shared-load route; no gameplay reacceptance',
-                              dll_sha256=hashlib.sha256(args.candidate_binary.read_bytes()).hexdigest(),
-                              loaded_world=args.saved_world_setup,
-                              snapshot_id=states['host']['prepare']['snapshot_id'])
-        runner.persist();print(runner.summary_path);sys.exit(0)
+        load_saved_fixture(host,client);sys.exit(0)
     first=host.click('new_world',lambda v:v.get('new_world',{}).get('active') is True)
     require(first['new_world']['handoff']['confirmed'] and first['new_world']['handoff']['status'] in ['opened','already_open'],
             'Original wizard handoff not confirmed')

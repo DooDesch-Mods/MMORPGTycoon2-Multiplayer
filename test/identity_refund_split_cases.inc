@@ -212,6 +212,16 @@ void checks(){
         registry.emplace(registry_id(::uuid,duplicate.key),duplicate);
         need(!target(out,e,by_key)&&e=="native UI target snapshot binding is ambiguous","ambiguous target admitted");
     }
+    reset();refund_failure=104;
+    need(identity_bindings(report,e)&&refund_calls==0&&registered_reads==0&&report.at("bindings").size()==4,"complete public identity report must not execute foreign refund getters");
+    for(uint64_t uid=101;uid<=104;++uid)need(settlement_reads[uid]==1,"public identity report retains each current building settlement");
+    for(const auto& row:report.at("bindings"))need(!row.contains("native_refund"),"identity report must not fabricate refund receipts");
+    reset();identity_failure=104;
+    need(!identity_bindings(report,e)&&e=="fixture live building identity failed"&&refund_calls==0,"public identity report preserves failed current settlement");
+    reset();unknown_locked=true;
+    need(!identity_bindings(report,e)&&e=="remove diagnostics are Unknown; no new binding admission","public identity report preserves Unknown guard");
+    reset();need(identity_bindings(report,e),"initial public identity report");live.at(104).prop.x+=1;
+    need(!identity_bindings(report,e)&&e=="shared building identity changed during native height readback","public identity report revalidates later calls");
     reset();change_world_on_lookup=true;
     need(!resolve_record_target(::uuid,key(101),out,e)&&e=="native UI admitted world changed before target observation"&&prop_reads==0,"nested world replacement reused admission");
     reset();

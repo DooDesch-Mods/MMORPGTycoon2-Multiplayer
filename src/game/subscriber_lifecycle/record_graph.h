@@ -31,4 +31,7 @@ struct Graph {
 // Caller supplies a resource budget, not a gameplay population limit. Failure
 // leaves partial diagnostics but cannot authorize a Client append.
 bool read_graph(Memory&, uintptr_t record, uintptr_t save_context, const Budget&, Graph&, std::string&);
+// Original Undo nodes retain their owned record after destroying SaveContext.
+// Read that complete tree without claiming a live pointer/link manifest.
+bool read_owned_record(Memory&, uintptr_t record, const Budget&, std::vector<Record>&, std::string&);
 }

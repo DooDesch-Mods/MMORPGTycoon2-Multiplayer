@@ -42,6 +42,6 @@ int main(){try{std::string e;
 {Harness h;++native_ledger.line_income[19];need(!h.run(e)&&remember_calls==0&&!h.operations_.at(removed).history_ready,"cash-only refund comparison admitted wrong category");}
 {Harness h;native_ledger=h.operations_.at(removed).before;need(h.run(e)&&h.operations_.at(removed).refund==0,"zero refund should have no category6 cash event");}
 {Harness h;h.operations_.at(removed).binding.native_epoch++;need(!h.run(e)&&retire_calls==0,"foreign binding retired holders");}
-{Harness h;h.operations_.at(removed).normal_scenery=true;need(h.run(e)&&remember_calls==0&&!h.operations_.at(removed).history_ready,"Scenery graph admitted as Building restore");}
+{Harness h;h.operations_.at(removed).normal_scenery=true;need(h.run(e)&&remember_calls==1&&h.operations_.at(removed).history_ready,"Scenery confirmed Remove graph did not become shared history");}
 std::cout<<"PASS "<<checks<<" actual Remove retirement tail assertions; native retirement is controlled\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

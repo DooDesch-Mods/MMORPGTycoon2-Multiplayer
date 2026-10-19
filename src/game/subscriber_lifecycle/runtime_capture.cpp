@@ -217,7 +217,7 @@ bool save_artifact(const std::filesystem::path& path, const std::string& content
     return true;
 }
 }
-bool capture_impl(const std::filesystem::path& root, int32_t id, const std::string& origin, Json& result, std::string& cause, Json* wire, const action_session::Context* expected) {
+bool capture_impl(const std::filesystem::path& root, int32_t id, const std::string& origin, Json& result, std::string& cause, Json* wire, const action_session::Context* expected, local::first_append::PartyReferences* parties=nullptr) {
     result = {{"state", "rejected"}, {"serialized_subscriber_id", id}, {"native_origin_uuid", origin}, {"native_save_context_serial_changes", true}, {"subscriber_creation_requested", false}};
     if (busy.test_and_set()) return fail(cause, "subscriber capture reentrant operation");
     struct Release { ~Release() { busy.clear(); } } release;
@@ -258,7 +258,7 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
             int32_t character_kind = -1, character_id = -1;
             if (!local::first_append::record_character_type(borrow.graph.records, character_kind, character_id, e)) return false;
             const local::first_append::ReferenceWorld reference_world{before.image,
-                reinterpret_cast<uintptr_t>(before.world.state), reinterpret_cast<uintptr_t>(before.world.map), &building_pins, &npc_pins};
+                reinterpret_cast<uintptr_t>(before.world.state), reinterpret_cast<uintptr_t>(before.world.map), &building_pins, &npc_pins, parties};
             for (const auto& link : borrow.graph.private_links) {
                 uintptr_t vptr = 0;
                 if (!at(link.object, 0, vptr, e)) return false;
@@ -285,7 +285,8 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
                         key.kind == local::first_append::ReferenceKind::SharedBuilding ? "shared_building" :
                         key.kind == local::first_append::ReferenceKind::SubscriberToon ? "subscriber_toon" :
                         key.kind == local::first_append::ReferenceKind::SharedNPC ? "shared_npc" :
-                        key.kind == local::first_append::ReferenceKind::SharedQuest ? "shared_quest" : "character_ability";
+                        key.kind == local::first_append::ReferenceKind::SharedQuest ? "shared_quest" :
+                        key.kind == local::first_append::ReferenceKind::SharedParty ? "shared_party" : "character_ability";
                     row["portable_owner"] = {{"kind", kind}, {"region_id", key.region_id}, {"character_kind", key.character_kind},
                         {"character_id", key.character_id}, {"ability_index", key.ability_index}, {"source_snapshot_sha256", before.world.sha256}};
                     if(key.kind==local::first_append::ReferenceKind::SharedBuilding)row["portable_owner"]["building_key"]=key.building_key;
@@ -294,6 +295,7 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
                         row["portable_owner"]["npc_key"]=key.npc_key;
                         row["portable_owner"]["sequence_id"]=key.sequence_id;
                     }
+                    if(key.kind==local::first_append::ReferenceKind::SharedParty)row["portable_owner"]["party_key"]=key.party_key;
                     if(key.kind==local::first_append::ReferenceKind::SubscriberToon){
                         if(key.subscriber_id==id){e="Subscriber self Toon must have an inline Record definition";return reference_failure("identify failed");}
                         row["portable_owner"]["subscriber_id"]=key.subscriber_id;
@@ -365,6 +367,10 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
 }
 bool capture(const std::filesystem::path& root,int32_t id,const std::string& origin,Json& result,std::string& cause){return capture_impl(root,id,origin,result,cause,nullptr,nullptr);}
 bool capture_frame(int32_t id,const std::string& origin,const action_session::Context& expected,Json& graph,Json& receipt,std::string& cause){graph={};return capture_impl({},id,origin,receipt,cause,&graph,&expected);}
+bool capture_frame(int32_t id,const std::string& origin,const action_session::Context& expected,
+                   local::first_append::PartyReferences& parties,Json& graph,Json& receipt,std::string& cause){
+    graph={};return capture_impl({},id,origin,receipt,cause,&graph,&expected,&parties);
+}
 #ifdef MT2MP_SUBSCRIBER_CAPTURE_TEST
 bool testing_pin(int32_t id, const std::string& origin, std::string& cause) {
     Pin value;

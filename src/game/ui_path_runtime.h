@@ -3,7 +3,12 @@
 #include <vector>
 namespace mt2mp::game::ui_path_runtime {
 bool enable(std::string&);
+action_session::Outcome perform_history(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
+bool observe_history(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
+bool retire_history(const action_session::Binding&,const action_session::Request&,std::string&);
 bool unresolved();
+bool world_path_pending();
+void retire_world();
 void tick();
 nlohmann::json status();
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);

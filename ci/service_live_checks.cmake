@@ -1,0 +1,7 @@
+add_executable(test_service_live "${MT2MP_SOURCE_ROOT}/test/test_service_live.cpp")
+target_include_directories(test_service_live PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_service_live PRIVATE cxx_std_20)
+if(MSVC)
+    target_compile_options(test_service_live PRIVATE /utf-8 /EHsc)
+endif()
+add_test(NAME service_live COMMAND test_service_live)

@@ -1,0 +1,23 @@
+[
+  {
+    "name": "mp.ability-membership-new.651990",
+    "rva": "0x651990",
+    "bytes": 1212,
+    "sha256": "e805d369f7ad7fe09720e6f1b44ae1753d6d24c9f750d38866d5f509b1a48c05",
+    "prefix32": "4157415641554154555756534881ec680200004889cf4889d14c8d6424304889"
+  },
+  {
+    "name": "mp.ability-membership-remove.565400",
+    "rva": "0x565400",
+    "bytes": 1099,
+    "sha256": "282d4bac93c3918112396663844f3a89c5c6a018517bd82a9387d58e37682725",
+    "prefix32": "555756534881ec88010000488b91280300004889cb4885d2741148833a000f84"
+  },
+  {
+    "name": "mp.ability-membership-dock.567d70",
+    "rva": "0x567d70",
+    "bytes": 3072,
+    "sha256": "031f5b54628a7e77e1c906ff0704e5656676a4daaa3ed2257152fbabaafee94e",
+    "prefix32": "4157415641554154555756534881eca80200000f11b424800200000f11bc2490"
+  }
+]

@@ -1,3 +1,5 @@
+#include "monster_saved_identity_runtime.h"
+#include "mt2mp/net/snapshot_world_path.h"
 #include "native_open_runtime.h"
 #include "native_open_witness.h"
 #ifdef MT2MP_FRAMEWORK_PLUGIN
@@ -136,6 +138,14 @@ bool prepare(const std::filesystem::path& root,const std::string& uuid,const std
     if(write.parent_path()!=parent){error="actual PhysFS write directory outside own data/SteamID";return false;}
     const auto steam_id=write.filename().string();
 #endif
+    try {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        const auto native_path=framework_open_paths::snapshot(root,actual,world_name,uuid,false);
+#else
+        const auto native_path=net::snapshot_world_path::physical(write,world_name,uuid);
+#endif
+        if(!monster_saved_identity_runtime::prepare_load(native_path,uuid,sha,bytes,error))return false;
+    }catch(const std::exception& problem){error=std::string("Monster companion preparation failed: ")+problem.what();return false;}
     if(next_generation==std::numeric_limits<uint64_t>::max()){error="native open generation exhausted";return false;}
     const auto next=++next_generation;
     if(!witness::begin(root,steam_id,uuid,sha,bytes,next,error,world_name))return false;

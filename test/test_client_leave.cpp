@@ -73,21 +73,27 @@ using Json=nlohmann::json;
 Json captures=Json::object(),snapshot_status=Json::object();
 uint32_t thread=7;
 unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0,native_retired=0;
+unsigned dungeon_invalidated=0;
 bool software_armed=true,software_ok=true,time_active=false;
 bool tutorial_fenced=true,tutorial_fenced_at_delete=true;unsigned tutorial_retired=0;std::string tutorial_cause;
 void reset_software_stream();
 bool title=false,transition=false,saving=false,in_lobby=true,time_initialized=false;
 bool fence_ok=true,wire_ok=true,time_ok=true,live_ok=true,staff_ok=true;unsigned staff_retired=0;
 bool bug_ok=true;unsigned bug_retired=0;
-unsigned vip_retired=0,chat_closes=0;bool chat_admitted=true;
+unsigned vip_retired=0,chat_closes=0,added_journals_retired=0;bool chat_admitted=true;
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
+    dungeon_invalidated=0;
     software_armed=software_ok=true;time_active=false;reset_software_stream();
     tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
     fence_ok=wire_ok=time_ok=live_ok=staff_ok=true;staff_retired=0;
-    bug_ok=true;bug_retired=0;vip_retired=0;chat_closes=0;chat_admitted=true;
+    bug_ok=true;bug_retired=0;vip_retired=0;chat_closes=0;added_journals_retired=0;chat_admitted=true;
+}
+bool retire_added_journal(std::string& error){
+    if(!title||transition||saving||bug_retired!=1){error="fixture journal cleanup requires idle Title after Bug retirement";return false;}
+    ++added_journals_retired;error.clear();return true;
 }
 }
 uint32_t GetCurrentThreadId(){return fixture::thread;}
@@ -109,6 +115,7 @@ std::chrono::steady_clock::time_point last_send{};
 namespace session_wire {
 void suspend_actions(){++fixture::suspended;}
 bool retire_lobby(std::string& e){++fixture::wire_retired;if(!fixture::wire_ok)e="wire retirement failed";return fixture::wire_ok;}
+bool retire_world(std::string& e){e="unexpected world-only retirement in Leave fixture";return false;}
 }
 void invalidate_snapshot_world(const char*){require(!fixture::chat_admitted&&fixture::chat_closes==1,"successful Leave closes pending chat before invalidating world");++fixture::invalidated;}
 struct SteamMatchmaking {
@@ -122,6 +129,13 @@ struct SteamMatchmaking {
 };
 }
 namespace game {
+namespace dungeon_scene_identity_runtime {
+void invalidate(){
+    require(fixture::title&&!fixture::transition&&!fixture::saving&&fixture::native_retired==1,
+            "Dungeon identities invalidated before settled Title and original world retirement");
+    ++fixture::dungeon_invalidated;
+}
+}
 namespace native {
 struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0;};
 bool read_world_status(WorldStatus& out,std::string&){out={fixture::title?2:3,fixture::transition,fixture::saving?1:0};return true;}
@@ -136,9 +150,66 @@ namespace ui_remove_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_move_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
+namespace management_runtime {
+bool pending_ui(){return fixture::captures.value("management_pending",false);}
+bool retire_lobby(std::string& e){e.clear();return true;}
+}
+namespace general_project_runtime {
+bool pending_ui(){return fixture::captures.value("general_project_pending",false);}
+bool retire_lobby(std::string& e){e.clear();return true;}
+}
+namespace release_runtime {
+bool pending_ui(){return fixture::captures.value("release_pending",false);}
+bool retire_lobby(std::string& e){e.clear();return true;}
+}
+namespace logo_runtime {
+bool pending_ui(){return fixture::captures.value("logo_pending",false);}
+bool retire_lobby(std::string& e){e.clear();return true;}
+}
 namespace npc_probe::action_runtime {bool pending_ui(){return fixture::captures.value("npc_pending",false);}}
 namespace npc_probe::zone_action_runtime {bool pending_ui(){return fixture::captures.value("zone_pending",false);}}
 namespace npc_probe::monster_action_runtime {bool pending_ui(){return fixture::captures.value("monster_pending",false);}}
+namespace npc_probe::monster_action_runtime::quest_authoring {bool pending_ui(){return fixture::captures.value("quest_pending",false);}}
+namespace npc_probe::monster_action_runtime::quest_list {
+bool pending_ui(){return fixture::captures.value("quest_list_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::character_rename {
+bool pending_ui(){return fixture::captures.value("character_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::ability_edit {
+bool pending_ui(){return fixture::captures.value("ability_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::building_status {
+bool pending_ui(){return fixture::captures.value("building_status_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::costume_edit {
+bool pending_ui(){return fixture::captures.value("costume_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_sound {
+bool pending_ui(){return fixture::captures.value("sound_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_light {
+bool pending_ui(){return fixture::captures.value("light_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_palette {
+bool pending_ui(){return fixture::captures.value("palette_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_gizmo {
+bool pending_ui(){return fixture::captures.value("gizmo_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_config {
+bool pending_ui(){return fixture::captures.value("dungeon_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
 namespace bug_authority::manual_action {
 bool pending_ui(){return fixture::captures.value("bug_pending",false);}
 bool retire_lobby(std::string& e){
@@ -228,7 +299,7 @@ void software_retirement_delta(){
     require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"active Time owner cleared replica");
     fixture::time_active=false;
     require(runtime::finish_lobby_leave(ready,error)&&ready,error);
-    require(!fixture::software_armed&&fixture::native_retired==1&&fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1,"settled Leave did not retire exactly once");
+    require(!fixture::software_armed&&fixture::native_retired==1&&fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&fixture::dungeon_invalidated==1,"settled Leave did not retire exactly once");
 
     fixture::reset();fixture::title=true;fixture::software_ok=false;
     require(!runtime::finish_lobby_leave(ready,error)&&!ready&&error=="original software retirement failure"&&fixture::software_armed&&mt2mp::net::epoch==42&&fixture::membership_left==0&&fixture::wire_retired==0,"native failure was hidden or old stream/membership released");
@@ -296,18 +367,19 @@ void idle_departure(){
     require(runtime::finish_lobby_leave(ready,p.error)&&ready,p.error);
     require(fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&!runtime::published_runtime.load(),"Leave did not finish membership/handler/storage retirement");
     require(fixture::vip_retired==1,"settled Leave did not retire VIP owner exactly once");
+    require(fixture::added_journals_retired==10,"settled Leave did not retire all ten added journals exactly once");
     require(p.client.status().locked&&p.client.status().cause==cause,"retirement cleared original Controller lock");
 }
 void completed_actions_and_reentry(){
-    Pair completed;completed.submit();
-    for(unsigned i=0;i<4;++i)require(completed.deliver(completed.pop()),completed.error);
+    Pair completed;std::cerr<<"info: completed-action fixture submit\n";completed.submit();
+    for(unsigned i=0;i<4;++i){std::cerr<<"info: completed-action fixture packet="<<i<<'\n';require(completed.deliver(completed.pop()),completed.error);}
     require(completed.client.status().confirmed==1,"completed action fixture failed");
     completed.cs.available=false;
     require(!completed.client.tick(3,completed.error)&&completed.client.can_retire_lobby(),
         "confirmed historical action prevented idle retirement");
-    Pair changed;changed.cs.value.peer_mask=7;
+    std::cerr<<"info: completed-action fixture changed membership\n";Pair changed;changed.cs.value.peer_mask=7;
     require(!changed.client.tick(3,changed.error)&&changed.client.can_retire_lobby(),"idle membership change prevented retirement");
-    Pair reentrant;bool entered=false;
+    std::cerr<<"info: completed-action fixture reentrant observation\n";Pair reentrant;bool entered=false;
     reentrant.cs.on_current=[&]{entered=true;std::string cause;require(!reentrant.client.tick(3,cause),"reentrant guard admitted");};
     require(!reentrant.client.tick(3,reentrant.error)&&entered&&!reentrant.client.can_retire_lobby(),
         "nested Unknown was relabeled as harmless session observation loss");
@@ -335,7 +407,8 @@ void pending_and_unknown(){
 }
 void other_guards(){
     Pair p;p.cs.available=false;require(!p.client.tick(2,p.error),"setup failed");
-    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending","monster_pending"}){
+    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending","monster_pending","quest_pending",
+                        "management_pending","general_project_pending","release_pending","logo_pending","quest_list_pending","character_pending","ability_pending","building_status_pending","costume_pending","dungeon_pending","light_pending","sound_pending","palette_pending","gizmo_pending"}){
         fixture::reset();fixture::captures[key]=true;
         auto* owner=new runtime::Runtime(p.client);runtime::published_runtime.store(owner);
         require(!runtime::begin_lobby_leave(p.error)&&fixture::suspended==0,"pending UI capture admitted retirement");
@@ -419,17 +492,26 @@ void chat_retirement_delta(){
 }
 int main(){
     try{
+        std::cerr<<"info: client Leave fixture Pair bytes="<<sizeof(Pair)<<'\n';
+        std::cerr<<"info: running chat retirement\n";
         chat_retirement_delta();
+        std::cerr<<"info: running Bug lifetime\n";
         bug_lifetime_delta();
+        std::cerr<<"info: running Developer lifetime\n";
         developer_lifetime_delta();
+        std::cerr<<"info: running locked departure\n";
         locked_live_departure();
 #ifndef TUTORIAL_LEAVE_DELTA_ONLY
 #ifndef NAMED_WORLD_LEAVE_DELTA_ONLY
-        idle_departure();completed_actions_and_reentry();incomplete_preparation();pending_and_unknown();other_guards();
+        std::cerr<<"info: running idle departure\n";idle_departure();
+        std::cerr<<"info: running completed actions and reentry\n";completed_actions_and_reentry();
+        std::cerr<<"info: running incomplete preparation\n";incomplete_preparation();
+        std::cerr<<"info: running pending and Unknown\n";pending_and_unknown();
+        std::cerr<<"info: running other guards\n";other_guards();
 #endif
-        software_retirement_delta();
+        std::cerr<<"info: running software retirement\n";software_retirement_delta();
 #endif
-        tutorial_lifetime_delta();
+        std::cerr<<"info: running tutorial lifetime\n";tutorial_lifetime_delta();
         std::cout<<"client Leave regressions passed: actual Controller and actual begin/finish bodies\n";return 0;
     }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
 }

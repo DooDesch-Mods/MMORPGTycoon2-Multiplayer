@@ -1,0 +1,1 @@
+{"timeout_seconds":45,"calls":[{"tool":"game_start_typed_actions","arguments":{}},{"tool":"game_enable_ui_build","arguments":{}},{"tool":"game_enable_ui_remove","arguments":{}},{"tool":"game_enable_live_host_state","arguments":{}},{"tool":"game_inspect_engine","arguments":{}}]}

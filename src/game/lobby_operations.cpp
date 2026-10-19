@@ -12,7 +12,7 @@ bool submit(const std::string& op,const nlohmann::json& args,std::string& id,std
     if(run_id.empty()){error="owned native executor run is unavailable";return false;}
     if(pending()){error="native lobby operation already pending id="+active;return false;}
     if(op!="capture_local_snapshot"&&op!="capture_snapshot"&&op!="load_snapshot"){error="native lobby operation is not admitted: "+op;return false;}
-    if((op=="load_snapshot"&&(!args.is_object()||args.size()!=1||!args.contains("snapshot_id")))||
+    if((op=="load_snapshot"&&(!args.is_object()||args.size()!=1||(!args.contains("snapshot_id")&&!args.contains("selected_file"))))||
        (op!="load_snapshot"&&(!args.is_object()||!args.empty()))){error="native lobby operation arguments invalid";return false;}
     std::random_device random;std::array<unsigned char,16> bytes{};for(auto& byte:bytes)byte=static_cast<unsigned char>(random());
     bytes[6]=(bytes[6]&15)|64;bytes[8]=(bytes[8]&63)|128;

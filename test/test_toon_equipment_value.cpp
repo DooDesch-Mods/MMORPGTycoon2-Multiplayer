@@ -39,7 +39,7 @@ Json encode(const economy::State& s){std::vector<uint8_t> bytes;std::string e;ne
 }
 int main(){try{
     const auto base=fixture();auto raw=encode(base);economy::State actual;std::string e;
-    need(raw["schema"]==12&&raw["day"]["frame"]["schema"]==12,"Economy/HostFrame schemas changed incorrectly");
+    need(raw["schema"]==13&&raw["day"]["frame"]["schema"]==12,"Economy/HostFrame schemas changed incorrectly");
     need(decode(raw,actual,e)&&actual==base,"complete Economy-Day-HostFrame equality: "+e);
     need(!actual.subscribers[1].quest_state,"absent Toon acquired fabricated equipment");
     const auto& row=raw["subscribers"][0]["quest_state"];
@@ -58,9 +58,9 @@ int main(){try{
         for(unsigned i=0;i<3;++i)if(!(mask&(1U<<i)))bad["subscribers"][0]["quest_state"].erase(names[i]);
         actual=base;need(!decode(bad,actual,e)&&!e.empty()&&actual==economy::State{},"partial equipment admitted or stale output retained");
     }
-    auto old=raw;old["schema"]=11;need(!decode(old,actual,e)&&e.find("schema12")!=std::string::npos,"schema11 accepted new equipment");
+    auto old=raw;old["schema"]=11;need(!decode(old,actual,e)&&e.find("schema13")!=std::string::npos,"schema11 accepted new equipment");
     for(const char* field:{"weapon_ilvl","weapon_category","weapon_variant_id"})old["subscribers"][0]["quest_state"].erase(field);
-    need(!decode(old,actual,e)&&e.find("schema12")!=std::string::npos,"legacy schema11 fabricated equipment defaults");
+    need(!decode(old,actual,e)&&e.find("schema13")!=std::string::npos,"legacy schema11 fabricated equipment defaults");
     for(const char* field:{"weapon_ilvl","weapon_variant_id"}){
         for(const Json& value:std::vector<Json>{nullptr,true,1.5,"12",Json::array(),Json::object(),int64_t(INT32_MIN)-1,uint64_t(INT32_MAX)+1,uint64_t(UINT32_MAX)}){
             auto bad=raw;bad["subscribers"][0]["quest_state"][field]=value;

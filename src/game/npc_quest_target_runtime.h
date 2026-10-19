@@ -1,7 +1,9 @@
 #pragma once
 #include "npc_quest_targets.h"
+#include "dungeon_scene_identity_runtime.h"
 #include <cstdint>
 #include <string>
+#include <set>
 #include <vector>
 
 namespace mt2mp::game::npc_quest_target_runtime {
@@ -25,6 +27,19 @@ bool finish_zone_append(int32_t saved_region, const std::string& action_uuid, ui
 using PropertyCall = bool(*)(const void*, void*, void*, void*);
 using Ticket = uint64_t;
 bool initialize(std::string& error);
+bool stage_scenes(const dungeon_scene_identity_runtime::Census&,std::string& error);
+bool bind_scene_destination(uintptr_t destination,std::string& key,std::string& error);
+// Resolve an existing Quest reference by its actual current scene, independent of the camera.
+bool bind_current_destination(uintptr_t destination,std::string& key,bool& in_dungeon,std::string& error);
+struct DungeonCellCascade {
+    std::string snapshot,request;uint64_t epoch=0,generation=0;
+    std::map<uintptr_t,npc_quest_targets::SavedPool> before;
+    bool confirmed=false;
+};
+bool prepare_dungeon_cells(const action_session::Binding&,const action_session::Request&,DungeonCellCascade&,std::string&);
+bool confirm_dungeon_cells(const action_session::Binding&,const action_session::Request&,DungeonCellCascade&,std::string&);
+bool confirm_dungeon_cell_history(const action_session::Binding&,const action_session::Request&,DungeonCellCascade& current,
+    const DungeonCellCascade& original,const std::set<uint64_t>& restored_zones,std::string&);
 void* entrypoint(bool save);
 bool confirm_hooks(std::string& error);
 // BuildingCapture supplies its freshly checked world before any NativeOpen load.

@@ -45,7 +45,25 @@ static clock::time_point snapshot_now() {
     return clock::now();
 #endif
 }
-static SnapshotBuffer buffer;
+static SnapshotBuffer buffer,monster_buffer;
+static SnapshotFileSender monster_outbound;
+static json incoming_monsters=nullptr,outbound_monsters=nullptr;
+static uint32_t monster_chunks(const json& metadata){return metadata.is_null()?0:metadata.at("chunks").get<uint32_t>();}
+static json parse_monsters(const json& begin){
+    if(!begin.contains("monster_identity"))return nullptr;
+    const auto& m=begin.at("monster_identity");
+    if(!m.is_object()||m.size()!=4||!m.at("revision").is_number_integer()||m.at("revision")!=1||!m.at("bytes").is_number_unsigned()||
+       !m.at("chunks").is_number_unsigned()||!m.at("sha256").is_string())throw std::runtime_error("Monster companion manifest exact schema differs");
+    const auto bytes=m.at("bytes").get<uint64_t>(),chunks=m.at("chunks").get<uint64_t>();
+    if(!bytes||bytes>32*1024*1024||chunks!=(bytes+snapshot_chunk_bytes-1)/snapshot_chunk_bytes||
+       !valid_snapshot_digest(m.at("sha256").get<std::string>()))throw std::runtime_error("Monster companion manifest bounds/SHA invalid");
+    return m;
+}
+static void monster_ack(const json& metadata,const json& ack){
+    if(metadata.is_null()){if(ack.contains("monster_identity_sha256"))throw std::runtime_error("Unpromised Monster companion ACK");return;}
+    if(!ack.contains("monster_identity_sha256")||ack.at("monster_identity_sha256")!=metadata.at("sha256"))
+        throw std::runtime_error("Monster companion ACK missing or SHA differs");
+}
 static std::string incoming_world_name="MPTestSession";
 static std::string incoming_id,incoming_hash,status="Kein Snapshot empfangen";
 static bool receiving=false,load_pending=false;
@@ -56,6 +74,9 @@ static bool load_observation_sent=false;
 static uint64_t incoming_origin_generation=0;
 static std::string outbound_id;
 static SnapshotFileSender outbound;
+static uint32_t outbound_chunks(){return outbound.chunks()+monster_chunks(outbound_monsters);}
+static uint32_t outbound_next(){return outbound.next_index()+monster_outbound.next_index();}
+
 struct SnapshotPeer { uint32_t next=0; bool verified=false,loaded=false,network_verified=false; std::string network_error; json loaded_ack; SnapshotLoadWatch load; };
 static std::map<uint64_t,SnapshotPeer> outbound_peers;
 static size_t outbound_expected_peers=0;
@@ -120,7 +141,7 @@ static void fail(const std::string& error) {
     snapshot_failed=true; discarded_after_failure=0; snapshot_failure=error;
     snapshot_world_valid=false;
     game::network_identity::invalidate_world("snapshot transfer failed: "+error);
-    receiving=false; load_pending=false; outbound_active=false; outbound.stop(); buffer.stop(); status="Snapshot fehlgeschlagen: "+error;
+    receiving=false; load_pending=false; outbound_active=false; outbound.stop(); monster_outbound.stop(); buffer.stop(); monster_buffer.stop(); status="Snapshot fehlgeschlagen: "+error;
     LOG_NET_ERROR("[SNAPSHOT] {}",error);
     if(!Config::instance().is_host) {
         try { message({{"type","snapshot_error"},{"id",incoming_id},{"cause",error}},1); }
@@ -170,6 +191,7 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
                     const auto completed=outbound_peers.find(sender);
                     if(completed!=outbound_peers.end()&&completed->second.loaded) {
                         if(type=="snapshot_loaded"&&value!=completed->second.loaded_ack) throw std::runtime_error("completed native load acknowledgement differs from original");
+                        if(type=="snapshot_verified")monster_ack(outbound_monsters,value);
                         if(type=="snapshot_verified"&&value.at("sha256").get<std::string>()!=incoming_hash) throw std::runtime_error("completed file verification SHA differs");
                         LOG_NET_INFO("[SNAPSHOT] Completed snapshot acknowledgement skipped peer={} type={} id={}",sender,type,id); return;
                     }
@@ -190,14 +212,14 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
                 }
                 if(type=="snapshot_chunk_ack") {
                     const auto next=value.at("next").get<uint32_t>();
-                    if(next<=peer.next||next>outbound.next_index()) throw std::runtime_error("snapshot acknowledgement offset actual="+std::to_string(next)+" required>"+std::to_string(peer.next)+" and<="+std::to_string(outbound.next_index()));
-                    uint32_t before=outbound.next_index(); for(const auto& [id,state]:outbound_peers) before=std::min(before,state.next);
+                    if(next<=peer.next||next>outbound_next()) throw std::runtime_error("snapshot acknowledgement offset actual="+std::to_string(next)+" required>"+std::to_string(peer.next)+" and<="+std::to_string(outbound_next()));
+                    uint32_t before=outbound_next(); for(const auto& peer_state:outbound_peers) before=std::min(before,peer_state.second.next);
                     peer.next=next;
-                    uint32_t after=outbound.next_index(); for(const auto& [id,state]:outbound_peers) after=std::min(after,state.next);
+                    uint32_t after=outbound_next(); for(const auto& peer_state:outbound_peers) after=std::min(after,peer_state.second.next);
                     if(after>before) outbound_progress=snapshot_now();
                     return;
                 }
-                if(peer.next!=outbound.chunks()) throw std::runtime_error("snapshot completion acknowledgement before all chunks");
+                if(peer.next!=outbound_chunks()) throw std::runtime_error("snapshot completion acknowledgement before all chunks");
                 if(type=="snapshot_load_progress") {
                     if(!peer.verified||peer.loaded) throw std::runtime_error("snapshot native load progress outside verified pending load");
                     if(!value.at("active_mode").is_number_integer()||!value.at("requested_mode").is_number_integer()||value.at("active_mode")<0||value.at("active_mode")>=30||value.at("requested_mode")<0||value.at("requested_mode")>=30||!value.at("registrations").is_number_unsigned()) throw std::runtime_error("snapshot native load progress fields invalid");
@@ -206,6 +228,7 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
                     LOG_NET_INFO("[SNAPSHOT] Native load progress peer={} id={} mode={}/{} registrations={} elapsed_ms={} deadline_s={}",sender,id,mode,requested,peer.load.registrations,peer.load.elapsed_ms(snapshot_now()),snapshot_native_load_timeout_seconds);
                     return;
                 }
+                if(type=="snapshot_verified"||type=="snapshot_loaded")monster_ack(outbound_monsters,value);
                 if(type=="snapshot_verified") {
                     if(peer.verified||value.at("sha256").get<std::string>()!=incoming_hash) throw std::runtime_error("duplicate verification or acknowledged SHA256 differs");
                     peer.verified=true; peer.load.begin(snapshot_now());
@@ -239,13 +262,17 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         std::optional<network_meta::Metadata> metadata; std::string metadata_error;
         if(!network_meta::parse_begin(value,sender,metadata,metadata_error)) throw std::runtime_error(metadata_error);
         const auto world_name=snapshot_world_path::from_manifest(value);
+        const auto monsters=parse_monsters(value);
         if(id==last_loaded) {
             if(!snapshot_world_valid||snapshot_failed) throw std::runtime_error("completed snapshot belongs to retired world; require new snapshot UUID");
-            if(world_name!=incoming_world_name||hash!=incoming_hash||metadata.has_value()!=incoming_network.has_value()||(metadata&&(metadata->expected_nodes!=incoming_network->expected_nodes||metadata->keys_sha256!=incoming_network->keys_sha256))||last_loaded_ack.is_null()) throw std::runtime_error("completed snapshot manifest differs from original");
+            if(monsters!=incoming_monsters||world_name!=incoming_world_name||hash!=incoming_hash||metadata.has_value()!=incoming_network.has_value()||(metadata&&(metadata->expected_nodes!=incoming_network->expected_nodes||metadata->keys_sha256!=incoming_network->keys_sha256))||last_loaded_ack.is_null()) throw std::runtime_error("completed snapshot manifest differs from original");
             if(last_loaded_ack.contains("network_identity")) {
                 json current_ack; network_meta::Disposition disposition;
-                if(!network_meta::make_loaded_ack(id,hash,incoming_network,network_receipt(),true,current_ack,disposition,metadata_error)||current_ack!=last_loaded_ack) throw std::runtime_error("completed native network map no longer current: "+metadata_error);
+                if(!network_meta::make_loaded_ack(id,hash,incoming_network,network_receipt(),true,current_ack,disposition,metadata_error))throw std::runtime_error(metadata_error);
+                if(!incoming_monsters.is_null())current_ack["monster_identity_sha256"]=incoming_monsters.at("sha256");
+                if(current_ack!=last_loaded_ack) throw std::runtime_error("completed native network map no longer current: "+metadata_error);
             }
+            if(!incoming_monsters.is_null())last_loaded_ack["monster_identity_sha256"]=incoming_monsters.at("sha256");
             message(last_loaded_ack,1); return;
         }
         if(receiving||load_pending) throw std::runtime_error("snapshot transfer already active");
@@ -263,6 +290,11 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
 #endif
         auto staging=path; staging+=".incoming";
         if(!buffer.begin(value.at("bytes").get<uint64_t>(),uint32_t(chunks),staging,path,hash,error)) throw std::runtime_error(error);
+        if(!monsters.is_null()){
+            auto target=path;target+=".monsters.json";auto partial=target;partial+=".incoming";
+            if(!monster_buffer.begin(monsters.at("bytes").get<uint64_t>(),monster_chunks(monsters),partial,target,monsters.at("sha256").get<std::string>(),error))throw std::runtime_error(error);
+        }
+        incoming_monsters=monsters;
         if(snapshot_failed) LOG_NET_INFO("[SNAPSHOT] New transfer accepted after failure id={} discarded_events={}",id,discarded_after_failure);
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
         host_failure_notice=nullptr;
@@ -280,11 +312,17 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         std::string id(reinterpret_cast<const char*>(data),36); uint32_t index; memcpy(&index,data+36,4);
         if(id!=incoming_id) throw std::runtime_error("snapshot chunk identity differs");
         std::string error;
-        if(!buffer.add(index,data+40,length-40,error)) throw std::runtime_error(error);
+        if(index<uint32_t((buffer.size()+snapshot_chunk_bytes-1)/snapshot_chunk_bytes)){
+            if(!buffer.add(index,data+40,length-40,error))throw std::runtime_error(error);
+            if(buffer.complete()&&!buffer.commit(error))throw std::runtime_error(error);
+        }else{
+            if(incoming_monsters.is_null()||!buffer.committed()||!monster_buffer.add(index-uint32_t((buffer.size()+snapshot_chunk_bytes-1)/snapshot_chunk_bytes),data+40,length-40,error))
+                throw std::runtime_error(error.empty()?"Monster companion arrived before native file commit":error);
+            if(monster_buffer.complete()&&!monster_buffer.commit(error))throw std::runtime_error(error);
+        }
         incoming_started=snapshot_now();
-        message({{"type","snapshot_chunk_ack"},{"id",id},{"next",buffer.received_count()}},1);
-        if(!buffer.complete()) return;
-        if(!buffer.commit(error)) throw std::runtime_error(error);
+        message({{"type","snapshot_chunk_ack"},{"id",id},{"next",buffer.received_count()+(incoming_monsters.is_null()?0:monster_buffer.received_count())}},1);
+        if(!buffer.committed()||(!incoming_monsters.is_null()&&!monster_buffer.committed()))return;
         auto path=buffer.target();
 #ifdef MT2MP_FRAMEWORK_PLUGIN
         auto runtime=framework_open_paths::absolute(Config::instance().runtime_root);
@@ -294,7 +332,9 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         { std::ofstream stream(runtime_paths::diagnostics(runtime)/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",snapshot_world_path::utf8(path)},{"world_name",incoming_world_name}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
         receiving=false; status="Snapshot vollständig geprüft";
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);
-        message({{"type","snapshot_verified"},{"id",id},{"sha256",incoming_hash}},1);
+        json verified={{"type","snapshot_verified"},{"id",id},{"sha256",incoming_hash}};
+        if(!incoming_monsters.is_null())verified["monster_identity_sha256"]=incoming_monsters.at("sha256");
+        message(verified,1);
         incoming_load.begin(snapshot_now()); load_observation_sent=false;
 #ifndef MT2MP_SNAPSHOT_TEST
         incoming_origin_generation=0;
@@ -351,8 +391,13 @@ bool distribute_snapshot(const std::string& id,const std::string& digest,const s
         outbound_id=id; incoming_hash=digest; outbound_peers.clear(); outbound_expected_peers=0; outbound_queued_chunks=0;
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
         const auto peers=session_wire::peers();
-        if(!peers||peers>3) throw std::runtime_error("snapshot distribution requires 1..3 connected peers");
+        if(peers>3||!session_wire::connected()||session_wire::local_peer()!=1||
+           (!peers&&session_wire::peer_mask()!=1)) throw std::runtime_error("snapshot distribution requires confirmed Host and0..3 physical peers");
         if(!outbound.begin(path,digest,error)) throw std::runtime_error(error);
+        auto companion=path;companion+=".monsters.json";std::string companion_sha;uint64_t companion_bytes=0;
+        if(!hash_snapshot_file(companion,companion_sha,companion_bytes,error)||!companion_bytes||companion_bytes>32*1024*1024||
+           !monster_outbound.begin(companion,companion_sha,error))throw std::runtime_error("Monster companion distribution rejected: "+error);
+        outbound_monsters={{"revision",1},{"bytes",companion_bytes},{"chunks",monster_outbound.chunks()},{"sha256",companion_sha}};
         game::native::SoftwareState software;
         if(!game::native::read_software_state(software,error)) throw std::runtime_error("host software state unavailable: "+error);
         begin_software_sync(software_epoch(id),{software.rating,software.fun});
@@ -360,12 +405,17 @@ bool distribute_snapshot(const std::string& id,const std::string& digest,const s
         outbound_id=id; incoming_hash=digest; outbound_expected_peers=peers; outbound_peers.clear(); outbound_active=true; outbound_progress=snapshot_now();
         json begin={{"type","snapshot_begin"},{"transport_revision",2},{"world_name",world_name},{"id",id},{"sha256",digest},{"bytes",outbound.size()},{"chunks",outbound.chunks()},
             {"software",{{"revision",1},{"rating",software.rating},{"fun",software.fun}}}};
+        begin["monster_identity"]=outbound_monsters;
         outbound_network_receipt=network_receipt(); network_meta::Disposition disposition;
         if(!network_meta::attach_begin(begin,outbound_network_receipt,disposition,error)||!network_meta::parse_begin(begin,1,outbound_network,error)) throw std::runtime_error(error);
         if(disposition==network_meta::Disposition::LegacyFileOnly) LOG_NET_WARN("[SNAPSHOT] Native network writes disabled: host map unavailable id={}",id);
-        message(begin);
+        if(peers)message(begin);
+        else{
+            if(!outbound.release_unsent(error)||!monster_outbound.release_unsent(error))throw std::runtime_error("Host-only validated snapshot source release failed: "+error);
+            outbound_active=false;
+        }
         snapshot_world_valid=true;
-        status="Host-Snapshot wird übertragen"; return true;
+        status=peers?"Host-Snapshot wird übertragen":"Host world ready"; return true;
     } catch(const std::exception& failure) { error=failure.what(); fail(error); LOG_NET_ERROR("[SNAPSHOT] Distribution rejected: {}",error); return false; }
 }
 static void observe_native_load(clock::time_point now) {
@@ -384,18 +434,19 @@ static void observe_native_load(clock::time_point now) {
 void tick_snapshot_sync() {
     try {
         if((receiving||load_pending||outbound_active)&&!session_wire::connected()) throw std::runtime_error("snapshot transport ended: "+session_wire::failure_reason());
-        uint32_t acknowledged=outbound.next_index();
+        uint32_t acknowledged=outbound_next();
         for(const auto& [peer,state]:outbound_peers) acknowledged=std::min(acknowledged,state.next);
-        for(int sent=0;sent<4&&outbound_active&&outbound.active()&&outbound_peers.size()==outbound_expected_peers&&outbound.next_index()<outbound.chunks()&&outbound.next_index()-acknowledged<snapshot_window_chunks;++sent) {
-            const auto index=outbound.next_index(); std::vector<uint8_t> chunk; std::string error;
-            if(!outbound.next(chunk,error)) throw std::runtime_error(error);
+        for(int sent=0;sent<4&&outbound_active&&(outbound.active()||monster_outbound.active())&&outbound_peers.size()==outbound_expected_peers&&outbound_next()<outbound_chunks()&&outbound_next()-acknowledged<snapshot_window_chunks;++sent) {
+            const auto index=outbound_next(); std::vector<uint8_t> chunk; std::string error;
+            auto& source=index<outbound.chunks()?outbound:monster_outbound;
+            if(!source.next(chunk,error))throw std::runtime_error(error);
             std::vector<uint8_t> packet(40+chunk.size()); memcpy(packet.data(),outbound_id.data(),36); memcpy(packet.data()+36,&index,4); memcpy(packet.data()+40,chunk.data(),chunk.size());
             if(!session_wire::send(5,packet.data(),uint32_t(packet.size()))) throw std::runtime_error("snapshot chunk queue rejected");
             ++outbound_queued_chunks;
         }
-        if(outbound_active&&outbound.active()&&acknowledged==outbound.chunks()) {
-            std::string error; if(!outbound.finish(error)) throw std::runtime_error(error);
-            LOG_NET_INFO("[SNAPSHOT] Transfer byte-acknowledged id={} bytes={} chunks={}",outbound_id,outbound.size(),outbound.chunks());
+        if(outbound_active&&(outbound.active()||monster_outbound.active())&&acknowledged==outbound_chunks()) {
+            std::string error; if(!outbound.finish(error)||!monster_outbound.finish(error)) throw std::runtime_error(error);
+            LOG_NET_INFO("[SNAPSHOT] Transfer byte-acknowledged id={} bytes={} chunks={}",outbound_id,outbound.size(),outbound_chunks());
         }
         if(outbound_active&&outbound_peers.size()==outbound_expected_peers) {
             bool loaded=true; for(const auto& [peer,state]:outbound_peers) loaded=loaded&&state.loaded;
@@ -407,7 +458,7 @@ void tick_snapshot_sync() {
             awaiting_data=awaiting_data||!state.verified;
             if(outbound_active&&state.verified&&!state.loaded&&state.load.expired(now)) throw std::runtime_error("peer="+std::to_string(peer)+" "+state.load.timeout_cause(now));
         }
-        if(outbound_active&&awaiting_data&&now-outbound_progress>std::chrono::seconds(snapshot_data_idle_timeout_seconds)) throw std::runtime_error("snapshot acknowledgement progress timeout acknowledged="+std::to_string(acknowledged)+" sent="+std::to_string(outbound.next_index())+" required idle<="+std::to_string(snapshot_data_idle_timeout_seconds)+"s");
+        if(outbound_active&&awaiting_data&&now-outbound_progress>std::chrono::seconds(snapshot_data_idle_timeout_seconds)) throw std::runtime_error("snapshot acknowledgement progress timeout acknowledged="+std::to_string(acknowledged)+" sent="+std::to_string(outbound_next())+" required idle<="+std::to_string(snapshot_data_idle_timeout_seconds)+"s");
         if(receiving&&now-incoming_started>std::chrono::seconds(snapshot_data_idle_timeout_seconds)) throw std::runtime_error("snapshot receive progress timeout bytes="+std::to_string(buffer.written_bytes())+" required idle<="+std::to_string(snapshot_data_idle_timeout_seconds)+"s");
         if(load_pending&&incoming_load.expired(now)) throw std::runtime_error(incoming_load.timeout_cause(now));
         if(load_pending&&(!load_observation_sent||now-load_observed_at>=std::chrono::seconds(1))) observe_native_load(now);
@@ -424,7 +475,8 @@ void tick_snapshot_sync() {
             if(tutorial_pending)return;
 #endif
             game::normal_load_identity::Status identity; std::string identity_error;
-            if(!game::normal_load_identity::finalize(identity,identity_error)) LOG_NET_WARN("[SNAPSHOT] Loaded world identity observation incomplete id={}: {}",incoming_id,identity_error);
+            if(!game::normal_load_identity::finalize(identity,identity_error)&&!incoming_monsters.is_null())throw std::runtime_error("Promised Monster normal load identity incomplete: "+identity_error);
+            if(!identity_error.empty()) LOG_NET_WARN("[SNAPSHOT] Loaded world identity observation incomplete id={}: {}",incoming_id,identity_error);
             if(incoming_network&&incoming_network_error.empty()&&!game::network_identity::finalize_client_load(error)) incoming_network_error="native network map finalization failed: "+error;
             if(!game::native::set_clock(true,0,error)) throw std::runtime_error("client calendar pause after load failed: "+error);
             game::native::ClockState actual;
@@ -443,6 +495,7 @@ void tick_snapshot_sync() {
                 LOG_NET_ERROR("[SNAPSHOT] File world active but native network identity failed id={} cause={}",incoming_id,incoming_network_error);
                 last_loaded_ack={{"type","snapshot_loaded"},{"id",incoming_id},{"sha256",incoming_hash},{"network_identity_error",incoming_network_error.substr(0,1024)}};
             }
+            if(!incoming_monsters.is_null())last_loaded_ack["monster_identity_sha256"]=incoming_monsters.at("sha256");
             message(last_loaded_ack,1);
             snapshot_world_valid=true;
             incoming_load.finish(snapshot_now());
@@ -478,8 +531,14 @@ static json load_watch_json(const SnapshotLoadWatch& watch,clock::time_point now
 }
 nlohmann::json snapshot_progress() {
     const bool host=Config::instance().is_host;
-    const auto total=host?outbound.size():buffer.size();
-    const auto chunks=uint32_t((total+snapshot_chunk_bytes-1)/snapshot_chunk_bytes);
+    const auto native_total=host?outbound.size():buffer.size();
+    const auto& companion=host?outbound_monsters:incoming_monsters;
+    const auto companion_total=companion.is_null()?0:companion.at("bytes").get<uint64_t>();
+    const auto total=native_total+companion_total;
+    const auto native_chunks=uint32_t((native_total+snapshot_chunk_bytes-1)/snapshot_chunk_bytes);
+    const auto chunks=native_chunks+monster_chunks(companion);
+    const auto byte_offset=[&](uint32_t count){return std::min<uint64_t>(native_total,uint64_t(std::min(count,native_chunks))*snapshot_chunk_bytes)+
+        std::min<uint64_t>(companion_total,uint64_t(count>native_chunks?count-native_chunks:0)*snapshot_chunk_bytes);};
     uint32_t acknowledged=outbound_queued_chunks;
     size_t verified=0,loaded=0; json peer_loads=json::array(); const auto now=snapshot_now();
     for(const auto& [peer,state]:outbound_peers) {
@@ -492,7 +551,8 @@ nlohmann::json snapshot_progress() {
     std::string phase="idle";
     if(snapshot_failed) phase="failed";
     else if(host&&!outbound_id.empty()) {
-        if(outbound_active&&outbound_peers.size()!=outbound_expected_peers) phase="awaiting_receivers";
+        if(!outbound_expected_peers&&!outbound_active&&snapshot_world_valid) phase="active";
+        else if(outbound_active&&outbound_peers.size()!=outbound_expected_peers) phase="awaiting_receivers";
         else if(acknowledged<chunks) phase="transferring";
         else if(verified<outbound_expected_peers) phase="awaiting_verification";
         else if(loaded<outbound_expected_peers) phase="awaiting_load";
@@ -503,9 +563,9 @@ nlohmann::json snapshot_progress() {
         else if(!last_loaded.empty()&&last_loaded==incoming_id) phase="active";
     }
     return {{"direction",host?"send":"receive"},{"id",host?outbound_id:incoming_id},{"phase",phase},{"state",status},
-        {"bytes_total",total},{"chunks_total",chunks},{"bytes_queued",host?std::min<uint64_t>(total,uint64_t(outbound_queued_chunks)*snapshot_chunk_bytes):0},
-        {"chunks_queued",host?outbound_queued_chunks:0},{"bytes_written",host?0:buffer.written_bytes()},{"chunks_received",host?0:buffer.received_count()},
-        {"acknowledged_min",host?acknowledged:0},{"bytes_acknowledged_min",host?std::min<uint64_t>(total,uint64_t(acknowledged)*snapshot_chunk_bytes):0},
+        {"bytes_total",total},{"chunks_total",chunks},{"bytes_queued",host?byte_offset(outbound_queued_chunks):0},
+        {"chunks_queued",host?outbound_queued_chunks:0},{"bytes_written",host?0:buffer.written_bytes()+(companion.is_null()?0:monster_buffer.written_bytes())},{"chunks_received",host?0:buffer.received_count()+(companion.is_null()?0:monster_buffer.received_count())},
+        {"acknowledged_min",host?acknowledged:0},{"bytes_acknowledged_min",host?byte_offset(acknowledged):0},
         {"peers_expected",host?outbound_expected_peers:0},{"peers_ready",host?outbound_peers.size():0},{"peers_verified",host?verified:0},{"peers_loaded",host?loaded:0},
         {"data_idle_timeout_seconds",snapshot_data_idle_timeout_seconds},{"native_load_timeout_seconds",snapshot_native_load_timeout_seconds},
         {"native_load",host?json(nullptr):load_watch_json(incoming_load,now)},{"peer_loads",peer_loads},

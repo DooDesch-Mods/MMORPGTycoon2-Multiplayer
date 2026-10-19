@@ -1,4 +1,6 @@
 #include "monster_remove_fixture.h"
+#include "monster_target_key.h"
+namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "monster_zone_read.h"
 #include "npc_census.h"
 #include "direct_monster_identity.h"
@@ -24,7 +26,7 @@ namespace mt2mp::npc_census{bool read_name(::Memory&,uintptr_t,std::string& out,
 struct World{uintptr_t root=10,selection=40;bool saves=false,edits=false,active_graph=false;};
 struct Pin{World world;struct Region{uintptr_t region=20;}region;};
 namespace d {struct Sample{mz::State state;a::Ledger money;struct Undo{uintptr_t active_graph=0;std::vector<uintptr_t> undo;}undo;};}
-namespace qr {struct Witness{std::vector<uintptr_t> quests;int completed=0;};bool survivors(const Witness&,const Witness&,std::string&){return true;}bool unchanged(const Witness&,const Witness&,std::string&){return true;}}
+namespace qr {struct Witness{std::vector<uintptr_t> quests;int completed=0;std::vector<a::MonsterRetiredQuest> rows;};bool survivors(const Witness&,const Witness&,std::string&){return true;}bool unchanged(const Witness&,const Witness&,std::string&){return true;}}
 namespace rr {
 template<class Name>bool read_names(const mz::State&,Name&&,std::map<uint64_t,std::string>& out,std::string&){out[0x100000001ull]="Deathblood";return true;}}
 unsigned mode=0;bool in_callback=false;
@@ -49,6 +51,7 @@ struct RemoveOperation {
  bool attempted=false,returned=false,confirmed=false,retired=false,seed_attempted=false;uint64_t original_calls=0;std::string cause;
 };
 std::map<std::string,RemoveOperation> removals;const ur::Replay* remove_replay=nullptr;
+json last_remove_quest_preflight=nullptr;
 unsigned original_count=0,seeds=0;bool mutated=false;MonsterState before_value;
 identity::Scope current_scope{snapshot_id,3,4,10,20,30};
 identity::Scope scope(const Pin&,const d::Sample&){return current_scope;}
@@ -71,7 +74,8 @@ template<class T>bool field(Memory&,uintptr_t object,size_t offset,T& v,std::str
  if(object==20&&offset==0x834)value=63;v=T(value);return true;}
 bool read_remove_quests(Memory&,const a::Binding&,const std::string&,uintptr_t,const std::string&,qr::Witness&,std::string& e,const qr::Witness* =nullptr){return mode!=3||fail(e,"stale Quest weak owner");}
 bool quest_before(const qr::Witness&,a::MonsterQuestRetirement& out,std::string&){out=remove_result().evidence.monster_quests;return true;}
-bool quest_before_matches(const a::MonsterQuestRetirement& a,const a::MonsterQuestRetirement& b){return a==b;}
+#include "remove_quest_preflight_body.inc"
+json quest_retirement_json(const a::MonsterQuestRetirement& value){return {{"before_count",value.before_count},{"completed_before",value.completed_before},{"before_sha256",value.before_sha256}};}
 bool quest_receipt_fits(const a::MonsterQuestRetirement&){return true;}
 bool quest_digest(const qr::Witness&,std::string& out,std::string&){out=std::string(64,'d');return true;}
 bool remove_absent(Memory&,const Pin&,const d::Sample&,const RemoveOperation&,std::string& e){return mode!=7||fail(e,"PendingDelete target UID still registered");}
@@ -145,11 +149,22 @@ int main(){try{unsigned n=0;std::string e;
   need(which==0?result==a::Outcome::Confirmed:result==a::Outcome::Unknown,"Client RNG adoption or authoritative after-state check missed");
   need(seeds==1,"Client did not seed exactly once");++n;
  }
+ reset(0);Config::instance().is_host=false;before_value.actor.tag=-11752269;before_value.roster.next_tag=7;
+ auto local_host=remove_result().evidence;
+ need(remove_perform({3,4},remove_request().request,&local_host,e)==a::Outcome::Confirmed&&original_count==1&&seeds==1,"loaded negative local serial rejected Remove: "+e);
+ need(removals.at(action_id).evidence.monster_before.actor.tag==-11752269&&removals.at(action_id).evidence.monster_after.roster.next_tag==7,"Remove replaced local serial/counter");++n;
  reset(0);auto host=remove_result().evidence;++host.monster_before.actor.level;
  need(remove_perform({3,4},remove_request().request,&host,e)==a::Outcome::RejectedNoEffect&&!original_count&&!seeds,"Host-before mismatch mutated Client");++n;
  reset(0);host=remove_result().evidence;host.monster_quests.before_sha256=std::string(64,'f');
  need(remove_perform({3,4},remove_request().request,&host,e)==a::Outcome::RejectedNoEffect&&!original_count&&!seeds&&
       e.find("Quest Client before")!=std::string::npos,"Host Quest mismatch seeded RNG or executed Destroy");++n;
+ need(e.find("global_records_or_order_sha256 local=")!=std::string::npos&&
+      last_remove_quest_preflight.at("action_uuid")==action_id&&last_remove_quest_preflight.at("attempted")==false&&
+      last_remove_quest_preflight.at("local").at("before_sha256")!=last_remove_quest_preflight.at("host").at("before_sha256"),"actual preflight digest cause/receipts discarded");++n;
+ reset(0);host=remove_result().evidence;++host.monster_quests.completed_before;
+ need(remove_perform({3,4},remove_request().request,&host,e)==a::Outcome::RejectedNoEffect&&!original_count&&!seeds&&
+      e.find("completed_count local=")!=std::string::npos&&e.find("global_records_or_order_sha256")==std::string::npos&&
+      last_remove_quest_preflight.at("cause")==e,"aggregate-only rejection cause or preflight evidence lost");++n;
  reset(0);ur::LocalBinding local;a::Binding admitted{9,9};
  need(!typed_action_runtime::network_binding(snapshot_id,admitted,e)&&admitted==a::Binding{}&&
       e=="network admission requires idle unlocked Controller","real pending admission guard bypassed");++n;

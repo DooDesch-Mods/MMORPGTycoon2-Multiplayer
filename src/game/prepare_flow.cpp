@@ -1,4 +1,6 @@
 #include "prepare_flow.h"
+#include "session_reload/production.h"
+#include "mt2mp/net/chat_runtime.h"
 #include "native_lobby.h"
 #include "lobby_operations.h"
 #include "mt2mp/game/native_engine.h"
@@ -84,7 +86,7 @@ bool prepare(const std::string& path,std::string& error){
         selected_path=path;enter(Step::Handshake);error.clear();return true;
     }
     if(!net::session_wire::connected()){selected_path=path;enter(Step::Handshake);error.clear();return true;}
-    if(!native::request_load(path,error))return fail(error);enter(Step::LoadSelected);error.clear();return true;
+    selected_path=path;return submit("load_snapshot",{{"selected_file",path}},Step::LoadOrigin,error);
 }
 bool prepare_current(std::string& error){
     if(step!=Step::Idle){error="native preparation has already been attempted; no replay";return false;}
@@ -123,7 +125,11 @@ bool leave(std::string& error){
     if(lobby_operations::pending()||step==Step::Leaving){error="native Leave requires completed snapshot operation and no prior Leave attempt";return false;}
     native::WorldStatus actual;if(!native::read_world_status(actual,error))return false;
     if(actual.title_transition_pending||actual.saves_in_progress>0||(actual.active_mode_index!=2&&!native::in_game())){error="native Leave requires actual idle Title or World";return false;}
-    if(!typed_action_runtime::begin_lobby_leave(error))return fail(error);
+    const bool reload=session_reload::busy();
+    if(reload&&!session_reload::release_for_leave(error))return false;
+    if((!reload||!typed_action_runtime::controller_status().value("lobby_retiring",false))&&
+       !typed_action_runtime::begin_lobby_leave(error))return fail(error);
+    if(reload)net::chat::Runtime::instance().set_lobby_admitted(false);
     enter(Step::Leaving);
     if(native::in_game()&&!native::request_return_to_title(error))return fail(error);
     error.clear();return true;
@@ -167,9 +173,8 @@ bool tick(std::string& error){
             if(!native::in_game()){error="current Host world left before capture";return fail(error);}
             return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
         }
-        if(!native::request_load(selected_path,error))return fail(error);enter(Step::LoadSelected);
+        return submit("load_snapshot",{{"selected_file",selected_path}},Step::LoadOrigin,error);
     }
-    else if(step==Step::LoadSelected){if(native::in_game())return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);}
     else if(step==Step::CaptureLocal){if(completed(response,error)){snapshot=response.at("result").at("snapshot_id").get<std::string>();
         if(!response.at("result").value("building_bindings_confirmed",false)){error="Host snapshot building bindings are incomplete: "+response.at("result").value("building_identity_error",std::string("native capture cause unavailable"));return fail(error);}
         if(!native::request_return_to_title(error))return fail(error);enter(Step::ReturnTitle);}}
@@ -208,5 +213,31 @@ bool tick(std::string& error){
         }}
     if(step==Step::Failed){error=failure;return false;}return true;
 }
-nlohmann::json status(){return {{"leave_confirmed",leave_confirmed},{"leaving",step==Step::Leaving},{"state",int(step)},{"label",label()},{"source",source_current_world?"current_world":"selected_save"},{"snapshot_id",snapshot},{"operation_id",operation},{"start_requested",start_requested},{"prepared",step==Step::Ready},{"captures_ready",captures_ready()},{"ready",step==Step::Playing&&captures_ready()},{"playing",step==Step::Playing},{"error",failure},{"captures",{{"build",ui_build_runtime::status()},{"remove",ui_remove_runtime::status()},{"move",ui_move_runtime::status()},{"region",ui_region_runtime::status()},{"terrain",ui_terrain_runtime::status()},{"path",ui_path_runtime::status()}}}};}
+nlohmann::json status(){auto value=nlohmann::json{{"leave_confirmed",leave_confirmed},{"leaving",step==Step::Leaving},{"state",int(step)},{"label",label()},{"source",source_current_world?"current_world":"selected_save"},{"snapshot_id",snapshot},{"operation_id",operation},{"start_requested",start_requested},{"prepared",step==Step::Ready},{"captures_ready",captures_ready()},{"ready",step==Step::Playing&&captures_ready()},{"playing",step==Step::Playing},{"error",failure},{"captures",{{"build",ui_build_runtime::status()},{"remove",ui_remove_runtime::status()},{"move",ui_move_runtime::status()},{"region",ui_region_runtime::status()},{"terrain",ui_terrain_runtime::status()},{"path",ui_path_runtime::status()}}}};
+    const auto reload=session_reload::status();value["reload"]=reload;value["reloading"]=session_reload::busy();
+    if(session_reload::busy()){value["ready"]=false;value["prepared"]=false;value["state"]=int(Step::Handshake);value["label"]=reload.at("label");
+        if(value.at("error").get<std::string>().empty())value["error"]=reload.at("error");}
+    return value;
+}
+}
+
+namespace mt2mp::game::lobby_prepare {
+bool reset_after_world_reload(std::string& error){
+    native::WorldStatus world;
+    if(!native::read_world_status(world,error))return false;
+    if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0||
+       lobby_operations::pending()||typed_action_runtime::controller_status().value("initialized",false)){
+        error="world reload reset requires actual idle Title and retired native Controller";return false;
+    }
+    operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;
+    source_current_world=zero_day_reload_attempted=false;enter(Step::Idle);error.clear();return true;
+}
+bool prepare_snapshot(const std::string& id,std::string& error){
+    if(step!=Step::Idle||!Config::instance().is_host||!net::session_wire::connected()||
+       id.size()!=36||id.find_first_not_of("0123456789abcdef-")!=std::string::npos){
+        error="shared reload requires idle Host, confirmed physical members and captured snapshot ID";return false;
+    }
+    source_current_world=zero_day_reload_attempted=false;selected_path.clear();start_requested=false;
+    return submit("load_snapshot",{{"snapshot_id",id}},Step::LoadOrigin,error);
+}
 }

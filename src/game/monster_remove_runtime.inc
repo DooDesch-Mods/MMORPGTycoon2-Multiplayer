@@ -11,12 +11,13 @@ struct RemoveOperation {
     uint64_t original_calls=0;std::string cause;
 };
 std::map<std::string,RemoveOperation> removals;
+json last_remove_quest_preflight=nullptr;
 const ur::Replay* remove_replay=nullptr;
 std::string remove_ui_token;
 bool remove_reset(std::string& e){
     if(remove_replay)return fail(e,"Monster Remove private replay remains active");
     for(const auto& [id,op]:removals)if(!op.retired)return fail(e,"Monster Remove action remains unretired="+id);
-    removals.clear();return true;
+    removals.clear();last_remove_quest_preflight=nullptr;return true;
 }
 bool remove_code(Memory& m,std::string& e){
     for(const auto& c:monster_remove_codes::values){std::string bytes(c.size,'\0'),sha;
@@ -91,6 +92,7 @@ bool remove_inverse(Memory& m,const Pin& p,const RemoveOperation& op,const d::Sa
         rank==actor.rank&&!zone&&rotation==actor.rotation&&position==actor.position&&scale==actor.scale&&level==actor.level&&
         name==actor.name&&id==op.character_id)||fail(e,"Monster Remove original DoMakeMonster identity/name/owner/pose/level inverse differs");
 }
+json remove_quest_preflight_status(){return last_remove_quest_preflight;}
 json remove_status(){
     const auto value=[](const a::MonsterState& v){const auto& r=v.roster;const auto& p=v.actor;
         return json{{"roster",{{"zones",r.zones},{"monsters",r.monsters},{"undo_count",r.undo_count},{"next_tag",r.next_tag},
@@ -127,7 +129,7 @@ static bool remove_bound_local(const a::Binding& binding,const std::string& snap
         return fail(e,"Monster Remove current SelectionManager or reciprocal Region differs");
     if(!d::sample(m,p.region,sample,e)||!identity::registry.resolve(scope(p,sample),object,uid,key,e))return false;
     monster_zone_read::Monster row;
-    if(!move_target(m,binding,snapshot,saved,key.substr(7),p,sample,row,e)||row.pointer!=object||row.uid!=uid||row.rank!=1)
+    if(!move_target(m,binding,snapshot,saved,monster_target_key::argument(key),p,sample,row,e)||row.pointer!=object||row.uid!=uid||row.rank!=1)
         return fail(e,e.empty()?"Monster Remove requires confirmed current direct Elite birth":e);
     qr::Witness quests;if(!read_remove_quests(m,binding,snapshot,object,key,quests,e))return false;
     out={manager,object,uid,binding.native_epoch,binding.native_generation,snapshot,key,false,false,false,true};return true;
@@ -147,16 +149,17 @@ bool remove_local_binding(uintptr_t manager,uintptr_t object,ur::LocalBinding& o
     return remove_bound_local(binding,snapshot,manager,object,out,e);
 }
 bool submit_remove(const ur::Intent& intent,std::string& e){
-    if(intent.snapshot_uuid!=net::current_snapshot_id()||!npc_target_key::valid(intent.canonical_record_key)||
-       !intent.canonical_record_key.starts_with("action:"))return fail(e,"Monster Remove requires current birth action key");
-    // The key lookup supplies a candidate only. resolve performs the complete
-    // current class, full UID and owner census before Controller submission.
-    const auto birth=intent.canonical_record_key.substr(7);auto place=state.operations.find(birth);
-    if(place==state.operations.end()||!place->second.confirmed||!place->second.retired)return fail(e,"Monster Remove confirmed placement receipt absent");
+    if(intent.snapshot_uuid!=net::current_snapshot_id()||!monster_target_key::valid(intent.canonical_record_key))
+        return fail(e,"Monster Remove requires current canonical Monster key");
+    a::Binding binding;if(!typed_action_runtime::network_binding(intent.snapshot_uuid,binding,e))return false;
+    Memory m;Pin p;d::Sample sample;monster_zone_read::Monster row;int32_t saved=-1;
+    const auto target=monster_target_key::argument(intent.canonical_record_key);
+    if(!target_region(m,binding,intent.snapshot_uuid,target,saved,e)||
+       !move_target(m,binding,intent.snapshot_uuid,saved,target,p,sample,row,e))return false;
     ur::LocalBinding actual;
-    if(!remove_local_binding(place->second.pin.world.selection,place->second.pointer,actual,e))return false;
-    if(actual.canonical_record_key!=intent.canonical_record_key)return fail(e,"Monster Remove submitted key differs from current birth binding");
-    if(!typed_action_runtime::submit_remove_monster(intent.action_uuid,birth,{place->second.request.monster.region},e))return false;
+    if(!remove_local_binding(p.world.selection,row.pointer,actual,e)||actual.canonical_record_key!=intent.canonical_record_key)
+        return fail(e,e.empty()?"Monster Remove submitted canonical binding differs":e);
+    if(!typed_action_runtime::submit_remove_monster(intent.action_uuid,target,{saved},e))return false;
     if(!remove_ui_token.empty()){
         auto job=state.ui_jobs.find(remove_ui_token);
         if(job==state.ui_jobs.end()||job->second.value("canonical_record_key",std::string{})!=intent.canonical_record_key)
@@ -184,15 +187,15 @@ bool authorize_remove_replay(const ur::Replay& replay,std::string& e){
 }
 
 a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e)try{
-    if(request.action!=a::Action::RemoveMonster||request.monster_remove.region<0||request.canonical_record_key!="action:"+request.target_action_uuid||
+    if(request.action!=a::Action::RemoveMonster||request.monster_remove.region<0||!monster_target_key::request(request.canonical_record_key,request.target_action_uuid)||
        !state.ready||GetCurrentThreadId()!=state.thread||!ui_remove_runtime::enabled()){
         e="Monster Remove runtime, Mainthread, capture or intent unavailable";return a::Outcome::RejectedNoEffect;}
     if(removals.contains(request.action_uuid)){e="Monster Remove already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="Monster Remove lacks exact pending Controller";return a::Outcome::RejectedNoEffect;}
     Memory m;Pin p;d::Sample before;monster_zone_read::Monster row;a::MonsterState value;identity::Entry birth;qr::Witness quests;
-    if(!remove_code(m,e)||!move_target(m,binding,request.snapshot_uuid,request.monster_remove.region,request.target_action_uuid,p,before,row,e)||
-       !identity::registry.lookup(request.target_action_uuid,scope(p,before),birth,e)||
+    if(!remove_code(m,e)||!move_target(m,binding,request.snapshot_uuid,request.monster_remove.region,monster_target_key::argument(request.canonical_record_key),p,before,row,e)||
+       !identity::registry.lookup(monster_target_key::argument(request.canonical_record_key),scope(p,before),birth,e)||
        !read_remove_quests(m,binding,request.snapshot_uuid,row.pointer,request.canonical_record_key,quests,e)||!effect(m,p,before,value,e,row.uid))return a::Outcome::RejectedNoEffect;
     if(before.undo.active_graph||row.rank!=1){e="Monster Remove requires idle Undo and confirmed Elite rank";return a::Outcome::RejectedNoEffect;}
     uintptr_t character=0;uint64_t character_id=0;
@@ -202,12 +205,18 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
     if(!rr::read_names(before.state,name_read,names,e))return a::Outcome::RejectedNoEffect;
     a::MonsterQuestRetirement quest_receipt;
     if(!quest_before(quests,quest_receipt,e))return a::Outcome::RejectedNoEffect;
+    last_remove_quest_preflight={{"action_uuid",request.action_uuid},{"snapshot_uuid",request.snapshot_uuid},
+        {"attempted",false},{"local",quest_retirement_json(quest_receipt)},
+        {"host",authority?quest_retirement_json(authority->monster_quests):json(nullptr)}};
+    last_remove_quest_preflight["local_global_order"]=json::array();
+    for(const auto& quest_row:quests.rows)last_remove_quest_preflight["local_global_order"].push_back({{"owner_key",quest_row.owner_key},{"sequence_id",quest_row.record.sequence_id}});
     if(authority&&!quest_before_matches(quest_receipt,authority->monster_quests)){
-        e="Monster Quest Client before records, order or counts differ from Host";return a::Outcome::RejectedNoEffect;}
+        e="Monster Quest Client before records, order or counts differ from Host: "+quest_before_difference(quest_receipt,authority->monster_quests);
+        last_remove_quest_preflight["cause"]=e;return a::Outcome::RejectedNoEffect;}
     // Keep the existing transport budget before the original can retire anything.
     if(!quest_receipt_fits(quest_receipt)){
         e="Monster Quest retirement receipt exceeds existing action payload budget";return a::Outcome::RejectedNoEffect;}
-    if(authority&&(!a::zone_shared_content(value.roster,authority->monster_before.roster)||value.actor!=authority->monster_before.actor||ledger(before.money)!=authority->before)){
+    if(authority&&(!a::zone_shared_content(value.roster,authority->monster_before.roster)||!a::monster_shared_actor(value.actor,authority->monster_before.actor)||ledger(before.money)!=authority->before)){
         e="Monster Remove Client before roster, actor, Undo or ledger differs from Host";return a::Outcome::RejectedNoEffect;}
     auto& op=removals.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;op.birth=birth;op.row=row;op.quests=quests;op.character_id=character_id;op.evidence.monster_quests=quest_receipt;
     const auto unknown=[&](const std::string& cause){e=op.cause=cause.empty()?"Monster Remove failed without cause":cause;return a::Outcome::Unknown;};
@@ -245,7 +254,7 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
     if(!a::monster_remove_transition(value,final)||op.evidence.before!=op.evidence.after||
        (authority&&(!a::monster_shared_state(final,authority->monster_after)||op.evidence.after!=authority->after)))
         return unknown("Monster Remove actor/roster/counters/RNG/Release/Undo/ledger differs from Host");
-    if(!identity::registry.retire(request.target_action_uuid,birth,e))return unknown(e);
+    if(!identity::registry.retire(monster_target_key::argument(request.canonical_record_key),birth,e))return unknown(e);
     op.confirmed=true;e.clear();return a::Outcome::Confirmed;
 }catch(const std::exception& x){e=std::string("Monster Remove perform boundary: ")+x.what();auto found=removals.find(request.action_uuid);if(found!=removals.end())found->second.cause=e;return a::Outcome::Unknown;}
  catch(...){e="Monster Remove perform non-standard exception";return a::Outcome::Unknown;}
@@ -253,7 +262,7 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
 bool remove_observe(const a::Binding& binding,const a::Request& request,a::Evidence& out,std::string& e){
     const auto found=removals.find(request.action_uuid);
     if(found==removals.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||
-       !found->second.returned||found->second.original_calls!=1||!identity::registry.tombstone(request.target_action_uuid,found->second.birth))
+       !found->second.returned||found->second.original_calls!=1||!identity::registry.tombstone(monster_target_key::argument(request.canonical_record_key),found->second.birth))
         return fail(e,"Monster Remove observation lacks exact confirmed OriginalOnce and terminal birth tombstone");
     const auto& op=found->second;Memory m;Pin p;d::Sample sample;a::MonsterState value;
     if(!pin(m,binding,request.snapshot_uuid,request.monster_remove.region,p,e)||!same_world(p.world,op.pin.world)||

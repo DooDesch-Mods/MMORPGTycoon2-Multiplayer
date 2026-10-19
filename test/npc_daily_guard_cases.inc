@@ -3,6 +3,8 @@
 #include "live_host_state/memory_query_timing.h"
 #endif
 #include "npc_quest_daily_apply.h"
+#include "npc_quest_runtime_apply.h"
+#include "npc_quest_completion.h"
 #include "subscriber_lifecycle/save_scope.h"
 #include <map>
 
@@ -30,7 +32,9 @@ struct Fixture {
     unsigned fail_fence=0;bool fail_enter=false;bool fail_census=false,fail_reserve=false,drift_reserve=false,drift_quest=false,drift_enter=false,fail_cas=false,fail_read=false;
     std::vector<std::string> events;
     std::vector<Trace> trace;
-    unsigned copies=0;
+    unsigned copies=0,bytes_cas=0,advertisements=0;
+    bool runtime_code_bad=false,runtime_ad_fail=false,runtime_post_drift=false;
+    bool completion_enabled=false,fail_completion_cas=false;
     bool protect_on_reserve=false;
     bool metadata_at_leave=false,metadata_at_pause=false;
     uint64_t queries_before_reserve=0,queries_after_reserve=0;
@@ -40,7 +44,7 @@ void require(bool value,const char* message){++assertions;if(!value)throw std::r
 bool fail(std::string& e,const char* message){e=message;return false;}
 bool fail(std::string& e,const std::string& message){e=message;return false;}
 template<class T>void put(uintptr_t p,const T& v){const auto* b=reinterpret_cast<const unsigned char*>(&v);for(size_t i=0;i<sizeof v;++i)fixture.bytes[p+i]=b[i];}
-struct Memory {bool copy(uintptr_t p,void* out,size_t n,std::string& e){
+struct Memory:mt2mp::npc_census::Memory {bool copy(uintptr_t p,void* out,size_t n,std::string& e)override{
     ++fixture.copies;fixture.trace.push_back({"read",p,n});
 #ifdef _WIN32
     if(metadata_page){
@@ -57,6 +61,7 @@ template<class T>bool at(uintptr_t p,size_t offset,T& out,std::string& e){return
 bool compare_fixed_i32(uintptr_t p,int32_t old,int32_t target,std::string& e){
     ++fixture.cas;fixture.events.push_back("cas");
     fixture.trace.push_back({"cas",p,4,old,target});
+    if(fixture.fail_completion_cas&&p==0x50048)return fail(e,"original completion CAS failed");
     if(fixture.fail_cas)return fail(e,"original daily CAS failed");
     int32_t actual=0;if(!at(p,0,actual,e))return false;
     if(actual!=old)return fail(e,"original daily CAS prior differs");put(p,target);return true;
@@ -67,6 +72,20 @@ bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,
 }
 namespace npc_quest_records=mt2mp::npc_quest_records;
 namespace npc_quest_daily_apply=mt2mp::npc_quest_daily_apply;
+namespace npc_quest_runtime=mt2mp::npc_quest_runtime;
+namespace npc_quest_completion=mt2mp::npc_quest_completion;
+bool quest_completion_current(const Pin&,npc_quest_completion::Snapshot&,std::string& e,bool=true);
+using QuestMemory=Memory;
+uint32_t quest_runtime_byte(uintptr_t address,uint8_t before,uint8_t after,bool& exchanged){
+    ++fixture.bytes_cas;fixture.events.push_back("runtime-byte");fixture.trace.push_back({"cas8",address,1,before,after});
+    uint8_t actual=0;std::string e;exchanged=at(address,0,actual,e)&&actual==before;if(exchanged)put(address,after);return 0;
+}
+uint32_t quest_runtime_ads(uintptr_t actual_image,uintptr_t quest){
+    require(actual_image==image&&quest==quest_address,"runtime advertisement exact target differs");
+    ++fixture.advertisements;fixture.events.push_back("advertise");fixture.trace.push_back({"advertise",quest});
+    if(fixture.runtime_ad_fail)return 5;
+    if(fixture.runtime_post_drift)put(quest+0x88,int32_t(99));return 0;
+}
 namespace npc_probe::action_runtime {
 bool state_owners(const auto&,const auto&,std::vector<QuestOwner>& out,std::string& e){
     apply_timing::PageReadScope pages;
@@ -122,7 +141,15 @@ uint32_t call(SaveScopeCall fn,void*){
 #include "npc_save_scope_actual.inc"
 }
 
+namespace mt2mp {
+// The native code-image boundary is simulated; the real template still checks its digest.
+std::string sha256(const std::vector<unsigned char>& bytes){
+    daily_guard_test::require(bytes.size()==192,"runtime advertisement body extent differs");
+    return daily_guard_test::fixture.runtime_code_bad?"changed":"b2b4ef433836335fa6de391315d0398860a1bd3c20ff1e70a62ea55feade575c";
+}
+}
 namespace daily_guard_test {
+#include "npc_quest_runtime_actual.inc"
 #include "npc_daily_guard_actual.inc"
 #include "npc_daily_metadata_baseline.inc"
 #include "npc_daily_guard_original.inc"
@@ -139,12 +166,28 @@ std::pair<quest_state::Npc,quest_state::Npc> setup(unsigned quests=0,bool slots=
     quest_state::Npc old;old.key="npc";old.type=0;old.level=1;
     if(!reserve)old.accepted.history=old.completed.history={1};
     for(unsigned i=0;i<quests;++i){quest_state::Counters row;row.sequence_id=int32_t(i);row.accepted=old.accepted;row.completed=old.completed;old.quests.push_back(row);fixture.owner.quests.emplace_back(int32_t(i),quest_address+i*0x1000);}
+    for(auto& row:old.quests)row.completed.total=1;
     auto target=old;
     const auto change=[&](auto& a){a.today=1;a.total=1;if(slots||reserve)a.history={2};};
     change(target.accepted);change(target.completed);
     daily(npc,0x898,old.accepted,reserve);daily(npc,0x908,old.completed,reserve);
-    for(unsigned i=0;i<quests;++i){change(target.quests[i].accepted);change(target.quests[i].completed);daily(quest_address+i*0x1000,0x100,old.quests[i].accepted,reserve);daily(quest_address+i*0x1000,0x170,old.quests[i].completed,reserve);}
+    for(unsigned i=0;i<quests;++i){change(target.quests[i].accepted);change(target.quests[i].completed);target.quests[i].completed.total=2;daily(quest_address+i*0x1000,0x100,old.quests[i].accepted,reserve);daily(quest_address+i*0x1000,0x170,old.quests[i].completed,reserve);}
+    for(unsigned i=0;i<quests;++i){const uintptr_t q=quest_address+i*0x1000;
+        put(q,image+0x174ac10);put(q+0x1e0,image+0x1787870);
+        put(q+0x1f8,std::array<uint32_t,3>{});put(q+0x204,uint8_t(0));put(q+0x88,int32_t(0));put(q+0x8c,int32_t(0));}
+    for(size_t i=0;i<192;++i)put(image+0x4d6c00+i,uint8_t(0));
     return {old,target};
+}
+bool quest_completion_current(const Pin& p,npc_quest_completion::Snapshot& out,std::string& e,bool exact){
+    if(!fixture.completion_enabled)return fail(e,"unexpected first-completion in unchanged DailyCount fixture");
+    std::vector<QuestOwner> owners;if(!npc_probe::action_runtime::state_owners(p.context,p.binding,owners,e))return false;
+    std::vector<quest_state::Npc> rows;
+    for(const auto& owner:owners){quest_state::Npc row;row.key=owner.key;
+        for(const auto& [sequence,quest]:owner.quests){quest_state::Counters counter;counter.sequence_id=sequence;
+            if(!npc_quest_records::read_daily(memory,p.image,quest,0x170,"fixture full completed",counter.completed,e))return false;
+            row.quests.push_back(counter);}
+        rows.push_back(row);}
+    return npc_quest_completion::read(memory,p.image,owners,rows,out,e,exact);
 }
 bool execute(const quest_state::Npc& old,const quest_state::Npc& target,bool original,std::string& e,bool metadata_baseline=false){
     Pin p;p.image=image;p.clock=clock_address;QuestOwner owner{"npc",npc,{}};
@@ -246,6 +289,27 @@ unsigned run(){
     {auto [old,target]=setup();put(npc+0x898+0x50,int32_t(99));e.clear();require(!execute(old,target,false,e)&&!fixture.cas&&e=="DailyCount preflight value differs","fresh actual daily value mismatch accepted");}
     {auto [old,target]=setup();e.clear();require(execute(old,target,false,e),"first complete counters call failed");
         setup();fixture.owner.npc+=8;e.clear();require(!execute(old,target,false,e)&&fixture.censuses==2&&!fixture.cas,"next call reused previous SaveScope owner proof");}
+    // Enter the actual DailyCount body with only RuntimeValue changed. Its
+    // original call reaches the extracted runtime template and real CAS algorithm.
+    for(unsigned mode=0;mode<5;++mode){
+        auto [old,target]=setup(1);target=old;auto& runtime=target.quests[0].runtime;
+        runtime.rating_bits={std::bit_cast<uint32_t>(0.25f),std::bit_cast<uint32_t>(0.5f),std::bit_cast<uint32_t>(0.75f)};
+        runtime.rating_set=true;runtime.xp_reward=12;runtime.gold_reward=7;
+        if(mode==1)fixture.runtime_code_bad=true;
+        if(mode==2)fixture.runtime_ad_fail=true;
+        if(mode==3)fixture.runtime_post_drift=true;
+        if(mode==4)put(quest_address+0x88,int32_t(99));
+        const auto before=fixture.bytes;e.clear();const bool okay=execute(old,target,false,e);
+        require(fixture.enters==1&&fixture.leaves==1,"runtime change escaped original SaveScope cleanup");
+        if(mode==4){require(!okay&&!fixture.cas&&!fixture.bytes_cas&&!fixture.advertisements&&e=="Quest runtime complete prior value changed","runtime prior mismatch reached effects");continue;}
+        require(fixture.cas==5&&fixture.bytes_cas==1,"runtime scalar/flag exact CAS count differs");
+        std::vector<uintptr_t> addresses;for(const auto& entry:fixture.trace)if(entry.operation=="cas"||entry.operation=="cas8")addresses.push_back(entry.address);
+        require(addresses==std::vector<uintptr_t>{quest_address+0x1f8,quest_address+0x1fc,quest_address+0x200,quest_address+0x88,quest_address+0x8c,quest_address+0x204},"runtime CAS order differs or touched DailyCount");
+        for(size_t offset=0x100;offset<0x1e0;++offset)if(before.contains(quest_address+offset))require(fixture.bytes[quest_address+offset]==before.at(quest_address+offset),"runtime change rewrote DailyCount");
+        if(mode==0){npc_quest_runtime::Value actual;require(okay&&fixture.advertisements==1&&fixture.pauses==1&&npc_quest_runtime::read(memory,image,quest_address,actual,e)&&actual==runtime,"actual runtime complete readback failed");}
+        else {const std::string expected=mode==1?"SetAdvertisements body differs":mode==2?"SetAdvertisements exception=5":"complete target readback differs";
+            require(!okay&&!fixture.pauses&&fixture.advertisements==(mode==1?0u:1u)&&e.find(expected)!=std::string::npos&&e.find("Unknown; no replay")!=std::string::npos,"runtime failure lost original cause or no-replay state");}
+    }
     namespace timed=mt2mp::game::live_host_state::apply_timing;
     for(bool enabled:{false,true})for(bool enter_failure:{false,true}){
         fixture={};fixture.fail_enter=enter_failure;

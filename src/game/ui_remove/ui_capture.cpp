@@ -1,17 +1,22 @@
+#include "../monster_target_key.h"
+#include "../network_object_identity.h"
 #include "../snapshot_building_key.h"
 #include "../npc_target_key.h"
+#include "../group_object_key.h"
 #include "ui_capture.h"
 #include <regex>
 #include <stdexcept>
 
 namespace mt2mp::action_session::ui_capture {
 namespace {
+bool group_key(const std::string& value){return game::group_object_key::valid(value);}
 bool valid(const Intent& i) {
     static const std::regex uuid("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
-    return std::regex_match(i.action_uuid,uuid)&&std::regex_match(i.snapshot_uuid,uuid)&&(game::npc_target_key::valid(i.canonical_record_key)||game::snapshot_building_key::valid(i.canonical_record_key));
+    return std::regex_match(i.action_uuid,uuid)&&std::regex_match(i.snapshot_uuid,uuid)&&(group_key(i.canonical_record_key)||game::network_object_identity::key(i.canonical_record_key)||game::monster_target_key::valid(i.canonical_record_key)||game::npc_target_key::valid(i.canonical_record_key)||game::snapshot_building_key::valid(i.canonical_record_key));
 }
 bool local(const LocalBinding& b) {return b.manager&&b.object&&b.uid&&b.native_epoch&&b.native_generation&&
-    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)+unsigned(b.supported_monster)==1);}
+    b.supported_group==group_key(b.canonical_record_key)&&
+    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)+unsigned(b.supported_monster)+unsigned(b.supported_network)+unsigned(b.supported_group)==1);}
 template<class Function>bool read(Function f,std::string& cause) {
     try {const bool okay=f();if(!okay&&cause.empty())cause="native UI adapter failed without original cause";return okay;}
     catch(const std::exception& e){cause=e.what();return false;}
@@ -110,12 +115,16 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
     if(target.supported_npc&&origin!=Origin::NpcWindow)return reject("NPC Remove requires original NPC InfoWindow DestroyNPC caller");
     if(target.supported_monster&&origin!=Origin::MonsterWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
         return reject("Monster Remove requires original Monster InfoWindow, DestroyCursor or SelectionWindow caller");
+    if(target.supported_network&&origin!=Origin::NetworkWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Network Remove requires original Network Command/InfoWindow, DestroyCursor or SelectionWindow caller");
+    if(target.supported_group&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Group Remove requires original DestroyCursor or SelectionWindow caller");
     Intent intent;intent.snapshot_uuid=target.snapshot_uuid;intent.canonical_record_key=target.canonical_record_key;
     if(!read([&]{return services_.fresh_action_uuid(intent.action_uuid,cause);},cause))return reject("UI Remove action identity: "+cause);
     if(!valid(intent))return reject("UI Remove action identity: invalid action UUID, snapshot UUID or canonical key");
-    if(!read([&]{return target.supported_monster?services_.submit_monster(intent,cause):target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
+    if(!read([&]{return target.supported_group?services_.submit_group(intent,cause):target.supported_network?services_.submit_network(intent,cause):target.supported_monster?services_.submit_monster(intent,cause):target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
     ++status_.captured;Report out;out.disposition=Disposition::IntentCaptured;
-    services_.log("info","UI Remove capture",target.supported_monster?
+    services_.log("info","UI Remove capture",target.supported_group?"typed Group Destroy intent submitted; native effects await Host authority":target.supported_network?"typed RemoveNetworkObject intent submitted; native effects await Host authority":target.supported_monster?
         "typed RemoveMonster intent submitted; native effects await Host authority":target.supported_npc?
         "typed RemoveNPC intent submitted; native effects await Host authority":
         "typed RemoveSnapshotBuilding intent submitted; native effects await Host authority");return out;

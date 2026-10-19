@@ -41,6 +41,7 @@ inline bool type(uintptr_t image, const void* object, uintptr_t expected, std::s
 // Identity uses saved Region.id and the native BuildingArray child position.
 // Map.m_ownedRegions is a subset of saved Map.region; unowned regions are also saved.
 inline bool region_id(uintptr_t image, void* map, void* region, void* manager, void* shard, int32_t& id, std::string& error) {
+    mt2mp::game::live_host_state::apply_timing::PageReadScope region_pages;
     if (!type(image, map, 0x1742860, error)) return false;
     auto* root = static_cast<char*>(map) + 0x1c0;
     int32_t shard_type = -1;

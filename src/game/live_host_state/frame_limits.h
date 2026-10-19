@@ -5,6 +5,10 @@ namespace mt2mp::game::live_host_state {
 // stream, including every envelope, fit with more than 1 MiB left for traffic.
 constexpr size_t max_frame_payload=action_session::max_transport_payload;
 constexpr size_t max_logical_frame_payload=1024*1024;
+// Day and Economy each wrap the complete Host Frame in one object.
+constexpr int max_frame_json_depth=9;
+constexpr int max_day_json_depth=max_frame_json_depth+1;
+constexpr int max_economy_json_depth=max_day_json_depth+1;
 constexpr size_t frame_chunk_bytes=24*1024;
 constexpr size_t frame_envelope_reserve=1024;
 constexpr size_t max_frame_chunks=(max_logical_frame_payload+frame_chunk_bytes-1)/frame_chunk_bytes;

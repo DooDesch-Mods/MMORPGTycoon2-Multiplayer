@@ -35,9 +35,15 @@ uint32_t label_is(uintptr_t image,void* record,const char* label,bool& match) {
     __try {match=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,label);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+bool appearance_capture(Runtime&,void*,void*,bool&,std::string&);
 bool styles_command_entry(void* window,void* record) {
     auto* r=published.load(std::memory_order_acquire);
     if(!r->ready||!net::session_wire::connected())return r->original_ui.load(std::memory_order_acquire)(window,record);
+    try {
+        bool appearance_handled=false;std::string appearance_error;
+        if(!appearance_capture(*r,window,record,appearance_handled,appearance_error)){rejected(*r,appearance_error);return false;}
+        if(appearance_handled)return true;
+    }catch(const std::exception& e){rejected(*r,std::string("region appearance capture exception: ")+e.what());return false;}
     bool apply=false;const auto seh=label_is(r->image,record,"TerrainApply",apply);
     if(seh){rejected(*r,"region UI command label SEH="+std::to_string(seh));return false;}
     if(!apply)return r->original_ui.load(std::memory_order_acquire)(window,record);

@@ -4,6 +4,11 @@
 #include "root_building_load.h"
 #include "npc_quest_target_runtime.h"
 #include "npc_saved_identity_runtime.h"
+#include "party_saved_identity_runtime.h"
+#include "monster_saved_identity_runtime.h"
+#include "boss_saved_identity_runtime.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "district_saved_identity_runtime.h"
 
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -444,7 +449,15 @@ bool begin(const std::string& sha, const std::string& uuid, std::string& error) 
     if (!root_building_load::begin(sha, uuid, error)) return fail(error, "native array load identity arm failed: " + error);
     if (!npc_quest_target_runtime::arm_client(uuid,sha,error)) { root_building_load::cancel(error); return fail(error,"Quest target load arm failed: "+error); }
     if (!npc_saved_identity_runtime::arm_client(uuid,sha,error)) { root_building_load::cancel(error); npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity load arm failed: "+error); }
-    if (!bug_authority::arm_snapshot(uuid,sha,false,error)) { root_building_load::cancel(error); npc_quest_target_runtime::cancel(error); npc_saved_identity_runtime::cancel(error); return fail(error,"Bug load arm failed: "+error); }
+    if(!monster_saved_identity_runtime::arm_client(uuid,sha,error)){root_building_load::cancel(error);npc_quest_target_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);return fail(error,"Monster identity load arm failed: "+error);}
+    if(!boss_saved_identity_runtime::arm_client(uuid,sha,error)){root_building_load::cancel(error);npc_quest_target_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);return fail(error,"Boss identity load arm failed: "+error);}
+    if(!district_saved_identity_runtime::arm_client(uuid,sha,error)){root_building_load::cancel(error);npc_quest_target_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);return fail(error,"District identity load arm failed: "+error);}
+    if(!party_saved_identity_runtime::arm_client(uuid,sha,error)){
+        root_building_load::cancel(error);npc_quest_target_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);
+        monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);district_saved_identity_runtime::cancel(error);
+        return fail(error,"Party identity load arm failed: "+error);
+    }
+    if (!bug_authority::arm_snapshot(uuid,sha,false,error)) { root_building_load::cancel(error); npc_quest_target_runtime::cancel(error); npc_saved_identity_runtime::cancel(error); monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error); district_saved_identity_runtime::cancel(error); party_saved_identity_runtime::cancel(error); return fail(error,"Bug load arm failed: "+error); }
 #endif
     contexts.clear();
     negative_classes.clear();
@@ -555,9 +568,23 @@ bool finalize(Status& result, std::string& error) {
     if (!root_building_load::finalize(native_arrays, error)) {
         fail_capture("native array load identity incomplete: " + error); result = current; return false;
     }
+    dungeon_scene_identity_runtime::Census dungeon_scenes;
+    std::vector<dungeon_scene_identity_runtime::Exterior> scene_exteriors;
+    for(const auto& row:native_arrays)scene_exteriors.push_back({row.local_uid,row.record_key});
+    if(!dungeon_scene_identity_runtime::classify_loaded(current.snapshot_uuid,current.snapshot_sha256,scene_exteriors,dungeon_scenes,error)||
+       !npc_quest_target_runtime::stage_scenes(dungeon_scenes,error)||
+       !party_saved_identity_runtime::stage_scenes(dungeon_scenes,error)||
+       !boss_saved_identity_runtime::stage_scenes(dungeon_scenes,error)||
+       !monster_saved_identity_runtime::stage_scenes(std::move(dungeon_scenes),error)){
+        fail_capture("Dungeon scene native load classification incomplete: "+error);result=current;return false;
+    }
     if (!npc_quest_target_runtime::seal_client(error)) {
         fail_capture("Quest target native load identity incomplete: "+error);result=current;return false;
     }
+    if(!district_saved_identity_runtime::seal_client(error)){fail_capture("District native load identity incomplete: "+error);result=current;return false;}
+    if(!party_saved_identity_runtime::seal_client(error)){fail_capture("Party native load identity incomplete: "+error);result=current;return false;}
+    if(!boss_saved_identity_runtime::seal_client(error)){fail_capture("Boss native load identity incomplete: "+error);result=current;return false;}
+    if(!monster_saved_identity_runtime::seal_client(error)){fail_capture("Monster native load identity incomplete: "+error);result=current;return false;}
     if (!npc_saved_identity_runtime::seal_client(error)) { fail_capture("NPC native load identity incomplete: "+error);result=current;return false; }
     if (!bug_authority::seal_snapshot(current.snapshot_uuid,current.snapshot_sha256,error)) { fail_capture("Bug native load identity incomplete: "+error);result=current;return false; }
     current.buildings = std::move(native_arrays);
@@ -620,6 +647,10 @@ void cancel(const std::string& reason) {
     root_building_load::cancel(reason);
     npc_quest_target_runtime::cancel(reason);
     npc_saved_identity_runtime::cancel(reason);
+    party_saved_identity_runtime::cancel(reason);
+    district_saved_identity_runtime::cancel(reason);
+    monster_saved_identity_runtime::cancel(reason);
+    boss_saved_identity_runtime::cancel(reason);
 #endif
     std::lock_guard lock(mutex);
     active = false;

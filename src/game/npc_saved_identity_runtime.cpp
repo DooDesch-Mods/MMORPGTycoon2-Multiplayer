@@ -3,6 +3,13 @@
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "building_capture_identity.h"
 #include "root_saved_building.h"
+#include "building_npc_lifecycle.h"
+#include "building_npc_owner.h"
+#include "character_definition_identity.h"
+#include "typed_action_runtime.h"
+#include "subscriber_lifecycle/capture.h"
+#include "duplicate_records.h"
+#include "npc_quest_retirement.h"
 #ifndef MT2MP_NPC_SAVED_RUNTIME_TEST
 #include "mt2mp/core/logger.h"
 #else
@@ -40,6 +47,8 @@ std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Pool> observed;
 std::map<int32_t, q::SavedPool> pools;
+struct ChildBinding { building_npc_lifecycle::Receipt receipt;bool retired=false; };
+std::map<std::string,ChildBinding> building_children;
 #ifdef MT2MP_NPC_SAVED_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
 using TestLink = bool(*)(uintptr_t, uintptr_t, int32_t&, std::string&);
@@ -74,7 +83,7 @@ bool same_world(const opened::CurrentWorld& a, const opened::CurrentWorld& b) {
 }
 void reset(const std::string& id, const std::string& digest) {
     uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
+    load_stack.clear(); observed.clear(); pools.clear(); building_children.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
     if (!actual || (bound_context && bound_context != actual)) return reject(error, "NPC property save/load context differs");
@@ -240,7 +249,7 @@ bool seal_client(std::string& error) {
         return reject(error, "NPC Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false; return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); }
+void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; building_children.clear(); saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
@@ -335,6 +344,7 @@ bool current_snapshot_sha(std::string& out, std::string& error) {
     if (!current(world, error)) return false;
     out = sha; error.clear(); return true;
 }
+#include "building_npc_runtime.inc"
 bool read_current(std::vector<Current>& out, std::string& error, bool share_metadata) {
     live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
     std::lock_guard lock(gate); out.clear(); opened::CurrentWorld world;
@@ -351,12 +361,13 @@ bool read_current(std::vector<Current>& out, std::string& error, bool share_meta
     const auto map = reinterpret_cast<uintptr_t>(world.map);
     std::vector<Current> result;
     for (const auto& [id, saved] : pools) {
-        if (saved.pool.records.empty()) continue;
+        if (saved.pool.records.empty() && !building_child_detail::has_region(id)) continue;
         uintptr_t region = 0;
         auto read = [&](uintptr_t p, size_t offset, auto& value, std::string& cause) { return q::at(memory, p, offset, value, cause); };
         if (!region_saved_identity::resolve(image, map, map + 0x1c0, id, 0, region, read, error)) return false;
         npc_census::State census; std::vector<Current> rows;
         if (!npc_census::read(memory, image, region, census, error) || !q::current_rows(sha, saved, census, lookup, rows, error)) return false;
+        if (!building_child_detail::append(id, region, census, lookup, rows, error)) return false;
         result.insert(result.end(), rows.begin(), rows.end());
     }
     opened::CurrentWorld after;
@@ -365,7 +376,7 @@ bool read_current(std::vector<Current>& out, std::string& error, bool share_meta
 }
 bool resolve(const std::string& key, Current& out, std::string& error) {
     out = {};
-    if (!snapshot_npc_key::valid(key)) return q::fail(error, "Saved NPC key invalid");
+    if (!snapshot_npc_key::valid(key) && !building_npc_key::valid(key)) return q::fail(error, "Saved or Building child NPC key invalid");
     std::vector<Current> rows;
     if (!read_current(rows, error)) return false;
     for (const auto& row : rows) if (row.key == key) { out = row; return true; }
@@ -379,3 +390,5 @@ bool bind_local(uintptr_t object, uint64_t uid, std::string& key, std::string& e
     return q::fail(error, "NPC local member is absent from the active snapshot");
 }
 }
+
+#include "building_npc_exports.inc"

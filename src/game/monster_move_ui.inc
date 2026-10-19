@@ -6,7 +6,7 @@ bool move_ui_captured(const move_kiss::Intent& intent,const std::string& id,std:
     auto job=state.ui_jobs.find(move_ui_token);
     if(job==state.ui_jobs.end()||job->second.value("operation",std::string{})!="move"||
        job->second.value("canonical_record_key",std::string{})!=intent.object_key||job->second.value("captured",false)||
-       intent.family!=move_kiss::Family::DirectMonster||intent.object_key!="action:"+job->second.at("target_action_uuid").get<std::string>())
+       intent.family!=move_kiss::Family::DirectMonster||intent.object_key!=monster_target_key::canonical(job->second.at("target_action_uuid").get<std::string>()))
         return fail(e,"Monster Move UI exact birth capture differs");
     job->second["captured"]=true;job->second["awaiting_original_update"]=false;job->second["action_uuid"]=id;
     job->second["intent"]={{"position",{intent.after.x,intent.after.y,intent.after.z}},
@@ -32,7 +32,7 @@ bool native_move_ui(const json& args,json& result,std::string& e)try{
        !args.contains("position")||!args.at("position").is_array()||args.at("position").size()!=3)
         return fail(e,"Monster Move UI requires exact family, token, target_action_uuid and position");
     const auto token=args.at("token").get<std::string>(),birth=args.at("target_action_uuid").get<std::string>();
-    if(!token_valid(token)||!token_valid(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64||!move_ui_token.empty())
+    if(!token_valid(token)||!monster_target_key::input(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64||!move_ui_token.empty())
         return fail(e,"Monster Move UI token or birth UUID invalid/used");
     std::array<float,3> point{};
     for(size_t i=0;i<3;++i){const auto& scalar=args.at("position")[i];

@@ -2,13 +2,13 @@
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch/MMORPGTycoon2-Multiplayer",
-  "version_label": "Early Beta 15",
-  "release_label": "Early Beta 15 - Shared building is available now",
+  "version_label": "Early Beta 16",
+  "release_label": "Early Beta 16 - Build worlds and quests together",
   "graphic_title": "The road to a shared MMO world.",
   "coverage_title": "Co-op feature coverage",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
+  "overview_intro": "Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
   "stages": [
     {"label": "Available now", "title": "Build together", "items": ["Steam lobbies and worlds", "Buildings and regions", "Shared pause and speed"]},
     {"label": "Next priorities", "title": "A living world", "items": ["Live monster gameplay", "More NPC and quest tools", "More complete save support"]},
@@ -26,7 +26,7 @@
     {"name": "NPC placement", "status": "partial", "scope": "Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority."},
     {"name": "Elite monsters", "status": "partial", "scope": "Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority."},
     {"name": "Save and resume", "status": "partial", "scope": "Continue from the Host's saved world. Wider support for saved objects is a next priority."},
-    {"name": "More quests and combat", "status": "planned", "scope": "More quest tools and live monster gameplay are in development for future releases."},
+    {"name": "Quests and combat", "status": "partial", "scope": "Create and remove quests, edit titles, required counts and rewards, and choose building or NPC destinations. Live combat remains planned."},
     {"name": "Four players and larger worlds", "short_name": "Larger sessions", "status": "planned", "scope": "The current focus is two-player co-op in small worlds."}
   ]
 }

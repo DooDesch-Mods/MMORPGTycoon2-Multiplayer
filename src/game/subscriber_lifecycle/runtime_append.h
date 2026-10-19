@@ -5,7 +5,9 @@
 #include "typed_action/action_session.h"
 #include <filesystem>
 #include <functional>
+#include <memory>
 #include "save_scope.h"
+#include "reference_map.h"
 namespace mt2mp::game::subscriber_lifecycle_append {
 bool initialize(uintptr_t image,std::string&);
 void* lookup_entrypoint();
@@ -84,5 +86,41 @@ bool retire_progress(QuestEditBatch&,const ProgressRequest&,uintptr_t,const std:
                      const FrameBinding&,ProgressReceipt&,std::string&);
 
 bool apply_frame(const nlohmann::json&,const std::string& actual_client_origin,const FrameBinding&,nlohmann::json& receipt,std::string&);
+bool apply_frame(const nlohmann::json&,const std::string& actual_client_origin,const FrameBinding&,
+                 mt2mp::subscriber_lifecycle::first_append::PartyReferences&,nlohmann::json& receipt,std::string&);
+struct PartyToonBatch;
+struct PartyToonInputs;
+struct PendingToon {
+    int32_t subscriber_id=-1;
+    uintptr_t subscriber=0,toon=0;
+    uint64_t uid=0;
+    bool operator==(const PendingToon&)const=default;
+};
+// Local constructor results only. They are valid while this original drained
+// SaveScope is held, before Subscriber Resolve/PostResolve has run.
+bool verify_party_toon_edits_held(PartyToonBatch&,std::string&);
+bool pending_toon(PartyToonBatch&,int32_t subscriber_id,PendingToon&,std::string&);
+// Pin existing Building/NPC owners while their original readers require SaveIdle.
+bool prepare_party_toons(const std::vector<nlohmann::json>&,const std::string& actual_client_origin,
+    const FrameBinding&,std::shared_ptr<PartyToonInputs>&,std::string&);
+// Borrows the existing Party NativePort::batch SaveScope. Its owner performs the
+// one original leave and final closed confirmation after this body succeeds.
+bool with_party_toon_edits_held(const std::string& actual_client_origin,const FrameBinding&,
+    const std::function<bool(PartyToonBatch&,std::string&)>& body,
+    const std::function<bool(std::string&)>& exit_guard,
+    mt2mp::subscriber_lifecycle::SaveScopeReceipt&,std::string&);
+// Loads every Subscriber before calling finish_parties. That callback performs
+// original Party Load/Resolve with the real pending Toons and reciprocal links,
+// deferring InitMapData and aliases. rearm_party calls original PropertyLoad only:
+// zero before Party load, then the exact own saved ID before Subscriber D1.
+// finalize_parties runs after every Subscriber D1 and login, so original Party
+// InitMapData and final readback see resolved Region/Subscriber pointers.
+// A true result is held-body readback; the outer SaveScope owns confirmation.
+bool append_party_toons(PartyToonBatch&,const std::shared_ptr<PartyToonInputs>&,
+    mt2mp::subscriber_lifecycle::first_append::PartyReferences&,
+    const std::function<bool(const std::vector<PendingToon>&,std::string&)>& finish_parties,
+    const std::function<bool(const PendingToon&,int32_t,void*,std::string&)>& rearm_party,
+    const std::function<bool(std::string&)>& finalize_parties,
+    nlohmann::json& receipt,std::string&);
 bool apply_graph(const nlohmann::json&,const std::string& actual_client_origin,nlohmann::json& receipt,std::string&);
 }

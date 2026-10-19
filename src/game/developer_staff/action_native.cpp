@@ -6,6 +6,7 @@
 #define NOMINMAX
 #endif
 #include "action_native.h"
+#include "general_project_runtime.h"
 #include "action_calls.h"
 #include "frame_apply.h"
 #include "construction_native.h"
@@ -137,6 +138,8 @@ bool ui_command(void* window,void* record){
         if(!r->ready||!controller.value("initialized",false)||!controller.value("started",false)){++r->forwarded;return original(window,record);}
         uintptr_t ap=0;std::string error;
         if(!window||!r->memory.copy(reinterpret_cast<uintptr_t>(window),&ap,sizeof ap,error)||ap!=r->image+0x1722e60){++r->forwarded;return original(window,record);}
+        bool project_handled=false,project_accepted=false;
+        if(!general_project_runtime::capture_ui(window,record,project_handled,project_accepted)||project_handled)return project_accepted;
         uint32_t fault=0;const auto intent=classify(r->image,record,fault);CaptureCalls calls{*r,window,record};IntentReceipt receipt;
         const bool accepted=capture_ui(true,true,intent,calls,receipt);
         if(receipt.suppressed){if(fault)receipt.cause="Developer UI genuine command read SEH="+std::to_string(fault);r->intent=receipt;if(!receipt.captured)rejected(*r,receipt.cause);}

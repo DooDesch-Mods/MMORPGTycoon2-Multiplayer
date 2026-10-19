@@ -12,7 +12,12 @@ bool Coupling::capture(const Target& actual_day,State& out,std::string& error){
         if(additions_.locked())capture_cause_=error.empty()?"Subscriber Host capture locked without original cause; no replay":error;
         return false;
     }
+    if(parties_){party_frame::State party;const auto& pin=actual.history.pin;
+        if(!parties_->capture(pin.context,pin.binding,out.day.frame,party,error)){locked_=true;capture_cause_=error;return false;}
+        out.day.frame.party=std::move(party);captured=true;
+    }
     if(captured){
+        auto party=std::move(out.day.frame.party);
         Owners refreshed;
         if(!port_.read(refreshed,error)||!capture_readback(actual,refreshed,error,true)){
             locked_=true;capture_cause_="Subscriber post-capture Frame refresh rejected original="+error+"; no replay";
@@ -20,7 +25,7 @@ bool Coupling::capture(const Target& actual_day,State& out,std::string& error){
         }
         // Capture all new graphs before sampling the final authoritative poses.
         // Original C1 still consumes each graph; existing Apply adopts this State.
-        auto graphs=std::move(out.additions);out=std::move(refreshed.state);out.additions=std::move(graphs);
+        auto graphs=std::move(out.additions);out=std::move(refreshed.state);out.additions=std::move(graphs);out.day.frame.party=std::move(party);
     }
     return valid(out,error);
 }
@@ -33,13 +38,19 @@ bool Coupling::before_day(const State& target,Owners& before,std::string& error)
     before={};if(locked())return fail(error,"economy before-Day admission locked; no replay");
     Target actual_day;Port::ReadScope observed(port_,before);
     if(!day_.actual_current(target.day.frame,actual_day,error)||!port_.bind_actual_receipt(actual_day,error)||!observed.read(error))return false;
+    if(parties_&&(!target.day.frame.party||!target.additions.available))return fail(error,"Party Frame requires complete Subscriber birth state before mutation");
     if(target.additions.available){
         if(target.additions.next_id<before.next_id)return fail(error,"Subscriber Host nextID moved backwards before membership effects");
         if(before.state.loans.size()!=target.loans.size()||before.state.offers!=target.offers)return fail(error,"Subscriber append cannot repair foreign Loan/Offer membership");
         for(size_t i=0;i<target.loans.size();++i)if(before.state.loans[i].text!=target.loans[i].text)return fail(error,"Subscriber append cannot repair Loan identity");
         std::vector<int32_t> current,wanted;for(const auto& row:before.state.subscribers)current.push_back(row.serialized_id);for(const auto& row:target.subscribers)wanted.push_back(row.serialized_id);
         bool append_invoked=false;
-        nlohmann::json addition;const bool appended=additions_.client(current,wanted,target.additions,[this,&observed,&append_invoked](const nlohmann::json& graph,nlohmann::json& receipt,std::string& e){append_invoked=true;observed.close();return port_.append_subscriber(graph,receipt,e);},addition,error,[this,&observed,&append_invoked](int32_t id,int32_t reason,nlohmann::json& receipt,std::string& e){append_invoked=true;observed.close();return port_.retire_subscriber(id,reason,receipt,e);});
+        mt2mp::subscriber_lifecycle::additions::Cache::AppendBatch batch;
+        if(parties_)batch=[this,&observed,&append_invoked,&target,&before](const std::vector<nlohmann::json>& graphs,nlohmann::json& receipt,std::string& e){
+            append_invoked=true;observed.close();const auto& pin=before.history.pin;
+            return parties_->apply(pin.context,pin.binding,target.day.frame,graphs,receipt,e);
+        };
+        nlohmann::json addition;const bool appended=additions_.client(current,wanted,target.additions,[this,&observed,&append_invoked](const nlohmann::json& graph,nlohmann::json& receipt,std::string& e){append_invoked=true;observed.close();return port_.append_subscriber(graph,receipt,e);},addition,error,[this,&observed,&append_invoked](int32_t id,int32_t reason,nlohmann::json& receipt,std::string& e){append_invoked=true;observed.close();return port_.retire_subscriber(id,reason,receipt,e);},std::move(batch));
         if(addition.value("attempted",false)||addition.value("unknown",false)||addition_receipt_.is_null()){addition_receipt_=addition;addition_receipt_["frame_revision"]=target.day.frame.revision;addition_receipt_["frame_committed"]=false;}
         if(!appended){locked_=addition.value("unknown",false);return false;}
         if(append_invoked&&!observed.read(error)){locked_=addition_receipt_.value("attempted",false);return false;}

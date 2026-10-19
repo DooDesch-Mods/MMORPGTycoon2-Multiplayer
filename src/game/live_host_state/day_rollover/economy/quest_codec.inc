@@ -56,10 +56,18 @@ std::optional<quest_state::Toon> toon_read(const Json& row){
     }
     return value;
 }
+Json runtime_json(const npc_quest_runtime::Value& v){
+    return {{"rating_bits",v.rating_bits},{"rating_set",v.rating_set},{"xp_reward",v.xp_reward},{"gold_reward",v.gold_reward}};
+}
+npc_quest_runtime::Value runtime_read(const Json& row){
+    exact(row,{"rating_bits","rating_set","xp_reward","gold_reward"});npc_quest_runtime::Value v;
+    bit_patterns(row.at("rating_bits"),v.rating_bits);v.rating_set=boolean(row.at("rating_set"));
+    v.xp_reward=i32(row.at("xp_reward"));v.gold_reward=i32(row.at("gold_reward"));return v;
+}
 Json npcs_json(const std::vector<quest_state::Npc>& values){
     Json rows=Json::array();
     for(const auto& value:values){
-        Json quests=Json::array();for(const auto& quest:value.quests)quests.push_back({{"sequence_id",quest.sequence_id},{"accepted",daily_json(quest.accepted)},{"completed",daily_json(quest.completed)},{"highest_cache",quest.highest_cache}});
+        Json quests=Json::array();for(const auto& quest:value.quests)quests.push_back({{"sequence_id",quest.sequence_id},{"runtime",runtime_json(quest.runtime)},{"accepted",daily_json(quest.accepted)},{"completed",daily_json(quest.completed)},{"highest_cache",quest.highest_cache}});
         rows.push_back({{"key",value.key},{"type",value.type},{"level",value.level},{"pose",pose_json(value.pose)},
             {"accepted",daily_json(value.accepted)},{"completed",daily_json(value.completed)},{"quests",quests},{"highest_cache",value.highest_cache}});
     }
@@ -73,7 +81,8 @@ void npcs_read(const Json& rows,std::vector<quest_state::Npc>& values){
         value.accepted=daily_read(row.at("accepted"));value.completed=daily_read(row.at("completed"));
         integers(row.at("highest_cache"),value.highest_cache);
         if(!row.at("quests").is_array())throw std::runtime_error("Quest counters array required");
-        for(const auto& quest:row.at("quests")){exact(quest,{"sequence_id","accepted","completed","highest_cache"});quest_state::Counters counter;
+        for(const auto& quest:row.at("quests")){exact(quest,{"sequence_id","runtime","accepted","completed","highest_cache"});quest_state::Counters counter;
+            counter.runtime=runtime_read(quest.at("runtime"));
             counter.sequence_id=i32(quest.at("sequence_id"));counter.accepted=daily_read(quest.at("accepted"));counter.completed=daily_read(quest.at("completed"));
             integers(quest.at("highest_cache"),counter.highest_cache);value.quests.push_back(std::move(counter));}
         values.push_back(std::move(value));

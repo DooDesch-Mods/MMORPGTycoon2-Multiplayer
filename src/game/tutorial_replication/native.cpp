@@ -1,6 +1,7 @@
 #include "live_host_state/memory_query_timing.h"
 #include "developer_staff/action_native.h"
 #include "native.h"
+#include "general_project_runtime.h"
 #include "bug_authority/codec.h"
 #include "lifecycle.h"
 #include "owned_scenario_start_entry.h"
@@ -288,6 +289,12 @@ bool verify_pay_entry(uintptr_t address,std::string& e){
     if(!native::read_resolver_receipt(base,thread,sha,e))return false;
     if(base!=image||thread!=GetCurrentThreadId())return fail(e,"tutorial Pay verifier requires actual Mainthread/image");
     return start_intent::verify_pay(owned_pay.enabled?&owned_pay:nullptr,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);
+}
+bool verify_allocate_entry(uintptr_t address,std::string& e){
+    uintptr_t base=0;uint32_t thread=0;std::string sha;
+    if(!native::read_resolver_receipt(base,thread,sha,e))return false;
+    if(base!=image||thread!=GetCurrentThreadId())return fail(e,"tutorial Allocate verifier requires actual Mainthread/image");
+    return staff::verify_owned_allocate(owned_staff,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);
 }
 bool verify_commit_entry(uintptr_t address,std::string& e){
     uintptr_t base=0;uint32_t thread=0;std::string sha;

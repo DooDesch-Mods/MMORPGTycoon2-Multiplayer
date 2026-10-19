@@ -22,6 +22,9 @@ once=body(native,'bool NativePort::once(')
 assert once.endswith('if(!canonical_subscribers(out,e)||!valid(out.state,e)||!finish_motion_pass(p,motion_pass,e))return false;if(npc_owners)*npc_owners=std::move(quest_owners);return true;}')
 import hashlib
 normalized=once.replace('std::string& e,std::vector<QuestOwner>* npc_owners)','std::string& e)').replace('if(!canonical_subscribers(out,e)||!valid(out.state,e)||!finish_motion_pass(p,motion_pass,e))return false;if(npc_owners)*npc_owners=std::move(quest_owners);return true;}','return canonical_subscribers(out,e)&&valid(out.state,e)&&finish_motion_pass(p,motion_pass,e);}')
+completion_sample='npc_quest_completion::Snapshot completed;if(!quest_completion_sample(p,quest_owners,out.state.npcs,completed,e))return false;'
+assert normalized.count(completion_sample)==1
+normalized=normalized.replace(completion_sample,'',1)
 assert hashlib.sha256(normalized.encode()).hexdigest()=="ab3e09af4b5f249a5263f0ea2b9445d5efe8eab36f00b14ebc18f31e30d9ab1b", 'Original complete once read body drifted'
 
 motion=body(native,"bool NativePort::motion_once(")
@@ -30,10 +33,20 @@ motion=motion.replace("apply_timing::PageReadScope pages(!apply_timing::page_rea
 assert hashlib.sha256(motion.encode()).hexdigest()=='1b43f613921d2afb7b2203f96032eddc8b5021baf96145633a45b186900bc2e1', "Existing complete motion ownership reader drifted"
 
 quest=(a.source_root/'src/game/live_host_state/day_rollover/economy/native_quest_state.inc').read_text()
+quest_runtime=(a.source_root/'src/game/live_host_state/day_rollover/economy/native_quest_runtime.inc').read_text()
+(a.output/'npc_quest_runtime_actual.inc').write_text(body(quest_runtime,'template<class Guard>bool store_quest_runtime(')+'\n',encoding='utf-8')
 (a.output/'npc_daily_guard_actual.inc').write_text(body(quest,'struct QuestDailyWork {')+';\n'+body(quest,'bool quest_daily_body(')+'\n'+body(quest,'bool quest_daily_guard(')+'\n'+body(quest,'bool store_npc_counters(')+'\n')
 scope=(a.source_root/'src/game/subscriber_lifecycle/save_scope.cpp').read_text()
 (a.output/'npc_save_scope_actual.inc').write_text(body(scope,'bool callback(')+'\n'+body(scope,'bool begin_save_scope(')+'\n'+body(scope,'bool finish_save_scope(')+'\n'+body(scope,'bool with_save_scope(')+'\n')
 baseline=body(quest,'bool store_npc_counters(')
+runtime_line='            if(a.runtime!=b.runtime&&!store_quest_runtime(p,owner,quest,a.sequence_id,a.runtime,b.runtime,guard,error))return false;\n'
+assert baseline.count(runtime_line)==1, 'Quest runtime scalar phase missing or duplicated'
+# Keep the independent DailyCount baseline comparison; runtime fields have their own actual-body checks.
+baseline=baseline.replace(runtime_line,'',1)
+completion_before='        int32_t completion_delta=0;\n        for(size_t i=0;i<old.quests.size();++i)completion_delta+=int32_t(target.quests[i].completed.total>0)-int32_t(old.quests[i].completed.total>0);\n        npc_quest_completion::Snapshot completion_before;\n        if(completion_delta&&(!guard(error)||!quest_completion_current(p,completion_before,error)))return false;\n'
+completion_after='        if(completion_delta&&!npc_quest_completion::finish(completion_before,completion_delta,\n            [&](auto& snapshot,std::string& cause,bool exact){return quest_completion_current(p,snapshot,cause,exact);},\n            guard,compare_fixed_i32,error))return false;\n'
+assert baseline.count(completion_before)==1 and baseline.count(completion_after)==1
+baseline=baseline.replace(completion_before,'',1).replace(completion_after,'',1)
 scope_line='            apply_timing::PageReadScope pages;\n'
 reserve_boundary='''        uint32_t exception=0;
         {

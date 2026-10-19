@@ -96,8 +96,8 @@ int main(){try{unsigned checks=0;const auto req=request();const a::Binding bindi
         reset();model.fault=fault;need(perform(binding,req,nullptr,e)==a::Outcome::Unknown,std::string(fault)+": "+e);
         const auto calls=model.paint+model.finish+model.destroy;need(!state.operations.at(req.action_uuid).confirmed,"partial action confirmed");
         need(perform(binding,req,nullptr,e)==a::Outcome::Unknown&&calls==model.paint+model.finish+model.destroy,"partial original replayed");++checks;}
-    reset();auto wrong=authority;++wrong.zone_before.next_tag;need(perform(binding,req,&wrong,e)==a::Outcome::RejectedNoEffect&&!model.construct,e);++checks;
-    reset();wrong=authority;++wrong.zone_after.next_tag;need(perform(binding,req,&wrong,e)==a::Outcome::Unknown&&model.finish==1,e);++checks;
+    reset();auto wrong=authority;wrong.zone_before.content_sha256=std::string(64,'c');need(perform(binding,req,&wrong,e)==a::Outcome::RejectedNoEffect&&!model.construct,e);++checks;
+    reset();wrong=authority;wrong.zone_after.content_sha256=std::string(64,'c');need(perform(binding,req,&wrong,e)==a::Outcome::Unknown&&model.finish==1,e);++checks;
     reset();auto invalid=req;invalid.zone.level=3;need(perform(binding,invalid,nullptr,e)==a::Outcome::RejectedNoEffect&&!model.construct&&e.find("level range")!=std::string::npos,e);++checks;
     reset();model.throw_pin=true;need(perform(binding,req,nullptr,e)==a::Outcome::Unknown&&e.find("owner read exception")!=std::string::npos,e);++checks;
     reset();const std::array<uint64_t,4> client_region{11031208541562408887ull,7264565988762834373ull,9860586388526540594ull,17295355788292699441ull};

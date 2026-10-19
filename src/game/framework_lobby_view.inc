@@ -100,6 +100,13 @@ bool framework_effectively_visible(const FrameworkWidget& widget){
     if(framework_browser)return widget.group=="browser"||widget.group==(choosing?"picker":"find");
     return widget.group==(admitted()?"session":"entry");
 }
+bool framework_reject_unattempted(const std::string& widget,uint64_t sequence,const std::string& detail,std::string& error){
+    ++framework_rejected;
+    framework_last_action={{"sequence",sequence},{"widget",widget},{"attempted",false},{"handler_failed",true},{"callback_pending",false},{"error",detail}};
+    const bool rejected=!fail(detail);
+    // The failed action remains observable; an unattempted input cannot invalidate the update loop.
+    error.clear();return rejected;
+}
 bool framework_apply_response(const nlohmann::json& response,std::string& error){
     framework_response=response;framework_ready=response.at("ready").get<bool>();
     if(!framework_ready){framework_observed_open=false;framework_visibility_known=false;framework_visible=false;framework_suspended=false;error.clear();return true;}
@@ -120,9 +127,9 @@ bool framework_apply_response(const nlohmann::json& response,std::string& error)
         if(!value.is_string()){error="Framework lobby click is not a widget ID";return fail(error);}
         const auto id=value.get<std::string>();auto* widget=framework_widget(id.c_str());auto command=framework_commands.find(id);
         if(!framework_observed_open||!framework_visibility_known||!framework_visible||framework_suspended||!ui_owner||!widget||widget->type!="button"||widget->disabled||!framework_effectively_visible(*widget)||command==framework_commands.end()){
-            ++framework_rejected;error="Framework lobby click is not currently enabled: "+id;return fail(error);
+            return framework_reject_unattempted(id,0,"Framework lobby click is not currently enabled: "+id,error);
         }
-        if(framework_actions.size()>=16){++framework_rejected;error="Framework lobby action queue full; click not replayed";return fail(error);}
+        if(framework_actions.size()>=16)return framework_reject_unattempted(id,0,"Framework lobby action queue full; click not replayed",error);
         framework_actions.push_back({id,command->second,framework_widgets.at("lobby_id").text,framework_widgets.at("chat_input").text,framework_report_comment,ui_owner,generation,list_generation,++framework_queued,list_page,choosing});
     }
     error.clear();return true;

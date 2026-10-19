@@ -25,6 +25,7 @@ monster_remove_body(src/game/typed_action_runtime.cpp "bool network_binding(" "b
 monster_remove_body(src/game/monster_remove_runtime.inc "static bool remove_bound_local(" "bool submit_remove(" remove_binding_body.inc)
 monster_remove_body(src/game/monster_remove_runtime.inc "bool authorize_remove_replay(" "a::Outcome remove_perform(" remove_replay_binding_body.inc)
 monster_remove_body(src/game/monster_remove_runtime.inc "a::Outcome remove_perform(" "bool remove_observe(" remove_perform_body.inc)
+monster_remove_body(src/game/monster_quest_runtime.inc "bool quest_before_matches(" "json quest_retirement_json(" remove_quest_preflight_body.inc)
 monster_remove_body(src/game/monster_remove_runtime.inc "bool remove_absent(" "bool remove_inverse(" remove_absent_body.inc)
 monster_remove_body(src/game/monster_remove_runtime.inc "bool remove_inverse(" "json remove_status(" remove_inverse_body.inc)
 monster_remove_body(src/game/ui_remove/native_contract.cpp "bool classify_origin(" "bool read_native_array(" remove_origin_body.inc)

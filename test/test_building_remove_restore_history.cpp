@@ -3,6 +3,14 @@
 #include "building_history_slice/cash_effect.h"
 #include "scenery_kiss/native_catalog.h"
 #include "typed_action_runtime.h"
+#include "region_history_key.h"
+namespace region_history_key=mt2mp::game::region_history_key;
+namespace ui_path_runtime {
+mt2mp::action_session::Outcome perform_history(const mt2mp::action_session::Binding&,const mt2mp::action_session::Request&,const mt2mp::action_session::Evidence*,std::string& e){e="Path history is covered by its own actual-body fixture";return mt2mp::action_session::Outcome::RejectedNoEffect;}
+}
+namespace ui_region_runtime {
+mt2mp::action_session::Outcome perform_history(const mt2mp::action_session::Binding&,const mt2mp::action_session::Request&,const mt2mp::action_session::Evidence*,std::string& e){e="Region history is covered by its own actual-body fixture";return mt2mp::action_session::Outcome::RejectedNoEffect;}
+}
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -23,24 +31,27 @@ action::Ledger ledger;native::BuildingState fixture_observed;remove_diagnostics:
 bool read_ledger(action::Ledger& out,std::string& error){out=ledger;error.clear();return true;}
 void check(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);++checks;}
 struct Harness {
+    action::Outcome perform_selection_history(const action::Binding&,const action::Request&,const action::Evidence*,std::string& error){
+        error="selection history belongs to its own actual-body fixture";return action::Outcome::RejectedNoEffect;
+    }
     struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;};
     struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false,history_ready=false;int32_t refund=0;};
     struct HistoryOperation {action::Request request;action::Binding binding;action::Ledger before,after;action::BuildingState object_before,object_after;uint64_t uid=0;bool confirmed=false,retired=false;};
     std::map<std::string,BuildOperation> buildings_;std::map<std::string,Operation> operations_;std::map<std::string,HistoryOperation> history_;world_state::Table world_;
     std::string key,fixture_source;bool current(const action::Binding&,const std::string&,std::string& error){error.clear();return true;}
 #include "history_method.inc"
-    Harness(bool removal=true,bool baseline=false,int32_t price=400){
+    Harness(bool removal=true,bool baseline=false,int32_t price=400,bool scenery=false){
         is_remove=removal;fixture_amount=price;calls=restore_calls=absence_calls=0;fail_resolve=fail_read=fail_original=fail_restore=fail_absence=bad_cash=restore_pose=false;fixture_revision=3;pending=undo_id;
         ledger={};ledger.cash=88040;ledger.record_cash=88040;ledger.record_present=1;ledger.flat_day=ledger.record_day=2;
-        action::BuildingState state;state.type="SmallInn";state.variant="base";state.alive=true;state.x=8020;state.y=70.83831787109375f;state.z=8550;
+        action::BuildingState state;state.type=scenery?"Cactus":"SmallInn";state.variant="base";state.alive=true;state.x=8020;state.y=70.83831787109375f;state.z=8550;
         world_state::Origin origin{snapshot,std::string(64,'a'),2,1};std::string error;
         key=baseline?origin.sha256+":world:building:44":"action:"+fixture_placed;fixture_source=removal?fixture_removed:fixture_placed;
         check(world_.bind_snapshot(origin,{{key,origin.sha256+":world:building:44",state}},1,error),"world bootstrap");
         action::Request request;request.action=removal?action::Action::RemoveSnapshotBuilding:action::Action::PlaceBuilding;request.action_uuid=fixture_source;request.snapshot_uuid=snapshot;request.canonical_record_key=key;
-        if(removal){check(world_.retire_native_effects(origin,2,fixture_removed,{key},error),"real table Remove");operations_[fixture_removed]={request,{2,1},{},{{"confirmed",true}},{{"confirmed",true}},state,7328,false,true,price};}
-        else buildings_[fixture_placed]={request,{2,1},{},state,{{"native_uid",7328u},{"cost",price},{"confirmed",true}},true,{},false};
+        if(removal){check(world_.retire_native_effects(origin,2,fixture_removed,{key},error),"real table Remove");operations_[fixture_removed]={request,{2,1},{},{{"confirmed",true}},{{"confirmed",true}},state,7328,scenery,true,price};}
+        else buildings_[fixture_placed]={request,{2,1},{},state,{{"native_uid",7328u},{"cost",price},{"confirmed",true}},true,{},scenery};
         fixture_observed={};fixture_observed.prop={7328,state.x,state.y,state.z};fixture_observed.type=state.type;fixture_observed.variant=state.variant;fixture_observed.rotation=state.rotation;fixture_observed.scale=state.scale;
-        local={};local.uid=7328;local.world_epoch=2;local.world_generation=1;local.snapshot_id=snapshot;local.record_key=key;local.type=state.type;local.variant=state.variant;local.normal_building=true;
+        local={};local.uid=7328;local.world_epoch=2;local.world_generation=1;local.snapshot_id=snapshot;local.record_key=key;local.type=state.type;local.variant=state.variant;local.normal_building=!scenery;local.normal_scenery=scenery;
     }
     action::Request request(bool undo=true){action::Request r;r.action=undo?action::Action::UndoBuilding:action::Action::RedoBuilding;r.action_uuid=undo?undo_id:redo_id;r.target_action_uuid=fixture_source;r.snapshot_uuid=snapshot;r.canonical_record_key=key;return r;}
     action::Outcome run(std::string& error,const action::Evidence* authority=nullptr,bool undo=true){return perform_building_history({2,1},request(undo),authority,error);}
@@ -49,6 +60,7 @@ struct Harness {
 }
 namespace mt2mp::game::typed_action_runtime {json status(){return {{"pending",true},{"action_uuid",pending},{"host_revision",fixture_revision}};}}
 namespace mt2mp::game::remove_diagnostics {
+bool refresh_moved_building(const std::string&,const std::string&,uint64_t,std::string& error){error="unexpected Move history in Building restore fixture";return false;}
 bool resolve_record_target(const std::string&,const std::string&,LocalTarget& out,std::string& error){if(fail_resolve){error="fixture original resolver failure";return false;}out=local;error.clear();return true;}
 bool retire_undone_building(const std::string&,const std::string&,uint64_t,std::string& error){error.clear();return true;}
 bool restore_redone_building(const std::string&,const std::string&,uint64_t,std::string& error){++restore_calls;if(fail_restore){error="fixture original rebind failure";return false;}if(restore_pose)fixture_observed.prop.y+=1;error.clear();return true;}
@@ -71,7 +83,12 @@ int main(){try{
     {Harness h;h.operations_.at(fixture_removed).history_ready=false;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"unconfirmed fixture_source cannot Restore");}
     {Harness h;h.operations_.at(fixture_removed).binding.native_generation++;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"old world fixture_source rejected");}
     {Harness h;h.operations_.at(fixture_removed).request.action_uuid=fixture_placed;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"retained mutation UUID differs from requested source");}
-    {Harness h;h.operations_.at(fixture_removed).normal_scenery=true;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"separate Scenery fixture_source rejected");}
+    {Harness h(false);h.buildings_.at(fixture_placed).normal_scenery=true;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"source family mismatch rejected before destructive original");}
+    for(bool removal:{false,true})for(bool baseline:{false,true}){Harness h(removal,baseline,10,true);const auto original_key=h.key;
+        check(h.run(error)==action::Outcome::Confirmed&&calls==1,"Scenery original Undo: "+error);fixture_revision=4;pending=redo_id;
+        check(h.run(error,nullptr,false)==action::Outcome::Confirmed&&calls==2&&h.key==original_key&&h.world_.rows().size()==1,"Scenery Redo preserves canonical identity: "+error);
+        check(h.world_.rows().at(h.key).state.alive==!removal&&ledger.cash==88040,"Scenery full inverse cash/state cycle");}
+    {Harness h(true,false,10,true);local.normal_scenery=false;local.normal_building=true;check(h.run(error)==action::Outcome::Unknown&&calls==1&&!h.world_.rows().at(h.key).state.alive,"Scenery restore changed native family after original");check(h.run(error)==action::Outcome::Unknown&&calls==1,"Scenery wrong-family original never replayed");}
     {Harness h;pending=redo_id;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0,"wrong pending action rejected");}
     {Harness h;ledger.record_cash=INT32_MIN;check(h.run(error)==action::Outcome::RejectedNoEffect&&calls==0&&error.find("overflow")!=std::string::npos,"inverse int32 overflow rejected preeffect");}
     {Harness h(true,false,0);const auto before=ledger;check(h.run(error)==action::Outcome::Confirmed&&ledger==before,"zero-price inverse has no cash call or category increment");}

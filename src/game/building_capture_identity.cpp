@@ -3,6 +3,11 @@
 #include "mt2mp/net/snapshot_world_path.h"
 #include "npc_quest_target_runtime.h"
 #include "npc_saved_identity_runtime.h"
+#include "party_saved_identity_runtime.h"
+#include "monster_saved_identity_runtime.h"
+#include "boss_saved_identity_runtime.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "district_saved_identity_runtime.h"
 #include "mt2mp/core/logger.h"
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
@@ -354,6 +359,31 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const st
         if (!bug_authority::arm_snapshot(uuid,{},true,error)) { armed=false; npc_saved_identity_runtime::cancel(error); npc_quest_target_runtime::cancel(error); return fail(error,"Bug capture arm failed: "+error); }
     }
 #endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!monster_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
+        armed=false;npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+        return fail(error,"Monster identity capture arm failed: "+error);
+    }
+#endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!boss_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
+        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+        return fail(error,"Boss identity capture arm failed: "+error);
+    }
+#endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!district_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
+        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+        return fail(error,"District identity capture arm failed: "+error);
+    }
+#endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!party_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)){
+        armed=false;district_saved_identity_runtime::cancel(error);monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);
+        npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+        return fail(error,"Party identity capture arm failed: "+error);
+    }
+#endif
     error.clear(); LOG_INFO("[BuildingCapture] Armed capture={} epoch={} game_thread={}", uuid, epoch, current.game_thread_id); return true;
 }
 Ticket capture_before(const void* array, void* writer, void* context) noexcept {
@@ -493,11 +523,36 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
         sealed_readbacks[index].building = std::move(building); ++current.final_readbacks_checked;
     }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    dungeon_scene_identity_runtime::Census dungeon_scenes;
+    std::vector<dungeon_scene_identity_runtime::Exterior> scene_exteriors;
+    for(const auto& row:sealed_readbacks)scene_exteriors.push_back({row.local_uid,row.record_key});
+    if(!dungeon_scene_identity_runtime::classify_capture(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},scene_exteriors,dungeon_scenes,error))
+        return rejected("Dungeon scene native snapshot classification failed: "+error);
+    if(capture_snapshot_identities&&!npc_quest_target_runtime::stage_scenes(dungeon_scenes,error))
+        return rejected("Dungeon Quest Zone native snapshot classification failed: "+error);
+    if(!party_saved_identity_runtime::stage_scenes(dungeon_scenes,error))
+        return rejected("Dungeon Party native snapshot classification failed: "+error);
+    if(!boss_saved_identity_runtime::stage_scenes(dungeon_scenes,error))
+        return rejected("Dungeon Boss native snapshot classification failed: "+error);
+    if(!monster_saved_identity_runtime::stage_scenes(std::move(dungeon_scenes),error))
+        return rejected("Dungeon Monster native snapshot classification failed: "+error);
     if (capture_snapshot_identities) {
         if (!npc_quest_target_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("Quest target snapshot seal failed: "+error);
         if (!npc_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("NPC identity snapshot seal failed: "+error);
         if (!bug_authority::seal_snapshot(uuid,sha,error)) return rejected("Bug snapshot seal failed: "+error);
     }
+#endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!party_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
+        return rejected("Party identity snapshot seal failed: "+error);
+    if(!boss_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
+        return rejected("Boss identity snapshot seal failed: "+error);
+    if(!monster_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
+        return rejected("Monster identity snapshot seal failed: "+error);
+#endif
+#ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    if(!district_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
+        return rejected("District identity snapshot seal failed: "+error);
 #endif
     current.buildings = std::move(sealed_readbacks);
     current.state = "confirmed"; current.bindings_confirmed = true; armed = false; clear_private(); result = current; error.clear();
@@ -507,6 +562,10 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
 }
 void cancel(const std::string& reason) {
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
+    party_saved_identity_runtime::cancel(reason);
+    district_saved_identity_runtime::cancel(reason);
+    monster_saved_identity_runtime::cancel(reason);
+    boss_saved_identity_runtime::cancel(reason);
     if (capture_snapshot_identities) {
         npc_quest_target_runtime::cancel(reason);
         npc_saved_identity_runtime::cancel(reason);

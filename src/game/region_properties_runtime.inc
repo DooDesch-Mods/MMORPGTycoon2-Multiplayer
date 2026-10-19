@@ -7,6 +7,8 @@ struct PropertyOperation {
     action::Evidence evidence;
     bool attempted=false,returned=false,confirmed=false,retired=false,removed_lookup_absent=false;
     uintptr_t level_brush=0,level_graph=0;
+    uintptr_t ownership_graph=0;
+    std::optional<action::RegionPropertyState> ownership_before,ownership_after;
     bool level_constructed=false,level_destroyed=false;
     std::vector<uint64_t> removed_uids;
     std::vector<std::string> retired_keys;
@@ -26,6 +28,9 @@ struct PropertyRuntime {
 };
 PropertyRuntime properties;
 bool property_pending(){return properties.pending.has_value();}
+bool appearance_read_native(Runtime&,uintptr_t,action::RegionAppearance&,std::string&);
+bool appearance_capture(Runtime&,void*,void*,bool&,std::string&);
+uint32_t appearance_original(uintptr_t,uintptr_t,const action::RegionPropertyIntent&,bool&);
 bool level_state(Runtime&,const LocalView&,const std::array<int32_t,2>&,action::RegionLevelState&,uintptr_t&,std::string&);
 bool install_levels(Runtime&,std::string&);
 action::Outcome level_perform(Runtime&,const action::Binding&,const action::Request&,const action::Evidence*,std::string&);
@@ -144,7 +149,7 @@ void property_cursor_entry(action::RegionPropertyKind kind,void* behavior,void* 
         property_rejected(e.empty()?"region property cursor receiver or hit invalid":e);return;
     }
     if(!valid||!region){original(behavior,cursor,hit);return;}
-    if(kind==action::RegionPropertyKind::Purchase){if(mode){property_rejected("region sell action is outside purchase capture");return;}}
+    if(kind==action::RegionPropertyKind::Purchase){if(mode>1){property_rejected("region buy/sell cursor mode invalid");return;}if(mode)intent.kind=action::RegionPropertyKind::Sale;}
     else {if(mode>1){property_rejected("region type cursor mode invalid");return;}intent.type=mode?0:1;}
     if(!at(*r,region,0x834,intent.id,e)||!property_capture(*r,intent,region,e)){property_rejected(e);return;}
 }
@@ -219,6 +224,8 @@ bool property_same_before(action::RegionPropertyState left,action::RegionPropert
     left.type_random={};right.type_random={};
     if(left.actors&&right.actors){left.actors->global_random={};right.actors->global_random={};}return left==right;
 }
+#include "region_sale_runtime.inc"
+#include "region_ownership_native.inc"
 action::Outcome property_perform(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& e) {
     auto* r=published.load(std::memory_order_acquire);
@@ -230,17 +237,32 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
     }
     if(request.region_property.kind==action::RegionPropertyKind::LevelRange)return level_perform(*r,binding,request,authority,e);
     action::RegionPropertyState before;LocalView view;
+    const bool sale=request.region_property.kind==action::RegionPropertyKind::Sale;
+    const bool ownership=sale||request.region_property.kind==action::RegionPropertyKind::Purchase;
     const bool clear_members=request.region_property.kind==action::RegionPropertyKind::Type;
-    if(!property_read(*r,request.region_property.id,0,before,view,e,clear_members)||!bound(view,binding,request.snapshot_uuid,e))return action::Outcome::RejectedNoEffect;
+    const bool member_census=clear_members||sale;
+    action::RegionLevelState sale_actors;uintptr_t sale_global=0;sale_native::UndoWitness sale_undo;int32_t refund=0;
+    if(!property_read(*r,request.region_property.id,0,before,view,e,member_census)||!bound(view,binding,request.snapshot_uuid,e))return action::Outcome::RejectedNoEffect;
     if(clear_members){json shared;if(!remove_diagnostics::bindings(shared,e))return action::Outcome::RejectedNoEffect;}
     action::Ledger money;if(!ledger(money,e))return action::Outcome::RejectedNoEffect;
+    if(sale){
+        if(!level_state(*r,view,{0,0},sale_actors,sale_global,e)||!sale_native::read_undo(r->memory,r->image,sale_undo,e))return action::Outcome::RejectedNoEffect;
+        const auto price_error=sale_price(r->image,refund);
+        if(price_error||refund<0||sale_undo.active_graph){e="Region sale price/idle Undo invalid SEH="+std::to_string(price_error)+" refund="+std::to_string(refund);return action::Outcome::RejectedNoEffect;}
+        before.actors=sale_actors;
+    }
+    if(sale||action::appearance_kind(request.region_property.kind)){action::RegionAppearance value;
+        if(!appearance_read_native(*r,view.region,value,e))return action::Outcome::RejectedNoEffect;before.appearance=value;}
     if(authority&&(authority->before!=money||!property_same_before(before,authority->property_before))){
         e="region property client content/ledger differs from Host before state";return action::Outcome::RejectedNoEffect;
     }
     const auto& intent=request.region_property;
+    if(action::appearance_kind(intent.kind)&&action::appearance_matches(intent,*before.appearance)){
+        e="Region appearance already equals requested value";return action::Outcome::RejectedNoEffect;}
     if(intent.kind==action::RegionPropertyKind::Name){
         if(before.name==intent.name){e="region name already equals requested value";return action::Outcome::RejectedNoEffect;}
-    }else {
+    }else if(!action::appearance_kind(intent.kind)) {
+        if(sale&&(!before.owned||before.type<=0)){e="Region sale requires owned land";return action::Outcome::RejectedNoEffect;}
         if(intent.kind==action::RegionPropertyKind::Purchase&&before.owned){e="region already owned";return action::Outcome::RejectedNoEffect;}
         if(intent.kind==action::RegionPropertyKind::Type&&(before.owned||before.type==intent.type)){
             e="region type unavailable or already selected";return action::Outcome::RejectedNoEffect;
@@ -251,11 +273,24 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
     }
     PropertyOperation operation;operation.binding=binding;operation.request=request;operation.evidence.before=money;
     operation.evidence.property_before=authority?authority->property_before:before;
+    sale_native::UndoWitness ownership_undo;action::RegionPropertyState ownership_before;LocalView ownership_view;uintptr_t ownership_global=0;
+    const std::array<int32_t,2> ownership_range=sale?std::array<int32_t,2>{0,0}:std::array<int32_t,2>{1,1};
+    if(ownership){
+        if(!ownership_read(*r,intent.id,view.region,ownership_range,ownership_before,ownership_view,ownership_global,e)||
+           !sale_native::read_undo(r->memory,r->image,ownership_undo,e))return action::Outcome::RejectedNoEffect;
+        if(ownership_undo.active_graph){e="Region ownership requires idle original Undo";return action::Outcome::RejectedNoEffect;}
+        operation.ownership_before=ownership_before;
+    }
     auto& saved=properties.operations.emplace(request.action_uuid,std::move(operation)).first->second;
     const auto unknown=[&](const std::string& cause){e=saved.cause=cause;return action::Outcome::Unknown;};
     if(clear_members&&!sha256(json(view.building_uids).dump(),saved.building_uids_sha256_before,e))
         return unknown("region native Building UID diagnostic failed: "+e);
-    if(intent.kind==action::RegionPropertyKind::Name){
+    if(action::appearance_kind(intent.kind)){
+        properties.replaying=true;saved.attempted=true;
+        const auto seh=appearance_original(r->image,view.region,intent,saved.returned);
+        properties.replaying=false;
+        if(seh||!saved.returned)return unknown("region original appearance failed SEH="+std::to_string(seh));
+    }else if(intent.kind==action::RegionPropertyKind::Name){
         uintptr_t widget=0,owner=0,ap=0;std::string widget_name;
         if(!at(*r,view.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x17024b0||
            !at(*r,widget,0x178,owner,e)||owner!=view.region||!text(*r,widget+0x38,widget_name,e)||widget_name!=before.name){
@@ -265,13 +300,14 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(authority){
             std::memcpy(reinterpret_cast<void*>(view.random),authority->property_before.content.random.data(),32);
             std::memcpy(reinterpret_cast<void*>(view.region+0x268),authority->property_before.type_random.data(),32);
+            if(sale)std::memcpy(reinterpret_cast<void*>(sale_global),authority->property_before.actors->global_random.data(),32);
         }
         properties.replaying=true;saved.attempted=true;
         const auto seh=property_rename_call(properties.rename.load(std::memory_order_acquire),widget,&value,saved.returned);
         properties.replaying=false;
         if(seh||!saved.returned)return unknown("region original Rename failed SEH="+std::to_string(seh));
     }else {
-        const bool buy=intent.kind==action::RegionPropertyKind::Purchase;
+        const bool buy=intent.kind==action::RegionPropertyKind::Purchase||sale;
         const auto ctor=buy?0x595490:0x5b9340,dtor=buy?0xc1e510:0xc1eb80,press=buy?0x595630:0x5b95a0;
         const auto release=buy?properties.buy.load(std::memory_order_acquire):properties.lift.load(std::memory_order_acquire);
         uintptr_t object=0;const auto allocation=property_allocate(r->image,object);
@@ -279,7 +315,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         bool constructed=false,pressed=false,destroyed=false;
         auto seh=property_construct(r->image,object,ctor,constructed);
         if(seh||!constructed)return unknown("region native behavior constructor failed SEH="+std::to_string(seh)+" retained allocation");
-        *reinterpret_cast<uint8_t*>(object+0x148)=uint8_t(!buy&&intent.type==0);
+        *reinterpret_cast<uint8_t*>(object+0x148)=uint8_t(sale||(!buy&&intent.type==0));
         seh=property_cursor_call(reinterpret_cast<CursorProperty>(r->image+press),object,intent.hit.data(),pressed);
         uint8_t valid=0;uintptr_t selected=0;
         if(!seh&&pressed&&(!at(*r,object,0x158,valid,e)||!at(*r,object,0x150,selected,e)))seh=0xE0010003;
@@ -294,6 +330,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(authority){
             std::memcpy(reinterpret_cast<void*>(view.random),authority->property_before.content.random.data(),32);
             std::memcpy(reinterpret_cast<void*>(view.region+0x268),authority->property_before.type_random.data(),32);
+            if(sale)std::memcpy(reinterpret_cast<void*>(sale_global),authority->property_before.actors->global_random.data(),32);
         }
         properties.replaying=true;saved.attempted=true;
         seh=property_cursor_call(release,object,intent.hit.data(),saved.returned);
@@ -305,9 +342,43 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         saved.evidence.undo_confirmed=true;
     }
     action::RegionPropertyState after;LocalView after_view;
-    if(!property_read(*r,intent.id,view.region,after,after_view,e,clear_members)||!bound(after_view,binding,request.snapshot_uuid,e)||
+    if(!property_read(*r,intent.id,view.region,after,after_view,e,member_census)||!bound(after_view,binding,request.snapshot_uuid,e)||
        !ledger(saved.evidence.after,e))return unknown("region property native readback failed: "+e);
+    if(sale||action::appearance_kind(intent.kind)){action::RegionAppearance value;
+        if(!appearance_read_native(*r,view.region,value,e))return unknown("region appearance readback failed: "+e);after.appearance=value;}
+    if(sale){action::RegionLevelState current;uintptr_t global=0;sale_native::UndoWitness undo_after;
+        if(!level_state(*r,after_view,{0,0},current,global,e)||global!=sale_global||
+           !sale_native::read_undo(r->memory,r->image,undo_after,e)||!sale_inverse(*r,view,before,sale_undo,undo_after,refund,intent.hit,e)||
+           !sale_members(view,after_view,e))return unknown(e.empty()?"Region sale global RNG owner changed":e);
+        after.actors=current;
+        auto expected=before;expected.owned=false;expected.status=0;expected.level=expected.max_level=0;
+        expected.content.random=after.content.random;expected.type_random=after.type_random;expected.actors=current;
+        if(after!=expected||current.counts!=sale_actors.counts||current.roster_sha256!=sale_actors.roster_sha256||
+           current.levels_sha256!=sale_actors.expected_sha256||current.expected_sha256!=current.levels_sha256||
+           int64_t(saved.evidence.after.cash)-money.cash!=refund)return unknown("Region sale ownership/actor clamp/roster/native refund differs");
+    }
     saved.evidence.property_after=after;
+    if(ownership){
+        action::RegionPropertyState full;LocalView full_view;uintptr_t global=0;sale_native::UndoWitness undo_after;
+        const int64_t amount=int64_t(money.cash)-saved.evidence.after.cash;
+        if(amount<INT32_MIN||amount>INT32_MAX||amount==INT32_MIN)return unknown("Region ownership inverse cash outside signed native domain");
+        if(!ownership_read(*r,intent.id,view.region,ownership_range,full,full_view,global,e)||global!=ownership_global||
+           !sale_members(ownership_view,full_view,e)||!sale_native::read_undo(r->memory,r->image,undo_after,e)||undo_after.undo.empty())
+            return unknown(e.empty()?"Region ownership complete readback or original Undo missing":e);
+        sale_native::GraphWitness graph;saved.ownership_graph=undo_after.undo.back();
+        if(!sale_native::read_graph(r->memory,r->image,saved.ownership_graph,graph,e)||
+           !sale_native::validate_undo_commit(ownership_undo,undo_after,graph,e)||
+           !ownership_inverse(*r,saved.ownership_graph,view.region,ownership_before,int32_t(amount),intent.hit,e))return unknown(e);
+        auto expected=ownership_before;expected.owned=!sale;expected.status=sale?0:1;
+        expected.level=expected.max_level=sale?0:1;expected.content.random=full.content.random;
+        expected.type_random=full.type_random;expected.actors=full.actors;
+        if(full!=expected||ownership_before.actors->counts!=full.actors->counts||
+           ownership_before.actors->roster_sha256!=full.actors->roster_sha256||
+           ownership_before.actors->expected_sha256!=full.actors->levels_sha256||
+           full.actors->expected_sha256!=full.actors->levels_sha256)
+            return unknown("Region ownership original full state or actor clamp differs");
+        saved.ownership_after=std::move(full);
+    }
     if(clear_members&&!sha256(json(after_view.building_uids).dump(),saved.building_uids_sha256_after,e))
         return unknown("region native Building UID readback diagnostic failed: "+e);
     std::vector<uint64_t> removed;
@@ -337,19 +408,33 @@ bool property_observe(const action::Binding& binding,const action::Request& requ
         return fail(e,"region property observation lacks exact confirmed operation");
     const auto& op=found->second;action::RegionPropertyState actual;LocalView view;action::Ledger money;
     if(!property_read(*r,request.region_property.id,0,actual,view,e,
-        request.region_property.kind==action::RegionPropertyKind::Type)||!bound(view,binding,request.snapshot_uuid,e)||!ledger(money,e))return false;
-    if(request.region_property.kind==action::RegionPropertyKind::LevelRange){action::RegionLevelState state;uintptr_t global=0;
-        if(!level_state(*r,view,request.region_property.levels,state,global,e))return false;
+        (request.region_property.kind==action::RegionPropertyKind::Type||request.region_property.kind==action::RegionPropertyKind::Sale))||!bound(view,binding,request.snapshot_uuid,e)||!ledger(money,e))return false;
+    if(request.region_property.kind==action::RegionPropertyKind::LevelRange||request.region_property.kind==action::RegionPropertyKind::Sale){action::RegionLevelState state;uintptr_t global=0;
+        const auto range=request.region_property.kind==action::RegionPropertyKind::Sale?std::array<int32_t,2>{0,0}:request.region_property.levels;
+        if(!level_state(*r,view,range,state,global,e))return false;
         actual.actors=state;
         // Receipt RNG is synchronous. Later global draws are observational.
         actual.actors->global_random=op.evidence.property_after.actors->global_random;
     }
+    if(request.region_property.kind==action::RegionPropertyKind::Sale||action::appearance_kind(request.region_property.kind)){action::RegionAppearance value;
+        if(!appearance_read_native(*r,view.region,value,e))return false;actual.appearance=value;}
     if(actual!=op.evidence.property_after||money!=op.evidence.after)return fail(e,"region property observation changed after native result");
+    if(op.ownership_after){
+        action::RegionPropertyState full;LocalView full_view;uintptr_t global=0;
+        const std::array<int32_t,2> range{op.ownership_after->level,op.ownership_after->max_level};
+        if(!ownership_read(*r,request.region_property.id,view.region,range,full,full_view,global,e))return false;
+        full.actors->global_random=op.ownership_after->actors->global_random;
+        if(full!=*op.ownership_after)return fail(e,"Region ownership complete result changed before ACK");
+    }
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }
 bool property_retire(const action::Binding& binding,const action::Request& request,std::string& e) {
     action::Evidence actual;if(!property_observe(binding,request,actual,e))return false;
     auto& op=properties.operations.at(request.action_uuid);if(op.retired)return fail(e,"region property receipt already retired");
+    if(request.region_property.kind==action::RegionPropertyKind::LevelRange&&
+       !building_history_slice::remember_region(request.action_uuid,request.region_property.id,op.level_graph,e))return false;
+    if((request.region_property.kind==action::RegionPropertyKind::Purchase||request.region_property.kind==action::RegionPropertyKind::Sale)&&
+       !building_history_slice::remember_region(request.action_uuid,request.region_property.id,op.ownership_graph,e))return false;
     op.retired=true;return true;
 }
 bool property_retired_keys(const action::Binding& binding,const action::Request& request,std::vector<std::string>& keys,std::string& e) {
@@ -369,7 +454,7 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
         if(intent.name.empty()||intent.name.size()>256||intent.name.find('\0')!=std::string::npos||before.name==intent.name)
             return fail(e,"region diagnostic name is empty, too long or unchanged");
     }else {
-        if(intent.kind!=action::RegionPropertyKind::Purchase&&intent.kind!=action::RegionPropertyKind::Type)
+        if(intent.kind!=action::RegionPropertyKind::Purchase&&intent.kind!=action::RegionPropertyKind::Type&&intent.kind!=action::RegionPropertyKind::Sale)
             return fail(e,"region property diagnostic kind invalid");
         if(intent.kind==action::RegionPropertyKind::Type&&(intent.type!=0&&intent.type!=1))
             return fail(e,"region type diagnostic requires 0 or 1");
@@ -391,7 +476,8 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
         const auto seh=property_rename_call(reinterpret_cast<RenameProperty>(r->image+0x36bad0),widget,&name,returned);
         out["handler_returned"]=returned;if(seh||!returned)return fail(e,"region diagnostic Rename UI handler SEH="+std::to_string(seh));
     }else {
-        const bool buy=intent.kind==action::RegionPropertyKind::Purchase;
+        const bool sale=intent.kind==action::RegionPropertyKind::Sale;
+        const bool buy=intent.kind==action::RegionPropertyKind::Purchase||sale;
         const auto ctor=buy?0x595490:0x5b9340,dtor=buy?0xc1e510:0xc1eb80,press=buy?0x595630:0x5b95a0;
         const auto release=buy?0x5956f0:0x5b9610;
         uintptr_t object=0;const auto allocation=property_allocate(r->image,object);
@@ -399,7 +485,7 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
         bool constructed=false,pressed=false,returned=false,destroyed=false;
         auto seh=property_construct(r->image,object,ctor,constructed);
         if(seh||!constructed)return fail(e,"region diagnostic behavior ctor failed SEH="+std::to_string(seh)+" retained allocation");
-        *reinterpret_cast<uint8_t*>(object+0x148)=uint8_t(!buy&&intent.type==0);
+        *reinterpret_cast<uint8_t*>(object+0x148)=uint8_t(sale||(!buy&&intent.type==0));
         seh=property_cursor_call(reinterpret_cast<CursorProperty>(r->image+press),object,intent.hit.data(),pressed);
         uint8_t valid=0;uintptr_t selected=0;
         if(!seh&&pressed&&(!at(*r,object,0x158,valid,e)||!at(*r,object,0x150,selected,e)))seh=0xE0010003;
@@ -421,8 +507,13 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
     if(after!=before)return fail(e,"region diagnostic UI changed native state before Host authority");
     out["pending_intent"]=true;return true;
 }
+#include "region_appearance_runtime.inc"
 #include "region_level_runtime.inc"
+#include "region_history_runtime.inc"
 }
+action::Outcome perform_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){return region_history_perform(binding,request,authority,e);}
+bool observe_history(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){return region_history_observe(binding,request,out,e);}
+bool retire_history(const action::Binding& binding,const action::Request& request,std::string& e){return region_history_retire(binding,request,e);}
 bool property_ui(const std::string& token,const action::RegionPropertyIntent& intent,json& out,std::string& e){
     return property_ui_impl(token,intent,out,e);
 }

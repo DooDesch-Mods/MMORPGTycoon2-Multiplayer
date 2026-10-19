@@ -3,14 +3,24 @@
 #include <limits>
 #include <set>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace mt2mp::game::region_saved_identity {
+struct Index {
+    uintptr_t data=0,owned=0;
+    int32_t count=0,capacity=0,owned_count=0,owned_capacity=0;
+    std::vector<std::pair<int32_t,uintptr_t>> saved;
+    std::vector<uintptr_t> owned_members;
+    bool operator==(const Index&)const=default;
+};
+namespace detail {
 template<class Read>
-bool resolve(uintptr_t image,uintptr_t map,uintptr_t root,int32_t requested,uintptr_t expected,
-             uintptr_t& selected,Read&& read,std::string& error) {
-    selected=0;
+bool scan(uintptr_t image,uintptr_t map,uintptr_t root,int32_t requested,uintptr_t expected,
+             uintptr_t& selected,Read&& read,std::string& error,bool require_target,Index* complete) {
+    selected=0;if(complete)*complete={};Index next;
     const auto reject=[&](const std::string& cause){error=cause;return false;};
-    if(requested<0||!map||map>std::numeric_limits<uintptr_t>::max()-0x364||
+    if((require_target&&requested<0)||!map||map>std::numeric_limits<uintptr_t>::max()-0x364||
        root!=map+0x1c0)return reject("saved region Map or root shard differs");
     uintptr_t map_ap=0,root_ap=0,saved_ap=0,data=0,owned=0;
     int32_t root_type=-1,count=-1,capacity=-1,owned_count=-1,owned_capacity=-1;
@@ -33,6 +43,7 @@ bool resolve(uintptr_t image,uintptr_t map,uintptr_t root,int32_t requested,uint
            !saved.insert(region).second||!ids.insert(id).second)
             return reject("saved region address point, shard, ID or pointer differs index="+std::to_string(index));
         if(id==requested)selected=region;
+        if(complete)next.saved.emplace_back(id,region);
     }
     std::set<uintptr_t> owned_unique;
     for(int32_t index=0;index<owned_count;++index){
@@ -42,14 +53,35 @@ bool resolve(uintptr_t image,uintptr_t map,uintptr_t root,int32_t requested,uint
         if(!region||ap!=image+0x1787930||shard!=root||!owned_unique.insert(region).second||
            !saved.contains(region))
             return reject("owned region is duplicate or absent from saved Map.region index="+std::to_string(index));
+        if(complete)next.owned_members.push_back(region);
     }
     uintptr_t current_data=0,current_owned=0;int32_t current_count=-1,current_owned_count=-1;
     if(!read(map+0x230,8,current_data,error)||!read(map+0x230,0x10,current_count,error)||
        !read(map,0x358,current_owned,error)||!read(map,0x360,current_owned_count,error))return false;
     if(current_data!=data||current_count!=count||current_owned!=owned||current_owned_count!=owned_count)
         return reject("saved region arrays changed during identity scan");
-    if(!selected||(expected&&selected!=expected))
+    if(require_target&&(!selected||(expected&&selected!=expected)))
         return reject("region ID is absent or maps to another native receiver");
+    if(complete){next.data=data;next.owned=owned;next.count=count;next.capacity=capacity;
+        next.owned_count=owned_count;next.owned_capacity=owned_capacity;*complete=std::move(next);}
+    return true;
+}
+}
+template<class Read>
+bool resolve(uintptr_t image,uintptr_t map,uintptr_t root,int32_t requested,uintptr_t expected,
+             uintptr_t& selected,Read&& read,std::string& error){
+    return detail::scan(image,map,root,requested,expected,selected,read,error,true,nullptr);
+}
+// This index belongs to one synchronous traversal. Revalidate it before publishing
+// results; no caller retains it across an original effect or another frame.
+template<class Read>
+bool capture(uintptr_t image,uintptr_t map,uintptr_t root,Index& out,Read&& read,std::string& error){
+    uintptr_t ignored=0;return detail::scan(image,map,root,0,0,ignored,read,error,false,&out);
+}
+template<class Read>
+bool verify(uintptr_t image,uintptr_t map,uintptr_t root,const Index& expected,Read&& read,std::string& error){
+    Index current;if(!capture(image,map,root,current,read,error))return false;
+    if(current!=expected){error="saved region complete index changed during pure traversal";return false;}
     return true;
 }
 }

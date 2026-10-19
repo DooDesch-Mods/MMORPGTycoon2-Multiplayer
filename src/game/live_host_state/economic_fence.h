@@ -31,6 +31,10 @@ public:
     bool begin_action(const action_session::Message&,const Pin&,std::string&);
     bool end_action(std::string&);
     bool allow_needs(void* receiver);
+    bool quest_binding(Context& context,Binding& binding)const{
+        if(!armed_||suspended_)return false;
+        context=context_;binding=binding_;return true;
+    }
     bool allow(EconomicLeaf,void* receiver,int32_t amount=0,int32_t category=0);
     void original_failed(EconomicLeaf,uint32_t seh);
     bool read_current_fence(const Pin&,std::string&)override;

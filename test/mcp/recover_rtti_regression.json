@@ -1,0 +1,6 @@
+{
+  "timeout_seconds": 10,
+  "calls": [
+    {"tool": "recover_pending", "arguments": {"previous_manifest_path": "F:/Projects/Mods/MMORPGTycoon2/_MPTest/host/instance.json"}}
+  ]
+}

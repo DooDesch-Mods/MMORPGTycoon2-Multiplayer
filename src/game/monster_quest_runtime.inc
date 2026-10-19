@@ -8,18 +8,11 @@ bool read_remove_quests(Memory& m,const a::Binding& binding,const std::string& s
         return (local.object==pointer&&local.uid==uid)||fail(cause,"Monster Quest canonical owner full UID or pointer differs");
     };
     const auto destination=[&](uintptr_t pointer,std::string& key,std::string& cause){
-        uintptr_t region=0,ap=0;int32_t saved=-1;
-        if(!field(m,pointer,0x178,region,cause)||!region||!field(m,region,0x834,saved,cause))return false;
-        if(!field(m,pointer,0,ap,cause))return false;
-        if(ap==state.image+0x16c0770){
-            Pin p;d::Sample sample;uint64_t uid=0;
-            if(!pin(m,binding,snapshot,saved,p,cause)||!d::sample(m,p.region,sample,cause)||
-               !field(m,pointer,0x18,uid,cause)||!identity::registry.resolve(scope(p,sample),pointer,uid,key,cause))return false;
-            monster_zone_read::Monster row;
-            return move_target(m,binding,snapshot,saved,key.substr(7),p,sample,row,cause)&&
-                ((row.pointer==pointer&&row.uid==uid)||fail(cause,"Monster Quest survivor destination identity differs"));
-        }
-        return npc_quest_target_runtime::bind_destination(saved,pointer,key,cause);
+        uintptr_t ap=0;if(!field(m,pointer,0,ap,cause))return false;
+        if(ap==state.image+0x16c0770)return quest_authoring::direct_destination(pointer,key,cause);
+        if(ap==state.image+0x1742980)return quest_authoring::npc_destination(pointer,key,cause);
+        bool in_dungeon=false;
+        return npc_quest_target_runtime::bind_current_destination(pointer,key,in_dungeon,cause);
     };
     return qr::read(m,state.image,object,target,owner,destination,out,e,previous);
 }
@@ -38,6 +31,15 @@ bool quest_before(const qr::Witness& before,a::MonsterQuestRetirement& out,std::
 bool quest_before_matches(const a::MonsterQuestRetirement& local,const a::MonsterQuestRetirement& host){
     return local.before_count==host.before_count&&local.completed_before==host.completed_before&&
         local.before_sha256==host.before_sha256&&local.removed==host.removed;
+}
+std::string quest_before_difference(const a::MonsterQuestRetirement& local,const a::MonsterQuestRetirement& host){
+    std::string cause;
+    const auto add=[&](const std::string& value){if(!cause.empty())cause+="; ";cause+=value;};
+    if(local.before_count!=host.before_count)add("global_count local="+std::to_string(local.before_count)+" host="+std::to_string(host.before_count));
+    if(local.completed_before!=host.completed_before)add("completed_count local="+std::to_string(local.completed_before)+" host="+std::to_string(host.completed_before));
+    if(local.before_sha256!=host.before_sha256)add("global_records_or_order_sha256 local="+local.before_sha256+" host="+host.before_sha256);
+    if(local.removed!=host.removed)add("matching_records differ local_count="+std::to_string(local.removed.size())+" host_count="+std::to_string(host.removed.size()));
+    return cause;
 }
 json quest_retirement_json(const a::MonsterQuestRetirement& value){
     json rows=json::array();for(const auto& row:value.removed)rows.push_back({{"owner_key",row.owner_key},{"record",quest_bridge::record_json(row.record)}});

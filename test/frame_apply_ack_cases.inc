@@ -18,7 +18,7 @@ void frame_ack_cases(std::chrono::steady_clock::time_point now){
     check(a.validate(2,1,"[]",e),"validated older ACK stays harmless");a.acknowledge(2,1,"[]",now+seconds(21));check(a.peers()[1].revision==2,"older ACK cannot regress progress");
     a.clear();check(a.required()==0&&!a.pending()&&a.ready(now,waiting,e)&&!waiting&&!a.validate(2,1,"[]",e),"snapshot clear removes old ACK ownership and cooldown");
 
-    fixture_world={};Bridge b;b.economy_=true;b.ack_mask=2;b.fake_send_time=now;
+    world_fixture={};Bridge b;b.economy_=true;b.ack_mask=2;b.fake_send_time=now;
     check(b.tick(0,false,e,now)&&b.sends==1&&b.apply_acks_.required()==1,"actual tick initial send retains ACK requirement");
     for(int i=1;i<=100;++i)check(b.tick(0,false,e,now+milliseconds(i*5))&&b.sends==1&&b.captures==1,"slow Client cannot accumulate ordinary frames");
     check(b.apply_acks_.validate(2,1,"[]",e),"current ordinary ACK");b.apply_acks_.acknowledge(2,1,"[]",now+milliseconds(500));

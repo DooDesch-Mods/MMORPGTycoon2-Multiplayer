@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 ## Available now: Build together
 
@@ -26,7 +26,7 @@ Priorities can change. No release dates are promised.
 
 ## Feature coverage
 
-| Feature | Early Beta 15 | What is covered |
+| Feature | Early Beta 16 | What is covered |
 | --- | --- | --- |
 | Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
 | A shared world | ✅ Available | The Host creates or loads a world; the joining player receives it. |
@@ -39,7 +39,7 @@ Priorities can change. No release dates are promised.
 | NPC placement | ◐ Partial | Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority. |
 | Elite monsters | ◐ Partial | Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority. |
 | Save and resume | ◐ Partial | Continue from the Host's saved world. Wider support for saved objects is a next priority. |
-| More quests and combat | ○ Planned | More quest tools and live monster gameplay are in development for future releases. |
+| Quests and combat | ◐ Partial | Create and remove quests, edit titles, required counts and rewards, and choose building or NPC destinations. Live combat remains planned. |
 | Four players and larger worlds | ○ Planned | The current focus is two-player co-op in small worlds. |
 
 ## How coverage is counted
@@ -47,7 +47,7 @@ Priorities can change. No release dates are promised.
 Each listed feature area counts once. The categories have equal weight. Partial and experimental areas do not count as fully available.
 
 - Available: 4/13 (30.8%)
-- Partial: 7/13 (53.8%)
-- Planned: 2/13 (15.4%)
+- Partial: 8/13 (61.5%)
+- Planned: 1/13 (7.7%)
 
 This measures the listed feature areas, not overall project completion or stability. The denominator changes when the inventory changes.

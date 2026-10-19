@@ -1,0 +1,36 @@
+if(TARGET world_edit_session_checks)
+    add_library(gm_policy_session_checks INTERFACE)
+    target_link_libraries(gm_policy_session_checks INTERFACE world_edit_session_checks source_check_codecs_windows)
+    target_include_directories(gm_policy_session_checks INTERFACE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+    target_compile_features(gm_policy_session_checks INTERFACE cxx_std_20)
+    target_compile_definitions(gm_policy_session_checks INTERFACE NOMINMAX WIN32_LEAN_AND_MEAN)
+else()
+    add_library(gm_policy_session_checks STATIC
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/network/node_state.cpp")
+target_include_directories(gm_policy_session_checks PUBLIC "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(gm_policy_session_checks PUBLIC cxx_std_20)
+target_compile_definitions(gm_policy_session_checks PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(gm_policy_session_checks PRIVATE /utf-8 /EHsc)
+endif()
+endif()
+foreach(name gm_policy gm_policy_protocol gm_frame management_actions)
+    if(TARGET test_${name})
+        continue()
+    endif()
+    add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
+    if(name STREQUAL "gm_policy")
+        target_sources(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/gm_policy_native.cpp")
+    endif()
+    target_link_libraries(test_${name} PRIVATE gm_policy_session_checks)
+    if(MSVC)
+        target_compile_options(test_${name} PRIVATE /utf-8 /EHsc /W4 /WX)
+    endif()
+    add_test(NAME ${name} COMMAND test_${name})
+    set_tests_properties(${name} PROPERTIES TIMEOUT 60)
+endforeach()

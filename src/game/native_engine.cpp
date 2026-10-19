@@ -1,5 +1,7 @@
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/hooks/framework_backend.h"
+#include "mt2mp/core/framework_open_paths.h"
+#include "save_companion_retirement.h"
 #endif
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/net/snapshot_world_path.h"
@@ -2394,6 +2396,20 @@ bool dispatch_command(const std::string&, std::string& error) {
     return fail(error, "action replay unavailable: ModeInGame Command accepts menu commands, not gameplay edits");
 }
 
+bool retire_autosave_companion(std::string& error) {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    try {
+        const auto binding=framework_open_paths::bind(framework_open_paths::absolute(Config::instance().runtime_root));
+        const auto write=framework_open_paths::live_write(binding);
+        std::string world;if(!read_active_world_folder(world,error))return false;
+        const auto receipt=save_companion_retirement::archive(write,world,binding.runtime/L"save-companion-archive");
+        framework_open_paths::unchanged(binding);
+        LOG_INFO("[Native] Autosave companion retirement acknowledged {}",receipt.dump());
+    }catch(const std::exception& problem){return fail(error,std::string("return to title companion retirement failed before native autosave: ")+problem.what());}
+#endif
+    error.clear();return true;
+}
+
 bool request_return_to_title(std::string& error) {
     if (!check_thread(error)) return false;
     if (!in_game()) return fail(error, "return to title rejected: no active world");
@@ -2401,6 +2417,7 @@ bool request_return_to_title(std::string& error) {
     if (!read_saves_in_progress(saves, error)) return false;
     if (saves != 0) return fail(error, "return to title rejected: saves in progress=" + std::to_string(saves) + " required=0");
     auto* mode = singleton(mode_slot);
+    if (!retire_autosave_companion(error)) return false;
     LOG_INFO("[Native] Return to title attempted; native autosave enabled");
     const DWORD exception = call_string(0x4a2f90, mode, "Quit");
     if (exception) return fail(error, "return to title native call failed: exception=" + std::to_string(exception));

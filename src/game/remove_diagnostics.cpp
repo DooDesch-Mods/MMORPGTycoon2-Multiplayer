@@ -1,4 +1,11 @@
+#include "service_building_census.h"
 #include "remove_diagnostics.h"
+#include "character_boss_retirement_read.h"
+#include "typed_action/action_session.h"
+#include "typed_action_runtime.h"
+#include "move_contract.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "region_saved_identity.h"
 #include "native_refund/native_refund.h"
 #include "scenery_kiss/native_catalog.h"
 #include "scenery_kiss/lifecycle_contract.h"
@@ -260,6 +267,9 @@ bool collect_bindings(json& out,std::string& error,BindingDetails details) {
 bool bindings(json& out,std::string& error) {
     return collect_bindings(out,error,BindingDetails::Refund);
 }
+bool identity_bindings(json& out,std::string& error) {
+    return collect_bindings(out,error,BindingDetails::Identity);
+}
 namespace {
 bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,native::BuildingState& building,
                               uintptr_t& object,uintptr_t& addresspoint,std::string& error,bool readonly=false) {
@@ -516,9 +526,72 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     return true;
 }
 }
+bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,uint64_t uid,std::string& key,std::string& error){
+    key.clear();error.clear();
+    if(!uid||!object||unknown_locked||!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()){
+        error="current Building identity requires bound Mainthread, active snapshot and nonzero full UID/pointer";return false;}
+    host::opened::CurrentWorld opened;if(!current(opened,error))return false;
+    const prop_lease::World expected{opened.world_epoch,opened.generation,opened.world,opened.map};
+    if(admitted_world!=expected){error="current Building identity has no admitted NativeOpen world";return false;}
+    auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
+    if(!free.read_actual_receipt(heap,error))return false;
+    host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState before;prop_lease::Prop prop;
+    if(!reader.current(before,true,error)||!host::same_world(before.origin,opened)||
+       !reader.prop(reinterpret_cast<void*>(object),uid,prop,error))return false;
+    if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=reinterpret_cast<void*>(object)||
+       prop.class_addresspoint!=heap.image+0x16d93c0){error="current Building identity exact root/manager/RTTI/full UID proof differs";return false;}
+    const Bound* matched=nullptr;
+    for(const auto& [id,entry]:registry){(void)id;
+        if(entry.generation!=registry_generation||entry.world!=expected||entry.uid!=uid||entry.revoked||entry.unknown)continue;
+        if(matched){error="current Building identity native full UID has multiple canonical registry entries";return false;}
+        matched=&entry;}
+    if(!matched||matched->snapshot!=snapshot||matched->key.empty()||
+       (matched->object&&matched->object!=object)||(matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)){
+        error="current Building identity has no exact unrevoked canonical registry entry";return false;}
+    host::WorldState after;
+    if(!reader.current(after,true,error)||!host::same_world(after.origin,opened)||after.root!=before.root||admitted_world!=expected){
+        if(error.empty())error="current Building identity NativeOpen changed during read";return false;}
+    key=matched->key;return true;
+}
+
 bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error) {
     return resolve_local_target_impl(manager,object,out,error,nullptr);
 }
+bool resolve_current_building_identity(const std::string& snapshot,const std::string& key,uintptr_t& object,uint64_t& uid,std::string& error){
+    object=0;uid=0;const auto found=registry.find(registry_id(snapshot,key));
+    if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.generation!=registry_generation||found->second.snapshot!=snapshot){error="current Building key has no unrevoked current canonical identity";return false;}
+    const auto full_uid=found->second.uid;auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
+    if(!free.read_actual_receipt(heap,error))return false;host::ProcessMemory memory;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    void* actual=nullptr;uint32_t seh=0;if(!lookup(api,full_uid,actual,seh)){error="current Building full UID lookup SEH="+std::to_string(seh);return false;}
+    if(!actual){error="current Building full UID lookup returned no actual object";return false;}
+    std::string reverse;if(!resolve_current_building_key(snapshot,uintptr_t(actual),full_uid,reverse,error))return false;
+    if(reverse!=key){error="current Building exact full UID reverse mapping differs";return false;}object=uintptr_t(actual);uid=full_uid;return true;
+}
+bool identity_targets(std::vector<LocalTarget>& out,std::string& error) {
+    out.clear();json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
+    auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
+    if(!free.read_actual_receipt(heap,error))return false;
+    host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
+    if(!reader.current(world,true,error))return false;
+    const auto resolve=[&](const json& row,LocalTarget& target,std::string& cause){
+        const auto snapshot=row.at("snapshot_id").get<std::string>(),key=row.at("record_key").get<std::string>();
+        const auto found=registry.find(registry_id(snapshot,key));
+        if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.world!=prop_lease::World{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map}){
+            cause="Service census exact current unrevoked NativeOrigin binding missing";return false;
+        }
+        void* object=nullptr;uint32_t seh=0;
+        if(!lookup(api,found->second.uid,object,seh)){cause="Service census full UID lookup SEH="+std::to_string(seh);return false;}
+        if(!object){cause="Service census full UID no longer resolves";return false;}
+        return resolve_local_target_impl(world.selection,uintptr_t(object),target,cause,&world.origin);
+    };
+    return service_building_census::read(sources,resolve,out,error);
+}
+
 bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error) {
     out={};json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
     const auto found=registry.find(registry_id(snapshot,key));
@@ -702,4 +775,6 @@ bool retire(const json& args,json& out,std::string& error) {
     else LOG_ERROR("[Remove] Native retirement failed token={} sequence={} cause={}",token,sequence,error);
     return okay;
 }
+#include "character_boss_retirement_runtime.inc"
+
 }

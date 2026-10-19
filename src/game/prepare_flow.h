@@ -10,3 +10,8 @@ nlohmann::json status();
 }
 
 namespace mt2mp::game::lobby_prepare { bool leave(std::string&); }
+
+namespace mt2mp::game::lobby_prepare {
+bool prepare_snapshot(const std::string& id,std::string& error);
+bool reset_after_world_reload(std::string& error);
+}

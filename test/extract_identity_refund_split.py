@@ -19,6 +19,31 @@ def body(anchor):
 
 # Reverse only this split, so every existing guard and public consumer stays bound.
 original = source
+identity_wrapper = body('bool identity_bindings(') + '\n'
+assert original.count(identity_wrapper) == 1
+original = original.replace(identity_wrapper, '', 1)
+# Character retirement is an independent include-only extension. Keep the
+# original identity/refund guards bound to their exact prior source.
+retirement_headers = ('#include "character_boss_retirement_read.h"\n'
+                      '#include "typed_action/action_session.h"\n'
+                      '#include "typed_action_runtime.h"\n'
+                      '#include "move_contract.h"\n'
+                      '#include "dungeon_scene_identity_runtime.h"\n'
+                      '#include "region_saved_identity.h"\n')
+retirement_runtime = '#include "character_boss_retirement_runtime.inc"\n\n'
+assert original.count(retirement_headers) == 1, 'Character retirement include boundary differs'
+assert original.count(retirement_runtime) == 1, 'Character retirement runtime boundary differs'
+original = original.replace(retirement_headers, '', 1).replace(retirement_runtime, '', 1)
+# Independent identity readers do not participate in this collector/refund split.
+for anchor, suffix in (('bool resolve_current_building_key(', '\n\n'),
+                       ('bool resolve_current_building_identity(', '\n'),
+                       ('bool identity_targets(', '\n\n')):
+    addition = body(anchor) + suffix
+    assert original.count(addition) == 1, 'Scene identity lookup boundary differs'
+    original = original.replace(addition, '', 1)
+include = '#include "service_building_census.h"\n'
+assert original.count(include) == 1, 'Service census include boundary differs'
+original = original.replace(include, '', 1)
 helper = ('namespace {\nbool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error,\n'
           '                               const host::opened::CurrentWorld* admitted) {')
 assert original.count(helper) == 1
@@ -58,7 +83,7 @@ assert hashlib.sha256(original.encode()).hexdigest() == '6aa33a7d60b77f636002b1f
 pieces = [body('std::string binding_id('), body('std::string registry_id('),
           body('template<class Binding>bool import_bindings('),
           body('enum class BindingDetails ') + ';', body('bool collect_bindings('),
-          body('bool bindings(json& out,'), body('bool attach_refunds(const host::opened::CurrentWorld& origin,'),
+          body('bool bindings(json& out,'), body('bool identity_bindings('), body('bool attach_refunds(const host::opened::CurrentWorld& origin,'),
           body('bool resolve_local_target_impl('), body('bool resolve_local_target('), body('bool resolve_record_target(')]
 args.output.mkdir(parents=True, exist_ok=True)
 (args.output / 'identity_refund_split_type.inc').write_text(body('struct Bound ') + ';\n', encoding='utf-8')

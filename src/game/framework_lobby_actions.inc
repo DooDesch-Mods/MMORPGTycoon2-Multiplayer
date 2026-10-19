@@ -5,8 +5,8 @@ bool framework_process_action(std::string& error){
     const auto reject=[&](const std::string& detail){++framework_rejected;framework_last_action["handler_failed"]=true;framework_last_action["error"]=detail;error=detail;return fail(detail);};
     auto* widget=framework_widget(action.widget.c_str());
     if(action.mode!=ui_owner||action.admission!=generation||action.discovery!=list_generation||action.page!=list_page||action.choosing!=choosing)
-        return reject("Framework lobby action owner/admission/list context changed before execution; no replay");
-    if(!widget||widget->disabled||!framework_effectively_visible(*widget))return reject("Framework lobby queued action is no longer enabled; no replay");
+        return framework_reject_unattempted(action.widget,action.sequence,"Framework lobby action owner/admission/list context changed before execution; no replay",error);
+    if(!widget||widget->disabled||!framework_effectively_visible(*widget))return framework_reject_unattempted(action.widget,action.sequence,"Framework lobby queued action is no longer enabled; no replay",error);
     framework_widgets.at("lobby_id").text=action.lobby_id;framework_widgets.at("chat_input").text=action.chat;
     const auto failures=command_failures;
     framework_last_action["attempted"]=true;

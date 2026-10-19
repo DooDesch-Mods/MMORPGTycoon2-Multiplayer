@@ -7,6 +7,7 @@
 namespace mt2mp::action_session {
 struct Request;struct Evidence;struct Ledger;struct RegionState;
 bool path_effect(const Request&,const Evidence&,std::string&);
+bool path_history_effect(const Request&,const Evidence&,std::string&);
 bool path_receipt_fits(const Request&,const Ledger&,const RegionState&,std::string&);
 using PathPoint=std::array<float,3>;
 struct PathIntent {

@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+if(MSVC)
+    # The combined NPC and Dungeon native adapters exceed the COFF section limit.
+    set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/game/npc_probe.cpp"
+        PROPERTIES COMPILE_OPTIONS /bigobj)
+endif()
+
 # Force x64
 if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "Only 64-bit builds are supported")

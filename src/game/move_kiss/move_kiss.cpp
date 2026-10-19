@@ -1,3 +1,4 @@
+#include "../monster_target_key.h"
 #include "move_kiss.h"
 #include "../npc_target_key.h"
 #include <cmath>
@@ -38,8 +39,8 @@ bool Capture::read_intent(uintptr_t b,const Origin& o,Intent& out,std::string& e
     if(!services_.bind_target(o,out.ghost,out.target,out.local_uid,out.before,out.object_key,out.family,e))return false;
     const bool npc=out.family==Family::Npc||out.family==Family::DirectMonster;
     if(out.family!=Family::Prop&&!npc)return fail(e,"move_target_family_invalid");
-    if(npc&&!game::npc_target_key::valid(out.object_key))return fail(e,"move_character_key_invalid");
-    if(out.family==Family::DirectMonster&&!out.object_key.starts_with("action:"))return fail(e,"move_monster_birth_key_required");
+    if(out.family==Family::Npc&&!game::npc_target_key::valid(out.object_key))return fail(e,"move_character_key_invalid");
+    if(out.family==Family::DirectMonster&&!game::monster_target_key::valid(out.object_key))return fail(e,"move_monster_birth_key_required");
     if(out.object_key.empty()||!live(out.before,npc))return fail(e,"move_registry_state_invalid");
     out.after=out.before;
     if(!memory_.read(out.ghost+0x100,out.after.rotation.data(),sizeof(float)*4,e)||

@@ -245,5 +245,6 @@ void cases(){
     }
 }
 }
-int main(){try{fixture::cases();std::cout<<fixture::checks<<" actual lobby handoff checks passed\n";return 0;}
+#include "test_lobby_input.inc"
+int main(){try{fixture::cases();input_fixture::cases();std::cout<<fixture::checks<<" actual lobby handoff checks passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<"Lobby handoff failure after "<<fixture::checks<<": "<<e.what()<<'\n';return 1;}}

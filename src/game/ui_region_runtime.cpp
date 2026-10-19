@@ -1,4 +1,8 @@
 #include "ui_region_runtime.h"
+#include "building_history_slice/native_bridge.h"
+#include "building_history_slice/cash_effect.h"
+#include "move_contract.h"
+#include "mt2mp/core/config.h"
 #include "region_ui_readback.h"
 #include "region_binding.h"
 #include "region_saved_identity.h"
@@ -355,6 +359,8 @@ json status() {
     json property_operations=json::array();
     for(const auto& [id,op]:properties.operations)property_operations.push_back({{"action_uuid",id},{"kind",uint8_t(op.request.region_property.kind)},
         {"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},
+        {"appearance_kind",action::appearance_kind(op.request.region_property.kind)},
+        {"appearance_value",op.request.region_property.appearance_value},
         {"before_name",op.evidence.property_before.name},{"after_name",op.evidence.property_after.name},
         {"before_type",op.evidence.property_before.type},{"after_type",op.evidence.property_after.type},
         {"before_random",op.evidence.property_before.content.random},{"after_random",op.evidence.property_after.content.random},

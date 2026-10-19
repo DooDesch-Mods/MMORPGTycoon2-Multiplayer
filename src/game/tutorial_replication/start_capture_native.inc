@@ -26,6 +26,8 @@ struct StartCaptureCalls {
     }
 };
 bool pay_current(void* source){
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x262ec0,source,0,project_handled);
+    if(project_handled)return project_allowed?original_pay(source):false;
     const auto selected=start_intent::route(load.armed,GetCurrentThreadId()==mainthread,image,
         reinterpret_cast<uintptr_t>(_ReturnAddress()));
     StartCaptureCalls calls{source};start_intent::Receipt receipt;

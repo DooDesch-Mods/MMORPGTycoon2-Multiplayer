@@ -19,6 +19,9 @@ bool monster_zone_ui(const nlohmann::json&, nlohmann::json&, std::string&);
 bool monster_zone_probe(const nlohmann::json&, nlohmann::json&, std::string&);
 bool place_probe(const nlohmann::json& args, nlohmann::json& result, std::string& error);
 namespace action_runtime {
+struct CharacterNpcRetirement {uintptr_t pointer=0,region=0;uint64_t uid=0;};
+bool confirm_character_membership_retirements(const action_session::Binding&,const action_session::Request&,
+    const std::vector<CharacterNpcRetirement>&,std::string&);
 struct StateOwner {
     std::string key;
     uintptr_t npc=0;

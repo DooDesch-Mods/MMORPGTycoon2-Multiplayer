@@ -5,6 +5,7 @@
 #include "scenery_kiss/ui_native_gate.h"
 #include "placement_kiss/native_build.h"
 #include "typed_action_runtime.h"
+#include "scenery_stroke_runtime.h"
 #include "building_history_slice/native_bridge.h"
 #include "placement_ui_diagnostics/placement_ui_diagnostics.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
@@ -215,6 +216,9 @@ void scene_press_route(void* receiver,void* cursor,const void* point,bool eraser
         if(!scenery_kiss::live_cursor(memory,r->image,uintptr_t(receiver),own,e)){reject(*r,e);return;}
         if(!own){original(receiver,cursor,point);return;}
         if(!r->ready||!scene_authority(*r,e)){if(e.empty())e="scenery capture not ready";reject(*r,e);return;}
+        bool bulk=false;
+        if(!ui_move_runtime::scenery_stroke::bulk(uintptr_t(receiver),eraser,bulk,e)){reject(*r,e);return;}
+        if(bulk){original(receiver,cursor,point);return;}
         if(eraser){reject(*r,"scenery eraser requires an ordered bulk action");return;}
         if(!scenery_kiss::single_press(memory,r->image,uintptr_t(receiver),e)){reject(*r,e);return;}
         original(receiver,cursor,point);
@@ -230,7 +234,11 @@ void scene_release_entry(void* receiver,void* cursor,const void* point) {
         host::ProcessMemory memory;std::string e;bool own=false;
         if(!scenery_kiss::live_cursor(memory,r->image,uintptr_t(receiver),own,e)){reject(*r,e);return;}
         if(!own){r->scene_release(receiver,cursor,point);return;}
-        if(!r->ready||!scene_authority(*r,e)||!scenery_kiss::single_press(memory,r->image,uintptr_t(receiver),e)){reject(*r,e.empty()?"scenery Release capture not ready":e);return;}
+        if(!r->ready||!scene_authority(*r,e)){reject(*r,e.empty()?"scenery Release capture not ready":e);return;}
+        bool bulk=false;
+        if(!ui_move_runtime::scenery_stroke::bulk(uintptr_t(receiver),false,bulk,e)){reject(*r,e);return;}
+        if(bulk){r->scene_release(receiver,cursor,point);return;}
+        if(!scenery_kiss::single_press(memory,r->image,uintptr_t(receiver),e)){reject(*r,e);return;}
         r->scene_release(receiver,cursor,point);
         host::opened::CurrentWorld world;void* shard=nullptr;
         if(!read_world(world,shard,e)){placement_ui_diagnostics::capture_failed(receiver,e);reject(*r,e);return;}
@@ -254,6 +262,9 @@ void scene_update_entry(void* receiver,float dt) {
         if(!scenery_kiss::live_cursor(memory,r->image,uintptr_t(receiver),own,e)){reject(*r,e);return;}
         if(!own){scene_original_ui(*r,receiver,dt,false);return;}
         if(!r->ready||!scene_authority(*r,e)){if(e.empty())e="scenery capture not ready";reject(*r,e);return;}
+        bool bulk=false;
+        if(!ui_move_runtime::scenery_stroke::bulk(uintptr_t(receiver),false,bulk,e)){reject(*r,e);return;}
+        if(bulk){scene_original_ui(*r,receiver,dt,true);return;}
         bool mode_transition=false;
         if(!scenery_kiss::idle_single_update(memory,r->image,uintptr_t(receiver),mode_transition,e)){reject(*r,e);return;}
         if(mode_transition){
@@ -287,7 +298,12 @@ bool queue_building_purchase(Runtime& r,const void* type,const void* position,st
     }
     DeferredBuilding fresh;fresh.receiver=r.ui_build_receiver;
     if(!read_world(fresh.world,fresh.shard,error))return false;
-    if(fresh.world.uuid!=net::current_snapshot_id()){error="building UI Purchase current snapshot differs";return false;}
+    action::Binding binding;const auto snapshot=net::current_snapshot_id();
+    if(!typed_action_runtime::network_binding(snapshot,binding,error))return false;
+    if(fresh.world.uuid.empty()||fresh.world.world_epoch!=binding.native_epoch||fresh.world.generation!=binding.native_generation){
+        error="building UI Purchase current native binding differs: session_snapshot="+snapshot+" native_snapshot="+fresh.world.uuid+
+            " native_epoch="+std::to_string(fresh.world.world_epoch)+" binding_epoch="+std::to_string(binding.native_epoch)+
+            " native_generation="+std::to_string(fresh.world.generation)+" binding_generation="+std::to_string(binding.native_generation);return false;}
     if(r.build.capture_at_update_entry(reinterpret_cast<void*>(fresh.receiver),fresh.request,error)!=placement_kiss::Capture::Captured){
         if(error.empty())error="building UI Purchase lacks final native pending intent";return false;
     }

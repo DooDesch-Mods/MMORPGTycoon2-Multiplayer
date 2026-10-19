@@ -94,7 +94,7 @@ bool attach(const DecodeApi& a,uintptr_t parent,uintptr_t child,NativeTree& tree
     tree.detached.erase(it);++r.attached;return true;
 }
 }
-bool validate_records(const std::vector<Record>& source,std::string& e){
+static bool validate_record_tree(const std::vector<Record>& source,std::string& e){
     if(source.empty()||source.size()>static_cast<size_t>(INT_MAX))return fail(e,"Subscriber Record count outside native int range");
     std::vector<size_t> children(source.size(),0);
     for(size_t i=0;i<source.size();++i){
@@ -104,8 +104,25 @@ bool validate_records(const std::vector<Record>& source,std::string& e){
         if(!token_valid(r.label)||r.tokens.size()>static_cast<size_t>(INT_MAX))return fail(e,"Subscriber Record label/token count invalid");
         for(const auto& token:r.tokens)if(!token_valid(token))return fail(e,"Subscriber Record token type invalid");
     }
+    e.clear();return true;
+}
+bool validate_records(const std::vector<Record>& source,std::string& e){
+    if(!validate_record_tree(source,e))return false;
     if(source[0].label.type!=1||source[0].label.text!="mmoSubscriber")return fail(e,"Subscriber Record root type differs");
     e.clear();return true;
+}
+bool decode_party_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};if(tree.root||!tree.detached.empty())return fail(e,"Party Record output already owns native objects");
+    if(!validate_record_tree(source,e))return false;
+    if(source.size()>100000||source[0].label.type!=1||source[0].label.text!="mmoParty")return fail(e,"Party Record typed root or capture budget differs");
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||
+       !a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Party Record native API incomplete");
+    std::vector<uintptr_t> objects(source.size(),0);tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){
+        if(!create(a,memory,source[i],objects[i],tree,r,e))return false;
+        if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;
+    }
+    r.complete=true;e.clear();return true;
 }
 bool decode_records(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
     r={};
@@ -155,6 +172,29 @@ bool decode_marketing_record(const DecodeApi& a,Memory& memory,MarketingRecordKi
         if(!i)tree.root=objects[i];
         else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;
     }
+    r.complete=true;e.clear();return true;
+}
+bool decode_logo_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};if(tree.root||!tree.detached.empty())return fail(e,"Logo Record output already owns objects");
+    if(source.empty()||source.size()>2048||source[0].label.type!=1||source[0].label.text!="mmoLogo")return fail(e,"Logo Record typed root differs");
+    auto structural=source;structural[0].label.text="mmoSubscriber";if(!validate_records(structural,e))return false;
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||
+       !a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Logo Record API incomplete");
+    std::vector<uintptr_t> objects(source.size(),0);tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){if(!create(a,memory,source[i],objects[i],tree,r,e))return false;
+        if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
+    r.complete=true;e.clear();return true;
+}
+bool decode_release_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e,ReleaseRecordKind kind){
+    r={};if(tree.root||!tree.detached.empty())return fail(e,"Release Record output already owns objects");
+    const auto expected=release_record_root(kind);
+    if(!expected||source.empty()||source.size()>4096||source[0].label.type!=1||source[0].label.text!=expected)return fail(e,"Release Record typed root differs");
+    auto structural=source;structural[0].label.text="mmoSubscriber";if(!validate_records(structural,e))return false;
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||
+       !a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Release Record API incomplete");
+    std::vector<uintptr_t> objects(source.size(),0);tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){if(!create(a,memory,source[i],objects[i],tree,r,e))return false;
+        if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
     r.complete=true;e.clear();return true;
 }
 bool decode_integer_record(const DecodeApi& a,Memory& memory,const char* label,int32_t value,NativeTree& tree,DecodeReceipt& r,std::string& e){

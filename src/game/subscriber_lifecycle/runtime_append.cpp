@@ -9,6 +9,7 @@
 #include "payload.h"
 #include "save_scope.h"
 #include "additions.h"
+#include "party_toon_order.h"
 #include "live_host_state/scalar_store.h"
 #include "native_open_runtime.h"
 #include "session_provider.h"
@@ -46,6 +47,7 @@ struct Work{
     stage::Payload payload;
     subscriber_building_references::Pins building_pins;
     subscriber_npc_references::Pins npc_pins;
+    stage::PartyReferences* parties=nullptr;
     std::string origin,local_sha;
     const FrameBinding* frame=nullptr;
     Json* receipt=nullptr;
@@ -73,7 +75,7 @@ bool read_world_roots(Work& w,bool held,stage::ClientWorld& out,std::string& e){
 bool fresh_link(void* user,const local::ExternalLink& link,std::string& e){
     auto& w=*static_cast<Work*>(user);
     if(!current_frame(w,e))return false;
-    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins};
+    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins,w.parties};
     for(size_t i=0;i<w.links.size();++i)if(w.links[i].saved_link_id==link.saved_link_id){uintptr_t p=0;return stage::resolve_reference(memory,world,w.keys[i].first,p,e)&&p==link.object||fail(e,e.empty()?"Subscriber external owner changed during native Resolve":e);}
     return fail(e,"Subscriber external link not declared");
 }
@@ -108,10 +110,10 @@ bool body_inner(Work& w,Resources& owners,std::string& e){
     const auto before=w.held.census;
     if(w.payload.next_id<before.next_id)return fail(e,"Subscriber Host nextID moved backwards");
     for(const auto& member:before.members)if(member.id==w.payload.id)return fail(e,"Subscriber already present; no C1 replay");
-    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins};
+    const stage::ReferenceWorld world{w.held.image,reinterpret_cast<uintptr_t>(w.held.origin.state),reinterpret_cast<uintptr_t>(w.held.origin.map),&w.building_pins,&w.npc_pins,w.parties};
     for(const auto& ref:w.payload.external){uintptr_t object=0;
         if(!stage::resolve_reference(memory,world,ref.key,object,e))return false;
-        const auto name=std::to_string(int(ref.key.kind))+":"+std::to_string(ref.key.region_id)+":"+std::to_string(ref.key.character_kind)+":"+std::to_string(ref.key.character_id)+":"+std::to_string(ref.key.ability_index)+":"+ref.key.building_key+ref.key.npc_key+(ref.key.kind==stage::ReferenceKind::SharedQuest?":"+std::to_string(ref.key.sequence_id):"")+(ref.key.kind==stage::ReferenceKind::SubscriberToon?":"+std::to_string(ref.key.subscriber_id):"");
+        const auto name=std::to_string(int(ref.key.kind))+":"+std::to_string(ref.key.region_id)+":"+std::to_string(ref.key.character_kind)+":"+std::to_string(ref.key.character_id)+":"+std::to_string(ref.key.ability_index)+":"+ref.key.building_key+ref.key.npc_key+ref.key.party_key+(ref.key.kind==stage::ReferenceKind::SharedQuest?":"+std::to_string(ref.key.sequence_id):"")+(ref.key.kind==stage::ReferenceKind::SubscriberToon?":"+std::to_string(ref.key.subscriber_id):"");
         w.links.push_back({ref.local_link_id,name,object});w.keys.push_back({ref.key,object});
         if(ref.key.kind==stage::ReferenceKind::RootRegion){if(w.region&&w.region!=object)return fail(e,"single Subscriber probe spans multiple root Regions");w.region=object;}
     }
@@ -598,10 +600,10 @@ bool retire_progress(QuestEditBatch& batch,const ProgressRequest& request,uintpt
 }
 // QUEST_PROGRESS_BODY_END
 
-bool apply_impl(const Json& graph,const std::string& origin,const FrameBinding* frame,Json& result,std::string& e){
+bool apply_impl(const Json& graph,const std::string& origin,const FrameBinding* frame,Json& result,std::string& e,stage::PartyReferences* parties=nullptr){
     result={{"state","rejected"},{"subscriber_creation_attempted",false},{"full_cohort_replication",false}};
     if(busy.test_and_set())return fail(e,"Subscriber append reentrant probe");struct Busy{~Busy(){busy.clear();}} release;
-    Work work;work.origin=origin;work.frame=frame;work.receipt=&result;local::SaveScopeReceipt scope;
+    Work work;work.origin=origin;work.frame=frame;work.receipt=&result;work.parties=parties;local::SaveScopeReceipt scope;
     try{
         if(!hook_ready||!image_base)return fail(e,"Subscriber append original lookup hook not ready");
         if(!stage::parse_payload(graph,work.payload,e))return false;
@@ -628,6 +630,10 @@ bool apply_impl(const Json& graph,const std::string& origin,const FrameBinding* 
 }
 bool apply_graph(const Json& graph,const std::string& origin,Json& result,std::string& e){return apply_impl(graph,origin,nullptr,result,e);}
 bool apply_frame(const Json& graph,const std::string& origin,const FrameBinding& frame,Json& result,std::string& e){return apply_impl(graph,origin,&frame,result,e);}
+bool apply_frame(const Json& graph,const std::string& origin,const FrameBinding& frame,stage::PartyReferences& parties,Json& result,std::string& e){
+    return apply_impl(graph,origin,&frame,result,e,&parties);
+}
+#include "party_toon_batch.inc"
 bool probe(const std::filesystem::path& root,const std::string& basename,const std::string& sha,const std::string& origin,Json& result,std::string& e){
     result={{"state","rejected"},{"subscriber_creation_attempted",false}};
     try{if(!filename(basename)||sha.size()!=64)return fail(e,"Subscriber append artifact basename/SHA invalid");

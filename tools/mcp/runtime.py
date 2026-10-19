@@ -28,8 +28,10 @@ OPS.add("append_subscriber_record_probe")
 OPS.add("insert_marketing_record_probe")
 OPS.add("read_subscriber_weapon")
 OPS.add("read_vip_alert_owners")
+OPS.add("resync_world")
 MUTATIONS = {"set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
+MUTATIONS.add("resync_world")
 MUTATIONS.add("insert_marketing_record_probe")
 OPS.add("tutorial_welcome_ok")
 OPS.add("tutorial_leveltwo_message_ok")
@@ -57,6 +59,8 @@ OPS.update({"start_typed_actions", "request_snapshot_remove"})
 OPS.update({"enable_ui_remove", "probe_remove_ui"})
 OPS.update({"enable_ui_build", "request_building_place", "native_build_button", "read_build_ui", "native_move_ui", "read_move_ui"})
 MUTATIONS.add("native_move_ui")
+OPS.update({"native_object_ui", "read_object_ui"})
+MUTATIONS.add("native_object_ui")
 OPS.update({"enable_live_host_state","read_live_host_state"})
 MUTATIONS.add("enable_live_host_state")
 OPS.update({"native_cancel_tool", "read_cancel_tool"})
@@ -86,6 +90,8 @@ OPS.add("native_npc_remove_ui")
 MUTATIONS.add("native_npc_remove_ui")
 OPS.add("native_npc_move_ui")
 MUTATIONS.add("native_npc_move_ui")
+OPS.add("native_npc_quest_target_ui")
+MUTATIONS.add("native_npc_quest_target_ui")
 OPS.add("native_price_ui")
 MUTATIONS.add("native_price_ui")
 MUTATIONS.update({"enable_ui_region", "native_region_preset_ui", "native_region_styles_ui"})
@@ -822,7 +828,7 @@ class Runtime:
             self._response_absence_count = 0
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
-        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "focus_test_camera", "probe_remove_ui"} else MAX_JSON
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "read_live_host_state", "focus_test_camera", "probe_remove_ui"} else MAX_JSON
         if response_bytes > max_bytes:
             raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:
@@ -994,3 +1000,8 @@ MUTATIONS.add("native_developer_ui")
 
 OPS.update({"native_buildings_tab", "read_buildings_tab"})
 MUTATIONS.add("native_buildings_tab")
+
+OPS.add("native_npc_quest_list_ui")
+OPS.add("native_npc_quest_edit_ui")
+MUTATIONS.add("native_npc_quest_edit_ui")
+MUTATIONS.add("native_npc_quest_list_ui")

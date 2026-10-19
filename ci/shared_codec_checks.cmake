@@ -14,7 +14,8 @@ set(shared_codec_sources
     "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/record_graph.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/reference_map.cpp")
 if(WIN32)
-    list(APPEND shared_codec_sources "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/record_decode.cpp")
+    list(APPEND shared_codec_sources "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/record_decode.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/state.cpp")
 endif()
 get_property(shared_codec_consumers DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 foreach(archive source_check_codecs source_check_codecs_windows)

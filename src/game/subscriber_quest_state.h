@@ -1,6 +1,8 @@
 #pragma once
 #include "npc_quest_state.h"
+#include "npc_quest_runtime_state.h"
 #include "snapshot_npc_key.h"
+#include "building_npc_key.h"
 #include "subscriber_motion.h"
 #include <array>
 #include <bit>
@@ -42,6 +44,7 @@ struct Counters {
     int32_t sequence_id=-1;
     npc_quest_records::DailyCount accepted,completed;
     std::array<int32_t,2> highest_cache{};
+    npc_quest_runtime::Value runtime;
     bool operator==(const Counters&)const=default;
 };
 struct Npc {
@@ -54,7 +57,7 @@ struct Npc {
     bool operator==(const Npc&)const=default;
 };
 inline bool valid_key(std::string_view key){
-    if(game::snapshot_npc_key::valid(key))return true;
+    if(game::snapshot_npc_key::valid(key)||game::building_npc_key::valid(key))return true;
     if(key.size()!=43||!key.starts_with("action:"))return false;
     const auto id=key.substr(7);
     for(size_t i=0;i<id.size();++i){
@@ -100,7 +103,10 @@ inline bool valid(const std::vector<Npc>& npcs,std::string& error){
         if(npc.type<0||npc.type>2||npc.level<0||(npc.type!=0&&!npc.quests.empty())){error="Quest NPC type/level/Quest domain invalid";return false;}
         if(!game::subscriber_motion::valid(npc.pose,error))return false;
         std::set<int32_t> sequences;
-        for(const auto& quest:npc.quests)if(quest.sequence_id<0||!sequences.insert(quest.sequence_id).second){error="Quest sequence invalid/duplicate";return false;}
+        for(const auto& quest:npc.quests){
+            if(quest.sequence_id<0||!sequences.insert(quest.sequence_id).second){error="Quest sequence invalid/duplicate";return false;}
+            if(!npc_quest_runtime::valid(quest.runtime,error))return false;
+        }
     }
     error.clear();return true;
 }

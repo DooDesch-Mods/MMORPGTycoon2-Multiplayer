@@ -30,6 +30,10 @@ inline std::string npc_difference(const std::vector<subscriber_quest_state::Npc>
         for(size_t q=0;q<a.quests.size();++q){
             const auto& x=a.quests[q];const auto& y=b.quests[q];const auto path=key+"quest["+std::to_string(y.sequence_id)+"].";
             if(x.sequence_id!=y.sequence_id)return difference(key+"quests["+std::to_string(q)+"].sequence_id",x.sequence_id,y.sequence_id);
+            if(x.runtime.rating_bits!=y.runtime.rating_bits)return difference(path+"rating_bits",x.runtime.rating_bits,y.runtime.rating_bits);
+            if(x.runtime.rating_set!=y.runtime.rating_set)return difference(path+"rating_set",x.runtime.rating_set,y.runtime.rating_set);
+            if(x.runtime.xp_reward!=y.runtime.xp_reward)return difference(path+"xp_reward",x.runtime.xp_reward,y.runtime.xp_reward);
+            if(x.runtime.gold_reward!=y.runtime.gold_reward)return difference(path+"gold_reward",x.runtime.gold_reward,y.runtime.gold_reward);
             if(x.accepted!=y.accepted)return daily_difference(path+"accepted",x.accepted,y.accepted);
             if(x.completed!=y.completed)return daily_difference(path+"completed",x.completed,y.completed);
             if(x.highest_cache!=y.highest_cache)return difference(path+"highest_cache",x.highest_cache,y.highest_cache);

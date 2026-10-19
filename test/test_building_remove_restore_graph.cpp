@@ -1,5 +1,6 @@
 #include "typed_action/action_session.h"
 #include "multiplayer_world/world_state.h"
+#include "region_history_key.h"
 #include "building_history_slice/stack_transition.h"
 #include <atomic>
 #include <iostream>
@@ -36,7 +37,42 @@ bool call_original(Original original,void* receiver,uint32_t& exception){excepti
 #undef witness
 void reset(Runtime& runtime){runtime={};runtime.undo=undo_native;runtime.redo=redo_native;runtime.snapshot=snap;published=&runtime;native_stack={};native_stack.receiver=0x2000;native_stack.undo={100};native_graph={};native_graph.locked=true;fail_read=false;original_ok=true;original_calls=0;submitted_key.clear();submitted_target.clear();}
 }
-int main(){try{Runtime runtime;std::string e;reset(runtime);
+void path_graph_case(){
+    Runtime runtime;std::string e;reset(runtime);
+    need(remember_path(remove_id,100,e),e);
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_key=="path:"+remove_id,e);
+    need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed,e);
+    uintptr_t graph=0;need(graph_for(action::Action::RedoBuilding,remove_id,graph,e)&&graph==next_graph,e);
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::RedoBuilding,e)&&submitted_key=="path:"+remove_id,e);
+    need(perform(action::Action::RedoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==2,e);
+    published=nullptr;
+}
+void region_graph_case(){
+    Runtime runtime;std::string e;reset(runtime);
+    need(remember_region(remove_id,56,100,e),e);
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_key=="region:56",e);
+    need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed,e);
+    uintptr_t graph=0;need(graph_for(action::Action::RedoBuilding,remove_id,graph,e)&&graph==next_graph,e);
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::RedoBuilding,e)&&submitted_key=="region:56",e);
+    need(perform(action::Action::RedoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==2,e);
+    reset(runtime);need(!remember_region(remove_id,-1,100,e),"negative Region history ID accepted");
+    need(!remember_graph(remove_id,"region:056",100,e),"noncanonical Region history key accepted");
+    published=nullptr;
+}
+void selection_graph_case(){
+    Runtime runtime;std::string e;reset(runtime);
+    need(remember_selection(remove_id,100,e),e);
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_key=="selection:"+remove_id,e);
+    uintptr_t graph=0;need(graph_for(action::Action::UndoBuilding,remove_id,graph,e)&&graph==100,e);
+    need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed,e);
+    need(graph_for(action::Action::RedoBuilding,remove_id,graph,e)&&graph==next_graph,e);
+    need(!graph_for(action::Action::UndoBuilding,remove_id,graph,e)&&graph==0,"stale consumed graph exposed");
+    need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::RedoBuilding,e)&&submitted_key=="selection:"+remove_id,e);
+    need(perform(action::Action::RedoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==2,e);
+    reset(runtime);need(!remember_graph(remove_id,"selection:"+snap,100,e),"mismatched group source bound");
+    published=nullptr;
+}
+int main(){try{path_graph_case();region_graph_case();selection_graph_case();Runtime runtime;std::string e;reset(runtime);
 need(remember_remove(remove_id,fixture_object_key,100,e),"exact removed graph not retained: "+e);
 need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_target==remove_id&&submitted_key==fixture_object_key,"UI did not preserve mutation/key distinction");
 need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==1&&runtime.buildings.at(remove_id).object_key==fixture_object_key,"Undo graph transition changed key: "+e);

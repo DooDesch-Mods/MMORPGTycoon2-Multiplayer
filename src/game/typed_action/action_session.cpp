@@ -1,6 +1,9 @@
+#include "../monster_target_key.h"
 #include "../tutorial_replication/start_ledger.h"
 #include "../tutorial_replication/staff_action.h"
 #include "action_session.h"
+#include "../region_history_key.h"
+#include <memory>
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/reporting.h"
 #endif
@@ -8,6 +11,15 @@
 #include "../snapshot_building_key.h"
 #include "../snapshot_zone_key.h"
 #include "../snapshot_npc_key.h"
+#include "../snapshot_district_key.h"
+#include "../group_transition.h"
+#include "../group_history.h"
+#include "../duplicate_transition.h"
+#include "../scenery_stroke_transition.h"
+#include "../group_object_transition.h"
+#include "../boss_placement_state.h"
+#include "../duplicate_history.h"
+#include "../dungeon_gizmo_portable.h"
 #include "../npc_target_key.h"
 #include <algorithm>
 #include <cmath>
@@ -115,8 +127,11 @@ RegionState region_read(const json& j) {
     if(!valid_region(v))throw std::runtime_error("region state outside domain");return v;
 }
 float scalar(const json&);
+#include "region_appearance_codec.inc"
 bool valid_property_intent(const RegionPropertyIntent& v) {
     if(v.id<0)return false;
+    if(appearance_kind(v.kind))return valid_appearance_intent(v);
+    if(v.appearance_value!=std::array<float,16>{})return false;
     if(v.kind==RegionPropertyKind::LevelRange)return v.name.empty()&&v.type==-1&&
         v.levels[0]>=1&&v.levels[1]>=v.levels[0]&&v.levels[1]<=INT32_MAX/10-10&&
         std::all_of(v.hit.begin(),v.hit.end(),[](float x){return std::isfinite(x)&&std::abs(x)<=1000000.0f;});
@@ -124,8 +139,8 @@ bool valid_property_intent(const RegionPropertyIntent& v) {
     if(v.kind==RegionPropertyKind::Name)return region_name(v.name)&&v.type==-1&&v.hit==std::array<float,3>{};
     if(!v.name.empty())return false;
     if(v.kind==RegionPropertyKind::Type&&v.type!=0&&v.type!=1)return false;
-    if(v.kind==RegionPropertyKind::Purchase&&v.type!=-1)return false;
-    if(v.kind!=RegionPropertyKind::Type&&v.kind!=RegionPropertyKind::Purchase)return false;
+    if((v.kind==RegionPropertyKind::Purchase||v.kind==RegionPropertyKind::Sale)&&v.type!=-1)return false;
+    if(v.kind!=RegionPropertyKind::Type&&v.kind!=RegionPropertyKind::Purchase&&v.kind!=RegionPropertyKind::Sale)return false;
     return std::all_of(v.hit.begin(),v.hit.end(),[](float x){return std::isfinite(x)&&std::abs(x)<=1000000.0f;});
 }
 bool valid_level_state(const RegionLevelState& v) {
@@ -137,17 +152,19 @@ bool valid_property_state(const RegionPropertyState& v) {
         (v.content!=RegionState{}&&valid_region(v.content)&&region_name(v.name)&&v.type>=0&&v.type<=16&&
          v.status>=0&&v.status<=100000&&v.level>=0&&v.max_level>=0&&
          v.building_count<=1000000&&v.path_count<=1000000&&v.path_node_count<=1000000&&
-         v.network_node_count<=1000000&&v.network_pipe_count<=1000000&&(!v.actors||valid_level_state(*v.actors)));
+         v.network_node_count<=1000000&&v.network_pipe_count<=1000000&&(!v.actors||valid_level_state(*v.actors))&&(!v.appearance||valid_appearance(*v.appearance)));
 }
 json property_intent_json(const RegionPropertyIntent& v) {
     json result={{"kind",uint8_t(v.kind)},{"id",v.id},{"name",v.name},{"type",v.type},{"hit",v.hit}};
-    if(v.kind==RegionPropertyKind::LevelRange)result["levels"]=v.levels;return result;
+    if(v.kind==RegionPropertyKind::LevelRange)result["levels"]=v.levels;
+    if(appearance_kind(v.kind))result["appearance_value"]=v.appearance_value;return result;
 }
 RegionPropertyIntent property_intent_read(const json& j) {
-    if(j.contains("levels"))exact(j,{"kind","id","name","type","hit","levels"});
+    if(j.contains("appearance_value"))exact(j,{"kind","id","name","type","hit","appearance_value"});
+    else if(j.contains("levels"))exact(j,{"kind","id","name","type","hit","levels"});
     else exact(j,{"kind","id","name","type","hit"});
     RegionPropertyIntent v;const auto kind=u64(j.at("kind"));
-    if(kind<1||kind>4)throw std::runtime_error("region property kind outside domain");
+    if(kind<1||kind>11)throw std::runtime_error("region property kind outside domain");
     v.kind=RegionPropertyKind(kind);v.id=i32(j.at("id"));v.name=j.at("name").get<std::string>();v.type=i32(j.at("type"));
     const auto& hit=j.at("hit");if(!hit.is_array()||hit.size()!=3)throw std::runtime_error("region hit requires three coordinates");
     for(size_t i=0;i<3;++i)v.hit[i]=scalar(hit[i]);
@@ -155,6 +172,8 @@ RegionPropertyIntent property_intent_read(const json& j) {
         if(!a.is_array()||a.size()!=2)throw std::runtime_error("region levels requires two integers");
         for(size_t i=0;i<2;++i)v.levels[i]=i32(a[i]);}
     else if(j.contains("levels"))throw std::runtime_error("region levels on unrelated property");
+    if(appearance_kind(v.kind))v.appearance_value=appearance_array<16>(j.at("appearance_value"));
+    else if(j.contains("appearance_value"))throw std::runtime_error("appearance value on unrelated property");
     if(!valid_property_intent(v))throw std::runtime_error("region property intent outside domain");return v;
 }
 json property_state_json(const RegionPropertyState& v) {
@@ -163,14 +182,15 @@ json property_state_json(const RegionPropertyState& v) {
         {"building_count",v.building_count},
         {"path_count",v.path_count},{"path_node_count",v.path_node_count},
         {"network_node_count",v.network_node_count},{"network_pipe_count",v.network_pipe_count}};
+    if(v.appearance)result["appearance"]=appearance_json(*v.appearance);
     if(v.actors){const auto& a=*v.actors;result["actors"]={{"counts",a.counts},{"roster_sha256",a.roster_sha256},
         {"levels_sha256",a.levels_sha256},{"expected_sha256",a.expected_sha256},{"global_random",a.global_random}};}return result;
 }
 RegionPropertyState property_state_read(const json& j) {
-    auto fields=j;fields.erase("actors");
+    auto fields=j;fields.erase("actors");fields.erase("appearance");
     exact(fields,{"content","type_random","name","type","status","level","max_level","owned",
              "building_count","path_count","path_node_count","network_node_count","network_pipe_count"});
-    RegionPropertyState v;v.content=region_read(j.at("content"));v.name=j.at("name").get<std::string>();
+    RegionPropertyState v;if(j.contains("appearance"))v.appearance=appearance_read(j.at("appearance"));v.content=region_read(j.at("content"));v.name=j.at("name").get<std::string>();
     const auto& random=j.at("type_random");if(!random.is_array()||random.size()!=4)throw std::runtime_error("region type RNG requires four words");
     for(size_t i=0;i<4;++i)v.type_random[i]=u64(random[i]);
     v.type=i32(j.at("type"));v.status=i32(j.at("status"));v.level=i32(j.at("level"));
@@ -194,27 +214,203 @@ float scalar(const json&);
 #include "network_codec.inc"
 #include "network_pipe_codec.inc"
 #include "npc_codec.inc"
+json building_json(const BuildingState&);
+BuildingState building_read(const json&,bool);
+#include "prop_text_codec.inc"
+#include "district_codec.inc"
+#include "district_title_codec.inc"
+#include "group_codec.inc"
+#include "duplicate_codec.inc"
+#include "scenery_stroke_codec.inc"
+#include "group_object_codec.inc"
+#include "boss_placement_codec.inc"
+#include "world_path_codec.inc"
+#include "service_membership_codec.inc"
+#include "selection_move_codec.inc"
+#include "boss_phase_codec.inc"
+#include "npc_property_codec.inc"
+#include "region_sale_codec.inc"
 #include "monster_quest_codec.inc"
+#include "npc_quest_action_codec.inc"
+#include "npc_quest_list_codec.inc"
+#include "character_rename_codec.inc"
+#include "character_membership_codec.inc"
+#include "ability_edit_codec.inc"
+#include "ability_membership_codec.inc"
+#include "costume_edit_codec.inc"
+#include "dungeon_config_codec.inc"
+#include "dungeon_light_codec.inc"
+#include "dungeon_sound_codec.inc"
+#include "dungeon_palette_codec.inc"
+#include "dungeon_gizmo_codec.inc"
+#include "building_status_codec.inc"
 bool valid_npc_target(const Request& r) {
-    if(r.target_action_uuid.empty())return game::snapshot_npc_key::valid(r.canonical_record_key);
+    if(r.target_action_uuid.empty())return game::snapshot_npc_key::valid(r.canonical_record_key)||game::building_npc_key::valid(r.canonical_record_key);
     return uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&
         r.canonical_record_key=="action:"+r.target_action_uuid;
 }
 #include "bug_fix_codec.inc"
+#include "management_codec.inc"
+#include "network_remove_codec.inc"
+json logo_state_json(const LogoState& v){return {{"present",v.present},{"sha256",v.sha256}};}
+LogoState logo_state_read(const json& j){exact(j,{"present","sha256"});if(!j.at("present").is_boolean())throw std::runtime_error("Logo presence is not Boolean");return {j.at("present").get<bool>(),j.at("sha256").get<std::string>()};}
 bool research_action(Action action){return action==Action::StartResearch||action==Action::SetResearchWorkers||action==Action::CommitResearch;}
+bool path_history(const Request& r){
+    return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&uuid(r.target_action_uuid)&&r.canonical_record_key=="path:"+r.target_action_uuid;
+}
+bool terrain_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&uuid(r.target_action_uuid)&&r.canonical_record_key=="terrain:"+r.target_action_uuid;}
+bool quest_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
+    uuid(r.target_action_uuid)&&r.canonical_record_key=="quests:"+r.target_action_uuid;}
+bool dungeon_tiles_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
+    uuid(r.target_action_uuid)&&r.canonical_record_key=="dungeon-tiles:"+r.target_action_uuid;}
+bool region_history(const Request& r){
+    return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&game::region_history_key::parse(r.canonical_record_key).has_value();
+}
+#include "duplicate_history_codec.inc"
+#include "scenery_stroke_history_codec.inc"
+bool group_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
+    uuid(r.target_action_uuid)&&r.canonical_record_key=="groups:"+r.target_action_uuid;}
+bool group_history_effect(const Request& r,const Evidence& e){return group_history(r)&&e.group_before&&e.group_after&&
+    group_state_valid(*e.group_before)&&group_state_valid(*e.group_after)&&e.before==e.after&&e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&
+    e.object_before==BuildingState{}&&e.object_after==BuildingState{}&&game::group_history::structural_effect(*e.group_before,*e.group_after);}
 bool valid_request(const Request& r) {
+    if(world_path_action(r.action)){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.world_path={};
+        return r.canonical_record_key=="action:"+r.action_uuid&&r.target_action_uuid.empty()&&
+            world_path_valid(r.world_path)&&
+            (r.action==Action::PlaceWall)==(r.world_path.kind==WorldPathKind::Wall)&&valid_request(base);
+    }
+    if(r.world_path!=WorldPathIntent{})return false;
+    if(r.action==Action::PlaceBoss){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.boss_placement={};
+        return r.canonical_record_key==game::boss_placement_state::key(r.action_uuid)&&r.target_action_uuid.empty()&&game::boss_placement_reader::valid(r.boss_placement)&&valid_request(base);}
+    if(r.boss_placement!=BossPlacementIntent{})return false;
+    if(group_object_action(r.action)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.group_object={};
+        return r.canonical_record_key==r.group_object.key&&r.target_action_uuid.empty()&&group_object_intent_valid(r.action==Action::MoveGroup,r.group_object)&&valid_request(base);}
+    if(r.group_object!=GroupObjectIntent{})return false;
+    if(scenery_stroke_action(r.action)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.scenery_stroke={};
+        return r.canonical_record_key=="scenery-stroke:"+r.action_uuid&&r.target_action_uuid.empty()&&scenery_stroke_intent_valid(r.scenery_stroke)&&
+            (r.action==Action::SceneryBrushStroke)==(r.scenery_stroke.kind==SceneryStrokeKind::Paint)&&valid_request(base);}
+    if(r.scenery_stroke!=SceneryStrokeIntent{})return false;
+    if(r.action==Action::DuplicateSelection){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.duplicate={};
+        return r.canonical_record_key=="duplicate:"+r.action_uuid&&r.target_action_uuid.empty()&&duplicate_intent_valid(r.duplicate)&&valid_request(base);}
+    if(r.duplicate!=DuplicateIntent{})return false;
+    if(r.action==Action::EditGroup){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.group={};
+        return r.canonical_record_key=="groups:"+r.action_uuid&&r.target_action_uuid.empty()&&group_intent_valid(r.group)&&valid_request(base);}
+    if(r.group!=GroupIntent{})return false;
+    if(r.action==Action::MoveDistrictTitle){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.district_title={};
+        return game::snapshot_district_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_title_valid(r.district_title)&&valid_request(base);}
+    if(r.district_title!=DistrictTitleIntent{})return false;
+    if(r.action==Action::EditDistrictText){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.district_text={};
+        return game::snapshot_district_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_intent_valid(r.district_text)&&valid_request(base);}
+    if(r.district_text!=DistrictTextIntent{})return false;
+    if(r.action==Action::MoveSelection){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.selection_move={};
+        return r.canonical_record_key=="selection:"+r.action_uuid&&r.target_action_uuid.empty()&&selection_move_intent_valid(r.selection_move)&&valid_request(base);}
+    if(r.selection_move!=SelectionMoveIntent{})return false;
+    if(r.action==Action::EditServiceMembership){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.service_membership={};
+        return key(r.canonical_record_key)&&r.target_action_uuid.empty()&&service_membership_intent_valid(r.service_membership)&&valid_request(base);}
+    if(r.service_membership!=ServiceMembershipIntent{})return false;
+    if(r.action==Action::ReorderBossPhase){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.boss_phase={};
+        return r.canonical_record_key=="character:3:"+std::to_string(r.boss_phase.character_id)&&r.target_action_uuid.empty()&&boss_intent_valid(r.boss_phase)&&valid_request(base);
+    }
+    if(r.boss_phase!=BossPhaseIntent{})return false;
+    if(r.action==Action::EditPropText){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.prop_text={};
+        return key(r.canonical_record_key)&&r.target_action_uuid.empty()&&prop_text_intent_valid(r.prop_text)&&valid_request(base);
+    }
+    if(r.prop_text!=PropTextIntent{})return false;
+    if(r.action==Action::EditNpcProperty){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
+        base.npc_property={};
+        return game::npc_target_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&
+            npc_property_intent_valid(r.npc_property)&&valid_request(base);
+    }
+    if(r.npc_property!=NpcPropertyIntent{})return false;
+    if(r.action==Action::Intervention){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->intervention={};
+        return r.canonical_record_key==r.intervention.target.key&&r.target_action_uuid.empty()&&game::interventions::valid(r.intervention)&&valid_request(*base);}
+    if(r.intervention!=InterventionIntent{})return false;
+    if(r.action==Action::GameRules){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->game_rules={};
+        return r.canonical_record_key=="management:game-rules"&&r.target_action_uuid.empty()&&game::game_rules::valid(r.game_rules)&&valid_request(*base);}
+    if(r.game_rules!=GameRulesIntent{})return false;
+    if(r.action==Action::GmPolicy){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->gm_policy={};
+        return r.canonical_record_key=="management:gm-policy"&&r.target_action_uuid.empty()&&game::gm_policy::valid(r.gm_policy)&&valid_request(*base);}
+    if(r.gm_policy!=GmPolicyIntent{})return false;
+    if(r.action==Action::ReleaseCycle){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->release_cycle={};
+        return r.canonical_record_key=="release:cycle"&&r.target_action_uuid.empty()&&game::release_cycle::valid(r.release_cycle)&&
+            (r.release_cycle.command!=game::release_cycle::Command::Show||r.release_cycle.cycle==r.action_uuid)&&
+            (r.release_cycle.command!=game::release_cycle::Command::Finalize||r.peer==1)&&valid_request(*base);}
+    if(r.release_cycle!=ReleaseCycleIntent{})return false;
+    if(r.action==Action::ReleaseEdit){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->release_edit={};
+        return r.canonical_record_key=="release:editing"&&r.target_action_uuid.empty()&&game::release_edit::valid(r.release_edit)&&valid_request(*base);}
+    if(r.release_edit!=ReleaseEditIntent{})return false;
+    if(r.action==Action::GeneralProject){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->general_project={};
+        return r.canonical_record_key=="development:project"&&r.target_action_uuid.empty()&&general_project_valid(r.general_project)&&valid_request(*base);}
+    if(r.general_project!=GeneralProjectIntent{})return false;
+    if(r.action==Action::SetLogo){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.logo={};
+        return r.canonical_record_key=="software:logo"&&r.target_action_uuid.empty()&&valid_logo(r.logo)&&valid_request(base);}
+    if(r.logo!=LogoIntent{})return false;
+    if(r.action==Action::RemoveNetworkObject){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.network_remove={};
+        return game::network_object_identity::key(r.canonical_record_key)&&r.target_action_uuid.empty()&&valid_network_remove(r.network_remove)&&valid_request(base);}
+    if(r.network_remove!=NetworkRemoveIntent{})return false;
+    if(r.action==Action::ManagementCommand){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.management={};
+        return r.canonical_record_key=="management:business"&&r.target_action_uuid.empty()&&management_valid(r.management)&&valid_request(base);}
+    if(r.management!=ManagementIntent{})return false;
+    if(r.action==Action::SetBuildingStatus){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.building_status={};
+        return r.canonical_record_key==r.building_status.key&&r.target_action_uuid.empty()&&valid_building_status_intent(r.building_status)&&valid_request(base);}
+    if(r.building_status!=BuildingStatusIntent{})return false;
+    if(r.action==Action::SetDungeonLighting){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_light={};
+        return r.canonical_record_key==r.dungeon_light.key&&r.target_action_uuid.empty()&&valid_dungeon_light_intent(r.dungeon_light)&&valid_request(base);}
+    if(r.dungeon_light!=DungeonLightIntent{})return false;
+    if(r.action==Action::EditDungeonGizmo){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_gizmo={};
+        return r.canonical_record_key==r.dungeon_gizmo.key&&r.target_action_uuid.empty()&&valid_dungeon_gizmo_intent(r.dungeon_gizmo)&&valid_request(base);}
+    if(r.dungeon_gizmo!=DungeonGizmoIntent{})return false;
+    if(r.action==Action::SetDungeonPalette){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_palette={};
+        return r.canonical_record_key==r.dungeon_palette.key&&r.target_action_uuid.empty()&&valid_dungeon_palette_intent(r.dungeon_palette)&&valid_request(base);}
+    if(r.dungeon_palette!=DungeonPaletteIntent{})return false;
+    if(r.action==Action::SetDungeonAtmosphere){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_sound={};
+        return r.canonical_record_key==r.dungeon_sound.key&&r.target_action_uuid.empty()&&valid_dungeon_sound_intent(r.dungeon_sound)&&valid_request(base);}
+    if(r.dungeon_sound!=DungeonSoundIntent{})return false;
+    if(r.action==Action::ConfigureDungeonInstances){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_config={};
+        return r.canonical_record_key==r.dungeon_config.key&&r.target_action_uuid.empty()&&valid_dungeon_config_intent(r.dungeon_config)&&valid_request(base);}
+    if(r.dungeon_config!=DungeonConfigIntent{})return false;
+    if(r.action==Action::EditCharacterCostume){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.costume_edit={};
+        return r.canonical_record_key==costume_key(r.costume_edit)&&r.target_action_uuid.empty()&&valid_costume_edit_intent(r.costume_edit)&&valid_request(base);}
+    if(r.costume_edit!=CostumeEditIntent{})return false;
+    if(r.action==Action::EditCharacterAbility){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.ability_edit={};
+        return r.canonical_record_key==ability_key(r.ability_edit)&&r.target_action_uuid.empty()&&valid_ability_edit_intent(r.ability_edit)&&valid_request(base);}
+    if(r.ability_edit!=AbilityEditIntent{})return false;
+    if(r.action==Action::EditAbilityMembership){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.ability_membership={};
+        return r.canonical_record_key==ability_membership_key(r.ability_membership)&&r.target_action_uuid.empty()&&valid_ability_membership_intent(r.ability_membership)&&valid_request(base);}
+    if(r.ability_membership!=AbilityMembershipIntent{})return false;
+    if((r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.character_rename={};
+        return r.canonical_record_key==character_key(r.character_rename)&&r.target_action_uuid.empty()&&valid_character_rename_intent(r.character_rename)&&uint8_t(r.action)==80+r.character_rename.property&&valid_request(base);}
+    if(r.character_rename!=CharacterRenameIntent{})return false;
+    if(r.action==Action::EditCharacterMembership){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.character_membership={};
+        return r.canonical_record_key==character_membership_key(r.character_membership)&&r.target_action_uuid.empty()&&valid_character_membership_intent(r.character_membership)&&valid_request(base);}
+    if(r.character_membership!=CharacterMembershipIntent{})return false;
+    if((r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest)){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.npc_quest_list={};
+        return game::npc_target_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&
+            valid_npc_quest_list_intent(r.npc_quest_list)&&((r.action==Action::SetNpcQuestList)==(r.npc_quest_list.edit==QuestListEdit::List))&&valid_request(base);
+    }
+    if(r.npc_quest_list!=NpcQuestListIntent{})return false;
+    if(r.action==Action::SetNpcQuestDestination){
+        auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
+        base.npc_quest={};
+        return game::npc_target_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&
+            valid_npc_quest_intent(r.npc_quest)&&valid_request(base);
+    }
+    if(r.npc_quest!=NpcQuestIntent{})return false;
     if(r.action==Action::RemoveMonster){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
         base.target_action_uuid.clear();base.monster_remove={};
-        return uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&r.monster_remove.region>=0&&
-            r.canonical_record_key=="action:"+r.target_action_uuid&&valid_request(base);
+        return game::monster_target_key::request(r.canonical_record_key,r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&r.monster_remove.region>=0&&valid_request(base);
     }
     if(r.monster_remove!=MonsterRemoveIntent{})return false;
     if(r.action==Action::MoveMonster){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
         base.target_action_uuid.clear();base.monster_move={};
-        return uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&
-            r.canonical_record_key=="action:"+r.target_action_uuid&&valid_monster_move(r.monster_move)&&valid_request(base);
+        return game::monster_target_key::request(r.canonical_record_key,r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&valid_monster_move(r.monster_move)&&valid_request(base);
     }
     if(r.monster_move!=MonsterMoveIntent{})return false;
     if(r.action==Action::PlaceMonster)return uuid(r.action_uuid)&&r.target_action_uuid.empty()&&
@@ -285,7 +481,7 @@ bool valid_request(const Request& r) {
             r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)
         return uuid(r.action_uuid)&&uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&
-            key(r.canonical_record_key)&&r.building==BuildingState{}&&
+            (key(r.canonical_record_key)||selection_history(r)||region_history(r)||path_history(r)||terrain_history(r)||quest_history(r)||network_history(r)||group_history(r)||duplicate_history(r)||scenery_stroke_history(r)||group_object_history(r)||dungeon_tiles_history(r))&&r.building==BuildingState{}&&
             r.region==RegionIntent{}&&r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&
             r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(!r.target_action_uuid.empty())return false;
@@ -308,7 +504,14 @@ bool valid_request(const Request& r) {
     return r.action!=Action::PlaceBuilding||r.canonical_record_key=="action:"+r.action_uuid;
 }
 bool object_effect(const Request& r,const Evidence& e) {
+    if(group_object_history(r))return group_object_effect(r,e);
+    if(scenery_stroke_history(r))return scenery_stroke_history_effect(r,e);
+    if(duplicate_history(r))return duplicate_history_effect(r,e);
+    if(group_history(r))return group_history_effect(r,e);
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding) {
+        if(e.object_before.alive&&e.object_after.alive)
+            return e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant&&
+                e.before==e.after;
         auto other=e.object_before;other.alive=!other.alive;
         return e.object_after==other&&e.object_before.type==e.object_after.type&&
             e.object_before.variant==e.object_after.variant;
@@ -322,7 +525,83 @@ bool object_effect(const Request& r,const Evidence& e) {
     if(r.action==Action::PlaceBuilding)return e.object_before==BuildingState{};
     return e.object_before.alive&&e.object_before.type==e.object_after.type&&e.object_before.variant==e.object_after.variant;
 }
+#include "region_ownership_codec.inc"
+#include "quest_history_codec.inc"
+#include "terrain_history_codec.inc"
+
 bool execution(const Request& r,const Evidence& e) {
+    if(r.action==Action::PlaceBoss)return boss_placement_effect(r,e);
+    if(terrain_history(r))return terrain_history_effect(r,e);
+    if(quest_history(r))return quest_history_effect(r,e);
+    if(network_history(r)){std::string cause;return network_history_effect(r,e,cause);}
+    if(region_history(r)){
+        if(e.property_before.owned!=e.property_after.owned)return region_ownership_effect(r,e)&&
+            e.region_before==RegionState{}&&e.region_after==RegionState{}&&e.terrain_before==TerrainState{}&&e.terrain_after==TerrainState{}&&
+            e.path_before==PathState{}&&e.path_after==PathState{}&&e.network_before==NetworkState{}&&e.network_after==NetworkState{};
+        auto normal=r;normal.action=Action::EditRegionProperty;normal.target_action_uuid.clear();
+        normal.region_property.kind=RegionPropertyKind::LevelRange;
+        normal.region_property.id=*game::region_history_key::parse(r.canonical_record_key);
+        normal.region_property.levels={e.property_after.level,e.property_after.max_level};
+        return valid_request(normal)&&execution(normal,e)&&e.region_before==RegionState{}&&e.region_after==RegionState{}&&
+            e.terrain_before==TerrainState{}&&e.terrain_after==TerrainState{}&&e.path_before==PathState{}&&e.path_after==PathState{}&&
+            e.network_before==NetworkState{}&&e.network_after==NetworkState{};
+    }
+    if(r.action==Action::Intervention)return e.intervention_before&&e.intervention_after&&game::interventions::effect(r.intervention,*e.intervention_before,*e.intervention_after)&&(!game::interventions::control_command(r.intervention.command)||((!e.intervention_before->control->controlled||e.intervention_before->control->peer==r.peer)&&(!e.intervention_after->control->controlled||e.intervention_after->control->peer==r.peer)))&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;
+    if(r.action==Action::GameRules)return e.game_rules_before&&e.game_rules_after&&game::game_rules::effect(r.game_rules,*e.game_rules_before,*e.game_rules_after)&&e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;
+    if(r.action==Action::GmPolicy)return e.gm_policy_before&&e.gm_policy_after&&game::gm_policy::effect(r.gm_policy,*e.gm_policy_before,*e.gm_policy_after)&&e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;
+    if(r.action==Action::ReleaseCycle){std::string cause;return e.release_cycle_before&&e.release_cycle_after&&e.release_cycle_value&&game::release_cycle::effect(r.release_cycle,*e.release_cycle_before,*e.release_cycle_after,cause)&&
+        (r.release_cycle.command==game::release_cycle::Command::Finalize||e.before==e.after)&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
+    if(r.action==Action::ReleaseEdit){std::string cause;return e.release_edit_before&&e.release_edit_after&&game::release_edit::effect(r.release_edit,*e.release_edit_before,*e.release_edit_after,cause)&&e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
+    if(r.action==Action::GeneralProject){std::string cause;return e.general_project_before&&e.general_project_after&&
+        game::general_project::effect(r.general_project,*e.general_project_before,*e.general_project_after,cause)&&
+        (r.general_project.command==game::general_project::Command::Start||e.before==e.after)&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
+    if(r.action==Action::SetLogo)return e.logo_before&&e.logo_after&&e.logo_before->sha256==r.logo.before_sha256&&e.logo_after->present&&e.logo_after->sha256==r.logo.desired_sha256&&
+        e.before==e.after&&!e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed;
+    if(r.action==Action::RemoveNetworkObject){auto expected=e.before;
+        auto add=[](int32_t& value,int64_t delta){const auto n=int64_t(value)+delta;if(n<INT32_MIN||n>INT32_MAX)return false;value=int32_t(n);return true;};
+        const auto refund=r.network_remove.quoted_refund;
+        if(refund&&(!expected.record_present||!add(expected.cash,refund)||!add(expected.record_cash,refund)||!add(expected.record_income,refund)||!add(expected.line_counts[6],1)||!add(expected.line_income[6],refund)))return false;
+        return e.network_removal_before&&e.network_removal_after&&e.target_retired&&e.undo_confirmed&&e.selection_confirmed&&
+        expected==e.after&&network_remove_transition(r.canonical_record_key,r.network_remove,*e.network_removal_before,*e.network_removal_after);}
+    if(r.action==Action::ManagementCommand){Ledger expected;
+        return e.management_before&&e.management_after&&management_transition(r.management,*e.management_before,*e.management_after)&&
+            management_ledger(r.management,*e.management_before,e.before,expected)&&expected==e.after&&
+            !e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};}
+    if(r.action==Action::SetBuildingStatus)return building_status_transition(r.building_status,e.building_status_before,e.building_status_after)&&
+        e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::SetDungeonLighting)return dungeon_light_transition(r.dungeon_light,e.dungeon_light_before,e.dungeon_light_after)&&e.before==e.after&&
+        !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::EditDungeonGizmo)return dungeon_gizmo_transition(r.dungeon_gizmo,e.dungeon_gizmo_before,e.dungeon_gizmo_after)&&e.before==e.after&&
+        !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(dungeon_tiles_history(r))return e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.before==e.after&&
+        e.object_before==BuildingState{}&&e.object_after==BuildingState{}&&dungeon_cells_history_transition(r.action==Action::UndoBuilding,e.dungeon_palette_before,e.dungeon_palette_after);
+    if(r.action==Action::SetDungeonPalette)return dungeon_palette_transition(r.dungeon_palette,e.dungeon_palette_before,e.dungeon_palette_after)&&e.before==e.after&&
+        e.undo_confirmed==(r.dungeon_palette.edit==DungeonPaletteEdit::Cells)&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::SetDungeonAtmosphere)return dungeon_sound_transition(r.dungeon_sound,e.dungeon_sound_before,e.dungeon_sound_after)&&e.before==e.after&&
+        !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::ConfigureDungeonInstances){Ledger expected;return dungeon_config_transition(r.dungeon_config,e.dungeon_config_before,e.dungeon_config_after)&&dungeon_config_ledger(r.dungeon_config,e.dungeon_config_before,e.before,expected)&&expected==e.after&&
+        !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};}
+    if(r.action==Action::EditAbilityMembership)return ability_membership_transition(r.ability_membership,e.ability_membership_before,e.ability_membership_after)&&
+        e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::EditCharacterMembership)return character_membership_transition(r.character_membership,e.character_membership_before,e.character_membership_after)&&
+        !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{}&&
+        (r.character_membership.command==CharacterMembershipCommand::Destroy||e.before==e.after);
+    if(r.action==Action::EditCharacterCostume)return costume_edit_transition(r.costume_edit,e.costume_edit_before,e.costume_edit_after)&&
+        e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(r.action==Action::EditCharacterAbility)return ability_edit_transition(r.ability_edit,e.ability_edit_before,e.ability_edit_after)&&
+        e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if((r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed))return character_rename_transition(r.character_rename,e.character_rename_before,e.character_rename_after)&&
+        e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if((r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest))return npc_quest_list_transition(r.npc_quest_list,e.quest_list_before,e.quest_list_after)&&
+        e.before==e.after&&e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed&&
+        e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(group_object_history(r))return group_object_effect(r,e);
+    if(scenery_stroke_history(r))return scenery_stroke_history_effect(r,e);
+    if(duplicate_history(r))return duplicate_history_effect(r,e);
+    if(group_history(r))return group_history_effect(r,e);
+    if(r.action==Action::SetNpcQuestDestination)return npc_quest_transition(r.npc_quest,e.quest_before,e.quest_after)&&
+        e.before==e.after&&e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed&&
+        e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     if(r.action==Action::RemoveMonster)return monster_remove_transition(e.monster_before,e.monster_after)&&
         valid_monster_quests(e.monster_quests,r.canonical_record_key,true)&&
         e.before==e.after&&e.undo_confirmed&&e.target_retired&&e.selection_confirmed&&
@@ -376,6 +655,17 @@ bool execution(const Request& r,const Evidence& e) {
             e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed&&
             e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     }
+    if(r.action==Action::ReorderBossPhase)return boss_effect(r,e);
+    if(group_object_action(r.action))return group_object_effect(r,e);
+    if(scenery_stroke_action(r.action))return scenery_stroke_effect(r,e);
+    if(r.action==Action::DuplicateSelection)return duplicate_effect(r,e);
+    if(r.action==Action::EditGroup)return group_effect(r,e);
+    if(r.action==Action::MoveDistrictTitle)return district_title_effect(r,e);
+    if(r.action==Action::EditDistrictText)return district_effect(r,e);
+    if(r.action==Action::MoveSelection)return selection_move_effect(r,e);
+    if(r.action==Action::EditServiceMembership)return service_effect(r,e);
+    if(r.action==Action::EditPropText)return prop_text_effect(r,e);
+    if(r.action==Action::EditNpcProperty)return npc_property_effect(r,e);
     if(r.action==Action::MoveNPC)return npc_move_effect(r,e);
     if(r.action==Action::RemoveNPC)return npc_remove_effect(e);
     if(r.action==Action::PlaceNPC)return npc_effect(r,e);
@@ -391,6 +681,14 @@ bool execution(const Request& r,const Evidence& e) {
         if(!valid_property_state(before)||!valid_property_state(after)||before==RegionPropertyState{}||after==RegionPropertyState{}||
            before.content.id!=r.region_property.id||after.content.id!=r.region_property.id||e.target_retired||e.selection_confirmed||
            e.object_before!=BuildingState{}||e.object_after!=BuildingState{}||!digest(e.region_retired_sha256))return false;
+        if(appearance_kind(r.region_property.kind)){
+            auto expected=before;
+            return before.appearance&&after.appearance&&!before.actors&&!after.actors&&
+                appearance_expected(r.region_property,*before.appearance,*expected.appearance)&&after==expected&&
+                e.before==e.after&&!e.undo_confirmed;
+        }
+        if(r.region_property.kind==RegionPropertyKind::Sale)return region_sale_effect(before,after,e);
+        if(before.appearance||after.appearance)return false;
         if(r.region_property.kind!=RegionPropertyKind::LevelRange&&(before.actors||after.actors))return false;
         if(r.region_property.kind==RegionPropertyKind::LevelRange){
             if(!before.actors||!after.actors||!before.owned||!after.owned||
@@ -422,6 +720,13 @@ bool execution(const Request& r,const Evidence& e) {
             !after.owned&&e.before==e.after&&e.undo_confirmed&&after.building_count==0&&after.content.scenery_count==0&&after.path_count==0&&
             after.path_node_count==0&&after.network_node_count==0&&after.network_pipe_count==0;
     }
+    if(world_path_action(r.action)||(world_path_history(r)&&e.world_path_before))return world_path_effect(r,e);
+    if(path_history(r)){std::string cause;return valid_path_state(e.path_before)&&valid_path_state(e.path_after)&&valid_region(e.region_before)&&valid_region(e.region_after)&&valid_terrain_state(e.terrain_before)&&valid_terrain_state(e.terrain_after)&&path_history_effect(r,e,cause);}
+    if(selection_history(r))return selection_history_effect(e)&&
+        e.region_before==RegionState{}&&e.region_after==RegionState{}&&
+        e.terrain_before==TerrainState{}&&e.terrain_after==TerrainState{}&&
+        e.path_before==PathState{}&&e.path_after==PathState{}&&
+        e.network_before==NetworkState{}&&e.network_after==NetworkState{};
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)
         return valid_building(e.object_before)&&valid_building(e.object_after)&&
             object_effect(r,e)&&e.undo_confirmed&&!e.selection_confirmed&&
@@ -533,6 +838,124 @@ bool same_action(const Message& a,const Message& b) {return a.session==b.session
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
 bool valid_message(const Message& m,std::string& error) {
+    if((!world_path_action(m.request.action)&&!world_path_history(m.request)&&
+        (m.evidence.world_path_before||m.evidence.world_path_after))||
+       bool(m.evidence.world_path_before)!=bool(m.evidence.world_path_after)||
+       (m.evidence.world_path_before&&!world_path_state_valid(*m.evidence.world_path_before))||
+       (m.evidence.world_path_after&&!world_path_state_valid(*m.evidence.world_path_after))){
+        error="Wall/Pass evidence owner, pair or complete state invalid";return false;}
+    if((m.request.action!=Action::PlaceBoss&&(m.evidence.boss_placement_before||m.evidence.boss_placement_after))||
+       bool(m.evidence.boss_placement_before)!=bool(m.evidence.boss_placement_after)||
+       (m.evidence.boss_placement_before&&!game::boss_placement_state::valid(*m.evidence.boss_placement_before))||
+       (m.evidence.boss_placement_after&&!game::boss_placement_state::valid(*m.evidence.boss_placement_after))){error="Boss placement evidence exact owner/pair/state invalid";return false;}
+    if((!group_object_action(m.request.action)&&!group_object_history(m.request)&&(m.evidence.group_object_before||m.evidence.group_object_after))||
+       bool(m.evidence.group_object_before)!=bool(m.evidence.group_object_after)||
+       (m.evidence.group_object_before&&!group_object_state_valid(*m.evidence.group_object_before))||
+       (m.evidence.group_object_after&&!group_object_state_valid(*m.evidence.group_object_after))){error="Group object evidence owner/pair/state invalid";return false;}
+    if((!scenery_stroke_action(m.request.action)&&!scenery_stroke_history(m.request)&&(m.evidence.scenery_stroke_before||m.evidence.scenery_stroke_after||m.evidence.scenery_stroke_result))||
+       bool(m.evidence.scenery_stroke_before)!=bool(m.evidence.scenery_stroke_after)||bool(m.evidence.scenery_stroke_before)!=bool(m.evidence.scenery_stroke_result)||
+       (m.evidence.scenery_stroke_before&&!scenery_stroke_state_valid(*m.evidence.scenery_stroke_before))||
+       (m.evidence.scenery_stroke_after&&!scenery_stroke_state_valid(*m.evidence.scenery_stroke_after))||
+       (m.evidence.scenery_stroke_result&&!scenery_stroke_result_valid(*m.evidence.scenery_stroke_result,scenery_stroke_history(m.request)))){error="Scenery stroke evidence owner/pair/state invalid";return false;}
+    if((m.request.action!=Action::DuplicateSelection&&!duplicate_history(m.request)&&(m.evidence.duplicate_before||m.evidence.duplicate_after))||
+       bool(m.evidence.duplicate_before)!=bool(m.evidence.duplicate_after)||
+       (m.evidence.duplicate_before&&!duplicate_state_valid(*m.evidence.duplicate_before))||
+       (m.evidence.duplicate_after&&!duplicate_state_valid(*m.evidence.duplicate_after))){error="Duplicate evidence pair/owner/state invalid";return false;}
+    if(!duplicate_history(m.request)&&!scenery_stroke_history(m.request)&&!group_object_action(m.request.action)&&!group_object_history(m.request)&&!m.evidence.duplicate_cash.empty()){error="Duplicate history cash belongs to another action";return false;}
+    if((m.request.action!=Action::EditGroup&&!group_history(m.request)&&(m.evidence.group_before||m.evidence.group_after))||
+       bool(m.evidence.group_before)!=bool(m.evidence.group_after)||
+       (m.evidence.group_before&&!group_state_valid(*m.evidence.group_before))||
+       (m.evidence.group_after&&!group_state_valid(*m.evidence.group_after))){error="Group evidence pair/owner/state invalid";return false;}
+    if((m.request.action!=Action::ReorderBossPhase&&(m.evidence.boss_phase_before||m.evidence.boss_phase_after))||
+       bool(m.evidence.boss_phase_before)!=bool(m.evidence.boss_phase_after)||
+       (m.evidence.boss_phase_before&&!boss_state_valid(*m.evidence.boss_phase_before))||
+       (m.evidence.boss_phase_after&&!boss_state_valid(*m.evidence.boss_phase_after))){error="Boss phase evidence owner/pair/state invalid";return false;}
+    if((m.request.action!=Action::EditDistrictText&&m.request.action!=Action::MoveDistrictTitle&&(m.evidence.district_before||m.evidence.district_after))||
+       bool(m.evidence.district_before)!=bool(m.evidence.district_after)||
+       (m.evidence.district_before&&!district_state_valid(*m.evidence.district_before))||
+       (m.evidence.district_after&&!district_state_valid(*m.evidence.district_after))){error="District evidence pair/owner/state invalid";return false;}
+    if((m.request.action!=Action::MoveSelection&&!selection_history(m.request)&&(m.evidence.selection_move_before||m.evidence.selection_move_after))||
+       bool(m.evidence.selection_move_before)!=bool(m.evidence.selection_move_after)||
+       (m.evidence.selection_move_before&&!selection_move_state_valid(*m.evidence.selection_move_before))||
+       (m.evidence.selection_move_after&&!selection_move_state_valid(*m.evidence.selection_move_after))){error="Selection Move evidence pair/owner invalid";return false;}
+    if((m.request.action!=Action::EditServiceMembership&&(m.evidence.service_membership_before||m.evidence.service_membership_after))||
+       bool(m.evidence.service_membership_before)!=bool(m.evidence.service_membership_after)||
+       (m.evidence.service_membership_before&&!service_state_valid(*m.evidence.service_membership_before))||
+       (m.evidence.service_membership_after&&!service_state_valid(*m.evidence.service_membership_after))){error="Service membership evidence pair/owner invalid";return false;}
+    if((m.request.action!=Action::EditPropText&&(m.evidence.prop_text_before||m.evidence.prop_text_after))||
+       bool(m.evidence.prop_text_before)!=bool(m.evidence.prop_text_after)||
+       (m.evidence.prop_text_before&&!prop_text_state_valid(*m.evidence.prop_text_before))||
+       (m.evidence.prop_text_after&&!prop_text_state_valid(*m.evidence.prop_text_after))){
+        error="Prop text evidence owner/pair/state invalid";return false;
+    }
+    if((m.request.action!=Action::EditNpcProperty&&(m.evidence.npc_property_before||m.evidence.npc_property_after))||
+       bool(m.evidence.npc_property_before)!=bool(m.evidence.npc_property_after)||
+       (m.evidence.npc_property_before&&!npc_property_state_valid(*m.evidence.npc_property_before))||
+       (m.evidence.npc_property_after&&!npc_property_state_valid(*m.evidence.npc_property_after))){
+        error="NPC property evidence outside action domain";return false;}
+
+    if((m.request.action!=Action::Intervention&&(m.evidence.intervention_before||m.evidence.intervention_after))||m.evidence.intervention_before.has_value()!=m.evidence.intervention_after.has_value()||
+       (m.evidence.intervention_before&&(!game::interventions::valid(*m.evidence.intervention_before)||!game::interventions::valid(*m.evidence.intervention_after)))){error="Intervention evidence outside complete original action domain";return false;}
+    if((m.request.action!=Action::GameRules&&(m.evidence.game_rules_before||m.evidence.game_rules_after))||m.evidence.game_rules_before.has_value()!=m.evidence.game_rules_after.has_value()||
+       (m.evidence.game_rules_before&&(!game::game_rules::valid(*m.evidence.game_rules_before)||!game::game_rules::valid(*m.evidence.game_rules_after)))){error="Design rule evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::GmPolicy&&(m.evidence.gm_policy_before||m.evidence.gm_policy_after))||m.evidence.gm_policy_before.has_value()!=m.evidence.gm_policy_after.has_value()||
+       (m.evidence.gm_policy_before&&(!game::gm_policy::valid(*m.evidence.gm_policy_before)||!game::gm_policy::valid(*m.evidence.gm_policy_after)))){error="GM policy evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::ReleaseCycle&&(m.evidence.release_cycle_before||m.evidence.release_cycle_after||m.evidence.release_cycle_value))||m.evidence.release_cycle_before.has_value()!=m.evidence.release_cycle_after.has_value()||m.evidence.release_cycle_before.has_value()!=m.evidence.release_cycle_value.has_value()||
+       (m.evidence.release_cycle_before&&(!game::release_cycle::valid(*m.evidence.release_cycle_before)||!game::release_cycle::valid(*m.evidence.release_cycle_after)||!game::release_cycle::valid(*m.evidence.release_cycle_value,error)))){error="Release cycle evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::ReleaseEdit&&(m.evidence.release_edit_before||m.evidence.release_edit_after))||m.evidence.release_edit_before.has_value()!=m.evidence.release_edit_after.has_value()||
+       (m.evidence.release_edit_before&&(!game::release_edit::valid(*m.evidence.release_edit_before)||!game::release_edit::valid(*m.evidence.release_edit_after)))){error="Release edit evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::GeneralProject&&(m.evidence.general_project_before||m.evidence.general_project_after))||m.evidence.general_project_before.has_value()!=m.evidence.general_project_after.has_value()||
+       (m.evidence.general_project_before&&(!general_project_valid(*m.evidence.general_project_before)||!general_project_valid(*m.evidence.general_project_after)))){error="General project evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::SetLogo&&(m.evidence.logo_before||m.evidence.logo_after))||m.evidence.logo_before.has_value()!=m.evidence.logo_after.has_value()||
+       (m.evidence.logo_before&&(!valid_logo(*m.evidence.logo_before)||!valid_logo(*m.evidence.logo_after)))){error="Logo evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::RemoveNetworkObject&&!network_history(m.request)&&(m.evidence.network_removal_before||m.evidence.network_removal_after))||
+       m.evidence.network_removal_before.has_value()!=m.evidence.network_removal_after.has_value()||
+       (m.evidence.network_removal_before&&(!valid_network_removal(*m.evidence.network_removal_before)||!valid_network_removal(*m.evidence.network_removal_after)))){error="Network removal evidence outside complete action domain";return false;}
+    if((m.evidence.network_history&&!network_history(m.request))||(network_history(m.request)&&(m.evidence.network_history.has_value()!=m.evidence.network_removal_before.has_value()))){error="Network history proof outside complete action domain";return false;}
+    if((m.request.action!=Action::ManagementCommand&&(m.evidence.management_before||m.evidence.management_after))||
+       m.evidence.management_before.has_value()!=m.evidence.management_after.has_value()||
+       (m.evidence.management_before&&(!management_valid(*m.evidence.management_before)||!management_valid(*m.evidence.management_after)))){error="Management evidence outside action domain";return false;}
+    if((m.request.action!=Action::SetBuildingStatus&&(m.evidence.building_status_before!=BuildingStatusState{}||m.evidence.building_status_after!=BuildingStatusState{}))||
+       !valid_building_status_state(m.evidence.building_status_before)||!valid_building_status_state(m.evidence.building_status_after)||
+       ((m.evidence.building_status_before==BuildingStatusState{})!=(m.evidence.building_status_after==BuildingStatusState{}))){error="Building status evidence outside action domain";return false;}
+    if((m.request.action!=Action::SetDungeonLighting&&(m.evidence.dungeon_light_before!=DungeonLightState{}||m.evidence.dungeon_light_after!=DungeonLightState{}))||
+       !valid_dungeon_light_state(m.evidence.dungeon_light_before)||!valid_dungeon_light_state(m.evidence.dungeon_light_after)||
+       ((m.evidence.dungeon_light_before==DungeonLightState{})!=(m.evidence.dungeon_light_after==DungeonLightState{}))){error="Dungeon light edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::EditDungeonGizmo&&(m.evidence.dungeon_gizmo_before!=DungeonGizmoState{}||m.evidence.dungeon_gizmo_after!=DungeonGizmoState{}))||
+       !valid_dungeon_gizmo_state(m.evidence.dungeon_gizmo_before)||!valid_dungeon_gizmo_state(m.evidence.dungeon_gizmo_after)||
+       ((m.evidence.dungeon_gizmo_before==DungeonGizmoState{})!=(m.evidence.dungeon_gizmo_after==DungeonGizmoState{}))){error="Gizmo edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::SetDungeonPalette&&!dungeon_tiles_history(m.request)&&(m.evidence.dungeon_palette_before!=DungeonPaletteState{}||m.evidence.dungeon_palette_after!=DungeonPaletteState{}))||
+       !valid_dungeon_palette_state(m.evidence.dungeon_palette_before)||!valid_dungeon_palette_state(m.evidence.dungeon_palette_after)||
+       ((m.evidence.dungeon_palette_before==DungeonPaletteState{})!=(m.evidence.dungeon_palette_after==DungeonPaletteState{}))){error="Dungeon palette edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::SetDungeonAtmosphere&&(m.evidence.dungeon_sound_before!=DungeonSoundState{}||m.evidence.dungeon_sound_after!=DungeonSoundState{}))||
+       !valid_dungeon_sound_state(m.evidence.dungeon_sound_before)||!valid_dungeon_sound_state(m.evidence.dungeon_sound_after)||
+       ((m.evidence.dungeon_sound_before==DungeonSoundState{})!=(m.evidence.dungeon_sound_after==DungeonSoundState{}))){error="Dungeon sound edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::ConfigureDungeonInstances&&(m.evidence.dungeon_config_before!=DungeonConfigState{}||m.evidence.dungeon_config_after!=DungeonConfigState{}))||
+       !valid_dungeon_config_state(m.evidence.dungeon_config_before)||!valid_dungeon_config_state(m.evidence.dungeon_config_after)||
+       ((m.evidence.dungeon_config_before==DungeonConfigState{})!=(m.evidence.dungeon_config_after==DungeonConfigState{}))){error="Dungeon config edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::EditAbilityMembership&&(m.evidence.ability_membership_before!=AbilityMembershipState{}||m.evidence.ability_membership_after!=AbilityMembershipState{}))||
+       !valid_ability_membership_state(m.evidence.ability_membership_before)||!valid_ability_membership_state(m.evidence.ability_membership_after)||
+       ((m.evidence.ability_membership_before==AbilityMembershipState{})!=(m.evidence.ability_membership_after==AbilityMembershipState{}))){error="Ability membership evidence outside action domain";return false;}
+    if((m.request.action!=Action::EditCharacterMembership&&(m.evidence.character_membership_before!=CharacterMembershipState{}||m.evidence.character_membership_after!=CharacterMembershipState{}))||
+       !valid_character_membership_state(m.evidence.character_membership_before)||!valid_character_membership_state(m.evidence.character_membership_after)||
+       ((m.evidence.character_membership_before==CharacterMembershipState{})!=(m.evidence.character_membership_after==CharacterMembershipState{}))){error="Character membership evidence outside action domain";return false;}
+    if((m.request.action!=Action::EditCharacterCostume&&(m.evidence.costume_edit_before!=CostumeEditState{}||m.evidence.costume_edit_after!=CostumeEditState{}))||
+       !valid_costume_edit_state(m.evidence.costume_edit_before)||!valid_costume_edit_state(m.evidence.costume_edit_after)||
+       ((m.evidence.costume_edit_before==CostumeEditState{})!=(m.evidence.costume_edit_after==CostumeEditState{}))){error="Costume edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::EditCharacterAbility&&(m.evidence.ability_edit_before!=AbilityEditState{}||m.evidence.ability_edit_after!=AbilityEditState{}))||
+       !valid_ability_edit_state(m.evidence.ability_edit_before)||!valid_ability_edit_state(m.evidence.ability_edit_after)||
+       ((m.evidence.ability_edit_before==AbilityEditState{})!=(m.evidence.ability_edit_after==AbilityEditState{}))){error="Ability edit evidence outside action domain";return false;}
+    if(((m.request.action<Action::RenameCharacter||m.request.action>Action::SetCharacterSpeed)&&(m.evidence.character_rename_before!=CharacterRenameState{}||m.evidence.character_rename_after!=CharacterRenameState{}))||
+       !valid_character_rename_state(m.evidence.character_rename_before)||!valid_character_rename_state(m.evidence.character_rename_after)||
+       ((m.evidence.character_rename_before==CharacterRenameState{})!=(m.evidence.character_rename_after==CharacterRenameState{}))){error="Character rename evidence outside action domain";return false;}
+    if(((m.request.action!=Action::SetNpcQuestList&&m.request.action!=Action::EditNpcQuest&&!quest_history(m.request))&&(m.evidence.quest_list_before!=NpcQuestListState{}||m.evidence.quest_list_after!=NpcQuestListState{}))||
+       !valid_npc_quest_list_state(m.evidence.quest_list_before)||!valid_npc_quest_list_state(m.evidence.quest_list_after)||
+       ((m.evidence.quest_list_before==NpcQuestListState{})!=(m.evidence.quest_list_after==NpcQuestListState{}))){
+        error="NPC Quest list evidence outside action domain";return false;}
+    if((m.request.action!=Action::SetNpcQuestDestination&&(m.evidence.quest_before!=NpcQuestState{}||m.evidence.quest_after!=NpcQuestState{}))||
+       !valid_npc_quest_state(m.evidence.quest_before)||!valid_npc_quest_state(m.evidence.quest_after)||
+       ((m.evidence.quest_before==NpcQuestState{})!=(m.evidence.quest_after==NpcQuestState{}))){
+        error="NPC Quest edit evidence outside action domain";return false;}
     if(m.request.action!=Action::RemoveMonster&&m.evidence.monster_quests!=MonsterQuestRetirement{}){
         error="Monster Quest retirement evidence requires RemoveMonster";return false;}
     if(m.request.action==Action::RemoveMonster&&!valid_monster_quests(m.evidence.monster_quests,m.request.canonical_record_key,
@@ -580,13 +1003,13 @@ bool valid_message(const Message& m,std::string& error) {
         error="invalid typed action envelope";return false;
     }
     if((m.request.action!=Action::TerrainStroke||!m.request.terrain.height)&&(!m.evidence.terrain_before.heights_sha256.empty()||!m.evidence.terrain_after.heights_sha256.empty())){error="terrain height evidence outside height action domain";return false;}
-    if((m.request.action!=Action::TerrainStroke&&m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&(m.evidence.terrain_before!=TerrainState{}||m.evidence.terrain_after!=TerrainState{}))||
+    if((m.request.action!=Action::TerrainStroke&&m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&!path_history(m.request)&&!terrain_history(m.request)&&(m.evidence.terrain_before!=TerrainState{}||m.evidence.terrain_after!=TerrainState{}))||
        !valid_terrain_state(m.evidence.terrain_before)||!valid_terrain_state(m.evidence.terrain_after)){error="terrain evidence outside action domain";return false;}
-    if((m.request.action!=Action::SetRegionPreset&&m.request.action!=Action::SetRegionStyles&&m.request.action!=Action::TerrainStroke&&m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&m.request.action!=Action::EditRegionProperty&&(m.evidence.region_before!=RegionState{}||m.evidence.region_after!=RegionState{}||!m.evidence.region_retired_sha256.empty()))||
+    if((m.request.action!=Action::SetRegionPreset&&m.request.action!=Action::SetRegionStyles&&m.request.action!=Action::TerrainStroke&&m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&m.request.action!=Action::EditRegionProperty&&!region_history(m.request)&&!path_history(m.request)&&!terrain_history(m.request)&&(m.evidence.region_before!=RegionState{}||m.evidence.region_after!=RegionState{}||!m.evidence.region_retired_sha256.empty()))||
        (!m.evidence.region_retired_sha256.empty()&&!digest(m.evidence.region_retired_sha256))) {
         error="region evidence outside action domain";return false;
     }
-    if(m.request.action!=Action::EditRegionProperty&&(m.evidence.property_before!=RegionPropertyState{}||m.evidence.property_after!=RegionPropertyState{})){
+    if(m.request.action!=Action::EditRegionProperty&&!region_history(m.request)&&(m.evidence.property_before!=RegionPropertyState{}||m.evidence.property_after!=RegionPropertyState{})){
         error="region property evidence outside action domain";return false;
     }
     if(m.request.action!=Action::SetPrices&&
@@ -598,11 +1021,11 @@ bool valid_message(const Message& m,std::string& error) {
        !valid_npc_state(m.evidence.npc_before)||!valid_npc_state(m.evidence.npc_after)){
         error="NPC evidence outside action domain";return false;
     }
-    if(m.request.region_property.kind!=RegionPropertyKind::LevelRange&&(m.evidence.property_before.actors||m.evidence.property_after.actors)){error="region actor level evidence outside level range action";return false;}
-    if(m.request.action==Action::EditRegionProperty&&(m.evidence.region_before!=RegionState{}||m.evidence.region_after!=RegionState{})){
+    if(!region_history(m.request)&&m.request.region_property.kind!=RegionPropertyKind::LevelRange&&m.request.region_property.kind!=RegionPropertyKind::Sale&&(m.evidence.property_before.actors||m.evidence.property_after.actors)){error="region actor level evidence outside level range or sale action";return false;}
+    if((m.request.action==Action::EditRegionProperty||region_history(m.request))&&(m.evidence.region_before!=RegionState{}||m.evidence.region_after!=RegionState{})){
         error="region property action carries separate region evidence";return false;
     }
-    if((m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&(m.evidence.path_before!=PathState{}||m.evidence.path_after!=PathState{}))||!valid_path_state(m.evidence.path_before)||!valid_path_state(m.evidence.path_after)){error="path evidence outside action domain";return false;}
+    if((m.request.action!=Action::PlacePath&&m.request.action!=Action::RemovePath&&!path_history(m.request)&&(m.evidence.path_before!=PathState{}||m.evidence.path_after!=PathState{}))||!valid_path_state(m.evidence.path_before)||!valid_path_state(m.evidence.path_after)){error="path evidence outside action domain";return false;}
     if((m.request.action!=Action::PlaceNetworkNode&&m.request.action!=Action::PlaceNetworkPipe&&(m.evidence.network_before!=NetworkState{}||m.evidence.network_after!=NetworkState{}))||!valid_network_state(m.evidence.network_before)||!valid_network_state(m.evidence.network_after)){error="network evidence outside action domain";return false;}
     const Evidence empty;
     if(m.kind==Kind::Request&&(m.revision||m.ack_peer||m.required_mask||m.outcome!=Outcome::Pending||m.evidence!=empty||!m.cause.empty())) {
@@ -624,10 +1047,202 @@ bool valid_message(const Message& m,std::string& error) {
     error.clear();return true;
 }
 }
+nlohmann::json management_state_observation(const ManagementState& value){return management_state_json(value);}
+nlohmann::json management_intent_observation(const ManagementIntent& value){return management_intent_json(value);}
+nlohmann::json management_ledger_observation(const Ledger& value){return ledger_json(value);}
 bool valid_bug_fix(const BugFixIntent& intent){return bug_fix_intent_valid(intent);}
+bool dungeon_light_wire_fits(const Request& request,const DungeonLightState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& e=probe.evidence;e.before=e.after=money;e.retirement_confirmed=true;e.dungeon_light_before=e.dungeon_light_after=before;e.dungeon_light_after.light=request.dungeon_light.light;
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Dungeon light full receipt exceeds existing action packet budget before effect";return false;}return true;
+}
+bool dungeon_gizmo_wire_fits(const Request& request,const DungeonGizmoState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& e=probe.evidence;e.before=e.after=money;e.retirement_confirmed=true;e.dungeon_gizmo_before=before;
+    if(!dungeon_gizmo_project(request.dungeon_gizmo,before,e.dungeon_gizmo_after)){error="Gizmo original edit has no exact current native target/value";return false;}
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Gizmo full receipt exceeds existing action packet budget before effect";return false;}return true;
+}
+bool ability_membership_wire_fits(const Request& request,const AbilityMembershipState& before,const Ledger& money,std::string& error){
+    if(request.action!=Action::EditAbilityMembership||!valid_ability_membership_intent(request.ability_membership)||
+       !valid_ability_membership_state(before)||before==AbilityMembershipState{}){error="Ability packet preflight requires its complete current owner state";return false;}
+    const auto& intent=request.ability_membership;
+    if((intent.command==AbilityMembershipCommand::Create&&before.slots.size()>=12)||
+       ((intent.command==AbilityMembershipCommand::Remove||intent.command==AbilityMembershipCommand::Dock)&&
+        (intent.slot<0||size_t(intent.slot)>=before.slots.size()))){error="Ability packet preflight current native slot/count differs";return false;}
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;
+    probe.outcome=Outcome::Unknown;probe.cause="preflight";probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& e=probe.evidence;e.before=e.after=money;e.ability_membership_before=e.ability_membership_after=before;
+    auto& after=e.ability_membership_after;
+    if(intent.command==AbilityMembershipCommand::Copy){auto copied=intent.prefab;copied.text[0]=intent.copy_name;copied.level=intent.level;after.slots.push_back({std::move(copied),-1});}
+    else if(intent.command==AbilityMembershipCommand::Create)after.slots.push_back({});
+    else if(intent.command==AbilityMembershipCommand::Remove)after.slots.erase(after.slots.begin()+intent.slot);
+    else {after.slots[size_t(intent.slot)].record.level=intent.level;after.slots[size_t(intent.slot)].display_slot=intent.display_slot;}
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
+    const size_t generated=intent.command==AbilityMembershipCommand::Create?20480:0;
+    if(bytes.size()+generated+4096>max_payload){error="Ability complete current/future receipt exceeds existing action packet budget before native mutation";return false;}
+    return true;
+}
+bool character_membership_wire_fits(const Request& request,const CharacterMembershipState& before,const Ledger& money,std::string& error){
+    if(request.action!=Action::EditCharacterMembership||!valid_character_membership_intent(request.character_membership)||!valid_character_membership_state(before)||
+       before==CharacterMembershipState{}||before.selected.kind!=request.character_membership.kind||before.selected.id!=request.character_membership.id||before.selected.deleted||before.created){
+        error="Character membership packet preflight requires its valid current selected family";return false;}
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;
+    probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& evidence=probe.evidence;evidence.before=evidence.after=money;evidence.retirement_confirmed=true;
+    evidence.character_membership_before=evidence.character_membership_after=before;auto& after=evidence.character_membership_after;
+    after.manager_sha=before.manager_sha==std::string(64,'f')?std::string(64,'e'):std::string(64,'f');
+    after.global_random.fill(UINT64_MAX);after.release_edits.fill(INT32_MIN);
+    if(request.character_membership.command==CharacterMembershipCommand::CreateVariant){const auto kind=size_t(before.selected.kind);
+        const auto id=before.first_deleted[kind]<0?after.counts[kind]++:before.first_deleted[kind];after.first_deleted[kind]=-1;
+        after.selected.variants.push_back(id);after.created=CharacterMembershipRow{before.selected.kind,id,before.selected.id,false,request.character_membership.name,{}};
+    }else {after.selected.deleted=true;after.selected.variants.clear();after.retired_definitions=before.selected.variants;after.retired_definitions.push_back(before.selected.id);
+        std::sort(after.retired_definitions.begin(),after.retired_definitions.end());after.undo_count=20;}
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
+    if(bytes.size()>max_payload-4096){error="Character membership complete family receipt exceeds existing action packet budget before native mutation";return false;}
+    return true;
+}
+bool dungeon_palette_wire_fits(const Request& request,const DungeonPaletteState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& e=probe.evidence;e.before=e.after=money;e.retirement_confirmed=true;e.dungeon_palette_before=e.dungeon_palette_after=before;
+    if(before.palette.size()<4){error="Dungeon palette preflight has fewer than four native channels";return false;}
+    if(dungeon_tiles_history(request)){
+        e.undo_confirmed=true;auto& after=e.dungeon_palette_after;
+        if(after.protected_state.dungeon.undo_count>20||(request.action==Action::UndoBuilding&&!after.protected_state.dungeon.undo_count)){
+            error="Dungeon cell history preflight Undo count differs";return false;}
+        if(request.action==Action::UndoBuilding)--after.protected_state.dungeon.undo_count;
+        else if(after.protected_state.dungeon.undo_count<20)++after.protected_state.dungeon.undo_count;
+        after.stroke.dungeon_sha=before.stroke.dungeon_sha==std::string(64,'f')?std::string(64,'e'):std::string(64,'f');
+    }else if(request.dungeon_palette.edit==DungeonPaletteEdit::Cells){
+        e.undo_confirmed=true;
+        auto& after=e.dungeon_palette_after;const auto& stroke=request.dungeon_palette.stroke;
+        if(after.protected_state.dungeon.undo_count>20){error="Dungeon cell preflight Undo count exceeds original history limit";return false;}if(after.protected_state.dungeon.undo_count<20)++after.protected_state.dungeon.undo_count;
+        after.stroke.dungeon_sha=before.stroke.dungeon_sha==std::string(64,'f')?std::string(64,'e'):std::string(64,'f');
+        if(after.stroke.cells.size()!=stroke.cells.size()){error="Dungeon cell preflight indexed receipt differs from request";return false;}
+        for(auto& row:after.stroke.cells){if(stroke.mode==DungeonCellMode::Close)row.value.open=false;
+            else{if(!row.value.open&&after.defaults)for(size_t i=0;i<4;++i)after.palette[i]=stroke.theme_packed[i];
+                row.value.open=true;row.value.theme=stroke.theme;for(size_t i=0;i<4;++i)row.value.colors[i]=after.palette[i];}}
+    }else{e.dungeon_palette_after.defaults=request.dungeon_palette.defaults;for(size_t i=0;i<4;++i)e.dungeon_palette_after.palette[i]=request.dungeon_palette.packed[i];}
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Dungeon palette full receipt exceeds existing action packet budget before effect";return false;}return true;
+}
+bool dungeon_sound_wire_fits(const Request& request,const DungeonSoundState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& e=probe.evidence;e.before=e.after=money;e.retirement_confirmed=true;e.dungeon_sound_before=e.dungeon_sound_after=before;e.dungeon_sound_after.atmosphere=request.dungeon_sound.atmosphere;
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Dungeon sound full receipt exceeds existing action packet budget before effect";return false;}return true;
+}
+bool dungeon_config_effect(const Request& request,const Ledger& before,const Ledger& after,const DungeonConfigState& state){Ledger expected;return request.action==Action::ConfigureDungeonInstances&&dungeon_config_ledger(request.dungeon_config,state,before,expected)&&after==expected;}
+bool dungeon_config_wire_fits(const Request& request,const DungeonConfigState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;
+    probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;auto& e=probe.evidence;e.before=money;e.retirement_confirmed=true;
+    if(!dungeon_config_ledger(request.dungeon_config,before,money,e.after)){error="Dungeon config original count/price/cash/ledger arithmetic rejected before effect";return false;}
+    e.dungeon_config_before=e.dungeon_config_after=before;e.dungeon_config_after.desired=request.dungeon_config.desired;
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Dungeon config full receipt exceeds existing packet budget before original effect";return false;}return true;
+}
+bool costume_edit_wire_fits(const Request& request,const CostumeEditState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;
+    probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& evidence=probe.evidence;evidence.before=evidence.after=money;evidence.retirement_confirmed=true;
+    evidence.costume_edit_before=before;evidence.costume_edit_after=before;evidence.costume_edit_after.record=request.costume_edit.record;
+    evidence.costume_edit_after.owner.edited=true;evidence.costume_edit_after.owner.rename_day=before.owner.day;
+    if(!before.owner.edited){if(before.owner.release_edits[7]==INT32_MAX){error="Costume native release edit counter exhausted before original effect";return false;}++evidence.costume_edit_after.owner.release_edits[7];}
+    evidence.costume_edit_after.all_sha256=std::string(64,before.all_sha256==std::string(64,'a')?'b':'a');
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
+    // The original keeps authored names and scalar sets; only bounded release
+    // counters, flags, day and four RNG words can grow in the final receipt.
+    if(bytes.size()>max_payload-256){error="Costume full before/after receipt exceeds existing action packet budget before original effect";return false;}
+    return true;
+}
+bool ability_edit_wire_fits(const Request& request,const AbilityEditState& before,const Ledger& money,std::string& error){
+    Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;
+    probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    auto& evidence=probe.evidence;evidence.before=evidence.after=money;evidence.retirement_confirmed=true;
+    evidence.ability_edit_before=before;evidence.ability_edit_after=before;evidence.ability_edit_after.record=request.ability_edit.record;
+    evidence.ability_edit_after.all_sha256=std::string(64,before.all_sha256==std::string(64,'a')?'b':'a');
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
+    // The original keeps authored names and scalar sets; only bounded release
+    // counters, flags, day and four RNG words can grow in the final receipt.
+    if(bytes.size()>max_payload-256){error="Ability full before/after receipt exceeds existing action packet budget before original effect";return false;}
+    return true;
+}
 bool valid_bug_fix_effect(const Request& request,const Evidence& evidence){
     return request.action==Action::SetBugFix&&valid_request(request)&&bug_fix_effect(request,evidence);
 }
+#include "duplicate_budget.inc"
+#include "group_history_budget.inc"
+#include "duplicate_history_budget.inc"
+bool valid_group(const GroupIntent& v){return group_intent_valid(v);}
+bool valid_group_effect(const Request& r,const Evidence& e){return group_effect(r,e);}
+bool valid_boss_placement(const BossPlacementIntent& intent){return game::boss_placement_reader::valid(intent);}
+bool valid_boss_placement_effect(const Request& request,const Evidence& evidence){return boss_placement_effect(request,evidence);}
+bool valid_world_path_effect(const Request& request,const Evidence& evidence){return world_path_effect(request,evidence);}
+bool boss_placement_wire_fits(const Request& request,const Evidence& evidence,std::string& error){
+    Message message;message.kind=Kind::ApplyAck;message.session=UINT64_MAX;message.revision=UINT64_MAX;message.required_mask=15;message.ack_peer=4;
+    message.request=request;message.evidence=evidence;message.evidence.retirement_confirmed=true;message.outcome=Outcome::Confirmed;
+    std::vector<uint8_t> payload;return encode(message,payload,error);
+}
+bool valid_group_object(bool moving,const GroupObjectIntent& value){return group_object_intent_valid(moving,value);}
+bool valid_group_object_effect(const Request& r,const Evidence& e){return group_object_effect(r,e);}
+bool group_object_wire_fits(const Request& r,const Evidence& e,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.request=r;m.evidence=e;m.outcome=Outcome::Confirmed;
+    m.evidence.retirement_confirmed=true;std::vector<uint8_t> payload;return encode(m,payload,error);
+}
+bool valid_scenery_stroke(const SceneryStrokeIntent& value){return scenery_stroke_intent_valid(value);}
+bool valid_scenery_stroke_effect(const Request& r,const Evidence& e){return scenery_stroke_history(r)?scenery_stroke_history_effect(r,e):scenery_stroke_effect(r,e);}
+bool scenery_stroke_wire_fits(const Request& r,const Evidence& e,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.request=r;m.evidence=e;m.outcome=Outcome::Confirmed;
+    m.evidence.retirement_confirmed=true;std::vector<uint8_t> payload;return encode(m,payload,error);
+}
+bool group_wire_fits(const Request& r,const GroupState& before,const Ledger& money,std::string& error){
+    try{Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+        m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.before=m.evidence.after=money;m.evidence.retirement_confirmed=true;
+        m.evidence.group_before=before;m.evidence.group_after=group_budget_after(before,r.group,"group:action:"+r.action_uuid);m.evidence.undo_confirmed=m.evidence.selection_confirmed=true;
+        std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+        if(bytes.size()>max_payload-256){error="Group complete result exceeds transport budget before mutation";return false;}return true;
+    }catch(const std::exception& x){error=std::string("Group result preflight: ")+x.what();return false;}
+}
+bool valid_district_title(const DistrictTitleIntent& v){return district_title_valid(v);}
+bool valid_district_title_effect(const Request& r,const Evidence& e){return district_title_effect(r,e);}
+bool district_title_wire_fits(const Request& r,const DistrictState& before,const Ledger& money,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.before=m.evidence.after=money;m.evidence.retirement_confirmed=true;
+    m.evidence.district_before=before;m.evidence.district_after=district_title_after(before,r.district_title);
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="District title complete result exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_district_text(const DistrictTextIntent& v){return district_intent_valid(v);}
+bool valid_district_effect(const Request& r,const Evidence& e){return district_effect(r,e);}
+bool district_wire_fits(const Request& r,const DistrictState& before,const Ledger& money,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.before=m.evidence.after=money;m.evidence.retirement_confirmed=true;
+    m.evidence.district_before=m.evidence.district_after=before;
+    auto& after=*m.evidence.district_after;(r.district_text.kind==DistrictTextKind::Name?after.name:after.description)=district_text_value(r.district_text);
+    if(r.district_text.kind==DistrictTextKind::Name&&!after.manual_title_inside){after.flags[11]=0;after.manual_title_inside=true;}
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;if(bytes.size()>max_payload-256){error="District complete result exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_selection_move(const SelectionMoveIntent& v){return selection_move_intent_valid(v);}
+bool valid_selection_move_effect(const Request& r,const Evidence& e){return selection_move_effect(r,e);}
+bool selection_move_wire_fits(const Request& r,const Ledger& money,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.before=m.evidence.after=money;m.evidence.retirement_confirmed=true;
+    m.evidence.undo_confirmed=m.evidence.selection_confirmed=true;m.evidence.selection_move_before=SelectionMoveState{};m.evidence.selection_move_after=SelectionMoveState{};
+    for(const auto& row:r.selection_move.rows){m.evidence.selection_move_before->rows.push_back(row.before);m.evidence.selection_move_after->rows.push_back(row.after);}
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;if(bytes.size()>max_payload-256){error="Selection Move complete result exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_service_membership_effect(const Request& r,const Evidence& e){return service_effect(r,e);}
+bool service_membership_wire_fits(const Request& r,const ServiceMembershipState& before,const Ledger& money,std::string& error){
+    ServiceMembershipState after;if(!service_membership_expected(r.service_membership,before,after)){error="Service membership cannot derive complete preflight effect";return false;}
+    Message probe;probe.kind=Kind::ApplyAck;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;
+    probe.request=r;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
+    probe.evidence.before=probe.evidence.after=money;probe.evidence.retirement_confirmed=true;
+    probe.evidence.service_membership_before=before;probe.evidence.service_membership_after=std::move(after);
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="Service membership complete result exceeds existing action packet reserve";return false;}return true;
+}
+bool valid_boss_phase(const BossPhaseIntent& v){return boss_intent_valid(v);}
+bool valid_boss_phase_effect(const Request& r,const Evidence& e){return boss_effect(r,e);}
+bool valid_prop_text(const PropTextIntent& v){return prop_text_intent_valid(v);}
+bool valid_prop_text_effect(const Request& r,const Evidence& e){return prop_text_effect(r,e);}
+bool valid_npc_property(const NpcPropertyIntent& v){return npc_property_intent_valid(v);}
+bool valid_npc_property_effect(const Request& r,const Evidence& e){return npc_property_effect(r,e);}
 bool valid_npc(const NpcIntent& value) {return valid_npc_intent(value);}
 bool valid_npc_effect(const Request& request,const Evidence& evidence) {
     return (request.action==Action::PlaceNPC&&npc_effect(request,evidence))||
@@ -638,13 +1253,156 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t(r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?(r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t((world_path_action(r.action)||r.action==Action::PlaceBoss)?35:(group_object_action(r.action)||group_object_history(r))?35:(scenery_stroke_action(r.action)||scenery_stroke_history(r))?35:dungeon_tiles_history(r)?35:terrain_history(r)?35:quest_history(r)?35:network_history(r)?35:duplicate_history(r)?35:group_history(r)?35:r.action==Action::DuplicateSelection?35:r.action==Action::Intervention?35:r.action==Action::GameRules?35:r.action==Action::GmPolicy?35:r.action==Action::ReleaseCycle?35:r.action==Action::ReleaseEdit?35:r.action==Action::EditGroup?35:path_history(r)?35:r.action==Action::EditDungeonGizmo?35:r.action==Action::SetDungeonPalette?35:r.action==Action::GeneralProject?35:region_history(r)?35:r.action==Action::MoveDistrictTitle?35:r.action==Action::EditDistrictText?35:r.action==Action::SetDungeonAtmosphere?35:selection_history(r)?35:r.action==Action::SetDungeonLighting?35:r.action==Action::MoveSelection?35:r.action==Action::ConfigureDungeonInstances?35:r.action==Action::SetLogo?35:r.action==Action::EditAbilityMembership?35:r.action==Action::EditCharacterMembership?35:r.action==Action::EditCharacterCostume?35:r.action==Action::RemoveNetworkObject?35:r.action==Action::SetBuildingStatus||r.action==Action::EditCharacterAbility||(r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)||r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest?35:r.action==Action::ManagementCommand?35:r.action==Action::EditServiceMembership||r.action==Action::ReorderBossPhase||r.action==Action::EditPropText||r.action==Action::EditNpcProperty?35:r.action==Action::SetNpcQuestDestination?34:r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?((appearance_kind(r.region_property.kind)||r.region_property.kind==RegionPropertyKind::Sale)?35:r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(r.action==Action::RemoveMonster){
+        if(world_path_action(r.action)||(world_path_history(r)&&e.world_path_before)){
+            if(world_path_action(r.action))j["request"]["world_path"]=world_path_json(r.world_path);
+            else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["world_path_before"]=world_path_state_json(e.world_path_before);
+            j["evidence"]["world_path_after"]=world_path_state_json(e.world_path_after);
+        }else if(r.action==Action::PlaceBoss){
+            j["request"]["boss_placement"]=boss_placement_json(r.boss_placement);
+            j["evidence"]["boss_placement_before"]=boss_placement_state_json(e.boss_placement_before);
+            j["evidence"]["boss_placement_after"]=boss_placement_state_json(e.boss_placement_after);
+        }else if(group_object_action(r.action)||group_object_history(r)){
+            if(group_object_action(r.action))j["request"]["group_object"]=group_object_json(r.group_object);else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["group_object_before"]=group_object_state_json(e.group_object_before);j["evidence"]["group_object_after"]=group_object_state_json(e.group_object_after);
+            j["evidence"]["duplicate_cash"]=duplicate_cash_json(e.duplicate_cash);
+        }else if(scenery_stroke_action(r.action)){j["request"]["scenery_stroke"]=scenery_stroke_json(r.scenery_stroke);
+            j["evidence"]["scenery_stroke_before"]=scenery_stroke_state_json(e.scenery_stroke_before);j["evidence"]["scenery_stroke_after"]=scenery_stroke_state_json(e.scenery_stroke_after);
+            j["evidence"]["scenery_stroke_result"]=scenery_stroke_result_json(e.scenery_stroke_result);
+        }else if(scenery_stroke_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["scenery_stroke_before"]=scenery_stroke_state_json(e.scenery_stroke_before);j["evidence"]["scenery_stroke_after"]=scenery_stroke_state_json(e.scenery_stroke_after);
+            j["evidence"]["scenery_stroke_result"]=scenery_stroke_result_json(e.scenery_stroke_result);j["evidence"]["duplicate_cash"]=duplicate_cash_json(e.duplicate_cash);
+        }else if(dungeon_tiles_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["dungeon_palette_before"]=dungeon_palette_state_json(e.dungeon_palette_before);j["evidence"]["dungeon_palette_after"]=dungeon_palette_state_json(e.dungeon_palette_after);
+        }else if(duplicate_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["duplicate_before"]=duplicate_state_json(e.duplicate_before);j["evidence"]["duplicate_after"]=duplicate_state_json(e.duplicate_after);
+            j["evidence"]["duplicate_cash"]=duplicate_cash_json(e.duplicate_cash);
+        }else if(group_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["group_before"]=group_state_json(e.group_before);j["evidence"]["group_after"]=group_state_json(e.group_after);
+        }else if(r.action==Action::DuplicateSelection){j["request"]["duplicate"]=duplicate_intent_json(r.duplicate);
+            j["evidence"]["duplicate_before"]=duplicate_state_json(e.duplicate_before);j["evidence"]["duplicate_after"]=duplicate_state_json(e.duplicate_after);
+        }else if(r.action==Action::Intervention){
+            j["request"]["intervention"]=game::interventions::encode(r.intervention);
+            j["evidence"]["intervention_before"]=e.intervention_before?game::interventions::encode(*e.intervention_before):json(nullptr);
+            j["evidence"]["intervention_after"]=e.intervention_after?game::interventions::encode(*e.intervention_after):json(nullptr);
+        }else if(r.action==Action::GameRules){
+            j["request"]["game_rules"]=game::game_rules::encode(r.game_rules);
+            j["evidence"]["game_rules_before"]=e.game_rules_before?game::game_rules::encode(*e.game_rules_before):json(nullptr);
+            j["evidence"]["game_rules_after"]=e.game_rules_after?game::game_rules::encode(*e.game_rules_after):json(nullptr);
+        }else if(r.action==Action::GmPolicy){
+            j["request"]["gm_policy"]=game::gm_policy::encode(r.gm_policy);
+            j["evidence"]["gm_policy_before"]=e.gm_policy_before?game::gm_policy::encode(*e.gm_policy_before):json(nullptr);
+            j["evidence"]["gm_policy_after"]=e.gm_policy_after?game::gm_policy::encode(*e.gm_policy_after):json(nullptr);
+        }else if(r.action==Action::ReleaseCycle){
+            j["request"]["release_cycle"]=game::release_cycle::encode(r.release_cycle);
+            j["evidence"]["release_cycle_before"]=e.release_cycle_before?game::release_cycle::encode(*e.release_cycle_before):json(nullptr);
+            j["evidence"]["release_cycle_after"]=e.release_cycle_after?game::release_cycle::encode(*e.release_cycle_after):json(nullptr);
+            j["evidence"]["release_cycle_value"]=e.release_cycle_value?game::release_cycle::encode(*e.release_cycle_value):json(nullptr);
+        }else if(r.action==Action::ReleaseEdit){
+
+            j["request"]["release_edit"]=game::release_edit::encode(r.release_edit);
+            j["evidence"]["release_edit_before"]=e.release_edit_before?game::release_edit::encode(*e.release_edit_before):json(nullptr);
+            j["evidence"]["release_edit_after"]=e.release_edit_after?game::release_edit::encode(*e.release_edit_after):json(nullptr);
+        }else if(r.action==Action::EditGroup){j["request"]["group"]=group_intent_json(r.group);
+            j["evidence"]["group_before"]=group_state_json(e.group_before);j["evidence"]["group_after"]=group_state_json(e.group_after);
+        }else if(r.action==Action::GeneralProject){
+            j["request"]["general_project"]=game::general_project::encode(r.general_project);
+            j["evidence"]["general_project_before"]=e.general_project_before?game::general_project::encode(*e.general_project_before):json(nullptr);
+            j["evidence"]["general_project_after"]=e.general_project_after?game::general_project::encode(*e.general_project_after):json(nullptr);
+        }else if(r.action==Action::MoveDistrictTitle){j["request"]["district_title"]=r.district_title.position;
+            j["evidence"]["district_before"]=district_state_json(e.district_before);j["evidence"]["district_after"]=district_state_json(e.district_after);
+        }else if(r.action==Action::EditDistrictText){j["request"]["district_text"]=district_intent_json(r.district_text);
+            j["evidence"]["district_before"]=district_state_json(e.district_before);j["evidence"]["district_after"]=district_state_json(e.district_after);
+        }else if(r.action==Action::SetLogo){
+            j["request"]["logo"]={{"before_sha256",r.logo.before_sha256},{"desired_sha256",r.logo.desired_sha256},{"records",r.logo.records}};
+            j["evidence"]["logo_before"]=e.logo_before?logo_state_json(*e.logo_before):json(nullptr);
+            j["evidence"]["logo_after"]=e.logo_after?logo_state_json(*e.logo_after):json(nullptr);
+        }else if(r.action==Action::RemoveNetworkObject){
+            j["request"]["network_remove"]={{"region",r.network_remove.region},{"graph_before_sha256",r.network_remove.graph_before_sha256},{"quoted_refund",r.network_remove.quoted_refund}};
+            j["evidence"]["network_removal_before"]=e.network_removal_before?network_removal_json(*e.network_removal_before):json(nullptr);
+            j["evidence"]["network_removal_after"]=e.network_removal_after?network_removal_json(*e.network_removal_after):json(nullptr);
+
+        }else if(r.action==Action::SetBuildingStatus){j["request"]["building_status"]=building_status_intent_json(r.building_status);
+            j["evidence"]["building_status_before"]=building_status_state_json(e.building_status_before);j["evidence"]["building_status_after"]=building_status_state_json(e.building_status_after);
+        }else if(r.action==Action::SetDungeonLighting){j["request"]["dungeon_light"]=dungeon_light_intent_json(r.dungeon_light);
+            j["evidence"]["dungeon_light_before"]=dungeon_light_state_json(e.dungeon_light_before);j["evidence"]["dungeon_light_after"]=dungeon_light_state_json(e.dungeon_light_after);
+        }else if(r.action==Action::EditDungeonGizmo){j["request"]["dungeon_gizmo"]=dungeon_gizmo_intent_json(r.dungeon_gizmo);
+            j["evidence"]["dungeon_gizmo_before"]=dungeon_gizmo_state_json(e.dungeon_gizmo_before);j["evidence"]["dungeon_gizmo_after"]=dungeon_gizmo_state_json(e.dungeon_gizmo_after);
+        }else if(r.action==Action::SetDungeonPalette){j["request"]["dungeon_palette"]=dungeon_palette_intent_json(r.dungeon_palette);
+            j["evidence"]["dungeon_palette_before"]=dungeon_palette_state_json(e.dungeon_palette_before);j["evidence"]["dungeon_palette_after"]=dungeon_palette_state_json(e.dungeon_palette_after);
+        }else if(r.action==Action::SetDungeonAtmosphere){j["request"]["dungeon_sound"]=dungeon_sound_intent_json(r.dungeon_sound);
+            j["evidence"]["dungeon_sound_before"]=dungeon_sound_state_json(e.dungeon_sound_before);j["evidence"]["dungeon_sound_after"]=dungeon_sound_state_json(e.dungeon_sound_after);
+        }else if(r.action==Action::ConfigureDungeonInstances){j["request"]["dungeon_config"]=dungeon_config_intent_json(r.dungeon_config);
+            j["evidence"]["dungeon_config_before"]=dungeon_config_state_json(e.dungeon_config_before);j["evidence"]["dungeon_config_after"]=dungeon_config_state_json(e.dungeon_config_after);
+        }else if(r.action==Action::EditAbilityMembership){j["request"]["ability_membership"]=ability_membership_intent_json(r.ability_membership);
+            j["evidence"]["ability_membership_before"]=ability_membership_state_json(e.ability_membership_before);j["evidence"]["ability_membership_after"]=ability_membership_state_json(e.ability_membership_after);
+        }else if(r.action==Action::EditCharacterMembership){j["request"]["character_membership"]=character_membership_intent_json(r.character_membership);
+            j["evidence"]["character_membership_before"]=character_membership_state_json(e.character_membership_before);j["evidence"]["character_membership_after"]=character_membership_state_json(e.character_membership_after);
+        }else if(r.action==Action::EditCharacterCostume){j["request"]["costume_edit"]=costume_edit_intent_json(r.costume_edit);
+            j["evidence"]["costume_edit_before"]=costume_edit_state_json(e.costume_edit_before);j["evidence"]["costume_edit_after"]=costume_edit_state_json(e.costume_edit_after);
+        }else if(r.action==Action::EditCharacterAbility){j["request"]["ability_edit"]=ability_edit_intent_json(r.ability_edit);
+            j["evidence"]["ability_edit_before"]=ability_edit_state_json(e.ability_edit_before);j["evidence"]["ability_edit_after"]=ability_edit_state_json(e.ability_edit_after);
+        }else if((r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)){j["request"]["character_rename"]=character_rename_intent_json(r.character_rename);
+            j["evidence"]["character_rename_before"]=character_rename_state_json(e.character_rename_before);j["evidence"]["character_rename_after"]=character_rename_state_json(e.character_rename_after);
+        }else if((r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest)){
+            j["request"]["npc_quest_list"]=npc_quest_list_intent_json(r.npc_quest_list);
+            j["evidence"]["quest_list_before"]=npc_quest_list_state_json(e.quest_list_before);
+            j["evidence"]["quest_list_after"]=npc_quest_list_state_json(e.quest_list_after);
+
+        }else if(r.action==Action::ManagementCommand){
+            j["request"]["management"]=management_intent_json(r.management);
+            j["evidence"]["management_before"]=e.management_before?management_state_json(*e.management_before):json(nullptr);
+            j["evidence"]["management_after"]=e.management_after?management_state_json(*e.management_after):json(nullptr);
+
+        }else if(terrain_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["region_before"]=region_json(e.region_before);j["evidence"]["region_after"]=region_json(e.region_after);
+            j["evidence"]["terrain_before"]=terrain_state_json(e.terrain_before);j["evidence"]["terrain_after"]=terrain_state_json(e.terrain_after);
+            j["evidence"]["region_retired_sha256"]=e.region_retired_sha256;
+        }else if(quest_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["quest_list_before"]=npc_quest_list_state_json(e.quest_list_before);
+            j["evidence"]["quest_list_after"]=npc_quest_list_state_json(e.quest_list_after);
+        }else if(network_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["network_removal_before"]=e.network_removal_before?network_removal_json(*e.network_removal_before):json(nullptr);
+            j["evidence"]["network_removal_after"]=e.network_removal_after?network_removal_json(*e.network_removal_after):json(nullptr);
+            j["evidence"]["network_history"]=e.network_history?json{{"source",e.network_history->source},{"amount",e.network_history->amount},{"junction",e.network_history->junction}}:json(nullptr);
+        }else if(path_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["path_before"]=path_state_json(e.path_before);j["evidence"]["path_after"]=path_state_json(e.path_after);
+            j["evidence"]["region_before"]=region_json(e.region_before);j["evidence"]["region_after"]=region_json(e.region_after);
+            j["evidence"]["terrain_before"]=terrain_state_json(e.terrain_before);j["evidence"]["terrain_after"]=terrain_state_json(e.terrain_after);
+        }else if(region_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["property_before"]=property_state_json(e.property_before);j["evidence"]["property_after"]=property_state_json(e.property_after);
+            j["evidence"]["region_retired_sha256"]=e.region_retired_sha256;
+        }else if(selection_history(r)){j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["selection_move_before"]=selection_move_state_json(e.selection_move_before);j["evidence"]["selection_move_after"]=selection_move_state_json(e.selection_move_after);
+        }else if(r.action==Action::MoveSelection){j["request"]["selection_move"]=selection_move_intent_json(r.selection_move);
+            j["evidence"]["selection_move_before"]=selection_move_state_json(e.selection_move_before);j["evidence"]["selection_move_after"]=selection_move_state_json(e.selection_move_after);
+        }else if(r.action==Action::EditServiceMembership){j["request"]["service_membership"]=service_intent_json(r.service_membership);
+
+            j["evidence"]["service_membership_before"]=service_state_json(e.service_membership_before);j["evidence"]["service_membership_after"]=service_state_json(e.service_membership_after);
+        }else if(r.action==Action::ReorderBossPhase){
+
+            j["request"]["boss_phase"]=boss_intent_json(r.boss_phase);
+            j["evidence"]["boss_phase_before"]=boss_state_json(e.boss_phase_before);
+            j["evidence"]["boss_phase_after"]=boss_state_json(e.boss_phase_after);
+        }else if(r.action==Action::EditPropText){
+            j["request"]["prop_text"]=prop_text_intent_json(r.prop_text);
+            j["evidence"]["prop_text_before"]=prop_text_state_json(e.prop_text_before);
+            j["evidence"]["prop_text_after"]=prop_text_state_json(e.prop_text_after);
+        }else if(r.action==Action::EditNpcProperty){
+            j["request"]["npc_property"]=npc_property_intent_json(r.npc_property);
+            j["evidence"]["npc_property_before"]=npc_property_state_json(e.npc_property_before);
+            j["evidence"]["npc_property_after"]=npc_property_state_json(e.npc_property_after);
+        }else if(r.action==Action::SetNpcQuestDestination){
+            j["request"]["npc_quest"]=npc_quest_intent_json(r.npc_quest);
+            j["evidence"]["quest_before"]=npc_quest_state_json(e.quest_before);
+            j["evidence"]["quest_after"]=npc_quest_state_json(e.quest_after);
+        }else if(r.action==Action::RemoveMonster){
             j["request"]["target_action_uuid"]=r.target_action_uuid;j["request"]["monster_remove"]={{"region",r.monster_remove.region}};
             j["evidence"]["monster_before"]=monster_state_json(e.monster_before);j["evidence"]["monster_after"]=monster_state_json(e.monster_after);
             j["evidence"]["monster_quests"]=monster_quests_json(e.monster_quests);
@@ -716,16 +1474,16 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["request"]["building"]=building_json(r.building);
             j["evidence"]["object_before"]=building_json(e.object_before);j["evidence"]["object_after"]=building_json(e.object_after);
         }
-        const auto bytes=j.dump();if(bytes.size()>max_payload) {error="action payload exceeds 16384 bytes";return false;}
+        const auto bytes=j.dump();if(bytes.size()>max_payload) {error="action payload exceeds "+std::to_string(max_payload)+" bytes";return false;}
         out.assign(bytes.begin(),bytes.end());error.clear();return true;
     }catch(const std::exception& e){error=std::string("action serialization: ")+e.what();return false;}
 }
 bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
-    if(!data||!length||length>max_payload) {error="action payload length requires 1..16384";return false;}
+    if(!data||!length||length>max_payload) {error="action payload length requires 1.."+std::to_string(max_payload);return false;}
     try {
         std::vector<std::set<std::string>> fields;int deepest=0;
         const auto j=json::parse(data,data+length,[&](int depth,json::parse_event_t event,json& value) {
-            if(depth>8)throw std::runtime_error("action JSON nesting depth exceeds 8");
+            if(depth>10)throw std::runtime_error("action JSON nesting depth exceeds 10");
             deepest=std::max(deepest,depth);
             if(event==json::parse_event_t::object_start)fields.emplace_back();
             if(event==json::parse_event_t::key&&!fields.back().insert(value.get<std::string>()).second)throw std::runtime_error("duplicate JSON field");
@@ -733,14 +1491,51 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>33||schema==32)throw std::runtime_error("unsupported action schema");
-        if(schema!=19&&schema!=33&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
+        const auto schema=u64(j.at("schema"));if(schema<1||schema>35||schema==32)throw std::runtime_error("unsupported action schema");
+        if(schema!=35&&deepest>8)throw std::runtime_error("old action JSON nesting depth exceeds 8");
+        if(schema!=19&&schema!=33&&schema!=34&&schema!=35&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
         m.kind=Kind(k);m.outcome=Outcome(o);m.session=u64(j.at("session"));m.revision=u64(j.at("revision"));
         m.ack_peer=u64(j.at("ack_peer"));m.required_mask=u64(j.at("required_mask"));m.cause=j.at("cause").get<std::string>();
         const auto& r=j.at("request");
-        if(schema==33)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","monster_remove"});
+        if(schema==35&&(u64(r.at("action"))==54||u64(r.at("action"))==55))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","world_path"});
+        else if(schema==35&&u64(r.at("action"))==53)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","boss_placement"});
+        else if(schema==35&&(u64(r.at("action"))==51||u64(r.at("action"))==52))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","group_object"});
+        else if(schema==35&&(u64(r.at("action"))==49||u64(r.at("action"))==50))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","scenery_stroke"});
+        else if(schema==35&&u64(r.at("action"))==138)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","intervention"});
+        else if(schema==35&&u64(r.at("action"))==137)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","game_rules"});
+        else if(schema==35&&u64(r.at("action"))==136)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","gm_policy"});
+        else if(schema==35&&u64(r.at("action"))==135)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","release_cycle"});
+        else if(schema==35&&u64(r.at("action"))==48)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","duplicate"});
+        else if(schema==35&&u64(r.at("action"))==134)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","release_edit"});
+        else if(schema==35&&u64(r.at("action"))==47)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","group"});
+        else if(schema==35&&u64(r.at("action"))==133)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","general_project"});
+        else if(schema==35&&u64(r.at("action"))==46)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_title"});
+        else if(schema==35&&u64(r.at("action"))==45)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_text"});
+        else if(schema==35&&(u64(r.at("action"))==10||u64(r.at("action"))==11))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
+        else if(schema==35&&u64(r.at("action"))==130)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","logo"});
+        else if(schema==35&&u64(r.at("action"))==129)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network_remove"});
+        else if(schema==35&&u64(r.at("action"))==100)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","building_status"});
+        else if(schema==35&&u64(r.at("action"))==102)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_light"});
+        else if(schema==35&&u64(r.at("action"))==105)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_gizmo"});
+        else if(schema==35&&u64(r.at("action"))==104)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_palette"});
+        else if(schema==35&&u64(r.at("action"))==103)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_sound"});
+        else if(schema==35&&u64(r.at("action"))==101)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_config"});
+        else if(schema==35&&u64(r.at("action"))==88)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","ability_membership"});
+        else if(schema==35&&u64(r.at("action"))==87)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","character_membership"});
+        else if(schema==35&&u64(r.at("action"))==86)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","costume_edit"});
+        else if(schema==35&&u64(r.at("action"))==85)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","ability_edit"});
+        else if(schema==35&&(u64(r.at("action"))>=80&&u64(r.at("action"))<=84))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","character_rename"});
+        else if(schema==35&&(u64(r.at("action"))==32||u64(r.at("action"))==33))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_quest_list"});
+        else if(schema==35&&u64(r.at("action"))==128)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","management"});
+        else if(schema==35&&u64(r.at("action"))==44)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","selection_move"});
+        else if(schema==35&&u64(r.at("action"))==43)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","service_membership"});
+        else if(schema==35&&u64(r.at("action"))==42)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","boss_phase"});
+        else if(schema==35&&u64(r.at("action"))==41)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","prop_text"});
+        else if(schema==35&&u64(r.at("action"))==40)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_property"});
+        else if(schema==34)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_quest"});
+        else if(schema==33)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","monster_remove"});
         else if(schema==31)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","monster_move"});
         else if(schema==30)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","monster"});
         else if(schema==26)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","bug_fix"});
@@ -756,7 +1551,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==16)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc"});
         else if(schema==13)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","price"});
         else if(schema==12)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path_delete"});
-        else if(schema==11||schema==15)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region_property"});
+        else if(schema==11||schema==15||schema==35)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","region_property"});
         else if(schema==10)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
         else if(schema==1||schema==20||schema==21||schema==23||schema==24||schema==27||schema==29)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key"});
         else if(schema==2)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","building"});
@@ -765,14 +1560,179 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));if(action<1||action>30||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15)&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));const int action_depth=schema==35&&(action==86||action==88||action==54||action==55)?10:schema==35&&(action==40||action==42)?9:8;if(deepest>action_depth)throw std::runtime_error("action JSON nesting depth exceeds its action bound");if(action<1||(action>33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88))||((action==32||action==33||action==40||action==41||action==42||action==43||action==44||action==45||action==46||action==47||action==48||action==49||action==50||action==51||action==52||action==53||action==54||action==55||action==128||action==129||action==130||action==133||action==134||action==135||action==136||action==137||action==138||action==100||action==101||action==103||action==104||action==105||action==102||(action>=80&&action<=88))&&schema!=35)||(schema==34)!=(action==31)||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15||(schema==35&&action!=10&&action!=11&&action!=32&&action!=33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88)))&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
-        if(schema==33||schema==31||schema==10||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
+        if(schema==33||schema==31||schema==10||(schema==35&&(action==10||action==11))||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
+        if((action==10||action==11)&&((schema==35)!=(selection_history(m.request)||region_history(m.request)||path_history(m.request)||terrain_history(m.request)||quest_history(m.request)||network_history(m.request)||group_history(m.request)||duplicate_history(m.request)||scenery_stroke_history(m.request)||group_object_history(m.request)||dungeon_tiles_history(m.request))))throw std::runtime_error("history schema and canonical family differ");
         const auto& e=j.at("evidence");
-        if(schema==33){
+        if(schema==35&&(action==54||action==55)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","world_path_before","world_path_after"});
+            m.request.world_path=world_path_read(r.at("world_path"));
+            m.evidence.world_path_before=world_path_state_read(e.at("world_path_before"));
+            m.evidence.world_path_after=world_path_state_read(e.at("world_path_after"));
+        }else if(schema==35&&(action==10||action==11)&&e.contains("world_path_before")){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","world_path_before","world_path_after"});
+            m.evidence.world_path_before=world_path_state_read(e.at("world_path_before"));
+            m.evidence.world_path_after=world_path_state_read(e.at("world_path_after"));
+        }else if(schema==35&&action==53){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","boss_placement_before","boss_placement_after"});
+            m.request.boss_placement=boss_placement_read(r.at("boss_placement"));
+            m.evidence.boss_placement_before=boss_placement_state_read(e.at("boss_placement_before"));
+            m.evidence.boss_placement_after=boss_placement_state_read(e.at("boss_placement_after"));
+        }else if(schema==35&&(action==51||action==52||group_object_history(m.request))){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","group_object_before","group_object_after","duplicate_cash"});
+            if(action==51||action==52)m.request.group_object=group_object_read(r.at("group_object"),action==51);
+            m.evidence.group_object_before=group_object_state_read(e.at("group_object_before"));m.evidence.group_object_after=group_object_state_read(e.at("group_object_after"));
+            m.evidence.duplicate_cash=duplicate_cash_read(e.at("duplicate_cash"));
+        }else if(schema==35&&(action==49||action==50)){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","scenery_stroke_before","scenery_stroke_after","scenery_stroke_result"});
+            m.request.scenery_stroke=scenery_stroke_read(r.at("scenery_stroke"));m.evidence.scenery_stroke_before=scenery_stroke_state_read(e.at("scenery_stroke_before"));
+            m.evidence.scenery_stroke_after=scenery_stroke_state_read(e.at("scenery_stroke_after"));m.evidence.scenery_stroke_result=scenery_stroke_result_read(e.at("scenery_stroke_result"));
+        }else if(schema==35&&scenery_stroke_history(m.request)){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","scenery_stroke_before","scenery_stroke_after","scenery_stroke_result","duplicate_cash"});
+            m.evidence.scenery_stroke_before=scenery_stroke_state_read(e.at("scenery_stroke_before"));m.evidence.scenery_stroke_after=scenery_stroke_state_read(e.at("scenery_stroke_after"));
+            m.evidence.scenery_stroke_result=scenery_stroke_result_read(e.at("scenery_stroke_result"),true);m.evidence.duplicate_cash=duplicate_cash_read(e.at("duplicate_cash"));
+        }else if(schema==35&&action==138){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","intervention_before","intervention_after"});
+            m.request.intervention=game::interventions::codec::intent(r.at("intervention"));
+            if(!e.at("intervention_before").is_null())m.evidence.intervention_before=game::interventions::codec::proof(e.at("intervention_before"));
+            if(!e.at("intervention_after").is_null())m.evidence.intervention_after=game::interventions::codec::proof(e.at("intervention_after"));
+        }else if(schema==35&&action==137){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","game_rules_before","game_rules_after"});
+            m.request.game_rules=game::game_rules::codec::intent(r.at("game_rules"));
+            if(!e.at("game_rules_before").is_null())m.evidence.game_rules_before=game::game_rules::codec::proof(e.at("game_rules_before"));
+            if(!e.at("game_rules_after").is_null())m.evidence.game_rules_after=game::game_rules::codec::proof(e.at("game_rules_after"));
+        }else if(schema==35&&action==136){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","gm_policy_before","gm_policy_after"});
+            m.request.gm_policy=game::gm_policy::codec::intent(r.at("gm_policy"));
+            if(!e.at("gm_policy_before").is_null())m.evidence.gm_policy_before=game::gm_policy::codec::proof(e.at("gm_policy_before"));
+            if(!e.at("gm_policy_after").is_null())m.evidence.gm_policy_after=game::gm_policy::codec::proof(e.at("gm_policy_after"));
+        }else if(schema==35&&action==135){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","release_cycle_before","release_cycle_after","release_cycle_value"});
+            m.request.release_cycle=game::release_cycle::codec::intent(r.at("release_cycle"));
+            if(!e.at("release_cycle_before").is_null())m.evidence.release_cycle_before=game::release_cycle::codec::proof(e.at("release_cycle_before"));
+            if(!e.at("release_cycle_after").is_null())m.evidence.release_cycle_after=game::release_cycle::codec::proof(e.at("release_cycle_after"));
+            if(!e.at("release_cycle_value").is_null())m.evidence.release_cycle_value=game::release_cycle::codec::publication(e.at("release_cycle_value"));
+        }else if(schema==35&&dungeon_tiles_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_palette_before","dungeon_palette_after"});
+            m.evidence.dungeon_palette_before=dungeon_palette_state_read(e.at("dungeon_palette_before"));m.evidence.dungeon_palette_after=dungeon_palette_state_read(e.at("dungeon_palette_after"));
+        }else if(schema==35&&duplicate_history(m.request)){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","duplicate_before","duplicate_after","duplicate_cash"});
+            m.evidence.duplicate_before=duplicate_state_read(e.at("duplicate_before"));m.evidence.duplicate_after=duplicate_state_read(e.at("duplicate_after"));m.evidence.duplicate_cash=duplicate_cash_read(e.at("duplicate_cash"));
+        }else if(schema==35&&group_history(m.request)){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","group_before","group_after"});
+            m.evidence.group_before=group_state_read(e.at("group_before"));m.evidence.group_after=group_state_read(e.at("group_after"));
+        }else if(schema==35&&action==48){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","duplicate_before","duplicate_after"});
+            m.request.duplicate=duplicate_intent_read(r.at("duplicate"));m.evidence.duplicate_before=duplicate_state_read(e.at("duplicate_before"));m.evidence.duplicate_after=duplicate_state_read(e.at("duplicate_after"));
+        }else if(schema==35&&action==134){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","release_edit_before","release_edit_after"});
+            m.request.release_edit=game::release_edit::codec::intent(r.at("release_edit"));
+            if(!e.at("release_edit_before").is_null())m.evidence.release_edit_before=game::release_edit::codec::proof(e.at("release_edit_before"));
+            if(!e.at("release_edit_after").is_null())m.evidence.release_edit_after=game::release_edit::codec::proof(e.at("release_edit_after"));
+        }else if(schema==35&&action==47){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","group_before","group_after"});
+            m.request.group=group_intent_read(r.at("group"));m.evidence.group_before=group_state_read(e.at("group_before"));m.evidence.group_after=group_state_read(e.at("group_after"));
+        }else if(schema==35&&action==133){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","general_project_before","general_project_after"});
+            m.request.general_project=game::general_project::codec::intent(r.at("general_project"));
+            if(!e.at("general_project_before").is_null())m.evidence.general_project_before=game::general_project::codec::proof(e.at("general_project_before"));
+            if(!e.at("general_project_after").is_null())m.evidence.general_project_after=game::general_project::codec::proof(e.at("general_project_after"));
+        }else if(schema==35&&action==46){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_before","district_after"});
+            m.request.district_title=district_title_read(r.at("district_title"));m.evidence.district_before=district_state_read(e.at("district_before"));m.evidence.district_after=district_state_read(e.at("district_after"));
+        }else if(schema==35&&action==45){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_before","district_after"});
+            m.request.district_text=district_intent_read(r.at("district_text"));m.evidence.district_before=district_state_read(e.at("district_before"));m.evidence.district_after=district_state_read(e.at("district_after"));
+        }else if(schema==35&&network_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","network_removal_before","network_removal_after","network_history"});
+            if(!e.at("network_removal_before").is_null())m.evidence.network_removal_before=parse_network_removal(e.at("network_removal_before"));
+            if(!e.at("network_removal_after").is_null())m.evidence.network_removal_after=parse_network_removal(e.at("network_removal_after"));
+            if(!e.at("network_history").is_null()){const auto& proof=e.at("network_history");exact(proof,{"source","amount","junction"});const auto source=u64(proof.at("source"));if((source!=8&&source!=9&&source!=129)||!proof.at("junction").is_boolean())throw std::runtime_error("Network history original source/Boolean invalid");m.evidence.network_history=NetworkHistoryProof{uint8_t(source),i32(proof.at("amount")),proof.at("junction").get<bool>()};}
+        }else if(schema==35&&path_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","region_before","region_after","terrain_before","terrain_after","path_before","path_after"});
+            m.evidence.path_before=path_state_read(e.at("path_before"));m.evidence.path_after=path_state_read(e.at("path_after"));
+            m.evidence.region_before=region_read(e.at("region_before"));m.evidence.region_after=region_read(e.at("region_after"));
+            m.evidence.terrain_before=terrain_state_read(e.at("terrain_before"));m.evidence.terrain_after=terrain_state_read(e.at("terrain_after"));
+        }else if(schema==35&&terrain_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","region_before","region_after","terrain_before","terrain_after","region_retired_sha256"});
+            m.evidence.region_before=region_read(e.at("region_before"));m.evidence.region_after=region_read(e.at("region_after"));
+            m.evidence.terrain_before=terrain_state_read(e.at("terrain_before"));m.evidence.terrain_after=terrain_state_read(e.at("terrain_after"));
+            m.evidence.region_retired_sha256=e.at("region_retired_sha256").get<std::string>();
+        }else if(schema==35&&quest_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","quest_list_before","quest_list_after"});
+            m.evidence.quest_list_before=npc_quest_list_state_read(e.at("quest_list_before"));m.evidence.quest_list_after=npc_quest_list_state_read(e.at("quest_list_after"));
+        }else if(schema==35&&region_history(m.request)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","property_before","property_after","region_retired_sha256"});
+            m.evidence.property_before=property_state_read(e.at("property_before"));m.evidence.property_after=property_state_read(e.at("property_after"));
+            m.evidence.region_retired_sha256=e.at("region_retired_sha256").get<std::string>();
+        }else if(schema==35&&(action==10||action==11)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","selection_move_before","selection_move_after"});
+            m.evidence.selection_move_before=selection_move_state_read(e.at("selection_move_before"));m.evidence.selection_move_after=selection_move_state_read(e.at("selection_move_after"));
+        }else if(schema==35&&action==130){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","logo_before","logo_after"});
+            const auto& p=r.at("logo");exact(p,{"before_sha256","desired_sha256","records"});
+            m.request.logo={p.at("before_sha256").get<std::string>(),p.at("desired_sha256").get<std::string>(),p.at("records")};
+            if(!e.at("logo_before").is_null())m.evidence.logo_before=logo_state_read(e.at("logo_before"));
+            if(!e.at("logo_after").is_null())m.evidence.logo_after=logo_state_read(e.at("logo_after"));
+        }else if(schema==35&&action==129){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","network_removal_before","network_removal_after"});
+            const auto& p=r.at("network_remove");exact(p,{"region","graph_before_sha256","quoted_refund"});m.request.network_remove={i32(p.at("region")),p.at("graph_before_sha256").get<std::string>(),i32(p.at("quoted_refund"))};
+            if(!e.at("network_removal_before").is_null())m.evidence.network_removal_before=parse_network_removal(e.at("network_removal_before"));
+            if(!e.at("network_removal_after").is_null())m.evidence.network_removal_after=parse_network_removal(e.at("network_removal_after"));
+
+        }else if(schema==35&&action==100){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","building_status_before","building_status_after"});
+            m.request.building_status=building_status_intent_read(r.at("building_status"));m.evidence.building_status_before=building_status_state_read(e.at("building_status_before"));m.evidence.building_status_after=building_status_state_read(e.at("building_status_after"));
+        }else if(schema==35&&action==102){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_light_before","dungeon_light_after"});
+            m.request.dungeon_light=dungeon_light_intent_read(r.at("dungeon_light"));m.evidence.dungeon_light_before=dungeon_light_state_read(e.at("dungeon_light_before"));m.evidence.dungeon_light_after=dungeon_light_state_read(e.at("dungeon_light_after"));
+        }else if(schema==35&&action==105){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_gizmo_before","dungeon_gizmo_after"});
+            m.request.dungeon_gizmo=dungeon_gizmo_intent_read(r.at("dungeon_gizmo"));m.evidence.dungeon_gizmo_before=dungeon_gizmo_state_read(e.at("dungeon_gizmo_before"));m.evidence.dungeon_gizmo_after=dungeon_gizmo_state_read(e.at("dungeon_gizmo_after"));
+        }else if(schema==35&&action==104){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_palette_before","dungeon_palette_after"});
+            m.request.dungeon_palette=dungeon_palette_intent_read(r.at("dungeon_palette"));m.evidence.dungeon_palette_before=dungeon_palette_state_read(e.at("dungeon_palette_before"));m.evidence.dungeon_palette_after=dungeon_palette_state_read(e.at("dungeon_palette_after"));
+        }else if(schema==35&&action==103){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_sound_before","dungeon_sound_after"});
+            m.request.dungeon_sound=dungeon_sound_intent_read(r.at("dungeon_sound"));m.evidence.dungeon_sound_before=dungeon_sound_state_read(e.at("dungeon_sound_before"));m.evidence.dungeon_sound_after=dungeon_sound_state_read(e.at("dungeon_sound_after"));
+        }else if(schema==35&&action==101){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_config_before","dungeon_config_after"});
+            m.request.dungeon_config=dungeon_config_intent_read(r.at("dungeon_config"));m.evidence.dungeon_config_before=dungeon_config_state_read(e.at("dungeon_config_before"));m.evidence.dungeon_config_after=dungeon_config_state_read(e.at("dungeon_config_after"));
+        }else if(schema==35&&action==88){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","ability_membership_before","ability_membership_after"});
+            m.request.ability_membership=ability_membership_intent_read(r.at("ability_membership"));m.evidence.ability_membership_before=ability_membership_state_read(e.at("ability_membership_before"));m.evidence.ability_membership_after=ability_membership_state_read(e.at("ability_membership_after"));
+        }else if(schema==35&&action==87){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","character_membership_before","character_membership_after"});
+            m.request.character_membership=character_membership_intent_read(r.at("character_membership"));m.evidence.character_membership_before=character_membership_state_read(e.at("character_membership_before"));m.evidence.character_membership_after=character_membership_state_read(e.at("character_membership_after"));
+        }else if(schema==35&&action==86){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","costume_edit_before","costume_edit_after"});
+            m.request.costume_edit=costume_edit_intent_read(r.at("costume_edit"));m.evidence.costume_edit_before=costume_edit_state_read(e.at("costume_edit_before"));m.evidence.costume_edit_after=costume_edit_state_read(e.at("costume_edit_after"));
+        }else if(schema==35&&action==85){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","ability_edit_before","ability_edit_after"});
+            m.request.ability_edit=ability_edit_intent_read(r.at("ability_edit"));m.evidence.ability_edit_before=ability_edit_state_read(e.at("ability_edit_before"));m.evidence.ability_edit_after=ability_edit_state_read(e.at("ability_edit_after"));
+        }else if(schema==35&&action>=80&&action<=84){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","character_rename_before","character_rename_after"});
+            m.request.character_rename=character_rename_intent_read(r.at("character_rename"));m.evidence.character_rename_before=character_rename_state_read(e.at("character_rename_before"));m.evidence.character_rename_after=character_rename_state_read(e.at("character_rename_after"));
+        }else if(schema==35&&(action==32||action==33)){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","quest_list_before","quest_list_after"});
+            m.request.npc_quest_list=npc_quest_list_intent_read(r.at("npc_quest_list"));
+            m.evidence.quest_list_before=npc_quest_list_state_read(e.at("quest_list_before"));m.evidence.quest_list_after=npc_quest_list_state_read(e.at("quest_list_after"));
+
+        }else if(schema==35&&action==128){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","management_before","management_after"});
+            m.request.management=management_intent_read(r.at("management"));
+            if(!e.at("management_before").is_null())m.evidence.management_before=management_state_read(e.at("management_before"));
+            if(!e.at("management_after").is_null())m.evidence.management_after=management_state_read(e.at("management_after"));
+
+        }else if(schema==35&&action==44){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","selection_move_before","selection_move_after"});
+            m.request.selection_move=selection_move_intent_read(r.at("selection_move"));m.evidence.selection_move_before=selection_move_state_read(e.at("selection_move_before"));m.evidence.selection_move_after=selection_move_state_read(e.at("selection_move_after"));
+        }else if(schema==35&&action==43){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","service_membership_before","service_membership_after"});
+
+            m.request.service_membership=service_intent_read(r.at("service_membership"));m.evidence.service_membership_before=service_state_read(e.at("service_membership_before"));m.evidence.service_membership_after=service_state_read(e.at("service_membership_after"));
+        }else if(schema==35&&action==42){
+
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","boss_phase_before","boss_phase_after"});
+            m.request.boss_phase=boss_intent_read(r.at("boss_phase"));
+            m.evidence.boss_phase_before=boss_state_read(e.at("boss_phase_before"));
+            m.evidence.boss_phase_after=boss_state_read(e.at("boss_phase_after"));
+        }else if(schema==35&&action==41){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","prop_text_before","prop_text_after"});
+            m.request.prop_text=prop_text_intent_read(r.at("prop_text"));
+            m.evidence.prop_text_before=prop_text_state_read(e.at("prop_text_before"));
+            m.evidence.prop_text_after=prop_text_state_read(e.at("prop_text_after"));
+        }else if(schema==35&&action==40){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","npc_property_before","npc_property_after"});
+            m.request.npc_property=npc_property_intent_read(r.at("npc_property"));
+            m.evidence.npc_property_before=npc_property_state_read(e.at("npc_property_before"));
+            m.evidence.npc_property_after=npc_property_state_read(e.at("npc_property_after"));
+        }else if(schema==34){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","quest_before","quest_after"});
+            m.request.npc_quest=npc_quest_intent_read(r.at("npc_quest"));
+            m.evidence.quest_before=npc_quest_state_read(e.at("quest_before"));m.evidence.quest_after=npc_quest_state_read(e.at("quest_after"));
+        }else if(schema==33){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","monster_before","monster_after","monster_quests"});
             const auto& remove=r.at("monster_remove");exact(remove,{"region"});m.request.monster_remove.region=i32(remove.at("region"));
             m.evidence.monster_before=monster_state_read(e.at("monster_before"));m.evidence.monster_after=monster_state_read(e.at("monster_after"));
@@ -835,9 +1795,10 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.price={uint8_t(price_fields),i32(p.at("purchase")),i32(p.at("subscription"))};
             const auto read_price=[](const json& p){exact(p,{"purchase","subscription"});return PriceState{i32(p.at("purchase")),i32(p.at("subscription"))};};
             m.evidence.price_before=read_price(e.at("price_before"));m.evidence.price_after=read_price(e.at("price_after"));
-        } else if(schema==11||schema==15) {
+        } else if(schema==11||schema==15||schema==35) {
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","property_before","property_after","region_retired_sha256"});
             m.request.region_property=property_intent_read(r.at("region_property"));
+            if((schema==35)!=(appearance_kind(m.request.region_property.kind)||m.request.region_property.kind==RegionPropertyKind::Sale))throw std::runtime_error("region appearance schema mismatch");
             if((schema==15)!=(m.request.region_property.kind==RegionPropertyKind::LevelRange))throw std::runtime_error("region level schema mismatch");
             m.evidence.property_before=property_state_read(e.at("property_before"));
             m.evidence.property_after=property_state_read(e.at("property_after"));
@@ -885,6 +1846,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
 #include "path_effect.inc"
 #include "network_effect.inc"
 #include "network_pipe_effect.inc"
+#include "network_history_effect.inc"
 Controller::Controller(Session& s,Engine& e,Transport& t,Logger l,uint64_t timeout):session_(s),engine_(e),transport_(t),logger_(std::move(l)),timeout_(timeout) {}
 bool Controller::invoke(const std::function<bool()>& fn,std::string& cause) {
     const bool was_locked=status_.locked;busy_=true;
@@ -929,7 +1891,7 @@ bool Controller::start(uint64_t now,std::string& error) {
     if(!timeout_)return fail("ACK timeout must be positive",error);
     if(!invoke([&]{return session_.current(context_,error);},error))return fail("session binding: "+error,error);
     if(!context_.session||!uuid(context_.snapshot_uuid)||(context_.role!=Role::Host&&context_.role!=Role::Client)||context_.local_peer<1||context_.local_peer>4||context_.host_peer!=1||
-       context_.peer_mask>15||(context_.peer_mask&3)!=3||!(context_.peer_mask&bit(context_.local_peer))||
+       context_.peer_mask>15||!(context_.peer_mask&1)||!(context_.peer_mask&bit(context_.local_peer))||
        ((context_.role==Role::Host)!=(context_.local_peer==context_.host_peer)))return fail("invalid connected action session binding",error);
     if(!invoke([&]{return engine_.bind(context_.snapshot_uuid,binding_,error);},error)||!binding_.native_epoch||!binding_.native_generation)return fail("actual native world binding: "+error,error);
     if(!invoke([&]{return transport_.claim([this](uint64_t peer,const uint8_t* bytes,size_t size) {
@@ -948,10 +1910,13 @@ bool Controller::send(uint64_t target,const Message& m,std::string& error) {
 #endif
     return true;
 }
-void Controller::remember(const std::string& id,Cached value) {
-    if(!history_.contains(id))history_order_.push_back(id);
-    history_[id]=std::move(value);
+Controller::Cached& Controller::remember(const std::string& id,const Message& request) {
+    // Cache records hold several complete messages. Construct them in the map
+    // so the growing action DTO does not produce large native stack copies.
+    auto [entry,inserted]=history_.try_emplace(id);
+    if(inserted){entry->second.request=request;history_order_.push_back(id);}
     if(history_order_.size()>history_limit){history_.erase(history_order_.front());history_order_.pop_front();}
+    return entry->second;
 }
 bool Controller::submit_building_history(Action action,const std::string& id,const std::string& target,uint64_t now,std::string& error) {
     return submit_building_history(action,id,target,"action:"+target,now,error);
@@ -1012,18 +1977,90 @@ bool Controller::submit_region_property(const std::string& id,const RegionProper
     request.canonical_record_key="region:"+std::to_string(intent.id);request.region_property=intent;
     return submit(std::move(request),now,error);
 }
+bool Controller::submit_intervention(const std::string& id,const InterventionIntent& intent,uint64_t now,std::string& error){
+    auto request=std::make_unique<Request>();request->action=Action::Intervention;request->peer=context_.local_peer;request->action_uuid=id;request->canonical_record_key=intent.target.key;request->intervention=intent;return submit(std::move(*request),now,error);
+}
+bool Controller::submit_game_rules(const std::string& id,const GameRulesIntent& intent,uint64_t now,std::string& error){
+    auto r=std::make_unique<Request>();r->action=Action::GameRules;r->peer=context_.local_peer;r->action_uuid=id;r->canonical_record_key="management:game-rules";r->game_rules=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_gm_policy(const std::string& id,const GmPolicyIntent& intent,uint64_t now,std::string& error){
+    auto r=std::make_unique<Request>();r->action=Action::GmPolicy;r->peer=context_.local_peer;r->action_uuid=id;r->canonical_record_key="management:gm-policy";r->gm_policy=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_release_cycle(const std::string& id,const ReleaseCycleIntent& intent,uint64_t now,std::string& error){
+    if(intent.command==game::release_cycle::Command::Finalize&&context_.role!=Role::Host)return fail("Release natural finalize may originate only on Host",error);
+    auto r=std::make_unique<Request>();r->action=Action::ReleaseCycle;r->peer=context_.local_peer;r->action_uuid=id;r->canonical_record_key="release:cycle";r->release_cycle=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_release_edit(const std::string& id,const ReleaseEditIntent& intent,uint64_t now,std::string& error){
+    auto r=std::make_unique<Request>();r->action=Action::ReleaseEdit;r->action_uuid=id;r->canonical_record_key="release:editing";r->release_edit=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_general_project(const std::string& id,const GeneralProjectIntent& intent,uint64_t now,std::string& error){
+    auto r=std::make_unique<Request>();r->action=Action::GeneralProject;r->action_uuid=id;r->canonical_record_key="development:project";r->general_project=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_logo(const std::string& id,const LogoIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::SetLogo;r.action_uuid=id;r.canonical_record_key="software:logo";r.logo=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_network_remove(const std::string& id,const std::string& key,const NetworkRemoveIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::RemoveNetworkObject;r.action_uuid=id;r.canonical_record_key=key;r.network_remove=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_management(const std::string& id,const ManagementIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::ManagementCommand;request.action_uuid=id;request.canonical_record_key="management:business";request.management=intent;
+    return submit(std::move(request),now,error);
+}
 bool Controller::submit_prices(const std::string& id,const PriceIntent& intent,uint64_t now,std::string& error) {
     Request request;request.action=Action::SetPrices;request.action_uuid=id;
     request.canonical_record_key="business:prices";request.price=intent;
     return submit(std::move(request),now,error);
 }
+bool Controller::submit_building_status(const std::string& id,const BuildingStatusIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::SetBuildingStatus;r.action_uuid=id;r.canonical_record_key=intent.key;r.building_status=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_light(const std::string& id,const DungeonLightIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::SetDungeonLighting;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_light=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_gizmo(const std::string& id,const DungeonGizmoIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditDungeonGizmo;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_gizmo=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_palette(const std::string& id,const DungeonPaletteIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::SetDungeonPalette;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_palette=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_sound(const std::string& id,const DungeonSoundIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::SetDungeonAtmosphere;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_sound=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_config(const std::string& id,const DungeonConfigIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::ConfigureDungeonInstances;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_config=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_costume_edit(const std::string& id,const CostumeEditIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditCharacterCostume;r.action_uuid=id;r.canonical_record_key=costume_key(intent);r.costume_edit=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_ability_membership(const std::string& id,const AbilityMembershipIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditAbilityMembership;r.action_uuid=id;r.canonical_record_key=ability_membership_key(intent);r.ability_membership=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_ability_edit(const std::string& id,const AbilityEditIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditCharacterAbility;r.action_uuid=id;r.canonical_record_key=ability_key(intent);r.ability_edit=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_character_membership(const std::string& id,const CharacterMembershipIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditCharacterMembership;r.action_uuid=id;r.canonical_record_key=character_membership_key(intent);r.character_membership=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_character_rename(const std::string& id,const CharacterRenameIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action(80+intent.property);r.action_uuid=id;r.canonical_record_key=character_key(intent);r.character_rename=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_npc_quest_list(const std::string& id,const std::string& owner,const NpcQuestListIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=intent.edit==QuestListEdit::List?Action::SetNpcQuestList:Action::EditNpcQuest;request.action_uuid=id;
+    request.canonical_record_key=owner;request.npc_quest_list=intent;return submit(std::move(request),now,error);
+}
+bool Controller::submit_npc_quest(const std::string& id,const std::string& owner,const NpcQuestIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::SetNpcQuestDestination;request.action_uuid=id;
+    request.canonical_record_key=owner;request.npc_quest=intent;return submit(std::move(request),now,error);
+}
 bool Controller::submit_remove_monster(const std::string& id,const std::string& target,const MonsterRemoveIntent& intent,uint64_t now,std::string& error){
-    Request request;request.action=Action::RemoveMonster;request.action_uuid=id;request.target_action_uuid=target;
-    request.canonical_record_key="action:"+target;request.monster_remove=intent;return submit(std::move(request),now,error);
+    Request request;request.action=Action::RemoveMonster;request.action_uuid=id;
+    if(game::monster_target_key::uuid(target))request.target_action_uuid=target;
+    request.canonical_record_key=game::monster_target_key::canonical(target);request.monster_remove=intent;return submit(std::move(request),now,error);
 }
 bool Controller::submit_move_monster(const std::string& id,const std::string& target,const MonsterMoveIntent& intent,uint64_t now,std::string& error){
-    Request request;request.action=Action::MoveMonster;request.action_uuid=id;request.target_action_uuid=target;
-    request.canonical_record_key="action:"+target;request.monster_move=intent;return submit(std::move(request),now,error);
+    Request request;request.action=Action::MoveMonster;request.action_uuid=id;
+    if(game::monster_target_key::uuid(target))request.target_action_uuid=target;
+    request.canonical_record_key=game::monster_target_key::canonical(target);request.monster_move=intent;return submit(std::move(request),now,error);
 }
 bool Controller::submit_monster(const std::string& id,const MonsterIntent& intent,uint64_t now,std::string& error){
     Request request;request.action=Action::PlaceMonster;request.action_uuid=id;request.canonical_record_key="action:"+id;request.monster=intent;
@@ -1032,6 +2069,52 @@ bool Controller::submit_monster(const std::string& id,const MonsterIntent& inten
 bool Controller::submit_zone(const std::string& id,const ZoneIntent& intent,uint64_t now,std::string& error) {
     Request request;request.action=Action::PlaceMonsterZone;request.action_uuid=id;
     request.canonical_record_key="action:"+id;request.zone=intent;return submit(std::move(request),now,error);
+}
+bool Controller::submit_boss_placement(const std::string& id,const BossPlacementIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::PlaceBoss;request.action_uuid=id;request.canonical_record_key=game::boss_placement_state::key(id);request.boss_placement=intent;
+    return submit(std::move(request),now,error);
+}
+bool Controller::submit_world_path(const std::string& id,const WorldPathIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=intent.kind==WorldPathKind::Wall?Action::PlaceWall:Action::PlacePass;
+    request.action_uuid=id;request.canonical_record_key="action:"+id;request.world_path=intent;
+    return submit(std::move(request),now,error);
+}
+bool Controller::submit_group_object(bool moving,const std::string& id,const GroupObjectIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=moving?Action::MoveGroup:Action::RemoveGroup;r.action_uuid=id;r.canonical_record_key=intent.key;r.group_object=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_scenery_stroke(const std::string& id,const SceneryStrokeIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=intent.kind==SceneryStrokeKind::Paint?Action::SceneryBrushStroke:Action::SceneryEraseStroke;r.action_uuid=id;
+    r.canonical_record_key="scenery-stroke:"+id;r.scenery_stroke=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_duplicate(const std::string& id,const DuplicateIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::DuplicateSelection;r.action_uuid=id;r.canonical_record_key="duplicate:"+id;r.duplicate=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_group(const std::string& id,const GroupIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditGroup;r.action_uuid=id;r.canonical_record_key="groups:"+id;r.group=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_district_title(const std::string& id,const std::string& key,const DistrictTitleIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::MoveDistrictTitle;r.action_uuid=id;r.canonical_record_key=key;r.district_title=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_district_text(const std::string& id,const std::string& key,const DistrictTextIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditDistrictText;r.action_uuid=id;r.canonical_record_key=key;r.district_text=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_selection_move(const std::string& id,const SelectionMoveIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::MoveSelection;r.action_uuid=id;r.canonical_record_key="selection:"+id;r.selection_move=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_service_membership(const std::string& id,const std::string& key,const ServiceMembershipIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditServiceMembership;r.action_uuid=id;r.canonical_record_key=key;r.service_membership=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_boss_phase(const std::string& id,const BossPhaseIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::ReorderBossPhase;request.action_uuid=id;request.canonical_record_key="character:3:"+std::to_string(intent.character_id);
+    request.boss_phase=intent;return submit(std::move(request),now,error);
+}
+bool Controller::submit_prop_text(const std::string& id,const std::string& target,const PropTextIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::EditPropText;request.action_uuid=id;request.canonical_record_key=target;
+    request.prop_text=intent;return submit(std::move(request),now,error);
+}
+bool Controller::submit_npc_property(const std::string& id,const std::string& target,const NpcPropertyIntent& intent,uint64_t now,std::string& error){
+    Request request;request.action=Action::EditNpcProperty;request.action_uuid=id;
+    request.canonical_record_key=target;request.npc_property=intent;return submit(std::move(request),now,error);
 }
 bool Controller::submit_npc(const std::string& id,const NpcIntent& intent,uint64_t now,std::string& error) {
     Request request;request.action=Action::PlaceNPC;request.action_uuid=id;
@@ -1093,7 +2176,7 @@ bool Controller::submit(Request request,uint64_t now,std::string& error) {
     Message m;m.session=context_.session;m.request=std::move(request);
     pending_=m;deadline_=now+timeout_;status_.pending=true;status_.action_uuid=m.request.action_uuid;status_.outcome=Outcome::Pending;
     if(context_.role==Role::Host)return this->request(m,context_.local_peer,error);
-    local_request_=m;local_deadline_=deadline_;remember(identity(m.request),Cached{m});return send(context_.host_peer,m,error);
+    local_request_=m;local_deadline_=deadline_;remember(identity(m.request),m);return send(context_.host_peer,m,error);
 }
 bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidence,std::string& error) {
     if(!invoke([&]{return engine_.observe_action(binding_,r,evidence,error);},error))return fail("native execution observation: "+error,error,true);
@@ -1103,9 +2186,30 @@ bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidenc
     if(!invoke([&]{return engine_.retire(binding_,r,error);},error))return fail("native receipt retirement: "+error,error,true);
     Evidence retired;
     if(!invoke([&]{return engine_.observe_action(binding_,r,retired,error);},error)||!complete(r,retired)||retired.before!=evidence.before||retired.after!=evidence.after||
+       retired.intervention_before!=evidence.intervention_before||retired.intervention_after!=evidence.intervention_after||
+       retired.game_rules_before!=evidence.game_rules_before||retired.game_rules_after!=evidence.game_rules_after||
+       retired.gm_policy_before!=evidence.gm_policy_before||retired.gm_policy_after!=evidence.gm_policy_after||
+       retired.release_cycle_before!=evidence.release_cycle_before||retired.release_cycle_after!=evidence.release_cycle_after||retired.release_cycle_value!=evidence.release_cycle_value||
+       retired.release_edit_before!=evidence.release_edit_before||retired.release_edit_after!=evidence.release_edit_after||
+       retired.general_project_before!=evidence.general_project_before||retired.general_project_after!=evidence.general_project_after||
+       retired.logo_before!=evidence.logo_before||retired.logo_after!=evidence.logo_after||
+       retired.network_removal_before!=evidence.network_removal_before||retired.network_removal_after!=evidence.network_removal_after||retired.network_history!=evidence.network_history||
+       retired.management_before!=evidence.management_before||retired.management_after!=evidence.management_after||
        retired.zone_before!=evidence.zone_before||retired.zone_after!=evidence.zone_after||
        retired.monster_before!=evidence.monster_before||retired.monster_after!=evidence.monster_after||
-       retired.monster_quests!=evidence.monster_quests||
+       retired.monster_quests!=evidence.monster_quests||retired.quest_before!=evidence.quest_before||retired.quest_after!=evidence.quest_after||
+       retired.quest_list_before!=evidence.quest_list_before||retired.quest_list_after!=evidence.quest_list_after||
+       retired.building_status_before!=evidence.building_status_before||retired.building_status_after!=evidence.building_status_after||
+       retired.dungeon_light_before!=evidence.dungeon_light_before||retired.dungeon_light_after!=evidence.dungeon_light_after||
+       retired.dungeon_gizmo_before!=evidence.dungeon_gizmo_before||retired.dungeon_gizmo_after!=evidence.dungeon_gizmo_after||
+       retired.dungeon_palette_before!=evidence.dungeon_palette_before||retired.dungeon_palette_after!=evidence.dungeon_palette_after||
+       retired.dungeon_sound_before!=evidence.dungeon_sound_before||retired.dungeon_sound_after!=evidence.dungeon_sound_after||
+       retired.dungeon_config_before!=evidence.dungeon_config_before||retired.dungeon_config_after!=evidence.dungeon_config_after||
+       retired.costume_edit_before!=evidence.costume_edit_before||retired.costume_edit_after!=evidence.costume_edit_after||
+       retired.ability_edit_before!=evidence.ability_edit_before||retired.ability_edit_after!=evidence.ability_edit_after||
+       retired.ability_membership_before!=evidence.ability_membership_before||retired.ability_membership_after!=evidence.ability_membership_after||
+       retired.character_rename_before!=evidence.character_rename_before||retired.character_rename_after!=evidence.character_rename_after||
+       retired.character_membership_before!=evidence.character_membership_before||retired.character_membership_after!=evidence.character_membership_after||
        retired.object_before!=evidence.object_before||retired.object_after!=evidence.object_after||
        retired.region_before!=evidence.region_before||retired.region_after!=evidence.region_after||
        retired.property_before!=evidence.property_before||retired.property_after!=evidence.property_after||
@@ -1135,7 +2239,7 @@ bool Controller::request(const Message& m,uint64_t sender,std::string& error) {
         return reject_request(m,"host action pending; no queue",true,error);
     }
     if(now_>UINT64_MAX-timeout_)return fail("ACK deadline timestamp exhausted",error,true);
-    high_water_[sender]=m.request.sequence;remember(id,Cached{m});pending_=m;status_.pending=true;deadline_=now_+timeout_;
+    high_water_[sender]=m.request.sequence;remember(id,m);pending_=m;status_.pending=true;deadline_=now_+timeout_;
     status_.action_uuid=m.request.action_uuid;status_.required_mask=context_.peer_mask;status_.ack_mask=0;
     if(status_.host_revision==UINT64_MAX)return fail("host world revision exhausted",error,true);
     const bool revision_conflict=m.request.host_revision!=status_.host_revision;
@@ -1157,6 +2261,7 @@ bool Controller::request(const Message& m,uint64_t sender,std::string& error) {
     if(!invoke([&]{return engine_.publish_host_authority_before(result,error);},error))return finish(Outcome::Unknown,"host authority before publication: "+error,error);
     auto& cached=history_.at(id);cached.result=result;cached.has_result=true;status_.ack_mask=bit(context_.local_peer);
     for(uint64_t peer=1;peer<=4;++peer)if(peer!=context_.local_peer&&(context_.peer_mask&bit(peer)))if(!send(peer,result,error))return finish(Outcome::Unknown,error,error);
+    if(status_.ack_mask==status_.required_mask)return finish(Outcome::Confirmed,"",error);
     return true;
 }
 bool Controller::result(const Message& m,std::string& error) {
@@ -1182,7 +2287,7 @@ bool Controller::result(const Message& m,std::string& error) {
     }
     authority_waiting_.reset();status_.cause.clear();
     Message original=m;original.kind=Kind::Request;original.revision=0;original.required_mask=0;original.outcome=Outcome::Pending;original.evidence={};
-    Cached c=old==history_.end()?Cached{original}:old->second;c.result=m;c.has_result=true;remember(id,c);
+    auto& cached=remember(id,original);cached.result=m;cached.has_result=true;
     last_result_revision_=m.revision;status_.host_revision=m.revision;status_.required_mask=context_.peer_mask;
     pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;deadline_=now_+timeout_;
     Message ack=m;ack.kind=Kind::ApplyAck;ack.ack_peer=context_.local_peer;
@@ -1272,7 +2377,7 @@ bool Controller::completion(const Message& m,std::string& error) {
     }
     if(old==history_.end()) {
         Message original=m;original.kind=Kind::Request;original.revision=0;original.required_mask=0;original.outcome=Outcome::Pending;original.evidence={};original.cause.clear();
-        remember(id,Cached{original});old=history_.find(id);
+        remember(id,original);old=history_.find(id);
     }
     old->second.completion=m;old->second.has_completion=true;
     if(matching_pending)pending_.reset();
@@ -1287,7 +2392,7 @@ bool Controller::completion(const Message& m,std::string& error) {
 bool Controller::reject_request(const Message& request,const std::string& cause,bool cache,std::string& error) {
     Message rejected=request;rejected.kind=Kind::RequestRejected;rejected.revision=status_.host_revision;
     rejected.required_mask=context_.peer_mask;rejected.outcome=Outcome::RejectedNoEffect;rejected.cause=cause;
-    if(cache){Cached entry{request};entry.completion=rejected;entry.has_completion=true;remember(identity(request.request),entry);}
+    if(cache){auto& entry=remember(identity(request.request),request);entry.completion=rejected;entry.has_completion=true;}
     fail(cause,error);
     return send(request.request.peer,rejected,error);
 }

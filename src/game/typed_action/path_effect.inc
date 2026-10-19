@@ -1,3 +1,26 @@
+bool path_history_effect(const Request& r,const Evidence& e,std::string& error){
+    auto fail=[&](const char* cause){error=cause;return false;};
+    if((r.action!=Action::UndoBuilding&&r.action!=Action::RedoBuilding)||r.canonical_record_key!="path:"+r.target_action_uuid||
+       !e.undo_confirmed||e.selection_confirmed||e.target_retired||e.object_before!=BuildingState{}||e.object_after!=BuildingState{}||
+       !e.region_retired_sha256.empty()||e.network_before!=NetworkState{}||e.network_after!=NetworkState{})return fail("Path history action/evidence domain differs");
+    const auto& a=e.path_before;const auto& b=e.path_after;
+    const bool removing=a.paths==b.paths+1,adding=b.paths==a.paths+1;
+    if(a.cost||b.cost<0||(!removing&&!adding)||a.graph_sha256.size()!=64||b.graph_sha256.size()!=64||
+       (removing?(a.nodes<b.nodes||a.nodes-b.nodes>2):(b.nodes<a.nodes||b.nodes-a.nodes>2)))return fail("Path history complete topology/count/cost differs");
+    if(e.region_before.id<0||!same_region_content(e.region_before,e.region_after)||!same_terrain_content(e.terrain_before,e.terrain_after))
+        return fail("Path history changed unrelated Region/Terrain content");
+    auto expected=e.before;const int64_t amount=removing?int64_t(b.cost):-int64_t(b.cost);
+    if(amount){
+        if(!expected.record_present)return fail("Path history cash requires current native day record");
+        auto add=[](int32_t& value,int64_t delta){const auto next=int64_t(value)+delta;
+            if(next<INT32_MIN||next>INT32_MAX)return false;value=int32_t(next);return true;};
+        if(!add(expected.cash,amount)||!add(expected.record_cash,amount)||
+           !add(expected.record_income,amount)||
+           !add(expected.line_counts[6],1)||!add(expected.line_income[6],amount))return fail("Path history cash inverse overflows native int32");
+    }
+    if(expected!=e.after)return fail("Path history full original category6 cash inverse differs");
+    return true;
+}
 bool path_delete_effect(const Request& request,const Evidence& e,std::string& error) {
     auto fail=[&](const char* why){error=why;return false;};
     if(request.action!=Action::RemovePath||!valid_path_delete(request.path_delete)||!e.undo_confirmed||!e.target_retired||!e.selection_confirmed||e.object_before!=BuildingState{}||e.object_after!=BuildingState{}||!e.region_retired_sha256.empty())return fail("path delete receipt flags differ");

@@ -1,4 +1,9 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/native_port.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/native_port.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/bridge.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/extract_live_autosave.py")
 set(autosave_generated "${CMAKE_CURRENT_BINARY_DIR}/live_autosave_generated")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_live_autosave.py"
     --root "${CMAKE_CURRENT_LIST_DIR}/.." --output "${autosave_generated}"
@@ -8,7 +13,7 @@ if(NOT autosave_extract_result EQUAL 0)
 endif()
 add_executable(test_live_autosave "${CMAKE_CURRENT_LIST_DIR}/../test/test_live_autosave.cpp")
 target_compile_features(test_live_autosave PRIVATE cxx_std_20)
-target_include_directories(test_live_autosave PRIVATE "${autosave_generated}" "${CMAKE_CURRENT_LIST_DIR}/../src/game" "${CMAKE_CURRENT_LIST_DIR}/../include")
+target_include_directories(test_live_autosave PRIVATE "${autosave_generated}" "${CMAKE_CURRENT_LIST_DIR}/../include")
 if(MSVC)
     target_compile_options(test_live_autosave PRIVATE /W4 /WX /permissive-)
 else()

@@ -1,9 +1,81 @@
 #include "ui_move_runtime.h"
+#include "prop_text_runtime.h"
+#include "district_text_runtime.h"
+#include "district_title_runtime.h"
+#include "group_runtime.h"
+#include "group_object_runtime.h"
+#include "boss_placement_runtime.h"
+#include "session_provider.h"
+#include "boss_placement_reader.h"
+#include "boss_placement_transaction.h"
+#include "boss_placement_state.h"
+#include "boss_placement_calls.h"
+#include "boss_placement_code.h"
+#include "boss_current.h"
+#include "intervention_actor_runtime.h"
+#include "character_actor_records.h"
+#include "group_object_move_reader.h"
+#include "group_object_graph.h"
+#include "group_object_calls.h"
+#include "group_native.h"
+#include "group_current_identity.h"
+#include "group_inverse.h"
+#include "group_history_reader.h"
+#include "building_history_slice/native_bridge.h"
+#include "district_title_reader.h"
+#include "live_host_state/economic_fence.h"
+#include "district_reader.h"
+#include "district_saved_identity_runtime.h"
+#include "boss_phase_runtime.h"
+#include "service_membership_runtime.h"
+#include "service_membership_reader.h"
+#include "selection_move_runtime.h"
+#include "building_history_slice/native_bridge.h"
+#include "selection_move_reader.h"
+#include "selection_move_native.h"
+#include "duplicate_runtime.h"
+#include "scenery_stroke_runtime.h"
+#include "scenery_alias_order.h"
+#include "scenery_stroke_capture.h"
+#include "scenery_stroke_calls.h"
+#include "scenery_stroke_state.h"
+#include "scenery_stroke_bugs.h"
+#include "scenery_stroke_graph.h"
+#include "scenery_stroke_history.h"
+#include "scenery_stroke_native.h"
+#include "scenery_stroke_code.h"
+#include "scenery_stroke_helpers_code.h"
+#include "duplicate_reader.h"
+#include "duplicate_history_reader.h"
+#include "duplicate_history_code.h"
+#include "duplicate_calls.h"
+#include "duplicate_codeguards.h"
+#include "duplicate_records.h"
+#include "duplicate_building_values.h"
+#include "duplicate_building_history.h"
+#include "duplicate_service_history.h"
+#include "duplicate_quest_history.h"
+#include "duplicate_history_effects.h"
+#include "world_quest_history.h"
+#include "npc_saved_identity_runtime.h"
+#include "building_npc_lifecycle.h"
+#include "duplicate_history_value_calls.h"
+#include "subscriber_lifecycle/capture.h"
+#include <memory>
+#include "boss_phase_reader.h"
+#include "boss_phase_property.h"
+#include "prop_text_dungeon.h"
+#include "ui_remove/diagnostic/ui_diagnostic.h"
+#include "mt2mp/core/config.h"
 #include "scenery_kiss/native_catalog.h"
+#include "scenery_kiss/ui_contract.h"
 #include "scenery_kiss/lifecycle_contract.h"
 #include "scenery_kiss/lifecycle_native.h"
 #include "move_contract.h"
 #include "move_ui_probe/contract.h"
+#include "move_ui_probe/native_guards.h"
+#include "object_ui_probe/contract.h"
+#include "object_ui_probe/native_guards.h"
 #include "typed_action_runtime.h"
 #include "npc_probe.h"
 #include "monster_action_runtime.h"
@@ -18,6 +90,9 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include <Windows.h>
 #include "mt2mp/hooks/minhook_backend.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/hooks/framework_backend.h"
+#endif
 #include <intrin.h>
 #include <bcrypt.h>
 #include <atomic>
@@ -140,7 +215,7 @@ bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t 
     state=world_state::building_state(actual);key=target.record_key;return true;
 }
 bool Services::submit_move(const move_kiss::Intent& intent,std::string& e){
-    if(runtime.pending||typed_action_runtime::status().value("pending",true)){e="move Controller or UI intent already pending";return false;}
+    if(runtime.pending||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||selection_move::pending()||typed_action_runtime::status().value("pending",true)){e="move Controller or UI intent already pending";return false;}
     auto id=uuid(e);if(id.empty())return false;
     if(npc_intent(intent)){
         if(!npc_probe::action_runtime::move_captured(intent,id,e))return false;
@@ -158,6 +233,21 @@ void Services::reject(const std::string& e)noexcept{
 bool purchase_entry(void* receiver){
     auto* r=published.load(std::memory_order_acquire);
     const uintptr_t caller=uintptr_t(_ReturnAddress());
+    bool duplicate_handled=false;std::string duplicate_error;
+    try{if(!duplicate_edit::capture_purchase(uintptr_t(receiver),caller,duplicate_handled,duplicate_error)){
+            r->services.reject(duplicate_error);return false;}
+        if(duplicate_handled)return false;
+    }catch(const std::exception& x){r->services.reject(std::string("Duplicate capture: ")+x.what());return false;}
+    bool group_handled=false;std::string group_error;
+    try{if(!group_object::capture_purchase(uintptr_t(receiver),caller,group_handled,group_error)){
+            r->services.reject(group_error);return false;}
+        if(group_handled)return false;
+    }catch(const std::exception& x){r->services.reject(std::string("Group Move capture: ")+x.what());return false;}
+    bool selection_handled=false;std::string selection_error;
+    try{if(!selection_move::capture_purchase(uintptr_t(receiver),caller,selection_handled,selection_error)){
+            r->services.reject(selection_error);return false;}
+        if(selection_handled)return false;
+    }catch(const std::exception& x){r->services.reject(std::string("Selection Move capture: ")+x.what());return false;}
     if(r->ready&&r->capture->purchase(uintptr_t(receiver),caller-r->image)==move_kiss::Route::Suppress)return false;
     ++r->forwarded;return r->original.load(std::memory_order_acquire)(receiver);
 }
@@ -247,6 +337,29 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
     }
 };
 }
+#include "prop_text_runtime.inc"
+#include "district_text_runtime.inc"
+#include "district_title_runtime.inc"
+#include "group_runtime.inc"
+#include "boss_phase_runtime.inc"
+#include "service_membership_runtime.inc"
+#include "selection_move_runtime.inc"
+#include "duplicate_runtime.inc"
+#include "scenery_stroke_sample.inc"
+#include "scenery_stroke_capture_runtime.inc"
+#include "scenery_stroke_routes.inc"
+#include "scenery_stroke_port.inc"
+#include "scenery_stroke_forward.inc"
+#include "scenery_stroke_history_runtime.inc"
+#include "group_object_sample.inc"
+#include "group_object_capture.inc"
+#include "group_object_runtime.inc"
+#include "group_object_history.inc"
+#include "group_object_exports.inc"
+#include "boss_placement_sample.inc"
+#include "boss_placement_capture.inc"
+#include "boss_placement_execution.inc"
+#include "boss_placement_routes.inc"
 bool enable(std::string& e){
     auto* r=published.load(std::memory_order_acquire);if(!r){r=new Runtime;published.store(r,std::memory_order_release);}
     if(r->attempted||r->thread!=GetCurrentThreadId()){e="move hook requires one installation on Mainthread";return false;}
@@ -275,10 +388,24 @@ bool enable(std::string& e){
         if(disabled!=MH_OK)e+="; own hook Disable failed: "+std::string(MH_StatusToString(disabled));
         return failed();
     }
-    r->ready=true;r->cause.clear();return true;
+    if(!group_edit::enable(e)||!district_title::enable(e)||!district_text::enable(e)||!prop_text::enable(e)||!boss_phase::enable(e)||!service_membership::enable(e))return failed();
+    r->ready=true;
+    if(!scenery_stroke::enable(e)||!boss_placement::enable(e)){r->ready=false;return failed();}
+    r->cause.clear();return true;
 }
 bool enabled()noexcept{const auto* r=published.load(std::memory_order_acquire);return r&&r->ready&&r->thread==GetCurrentThreadId();}
 void tick(){
+    boss_placement::tick();
+    group_object::tick();
+    scenery_stroke::tick();
+    duplicate_edit::tick();
+    group_edit::tick();
+    district_title::tick();
+    district_text::tick();
+    prop_text::tick();
+    boss_phase::tick();
+    service_membership::tick();
+    selection_move::tick();
     auto* r=published.load(std::memory_order_acquire);if(!r||!enabled()||!r->pending)return;
     const auto intent=*r->pending;const auto id=r->pending_id;r->pending.reset();r->pending_id.clear();std::string e;
     move_kiss::Origin fresh;remove_diagnostics::LocalTarget target;native::BuildingState actual;
@@ -340,8 +467,9 @@ bool move(const action::Request& req,action::BuildingState& state,json& receipt,
 }
 json status(){const auto* r=published.load(std::memory_order_acquire);if(!r)return {{"initialized",false}};
     if(r->thread!=GetCurrentThreadId())return {{"initialized",false},{"error","move status requires bound Mainthread"}};
-    return {{"initialized",true},{"enabled",r->ready.load()},{"pending_ui",r->pending.has_value()},{"captured",r->captured},{"submitted",r->submitted},
+    return {{"initialized",true},{"enabled",r->ready.load()},{"pending_ui",r->pending.has_value()||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||group_edit::pending()||district_title::pending()||district_text::pending()||prop_text::pending()||boss_phase::pending()||service_membership::pending()||selection_move::pending()},{"boss_placement",boss_placement::status()},{"group_object",group_object::status()},{"duplicate",duplicate_edit::status()},{"group_edit",group_edit::status()},{"district_title",district_title::status()},{"district_text",district_text::status()},{"prop_text",prop_text::status()},{"boss_phase",boss_phase::status()},{"service_membership",service_membership::status()},{"selection_move",selection_move::status()},{"captured",r->captured},{"submitted",r->submitted},
         {"rejected",r->rejected},{"forwarded",r->forwarded.load()},{"last_ui_action",r->last_ui_action},{"ui_cleanup_confirmed",r->last_ui_cleaned},{"cause",r->cause},{"last_native",r->last_native}};
 }
+#include "object_ui_probe/runtime.inc"
 bool can_reclaim_global_minhook(std::string& e){const auto* r=published.load(std::memory_order_acquire);if(r&&r->created){e="move hook retains process-lifetime typed original";return false;}return true;}
 }

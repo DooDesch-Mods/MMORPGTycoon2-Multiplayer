@@ -126,7 +126,7 @@ def coverage_graphic(data, mobile=False):
             x, y, w, h = x + 3, y + 3, w - 6, h - 6
             out.append(f'<rect x="{x:.2f}" y="{y:.2f}" width="{w:.2f}" height="{h:.2f}" fill="{fill}" stroke="{color}" stroke-opacity=".65"/>')
             out.append(f'<g><title>{html.escape(row["name"] + ": " + status)}</title>')
-            size_text = 25 if mobile else 20
+            size_text = min(25 if mobile else 20, int(h - 25))
             label = row.get('short_name', row['name'])
             lines = textwrap.wrap(label, width=max(8, int((w - 24) / (size_text * .56))), break_long_words=False)
             if len(lines) * (size_text + 5) > h - 20:

@@ -43,9 +43,12 @@ bool enable(std::string& e) {
     const Hook hooks[]{{0x5cc2b0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&path.press)},{0x43a1b0,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&path.purchase)},{0x7b04b0,reinterpret_cast<void*>(&remove_ui_entry),reinterpret_cast<void**>(&path.remove_ui)}};
     for(const auto& h:hooks){auto s=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(s!=MH_OK||!*h.original)return fail(e,"path MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
     for(const auto& h:hooks){auto s=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(s!=MH_OK)return fail(e,"path MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
-    if(!code(*r,true,e))return false;path.ready=true;return true;
+    if(!code(*r,true,e)||!world_path_runtime::enable(*r,e))return false;
+    path.ready=true;return true;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e) {
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+        return world_path_runtime::perform(binding,request,authority,e);
     if(request.action==action::Action::RemovePath)return perform_remove(binding,request,authority,e);
     auto* r=runtime(e);if(!r||!path.ready||request.action!=action::Action::PlacePath||!action::valid_path(request.path)){e="path runtime/intent unavailable: "+e;return action::Outcome::RejectedNoEffect;}
     if(path.operations.contains(request.action_uuid)){e="path original action already attempted; no replay";return action::Outcome::Unknown;}
@@ -92,9 +95,13 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!inverse(*r,undo_before,undo_after,op,e))return unknown();op.evidence.undo_confirmed=true;
     if(!action::path_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.region_after!=authority->region_after||op.evidence.terrain_after!=authority->terrain_after||op.evidence.path_after!=authority->path_after)){e="path original commit readback differs from Host";return unknown();}
+    op.history_before=path_history_graph::Snapshot{graph_before.path_uids,graph_before.node_uids,graph_before.rows};
+    op.history_after=path_history_graph::Snapshot{graph_after.path_uids,graph_after.node_uids,graph_after.rows};op.history_graph=undo_after.undo.back();
     op.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e) {
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+        return world_path_runtime::observe(binding,request,out,e);
     auto* r=runtime(e);if(!r)return false;const auto found=path.operations.find(request.action_uuid);
     if(found==path.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"path observation lacks exact confirmed operation");
     const auto& op=found->second;region::LocalView view;Graph actual;action::TerrainState state;action::Ledger money;uintptr_t global=0;
@@ -104,14 +111,21 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }
 bool retire(const action::Binding& binding,const action::Request& request,std::string& e) {
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+        return world_path_runtime::retire(binding,request,e);
     action::Evidence evidence;if(!observe(binding,request,evidence,e))return false;auto& op=path.operations.at(request.action_uuid);auto* r=runtime(e);if(!r)return false;
     if(op.retired)return fail(e,"path receipt already retired");
     if(op.constructed&&!native_error(native_call(r->image,4,op.receiver,0,{}),"private cursor destructor",e))return false;
-    op.constructed=false;op.receiver=0;op.retired=true;return true;
+    op.constructed=false;op.receiver=0;
+    if(!op.history_before||!op.history_after||!op.history_graph||!building_history_slice::remember_path(request.action_uuid,op.history_graph,e))return false;
+    op.retired=true;return true;
 }
-bool unresolved(){if(path.captured||path.pending||path.delete_pending)return true;for(const auto& [token,job]:path.jobs){(void)token;if(!job.value("confirmed",false))return true;}return false;}
+bool unresolved(){if(path.captured||path.pending||path.delete_pending||world_path_runtime::pending())return true;for(const auto& [token,job]:path.jobs){(void)token;if(!job.value("confirmed",false))return true;}return false;}
+bool world_path_pending(){return world_path_runtime::pending();}
 void tick() {
-    if(!path.ready)return;const auto controller=typed_action_runtime::controller_status();
+    if(!path.ready)return;
+    world_path_runtime::tick();
+    const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:path.jobs){(void)token;const auto id=job.value("action_uuid",std::string{});if(id.empty()||job.value("confirmed",false)||id!=controller.value("action_uuid",std::string{}))continue;
         if(controller.value("locked",false)){job["cause"]=controller.value("cause",std::string{"path Controller locked"});continue;}
         const auto op=path.operations.find(id);if(!controller.value("pending",true)&&controller.value("outcome",0)==1&&op!=path.operations.end()&&op->second.confirmed&&op->second.retired)job["confirmed"]=true;}

@@ -3,6 +3,8 @@ set(lobby_handoff_generated "${CMAKE_CURRENT_BINARY_DIR}/lobby_handoff_generated
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/framework_lobby_domain.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/native_lobby_framework.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/framework_lobby_view.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/framework_lobby_actions.inc"
     "${MT2MP_SOURCE_ROOT}/test/extract_lobby_handoff.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_lobby_handoff.py"
     --root "${MT2MP_SOURCE_ROOT}" --output "${lobby_handoff_generated}"

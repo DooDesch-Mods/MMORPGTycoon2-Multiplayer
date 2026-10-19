@@ -1,0 +1,34 @@
+[
+  {
+    "path": "src/game/dungeon_gizmo_runtime.inc",
+    "sha256": "50ecb187a89a2f34419b87422f2cbf91b6746fd92f4ef5f4640ca3fbf21f6241"
+  },
+  {
+    "path": "src/game/dungeon_config_runtime.inc",
+    "sha256": "167682a6937ff63ccb6070acae7776af1226500fceba4efc6f09c3eb9abcab9e"
+  },
+  {
+    "path": "src/game/dungeon_sound_runtime.inc",
+    "sha256": "7c6afde995bc5862b8b64127c61e65f41a257b2b51c98379845b91cc8c2620ba"
+  },
+  {
+    "path": "src/game/dungeon_light_runtime.inc",
+    "sha256": "2e6e651e7c342b6338a2a393d735c353a77f1adfb93e4b959b5c5645d97bf549"
+  },
+  {
+    "path": "src/game/dungeon_palette_runtime.inc",
+    "sha256": "78d1f486aee633cb814c6e42946cd2d9da433f2b8b446e1fe5f00fe81ddcf2f7"
+  },
+  {
+    "path": "src/game/dungeon_cells_runtime.inc",
+    "sha256": "40354d0cc263af785108725376c962077134ac5e295c18b7d75a144a40aaba13"
+  },
+  {
+    "path": "src/game/dungeon_cells_ui_codes.h",
+    "sha256": "f1d18ae2d73b0d812b3cc9f8bd0b8cee24a8dafc707d0b005c871b3a3bc47e77"
+  },
+  {
+    "path": "src/game/dungeon_cell_graph_codes.h",
+    "sha256": "cf3c00a54e60ef436898200683bec7becb5c9aca088fe1511ab06b876b718ea5"
+  }
+]

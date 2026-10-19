@@ -138,6 +138,10 @@ public:
         if(read) { error="snapshot source grew beyond manifest"; return false; }
         active_=false; return file_.close(&error);
     }
+    bool release_unsent(std::string& error) {
+        if(!active_||offset_||index_){error="snapshot source release requires validated source with no sent chunks";return false;}
+        active_=false;return file_.close(&error);
+    }
     void stop() { active_=false; file_.close(); }
     bool active() const { return active_; }
     uint64_t size() const { return total_; }

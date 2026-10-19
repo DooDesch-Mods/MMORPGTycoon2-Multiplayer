@@ -10,9 +10,10 @@ namespace mt2mp::action_session::ui_capture {
 namespace {
 struct Call {uintptr_t pc,target;Origin origin;};
 constexpr std::array ui_calls{
+    Call{0x42d89f,0x2d5520,Origin::NetworkWindow},Call{0x434117,0x2d5520,Origin::NetworkWindow},
     Call{0x59bc43,0x2d5520,Origin::DestroyCursor},Call{0x66de50,0x2d5520,Origin::BuildingWindow},
     Call{0x6cb617,0x2d5520,Origin::OtherWindow},Call{0x6f4f82,0x2d5520,Origin::OtherWindow},
-    Call{0x71900b,0x2d5520,Origin::OtherWindow},Call{0x74f583,0x2d5520,Origin::OtherWindow},
+    Call{0x71900b,0x2d5520,Origin::OtherWindow},Call{0x74f583,0x2d5520,Origin::NetworkWindow},
     Call{0x759c4e,0x2d5520,Origin::NpcWindow},Call{0x7b3f7c,0x2d5520,Origin::OtherWindow},
     Call{0x82bbf6,0x2d5520,Origin::OtherWindow},Call{0x74bf48,0x2d4d90,Origin::SelectionWindow}
 };

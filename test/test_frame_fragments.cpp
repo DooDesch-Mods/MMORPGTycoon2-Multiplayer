@@ -22,6 +22,7 @@ bool take(fragments::Assembly& a,const live::Frame& f,const Json& packet,std::ve
 int main(){try{
     std::string e;fragments::Packets packets;std::vector<uint8_t> bytes,complete;
     auto state=fixture();const auto f=state.day.frame;
+    channel9_fixture::populated_frame_routes();
     channel9_fixture::checks(f);
     need(economy::encode(state,bytes,e)&&fragments::encode(f,bytes,mt2mp::sha256,packets,e)&&packets.size()==1&&packets[0]==bytes,"small frame bytes changed: "+e);
     for(int32_t id=64;id<264;++id){auto subscriber=state.subscribers[0];subscriber.serialized_id=id;state.subscribers.push_back(subscriber);}
@@ -67,7 +68,7 @@ int main(){try{
     need(e.find("SHA256")!=std::string::npos&&complete.empty(),"corruption reached Apply");
     auto invalid=Json::parse(bytes);invalid["schema"]=11;const auto invalid_text=invalid.dump();std::vector<uint8_t> invalid_bytes(invalid_text.begin(),invalid_text.end());
     need(fragments::encode(f,invalid_bytes,mt2mp::sha256,packets,e),"invalid-codec transport setup");receiver.clear();for(const auto& packet:json_packets(packets))need(take(receiver,f,packet,complete,e),"transport rejected structural codec test");
-    need(!economy::decode(complete.data(),complete.size(),decoded,e)&&e.find("schema12")!=std::string::npos,"fragment path bypassed existing Economy validation");
+    need(!economy::decode(complete.data(),complete.size(),decoded,e)&&e.find("schema13")!=std::string::npos,"fragment path bypassed existing Economy validation");
     auto other=f;other.revision++;need(fragments::encode(other,bytes,mt2mp::sha256,packets,e),"identity mismatch setup");receiver.clear();const auto wrong=json_packets(packets);
     for(size_t i=0;i<wrong.size();++i)need(take(receiver,f,wrong[i],complete,e)==(i+1<wrong.size()),"envelope/payload identity mismatch accepted");
     need(e.find("payload identity")!=std::string::npos,"wrong identity cause lost");

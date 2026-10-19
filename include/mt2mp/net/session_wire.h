@@ -20,3 +20,10 @@ bool read_binding(std::array<uint64_t,5>& ids,uint64_t& lobby,uint64_t& local,st
 }
 
 namespace mt2mp::net::session_wire { void suspend_actions(); bool retire_lobby(std::string&); }
+
+namespace mt2mp::net::session_wire {
+bool membership_pending();
+uint8_t membership_retirement_mask();
+bool retire_world(std::string&);
+bool refresh_membership(std::string&);
+}

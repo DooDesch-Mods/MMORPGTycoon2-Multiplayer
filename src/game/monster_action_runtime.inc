@@ -24,6 +24,7 @@ bool move_reset(std::string&);
 json move_status();
 bool remove_reset(std::string&);
 json remove_status();
+json remove_quest_preflight_status();
 a::Ledger ledger(const native::SimulationState& m){return {m.cash,m.clock.flat_day,int32_t(m.record_present),
     m.record_day,m.record_cash,m.record_income,m.record_expense,m.line_counts,m.line_income};}
 bool reject(const std::string& cause){
@@ -34,6 +35,10 @@ identity::Scope scope(const Pin& p,const d::Sample& s){return {p.world.origin.uu
     p.world.origin.generation,p.world.root,p.region.region,s.state.monster_manager};}
 bool code(Memory& m,bool hooked,std::string& e){
     for(const auto& c:elite_probe_codes::values){
+        if(c.rva==0x207820){bool owned=false;
+            if(!control_input::runtime::verify_item_activate(state.image,c.size,c.sha,owned,e))return false;
+            if(owned)continue;
+        }
         if(c.rva==0x67fb40){if(!zone_action_runtime::verify_owned_entry(c.rva,e))return false;continue;}
         std::string bytes(c.size,'\0'),sha;if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
         if(c.rva==0x5bf3c0&&hooked){
@@ -297,7 +302,7 @@ json status(){
             {"undo_confirmed",op.evidence.undo_confirmed},{"retirement_confirmed",op.retired}}}};
     return {{"enabled",state.ready},{"pending_ui",pending_ui()},{"capture_fault",state.fault},{"captures",state.captures},{"submitted",state.submitted},
         {"rejected",state.rejected},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.ui_jobs},
-        {"move",move_status()},{"remove",remove_status()},{"unproved",{"complete generated combat/loadout state","ongoing Monster simulation","saved direct Monster identity"}}};}
+        {"move",move_status()},{"remove",remove_status()},{ "remove_quest_preflight",remove_quest_preflight_status()},{"unproved",{"complete generated combat/loadout state","ongoing Monster simulation","saved direct Monster identity"}}};}
 
 bool native_ui(const json& args,json& result,std::string& e)try{
     result=json::object();
@@ -456,4 +461,19 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
 #include "monster_move_ui.inc"
 #include "monster_remove_runtime.inc"
 #include "monster_remove_ui.inc"
+#include "monster_live_runtime.inc"
+#include "npc_quest_authoring_runtime.inc"
+#include "npc_quest_list_runtime.inc"
+#include "quest_history_runtime.inc"
+#include "character_membership_runtime.inc"
+#include "character_rename_runtime.inc"
+#include "ability_edit_runtime.inc"
+#include "ability_membership_runtime.inc"
+#include "costume_edit_runtime.inc"
+#include "dungeon_config_runtime.inc"
+#include "dungeon_light_runtime.inc"
+#include "dungeon_sound_runtime.inc"
+#include "dungeon_palette_runtime.inc"
+#include "dungeon_gizmo_runtime.inc"
+#include "building_status_runtime.inc"
 }

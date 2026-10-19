@@ -16,7 +16,7 @@ inline int32_t projected(int32_t value,int32_t low,int32_t high){return std::cla
 // manager bucket, definition and pose without relying on allocation order.
 template<class Read>bool census(uintptr_t image,uintptr_t region,const std::array<int32_t,2>& range,Census& out,Read read,std::string& e){
     auto fail=[&](const std::string& s){e=s;return false;};
-    if(range[0]<1||range[1]<range[0]||range[1]>INT32_MAX/10-10)return fail("region level census range outside domain");
+    if(range[0]<0||(range[0]==0&&range[1]!=0)||range[1]<range[0]||range[1]>INT32_MAX/10-10)return fail("region level census range outside domain");
     Census result;std::set<uintptr_t> unique;
     struct Family {size_t offset,owner,first;uintptr_t ap,actor_ap;int buckets;};
     constexpr Family families[]{{0x998,0xc8,0x40,0x16e6aa0,0x1742980,3},{0x988,0x80,0x40,0x1714100,0x16c0770,1},{0x968,0xf0,0x20,0x16fe170,0x1745ce0,4}};

@@ -16,10 +16,11 @@ json normalize(bool client){d::registry={};auto scope=owner();if(client){scope.r
  z::Monster direct;direct.pointer=base+0x6000;direct.uid=client?0x200000007ull:7;s.monsters.push_back(direct);
  json content={{"zones",json::array({{{"local_uid",zone.value.uid},{"monster_local_uids",zone.monsters}}})},
  {"monsters",json::array({{{"local_uid",member.uid},{"zone_local_uid",zone.value.uid}},{{"local_uid",direct.uid},{"zone_local_uid",0}}})}};
+ for(auto& item:content["monsters"])item["local_tag"]=client?-11752269:9;
  const auto original=content;std::string e;unsigned verified=0,named=0;
  auto name=[&](uintptr_t p,std::string& out,std::string&){need(p==direct.pointer,"name called for Zone member");out="Deathblood";++named;return true;};
  auto verify=[&](const z::Monster& row,std::string&){++verified;return row.pointer==member.pointer||row.pointer==direct.pointer;};
- need(!c::normalize(s,{{zone.value.uid,"saved:zone:1"}},scope,content,name,verify,e)&&e.find("saved direct admission unsupported")!=std::string::npos,"unbound saved direct silently admitted");
+ need(!c::normalize(s,{{zone.value.uid,"saved:zone:1"}},scope,content,name,verify,e)&&e.find("no confirmed full-UID/current-world canonical binding")!=std::string::npos,"unbound saved direct silently admitted");
  need(d::registry.stage(id,scope,direct.pointer,direct.uid,e),e);std::string key;
  need(!d::registry.resolve(scope,direct.pointer,direct.uid,key,e),"unconfirmed birth admitted");
  need(!d::registry.resolve(scope,direct.pointer,direct.uid,key,e,other_action),"other_action pending UUID admitted");
@@ -37,6 +38,7 @@ json normalize(bool client){d::registry={};auto scope=owner();if(client){scope.r
  need(!c::normalize(s,{{zone.value.uid,"saved:zone:1"}},scope,bad,name,reject,e)&&e=="full UID registry mismatch","full UID failure ignored");
  need(verified>=4,"full UID verifier did not cover both families");
  bad=original;need(c::normalize(s,{{zone.value.uid,"saved:zone:1"}},scope,bad,name,verify,e),e);need(bad==content,"confirmation changed digest");
+ need(!content["monsters"][0].contains("local_tag")&&!content["monsters"][1].contains("local_tag"),"local Spawn serial leaked into shared digest");
  return content;
 }
 int main(){try{auto host=normalize(false),client=normalize(true);need(host==client,"native pointer/full UID leaked into mixed canonical digest");

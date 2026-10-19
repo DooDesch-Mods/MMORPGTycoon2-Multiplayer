@@ -1,4 +1,6 @@
 #include "economic_fence.h"
+#include "management_runtime.h"
+#include <intrin.h>
 #include "native_guards.h"
 #include "subscriber_needs.h"
 #include "day_rollover/sync.h"
@@ -32,8 +34,8 @@ DWORD call_event(EventVoid f,void* p,const void* event)noexcept{__try{f(p,event)
 DWORD call_lookup(Lookup f,void* p,int32_t id,void** out)noexcept{__try{*out=f(p,id);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 void add(void* p,int32_t a,int32_t c){auto& f=economic_fence();if(!f.allow(EconomicLeaf::AddCash,p,a,c))return;const auto error=call_cash_void(original_add,p,a,c);if(error)f.original_failed(EconomicLeaf::AddCash,error);}
 bool subtract(void* p,int32_t a,int32_t c){auto& f=economic_fence();if(!f.allow(EconomicLeaf::SubtractCash,p,a,c))return false;bool result=false;const auto error=call_cash_bool(original_subtract,p,a,c,&result);if(error)f.original_failed(EconomicLeaf::SubtractCash,error);return !error&&result;}
-bool take(void* p,const void* s){auto& f=economic_fence();if(!f.allow(EconomicLeaf::TakeLoan,p))return false;bool result=false;const auto error=call_string_bool(original_take,p,s,&result);if(error)f.original_failed(EconomicLeaf::TakeLoan,error);return !error&&result;}
-bool repay(void* p,const void* s){auto& f=economic_fence();if(!f.allow(EconomicLeaf::RepayLoan,p))return false;bool result=false;const auto error=call_string_bool(original_repay,p,s,&result);if(error)f.original_failed(EconomicLeaf::RepayLoan,error);return !error&&result;}
+bool take(void* p,const void* s){bool consumed=false;if(management_runtime::capture_loan(false,p,s,uintptr_t(_ReturnAddress()),consumed))return consumed;auto& f=economic_fence();if(!f.allow(EconomicLeaf::TakeLoan,p))return false;bool result=false;const auto error=call_string_bool(original_take,p,s,&result);if(error)f.original_failed(EconomicLeaf::TakeLoan,error);return !error&&result;}
+bool repay(void* p,const void* s){bool consumed=false;if(management_runtime::capture_loan(true,p,s,uintptr_t(_ReturnAddress()),consumed))return consumed;auto& f=economic_fence();if(!f.allow(EconomicLeaf::RepayLoan,p))return false;bool result=false;const auto error=call_string_bool(original_repay,p,s,&result);if(error)f.original_failed(EconomicLeaf::RepayLoan,error);return !error&&result;}
 bool pay(void* p,int32_t a,int32_t c){auto& f=economic_fence();if(!f.allow(EconomicLeaf::Pay,p,a,c))return false;bool result=false;const auto error=call_cash_bool(original_pay,p,a,c,&result);if(error)f.original_failed(EconomicLeaf::Pay,error);return !error&&result;}
 void make(void* p,int32_t day){auto& f=economic_fence();if(!f.allow(EconomicLeaf::MakeDay,p,day))return;std::string cause;if(!day::observe_host_make(true,0,cause))f.journal_failed(cause);const auto error=call_day(original_make,p,day);if(error)f.original_failed(EconomicLeaf::MakeDay,error);if(!day::observe_host_make(false,error,cause))f.journal_failed(cause);}
 void event(void* p,const void* e){auto& f=economic_fence();if(!f.allow(EconomicLeaf::Event,p))return;const auto error=call_event(original_event,p,e);if(error)f.original_failed(EconomicLeaf::Event,error);}
@@ -82,13 +84,17 @@ bool EconomicFence::allow(EconomicLeaf leaf,void* receiver,int32_t amount,int32_
          (leaf==EconomicLeaf::SubtractCash&&category==7&&
           action_->request.action==action_session::Action::EditRegionProperty&&
           action_->request.region_property.kind==action_session::RegionPropertyKind::Purchase));
-    const auto& owner_pin=cash_scope?action_pin_:pin_;
+    const bool management_loan=!locked_&&action_&&frame_depth_==1&&action_->request.action==action_session::Action::ManagementCommand&&
+        ((leaf==EconomicLeaf::TakeLoan&&action_->request.management.op==action_session::ManagementOp::TakeLoan)||
+         (leaf==EconomicLeaf::RepayLoan&&action_->request.management.op==action_session::ManagementOp::RepayLoan));
+    const auto& owner_pin=(cash_scope||management_loan)?action_pin_:pin_;
     bool owner=GetCurrentThreadId()==owner_pin.thread;NativePort reader(context_,binding_,nullptr);
     // PathInfoWindow and SelectionManager each open one native EditOperation before the Road refund.
     const int32_t expected_edits=edit_cash?(action_->request.action==action_session::Action::RemovePath?2:1):0;
     if(owner)owner=reader.current_owners(owner_pin,reason,expected_edits);if(owner&&(leaf==EconomicLeaf::Pay||leaf==EconomicLeaf::SubscriberDay)){uintptr_t ap=0,manager=0,map=0;int32_t id=-1;void* actual=nullptr;owner=read(uintptr_t(receiver),ap,reason)&&ap==pin_.image+0x16e75f0&&read(uintptr_t(receiver)+0x20,id,reason)&&id>=0&&read(pin_.image+0x13df690,manager,reason)&&read(manager,map,reason)&&map==pin_.image+0x1725f40;if(owner){const auto code=call_lookup(reinterpret_cast<Lookup>(pin_.image+0x2ee130),reinterpret_cast<void*>(manager),id,&actual);owner=!code&&actual==receiver;if(code)reason="live Subscriber ownership lookup SEH="+std::to_string(code);}}
     else if(owner)owner=uintptr_t(receiver)==owner_pin.business;
     if(!owner&&!locked_){locked_=true;cause_=reason.empty()?"live economic callback actual owner/Mainthread differs":reason;}
+    if(owner&&!locked_&&management_loan)return true;
     if(owner&&!locked_&&cash_scope){action_session::Ledger predicted;if(predicted_cash(action_->evidence.before,leaf==EconomicLeaf::SubtractCash,amount,category,predicted,reason)&&predicted==action_->evidence.after){++action_cash_calls_;return true;}locked_=true;cause_=reason.empty()?"live economic native cash arguments differ from exact Host after Ledger":reason;}
     const auto index=size_t(leaf);if(index>=suppressed_.size()){locked_=true;cause_="live economic unknown leaf";if(logger_)logger_("error",cause_);return false;}++suppressed_[index];if(logger_&&suppressed_[index]==1)logger_(locked_?"error":"warn","live Client economic leaf suppressed index="+std::to_string(index)+(locked_?" original="+cause_:" reason=Host authority; no native original"));return false;}
 void EconomicFence::original_failed(EconomicLeaf leaf,uint32_t seh){locked_=true;cause_="live economic native original SEH leaf="+std::to_string(size_t(leaf))+" code="+std::to_string(seh)+"; no replay";if(logger_)logger_("error",cause_);}

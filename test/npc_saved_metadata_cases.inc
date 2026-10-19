@@ -93,6 +93,12 @@ bool read(Memory& source,uintptr_t actual,uintptr_t region,State& out,std::strin
     return true;
 }
 }
+// This fixture owns metadata lifetime only. Child ownership and original inverse
+// data use test_building_npc_owner; this adapter has no child registry.
+namespace building_child_detail {
+bool has_region(int32_t){return false;}
+template<class Find>bool append(int32_t,uintptr_t,const npc_census::State&,Find&,std::vector<Current>&,std::string&){return true;}
+}
 #include "npc_saved_metadata_bodies.inc"
 namespace npc_saved_identity_runtime {
 bool read_current(std::vector<Current>& out,std::string& error,bool share_metadata){

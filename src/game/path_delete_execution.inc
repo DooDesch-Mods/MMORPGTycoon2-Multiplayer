@@ -157,5 +157,7 @@ action::Outcome perform_remove(const action::Binding& binding,const action::Requ
     if(!delete_inverse(*r,undo_before,undo_after,op,position,e))return unknown();op.evidence.undo_confirmed=true;
     if(!action::path_delete_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.region_after!=authority->region_after||op.evidence.terrain_after!=authority->terrain_after||op.evidence.path_after!=authority->path_after)){e="path delete original result differs from Host";return unknown();}
+    op.history_before=path_history_graph::Snapshot{old.path_uids,old.node_uids,old.rows};
+    op.history_after=path_history_graph::Snapshot{current.path_uids,current.node_uids,current.rows};op.history_graph=undo_after.undo.back();
     op.confirmed=true;return action::Outcome::Confirmed;
 }

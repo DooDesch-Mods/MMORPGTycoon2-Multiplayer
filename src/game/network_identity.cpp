@@ -1,4 +1,6 @@
 #include "network_identity.h"
+#include "native_open_runtime.h"
+#include "typed_action_runtime.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/game/normal_load_identity.h"
@@ -43,7 +45,7 @@ struct Binding {
 };
 struct Roots { void* map=nullptr; void* shard=nullptr; void** array=nullptr; int32_t count=0; std::vector<void*> regions; };
 struct WriterBinding { void* stream=nullptr; void* consumer=nullptr; void* file=nullptr; void* task=nullptr; };
-struct Pending { const void* property=nullptr; const void* manager=nullptr; void* writer=nullptr; WriterBinding file_binding; void* context=nullptr; DWORD thread=0; std::vector<Binding> nodes; };
+struct Pending { std::vector<Binding> pipes;const void* property=nullptr; const void* manager=nullptr; void* writer=nullptr; WriterBinding file_binding; void* context=nullptr; DWORD thread=0; std::vector<Binding> nodes; };
 // PE SizeOfImage for the exact supported executable bounds diagnostic RVAs.
 constexpr uintptr_t diagnostic_image_bytes=30986240;
 struct ContextProbe {
@@ -69,7 +71,8 @@ struct Shared {
     size_t pending_nodes=0;
     Roots roots;
     std::map<uint64_t,Pending> pending;
-    std::map<int32_t,Binding> bindings;
+    std::map<int32_t,Binding> bindings,pipe_bindings;
+    bool original_load=false;
     std::map<std::pair<void*,int32_t>,void*> shards;
     std::set<void*> contexts;
 };
@@ -276,10 +279,11 @@ WriterScope writer_scope(const Shared& s,void* writer,WriterBinding& binding,std
 void reset(Shared& s,const std::string& uuid,const std::string& sha,uint32_t expected,const std::string& role,const std::string& world_name="MPTestSession") {
     s.uuid=uuid; s.sha=sha; s.expected=expected; s.role=role; s.error.clear(); s.keys_digest.clear(); s.invalidation_reason.clear(); s.discarded=0;
     ++client_generation; s.first_context_probe={}; s.last_context_probe={}; s.context_owners.clear(); s.observer_threads.clear(); s.client_load_mode=nullptr; s.first_observer_thread=s.last_observer_thread=0; s.obsolete_callbacks=s.typed_worker_callbacks=s.typed_main_callbacks=s.duplicate_callbacks=0;
-    s.pending.clear(); s.pending_nodes=0; s.bindings.clear(); s.shards.clear(); s.contexts.clear(); s.completed_arrays=0; s.roots={};
+    s.pending.clear(); s.pending_nodes=0; s.bindings.clear(); s.pipe_bindings.clear();s.original_load=false; s.shards.clear(); s.contexts.clear(); s.completed_arrays=0; s.roots={};
     s.filename=net::snapshot_world_path::capture(world_name,uuid); s.foreign_writers=0; s.foreign_reason.clear();
     selector_reads=0; non_node_callbacks=0;
 }
+#include "network_pipe_identity.inc"
 bool publish(Shared& s,const Roots& roots,std::string& error) {
     std::map<uint64_t,Binding> live; std::string cause;
     if(!census(roots,live,cause)) return fail_locked(s,"mainthread census: "+cause,&error);
@@ -304,6 +308,7 @@ bool publish(Shared& s,const Roots& roots,std::string& error) {
         }
         for(int32_t value:{id,binding.shard_id,binding.region_id}) for(int shift=24;shift>=0;shift-=8) digest_bytes.push_back(uint8_t(uint32_t(value)>>shift));
     }
+    if(!publish_objects(s,roots,digest_bytes,error))return fail_locked(s,error,&error);
     s.keys_digest=sha256(digest_bytes); s.roots=roots; error.clear();
     s.state=s.role=="host"?"host_ready":"client_ready"; capture_active=false; client_active=false;
     LOG_INFO("[NetworkIdentity] Ready role={} uuid={} sha={} nodes={} key_digest={}",s.role,s.uuid,s.sha,s.bindings.size(),s.keys_digest);
@@ -377,6 +382,7 @@ uint64_t capture_before(const void* property,const void* manager,void* writer,vo
             binding.context=context; pending.nodes.push_back(binding);
         }
         if(s.bindings.size()+pending.nodes.size()>maximum_nodes) { fail_locked(s,"host staged node count exceeds65536"); return ticket; }
+        if(!capture_pipe_ids(s,pending,cause)){fail_locked(s,cause);return ticket;}
         s.pending_nodes+=pending.nodes.size(); s.pending.at(ticket)=std::move(pending); return ticket;
     } catch(const std::exception& error) { fail_locked(s,std::string("host capture_before exception: ")+error.what()); return ticket; }
 }
@@ -406,6 +412,7 @@ void capture_after(uint64_t ticket,const void* property,const void* manager,void
             if(exception||shard_exception||!present||!shard_present||id!=before.id||shard_id!=before.shard_id) { fail_locked(s,"host serialized id changed during original exception="+std::to_string(exception?exception:shard_exception)); return; }
             if(!s.bindings.emplace(before.id,before).second) { fail_locked(s,"host duplicate serialized node id="+std::to_string(before.id)); return; }
         }
+        if(!finish_pipe_ids(s,pending,cause)){fail_locked(s,cause);return;}
         ++s.completed_arrays;
     } catch(const std::exception& error) { fail_locked(s,std::string("host capture_after exception: ")+error.what()); }
 }
@@ -440,7 +447,7 @@ void observe_client_registered(void* context,int32_t id,void* object,uint64_t ca
     uintptr_t actual=0; ++selector_reads;
     const auto exception=copy_native(object,&actual,sizeof(actual));
     const auto base=image.load();
-    if(!exception&&actual!=base+node_vtable&&actual!=base+shard_vtable) { ++non_node_callbacks; return; }
+    if(!exception&&actual!=base+node_vtable&&actual!=base+0x16fca60&&actual!=base+shard_vtable) { ++non_node_callbacks; return; }
 #ifdef MT2MP_NETWORK_IDENTITY_TEST
     if(test_selector_barrier) test_selector_barrier();
 #endif
@@ -497,17 +504,20 @@ void observe_client_registered(void* context,int32_t id,void* object,uint64_t ca
         }
         Binding binding; binding.id=id; binding.node=object; binding.context=context;
         if(!read_at(object,0x18,binding.uid)||!binding.uid) { fail_locked(s,"client typed node UID invalid"); return; }
-        if(s.bindings.size()>=maximum_nodes) { fail_locked(s,"client serialized node count exceeds65536"); return; }
-        const auto prior=s.bindings.find(id);
-        if(prior!=s.bindings.end()) { ++s.duplicate_callbacks; fail_locked(s,"client serialized node duplicate id="+std::to_string(id)+" context_ordinal="+std::to_string(s.context_owners.at(context).ordinal)+" same_object="+std::to_string(prior->second.node==object)+" same_context="+std::to_string(prior->second.context==context)); return; }
-        s.bindings.emplace(id,binding);
+        auto& typed_bindings=actual==base+0x16fca60?s.pipe_bindings:s.bindings;
+        if(typed_bindings.size()>=maximum_nodes) { fail_locked(s,"client serialized Network kind count exceeds65536"); return; }
+        const auto prior=typed_bindings.find(id);
+        if(prior!=typed_bindings.end()) { ++s.duplicate_callbacks; fail_locked(s,"client serialized node duplicate id="+std::to_string(id)+" context_ordinal="+std::to_string(s.context_owners.at(context).ordinal)+" same_object="+std::to_string(prior->second.node==object)+" same_context="+std::to_string(prior->second.context==context)); return; }
+        typed_bindings.emplace(id,binding);
     } catch(const std::exception& error) { fail_locked(s,std::string("client registration exception: ")+error.what()); }
 }
 bool finalize_client_load(std::string& error) {
     auto& s=shared(); std::lock_guard lock(s.mutex);
     if(s.state=="failed") { error=s.error; return false; }
     if(!main_gate(s,true,error)) return false;
+    if(!client_active&&s.state=="client_ready"){Roots actual;std::string cause;if(!roots_read(actual,cause)||actual.map!=s.roots.map||actual.shard!=s.roots.shard)return fail_locked(s,cause.empty()?"Network finalized root changed":cause,&error);error.clear();return true;}
     if(!client_active||s.role!="client") return fail_locked(s,"client finalize outside pending normal load",&error);
+    if(s.original_load)s.expected=uint32_t(s.bindings.size());
     const auto observed=normal_load_identity::status();
     if(observed.snapshot_sha256!=s.sha||observed.snapshot_uuid!=s.uuid) return fail_locked(s,"normal load UUID/SHA differs from staged node baseline",&error);
     Roots roots; std::string cause;
@@ -525,7 +535,8 @@ void invalidate_world(const std::string& reason) {
     capture_active=false; client_active=false; ++client_generation;
     s.context_owners.clear(); s.client_load_mode=nullptr;
     s.state="invalidated"; s.invalidation_reason=reason.empty()?"world invalidation requested without cause":reason;
-    s.keys_digest.clear(); s.bindings.clear(); s.shards.clear(); s.contexts.clear(); s.roots=Roots{};
+    object_registry.invalidate();
+    s.keys_digest.clear(); s.bindings.clear();s.pipe_bindings.clear(); s.shards.clear(); s.contexts.clear(); s.roots=Roots{};
     for(auto& [ticket,pending]:s.pending) {
         pending.nodes.clear(); pending.file_binding=WriterBinding{};
         pending.property=nullptr; pending.manager=nullptr; pending.writer=nullptr; pending.context=nullptr;
@@ -562,3 +573,5 @@ void selector_barrier(SelectorBarrier callback) { test_selector_barrier=callback
 }
 #endif
 }
+
+#include "network_object_identity_runtime.inc"

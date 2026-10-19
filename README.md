@@ -15,11 +15,11 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Coverage in [Early Beta 15](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.15). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 16](https://github.com/DooDesch/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
-  <img src="docs/images/coverage.svg" alt="Feature coverage: 4 available, 7 partial, 2 planned, across 13 tracked areas" width="1200">
+  <img src="docs/images/coverage.svg" alt="Feature coverage: 4 available, 8 partial, 1 planned, across 13 tracked areas" width="1200">
 </picture>
 
 Percentages count the listed areas equally. They describe feature coverage, not overall project completion or stability.
@@ -27,7 +27,7 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 <details>
 <summary>Feature details - what is included</summary>
 
-| Feature | Early Beta 15 | What is covered |
+| Feature | Early Beta 16 | What is covered |
 | --- | --- | --- |
 | Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
 | A shared world | ✅ Available | The Host creates or loads a world; the joining player receives it. |
@@ -40,7 +40,7 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 | NPC placement | ◐ Partial | Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority. |
 | Elite monsters | ◐ Partial | Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority. |
 | Save and resume | ◐ Partial | Continue from the Host's saved world. Wider support for saved objects is a next priority. |
-| More quests and combat | ○ Planned | More quest tools and live monster gameplay are in development for future releases. |
+| Quests and combat | ◐ Partial | Create and remove quests, edit titles, required counts and rewards, and choose building or NPC destinations. Live combat remains planned. |
 | Four players and larger worlds | ○ Planned | The current focus is two-player co-op in small worlds. |
 
 </details>
@@ -59,7 +59,7 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 
 ## Start playing
 
-You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.1](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
+You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.2](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

@@ -2,7 +2,12 @@
 #include "typed_action/action_session.h"
 #include "frame_limits.h"
 #include "vip_transitions.h"
+#include "monster_state.h"
 #include "marketing_authority/state.h"
+#include "management_live_state.h"
+#include "release_cycle_state.h"
+#include "control_input/control_replica.h"
+#include "party_frame_state.h"
 #include <array>
 #include <string>
 #include <vector>
@@ -26,12 +31,17 @@ struct Frame {
     std::string snapshot,for_action;
     float selected=0,pause=0;
     Values values;
+    std::optional<monsters::State> monsters;
     std::optional<network::State> network;
     std::optional<tutorial_replication::State> tutorial;
     std::optional<developer_staff::PoolState> developers;
     std::optional<bug_authority::State> bugs;
     std::optional<vip::Batch> vips;
     std::optional<marketing_authority::State> marketing;
+    std::optional<management_simulation::LiveState> management;
+    std::optional<release_cycle::Publication> release;
+    std::optional<control_input::ReplicaState> control;
+    std::optional<party_frame::State> party;
     bool operator==(const Frame&)const=default;
 };
 struct Pin {

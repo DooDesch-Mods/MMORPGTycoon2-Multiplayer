@@ -13,6 +13,7 @@ public:
     bool sent(const live_host_state::Frame&,std::string&)override;
     bool acknowledge(uint64_t,uint64_t,std::string&)override;
     bool admit(const live_host_state::Frame&,const live_host_state::Frame*,std::string&)override;
+    bool read_current(const action_session::Context&,const action_session::Binding&,const live_host_state::Frame&,State&,std::string&);
     bool capture(const action_session::Context&,const action_session::Binding&,const live_host_state::Frame&,State&,std::string&)override;
     bool apply(const action_session::Context&,const action_session::Binding&,const live_host_state::Frame&,live_host_state::MarketingReceipt&,std::string&)override;
     Json status()const override;

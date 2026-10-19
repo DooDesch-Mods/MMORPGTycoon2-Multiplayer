@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-beta.16
+
+### Added
+
+- Create quests together and edit their titles, required counts and rewards.
+- Choose buildings and NPCs as shared quest destinations.
+
+### Fixed
+
+- Fixed path redo being blocked by an incorrect money check.
+- Reduce stutters while hosting a shared world.
+- Keep building moves and refunds in sync between players.
+- Let joining players change the shared game speed and pause.
+- Leave a lobby and start another without restarting the game.
+
 ## 0.1.0-beta.15
 
 ### Added

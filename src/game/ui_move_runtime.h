@@ -7,4 +7,9 @@ void tick();
 nlohmann::json status();
 bool move(const action_session::Request&,action_session::BuildingState&,nlohmann::json&,std::string&);
 bool can_reclaim_global_minhook(std::string&);
+namespace object_ui {
+bool probe(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read(const nlohmann::json&,nlohmann::json&,std::string&);
+bool unresolved() noexcept;
+}
 }

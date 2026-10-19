@@ -24,7 +24,7 @@ bool normalize(const monster_zone_read::State& state,const std::map<uint64_t,std
         nlohmann::json members=nlohmann::json::array();for(const auto& uid_value:row.at("monster_local_uids"))members.push_back(keys.at(uid_value.template get<uint64_t>()));
         row.erase("monster_local_uids");row["monsters"]=std::move(members);}
     for(size_t i=0;i<state.monsters.size();++i){const auto& actual=state.monsters[i];auto& row=content["monsters"][i];
-        const auto zone=row.at("zone_local_uid").template get<uint64_t>();row.erase("local_uid");row.erase("zone_local_uid");row["key"]=keys.at(actual.uid);
+        const auto zone=row.at("zone_local_uid").template get<uint64_t>();row.erase("local_uid");row.erase("zone_local_uid");row.erase("local_tag");row["key"]=keys.at(actual.uid);
         if(actual.zone)row["zone"]=zones.at(zone);
         else{std::string generated;if(!name(actual.pointer,generated,error))return false;row["zone"]=nullptr;row["name"]=std::move(generated);}}
     return true;

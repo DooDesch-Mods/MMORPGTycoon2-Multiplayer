@@ -1,0 +1,26 @@
+[
+  {
+    "path": "src/game/npc_probe.cpp",
+    "sha256": "1bfbbb2964d458a37b6bffeeb490b234ac4d65f4ee126346e788190249f25fe4"
+  },
+  {
+    "path": "src/game/character_membership_runtime.inc",
+    "sha256": "157ebe708ae2ff7b7dd4feae8081d5dbd3eb42d440172fa1d41791561abff8ad"
+  },
+  {
+    "path": "src/game/dungeon_cells_runtime.inc",
+    "sha256": "985a3c365388cc38673fa8ab7d31a7957297820c171129c843e5d6158ebd346f"
+  },
+  {
+    "path": "src/game/developer_staff/bug_policy_process.cpp",
+    "sha256": "eb81fc8241c5b38588f241d13dc55734abe79b33c7099c0ae8724c4f5f816896"
+  },
+  {
+    "path": "src/game/duplicate_codeguards.h",
+    "sha256": "1ece12cad720a48386ea3304058cb9f1b460db88aea16a2060d7aa77ddca55b2"
+  },
+  {
+    "path": "src/game/scenery_kiss/lifecycle_native.cpp",
+    "sha256": "93123cdcb737a97b1866878e8acedd9d927e1a6b7509657e460d1ac2ba468245"
+  }
+]

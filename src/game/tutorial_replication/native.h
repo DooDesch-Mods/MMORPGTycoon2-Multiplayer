@@ -15,6 +15,7 @@ bool hooks_enabled(std::string&);
 bool verify_sequence_entry(uintptr_t address,std::string&);
 bool verify_commit_entry(uintptr_t address,std::string&);
 bool verify_pay_entry(uintptr_t address,std::string&);
+bool verify_allocate_entry(uintptr_t address,std::string&);
 bool set_startingpoint_workers(const action_session::Context&,const action_session::Binding&,
     const startingpoint::Row& expected,int32_t desired,bool& attempted,std::string&);
 bool start_startingpoint(const action_session::Context&,const action_session::Binding&,

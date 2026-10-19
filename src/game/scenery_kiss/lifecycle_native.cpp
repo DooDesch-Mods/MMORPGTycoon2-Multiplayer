@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "lifecycle_native.h"
 #include "lifecycle_codeguards.h"
 #include "ui_contract.h"
@@ -10,7 +11,7 @@ bool fail(std::string& e,const char* s){e=s;return false;}
 bool code(native::Memory& memory,uintptr_t image,size_t first,size_t end,std::string& e){
     if(!image||image>UINTPTR_MAX-0xcf3140)return fail(e,"Scenery lifecycle image range invalid");
     for(size_t i=first;i<end;++i){const auto& c=lifecycle_codes[i];std::vector<unsigned char> actual(c.size);if(!memory.copy(image+c.rva,actual.data(),actual.size(),e))return false;
-        if(std::memcmp(actual.data(),c.bytes,c.size)){e="Scenery lifecycle original full code differs RVA="+std::to_string(c.rva);return false;}}
+        if(!hooks::framework::verify_original_bytes(image+c.rva,actual.data(),c.bytes,c.size,e)){e="Scenery lifecycle original full code differs RVA="+std::to_string(c.rva)+" original="+e;return false;}}
     return true;
 }
 uint32_t region_at(uintptr_t image,uintptr_t root,const void* pose,uintptr_t& region){

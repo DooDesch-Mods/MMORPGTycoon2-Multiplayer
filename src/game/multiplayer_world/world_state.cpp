@@ -5,6 +5,7 @@
 #include <cmath>
 #include <limits>
 #include <set>
+#include <type_traits>
 
 namespace mt2mp::world_state {
 namespace {
@@ -93,6 +94,42 @@ Admission Table::commit(const Origin& origin,const Change& change,const LocalBin
     else rows_.at(change.object_key).state=change.after;
     revision_=change.revision;last_=change;error.clear();return Admission::New;
 }
+Admission Table::commit_moves(const Origin& origin,const std::vector<Change>& changes,const std::vector<LocalBinding>& observed,std::string& error){
+    if(changes.size()<2||changes.size()!=observed.size())return reject(error,"world_move_batch_complete_count_differs");
+    std::set<std::string> keys;std::set<uint64_t> uids;
+    const auto revision=changes.front().revision;const auto& action=changes.front().action_uuid;
+    for(size_t i=0;i<changes.size();++i){
+        const auto& change=changes[i];const auto& actual=observed[i];
+        if(change.kind!=Kind::Move||change.revision!=revision||change.action_uuid!=action||!keys.insert(change.object_key).second)
+            return reject(error,"world_move_batch_action_revision_or_unique_key_differs index="+std::to_string(i));
+        if(prepare(origin,change,error)!=Admission::New)return Admission::Rejected;
+        if(actual.origin!=origin_||actual.object_key!=change.object_key||!actual.local_uid||!uids.insert(actual.local_uid).second||actual.state!=change.after)
+            return reject(error,"world_move_batch_actual_full_binding_or_pose_differs index="+std::to_string(i));
+    }
+    // Finish every allocation and validation before changing any shared row.
+    std::vector<Building> replacements;replacements.reserve(changes.size());
+    for(const auto& change:changes)replacements.push_back(change.after);
+    static_assert(std::is_nothrow_move_assignable_v<Building>);
+    for(size_t i=0;i<changes.size();++i)rows_.at(changes[i].object_key).state=std::move(replacements[i]);
+    revision_=revision;last_.reset();error.clear();return Admission::New;
+}
+Admission Table::commit_creates(const Origin& origin,uint64_t revision,const std::string& action,
+                               const std::vector<LocalBinding>& observed,std::string& error){
+    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||revision<=revision_||observed.empty())
+        return reject(error,"world_create_batch_current_origin_action_revision_or_count_invalid");
+    std::set<std::string> keys;std::set<uint64_t> uids;
+    for(size_t i=0;i<observed.size();++i){const auto& actual=observed[i];
+        if(actual.origin!=origin_||!actual.object_key.starts_with("action:")||!valid_object_key(actual.object_key)||
+           !keys.insert(actual.object_key).second||rows_.contains(actual.object_key)||!actual.local_uid||
+           !uids.insert(actual.local_uid).second||!actual.state.alive||!state_valid(actual.state))
+            return reject(error,"world_create_batch_complete_new_key_full_binding_or_state_differs index="+std::to_string(i));
+    }
+    // Copy first so allocation failure cannot expose a partially inserted set.
+    // Child UUIDs belong to the one validated request, not separate revisions.
+    auto next=rows_;
+    for(const auto& actual:observed)next.emplace(actual.object_key,Row{actual.state,{}});
+    rows_.swap(next);revision_=revision;last_.reset();error.clear();return Admission::New;
+}
 bool Table::refresh_current(const Origin& origin,const std::string& key,const LocalBinding& actual,std::string& error){
     if(!origin_.world_epoch||origin!=origin_)return fail(error,"world_height_refresh_current_origin_differs");
     const auto found=rows_.find(key);
@@ -109,6 +146,39 @@ bool Table::refresh_current(const Origin& origin,const std::string& key,const Lo
     if(observed.scale!=expected.scale)return fail(error,"world_height_refresh_scale_differs");
     if(!std::isfinite(observed.y))return fail(error,"world_height_refresh_y_not_finite actual="+std::to_string(observed.y)+" required=finite");
     found->second.state.y=observed.y;error.clear();return true;
+}
+Admission Table::commit_scenery_stroke(const Origin& origin,uint64_t revision,const std::string& action,
+                                     const std::vector<std::string>& removed,const std::vector<LocalBinding>& created,std::string& error){
+    return commit_scenery_batch(origin,revision,action,removed,created,false,error);
+}
+Admission Table::commit_scenery_history(const Origin& origin,uint64_t revision,const std::string& action,
+                                      const std::vector<std::string>& removed,const std::vector<LocalBinding>& restored,std::string& error){
+    return commit_scenery_batch(origin,revision,action,removed,restored,true,error);
+}
+Admission Table::commit_scenery_batch(const Origin& origin,uint64_t revision,const std::string& action,
+                                     const std::vector<std::string>& removed,const std::vector<LocalBinding>& created,bool restore,std::string& error){
+    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||revision<=revision_||(removed.empty()&&created.empty()))
+        return reject(error,"world_scenery_stroke_current_origin_action_revision_or_count_invalid");
+    std::set<std::string> keys;std::set<uint64_t> uids;
+    for(const auto& key:removed){const auto found=rows_.find(key);
+        if(!keys.insert(key).second||found==rows_.end()||!found->second.state.alive)
+            return reject(error,"world_scenery_stroke_removed_key_missing_retired_or_duplicate key="+key);
+    }
+    for(size_t i=0;i<created.size();++i){const auto& actual=created[i];
+        const auto prior=rows_.find(actual.object_key);
+        if(actual.origin!=origin_||(!restore&&!actual.object_key.starts_with("action:"))||!valid_object_key(actual.object_key)||
+           !keys.insert(actual.object_key).second||!actual.local_uid||!uids.insert(actual.local_uid).second||
+           !actual.state.alive||!state_valid(actual.state))
+            return reject(error,"world_scenery_stroke_created_full_binding_or_state_differs index="+std::to_string(i));
+        if(restore){
+            if(prior==rows_.end()||prior->second.state.alive)return reject(error,"world_scenery_history_restore_target_not_tombstone key="+actual.object_key);
+            auto expected=prior->second.state;expected.alive=true;
+            if(expected!=actual.state)return reject(error,"world_scenery_history_restore_full_native_state_differs key="+actual.object_key);
+        }else if(prior!=rows_.end())return reject(error,"world_scenery_stroke_created_key_already_exists key="+actual.object_key);
+    }
+    auto next=rows_;for(const auto& key:removed)next.at(key).state.alive=false;
+    for(const auto& actual:created){if(restore)next.at(actual.object_key).state=actual.state;else next.emplace(actual.object_key,Row{actual.state,{}});}
+    rows_.swap(next);revision_=revision;last_.reset();error.clear();return Admission::New;
 }
 bool Table::retire_native_effects(const Origin& origin,uint64_t revision,const std::string& action,
     const std::vector<std::string>& keys,std::string& error) {
@@ -150,5 +220,23 @@ bool Table::resolve_current(const Origin& origin,const std::string& key,Registry
     if(actual.origin!=origin_||actual.object_key!=key||!actual.local_uid||actual.state!=found->second.state)
         return fail(error,"world_resolve_actual_registry_or_full_readback_differs key="+key);
     result=std::move(actual);error.clear();return true;
+}
+bool Table::restore_native_buildings(const Origin& origin,uint64_t revision,const std::string& action,
+                                    const std::vector<LocalBinding>& observed,std::string& error){
+    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||revision<=revision_||observed.empty())
+        return fail(error,"world_restore_batch_current_origin_action_revision_or_count_invalid");
+    std::set<std::string> keys;std::set<uint64_t> uids;
+    for(size_t i=0;i<observed.size();++i){const auto& actual=observed[i];const auto row=rows_.find(actual.object_key);
+        if(actual.origin!=origin_||!valid_object_key(actual.object_key)||!keys.insert(actual.object_key).second||
+           !actual.local_uid||!uids.insert(actual.local_uid).second||row==rows_.end()||row->second.state.alive)
+            return fail(error,"world_restore_batch_exact_tombstone_binding_differs index="+std::to_string(i));
+        auto expected=row->second.state;expected.alive=true;
+        if(actual.state!=expected||!state_valid(actual.state))
+            return fail(error,"world_restore_batch_full_native_state_differs index="+std::to_string(i));
+    }
+    // The original graph restores the complete set before this publication.
+    // Validate all tombstones first and advance its one shared revision once.
+    for(const auto& actual:observed)rows_.at(actual.object_key).state.alive=true;
+    revision_=revision;last_.reset();error.clear();return true;
 }
 }

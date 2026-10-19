@@ -372,7 +372,7 @@ bool native_move_ui(const json& args,json& result,std::string& error) {
     const auto token=args.at("token").get<std::string>();
     const auto target=args.at(args.contains("record_key")?"record_key":"target_action_uuid").get<std::string>();
     if(!token_valid(token)||!npc_target_key::input(target)||
-       (args.contains("record_key")&&!snapshot_npc_key::valid(target))||token==target||
+       (args.contains("record_key")&&!(snapshot_npc_key::valid(target)||building_npc_key::valid(target)))||token==target||
        state.ui_jobs.contains(token)||state.ui_jobs.size()>=64||!state.move_ui_token.empty())
         return fail(error,"NPC Move UI token or Place target invalid/used");
     std::array<float,3> point{};
@@ -384,7 +384,7 @@ bool native_move_ui(const json& args,json& result,std::string& error) {
             return fail(error,"NPC Move UI position outside finite domain");
         point[index]=float(value);
     }
-    result={{"operation","move"},{"token",token},{"target_action_uuid",snapshot_npc_key::valid(target)?std::string{}:target},
+    result={{"operation","move"},{"token",token},{"target_action_uuid",(snapshot_npc_key::valid(target)||building_npc_key::valid(target))?std::string{}:target},
         {"canonical_record_key",npc_target_key::canonical(target)},
         {"attempted",false},{"returned",false},{"captured",false},
         {"submitted",false},{"terminal",false},{"confirmed",false}};

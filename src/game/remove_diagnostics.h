@@ -1,4 +1,5 @@
 #pragma once
+#include "character_boss_retirement.h"
 #include "vendor/nlohmann/json.hpp"
 #include <string>
 #include <vector>
@@ -12,10 +13,14 @@ struct LocalTarget {
     bool normal_building=false,normal_scenery=false;
     std::string kind_cause;
 };
+bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,uint64_t full_uid,std::string& key,std::string& error);
+bool resolve_current_building_identity(const std::string& snapshot,const std::string& key,uintptr_t& object,uint64_t& full_uid,std::string& error);
 bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget&,std::string&);
 bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget&,std::string&);
 nlohmann::json status();
 bool bindings(nlohmann::json&,std::string&);
+bool identity_bindings(nlohmann::json&,std::string&);
+bool identity_targets(std::vector<LocalTarget>&,std::string&);
 bool retire_region_scenery(const std::string& snapshot,const std::string& action_uuid,const std::vector<uint64_t>& removed_uids,std::vector<std::string>& retired_keys,std::string&);
 bool admit_created_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
 bool refresh_moved_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);

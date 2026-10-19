@@ -2,8 +2,24 @@
 #include "ui_path_runtime.h"
 #include "path_reader.h"
 #include "path_codeguards.h"
-namespace mt2mp::game::typed_action_runtime {bool submit_path_delete(const std::string&,const action_session::PathDeleteIntent&,std::string&);bool submit_path(const std::string&,const action_session::PathIntent&,std::string&);}
+#include "path_history_graph.h"
+#include "mixed_path_state.h"
+#include "mixed_path_identity.h"
+#include "wall_pass_cursor.h"
+#include "wall_private_lifecycle.h"
+#include "wall_private_codes.h"
+#include "building_history_slice/cash_effect.h"
+#include "move_contract.h"
+namespace mt2mp::game::typed_action_runtime {bool submit_path_delete(const std::string&,const action_session::PathDeleteIntent&,std::string&);bool submit_path(const std::string&,const action_session::PathIntent&,std::string&);bool submit_world_path(const std::string&,const action_session::WorldPathIntent&,std::string&);}
 namespace mt2mp::game::ui_path_runtime {
+namespace world_path_runtime {
+bool capturing_wall();
+bool executing_wall();
+bool pending();
+bool wall_purchase(ui_region_runtime::Runtime&,int32_t,float,const void*,uintptr_t,std::string&);
+bool wall_replay_purchase(ui_region_runtime::Runtime&,int32_t,float,const void*,std::string&);
+void rejected(const std::string&);
+}
 namespace {
 namespace action=action_session;
 namespace region=ui_region_runtime;
@@ -18,7 +34,7 @@ using RemoveUI=bool(*)(void*,void*);
 struct PendingDelete {action::PathDeleteIntent intent;action::Binding binding;std::string snapshot,token;};
 struct Graph {action::PathState state;std::vector<uintptr_t> paths,nodes;std::vector<uint64_t> path_uids,node_uids;json rows;};
 struct Pending {native::Preview preview;action::Binding binding;std::string snapshot,token;};
-struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t receiver=0;bool attempted=false,confirmed=false,retired=false,constructed=false;unsigned purchases=0;uint32_t exception=0;std::string cause;std::vector<uint64_t> uids;};
+struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t receiver=0;bool attempted=false,confirmed=false,retired=false,constructed=false;unsigned purchases=0;uint32_t exception=0;std::string cause;std::vector<uint64_t> uids;std::optional<path_history_graph::Snapshot> history_before,history_after;uintptr_t history_graph=0;};
 struct Runtime {
     bool attempted=false,ready=false;Press press=nullptr;Purchase purchase=nullptr;RemoveUI remove_ui=nullptr;
     uintptr_t ui_receiver=0;Operation* replay=nullptr;
@@ -155,6 +171,16 @@ bool capture(region::Runtime& r,int32_t type,float length,const void* position,s
 }
 bool purchase_entry(int32_t type,float length,const void* point) {
     std::string e;auto* r=runtime(e);const auto caller=uintptr_t(_ReturnAddress());
+    if(r&&world_path_runtime::capturing_wall()){
+        if(!world_path_runtime::wall_purchase(*r,type,length,point,caller,e))world_path_runtime::rejected(e);
+        return false;
+    }
+    if(world_path_runtime::executing_wall()){
+        if(!r){world_path_runtime::rejected(e.empty()?"Wall private Purchase lacks Region runtime":e);return false;}
+        const bool paid=world_path_runtime::wall_replay_purchase(*r,type,length,point,e);
+        if(!paid)world_path_runtime::rejected(e.empty()?"Wall private original Purchase returned false":e);
+        return paid;
+    }
     if(r&&path.ready&&path.ui_receiver&&!path.replay){
         try{if(caller!=r->image+0x5cc593&&caller!=r->image+0x5cc498)rejected("path Purchase caller differs from native completion routes");else if(!capture(*r,type,length,point,e))rejected(e);}catch(const std::exception& x){rejected(std::string("path Purchase capture exception: ")+x.what());}catch(...){rejected("path Purchase capture nonstandard exception");}
         return false;
@@ -168,7 +194,7 @@ bool purchase_entry(int32_t type,float length,const void* point) {
 void press_entry(void* receiver,void* cursor,const void* point) {
     if(!path.ready||!net::session_wire::connected()||path.replay){path.press(receiver,cursor,point);return;}
     std::string e;auto* r=runtime(e);const auto controller=typed_action_runtime::status();
-    if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||path.pending||path.captured||path.delete_pending||path.ui_receiver){rejected(e.empty()?"path UI requires idle bound Controller":e);return;}
+    if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||path.pending||path.captured||path.delete_pending||path.ui_receiver||world_path_runtime::pending()){rejected(e.empty()?"path UI requires idle bound Controller":e);return;}
     action::Ledger before,after;undo::UndoWitness undo_before,undo_after;
     if(!region::ledger(before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||undo_before.active_graph){rejected(e.empty()?"path UI requires idle Undo":e);return;}
     action::PathPoint actual_point{};if(!r->memory.copy(uintptr_t(point),actual_point.data(),sizeof(actual_point),e)){rejected(e);return;}
@@ -183,6 +209,13 @@ void press_entry(void* receiver,void* cursor,const void* point) {
     path.pending=std::move(held);path.captured.reset();++path.capture_count;(void)point;
 }
 }
+#include "world_path_sample.inc"
+#include "world_path_capture.inc"
+#include "world_path_wall_native.inc"
+#include "world_path_replay.inc"
 #include "path_delete_execution.inc"
 #include "path_execution.inc"
+#include "world_path_history.inc"
+#include "path_history_runtime.inc"
+void retire_world(){world_path_runtime::retire_world();}
 }

@@ -118,6 +118,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     auto settled=intent;
     // Original AddNode replaces input Y with the map point height before setting the endpoint.
     if(intent.end_node<0&&(!native_error(settled_height(r->image,view.world.root-0x1c0,intent.end,settled.end[1]),"Pipe endpoint GetHeightAt",e)||!std::isfinite(settled.end[1]))){if(e.empty())e="network original Junction height is not finite";return action::Outcome::RejectedNoEffect;}
+    network_history_runtime::Snapshot history_before;if(!network_history_runtime::capture(before,{},history_before,e))return action::Outcome::RejectedNoEffect;
     auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.settled_end=settled.end;op.evidence.before=money;op.evidence.network_before=network;
     auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};
     // Construction and preview have native lifetime effects; failures remain unresolved until inspected.
@@ -134,6 +135,9 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     op.evidence.undo_confirmed=true;
     if(!action::network_pipe_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.network_after!=authority->network_after)){e="network Pipe actual Client result differs from Host";return unknown();}
+    std::map<uint64_t,std::string> born{{op.uid,network_object_identity::birth(request.action_uuid,network_object_identity::Kind::Pipe)}};
+    if(op.new_uid)born.emplace(op.new_uid,network_object_identity::birth(request.action_uuid,network_object_identity::Kind::Node));
+    network_history_runtime::Snapshot history_after;if(!network_history_runtime::capture(after,born,history_after,e)||!network_history_runtime::record(binding,request,history_before,history_after,after_undo.undo.back(),op.inverse_cost,e))return unknown();
     op.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
@@ -148,6 +152,11 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
 bool retire(const action::Binding& binding,const action::Request& request,std::string& e){
     action::Evidence evidence;if(!observe(binding,request,evidence,e))return false;auto& op=state.operations.at(request.action_uuid);
     if(op.retired)return fail(e,"network Pipe operation already retired");auto* r=runtime(e);if(!r||!native_error(destroy(r->image,op.tool),"Pipe behaviour retirement",e))return false;
+    region::LocalView view;reader::Graph actual;action::NetworkState network;
+    if(!region::identity(*r,request.network_pipe.region,0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,actual,network,e)||network!=op.evidence.network_after)return false;
+    std::vector<std::pair<uintptr_t,uint64_t>> born{{op.created,op.uid}};
+    if(op.new_uid){const auto node=std::find_if(actual.nodes.begin(),actual.nodes.end(),[&](const auto& row){return row.uid==op.new_uid;});if(node==actual.nodes.end())return fail(e,"Network Pipe generated end Node missing before identity seal");born.emplace_back(node->object,node->uid);}
+    if(!network_identity::register_places(request.action_uuid,born,e)||!network_history_runtime::retire_source(binding,request,e))return false;
     op.tool=0;op.retired=true;return true;
 }
 bool unresolved(){if(state.capture_failed||state.pending||state.captured)return true;for(const auto& [id,op]:state.operations){(void)id;if(!op.retired)return true;}for(const auto& [token,job]:state.jobs){(void)token;if(!job.value("terminal",false))return true;}return false;}

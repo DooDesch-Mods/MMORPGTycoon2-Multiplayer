@@ -2,6 +2,10 @@
 #include "state.h"
 #include "vip_port.h"
 #include "marketing_port.h"
+#include "management_port.h"
+#include "release_port.h"
+#include "monster_port.h"
+#include "party_port.h"
 #include "frame_fragments.h"
 #include "frame_apply_acks.h"
 #include "day_rollover/sync.h"
@@ -36,6 +40,13 @@ struct NetworkActivationReceipt {
     nlohmann::json status()const{return {{"attempted_events",attempted_events},{"confirmed_events",confirmed_events},{"last",last}};}
 };
 class Bridge {
+    PartyPort* party_port_=nullptr;
+    MonsterPort* monster_port_=nullptr;
+    bool apply_monsters(const Frame&,std::string&);
+    ReleasePort* release_port_=nullptr;
+    bool apply_release(const Frame&,std::string&);
+    ManagementPort* management_port_=nullptr;
+    bool apply_management(const Frame&,std::string&);
     MarketingPort* marketing_port_=nullptr;
     bool apply_marketing(const Frame&,std::string&);
     VipPort* vip_port_=nullptr;
@@ -82,7 +93,15 @@ public:
     Bridge(const Context& c,const Binding& b,uint64_t common_epoch,Port& p,action_session::Transport& t,
         std::function<bool(uint64_t&,std::string&)> time):context_(c),binding_(b),port_(p),time_(std::move(time)),transport_(t),common_epoch_(common_epoch){}
     bool bind_vip(VipPort&,std::string&);
+    bool bind_parties(PartyPort&,std::string&);
+    nlohmann::json party_status()const{return party_port_?party_port_->status():nlohmann::json(nullptr);}
+    bool bind_release(ReleasePort& value,std::string& e){if(release_port_||host_revision_||last_||queued_){e="Release provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;release_port_=&value;e.clear();return true;}
+    nlohmann::json release_status()const{return release_port_?release_port_->status():nlohmann::json(nullptr);}
+    bool bind_management(ManagementPort& value,std::string& e){if(management_port_||host_revision_||last_||queued_){e="Management provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;management_port_=&value;e.clear();return true;}
+    nlohmann::json management_status()const{return management_port_?management_port_->status():nlohmann::json(nullptr);}
     bool bind_marketing(MarketingPort& value,std::string& e){if(marketing_port_||host_revision_||last_||queued_){e="Marketing provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;marketing_port_=&value;e.clear();return true;}
+    bool bind_monsters(MonsterPort& value,std::string& e){if(monster_port_||host_revision_||last_||queued_){e="Monster provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;monster_port_=&value;e.clear();return true;}
+    nlohmann::json monster_status()const{return monster_port_?monster_port_->status():nlohmann::json(nullptr);}
     nlohmann::json marketing_status()const{return marketing_port_?marketing_port_->status():nlohmann::json(nullptr);}
     nlohmann::json vip_status()const{
         nlohmann::json origin=nullptr;

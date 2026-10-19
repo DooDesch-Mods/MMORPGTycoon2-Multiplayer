@@ -15,7 +15,7 @@ int32_t number(const nlohmann::json& j){
 }
 bool valid(const Row& r,std::string& e){
     if(r.commit_bugs&&(!r.deployed||r.project_present||r.commit_bugs->total<0||r.commit_bugs->known<0||r.commit_bugs->known>r.commit_bugs->total))return fail(e,"startingpoint native Commit receipt invalid");
-    if(!std::isfinite(r.work)||r.work<0||r.lines<0||r.desired_workers<0||r.bugs_total<0||r.bugs_known<0||r.bugs_known>r.bugs_total||
+    if(!std::isfinite(r.work)||r.work<0||r.lines<0||(r.desired_workers<0&&(!r.project_present||r.desired_workers!=-1))||r.bugs_total<0||r.bugs_known<0||r.bugs_known>r.bugs_total||
        r.inventory_count<0||r.inventory_count>200||r.release_change_count<0||r.release_change_count>4096||
        r.release_feature_count<0||r.release_feature_count>r.release_change_count)
         return fail(e,"startingpoint row numeric bounds invalid");
@@ -41,7 +41,7 @@ bool decode(const nlohmann::json& j,Row& out,std::string& e){
         for(auto key:{"project_present","purchased","deployed","custom"})if(!j.at(key).is_boolean())throw std::runtime_error("startingpoint exact bool required");
         if(!j.at("work").is_number_float())throw std::runtime_error("startingpoint work exact float required");
         r.project_present=j.at("project_present").get<bool>();r.purchased=j.at("purchased").get<bool>();r.deployed=j.at("deployed").get<bool>();r.custom=j.at("custom").get<bool>();r.work=j.at("work").get<float>();
-        r.lines=number(j.at("lines"));r.desired_workers=number(j.at("desired_workers"));r.bugs_total=number(j.at("bugs_total"));r.bugs_known=number(j.at("bugs_known"));
+        r.lines=number(j.at("lines"));r.desired_workers=(j.at("desired_workers").is_number_integer()&&!j.at("desired_workers").is_number_unsigned()&&j.at("desired_workers").get<int64_t>()==-1)?-1:number(j.at("desired_workers"));r.bugs_total=number(j.at("bugs_total"));r.bugs_known=number(j.at("bugs_known"));
         r.inventory_count=number(j.at("inventory_count"));r.release_change_count=number(j.at("release_change_count"));r.release_feature_count=number(j.at("release_feature_count"));
         const auto& counter=j.at("release_counter");
         if(!counter.is_number_integer()||(counter.is_number_unsigned()?counter.get<uint64_t>()>UINT32_MAX:counter.get<int64_t>()<0||uint64_t(counter.get<int64_t>())>UINT32_MAX))throw std::runtime_error("startingpoint release counter outside uint32");

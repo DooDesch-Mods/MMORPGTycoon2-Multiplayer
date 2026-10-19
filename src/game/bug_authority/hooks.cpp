@@ -1,5 +1,7 @@
 #include "live_host_state/memory_query_timing.h"
 #include "runtime_internal.h"
+#include "general_project_runtime.h"
+#include "random_result.h"
 #include "building_capture_identity.h"
 #include "native_open_runtime.h"
 #include "mt2mp/core/hash.h"
@@ -63,9 +65,13 @@ uintptr_t add_random(uintptr_t collection){
         if(!active_world(context,binding,publication,active,error)){caught(error);return original_random(collection);}
         if(!active)return original_random(collection);
         if(!world_collection(collection,error)){caught(error);return original_random(collection);}
-        if(context.role==action_session::Role::Client)return 0;
-        const auto result=original_random(collection);
-        if(result&&!witness_birth(collection,result,1,error))caught(error);
+        bool scoped=false;const bool allowed=general_project_runtime::admit_bug_birth(context,binding,r.action,reinterpret_cast<uintptr_t>(_ReturnAddress()),scoped,error);
+        if(scoped&&!allowed){caught(error);return 0;}
+        if(context.role==action_session::Role::Client&&!allowed)return 0;
+        std::vector<uintptr_t> before,after;if(!local_members(collection,before,error)){caught(error);return 0;}
+        uintptr_t result=0;
+        {live_host_state::apply_timing::PageReadScope original(live_host_state::apply_timing::PageBoundary::OriginalCall);result=original_random(collection);}
+        if(!local_members(collection,after,error)||!random_result(collection,result,before,after,r.lifetimes,[&](std::string& cause){return witness_birth(collection,result,1,cause);},error))caught(error);
         return result;
     }catch(const std::exception& error){caught(std::string("Original AddRandomBug exception: ")+error.what());throw;}
     catch(...){caught("Original AddRandomBug nonstandard exception");throw;}

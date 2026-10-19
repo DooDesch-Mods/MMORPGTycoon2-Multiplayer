@@ -1,4 +1,6 @@
 #include "typed_action/action_session.h"
+#include "monster_target_key.h"
+namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include <cstring>
 #include <iostream>
@@ -18,8 +20,10 @@ struct Runtime{uintptr_t image=::image;unsigned thread=1;bool ready=true;std::ma
 unsigned GetCurrentThreadId(){return 1;}
 namespace net{std::string current_snapshot_id(){return "snapshot";}}
 namespace typed_action_runtime{bool network_binding(const std::string&,a::Binding& out,std::string& e){out={3,4};return mode!=15||fail(e,"world binding changed");}}
+bool target_region(Memory&,const a::Binding&,const std::string&,const std::string&,int& region,std::string& e){
+ region=63;return (mode<11||mode>14)||fail(e,"canonical registry absent, pending, retired or stale world");}
 bool move_target(Memory&,const a::Binding&,const std::string&,int,const std::string&,Pin&,d::Sample&,monster_zone_read::Monster& row,std::string& e){
- if(mode==16)return fail(e,"full UID high word/current manager mismatch");if(mode==17)row.uid=1;if(mode==18)++row.pointer;return true;}
+ if(mode>=16&&mode<=18)return fail(e,"full UID high word/current manager/pointer mismatch");row={};return true;}
 bool effect(Memory&,const Pin&,d::Sample&,a::MonsterState&,std::string& e,uint64_t){return mode!=19||fail(e,"mixed canonical admission failed");}
 template<class T>bool field(Memory&,uintptr_t base,size_t off,T& out,std::string& e){
  std::map<std::pair<uintptr_t,size_t>,uintptr_t> fields{{{manager,0x30},1},{{manager,0x80},fixture_object},{{manager,0xb8},handler},
@@ -41,5 +45,7 @@ int main(){try{unsigned n=0;std::string e;
   need(!info_target(birth_id,binding,p,sample,value,local,e),"unbound/stale/replaced birth_id exposed to native UI");++n;}
  mode=0;state=Runtime{};a::Binding binding;Pin p;d::Sample sample;a::MonsterState value;a::ui_capture::LocalBinding local;
  need(info_target(birth_id,binding,p,sample,value,local,e)&&local.uid==0x100000001ull&&local.object==fixture_object&&local.manager==manager&&local.native_epoch==3&&local.native_generation==4,"valid original UI birth_id binding differs");++n;
+ state.operations.clear();const auto saved=std::string(64,'a')+":world:monster:17";
+ need(info_target(saved,binding,p,sample,value,local,e)&&local.canonical_record_key==saved&&local.uid==0x100000001ull,"restored saved identity without Place receipt rejected");++n;
  std::cout<<n<<" actual Monster birth_id and InfoWindow owner cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

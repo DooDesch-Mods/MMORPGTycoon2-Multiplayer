@@ -1,4 +1,6 @@
 #include "monster_remove_fixture.h"
+#include "monster_target_key.h"
+namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "ui_remove/ui_capture.h"
 #include <iostream>
 namespace a=mt2mp::action_session;

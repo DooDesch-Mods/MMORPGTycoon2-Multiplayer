@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="600" height="1040" viewBox="0 0 600 1040" role="img" aria-labelledby="title description">
 <title id="title">Co-op feature coverage</title>
-<desc id="description">available: 4 of 13; partial: 7 of 13; planned: 2 of 13. Each tile is one tracked feature area. Percentages describe the listed areas, not overall project completion or stability.</desc>
+<desc id="description">available: 4 of 13; partial: 8 of 13; planned: 1 of 13. Each tile is one tracked feature area. Percentages describe the listed areas, not overall project completion or stability.</desc>
 <path fill="#0b1723" d="M0 0h600v1040H0z"/>
 <text x="28" y="44" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Co-op feature coverage</text>
-<text x="28" y="78" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 15 - Shared building is available now</text>
+<text x="28" y="78" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 16 - Build worlds and quests together</text>
 <text x="28" y="124" font-family="Arial" font-size="26" fill="#64e4d5" font-weight="700">30.8% Available (4/13)</text>
-<text x="28" y="162" font-family="Arial" font-size="26" fill="#ffca67" font-weight="700">53.8% Partial (7/13)</text>
-<text x="28" y="200" font-family="Arial" font-size="26" fill="#a8c1d5" font-weight="700">15.4% Planned (2/13)</text>
+<text x="28" y="162" font-family="Arial" font-size="26" fill="#ffca67" font-weight="700">61.5% Partial (8/13)</text>
+<text x="28" y="200" font-family="Arial" font-size="26" fill="#a8c1d5" font-weight="700">7.7% Planned (1/13)</text>
 <rect x="31.00" y="243.00" width="130.00" height="203.23" fill="#15383d" stroke="#64e4d5" stroke-opacity=".65"/>
 <g><title>Steam lobbies: available</title>
 <text x="43" y="339.62" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Steam</text>
@@ -27,47 +27,51 @@
 <text x="451.0" y="354.62" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">and game</text>
 <text x="451.0" y="384.62" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">speed</text>
 </g>
-<rect x="31.00" y="452.23" width="227.14" height="116.05" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="31.00" y="452.23" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Session chat: partial</title>
-<text x="43" y="520.26" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Session chat</text>
+<text x="43" y="548.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Session</text>
+<text x="43" y="578.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">chat</text>
 </g>
-<rect x="31.00" y="574.28" width="227.14" height="116.05" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="167.00" y="452.23" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Buildings and scenery: partial</title>
-<text x="43" y="627.31" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Buildings and</text>
-<text x="43" y="657.31" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">scenery</text>
+<text x="179.0" y="533.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Buildings</text>
+<text x="179.0" y="563.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">and</text>
+<text x="179.0" y="593.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">scenery</text>
 </g>
-<rect x="31.00" y="696.33" width="227.14" height="116.05" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="31.00" y="661.46" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Terrain and roads: partial</title>
-<text x="43" y="749.36" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Terrain and</text>
-<text x="43" y="779.36" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">roads</text>
+<text x="43" y="743.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Terrain</text>
+<text x="43" y="773.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">and</text>
+<text x="43" y="803.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">roads</text>
 </g>
-<rect x="264.14" y="452.23" width="149.43" height="177.08" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="167.00" y="661.46" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Research: partial</title>
-<text x="276.14" y="550.77" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Research</text>
+<text x="179.0" y="773.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Research</text>
 </g>
-<rect x="419.57" y="452.23" width="149.43" height="177.08" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="303.00" y="452.23" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>NPC placement: partial</title>
-<text x="431.57" y="535.77" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">NPC</text>
-<text x="431.57" y="565.77" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">placement</text>
+<text x="315.0" y="548.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">NPC</text>
+<text x="315.0" y="578.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">placement</text>
 </g>
-<rect x="264.14" y="635.31" width="149.43" height="177.08" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="439.00" y="452.23" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Elite monsters: partial</title>
-<text x="276.14" y="718.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Elite</text>
-<text x="276.14" y="748.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">monsters</text>
+<text x="451.0" y="548.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Elite</text>
+<text x="451.0" y="578.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">monsters</text>
 </g>
-<rect x="419.57" y="635.31" width="149.43" height="177.08" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<rect x="303.00" y="661.46" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
 <g><title>Save and resume: partial</title>
-<text x="431.57" y="718.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Save and</text>
-<text x="431.57" y="748.85" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">resume</text>
+<text x="315.0" y="758.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Save and</text>
+<text x="315.0" y="788.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">resume</text>
 </g>
-<rect x="31.00" y="818.38" width="266.00" height="98.62" fill="#21303e" stroke="#a8c1d5" stroke-opacity=".65"/>
-<g><title>More quests and combat: planned</title>
-<text x="43" y="862.69" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">More quests and</text>
-<text x="43" y="892.69" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">combat</text>
+<rect x="439.00" y="661.46" width="130.00" height="203.23" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
+<g><title>Quests and combat: partial</title>
+<text x="451.0" y="743.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Quests</text>
+<text x="451.0" y="773.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">and</text>
+<text x="451.0" y="803.08" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">combat</text>
 </g>
-<rect x="303.00" y="818.38" width="266.00" height="98.62" fill="#21303e" stroke="#a8c1d5" stroke-opacity=".65"/>
+<rect x="31.00" y="870.69" width="538.00" height="46.31" fill="#21303e" stroke="#a8c1d5" stroke-opacity=".65"/>
 <g><title>Four players and larger worlds: planned</title>
-<text x="315.0" y="877.69" font-family="Arial" font-size="25" fill="#f2f7fb" font-weight="600">Larger sessions</text>
+<text x="43" y="901.85" font-family="Arial" font-size="21" fill="#f2f7fb" font-weight="600">Larger sessions</text>
 </g>
 <text x="28" y="996" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">Each tile is one tracked feature area.</text>
 <text x="28" y="1024" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">See feature details for scope and limits.</text>

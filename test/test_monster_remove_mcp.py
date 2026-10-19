@@ -7,7 +7,7 @@ import sys
 
 source=Path(sys.argv[1]).read_text(encoding='utf-8')
 tree=ast.parse(source)
-names={'validate_npc_target','npc_target_schema'}
+names={'saved_monster_key','validate_npc_target','npc_target_schema'}
 functions=[node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name in names]
 class RuntimeErrorDetail(Exception):pass
 env={'RuntimeErrorDetail':RuntimeErrorDetail,'re':re,'math':math,
@@ -17,6 +17,8 @@ exec(compile(ast.Module(body=functions,type_ignores=[]),'actual_remove_mcp','exe
 validate=env['validate_npc_target'];base={'token':'11111111-1111-4111-8111-111111111111','target_action_uuid':'33333333-3333-4333-8333-333333333333','family':'monster'}
 n=0
 validate(base,monster=True);n+=1
+saved_monster='a'*64+':world:monster:17'
+validate({**base,'target_action_uuid':saved_monster},monster=True);n+=1
 for value in [{k:v for k,v in base.items() if k!='family'}, {'token':base['token'],'record_key':'saved:npc:63:0'}]:validate(value,monster=True);n+=1
 def reject(value,**options):
     global n
@@ -29,6 +31,8 @@ for key in base:
 reject({**base,'record_key':'saved:npc:63:0'},monster=True)
 reject({**base,'family':'npc'},monster=True)
 reject({**base,'target_action_uuid':'bad'},monster=True)
+reject({**base,'target_action_uuid':saved_monster+'x'},monster=True)
+reject({k:v for k,v in {**base,'target_action_uuid':saved_monster}.items() if k!='family'},monster=True)
 reject({**base,'token':True},monster=True)
 reject({**base,'position':[0,0,0]},monster=True)
 reject(base,move=True)

@@ -1,6 +1,8 @@
 #include "npc_target_key.h"
 #include "snapshot_building_key.h"
 #include "ui_remove_runtime.h"
+#include "network_remove_runtime.h"
+#include "group_object_runtime.h"
 #include "ui_remove/native_entry_windows.h"
 #include "ui_remove/native_contract_bytes.h"
 #include "ui_remove/diagnostic/ui_diagnostic.h"
@@ -98,6 +100,8 @@ public:
     bool resolve(uintptr_t manager,uintptr_t object,ui::LocalBinding& out,std::string& error)override {
         uintptr_t ap=0;
         if(!memory.copy(object,&ap,sizeof ap,error))return false;
+        if(ap==image+0x1749de0)return ui_move_runtime::group_object::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x16fc700||ap==image+0x16fca60)return network_remove_runtime::local_binding(manager,object,out,error);
         if(ap==image+0x1742980)
             return npc_probe::action_runtime::remove_local_binding(manager,object,out,error);
         if(ap==image+0x16c0770)
@@ -132,7 +136,11 @@ public:
         if(!npc_probe::monster_action_runtime::submit_remove(intent,error))return false;
         last_intent=intent;return true;
     }
+    bool submit_network(const ui::Intent& intent,std::string& error)override {if(!network_remove_runtime::submit(intent,error))return false;last_intent=intent;return true;}
+    bool submit_group(const ui::Intent& intent,std::string& error)override {if(!ui_move_runtime::group_object::submit_remove(intent,error))return false;last_intent=intent;return true;}
     bool authorize_replay(const ui::Replay& replay,std::string& error)override {
+        if(replay.binding.supported_group)return ui_move_runtime::group_object::authorize_remove_replay(replay,error);
+        if(replay.binding.supported_network)return network_remove_runtime::authorize(replay,error);
         if(replay.binding.supported_monster)return npc_probe::monster_action_runtime::authorize_remove_replay(replay,error);
         if(replay.binding.supported_npc)return npc_probe::action_runtime::authorize_remove_replay(replay,error);
         return typed_action_runtime::authorize_ui_replay(replay,error);

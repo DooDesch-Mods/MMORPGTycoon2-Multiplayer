@@ -13,7 +13,7 @@ inline Json packet_json(const uint8_t* bytes,size_t size){
     if(!bytes||!size||size>max_frame_payload)throw std::runtime_error("live Channel9 packet bound invalid");
     std::vector<std::set<std::string>> fields;
     return Json::parse(bytes,bytes+size,[&](int depth,Json::parse_event_t event,Json& value){
-        if(depth>8)throw std::runtime_error("live Channel9 discriminator nesting exceeds8");
+        if(depth>max_economy_json_depth)throw std::runtime_error("live Channel9 discriminator nesting exceeds"+std::to_string(max_economy_json_depth));
         if(event==Json::parse_event_t::object_start)fields.emplace_back();
         if(event==Json::parse_event_t::key&&!fields.back().insert(value.get<std::string>()).second)throw std::runtime_error("duplicate live Channel9 envelope field");
         if(event==Json::parse_event_t::object_end)fields.pop_back();return true;
@@ -90,7 +90,7 @@ public:
             bytes_.insert(bytes_.end(),chunk.begin(),chunk.end());++next_;
             if(next_==count_){
                 if(bytes_.size()!=total_||digest(bytes_)!=hash)return reject(e,"Host frame reassembly length/SHA256 differs; no Apply");
-                const auto value=Json::parse(bytes_,[](int depth,Json::parse_event_t,Json&){if(depth>10)throw std::runtime_error("Host frame reassembly nesting exceeds10");return true;});const Json* frame=&value;
+                const auto value=Json::parse(bytes_,[](int depth,Json::parse_event_t,Json&){if(depth>max_economy_json_depth)throw std::runtime_error("Host frame reassembly nesting exceeds"+std::to_string(max_economy_json_depth));return true;});const Json* frame=&value;
                 if(value.at("kind")=="host_state_economy")frame=&value.at("day").at("frame");
                 else if(value.at("kind")=="host_state_day")frame=&value.at("frame");
                 else if(value.at("kind")!="host_state")return reject(e,"Host frame fragment payload kind invalid");

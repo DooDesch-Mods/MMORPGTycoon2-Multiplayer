@@ -20,6 +20,7 @@ def body(path, anchor):
 for target, path, anchors in [
     ('autosave_activity.inc', 'src/game/live_host_state/native_port.h', ['inline bool native_activity(', 'inline bool publication_activity(']),
     ('autosave_scope.inc', 'src/game/live_host_state/native_port.cpp', ['bool current_scope(', 'bool NativePort::publication_ready(']),
+    ('autosave_owners.inc', 'src/game/live_host_state/native_port.cpp', ['bool NativePort::current_owners(', 'bool NativePort::store(']),
     ('autosave_tutorial_publication.inc', 'src/game/live_host_state/bridge.cpp', ['bool same_tutorial_publication(']),
     ('autosave_tick.inc', 'src/game/live_host_state/bridge.cpp', ['bool Bridge::tick(']),
 ]:

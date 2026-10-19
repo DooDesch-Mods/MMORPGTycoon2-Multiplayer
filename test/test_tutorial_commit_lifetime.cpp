@@ -37,15 +37,15 @@ bool verify_commit_entry(uintptr_t target,std::string& e){if(!entry_valid||targe
 void original_commit(void*){++originals;if(original_effect)original_effect();}
 }
 namespace mt2mp::game::tutorial_development {
-bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e,bool,bool){
+bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e,bool){
     ++read_calls;if(int(read_calls)==fail_read){e="original Startingpoint read failed";return false;}
     if(read_calls>samples.size()){e="fixture snapshot absent";return false;}out=samples[read_calls-1];return true;
 }
 }
 namespace mt2mp::game::tutorial_development {
-bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation,bool share_metadata){
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation){
     if(key!=selected_key){e="fixture selected Commit key differs";return false;}
-    return read_startingpoint(out,diagnostic,e,creation,share_metadata);
+    return read_startingpoint(out,diagnostic,e,creation);
 }
 }
 namespace {

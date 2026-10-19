@@ -1,8 +1,11 @@
+#include "../game/release_graph_native.h"
+#include "../game/gm_ticket_native.h"
 #include "../game/bug_authority/runtime_internal.h"
 #include "mt2mp/core/dll_main.h"
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_runtime.h"
 #include "mt2mp/core/framework_input.h"
+#include "../game/coop_cursor/production.h"
 #endif
 #include "mt2mp/core/runtime_paths.h"
 #ifdef MT2MP_FRAMEWORK_PLUGIN
@@ -33,6 +36,7 @@
 #include "mt2mp/net/chat_protocol.h"
 #include "../game/lobby_operations.h"
 #include "../game/prepare_flow.h"
+#include "../game/session_reload/production.h"
 #include "../game/native_lobby.h"
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
@@ -45,6 +49,7 @@
 #include "../game/subscriber_lifecycle/runtime_append.h"
 #include "../game/marketing_native_probe/runtime.h"
 #include "mt2mp/net/snapshot_sync.h"
+#include "../game/selected_snapshot.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/software_sync.h"
@@ -58,6 +63,12 @@
 #include "../game/building_capture_identity.h"
 #include "../game/npc_quest_target_runtime.h"
 #include "../game/npc_saved_identity_runtime.h"
+#include "../game/party_saved_identity_runtime.h"
+#include "../game/party_live_native.h"
+#include "../game/dungeon_instance_native.h"
+#include "../game/monster_saved_identity_runtime.h"
+#include "../game/boss_saved_identity_runtime.h"
+#include "../game/district_saved_identity_runtime.h"
 #include "../game/root_building_load.h"
 #include "../game/network_identity.h"
 #include "../game/native_open_runtime.h"
@@ -79,6 +90,8 @@
 #include "../game/ui_region_runtime.h"
 #include "../game/ui_price_runtime.h"
 #include "../game/npc_probe.h"
+#include "../game/npc_quest_authoring_runtime.h"
+#include "../game/npc_quest_list_runtime.h"
 #include "../game/ui_terrain_runtime.h"
 #include "../game/ui_path_runtime.h"
 #include "../game/ui_network_runtime.h"
@@ -93,6 +106,7 @@
 #include "../game/placement_ui_diagnostics/placement_ui_diagnostics.h"
 #include "../game/hud_time_reader_process.h"
 #include "../game/hud_time_activation.h"
+#include "../game/item_activation_origin.h"
 #include "../game/time_mouse_diagnostics.h"
 #include "../game/hud_time_runtime.h"
 #include "../game/hud_calendar_runtime.h"
@@ -121,6 +135,9 @@ static HMODULE g_module=nullptr;
 static std::atomic<bool> initialized=false;
 static mt2mp::subscriber_lifecycle::Lookup original_subscriber_context_lookup=nullptr;
 static void* subscriber_context_lookup(void* context,int32_t id) {
+    void* result=nullptr;if(game::gm_ticket::native::lookup(context,id,original_subscriber_context_lookup,result))return result;
+    if(game::release_graph_native::lookup(context,id,original_subscriber_context_lookup,result))return result;
+    if(game::party_live_native::lookup_active())return game::party_live_native::lookup(context,id,original_subscriber_context_lookup);
     return game::subscriber_lifecycle_append::lookup(context,id,original_subscriber_context_lookup);
 }
 static game::subscriber_retirement::Remove original_subscriber_remove=nullptr;
@@ -278,7 +295,8 @@ static bool time_input_context(void*,game::native_time_input::Context& out,std::
     return true;
 }
 static void time_activate(void* type,void* item) {
-    const auto caller=reinterpret_cast<uintptr_t>(_ReturnAddress());
+    const auto caller=game::item_activation_origin::caller(native_image_begin,native_image_end,
+        reinterpret_cast<uintptr_t>(item),reinterpret_cast<uintptr_t>(_ReturnAddress()));
     const auto rva=caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0;
     ++time_activate_attempted;
     time_last_caller_rva=rva;
@@ -310,6 +328,30 @@ static void time_update(void* type,void* item,float dt) {
         if(hud.forward_original) original_time_update(type,item,dt);
         else ++time_update_suppressed;
     } else ++time_update_suppressed;
+}
+static bool instance_initialization_attempted=false,instance_hooks_ready=false;
+static std::string instance_initialization_error;
+static void initialize_instance_hooks() {
+    if(instance_hooks_ready)return;
+    if(!instance_initialization_attempted) {
+        instance_initialization_attempted=true;
+        try {
+            if(!game::dungeon_instance_native::initialize(native_image_begin,instance_initialization_error))
+                throw std::runtime_error(instance_initialization_error);
+            instance_hooks_ready=true;
+            LOG_INFO("[DungeonInstance] Native hooks ready game_thread={}",GetCurrentThreadId());
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            LOG_INFO("[RUNTIME] REQUIRED_ENGINE_ROUTES_READY provider=Framework");
+#endif
+        }catch(const std::exception& error) {
+            instance_initialization_error=error.what();
+            LOG_ERROR("[DungeonInstance] Required initialization failed cause={}; no automatic retry",instance_initialization_error);
+        }catch(...) {
+            instance_initialization_error="unknown native initialization exception";
+            LOG_ERROR("[DungeonInstance] Required initialization failed cause={}; no automatic retry",instance_initialization_error);
+        }
+    }
+    if(!instance_hooks_ready)throw std::runtime_error("Dungeon Instance hooks: "+instance_initialization_error);
 }
 static void initialize_time_hooks() {
     if(time_initialization_attempted) return;
@@ -498,6 +540,74 @@ static bool load_npc_property(const void* property,void* manager,void* reader,vo
     catch(...){game::npc_saved_identity_runtime::original_failed(ticket,"non-standard original LoadStream exception");throw;}
     game::npc_saved_identity_runtime::load_after(ticket,property,manager,reader,context,result);return result;
 }
+static game::party_saved_identity_runtime::PropertyCall original_save_party_property=nullptr,original_load_party_property=nullptr;
+static bool save_party_property(const void* property,void* manager,void* writer,void* context) {
+    const auto ticket=game::party_saved_identity_runtime::save_before(property,manager,writer,context);
+    bool result=false;
+    try {result=original_save_party_property(property,manager,writer,context);}
+    catch(const std::exception& error){game::party_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::party_saved_identity_runtime::original_failed(ticket,"non-standard original SaveStream exception");throw;}
+    game::party_saved_identity_runtime::save_after(ticket,property,manager,writer,context,result);return result;
+}
+static bool load_party_property(const void* property,void* manager,void* reader,void* context) {
+    const auto ticket=game::party_saved_identity_runtime::load_before(property,manager,reader,context);
+    bool result=false;
+    try {result=original_load_party_property(property,manager,reader,context);}
+    catch(const std::exception& error){game::party_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::party_saved_identity_runtime::original_failed(ticket,"non-standard original LoadStream exception");throw;}
+    game::party_saved_identity_runtime::load_after(ticket,property,manager,reader,context,result);return result;
+}
+static game::district_saved_identity_runtime::PropertyCall original_save_district_property=nullptr,original_load_district_property=nullptr;
+static bool save_district_property(const void* property,void* manager,void* writer,void* context) {
+    const auto ticket=game::district_saved_identity_runtime::save_before(property,manager,writer,context);
+    bool result=false;
+    try {result=original_save_district_property(property,manager,writer,context);}
+    catch(const std::exception& error){game::district_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::district_saved_identity_runtime::original_failed(ticket,"non-standard original SaveStream exception");throw;}
+    game::district_saved_identity_runtime::save_after(ticket,property,manager,writer,context,result);return result;
+}
+static bool load_district_property(const void* property,void* manager,void* reader,void* context) {
+    const auto ticket=game::district_saved_identity_runtime::load_before(property,manager,reader,context);
+    bool result=false;
+    try {result=original_load_district_property(property,manager,reader,context);}
+    catch(const std::exception& error){game::district_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::district_saved_identity_runtime::original_failed(ticket,"non-standard original LoadStream exception");throw;}
+    game::district_saved_identity_runtime::load_after(ticket,property,manager,reader,context,result);return result;
+}
+static game::monster_saved_identity_runtime::PropertyCall original_save_monster_property=nullptr,original_load_monster_property=nullptr;
+static bool save_monster_property(const void* property,void* manager,void* writer,void* context) {
+    const auto ticket=game::monster_saved_identity_runtime::save_before(property,manager,writer,context);
+    bool result=false;
+    try {result=original_save_monster_property(property,manager,writer,context);}
+    catch(const std::exception& error){game::monster_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::monster_saved_identity_runtime::original_failed(ticket,"non-standard original SaveStream exception");throw;}
+    game::monster_saved_identity_runtime::save_after(ticket,property,manager,writer,context,result);return result;
+}
+static bool load_monster_property(const void* property,void* manager,void* reader,void* context) {
+    const auto ticket=game::monster_saved_identity_runtime::load_before(property,manager,reader,context);
+    bool result=false;
+    try {result=original_load_monster_property(property,manager,reader,context);}
+    catch(const std::exception& error){game::monster_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::monster_saved_identity_runtime::original_failed(ticket,"non-standard original LoadStream exception");throw;}
+    game::monster_saved_identity_runtime::load_after(ticket,property,manager,reader,context,result);return result;
+}
+static game::boss_saved_identity_runtime::PropertyCall original_save_boss_property=nullptr,original_load_boss_property=nullptr;
+static bool save_boss_property(const void* property,void* manager,void* writer,void* context) {
+    const auto ticket=game::boss_saved_identity_runtime::save_before(property,manager,writer,context);
+    bool result=false;
+    try {result=original_save_boss_property(property,manager,writer,context);}
+    catch(const std::exception& error){game::boss_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::boss_saved_identity_runtime::original_failed(ticket,"non-standard original SaveStream exception");throw;}
+    game::boss_saved_identity_runtime::save_after(ticket,property,manager,writer,context,result);return result;
+}
+static bool load_boss_property(const void* property,void* manager,void* reader,void* context) {
+    const auto ticket=game::boss_saved_identity_runtime::load_before(property,manager,reader,context);
+    bool result=false;
+    try {result=original_load_boss_property(property,manager,reader,context);}
+    catch(const std::exception& error){game::boss_saved_identity_runtime::original_failed(ticket,error.what());throw;}
+    catch(...){game::boss_saved_identity_runtime::original_failed(ticket,"non-standard original LoadStream exception");throw;}
+    game::boss_saved_identity_runtime::load_after(ticket,property,manager,reader,context,result);return result;
+}
 static game::root_building_load::ArrayFn original_load_building_array=nullptr;
 static game::root_building_load::ChildrenFn original_building_reader_children=nullptr;
 static game::root_building_load::InlineFn original_inline_building=nullptr;
@@ -518,9 +628,17 @@ static int32_t building_reader_children(void* reader) {
     const auto caller_rva=caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0;
     game::npc_quest_target_runtime::children_before(caller_rva,reader);
     game::npc_saved_identity_runtime::children_before(caller_rva,reader);
+    game::party_saved_identity_runtime::children_before(caller_rva,reader);
+    game::district_saved_identity_runtime::children_before(caller_rva,reader);
+    game::monster_saved_identity_runtime::children_before(caller_rva,reader);
+    game::boss_saved_identity_runtime::children_before(caller_rva,reader);
     const auto result=original_building_reader_children(reader);
     game::npc_quest_target_runtime::children_after(caller_rva,reader,result);
     game::npc_saved_identity_runtime::children_after(caller_rva,reader,result);
+    game::party_saved_identity_runtime::children_after(caller_rva,reader,result);
+    game::district_saved_identity_runtime::children_after(caller_rva,reader,result);
+    game::monster_saved_identity_runtime::children_after(caller_rva,reader,result);
+    game::boss_saved_identity_runtime::children_after(caller_rva,reader,result);
     game::bug_authority::original_children(caller_rva,reader,result);
     game::root_building_load::children(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,reader,result);
     return result;
@@ -530,6 +648,10 @@ static void inline_building(void* context,void* object) {
     original_inline_building(context,object);
     game::npc_quest_target_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
     game::npc_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
+    game::party_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
+    game::district_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
+    game::monster_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
+    game::boss_saved_identity_runtime::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
     game::bug_authority::original_registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
     game::root_building_load::registered(caller>=native_image_begin&&caller<native_image_end?caller-native_image_begin:0,context,0,object);
 }
@@ -584,6 +706,10 @@ static void add_object(void* context,int32_t link_id,void* object) {
     game::root_building_load::registered(caller_rva,context,link_id,object);
     game::npc_quest_target_runtime::registered(caller_rva,context,link_id,object);
     game::npc_saved_identity_runtime::registered(caller_rva,context,link_id,object);
+    game::party_saved_identity_runtime::registered(caller_rva,context,link_id,object);
+    game::district_saved_identity_runtime::registered(caller_rva,context,link_id,object);
+    game::monster_saved_identity_runtime::registered(caller_rva,context,link_id,object);
+    game::boss_saved_identity_runtime::registered(caller_rva,context,link_id,object);
     game::bug_authority::original_registered(caller_rva,context,link_id,object);
 }
 static void software_rating(void* receiver) {
@@ -744,13 +870,18 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         if(!game::native_lobby::tick(observed)&&native_lobby_error!=observed){native_lobby_error=observed;LOG_ERROR("[NativeLobby] Native menu tick failed: {}",observed);}
     }
     if(owned_native_profile) {
+        initialize_instance_hooks();
         if(Config::instance().local_test||net::session_wire::connected())initialize_time_hooks();
         {FrameTimingScope measured(FrameTimingPart::Typed);GameUpdateWorkScope traced(game_update_pair::Section::Typed);game::typed_action_runtime::tick();}
         {FrameTimingScope measured(FrameTimingPart::Transport);GameUpdateWorkScope traced(game_update_pair::Section::Transport);
         if(Config::instance().local_test)net::tick_local_session();
         else {std::string wire_error;if(!net::session_wire::tick(wire_error)&&!wire_error.empty()&&!wire_error.starts_with("info:"))native_lobby_error=wire_error;}
         net::chat::Runtime::instance().tick();
-        net::tick_snapshot_sync(); net::tick_diagnostic_placement(); net::tick_software_sync();}
+        net::tick_snapshot_sync(); net::tick_diagnostic_placement(); net::tick_software_sync();
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        game::coop_cursor::production::tick();
+#endif
+        }
         if(time_initialized) {
             FrameTimingScope measured(FrameTimingPart::Time);GameUpdateWorkScope traced(game_update_pair::Section::Time);
             if(game::time_integration::instance().tick(time_tick_error)) { ++time_tick_confirmed; time_tick_error.clear(); }
@@ -763,8 +894,9 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         game::native_free_diagnostics::drain_logs();}
         {FrameTimingScope measured(FrameTimingPart::Diagnostics);GameUpdateWorkScope traced(game_update_pair::Section::Diagnostics);diagnostics_tick();}
         frame.live.close();
+        game::session_reload::tick();
         std::string lobby_error;
-        {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if(!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
+        {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if(!game::session_reload::busy()&&!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
     }
 }
 static void game_update(void* receiver,float dt) {
@@ -825,7 +957,11 @@ bool end(const void* owner,const Frame& frame,std::string& error,bool* closed) {
     } close{entered,closed};
     bool passed=true;
     if(frame.original_returned) {
-        try {game_update_after(*entered.lifetime,frame.dt);error.clear();}
+        try {
+            game_update_after(*entered.lifetime,frame.dt);
+            if(owned_native_profile&&!instance_hooks_ready)throw std::runtime_error("Dungeon Instance hooks: required game-thread initialization did not complete");
+            error.clear();
+        }
         catch(const std::exception& problem){error=std::string("Framework GameUpdate post failed: ")+problem.what();passed=false;}
         catch(...){error="Framework GameUpdate post failed: unknown exception";passed=false;}
     } else {error="Framework original GameUpdate did not return normally";passed=false;}
@@ -929,7 +1065,7 @@ static json status() {
         {"placement_status",net::diagnostic_placement_status()},
         {"world_ready",false},{"blocker","Engine-Replikation noch nicht bewiesen"},
         {"overlay_visible",overlay::LobbyOverlay::instance().is_visible()},
-        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",false}}}};
+        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",false},{"resync_world",net::session_wire::connected()&&!game::session_reload::busy()}}}};
     if(!installed_proof_receipt.is_null())result["installed_proof"]=installed_proof_receipt;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     result["runtime_kind"]="framework-plugin";
@@ -946,6 +1082,7 @@ static json status() {
     result["in_game"]=game::native::in_game();
     result["native_free"]=game::native_free_diagnostics::status();
     result["native_remove"]=game::remove_diagnostics::status();
+    result["dungeon_instance_hooks"]={{"attempted",instance_initialization_attempted},{"ready",instance_hooks_ready},{"error",instance_initialization_error}};
     result["typed_actions"]=game::typed_action_runtime::status();
     result["ui_remove"]=game::ui_remove_runtime::status();
     result["ui_build"]=game::ui_build_runtime::status();
@@ -995,6 +1132,10 @@ static json status() {
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_remove_runtime::enabled();
     result["capabilities"]["native_npc_move_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_move_runtime::enabled();
+    result["capabilities"]["native_npc_quest_edit_ui"]=cfg.local_test&&game::native::in_game()&&game::npc_probe::monster_action_runtime::quest_list::status().value("enabled",false);
+    result["capabilities"]["native_npc_quest_list_ui"]=cfg.local_test&&game::native::in_game()&&game::npc_probe::monster_action_runtime::quest_list::status().value("enabled",false);
+    result["capabilities"]["native_npc_quest_target_ui"]=cfg.local_test&&game::native::in_game()&&
+        game::npc_probe::monster_action_runtime::quest_authoring::status().value("enabled",false);
     result["capabilities"]["read_prices"]=result["typed_actions"].value("started",false);
       result["capabilities"]["native_price_ui"]=game::ui_price_runtime::status().value("enabled",false);
     result["capabilities"]["native_region_styles_ui"]=game::ui_region_runtime::enabled();
@@ -1007,6 +1148,8 @@ static json status() {
     result["capabilities"]["request_building_move"]=game::ui_move_runtime::enabled();
     result["capabilities"]["native_move_ui"]=game::ui_move_runtime::enabled();
     result["capabilities"]["read_move_ui"]=true;
+    result["capabilities"]["native_object_ui"]=game::ui_move_runtime::enabled();
+    result["capabilities"]["read_object_ui"]=true;
     result["capabilities"]["native_cancel_tool"]=result["typed_actions"].value("started",false);
     result["capabilities"]["read_cancel_tool"]=true;
     result["capabilities"]["native_buildings_tab"]=result["typed_actions"].value("started",false);
@@ -1459,15 +1602,16 @@ static void diagnostics_tick() {
                     throw std::runtime_error("snapshot file final hash read failed: "+error);
                 if(final_digest!=digest||final_length!=length)
                     throw std::runtime_error("snapshot file final receipt differs bytes="+std::to_string(final_length)+" required="+std::to_string(length)+" sha256="+final_digest+" required="+digest);
+                if(sealed!=game::building_capture_identity::SealResult::Confirmed)
+                    throw std::runtime_error("Snapshot identity seal incomplete: "+(error.empty()?identity.error:error));
+                if(!game::network_identity::seal_host_capture(id,digest,error))
+                    throw std::runtime_error("Network snapshot alias seal incomplete: "+error);
+                if(!game::monster_saved_identity_runtime::write_companion(id,digest,length,snapshot_path,error))
+                    throw std::runtime_error("Monster snapshot companion incomplete: "+(error.empty()?identity.error:error));
                 const auto completed_at=std::chrono::steady_clock::now();
                 if(completed_at-snapshot_started>=std::chrono::seconds(net::snapshot_native_capture_timeout_seconds))
                     throw std::runtime_error("snapshot capture completion deadline exceeded elapsed_ms="+std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(completed_at-snapshot_started).count())+" required<"+std::to_string(net::snapshot_native_capture_timeout_seconds*1000)+" native_task_cancelled=false");
                 const bool distribute=pending_snapshot.value("distribute",Config::instance().is_host);
-                if(distribute) {
-                    std::string network_error;
-                    if(!game::network_identity::seal_host_capture(id,digest,network_error))
-                        LOG_ERROR("[MCP] Snapshot file complete id={} but network identity failed cause={}",id,network_error);
-                }
                 if(sealed==game::building_capture_identity::SealResult::Failed)
                     LOG_ERROR("[MCP] Snapshot file complete id={} but building identity failed cause={}",id,identity.error);
                 const auto world_name=pending_snapshot.at("world_name").get<std::string>();
@@ -1510,6 +1654,8 @@ static void diagnostics_tick() {
             throw std::runtime_error("terrain_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::native_tool_prepare::unresolved() && operation!="read_cancel_tool" && operation!="read_buildings_tab" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("native_tool_prepare_previous_effect_unresolved; competing native operation rejected");
+        if(game::ui_move_runtime::object_ui::unresolved() && operation!="read_object_ui" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
+            throw std::runtime_error("object_ui_previous_effect_unresolved; inspect retained token, no replay");
         if(game::move_ui_probe::unresolved() && operation!="read_move_ui" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("move_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::placement_ui_diagnostics::unresolved() && operation!="read_build_ui" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
@@ -1584,7 +1730,12 @@ static void diagnostics_tick() {
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_LOBBY_FAILED"},{"message",error.empty()?native_lobby_error:error}};
         }
-        else if(operation=="status"||operation=="inspect_engine") { response["ok"]=true; response["result"]=status(); }
+        else if(operation=="status"||operation=="inspect_engine") { response["ok"]=true; response["result"]=status(); response["result"]["world_reload"]=game::session_reload::status(); }
+        else if(operation=="resync_world") {
+            if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("resync_world requires empty object arguments");
+            std::string error;response["ok"]=game::session_reload::request_resync(error);response["result"]=game::session_reload::status();
+            if(!response["ok"].get<bool>())response["error"]={{"code","WORLD_RESYNC_REJECTED"},{"message",error}};
+        }
         else if(operation=="read_chat_ui"||operation=="native_chat_ui_key"||operation=="native_chat_ui_text") {
             const auto& args=request.at("args");
             SDL_Window* window=hooks::get_game_window();
@@ -1781,6 +1932,12 @@ static void diagnostics_tick() {
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_TOOL_PREPARE_FAILED"},{"message",error}};
         }
+        else if(operation=="native_object_ui"||operation=="read_object_ui") {
+            nlohmann::json result;std::string error;
+            response["ok"]=operation=="native_object_ui"?game::ui_move_runtime::object_ui::probe(request.at("args"),result,error):game::ui_move_runtime::object_ui::read(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","OBJECT_UI_REJECTED"},{"message",error}};
+        }
         else if(operation=="native_move_ui"||operation=="read_move_ui") {
             std::string error;json result;
             response["ok"]=operation=="native_move_ui"?game::move_ui_probe::probe(request.at("args"),result,error):game::move_ui_probe::read(request.at("args"),result,error);
@@ -1929,6 +2086,18 @@ static void diagnostics_tick() {
             response["ok"]=game::npc_probe::action_runtime::native_remove_ui(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_REMOVE_UI_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_npc_quest_list_ui"||operation=="native_npc_quest_edit_ui") {
+        std::string error;json result;
+        response["ok"]=game::npc_probe::monster_action_runtime::quest_list::native_ui(request.at("args"),result,error);
+        response["result"]=std::move(result);
+        if(!response["ok"].get<bool>())response["error"]={{"code","NPC_QUEST_LIST_UI_REJECTED"},{"message",error}};
+    }
+    else if(operation=="native_npc_quest_target_ui") {
+            std::string error;json result;
+            response["ok"]=game::npc_probe::monster_action_runtime::quest_authoring::native_ui(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","NPC_QUEST_TARGET_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="native_npc_move_ui") {
             std::string error;json result;
@@ -2293,17 +2462,11 @@ static void diagnostics_tick() {
             building_capture_original_start=building_original_attempted.load();
             building_capture_return_start=building_original_returned.load();
             building_capture_failure_start=building_original_failed.load();
-            if(distribute) {
-                game::native_network::State nodes;
-                if(game::native_network::read_state(nodes,error)) {
-                    if(nodes.node_slots<nodes.null_node_slots) throw std::runtime_error("network node census invalid slots="+std::to_string(nodes.node_slots)+" null="+std::to_string(nodes.null_node_slots));
-                    if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error,world_name))
-                        LOG_ERROR("[MCP] Network capture begin rejected id={} cause={}; native file capture continues",id,error);
-                } else {
-                    game::network_identity::cancel_pending("network census failed before native capture: "+error);
-                    LOG_ERROR("[MCP] Network census failed id={} cause={}; native file capture continues",id,error);
-                }
-            }
+            game::native_network::State nodes;
+            if(!game::native_network::read_state(nodes,error))throw std::runtime_error("Network snapshot alias census failed before native capture: "+error);
+            if(nodes.node_slots<nodes.null_node_slots)throw std::runtime_error("network node census invalid slots="+std::to_string(nodes.node_slots)+" null="+std::to_string(nodes.null_node_slots));
+            if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error,world_name))
+                throw std::runtime_error("Network snapshot alias capture rejected before native file capture: "+error);
             response["ok"]=game::native::capture_snapshot(net::snapshot_world_path::capture(world_name,id),error);
             if(response["ok"].get<bool>()) {
                 pending_snapshot={{"id",id},{"snapshot_id",id},{"world_name",world_name},{"distribute",distribute}}; snapshot_started=now; last_request=id;
@@ -2314,11 +2477,35 @@ static void diagnostics_tick() {
             response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
         }
         else if(operation=="load_snapshot") {
-            auto snapshot_id=request.at("args").at("snapshot_id").get<std::string>();
+            const auto& load_args=request.at("args");
+            const bool selected=load_args.contains("selected_file");
+            if(!load_args.is_object()||load_args.size()!=1||(!selected&&!load_args.contains("snapshot_id")))
+                throw std::runtime_error("local snapshot load requires one exact source");
+            if(selected&&(!internal_request||!Config::instance().is_host))
+                throw std::runtime_error("selected snapshot import requires internal Host lobby request");
+            auto snapshot_id=selected?id:load_args.at("snapshot_id").get<std::string>();
             if(snapshot_id.size()!=36||snapshot_id.find_first_not_of("0123456789abcdef-")!=std::string::npos) throw std::runtime_error("invalid snapshot id");
-            auto manifest=dir/("snapshot-"+snapshot_id+".json");
-            std::ifstream stream(manifest); json record; stream>>record;
             auto actual_root=status().at("write_dir").get<std::string>();
+            json record;
+            if(selected) {
+                game::native::WorldStatus world;std::string error;
+                if(!game::native::read_world_status(world,error))throw std::runtime_error("selected snapshot Title read failed: "+error);
+                if(world.active_mode_index!=2)
+                    throw std::runtime_error("selected snapshot import requires Title active_mode="+std::to_string(world.active_mode_index)+" required=2");
+                if(world.title_transition_pending)
+                    throw std::runtime_error("selected snapshot import requires idle Title title_transition_pending="+std::to_string(world.title_transition_pending)+" required=0");
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+                const auto write=framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),actual_root.c_str());
+#else
+                const auto write=std::filesystem::weakly_canonical(actual_root);
+#endif
+                record=game::selected_snapshot::copy(write,load_args.at("selected_file").get<std::string>(),snapshot_id,
+                    net::snapshot_max_bytes,net::hash_snapshot_file);
+                write_json(dir/("snapshot-"+snapshot_id+".json"),record);
+            }else {
+                auto manifest=dir/("snapshot-"+snapshot_id+".json");
+                std::ifstream stream(manifest);stream>>record;
+            }
             const auto world_name=net::snapshot_world_path::from_manifest(record);
 #ifdef MT2MP_FRAMEWORK_PLUGIN
             auto path=framework_open_paths::snapshot(framework_open_paths::absolute(runtime_root),actual_root.c_str(),world_name,snapshot_id,false);
@@ -2481,6 +2668,26 @@ bool initialize(HMODULE module) {
                !hooks::create_hook(game::npc_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_npc_property),reinterpret_cast<void**>(&original_load_npc_property)))
                 throw std::runtime_error("native NPC property observation hooks failed");
             if(!game::npc_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
+            if(!game::party_saved_identity_runtime::initialize(native_error))throw std::runtime_error(native_error);
+            if(!hooks::create_hook(game::party_saved_identity_runtime::entrypoint(true),reinterpret_cast<void*>(&save_party_property),reinterpret_cast<void**>(&original_save_party_property))||
+               !hooks::create_hook(game::party_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_party_property),reinterpret_cast<void**>(&original_load_party_property)))
+                throw std::runtime_error("native Party property observation hooks failed");
+            if(!game::party_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
+            if(!game::district_saved_identity_runtime::initialize(native_error))throw std::runtime_error(native_error);
+            if(!hooks::create_hook(game::district_saved_identity_runtime::entrypoint(true),reinterpret_cast<void*>(&save_district_property),reinterpret_cast<void**>(&original_save_district_property))||
+               !hooks::create_hook(game::district_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_district_property),reinterpret_cast<void**>(&original_load_district_property)))
+                throw std::runtime_error("native District property observation hooks failed");
+            if(!game::district_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
+            if(!game::monster_saved_identity_runtime::initialize(native_error))throw std::runtime_error(native_error);
+            if(!hooks::create_hook(game::monster_saved_identity_runtime::entrypoint(true),reinterpret_cast<void*>(&save_monster_property),reinterpret_cast<void**>(&original_save_monster_property))||
+               !hooks::create_hook(game::monster_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_monster_property),reinterpret_cast<void**>(&original_load_monster_property)))
+                throw std::runtime_error("native Monster property observation hooks failed");
+            if(!game::monster_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
+            if(!game::boss_saved_identity_runtime::initialize(native_error))throw std::runtime_error(native_error);
+            if(!hooks::create_hook(game::boss_saved_identity_runtime::entrypoint(true),reinterpret_cast<void*>(&save_boss_property),reinterpret_cast<void**>(&original_save_boss_property))||
+               !hooks::create_hook(game::boss_saved_identity_runtime::entrypoint(false),reinterpret_cast<void*>(&load_boss_property),reinterpret_cast<void**>(&original_load_boss_property)))
+                throw std::runtime_error("native Boss property observation hooks failed");
+            if(!game::boss_saved_identity_runtime::confirm_hooks(native_error))throw std::runtime_error(native_error);
             if(!game::bug_authority::initialize(native_error))throw std::runtime_error(native_error);
             if(!hooks::create_hook(game::building_capture_identity::capture_entrypoint(),reinterpret_cast<void*>(&save_building_array),reinterpret_cast<void**>(&original_save_building_array))) throw std::runtime_error("native building save array observation hook failed");
             if(!game::network_identity::initialize(native_error)) throw std::runtime_error(native_error);
@@ -2523,6 +2730,7 @@ bool initialize(HMODULE module) {
             net::initialize_snapshot_sync();
             net::initialize_software_sync();
             { std::string chat_error; if (!net::chat::Runtime::instance().initialize(chat_error)) throw std::runtime_error("Chat-Kanal: " + chat_error); }
+            {std::string reload_error;if(!game::session_reload::initialize(reload_error))throw std::runtime_error("World reload channel: "+reload_error);}
             net::initialize_diagnostic_placement();
             if(Config::instance().local_test&&!net::start_local_session()) throw std::runtime_error("local transport initialization failed");
         }
@@ -2535,10 +2743,13 @@ bool initialize(HMODULE module) {
             initialized=false; throw std::runtime_error("tutorial hook confirmation failed: "+native_error);
         }
         if(owned_native_profile) game::native::set_subscriber_needs_hook_mask(0x3f);
-        if(owned_native_profile) game::subscriber_lifecycle_append::set_lookup_hook_ready(true);
+        if(owned_native_profile) {
+            game::subscriber_lifecycle_append::set_lookup_hook_ready(true);
+            game::party_live_native::set_lookup_hook_ready(true);
+        }
         publish_installed_proof();
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-        LOG_INFO("[RUNTIME] REQUIRED_ENGINE_ROUTES_READY provider=Framework");
+        LOG_INFO("[RUNTIME] ENGINE_ROUTES_INSTALLED provider=Framework; required Instance hooks pending bound GameUpdate");
 #else
         LOG_INFO("[RUNTIME] REQUIRED_HOOKS_READY SDL3 input renderer window");
 #endif
@@ -2556,6 +2767,7 @@ void shutdown() {
         } else LOG_WARN("[TimeIntegration] Shutdown authority callbacks skipped: thread={} required_game_thread={}; process hooks are removed",GetCurrentThreadId(),engine_thread);
     }
     LOG_INFO("[RUNTIME] Shutdown"); net::SidecarClient::instance().shutdown();
+    game::party_live_native::set_lookup_hook_ready(false);
     game::subscriber_lifecycle_append::set_lookup_hook_ready(false);
     game::native::set_subscriber_needs_hook_mask(0);
     hooks::disable_all();

@@ -42,6 +42,6 @@ bool SteamSession::current(Context& out,std::string& cause) {
     }
     uint8_t mask=0;own=0;
     for(size_t i=1;i<ids.size();++i)if(ids[i]){mask|=uint8_t(1u<<(i-1));if(ids[i]==local)own=i;}
-    out={lobby,own,1,mask,local==host?Role::Host:Role::Client,uuid};cause.clear();return true;
+    out={net::session_wire::session_id(),own,1,mask,local==host?Role::Host:Role::Client,uuid};cause.clear();return true;
 }
 }

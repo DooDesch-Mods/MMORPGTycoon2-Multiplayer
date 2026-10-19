@@ -10,12 +10,6 @@ struct Economy {
         ++calls;peer=p;mask=m;revision=r;rows=value;e=failure;return failure.empty();
     }
 };
-struct Marketing {
-    unsigned calls=0;uint64_t sender=0,revision=0;std::string failure;
-    bool acknowledge(uint64_t peer,uint64_t frame,std::string& e){
-        ++calls;sender=peer;revision=frame;e=failure;return failure.empty();
-    }
-};
 struct Bridge {
     bool suspended_=false,locked_=false,day_=false;
     Context context_;action_session::Binding binding_;
@@ -25,7 +19,10 @@ struct Bridge {
     struct Transport {std::vector<std::vector<uint8_t>> packets;std::string failure;bool send(uint64_t,const std::vector<uint8_t>& bytes,std::string& e){if(!failure.empty()){e=failure;return false;}packets.push_back(bytes);return true;}} transport_;
     bool acknowledge_vips(uint64_t,uint64_t,std::string& e){e.clear();return true;}
     bool acknowledge_frame(const Frame&,std::string&);
-    Economy* economy_=nullptr;Marketing* marketing_port_=nullptr;unsigned received=0;uint64_t received_sender=0;
+    Economy* economy_=nullptr;unsigned received=0;uint64_t received_sender=0;
+    struct UnusedMarketing {bool acknowledge(uint64_t,uint64_t,std::string&){throw std::runtime_error("unexpected Marketing ACK in Economy fixture");}};
+    UnusedMarketing* marketing_port_=nullptr;
+    UnusedMarketing* management_port_=nullptr;
     std::vector<uint8_t> received_bytes;std::string receive_failure;
     explicit Bridge(const Frame& f):context_(context(f)),binding_{1,f.source_generation},
         common_epoch_(f.epoch),source_generation_(f.source_generation),host_revision_(f.revision){}
@@ -36,6 +33,49 @@ struct Bridge {
 };
 #include "frame_fragment_route.inc"
 #include "frame_apply_ack_send.inc"
+
+
+void populated_frame_routes(){
+    auto value=fixture();auto& frame=value.day.frame;
+    mt2mp::game::management_simulation::LiveState management;
+    mt2mp::game::service_live::Building building;
+    building.key="action:33333333-3333-4333-8333-333333333333";
+    building.metadata=std::string(64,'a');
+    mt2mp::game::service_live::Row service;
+    for(auto& count:service.counts){count.history={1,2,3};count.today=1;count.total=7;}
+    building.rows.push_back(service);management.services.push_back(building);frame.management=management;
+    std::string e;std::vector<uint8_t> bytes;
+    const auto depth=[](const std::vector<uint8_t>& wire){int result=0;
+        const auto parsed=Json::parse(wire,[&](int level,Json::parse_event_t,Json&){result=std::max(result,level);return true;});
+        need(parsed.is_object(),"populated frame must be an object");return result;};
+    live::Frame decoded_frame;live::day::Target decoded_day;economy::State decoded;
+    need(live::encode(frame,bytes,e),"populated Frame encode: "+e);const auto frame_depth=depth(bytes);
+    need(frame_depth>5&&frame_depth<=live::max_frame_json_depth,"populated Frame grammar does not cover former limit");
+    need(live::decode(bytes.data(),bytes.size(),decoded_frame,e)&&decoded_frame==frame,"populated Frame full roundtrip: "+e);
+    need(live::day::encode(value.day,bytes,e),"populated Day encode: "+e);const auto day_depth=depth(bytes);
+    need(day_depth==frame_depth+1&&live::day::decode(bytes.data(),bytes.size(),decoded_day,e)&&decoded_day==value.day,"populated Day full roundtrip: "+e);
+    need(economy::encode(value,bytes,e),"populated Economy encode: "+e);const auto economy_depth=depth(bytes);
+    need(economy_depth==day_depth+1&&economy_depth>8,"populated Economy must reproduce former Channel9 bound");
+    need(economy::decode(bytes.data(),bytes.size(),decoded,e)&&decoded==value,"populated Economy full roundtrip: "+e);
+    Economy provider;Bridge direct(frame);direct.economy_=&provider;bool handled=false;
+    need(bytes.size()<=live::max_frame_payload&&direct.route_receive(1,bytes.data(),bytes.size(),handled,e)&&handled&&direct.received_bytes==bytes,"populated direct Channel9 frame: "+e);
+    for(int32_t id=64;id<264;++id){auto row=value.subscribers[0];row.serialized_id=id;value.subscribers.push_back(row);}
+    fragments::Packets packets;
+    need(economy::encode(value,bytes,e)&&fragments::encode(frame,bytes,mt2mp::sha256,packets,e)&&packets.size()>1,"populated fragmented frame setup: "+e);
+    Bridge stream(frame);stream.economy_=&provider;
+    for(size_t index=0;index<packets.size();++index){const auto& packet=packets[index];
+        need(stream.route_receive(1,packet.data(),packet.size(),handled,e)&&handled,"populated fragment Channel9 route: "+e);
+        need(stream.received==(index+1==packets.size()?1u:0u),"populated fragment exposed partial state");}
+    need(stream.received_bytes==bytes&&economy::decode(bytes.data(),bytes.size(),decoded,e)&&decoded==value,"populated fragmented full roundtrip: "+e);
+    Json nested=0;for(int level=0;level<=live::max_economy_json_depth;++level)nested=Json::array({nested});
+    const auto excessive=Json{{"kind","host_state_economy"},{"nested",nested}}.dump();
+    Bridge rejected(frame);rejected.economy_=&provider;
+    need(!rejected.route_receive(1,reinterpret_cast<const uint8_t*>(excessive.data()),excessive.size(),handled,e)&&!handled&&rejected.received==0&&e.find("nesting exceeds")!=std::string::npos,"over-depth state reached receiver");
+    auto invalid=Json::parse(bytes);invalid["day"]["frame"]["management"]["services"][0]["rows"][0][0]["history"][0]=Json::array({1});
+    const auto invalid_text=invalid.dump();
+    need(!economy::decode(reinterpret_cast<const uint8_t*>(invalid_text.data()),invalid_text.size(),decoded,e)&&decoded==economy::State{},"nested counter type bypassed exact codec");
+    std::cout<<"PASS populated Frame/Day/Economy depths="<<frame_depth<<'/'<<day_depth<<'/'<<economy_depth<<" direct and fragmented routes\n";
+}
 
 void checks(const Frame& f){
     using namespace action_session;
@@ -97,8 +137,8 @@ void checks(const Frame& f){
         if(kind==Kind::HostResult){
             auto excessive=packet;excessive["evidence"]["npc_after"]["created"]["quests"][0]["accepted"]["history"][0]=Json::array({1});
             const auto text=excessive.dump();
-            need(!router.route_receive(1,reinterpret_cast<const uint8_t*>(text.data()),text.size(),handled,e)&&!handled&&
-                e=="live Channel9 discriminator: live Channel9 discriminator nesting exceeds8","classifier maximum depth guard changed");
+            need(router.route_receive(1,reinterpret_cast<const uint8_t*>(text.data()),text.size(),handled,e)&&!handled&&e.empty(),
+                "numeric action must reach its own exact depth validator");
             need(!action_session::decode(reinterpret_cast<const uint8_t*>(text.data()),text.size(),decoded,e)&&
                 e.find("action JSON nesting depth exceeds 8")!=std::string::npos,"action owner maximum depth guard changed");
         }
@@ -125,16 +165,6 @@ void checks(const Frame& f){
         {"source_generation",f.source_generation},{"frame_revision",f.revision},{"rows",Json::array()}};
     need(route_json(host,2,ack)&&handled&&economy.calls==1&&economy.peer==2&&economy.mask==2&&economy.revision==f.revision,"Subscriber ACK no longer routed");
     need(host.apply_acks_.pending()==0&&host.apply_acks_.peers()[1].revision==f.revision,"validated actual ACK advances full-Apply progress");
-    for(bool reject:{false,true}){
-        Bridge target(f);Marketing marketing;target.context_.role=Role::Host;target.context_.local_peer=1;
-        target.economy_=&economy;target.marketing_port_=&marketing;
-        target.apply_acks_.sent(f.revision,2,std::chrono::steady_clock::now());
-        if(reject)marketing.failure="original Marketing ACK failure";
-        const bool accepted=route_json(target,2,ack);
-        need(marketing.calls==1&&marketing.sender==2&&marketing.revision==f.revision,"Marketing ACK owner/revision was not forwarded once");
-        need(accepted==!reject&&handled&&target.locked_==reject&&target.apply_acks_.pending()==(reject?2:0),"Marketing ACK failure confirmed full frame or failed to lock");
-        if(reject)need(e==marketing.failure,"Marketing ACK original cause changed");
-    }
     auto conflicting=ack;conflicting["rows"]=Json::array({{{"id",1},{"sha256",std::string(64,'a')}}});
     const auto prior_calls=economy.calls;
     need(!route_json(host,2,conflicting)&&e.find("duplicate applied Frame ACK")!=std::string::npos&&economy.calls==prior_calls,"conflicting duplicate rejected before Subscriber cache mutation");

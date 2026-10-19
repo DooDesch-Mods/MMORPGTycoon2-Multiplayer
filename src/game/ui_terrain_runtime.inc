@@ -1,6 +1,9 @@
 // Included after ui_region_runtime.cpp's namespace. Region identity and complete
 // scenery/ledger readback are shared locally; wire types contain no native owner.
 #include "ui_terrain_runtime.h"
+#include "scenery_make_history.h"
+#include "group_reader.h"
+#include "duplicate_calls.h"
 #include "native_polyshape.h"
 #include "terrain_codeguards.h"
 #include "terrain_height_grid.h"
@@ -38,6 +41,9 @@ struct TerrainOperation {
     bool constructed=false,attempted=false,returned=false,confirmed=false,retired=false;
     uintptr_t graph=0;int32_t native_cost=-1;float changed_area=0;
     std::vector<uint64_t> removed_scenery_uids;std::vector<std::string> keys;
+    std::vector<uint64_t> history_before_uids,history_after_uids;
+    std::map<uint64_t,scenery_make_history::Saved> history_scenery;
+    std::map<uint64_t,std::string> history_keys;
     std::string cause;
 };
 struct TerrainRuntime {
@@ -304,6 +310,7 @@ void tick() {
     if(!stroke.ui_token.empty())terrain.ui_jobs.at(stroke.ui_token)["submitted"]=true;++terrain.submitted;
 }
 bool unresolved(){if(terrain.capture||terrain.pending)return true;for(const auto& [token,job]:terrain.ui_jobs){(void)token;if(!job.value("confirmed",false))return true;}return false;}
+#include "terrain_history_runtime.inc"
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e) {
     if(request.terrain.height)return height_perform(binding,request,authority,e);
     auto* r=runtime(e);if(!r||!terrain.ready||request.action!=action::Action::TerrainStroke||!action::valid_terrain(request.terrain)){e="terrain native runtime or intent unavailable: "+e;return action::Outcome::RejectedNoEffect;}
@@ -321,6 +328,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     auto& operation=terrain.operations[request.action_uuid];operation.binding=binding;operation.request=request;
     operation.evidence.before=money;operation.evidence.region_before=authority?authority->region_before:before.state;
     operation.evidence.terrain_before=authority?authority->terrain_before:terrain_before;
+    if(!history_capture(*r,before,bindings,operation,e))return action::Outcome::RejectedNoEffect;
     operation.attempted=true;
     auto unknown=[&]{operation.cause=e;return action::Outcome::Unknown;};
     if(authority&&!native_error(seed(before.random,global,*authority),"authority RNG seed",e))return unknown();
@@ -356,6 +364,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        (authority&&(operation.evidence.region_after!=authority->region_after||operation.evidence.terrain_after!=authority->terrain_after||operation.evidence.region_retired_sha256!=authority->region_retired_sha256))) {
         e="terrain original cost/content/side effects differ from authority";return unknown();
     }
+    if(!history_source(*r,before,after,operation,e))return unknown();
     operation.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& b,const action::Request& request,action::Evidence& out,std::string& e) {
@@ -371,8 +380,10 @@ bool retire(const action::Binding& b,const action::Request& request,std::string&
     action::Evidence out;if(!observe(b,request,out,e))return false;
     auto& operation=terrain.operations.at(request.action_uuid);auto* r=runtime(e);if(!r)return false;
     if(operation.retired)return fail(e,"terrain receipt already retired");
+    if(!request.terrain.height&&!building_history_slice::remember_terrain(request.action_uuid,operation.graph,e))return false;
     if(!native_error(unary(reinterpret_cast<Unary>(r->image+(request.terrain.height?0x5e12a0:0x5e0fd0)),operation.brush->bytes),"private brush destructor",e))return false;
-    operation.constructed=false;operation.retired=true;return true;
+    operation.constructed=false;
+    operation.retired=true;return true;
 }
 bool retired_keys(const action::Binding& b,const action::Request& request,std::vector<std::string>& keys,std::string& e) {
     action::Evidence out;if(!observe(b,request,out,e))return false;keys=terrain.operations.at(request.action_uuid).keys;return true;

@@ -1,6 +1,7 @@
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
  "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_quest_state.inc"
+ "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_quest_runtime.inc"
  "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/native_monetary.cpp"
  "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/save_scope.cpp"
  "${MT2MP_SOURCE_ROOT}/test/extract_npc_state_guard.py")

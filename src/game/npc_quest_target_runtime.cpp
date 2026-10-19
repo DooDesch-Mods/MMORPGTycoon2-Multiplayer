@@ -1,9 +1,12 @@
 #include "npc_quest_target_runtime.h"
+#include "scene_clone/quest_preview.h"
 #include "npc_zone_append.h"
 #include "npc_quest_building_key.h"
 #include "building_capture_identity.h"
 #include "native_open_runtime.h"
 #include "root_saved_building.h"
+#include "typed_action_runtime.h"
+#include "dungeon_zone_cascade.h"
 #ifndef MT2MP_QUEST_TARGET_RUNTIME_TEST
 #include "mt2mp/core/logger.h"
 #else
@@ -15,6 +18,7 @@ template<class... Args> void quest_test_log(const char* message, const Args&...)
 #include "mt2mp/net/snapshot_sync.h"
 #include <atomic>
 #include <mutex>
+#include <optional>
 
 namespace mt2mp::game::npc_quest_target_runtime {
 namespace {
@@ -38,10 +42,16 @@ std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Array> observed;
 std::map<int32_t, q::SavedPool> pools;
+struct ScenePool {dungeon_scene_roster::Scene scene;uintptr_t manager=0;q::SavedPool saved;};
+std::optional<std::vector<ScenePool>> staged_scenes;
+dungeon_scene_identity_runtime::World staged_scene_world;
+std::map<uintptr_t,ScenePool> scene_pools;
 std::map<std::string, npc_zone_append::Receipt> zone_appends;
 #ifdef MT2MP_QUEST_TARGET_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
 using TestLink = bool(*)(uintptr_t, uintptr_t, int32_t&, std::string&);
+using TestUid=uint32_t(*)(uint64_t,uintptr_t&);
+TestUid test_uid=nullptr;
 TestRead test_read = nullptr;
 TestLink test_link = nullptr;
 #endif
@@ -55,7 +65,7 @@ struct Memory {
 } memory;
 bool reject(std::string& error, const std::string& cause) {
     if (failure.empty()) { failure = cause; LOG_ERROR("[QuestTargets] snapshot={} cause={}; original serialization unchanged", uuid, cause); }
-    error = failure; pools.clear(); return false;
+    error = failure; pools.clear();scene_pools.clear(); return false;
 }
 void caught(const char* cause) noexcept {
     emergency = true; OutputDebugStringA("ERROR QuestTargets observer exception: ");
@@ -66,13 +76,13 @@ bool healthy(std::string& error) {
     if (!failure.empty()) { error = failure; return false; }
     return true;
 }
-bool same_world(const opened::CurrentWorld& a, const opened::CurrentWorld& b) {
+template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
     return a.generation == b.generation && a.world_epoch == b.world_epoch && a.game == b.game &&
         a.mode == b.mode && a.state == b.state && a.world == b.world && a.map == b.map;
 }
 void reset(const std::string& id, const std::string& digest) {
     uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); zone_appends.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
+    load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
     if (!actual || (bound_context && bound_context != actual)) return reject(error, "Zone property save/load context differs");
@@ -116,6 +126,28 @@ bool retain(q::Array value, std::string& error) {
         return reject(error, "Zone property array duplicate or observation budget exceeded");
     return true;
 }
+DWORD exact_uid(uint64_t uid,uintptr_t& out){
+#ifdef MT2MP_QUEST_TARGET_RUNTIME_TEST
+    if(test_uid)return test_uid(uid,out);
+#endif
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+bool validate_scene(ScenePool& scene,std::string& error){
+    uintptr_t owner=0,shard=0;
+    if(!q::typed(memory,image,scene.manager,0x16fe170,error)||!q::at(memory,scene.manager,0xf0,owner,error)||
+       !q::at(memory,scene.scene.owner.region,0x70,shard,error))return false;
+    if(owner!=scene.scene.owner.region||shard!=scene.scene.owner.shard)return q::fail(error,"Dungeon Quest Zone manager reciprocal Region/Shard differs");
+    auto links=[&](uintptr_t pointer,int32_t& link,std::string& e){for(const auto& row:scene.saved.array.zones)if(row.pointer==pointer){link=row.link_id;return true;}
+        return q::fail(e,"Dungeon Quest Zone member lacks original saved record");};
+    q::Array actual;if(!q::observe_array(memory,image,scene.manager+0x48,budget,links,actual,error))return false;
+    if(actual!=scene.saved.array)return q::fail(error,"Dungeon Quest Zone native saved identity/order/content changed");
+    for(const auto& row:actual.zones){uintptr_t actor_region=0,actor_shard=0,found=0;
+        if(!q::at(memory,row.pointer,0x178,actor_region,error)||!q::at(memory,row.pointer,0x170,actor_shard,error))return false;
+        const auto exception=exact_uid(row.uid,found);
+        if(exception||found!=row.pointer||actor_region!=owner||actor_shard!=shard)return q::fail(error,"Dungeon Quest Zone original full UID/scene owner differs exception="+std::to_string(exception));
+    }return true;
+}
 bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& error) {
     if (!healthy(error) || !saves.empty() || !loads.empty() || !load_stack.empty() || !bound_context || observed.empty())
         return reject(error, failure.empty() ? "Zone snapshot lacks complete property returns/context" : failure);
@@ -138,7 +170,25 @@ bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& e
             return reject(error, error.empty() ? "saved Region id repeated" : error);
     }
     if (ready.empty() || !q::unchanged(memory, map + 0x230, 4096, regions, error)) return reject(error, error.empty() ? "saved root Regions absent" : error);
-    origin = world; pools = std::move(ready); observed.clear();
+    std::map<uintptr_t,ScenePool> ready_scenes;std::set<std::string> scene_keys;
+    for(const auto& [id,saved]:ready)for(const auto& row:saved.array.zones)
+        if(!scene_keys.insert(q::zone_key(sha,id,row)).second)return reject(error,"Quest Zone original global saved record key duplicated");
+    if(staged_scenes){
+        if(staged_scene_world.uuid!=uuid||staged_scene_world.sha256!=sha||!same_world(staged_scene_world,world))return reject(error,"Dungeon Quest Zone staged snapshot/world lifetime differs");
+        for(auto scene:*staged_scenes){const auto found=observed.find(scene.manager+0x48);
+            if(found==observed.end())return reject(error,"Dungeon scene Quest Zone native property unobserved");
+            scene.saved={q::Origin{uuid,sha,world.world_epoch,world.generation},scene.scene.exterior_region,found->second};
+            if(!validate_scene(scene,error))return reject(error,error);
+            for(const auto& row:scene.saved.array.zones){const auto key=sha+":world:zone:"+(row.link_id>0?std::to_string(row.link_id):snapshot_zone_key::scene_suffix(
+                scene.scene.exterior_region,scene.scene.exterior_slot,scene.scene.owner.instance_index,int32_t(row.saved_child)));
+                if(!snapshot_zone_key::valid(key)||!scene_keys.insert(key).second)return reject(error,"Dungeon Quest Zone canonical saved record duplicated or invalid");
+                scene.saved.action_keys.emplace(row.pointer,key);
+            }
+            if(!ready_scenes.emplace(scene.manager,std::move(scene)).second)return reject(error,"Dungeon Quest Zone manager duplicated");
+        }
+    }
+    if(ready.size()+ready_scenes.size()!=observed.size())return reject(error,"Quest Zone serialization contains an unclassified native scene array");
+    origin = world; pools = std::move(ready);scene_pools=std::move(ready_scenes); observed.clear();staged_scenes.reset();staged_scene_world={};
     LOG_INFO("[QuestTargets] Native snapshot Monster pools bound uuid={} sha={} regions={}", uuid, sha, pools.size());
     error.clear(); return true;
 }
@@ -159,6 +209,123 @@ bool current(int32_t id, q::World& world, const q::SavedPool*& saved, std::strin
         !q::at(memory, image, 0x13df630, selection, error) || !q::typed(memory, image, selection, 0x17205d0, error)) return false;
     world = {found->second.origin, image, map, map + 0x1c0, region, selection, id}; saved = &found->second; return true;
 }
+}
+bool stage_scenes(const dungeon_scene_identity_runtime::Census& census,std::string& error){
+    std::lock_guard lock(gate);
+    if((!host_active&&!client_active)||staged_scenes||GetCurrentThreadId()!=main_thread||!saves.empty()||!loads.empty()||!load_stack.empty())
+        return reject(error,"Dungeon Quest Zone staging requires its idle active native snapshot observer");
+    if(!healthy(error)||!census.snapshot_census||census.world.uuid!=uuid)return reject(error,error.empty()?"Dungeon Quest Zone staged owned snapshot UUID/census differs":error);
+    std::vector<ScenePool> next;for(const auto& row:census.pools)next.push_back({row.scene,row.managers[1],{}});
+    staged_scene_world=census.world;staged_scenes=std::move(next);error.clear();return true;
+}
+#include "scene_clone/quest_preview.inc"
+bool bind_scene_destination(uintptr_t destination,std::string& key,std::string& error){
+    key.clear();
+    dungeon_scene_identity_runtime::Census current_scenes;
+    if(!dungeon_scene_identity_runtime::read_current(current_scenes,error))return false;
+    std::lock_guard lock(gate);key.clear();opened::CurrentWorld actual;
+    if(!healthy(error)||GetCurrentThreadId()!=main_thread||host_active||client_active||net::current_snapshot_id()!=uuid||
+       !native_open_runtime::read_current_world(actual,error)||!same_world(origin,actual))return q::fail(error,error.empty()?"Dungeon Quest Zone requires current admitted NativeOpen snapshot":error);
+    for(auto& [manager,scene]:scene_pools){(void)manager;for(const auto& row:scene.saved.array.zones)if(row.pointer==destination){
+        const auto fresh=std::find_if(current_scenes.pools.begin(),current_scenes.pools.end(),[&](const auto& value){return value.managers[1]==scene.manager;});
+        if(current_scenes.world.uuid!=actual.uuid||current_scenes.world.sha256!=actual.sha256||actual.uuid!=origin.uuid||actual.sha256!=origin.sha256||
+           !same_world(current_scenes.world,actual)||fresh==current_scenes.pools.end()||
+           fresh->scene.owner.key!=scene.scene.owner.key||fresh->scene.owner.shard!=scene.scene.owner.shard||fresh->scene.owner.region!=scene.scene.owner.region||
+           fresh->scene.owner.dungeon!=scene.scene.owner.dungeon||fresh->scene.dungeon_uid!=scene.scene.dungeon_uid||
+           fresh->scene.owner.exterior_uid!=scene.scene.owner.exterior_uid)
+            return q::fail(error,"Dungeon Quest Zone current exterior/template/Instance ownership differs");
+        if(!validate_scene(scene,error))return false;key=q::zone_key(scene.saved,row);error.clear();return true;}}
+    return q::fail(error,"Dungeon Quest Zone destination lacks a confirmed saved scene record");
+}
+namespace {
+bool cell_lease(const action_session::Binding& binding,const action_session::Request& request,std::string& error){
+    const auto controller=typed_action_runtime::controller_status();opened::CurrentWorld actual;
+    const bool stroke=request.action==action_session::Action::SetDungeonPalette&&request.dungeon_palette.edit==action_session::DungeonPaletteEdit::Cells;
+    const bool history=(request.action==action_session::Action::UndoBuilding||request.action==action_session::Action::RedoBuilding)&&request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid;
+    if(!healthy(error)||GetCurrentThreadId()!=main_thread||host_active||client_active||request.snapshot_uuid!=uuid||
+       (!stroke&&!history)||binding.native_epoch!=origin.world_epoch||binding.native_generation!=origin.generation||
+       !controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid||
+       !native_open_runtime::read_current_world(actual,error)||!same_world(origin,actual))
+        return q::fail(error,error.empty()?"Dungeon cell Quest Zone cascade requires exact current pending Close stroke":error);
+    return true;
+}
+}
+bool prepare_dungeon_cells(const action_session::Binding& binding,const action_session::Request& request,DungeonCellCascade& out,std::string& error){
+    out={};std::lock_guard lock(gate);if(!cell_lease(binding,request,error))return false;
+    DungeonCellCascade next;next.snapshot=request.snapshot_uuid;next.request=request.action_uuid;next.epoch=binding.native_epoch;next.generation=binding.native_generation;
+    for(auto& [manager,scene]:scene_pools){if(!validate_scene(scene,error))return false;next.before.emplace(manager,scene.saved);}
+    out=std::move(next);error.clear();return true;
+}
+bool confirm_dungeon_cells(const action_session::Binding& binding,const action_session::Request& request,DungeonCellCascade& receipt,std::string& error){
+    if(request.action!=action_session::Action::SetDungeonPalette)return q::fail(error,"Dungeon cell forward Zone confirmation requires original stroke");
+    dungeon_scene_identity_runtime::Census current_scenes;if(!dungeon_scene_identity_runtime::read_current(current_scenes,error))return false;
+    std::lock_guard lock(gate);if(!cell_lease(binding,request,error))return false;
+    if(receipt.confirmed||receipt.snapshot!=request.snapshot_uuid||receipt.request!=request.action_uuid||receipt.epoch!=binding.native_epoch||
+       receipt.generation!=binding.native_generation||receipt.before.size()!=scene_pools.size())return q::fail(error,"Dungeon cell Quest Zone cascade receipt is absent, foreign or replayed");
+    auto next=scene_pools;
+    for(auto& [manager,scene]:next){const auto retained=receipt.before.find(manager);const auto& old=scene.saved;
+        if(retained==receipt.before.end()||retained->second.origin!=old.origin||retained->second.saved_region!=old.saved_region||
+           retained->second.array!=old.array||retained->second.action_keys!=old.action_keys)return q::fail(error,"Dungeon cell Quest Zone saved canonical state changed before original cascade completion");
+        const auto fresh=std::find_if(current_scenes.pools.begin(),current_scenes.pools.end(),[&](const auto& value){return value.managers[1]==manager;});
+        if(fresh==current_scenes.pools.end()||fresh->scene.owner.key!=scene.scene.owner.key||fresh->scene.owner.region!=scene.scene.owner.region||
+           fresh->scene.owner.shard!=scene.scene.owner.shard||fresh->scene.owner.dungeon!=scene.scene.owner.dungeon||fresh->scene.dungeon_uid!=scene.scene.dungeon_uid)
+            return q::fail(error,"Dungeon cell Quest Zone cascade changed an original complete scene owner");
+        auto links=[&](uintptr_t pointer,int32_t& link,std::string& e){for(const auto& row:old.array.zones)if(row.pointer==pointer){link=row.link_id;return true;}
+            return q::fail(e,"Dungeon cell Close cascade introduced an unbound Monster Zone");};
+        q::Array actual;if(!q::observe_array(memory,image,manager+0x48,budget,links,actual,error))return false;
+        const auto find=[](uint64_t uid,uintptr_t& found,std::string& e){const auto exception=exact_uid(uid,found);
+            return !exception||q::fail(e,"Dungeon cell Quest Zone cascade original FindUID exception="+std::to_string(exception));};
+        q::SavedPool changed;if(!dungeon_zone_cascade::reconcile(old,actual,find,changed,error))return false;scene.saved=std::move(changed);
+        if(!validate_scene(scene,error))return false;
+    }
+    scene_pools=std::move(next);receipt.confirmed=true;error.clear();return true;
+}
+bool confirm_dungeon_cell_history(const action_session::Binding& binding,const action_session::Request& request,DungeonCellCascade& receipt,
+                                 const DungeonCellCascade& original,const std::set<uint64_t>& restored_zones,std::string& error){
+    dungeon_scene_identity_runtime::Census scenes;if(!dungeon_scene_identity_runtime::read_current(scenes,error))return false;
+    std::lock_guard lock(gate);if(!cell_lease(binding,request,error))return false;
+    if((request.action!=action_session::Action::UndoBuilding&&request.action!=action_session::Action::RedoBuilding)||receipt.confirmed||
+       receipt.snapshot!=request.snapshot_uuid||receipt.request!=request.action_uuid||receipt.epoch!=binding.native_epoch||receipt.generation!=binding.native_generation||
+       receipt.before.size()!=scene_pools.size()||original.snapshot!=receipt.snapshot||original.epoch!=receipt.epoch||original.generation!=receipt.generation)
+        return q::fail(error,"Dungeon cell history Zone receipts are absent, foreign or replayed");
+    auto next=scene_pools;
+    for(auto& [manager,scene]:next){const auto previous=receipt.before.find(manager);const auto source=original.before.find(manager);
+        if(previous==receipt.before.end()||source==original.before.end()||previous->second.origin!=scene.saved.origin||
+           previous->second.array!=scene.saved.array||previous->second.action_keys!=scene.saved.action_keys)
+            return q::fail(error,"Dungeon cell history canonical Zone state changed before original graph completion");
+        const auto fresh=std::find_if(scenes.pools.begin(),scenes.pools.end(),[&](const auto& pool){return pool.managers[1]==manager;});
+        if(fresh==scenes.pools.end()||fresh->scene.owner.key!=scene.scene.owner.key||fresh->scene.owner.region!=scene.scene.owner.region||fresh->scene.owner.shard!=scene.scene.owner.shard)
+            return q::fail(error,"Dungeon cell history Zone complete scene owner changed");
+        std::set<uint64_t> restored;
+        for(const auto& row:source->second.array.zones)if(restored_zones.contains(row.uid))restored.insert(row.uid);
+        const auto links=[&](uintptr_t pointer,int32_t& link,std::string& e){uint64_t uid=0;if(!q::at(memory,pointer,0x18,uid,e))return false;
+            for(const auto& row:scene.saved.array.zones)if(row.pointer==pointer&&row.uid==uid){link=row.link_id;return true;}
+            for(const auto& row:source->second.array.zones)if(row.uid==uid&&restored.contains(uid)){link=row.link_id;return true;}
+            return q::fail(e,"Dungeon cell history native Zone has no current or original Make/Edit receipt");};
+        q::Array actual;if(!q::observe_array(memory,image,manager+0x48,budget,links,actual,error))return false;
+        const auto find=[](uint64_t uid,uintptr_t& pointer,std::string& e){const auto exception=exact_uid(uid,pointer);return !exception||q::fail(e,"Dungeon cell history original Zone FindUID exception="+std::to_string(exception));};
+        q::SavedPool changed;if(!dungeon_zone_cascade::reconcile_restored(scene.saved,source->second,actual,restored,find,changed,error))return false;
+        scene.saved=std::move(changed);if(!validate_scene(scene,error))return false;
+    }
+    // Other Zone types have no Quest identity pool. Their complete native
+    // census and graph target checks remain with the Dungeon history owner.
+    scene_pools=std::move(next);receipt.confirmed=true;error.clear();return true;
+}
+bool bind_current_destination(uintptr_t destination,std::string& key,bool& in_dungeon,std::string& error){
+    key.clear();in_dungeon=false;int32_t id=-1;
+    {
+        std::lock_guard lock(gate);opened::CurrentWorld actual;uintptr_t shard=0,region=0,reverse=0;
+        if(!healthy(error))return false;
+        if(GetCurrentThreadId()!=main_thread||host_active||client_active||net::current_snapshot_id()!=uuid||!origin.generation||!origin.world_epoch)
+            return q::fail(error,"Quest reference requires its current admitted NativeOpen snapshot on Mainthread");
+        if(!native_open_runtime::read_current_world(actual,error))return false;
+        if(!same_world(origin,actual))return q::fail(error,"Quest reference current NativeOpen lifetime changed");
+        if(!q::at(memory,destination,0x170,shard,error)||!q::at(memory,destination,0x178,region,error)||!q::at(memory,region,0x70,reverse,error))return false;
+        if(!shard||!region||reverse!=shard)return q::fail(error,"Quest reference actual reciprocal Shard/Region differs");
+        in_dungeon=shard!=uintptr_t(actual.map)+0x1c0;
+        if(!in_dungeon&&!q::at(memory,region,0x834,id,error))return false;
+    }
+    return in_dungeon?bind_scene_destination(destination,key,error):bind_destination(id,destination,key,error);
 }
 bool initialize(std::string& error) {
     std::lock_guard lock(gate);
@@ -228,7 +395,7 @@ bool seal_client(std::string& error) {
         return reject(error, "Quest Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false; return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); zone_appends.clear(); }
+void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;

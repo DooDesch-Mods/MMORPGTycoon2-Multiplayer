@@ -178,12 +178,10 @@ void proofs_and_rejections() {
     CHECK(backend.create(address(first),detour(),&original)==MH_OK);CHECK(backend.verify_code(image+first,bytes,sizeof bytes,error));
     CHECK(backend.enable(address(first))==MH_OK);CHECK(backend.verify_code(image+first,bytes,sizeof bytes,error));
 }
-void monster_named_admission() {
-    constexpr uintptr_t monster=0x5bf3c0;
-    constexpr char name[]="mp.monster-release-capture.5bf3c0";
-    const auto item=std::find_if(std::begin(catalog),std::end(catalog),[](const auto& row){return row.rva==monster;});
+void monster_named_admission(uintptr_t monster,const char* name) {
+    const auto item=std::find_if(std::begin(catalog),std::end(catalog),[monster](const auto& row){return row.rva==monster;});
     CHECK(item!=std::end(catalog));CHECK(std::strcmp(item->name,name)==0);CHECK(!item->shared);
-    CHECK(std::count_if(std::begin(catalog),std::end(catalog),[](const auto& row){return row.rva==monster;})==1);
+    CHECK(std::count_if(std::begin(catalog),std::end(catalog),[monster](const auto& row){return row.rva==monster;})==1);
     Fake fake;Backend backend;CHECK(fake.bind(backend));void* original=nullptr;fake.published=&original;
     CHECK(backend.create(address(monster),detour(),&original)==MH_OK);
     CHECK(original==reinterpret_cast<void*>(0x7f000000+monster));
@@ -221,7 +219,10 @@ void admission_and_shim() {
 }
 }
 int main() {
-    try{publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission();admission_and_shim();
+    try{publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
+        monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
+        monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");
+        monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");admission_and_shim();
         std::printf("framework_hook_backend: %u checks passed\n",checks);return 0;}
     catch(const std::exception& error){std::fprintf(stderr,"framework_hook_backend failed: %s\n",error.what());return 1;}
 }

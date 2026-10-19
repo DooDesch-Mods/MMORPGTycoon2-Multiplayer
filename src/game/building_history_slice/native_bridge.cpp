@@ -1,4 +1,5 @@
 #include "native_bridge.h"
+#include "region_history_key.h"
 #include "stack_transition.h"
 #include "multiplayer_world/world_state.h"
 #include "typed_action_runtime.h"
@@ -266,7 +267,7 @@ bool invoke_ui(const nlohmann::json& args,nlohmann::json& out,std::string& error
 
 static bool remember_graph(const std::string& original,const std::string& object_key,uintptr_t graph,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
-    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||!world_state::valid_object_key(object_key)||!graph) {
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||(!world_state::valid_object_key(object_key)&&object_key!="group-object:"+original&&object_key!="groups:"+original&&object_key!="duplicate:"+original&&object_key!="scenery-stroke:"+original&&object_key!="selection:"+original&&object_key!="path:"+original&&object_key!="terrain:"+original&&object_key!="dungeon-tiles:"+original&&object_key!="quests:"+original&&object_key!="network:"+original&&!mt2mp::game::region_history_key::parse(object_key))||!graph) {
         error="building history mutation graph binding invalid";return false;
     }
     if(!bind_current_snapshot(*runtime,error))return false;
@@ -282,6 +283,39 @@ static bool remember_graph(const std::string& original,const std::string& object
 }
 bool remember_place(const std::string& original,uintptr_t graph,std::string& error) {return remember_graph(original,"action:"+original,graph,error);}
 bool remember_remove(const std::string& original,const std::string& key,uintptr_t graph,std::string& error) {return remember_graph(original,key,graph,error);}
+bool remember_move(const std::string& original,const std::string& key,uintptr_t graph,std::string& error) {return remember_graph(original,key,graph,error);}
+
+bool remember_region(const std::string& original,int32_t id,uintptr_t graph,std::string& error){
+    if(id<0){error="Region history ID is negative";return false;}
+    return remember_graph(original,"region:"+std::to_string(id),graph,error);
+}
+bool remember_terrain(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"terrain:"+original,graph,error);}
+bool remember_dungeon_tiles(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"dungeon-tiles:"+original,graph,error);}
+bool remember_quest(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"quests:"+original,graph,error);}
+bool remember_network(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"network:"+original,graph,error);}
+bool remember_path(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"path:"+original,graph,error);}
+bool remember_duplicate(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"duplicate:"+original,graph,error);}
+bool remember_scenery(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"scenery-stroke:"+original,graph,error);}
+bool remember_group(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"groups:"+original,graph,error);}
+bool remember_group_object(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"group-object:"+original,graph,error);}
+bool remember_selection(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"selection:"+original,graph,error);}
+bool graph_for(action::Action direction,const std::string& original,uintptr_t& graph,std::string& error){
+    graph=0;auto* runtime=published.load(std::memory_order_acquire);
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||
+       (direction!=action::Action::UndoBuilding&&direction!=action::Action::RedoBuilding)){
+        error="history graph lookup requires bound Mainthread and direction";return false;}
+    if(!bind_current_snapshot(*runtime,error))return false;
+    const auto found=runtime->buildings.find(original);
+    if(found==runtime->buildings.end()){error="history graph source absent";return false;}
+    const auto expected=direction==action::Action::UndoBuilding?found->second.undo:found->second.redo;
+    host::ProcessMemory memory;witness::UndoWitness undo;witness::GraphWitness checked;
+    if(!witness::read_undo(memory,runtime->image,undo,error))return false;
+    const auto& stack=direction==action::Action::UndoBuilding?undo.undo:undo.redo;
+    if(undo.active_graph||!expected||stack.empty()||stack.back()!=expected){error="history graph source is not exact native stack top";return false;}
+    if(!witness::read_graph(memory,runtime->image,expected,checked,error))return false;
+    if(!checked.locked||checked.pending_delete){error="history graph source is not drained/locked";return false;}
+    graph=expected;error.clear();return true;
+}
 
 action::Outcome perform(action::Action direction,const std::string& original,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);

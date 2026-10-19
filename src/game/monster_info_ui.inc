@@ -122,15 +122,13 @@ bool info_code(Memory& m,std::string& e){
 }
 bool info_target(const std::string& birth,a::Binding& binding,Pin& p,d::Sample& sample,a::MonsterState& value,
                  a::ui_capture::LocalBinding& local,std::string& e){
-    local={};const auto snapshot=net::current_snapshot_id();auto place=state.operations.find(birth);
-    if(!state.ready||GetCurrentThreadId()!=state.thread||place==state.operations.end()||!place->second.confirmed||!place->second.retired||
-       place->second.request.snapshot_uuid!=snapshot||!typed_action_runtime::network_binding(snapshot,binding,e))
-        return fail(e,e.empty()?"Monster InfoWindow confirmed current birth receipt absent":e);
-    Memory m;monster_zone_read::Monster row;
-    if(!move_target(m,binding,snapshot,place->second.request.monster.region,birth,p,sample,row,e)||
-       row.pointer!=place->second.pointer||row.uid!=place->second.uid||!effect(m,p,sample,value,e,row.uid))
-        return fail(e,e.empty()?"Monster InfoWindow full UID/current-owner birth differs":e);
-    local={p.world.selection,row.pointer,row.uid,binding.native_epoch,binding.native_generation,snapshot,"action:"+birth,false,false,false};
+    local={};const auto snapshot=net::current_snapshot_id();
+    if(!state.ready||GetCurrentThreadId()!=state.thread||!monster_target_key::input(birth)||
+       !typed_action_runtime::network_binding(snapshot,binding,e))return fail(e,e.empty()?"Monster InfoWindow current canonical target unavailable":e);
+    Memory m;monster_zone_read::Monster row;int32_t saved=-1;
+    if(!target_region(m,binding,snapshot,birth,saved,e)||!move_target(m,binding,snapshot,saved,birth,p,sample,row,e)||
+       !effect(m,p,sample,value,e,row.uid))return false;
+    local={p.world.selection,row.pointer,row.uid,binding.native_epoch,binding.native_generation,snapshot,monster_target_key::canonical(birth),false,false,false};
     return true;
 }
 }

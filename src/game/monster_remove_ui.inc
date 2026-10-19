@@ -4,7 +4,7 @@ bool native_remove_ui(const json& args,json& result,std::string& e)try{
        !args.contains("token")||!args.at("token").is_string()||!args.contains("target_action_uuid")||!args.at("target_action_uuid").is_string())
         return fail(e,"Monster Remove UI requires exact family, token and target_action_uuid");
     const auto token=args.at("token").get<std::string>(),birth=args.at("target_action_uuid").get<std::string>();
-    if(!token_valid(token)||!token_valid(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64)
+    if(!token_valid(token)||!monster_target_key::input(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64)
         return fail(e,"Monster Remove UI token or birth UUID invalid/used");
     const auto controller=typed_action_runtime::controller_status();
     if(!state.ready||GetCurrentThreadId()!=state.thread||!ui_remove_runtime::enabled()||!net::session_wire::connected()||state.fault||state.pending||
@@ -44,7 +44,8 @@ bool native_remove_ui(const json& args,json& result,std::string& e)try{
             return unknown("Monster Remove UI lacks exact synchronous Host operation");
         const auto& op=found->second;
         if(op.binding!=binding||op.request.action!=a::Action::RemoveMonster||op.request.action_uuid!=id||
-           op.request.snapshot_uuid!=local.snapshot_uuid||op.request.target_action_uuid!=birth||op.request.canonical_record_key!=local.canonical_record_key||
+           op.request.snapshot_uuid!=local.snapshot_uuid||!monster_target_key::request(op.request.canonical_record_key,op.request.target_action_uuid)||
+           monster_target_key::argument(op.request.canonical_record_key)!=birth||op.request.canonical_record_key!=local.canonical_record_key||
            op.birth.pointer!=local.object||op.birth.uid!=local.uid||!op.attempted||!op.returned||!op.confirmed||op.original_calls!=1||
            op.evidence.monster_before!=value||!no_gameplay_change(prepared,op.before))
             return unknown(op.cause.empty()?"Monster Remove UI synchronous Host binding or original receipt differs":op.cause);

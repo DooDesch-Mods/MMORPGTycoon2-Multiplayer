@@ -3,6 +3,7 @@
 #include <set>
 #include "snapshot_building_key.h"
 #include "npc_target_key.h"
+#include "party_identity.h"
 
 namespace mt2mp::subscriber_lifecycle::first_append {
 namespace {
@@ -111,6 +112,7 @@ bool subscriber_toon(Memory& m,const ReferenceWorld& w,uintptr_t wanted,int32_t 
 }
 }
 bool valid_npc_key(const std::string& key) {return game::npc_target_key::valid(key);}
+bool valid_party_key(const std::string& key) {return game::party_identity::valid_key(key);}
 bool valid_building_key(const std::string& key) {
     if (game::snapshot_building_key::valid(key)) return true;
     if (key.size()!=43 || !key.starts_with("action:")) return false;
@@ -168,6 +170,12 @@ bool identify_reference(Memory& m,const ReferenceWorld& w,uintptr_t object,int32
         if(!subscriber_toon(m,w,object,-1,found,index,e))return false;
         out.kind=ReferenceKind::SubscriberToon;out.subscriber_id=index;return true;
     }
+    if(vptr==w.image+0x174a370){
+        if(!w.parties)return fail(e,"Party reference has no current native bindings");
+        if(!w.parties->identify(object,out.party_key,e))return false;
+        if(!valid_party_key(out.party_key))return fail(e,"Party reference canonical key invalid");
+        out.kind=ReferenceKind::SharedParty;return true;
+    }
     return fail(e,"external reference has no supported portable owner key");
 }
 bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key,uintptr_t& out,std::string& e){
@@ -177,7 +185,13 @@ bool resolve_reference(Memory& m,const ReferenceWorld& w,const ReferenceKey& key
     if(key.kind!=ReferenceKind::SharedBuilding&&!key.building_key.empty())return fail(e,"non-Building reference has Building key");
     if(key.kind!=ReferenceKind::SubscriberToon&&key.subscriber_id!=-1)return fail(e,"non-Toon reference has Subscriber ID");
     if(key.kind!=ReferenceKind::SharedQuest&&key.sequence_id!=-1)return fail(e,"non-Quest reference has Quest sequence");
+    if(key.kind!=ReferenceKind::SharedParty&&!key.party_key.empty())return fail(e,"non-Party reference has Party key");
     switch(key.kind){
+    case ReferenceKind::SharedParty:
+        if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1||!valid_party_key(key.party_key))return fail(e,"Party reference key has invalid/foreign fields");
+        if(!w.parties)return fail(e,"Party reference has no current native bindings");
+        if(!w.parties->resolve(key.party_key,out,e))return false;
+        return ap(m,w,out,0x174a370,e);
     case ReferenceKind::RootShard:
         if(key.region_id!=-1||key.character_kind!=-1||key.character_id!=-1||key.ability_index!=-1)return fail(e,"RootShard key has foreign fields");
         out=shard;return true;

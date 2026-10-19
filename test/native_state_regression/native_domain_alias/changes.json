@@ -1,0 +1,147 @@
+[
+  {
+    "path": "src/game/intervention_census.cpp",
+    "sha256": "45476caedc756d4e20156e547838e97ad5103468aa634488e85cbe97670c4de9",
+    "changes": [
+      {
+        "old": "    for(const auto& prop:props.at(\"bindings\")){if(prop.at(\"revoked\").get<bool>())continue;if(prop.at(\"unknown\").get<bool>()||prop.at(\"snapshot_id\")!=world.uuid)return fail(error,\"Intervention current external prop alias is unknown or foreign\");",
+        "new": "    if(props.at(\"world_epoch\").get<uint64_t>()!=binding.native_epoch||props.at(\"world_generation\").get<uint64_t>()!=binding.native_generation||\n       world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)\n        return fail(error,\"Intervention current external prop native lifetime differs: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" prop_epoch=\"+props.at(\"world_epoch\").dump()+\" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" prop_generation=\"+props.at(\"world_generation\").dump()+\" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation));\n    for(const auto& prop:props.at(\"bindings\")){if(prop.at(\"revoked\").get<bool>())continue;if(prop.at(\"unknown\").get<bool>()||prop.at(\"snapshot_id\")!=context.snapshot_uuid)\n        return fail(error,\"Intervention current external prop alias is unknown or foreign: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" alias_snapshot=\"+prop.at(\"snapshot_id\").get<std::string>()+\" unknown=\"+prop.at(\"unknown\").dump()+\" local_uid=\"+prop.at(\"local_uid\").dump());",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/dungeon_instance_runtime.cpp",
+    "sha256": "4cd3b48245c5f4c43fd0c42e6d5151a771304c5bbb871cfef0b819fad5735a33",
+    "changes": [
+      {
+        "old": "    if(world.uuid!=expected.snapshot_uuid||world.generation!=binding.native_generation||world.world_epoch!=binding.native_epoch)\n        return fail(error,\"current Scene world differs from Session binding\");",
+        "new": "    if(world.uuid.empty()||world.generation!=binding.native_generation||world.world_epoch!=binding.native_epoch)\n        return fail(error,\"current Scene world differs from Session binding: session_snapshot=\"+expected.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation));",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/release_reference_runtime.inc",
+    "sha256": "13c73c3299571b94bc9b69499563bad0f943ddb31227d857587796132b8a15b6",
+    "changes": [
+      {
+        "old": "        if(prop.world_epoch!=b.native_epoch||prop.world_generation!=b.native_generation||prop.snapshot_id!=world.uuid||!prop.uid||(!prop.normal_building&&!prop.normal_scenery))return fail(e,\"Release reference full-UID Building/Scenery current NativeOrigin/type differs\");",
+        "new": "        if(prop.world_epoch!=b.native_epoch||prop.world_generation!=b.native_generation||prop.snapshot_id!=c.snapshot_uuid||!prop.uid||(!prop.normal_building&&!prop.normal_scenery))\n            return fail(e,\"Release reference full-UID Building/Scenery current NativeOrigin/type differs: session_snapshot=\"+c.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n                \" alias_snapshot=\"+prop.snapshot_id+\" prop_epoch=\"+std::to_string(prop.world_epoch)+\" binding_epoch=\"+std::to_string(b.native_epoch)+\n                \" prop_generation=\"+std::to_string(prop.world_generation)+\" binding_generation=\"+std::to_string(b.native_generation));",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/character_membership_sample.inc",
+    "sha256": "035fceb6d8f51b8146176315cbf5bfacf2132521061c0f35e1f9ed06c0a1ad8b",
+    "changes": [
+      {
+        "old": "scenes.world.uuid!=snapshot||scenes.world.world_epoch!=binding.native_epoch",
+        "new": "scenes.world.uuid!=out.world.origin.uuid||scenes.world.world_epoch!=binding.native_epoch",
+        "count": 1
+      },
+      {
+        "old": "character_actor_party_owners::append({snapshot,binding.native_epoch,binding.native_generation,out.world.root}",
+        "new": "character_actor_party_owners::append({out.world.origin.uuid,binding.native_epoch,binding.native_generation,out.world.root}",
+        "count": 1
+      },
+      {
+        "old": "identity::registry.enumerate(snapshot,binding.native_epoch,binding.native_generation,out.world.root,out.monster_aliases,error)",
+        "new": "identity::registry.enumerate(out.world.origin.uuid,binding.native_epoch,binding.native_generation,out.world.root,out.monster_aliases,error)",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/dungeon_scene_identity_runtime.cpp",
+    "sha256": "099d8522706a26d44447363355f89f286ee4e84623d443c89ccbd491d41d050f",
+    "changes": [
+      {
+        "old": "#include \"mt2mp/net/snapshot_buffer.h\"",
+        "new": "#include \"mt2mp/net/snapshot_buffer.h\"\n#include \"mt2mp/net/snapshot_sync.h\"",
+        "count": 1
+      },
+      {
+        "old": "    out={};exteriors.clear();identity::Scope before;if(!current(before,error))return false;",
+        "new": "    out={};exteriors.clear();const auto snapshot=net::current_snapshot_id();identity::Scope before;if(!current(before,error))return false;",
+        "count": 1
+      },
+      {
+        "old": "remove_diagnostics::resolve_current_building_key(world.uuid,building,uid,row.record,error)",
+        "new": "remove_diagnostics::resolve_current_building_key(snapshot,building,uid,row.record,error)",
+        "count": 1
+      },
+      {
+        "old": "    identity::Scope after;if(!current(after,error)||after!=before)\n        return fail(error,error.empty()?\"Dungeon current exterior NativeOpen lifetime changed\":error);",
+        "new": "    identity::Scope after;if(net::current_snapshot_id()!=snapshot||!current(after,error)||after!=before)\n        return fail(error,error.empty()?\"Dungeon current exterior shared snapshot or NativeOpen lifetime changed\":error);",
+        "count": 1
+      },
+      {
+        "old": "request.snapshot_uuid!=before.world.uuid",
+        "new": "request.snapshot_uuid!=net::current_snapshot_id()",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "path": "src/game/npc_quest_target_runtime.cpp",
+    "sha256": "c4d7769881c1bc7a033ed92a36eec5b85eaa65b1a78700f03e33e2fc7037d342",
+    "changes": [
+      {
+        "old": "        if(current_scenes.world.uuid!=uuid||!same_world(current_scenes.world,actual)||fresh==current_scenes.pools.end()||",
+        "new": "        if(current_scenes.world.uuid!=actual.uuid||current_scenes.world.sha256!=actual.sha256||actual.uuid!=origin.uuid||actual.sha256!=origin.sha256||\n           !same_world(current_scenes.world,actual)||fresh==current_scenes.pools.end()||",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/scene_clone/quest_preview.inc",
+    "sha256": "7fb330788f8f14a15cd17841be74b2aac33240ed0fb796692d92d0caeefba78f",
+    "changes": [
+      {
+        "old": "    return healthy(error)&&GetCurrentThreadId()==main_thread&&!host_active&&!client_active&&world.uuid==uuid&&world.sha256==sha&&net::current_snapshot_id()==uuid&&\n        native_open_runtime::read_current_world(actual,error)&&same_world(origin,actual)&&same_world(world,actual)||q::fail(error,error.empty()?\"Scene clone Quest Zone current world/Mainthread differs\":error);",
+        "new": "    return healthy(error)&&GetCurrentThreadId()==main_thread&&!host_active&&!client_active&&world.uuid==origin.uuid&&world.sha256==origin.sha256&&net::current_snapshot_id()==uuid&&\n        native_open_runtime::read_current_world(actual,error)&&actual.uuid==world.uuid&&actual.sha256==world.sha256&&same_world(origin,actual)&&same_world(world,actual)||q::fail(error,error.empty()?\"Scene clone Quest Zone current world/Mainthread differs\":error);",
+        "count": 1
+      },
+      {
+        "old": "fresh.saved.origin={raw.world.uuid,raw.world.sha256,raw.world.world_epoch,raw.world.generation}",
+        "new": "fresh.saved.origin={uuid,sha,raw.world.world_epoch,raw.world.generation}",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/dungeon_cells_graph.inc",
+    "sha256": "65d0a1001db35d2689490b4751c5fd2d4cfc0004c249b875607d1a85f8aed4d2",
+    "changes": [
+      {
+        "old": "external_owners(memory,{before.scenes.world.world_epoch,before.scenes.world.generation},before.scenes.world.uuid,before.palette,owners,error)",
+        "new": "external_owners(memory,{before.scenes.world.world_epoch,before.scenes.world.generation},net::current_snapshot_id(),before.palette,owners,error)",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "src/game/ui_build_runtime.cpp",
+    "sha256": "07dd39dbed08d347d387e8a229082458e37e07b78dd87446cbd7456473a71d7e",
+    "changes": [
+      {
+        "old": "    if(fresh.world.uuid!=net::current_snapshot_id()){error=\"building UI Purchase current snapshot differs\";return false;}",
+        "new": "    action::Binding binding;const auto snapshot=net::current_snapshot_id();\n    if(!typed_action_runtime::network_binding(snapshot,binding,error))return false;\n    if(fresh.world.uuid.empty()||fresh.world.world_epoch!=binding.native_epoch||fresh.world.generation!=binding.native_generation){\n        error=\"building UI Purchase current native binding differs: session_snapshot=\"+snapshot+\" native_snapshot=\"+fresh.world.uuid+\n            \" native_epoch=\"+std::to_string(fresh.world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" native_generation=\"+std::to_string(fresh.world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation);return false;}",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "path": "test/test_dungeon_quest_destination.cpp",
+    "sha256": "1b75fd9d65dd33009b96f797e98dc11f51044fd377a6e30280f15fa2e93e9bf7",
+    "changes": [
+      {
+        "old": "    for(int mode=0;mode<14;++mode){setup();auto& census=dungeon_scene_identity_runtime::census;",
+        "new": "    setup();origin.uuid=\"53aebc01-fd57-45c5-8b76-b45c69d59e9d\";origin.sha256=std::string(64,'b');actual_world=origin;dungeon_scene_identity_runtime::census.world=origin;\n    need(bind_current_destination(zone,key,in_dungeon,error),\"Host local NativeOpen UUID/SHA was equated with shared saved Zone origin: \"+error);\n    need(in_dungeon&&key==sha+\":world:zone:7\"&&scene_pools.at(scene_manager).saved.origin.uuid==uuid&&root_calls==0,\"Host native admission rewrote the shared Zone alias\");\n    for(int field=0;field<4;++field){setup();origin.uuid=\"53aebc01-fd57-45c5-8b76-b45c69d59e9d\";origin.sha256=std::string(64,'b');actual_world=origin;auto& census=dungeon_scene_identity_runtime::census;census.world=origin;\n        if(field==0)census.world.uuid=uuid;if(field==1)census.world.sha256=sha;if(field==2)actual_world.uuid=uuid;if(field==3)actual_world.sha256=sha;\n        need(!bind_current_destination(zone,key,in_dungeon,error)&&!error.empty()&&root_calls==0,\"Foreign native UUID/SHA acquired a saved scene alias\");}\n    for(int mode=0;mode<14;++mode){setup();auto& census=dungeon_scene_identity_runtime::census;",
+        "count": 1
+      }
+    ]
+  }
+]

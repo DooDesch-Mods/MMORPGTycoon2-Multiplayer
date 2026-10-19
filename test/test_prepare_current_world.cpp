@@ -15,6 +15,7 @@ bool simulation_ok=true;std::string simulation_error="original ledger read failu
 int32_t flat_day=1,record_day=1,cash=100000,record_cash=100000;bool clock_paused=true,record_present=true;float clock_scale=0;
 std::string loaded;
 std::vector<std::string> operations;
+std::vector<Json> arguments;
 Json response;
 void check(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 }
@@ -51,7 +52,8 @@ bool read_world_status(WorldStatus& world,std::string&){world=WorldStatus{};retu
 namespace native_lobby {bool admitted(){return false;}}
 namespace lobby_operations {
 bool available(){return fixture::executor;}
-bool submit(const char* op,const Json&,std::string& operation,std::string& error){
+bool submit(const char* op,const Json& args,std::string& operation,std::string& error){
+    fixture::arguments.push_back(args);
     fixture::operations.emplace_back(op);operation="fixture-operation";
     if(!fixture::submit_ok){error=fixture::submit_error;return false;}return true;
 }
@@ -87,7 +89,7 @@ void reset(){
     wire_error.clear();transport_error.clear();wire_calls=load_calls=title_calls=take_calls=runtime_calls=simulation_reads=0;
     simulation_ok=true;simulation_error="original ledger read failure";flat_day=record_day=1;cash=record_cash=100000;
     clock_paused=record_present=true;clock_scale=0;
-    loaded.clear();operations.clear();response=Json{};
+    loaded.clear();operations.clear();arguments.clear();response=Json{};
     mt2mp::Config::instance().is_host=true;mt2mp::Config::instance().local_test=false;
     prepare::step=prepare::Step::Idle;prepare::operation.clear();prepare::snapshot.clear();prepare::failure.clear();prepare::selected_path.clear();
     prepare::start_requested=false;prepare::source_current_world=false;prepare::zero_day_reload_attempted=false;
@@ -129,7 +131,7 @@ int main(){
     check(!prepare::prepare_current(error)&&error==fixture::wire_error&&!prepare::source_current_world&&fixture::operations.empty(),"hard handshake rejection lost cause or current source flag");
     fixture::wire_ok=true;fixture::wire_error.clear();
     prepare::source_current_world=true;
-    check(prepare::prepare("save/Selected/periodic.vrz",error)&&!prepare::source_current_world&&fixture::loaded=="save/Selected/periodic.vrz","selected-save route inherited rejected current source");
+    check(prepare::prepare("save/Selected/periodic.vrz",error)&&!prepare::source_current_world&&fixture::load_calls==0&&fixture::operations==std::vector<std::string>{"load_snapshot"}&&fixture::arguments.back()==Json{{"selected_file","save/Selected/periodic.vrz"}},"selected-save route inherited rejected current source");
 
     reset();fixture::submit_ok=false;
     check(!prepare::prepare_current(error)&&error==fixture::submit_error&&prepare::failure==fixture::submit_error&&prepare::step==prepare::Step::Failed,"capture submission error hidden");
@@ -174,14 +176,21 @@ int main(){
         "positive-day original operation order changed");
 
     reset();check(prepare::prepare("save/Selected/periodic.vrz",error),"selected positive-day setup failed");
-    check(prepare::step==prepare::Step::LoadSelected&&fixture::load_calls==1,"selected save did not load originally");
-    check(prepare::tick(error)&&prepare::step==prepare::Step::CaptureLocal,"selected save did not start local capture");
-    fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","selected-local"},{"building_bindings_confirmed",true}}}};
-    check(prepare::tick(error)&&prepare::tick(error),"selected save origin load failed");
-    fixture::response_ready=true;fixture::response={{"ok",true},{"result",nlohmann::json::object()}};
+    check(prepare::step==prepare::Step::LoadOrigin&&fixture::load_calls==0&&fixture::operations==std::vector<std::string>{"load_snapshot"},"selected save bypassed owned load");
+    check(fixture::arguments.back()==Json{{"selected_file","save/Selected/periodic.vrz"}},"selected exact source lost");
+    check(prepare::tick(error)&&fixture::operations.size()==1,"selected pending load replayed");
+    fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","selected-origin"}}}};
     check(prepare::tick(error)&&prepare::step==prepare::Step::CaptureShared&&!prepare::zero_day_reload_attempted&&
-        fixture::operations==std::vector<std::string>{"capture_local_snapshot","load_snapshot","capture_snapshot"},
-        "selected positive-day world did not keep original shared capture route");
+        fixture::operations==std::vector<std::string>{"load_snapshot","capture_snapshot"}&&fixture::title_calls==0&&fixture::load_calls==0,
+        "selected positive-day world performed redundant capture/Title/load or skipped owned result");
+
+    reset();fixture::connected=false;
+    check(prepare::prepare("save/Selected/periodic.vrz",error)&&prepare::step==prepare::Step::Handshake,"selected handshake setup failed");
+    fixture::connected=true;check(prepare::tick(error)&&fixture::operations==std::vector<std::string>{"load_snapshot"}&&fixture::load_calls==0,
+        "selected handshake bypassed owned load");
+    fixture::response_ready=true;fixture::response={{"ok",false},{"error",{{"message","original companion native SHA differs"}}}};
+    check(!prepare::tick(error)&&error=="original companion native SHA differs"&&fixture::title_calls==0&&fixture::operations.size()==1,
+        "selected companion failure lost cause or retried load");
 
     reset();check(prepare::prepare_current(error),"bounded zero-day setup failed");
     fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","first-local"},{"building_bindings_confirmed",true}}}};

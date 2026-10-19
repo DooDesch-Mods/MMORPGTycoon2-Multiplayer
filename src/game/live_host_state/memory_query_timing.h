@@ -16,7 +16,7 @@ enum class PageBoundary {Reader,OriginalCall};
 namespace detail {
 template<auto Query,class Clock=std::chrono::steady_clock>
 inline SIZE_T query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T length,Part category=Part::QueryOther){
-    if(!take_depth)return Query(address,information,length);
+    if(!take_depth&&!host_capture_depth)return Query(address,information,length);
     const bool scoped=page_read_scope!=nullptr;
     const auto phase=query_phase;
     const DWORD incoming=GetLastError();
@@ -25,11 +25,14 @@ inline SIZE_T query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T
     const SIZE_T result=Query(address,information,length);
     const DWORD error=GetLastError();
     const auto ns=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now()-started).count());
-    record(Part::MemoryVirtualQuery,ns);
-    record(category,ns);
-    if(category==Part::QueryPlacement){
-        record(scoped?Part::PlacementScopedOs:Part::PlacementUnscopedOs,ns);
-        record(scoped?scoped_phase_part(phase):unscoped_phase_part(phase),ns);
+    if(host_capture_depth){record(Part::HostMemoryVirtualQuery,ns);record(host_query_part,ns);}
+    if(take_depth){
+        record(Part::MemoryVirtualQuery,ns);
+        record(category,ns);
+        if(category==Part::QueryPlacement){
+            record(scoped?Part::PlacementScopedOs:Part::PlacementUnscopedOs,ns);
+            record(scoped?scoped_phase_part(phase):unscoped_phase_part(phase),ns);
+        }
     }
     SetLastError(error);
     return result;
@@ -60,13 +63,16 @@ public:
         page_read_scope=this;
     }
     explicit PageReadScope(PageBoundary boundary):PageReadScope(true,boundary){}
+    // A reentrant reader cannot borrow metadata from an original-call body.
+    static bool reader_active()noexcept{return page_read_scope&&page_read_scope->boundary_==PageBoundary::Reader;}
     PageReadScope(const PageReadScope&)=delete;
     PageReadScope& operator=(const PageReadScope&)=delete;
     ~PageReadScope(){if(enabled_){page_read_scope=previous_;clear_parent();}}
 };
 inline SIZE_T virtual_query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T length,Part category=Part::QueryOther){
     auto* scope=page_read_scope;
-    if(!scope||!information||length!=sizeof(MEMORY_BASIC_INFORMATION))return detail::query<::VirtualQuery>(address,information,length,category);
+    // Mixed original bodies can change mappings between their own reads.
+    if(!scope||scope->boundary_==PageBoundary::OriginalCall||!information||length!=sizeof(MEMORY_BASIC_INFORMATION))return detail::query<::VirtualQuery>(address,information,length,category);
     const DWORD incoming=GetLastError();
     static const DWORD page_size=[]{SYSTEM_INFO info{};GetSystemInfo(&info);return info.dwPageSize;}();
     const auto pointer=reinterpret_cast<uintptr_t>(address);

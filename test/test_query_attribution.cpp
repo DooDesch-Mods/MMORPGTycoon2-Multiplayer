@@ -53,6 +53,65 @@ void partition(){
 #include "open_witness_scope_cases.inc"
 #include "npc_saved_metadata_cases.inc"
 #include "world_prop_attribution_cases.inc"
+#include "character_definition_scope_cases.inc"
+#include "pure_reader_followup_cases.inc"
+#include "region_identity_scope_cases.inc"
+#include "dungeon_roster_scope_cases.inc"
+#include "party_pool_scope_cases.inc"
+#include "shared_census_scope_cases.inc"
+#include "general_project_identity_cases.inc"
+#include "composed_character_census_cases.inc"
+void host_capture_query_cases(void*& owned){
+    t::totals={};Clock::calls=0;Fake::calls=0;
+    need(t::host_capture_depth==0&&t::host_query_part==t::Part::HostQueryOther,"Host query attribution initially inactive");
+    MEMORY_BASIC_INFORMATION info{};const auto address=reinterpret_cast<LPCVOID>(uintptr_t(0x123456));
+    constexpr std::pair<t::Part,t::Part> stages[]={
+        {t::Part::HostCaptureManagement,t::Part::HostQueryManagement},
+        {t::Part::HostCaptureManagementFinish,t::Part::HostQueryManagementFinish},
+        {t::Part::HostCaptureEconomy,t::Part::HostQueryEconomy},
+        {t::Part::HostCaptureParty,t::Part::HostQueryParty},
+        {t::Part::HostCaptureRelease,t::Part::HostQueryRelease}};
+    {
+        t::Scope capture(t::Part::HostCapture);
+        for(const auto& [stage,category]:stages){
+            const auto before=count(category),all=count(t::Part::HostMemoryVirtualQuery);
+            t::Scope measured(stage);Fake::result=17;Fake::result_error=66;SetLastError(55);
+            need(t::detail::query<Fake::query,Clock>(address,&info,sizeof info,t::Part::QuerySavedFields)==17,"Host adapter preserves exact original result");
+            need(Fake::incoming==55&&GetLastError()==66&&Fake::address==address&&Fake::output==&info&&Fake::size==sizeof info,"Host timer preserves query arguments and LastError");
+            need(count(category)==before+1&&count(t::Part::HostMemoryVirtualQuery)==all+1,"one completed Host query has one stage and one total");
+            need(t::totals[size_t(category)].total_ns==100,"Host stage preserves exact measured nanoseconds");
+        }
+        need(t::host_query_part==t::Part::HostQueryOther,"Host child restores surrounding stage");
+        Fake::result=0;Fake::result_error=ERROR_INVALID_PARAMETER;SetLastError(77);
+        need(t::detail::query<Fake::query,Clock>(address,&info,3,t::Part::QueryPlacement)==0&&GetLastError()==ERROR_INVALID_PARAMETER,"Host OS query failure remains visible");
+        need(count(t::Part::HostQueryOther)==1&&count(t::Part::MemoryVirtualQuery)==0,"Host-only queries do not alter Client Take counters");
+        {t::Scope management(t::Part::HostCaptureManagement);
+            {t::Scope release(t::Part::HostCaptureRelease);need(t::host_query_part==t::Part::HostQueryRelease,"nested Host stage selects its own category");}
+            need(t::host_query_part==t::Part::HostQueryManagement,"nested Host stage restores parent category");}
+        const auto completed=count(t::Part::HostMemoryVirtualQuery);Fake::throws=true;bool caught=false;
+        try{t::detail::query<Fake::query,Clock>(address,&info,sizeof info);}
+        catch(const std::runtime_error& error){caught=std::string(error.what())=="original query exception";}Fake::throws=false;
+        need(caught&&count(t::Part::HostMemoryVirtualQuery)==completed,"Host original exception has no false completed-query receipt");
+        uint64_t worker_queries=99;size_t worker_depth=99;const auto parent=count(t::Part::HostMemoryVirtualQuery);
+        std::thread worker([&]{worker_depth=t::host_capture_depth;{t::Scope own(t::Part::HostCapture);Fake::result=9;t::detail::query<Fake::query,Clock>(address,&info,sizeof info);}worker_queries=count(t::Part::HostMemoryVirtualQuery);});worker.join();
+        need(worker_depth==0&&worker_queries==1&&count(t::Part::HostMemoryVirtualQuery)==parent,"Host capture attribution stays thread-local");
+        owned=VirtualAlloc(nullptr,4096,MEM_COMMIT|MEM_RESERVE,PAGE_READWRITE);need(owned!=nullptr,"Host owned test page");
+        const auto before=count(t::Part::HostMemoryVirtualQuery);
+        {t::PageReadScope pages;
+            SetLastError(321);need(t::virtual_query(owned,&info,sizeof info,t::Part::QueryPlacement)==sizeof info,"Host actual OS miss remains measured");
+            need(t::virtual_query(owned,&info,sizeof info,t::Part::QuerySavedFields)==sizeof info&&GetLastError()==321,"Host existing metadata hit preserves result and LastError");
+            need(count(t::Part::HostMemoryVirtualQuery)==before+1,"Host metadata hit is not counted as a second OS query");}
+        need(t::virtual_query(owned,&info,sizeof info)==sizeof info&&count(t::Part::HostMemoryVirtualQuery)==before+2,"Host scope exit still performs fresh OS query");
+        need(VirtualFree(owned,0,MEM_RELEASE)!=0,"release Host owned test page");owned=nullptr;
+    }
+    need(t::host_capture_depth==0&&t::host_query_part==t::Part::HostQueryOther,"Host capture restores depth and stage");
+    try{t::Scope outer(t::Part::HostCapture);t::Scope inner(t::Part::HostCaptureEconomy);throw std::runtime_error("Host scope unwind");}
+    catch(const std::runtime_error& error){need(std::string(error.what())=="Host scope unwind","Host scope preserves exception");}
+    need(t::host_capture_depth==0&&t::host_query_part==t::Part::HostQueryOther,"Host capture attribution unwinds on exception");
+    for(const char* name:{"host_memory_virtual_query","host_query_management","host_query_management_finish","host_query_economy","host_query_party","host_query_release","host_query_other"})
+        need(t::snapshot().contains(name),"Host query attribution exported through existing snapshot");
+    t::totals={};Clock::calls=0;Fake::calls=0;Fake::result=0;Fake::result_error=0;Fake::throws=false;
+}
 int main(){void* owned=nullptr;try{
     world_prop_attribution_cases();
     npc_saved_metadata_cases();
@@ -62,6 +121,15 @@ int main(){void* owned=nullptr;try{
     phase_cases();
     scope_cases();
     span_cases();
+    character_definition_scope_cases();
+    pure_reader_followup_cases();
+    region_identity_scope_cases();
+    dungeon_roster_scope_cases();
+    party_pool_scope_cases();
+    shared_census_scope_cases();
+    project_identity_fixture::checks();
+    composed_character_fixture::checks();
+    host_capture_query_cases(owned);
     MEMORY_BASIC_INFORMATION info{};
     const auto address=reinterpret_cast<LPCVOID>(uintptr_t(0x123456));
     Fake::result=17;Fake::result_error=44;SetLastError(33);

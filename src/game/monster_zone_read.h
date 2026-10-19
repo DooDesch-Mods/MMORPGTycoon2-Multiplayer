@@ -26,10 +26,10 @@ struct State {
 };
 // The adapter supplies the native current World and bounded reads. Local UIDs
 // are receipt-only identities; they must never become action wire keys.
-template<class Memory>
-bool read(Memory& m,const q::World& w,State& out,std::string& e) {
+template<class Memory,class Owners>
+bool read_owned(Memory& m,const q::World& w,Owners&& owners,State& out,std::string& e) {
     out={};uintptr_t buildings=0;
-    if(!q::owner(m,w,buildings,out.manager,e)||
+    if(!owners(m,w,buildings,out.manager,e)||
        !q::at(m,w.region,0x988,out.monster_manager,e)||
        !q::typed(m,w.image,out.monster_manager,0x1714100,e))return false;
     uintptr_t owner=0;
@@ -51,7 +51,7 @@ bool read(Memory& m,const q::World& w,State& out,std::string& e) {
        !q::bounds(m,out.monster_manager+0x38,4096,monsters,e)||
        !q::at(m,w.image,0x1a30b70,out.next_monster_tag,e)||
        !q::at(m,out.monster_manager,0x90,out.created_monsters,e))return false;
-    std::set<uintptr_t> pointers;std::set<uint64_t> uids;std::set<int32_t> tags;
+    std::set<uintptr_t> pointers;std::set<uint64_t> uids;
     for(int32_t i=0;i<monsters.count;++i){
         Monster row;uintptr_t root=0,region=0,proxy=0,target=0,owned=0;
         if(!q::at(m,monsters.data,size_t(i)*8,row.pointer,e)||
@@ -64,8 +64,8 @@ bool read(Memory& m,const q::World& w,State& out,std::string& e) {
            !q::at(m,row.pointer,0x110,row.position,e)||!q::at(m,row.pointer,0x11c,row.scale,e)||
            !q::at(m,row.pointer,0x8d0,row.zone,e)||!q::at(m,row.pointer,0x8d8,proxy,e))return false;
         if(root!=w.root||region!=w.region||!row.uid||!pointers.insert(row.pointer).second||
-           !uids.insert(row.uid).second||!tags.insert(row.tag).second)
-            return q::fail(e,"monster probe row owner/UID/tag differs");
+           !uids.insert(row.uid).second)
+            return q::fail(e,"monster probe row owner/pointer/full UID differs");
         if(row.zone){
             if(!zone_ids.contains(row.zone)||!proxy||!q::at(m,proxy,0,target,e)||
                !q::at(m,row.zone,0x28,owned,e))return q::fail(e,e.empty()?"monster probe zone membership/weak link absent":e);
@@ -93,5 +93,10 @@ bool read(Memory& m,const q::World& w,State& out,std::string& e) {
     if(!q::at(m,w.image,0x164b250,random,e)||!q::at(m,random,0,out.global_random,e)||
        !q::at(m,w.region,0x160,random,e)||!q::at(m,random,0,out.region_random,e))return false;
     e.clear();return true;
+}
+template<class Memory>
+bool read(Memory& memory,const q::World& world,State& out,std::string& error){
+    const auto owners=[](auto& source,const auto& current,auto& buildings,auto& zones,auto& cause){return q::owner(source,current,buildings,zones,cause);};
+    return read_owned(memory,world,owners,out,error);
 }
 }

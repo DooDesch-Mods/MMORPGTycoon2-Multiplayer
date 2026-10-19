@@ -47,13 +47,17 @@ inline bool valid_monster_intent(const MonsterIntent& v){
         v.level>=1&&v.rank>0&&v.loose==0&&monster_pose(v.position,v.rotation,v.scale);
 }
 inline bool valid_monster_actor(const MonsterActor& v){
-    return v==MonsterActor{}||(v.tag>=0&&v.status==3&&v.rank>0&&v.character_slot==1&&v.character_type>=0&&
-        v.level>0&&!v.name.empty()&&v.name.size()<=256&&v.name.find('\0')==std::string::npos&&
+    return v==MonsterActor{}||(v.status==3&&v.rank>0&&v.character_slot==1&&v.character_type>=0&&
+        v.level>=0&&!v.name.empty()&&v.name.size()<=256&&v.name.find('\0')==std::string::npos&&
         monster_pose(v.position,v.rotation,v.scale));
 }
 inline bool valid_monster_state(const MonsterState& v){return valid_zone_state(v.roster)&&valid_monster_actor(v.actor);}
+inline bool monster_shared_actor(const MonsterActor& a,const MonsterActor& b){
+    // The original Spawn serial is neither persisted nor an object identity.
+    auto local=a,remote=b;local.tag=remote.tag=0;return local==remote;
+}
 inline bool monster_shared_state(const MonsterState& a,const MonsterState& b){
-    return zone_shared_state(a.roster,b.roster)&&a.actor==b.actor;
+    return zone_shared_state(a.roster,b.roster)&&monster_shared_actor(a.actor,b.actor);
 }
 inline bool monster_move_transition(const MonsterMoveIntent& intent,const MonsterState& a,const MonsterState& b){
     if(!valid_monster_move(intent)||!valid_monster_state(a)||!valid_monster_state(b)||

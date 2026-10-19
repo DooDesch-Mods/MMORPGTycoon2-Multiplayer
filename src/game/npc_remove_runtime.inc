@@ -39,7 +39,7 @@ bool target_binding(const std::string& target,const action::Binding& binding,
     out={};region=0;
     if(!npc_target_key::input(target))return fail(error,"NPC target key invalid");
     uint64_t uid=0;uintptr_t pointer=0;int32_t saved_region=-1,type=-1;
-    if(snapshot_npc_key::valid(target)){
+    if((snapshot_npc_key::valid(target)||building_npc_key::valid(target))){
         npc_saved_identity_runtime::Current saved;
         if(!npc_saved_identity_runtime::resolve(target,saved,error))return false;
         uid=saved.row.local_uid;pointer=saved.row.local_pointer;saved_region=saved.saved_region;type=saved.row.type;
@@ -330,10 +330,10 @@ bool native_remove_ui(const json& args,json& result,std::string& error) {
     const auto token=args.at("token").get<std::string>();
     const auto target=args.at(args.contains("record_key")?"record_key":"target_action_uuid").get<std::string>();
     if(!token_valid(token)||!npc_target_key::input(target)||
-       (args.contains("record_key")&&!snapshot_npc_key::valid(target))||token==target||
+       (args.contains("record_key")&&!(snapshot_npc_key::valid(target)||building_npc_key::valid(target)))||token==target||
        state.ui_jobs.contains(token)||state.ui_jobs.size()>=64)
         return fail(error,"NPC Remove UI token or target invalid/used");
-    result={{"operation","remove"},{"token",token},{"target_action_uuid",snapshot_npc_key::valid(target)?std::string{}:target},
+    result={{"operation","remove"},{"token",token},{"target_action_uuid",(snapshot_npc_key::valid(target)||building_npc_key::valid(target))?std::string{}:target},
         {"canonical_record_key",npc_target_key::canonical(target)},
         {"attempted",false},{"returned",false},{"captured",false},
         {"submitted",false},{"terminal",false},{"confirmed",false}};
@@ -356,12 +356,9 @@ bool native_remove_ui(const json& args,json& result,std::string& error) {
        undo_before.active_graph)return fail(error,error.empty()?"NPC Remove UI requires idle Undo":error);
     action::ui_diagnostic::Api api;
     if(!action::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return false;
-    std::array<uint8_t,8> prologue{};
-    constexpr std::array<uint8_t,8> expected{0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53};
     uintptr_t command=0;
-    if(!memory.copy(state.image+0x759ad0,prologue.data(),prologue.size(),error)||prologue!=expected||
-       !field(memory,state.image+0x1707d20,0x168,command,error)||command!=state.image+0x759ad0)
-        return fail(error,error.empty()?"NPC exact InfoWindow UICommand bytes or vtable differ":error);
+    if(!field(memory,state.image+0x1707d20,0x168,command,error)||
+       !monster_action_runtime::quest_list::verify_npc_command(command,error))return false;
     api.command=reinterpret_cast<action::ui_diagnostic::UiCommand>(state.image+0x759ad0);
     api.destroy_label="DestroyNPC";
     action::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,
