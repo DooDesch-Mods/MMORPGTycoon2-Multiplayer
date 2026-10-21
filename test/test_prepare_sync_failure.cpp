@@ -10,6 +10,7 @@ namespace fixture {
 bool captures=true,unresolved=false,pending=false,ingame=true,leave_ok=true,leave_ready=false;
 unsigned controller_reads=0,full_reads=0,submits=0,starts=0,begin_leave=0,finish_leave=0,title_requests=0,fail_logs=0;
 uint32_t thread=7;
+bool reload_busy=false,reload_release_ok=true;unsigned reload_releases=0,chat_retirements=0;
 void check(bool value,const char* why){if(!value)throw std::runtime_error(why);}
 }
 uint32_t GetCurrentThreadId(){return fixture::thread;}
@@ -22,7 +23,16 @@ bool prepare(std::string&){return true;}}
 json snapshot_progress(){return {{"phase","active"}};}
 std::string snapshot_sync_status(){return "unexpected snapshot failure";}
 }
+namespace net::chat {
+struct Runtime {static Runtime& instance(){static Runtime value;return value;}
+void set_lobby_admitted(bool admitted){if(admitted)throw std::runtime_error("Leave admitted chat instead of retiring it");++fixture::chat_retirements;}};
+}
 namespace game {
+namespace session_reload {
+bool busy(){return fixture::reload_busy;}
+json status(){return {{"label","fixture reload in progress"},{"error","original reload state cause"}};}
+bool release_for_leave(std::string& error){++fixture::reload_releases;if(!fixture::reload_release_ok){error="original reload release failed";return false;}fixture::reload_busy=false;return true;}
+}
 namespace native {
 struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0;};
 struct SimulationState{struct{bool paused=true;float time_scale=0;int32_t flat_day=1;}clock;
@@ -115,6 +125,13 @@ int main(){try{
     check(!prepare::tick(error)&&!prepare::status().at("ready").get<bool>(),"existing capture-readiness loss accepted");
     fixture::thread=8;
     check(runtime::controller_status().at("error")=="typed action status requires bound Mainthread","cheap status lost bound-thread guard");
+    fixture::thread=7;fixture::captures=true;prepare::step=prepare::Step::Playing;
+    fixture::reload_busy=true;auto reload_status=prepare::status();
+    check(reload_status.at("reloading")==true&&reload_status.at("ready")==false&&reload_status.at("prepared")==false&&reload_status.at("label")=="fixture reload in progress","reload status did not override connected readiness");
+    fixture::reload_release_ok=false;const auto prior_leave=fixture::begin_leave;
+    check(!prepare::leave(error)&&error=="original reload release failed"&&fixture::reload_releases==1&&fixture::begin_leave==prior_leave&&!fixture::chat_retirements,"reload release failure crossed Leave or lost its cause");
+    fixture::reload_release_ok=true;
+    check(prepare::leave(error)&&fixture::reload_releases==2&&fixture::begin_leave==prior_leave+1&&fixture::chat_retirements==1,"reload Leave did not release ownership and retire chat once");
     runtime::published_runtime.store(nullptr);
     check(runtime::controller_status().at("initialized")==false,"uninitialized status changed");
     std::cout<<"PASS actual cheap Controller status and prepare Playing/Failed/Leave bodies\n";return 0;

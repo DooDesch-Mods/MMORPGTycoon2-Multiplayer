@@ -2,6 +2,8 @@
 #include "live_host_state/monster_state.inc"
 #include "subscriber_lifecycle/save_scope.h"
 #include "live_host_state/apply_timing.h"
+#include "live_host_state/memory_query_timing.h"
+#include "monster_target_key.h"
 #include "direct_monster_identity.h"
 #include "npc_quest_targets.h"
 #include <atomic>
@@ -17,6 +19,7 @@ namespace action=a;
 namespace identity=mt2mp::game::direct_monster_identity;
 namespace ml=mt2mp::game::live_host_state::monsters;
 namespace q=mt2mp::game::npc_quest_targets;
+namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace {
 constexpr uintptr_t image_base=0x140000000,map_pointer=0x200000,world_root=map_pointer+0x1c0,region_pointer=0x300000,manager_pointer=0x400000,object_pointer=0x500000,regions_data=0x600000,members_data=0x700000;
 constexpr uint64_t full_uid=0x100001d01;
@@ -51,6 +54,9 @@ struct LookupApi{uintptr_t find=0x1234,cast=0x5678;};
 WorldState current_world;
 struct NativeOrigin{bool current(WorldState::Origin& out,std::string& e){++world_reads;if(!owner_available){e="original native owner absent";return false;}out=current_world.origin;return true;}};
 bool resolve_lookup(int,uintptr_t,const char*,LookupApi&,std::string&){return true;}
+struct RootSceneryReadBatch{
+ static bool reuse_world(WorldState&,bool,uintptr_t,uint32_t,const LookupApi&,bool& reused,std::string& e){reused=false;e.clear();return true;}
+};
 struct Reader{
     Memory memory_;NativeOrigin& origin_;uintptr_t image_;uint32_t thread_;LookupApi api_;bool world_busy_=false;
     Reader(int,NativeOrigin& origin,uintptr_t image,uint32_t thread,LookupApi api):origin_(origin),image_(image),thread_(thread),api_(api){}
@@ -99,6 +105,11 @@ bool live_hook_current(Memory&,const Hook&,std::string& e){return hook_okay||fai
 void original_update(uintptr_t,float){++original_updates;}
 float original_adjust(uintptr_t,int32_t,float,uintptr_t,bool){++original_adjustments;return 123;}
 #include "monster_live_classify.inc"
+namespace management_runtime {bool intervention_replaying(){return false;}}
+namespace interventions::actors::live {
+bool monster_update(uintptr_t,float,bool& owned,std::string& e){owned=false;e.clear();return true;}
+bool adjustment(uintptr_t,bool& owned,std::string& e){owned=false;e.clear();return true;}
+}
 #include "monster_live_callbacks.inc"
 std::function<void(bool)> scope_native;
 void array(uintptr_t address,uintptr_t ap,uintptr_t data,int32_t count){put(address,image_base+ap);put(address+8,data);put(address+0x10,count);put(address+0x14,count);}

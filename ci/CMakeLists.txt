@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(MT2MP_SourceChecks LANGUAGES CXX)
 
+if(WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN NOMINMAX)
+endif()
+
 if(MSVC)
     add_compile_options(/bigobj)
 endif()
@@ -13,6 +17,13 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(MT2MP_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." CACHE PATH "Canonical source root")
 
 get_filename_component(MT2MP_SOURCE_ROOT "${MT2MP_SOURCE_ROOT}" REALPATH)
+
+if(MSVC)
+    # Keep project warnings strict; bundled third-party headers have their own policy.
+    add_compile_options("/external:I${MT2MP_SOURCE_ROOT}/include/vendor" /external:W0)
+    # Source-body fixtures use the supported game executable stack reserve.
+    add_link_options(/STACK:2097152)
+endif()
 
 enable_testing()
 
@@ -462,7 +473,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/npc_history_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/character_import_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dungeon_building_codec_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/dungeon_building_sample_checks.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+
 
 
 
@@ -579,3 +590,5 @@ add_test(NAME startup_hook_catalog_consumer
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8
     "${MT2MP_SOURCE_ROOT}/test/test_startup_hook_catalog_consumer.py"
     --source-root "${MT2MP_SOURCE_ROOT}")
+
+include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")

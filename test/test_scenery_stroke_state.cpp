@@ -30,7 +30,7 @@ bool hash(const std::string& source,std::string& out,std::string&){out=std::stri
 }
 #include "modular_transaction_cases.inc"
 int main()try{
-    unsigned count=0;std::string e;auto packet=message(false);const auto& effect=*packet.evidence.scenery_stroke_result;
+    unsigned count=0;std::string e;auto packet=message(false);need(bool(packet)&&bool(packet->evidence.scenery_stroke_result),"Scenery result fixture missing");const auto& effect=*packet->evidence.scenery_stroke_result;
     state::Objects before,after;before.emplace(old(1),effect.removed[0]);before.emplace(effect.changed[0].before.key,effect.changed[0].before);
     after.emplace(effect.changed[0].after.key,effect.changed[0].after);auto untouched=object(old(3));before.emplace(untouched.key,untouched);after.emplace(untouched.key,untouched);
     SceneryStrokeEffect actual;need(state::difference(before,after,{},hash,actual,e)&&actual.removed==effect.removed&&actual.changed==effect.changed,e);++count;
@@ -40,7 +40,7 @@ int main()try{
     need(!state::difference(before,after,{born.key,born.key},hash,actual,e),"birth order duplicate accepted");++count;
     auto invalid=before;invalid.at(old(3)).family=DuplicateFamily::Building;
     need(!state::difference(invalid,{}, {},hash,actual,e),"Scenery diff removed a Building");++count;
-    const auto brush=message().request.scenery_stroke;NativePort port;original::Receipt receipt;
+    const auto brush=message()->request.scenery_stroke;NativePort port;original::Receipt receipt;
     need(original::execute(port,brush,receipt,e)&&receipt.graph_committed&&port.calls==1&&port.finishes==1&&port.destructors==1&&port.restores==1,e);++count;
     need(!original::execute(port,brush,receipt,e)&&port.calls==1,"uncertain/native stroke was replayed");++count;
     for(const std::string step:{"prepare","context","edit","before stamp","paint","after stamp","finish","readback"}){

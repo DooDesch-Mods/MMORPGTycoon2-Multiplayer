@@ -102,11 +102,13 @@ namespace net {std::string current_snapshot_id(){return snapshot_id;}}
 bool authorize_remove_replay(const ur::Replay&,std::string&);
 bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string&);
 namespace npc_probe {
+namespace zone_edit_runtime {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){++foreign_resolves;return fail(e,"fixture Zone resolver rejected");}}
 namespace action_runtime {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){return fail(e,"unexpected NPC service branch");}}
 namespace monster_action_runtime {using ::remove_adapter_fixture::remove_local_binding;using ::remove_adapter_fixture::authorize_remove_replay;}
 }
 namespace remove_diagnostics {
 struct LocalTarget{bool normal_building=false,normal_scenery=false;std::string kind_cause;};
+bool dungeon_building_scene(const LocalTarget&,std::string& scene,bool& dungeon,std::string& e){scene.clear();dungeon=false;e.clear();return true;}
 bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget&,std::string& e){return fail(e,"unexpected Building service branch");}
 }
 ur::LocalBinding local_binding(const remove_diagnostics::LocalTarget&){throw std::runtime_error("unexpected Building conversion");}

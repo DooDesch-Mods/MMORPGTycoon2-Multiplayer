@@ -32,3 +32,7 @@ foreach(_target test_monster_live_lifecycle test_monster_live_save_scope test_mo
     add_test(NAME ${_target} COMMAND ${_target})
     set_tests_properties(${_target} PROPERTIES TIMEOUT 60)
 endforeach()
+
+target_link_libraries(test_monster_live_state PRIVATE source_check_codecs)
+
+target_link_libraries(test_monster_live_pending PRIVATE source_check_codecs)

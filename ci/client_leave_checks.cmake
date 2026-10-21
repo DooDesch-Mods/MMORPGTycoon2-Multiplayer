@@ -32,6 +32,7 @@ add_executable(test_client_leave
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp")
 target_include_directories(test_client_leave PRIVATE
     "${CMAKE_CURRENT_BINARY_DIR}"
+    "${MT2MP_SOURCE_ROOT}/src/game"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action"
     "${MT2MP_SOURCE_ROOT}/include")
 if(MSVC)

@@ -37,15 +37,24 @@ bool verify_commit_entry(uintptr_t target,std::string& e){if(!entry_valid||targe
 void original_commit(void*){++originals;if(original_effect)original_effect();}
 }
 namespace mt2mp::game::tutorial_development {
-bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e,bool){
+bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string& e,bool,bool){
     ++read_calls;if(int(read_calls)==fail_read){e="original Startingpoint read failed";return false;}
     if(read_calls>samples.size()){e="fixture snapshot absent";return false;}out=samples[read_calls-1];return true;
 }
 }
 namespace mt2mp::game::tutorial_development {
-bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation){
+bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::json& diagnostic,std::string& e,bool creation,bool share){
     if(key!=selected_key){e="fixture selected Commit key differs";return false;}
-    return read_startingpoint(out,diagnostic,e,creation);
+    return read_startingpoint(out,diagnostic,e,creation,share);
+}
+}
+namespace general_project_runtime {
+// No GeneralProject replay is published in the ordinary tutorial Commit cases.
+bool replay_active=false,replay_allowed=false;
+unsigned route_calls=0;
+bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled){
+    if(entry!=0x25fb10||!receiver||workers!=0)throw std::runtime_error("unexpected GeneralProject Commit route");
+    ++route_calls;handled=replay_active;return handled&&replay_allowed;
 }
 }
 namespace {
@@ -56,7 +65,7 @@ tutorial_development::StartingpointSnapshot project(){
     startingpoint::Row row;row.project_present=row.purchased=true;out.row=row;return out;
 }
 auto deployed(){auto out=project();out.project=0;out.row->project_present=false;out.row->deployed=true;out.row->inventory_count=1;out.row->release_change_count=1;out.row->release_feature_count=1;out.row->release_counter=1;return out;}
-void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=research_intent_calls=0;selected_key="startingpoint";commit_receipt={};research_commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};}
+void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=research_intent_calls=0;selected_key="startingpoint";commit_receipt={};research_commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};general_project_runtime::replay_active=general_project_runtime::replay_allowed=false;general_project_runtime::route_calls=0;}
 void saved_receipt(){auto old=deployed();commit_receipt={old.origin,old.tech,old.record,startingpoint::CommitBugs{0,0},{}};}
 void need(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 void pass(const char* name){++tests;std::cout<<"PASS "<<name<<'\n';}
@@ -75,5 +84,7 @@ int main(){try{
     {reset();selected_key="bridges";load.armed=true;intent_accept=true;commit_current(reinterpret_cast<void*>(0x200000));need(!originals&&!read_calls&&!intent_calls&&research_intent_calls==1&&client_commit_action=="bridges-intent"&&client_commit_submitted,"Client Bridges Commit routed to fixed Startingpoint intent");pass("joined Client selects Bridges Commit intent without native Commit");}
     {reset();saved_receipt();selected_key="bridges";auto before=project();before.row->bugs_total=5;before.row->bugs_known=3;before.tech+=0x100;before.record+=0x100;auto after=deployed();after.tech=before.tech;after.record=before.record;samples={before,after};commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&read_calls==2&&research_commit_receipt.bugs==startingpoint::CommitBugs{5,3}&&research_commit_receipt.tech==before.tech&&commit_receipt.bugs==startingpoint::CommitBugs{0,0}&&commit_receipt.tech!=before.tech,"Bridges Commit lost actual bugs or overwrote historical Startingpoint receipt");pass("Host Bridges original Commit records actual bugs in separate receipt");}
     {reset();selected_key="bridges";auto before=project();samples={before,deployed()};fail_read=2;commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&!research_commit_receipt.bugs&&research_commit_receipt.cause=="original Startingpoint read failed"&&commit_receipt.cause.empty(),"Bridges post-effect read failure was hidden or polluted Startingpoint receipt");pass("Bridges partial read failure remains on selected receipt");}
+    {reset();general_project_runtime::replay_active=true;general_project_runtime::replay_allowed=true;commit_current(reinterpret_cast<void*>(0x200000));need(originals==1&&!read_calls&&!intent_calls&&general_project_runtime::route_calls==1,"owned GeneralProject Commit did not use its admitted original once");pass("owned GeneralProject Commit bypasses tutorial receipt work");}
+    {reset();general_project_runtime::replay_active=true;commit_current(reinterpret_cast<void*>(0x200000));need(!originals&&!read_calls&&!intent_calls&&general_project_runtime::route_calls==1,"blocked GeneralProject Commit crossed the original boundary");pass("blocked GeneralProject Commit preserves its original admission result");}
     std::cout<<tests<<" actual Commit lifetime scenarios passed\n";return 0;
 }catch(const std::exception& cause){std::cerr<<"error: "<<cause.what()<<'\n';return 1;}}

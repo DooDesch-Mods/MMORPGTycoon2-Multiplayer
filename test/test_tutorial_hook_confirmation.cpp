@@ -63,18 +63,27 @@ namespace tutorial_sync {
 template<class Copy>bool verify_owned_scenario_start_entry(const Owner& o,uintptr_t p,Copy&& copy,std::string& e){if(!check_owner(o,owned_scenario_start,p,-2,e))return false;unsigned char b=0;return copy(p,&b,size_t(1),e);}
 template<class Copy>bool verify_owned_advance_entry(const Owner& o,uintptr_t p,Copy&& copy,std::string& e){if(!check_owner(o,owned_advance,p,-1,e))return false;unsigned char b=0;return copy(p,&b,size_t(1),e);}
 }
+namespace intro_native {
+unsigned calls=0;bool valid=true;
+bool verify_owned(std::string& error){
+    ++calls;
+    if(!owned.enabled||!owned_commit.enabled||!owned_pay.enabled||!owned_staff.enabled||!owned_display.enabled||!owned_scenario_start.enabled||!owned_advance.enabled){error="Intro verification preceded enabled tutorial owners";return false;}
+    if(!valid){error="original Intro owned route verification failure";return false;}
+    return true;
+}
+}
 #include "tutorial_hook_confirmation.inc"
 void need(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);}
 void reset(int physical_failure=-99){
     owned={0x100,0x200,0x300,true,false};owned_commit={0x400,0x500,0x600,true,false};owned_pay={0x700,0x800,0x900,true,false};
     owned_staff={0xa00,0xb00,0xc00,true,false};owned_display={0xd00,0xe00,0xf00,true,false};owned_scenario_start={0x1000,0x1100,0x1200,true,false};owned_advance={0x1300,0x1400,0x1500,true,false};
-    failed_physical=physical_failure;public_resolver_calls=0;physical_calls.clear();memory.reads=0;game_thread_available=false;
+    failed_physical=physical_failure;public_resolver_calls=0;physical_calls.clear();memory.reads=0;game_thread_available=false;intro_native::calls=0;intro_native::valid=true;
 }
 void check(){
     reset();std::string error;
     const bool confirmed=hooks_enabled(error);
     need(confirmed,"loader-thread hook confirmation failed: "+error);
-    need(public_resolver_calls==0,"hook confirmation called public game-thread resolver");
+    need(public_resolver_calls==0&&intro_native::calls==1,"hook confirmation skipped Intro verification or called public game-thread resolver");
     need(owned.enabled&&owned_commit.enabled&&owned_pay.enabled&&owned_staff.enabled&&owned_display.enabled&&owned_scenario_start.enabled&&owned_advance.enabled,"confirmed owner flags not enabled");
     need(physical_calls==std::vector<int>({-2,-1,0,1,2,3,4})&&memory.reads==7,"physical verification order or raw memory callback differs");
     for(int kind=-2;kind<=4;++kind){
@@ -82,9 +91,12 @@ void check(){
         need(!hooks_enabled(error),"physical failure falsely confirmed");
         need(error=="physical verifier failure "+std::to_string(kind),"physical failure cause lost: "+error);
         need(!owned.enabled&&!owned_commit.enabled&&!owned_pay.enabled&&!owned_staff.enabled&&!owned_display.enabled&&!owned_scenario_start.enabled&&!owned_advance.enabled,"physical failure retained an enabled owner");
-        need(public_resolver_calls==0,"physical failure path called public resolver");
+        need(public_resolver_calls==0&&!intro_native::calls,"physical failure path called public resolver or continued to Intro verification");
         need(physical_calls.size()==size_t(kind+3)&&memory.reads==kind+2,"verification continued after physical failure");
     }
+    reset();intro_native::valid=false;error.clear();
+    need(!hooks_enabled(error)&&intro_native::calls==1&&error=="original Intro owned route verification failure","Intro verification failure was hidden or lost its cause");
+    need(physical_calls==std::vector<int>({-2,-1,0,1,2,3,4})&&memory.reads==7&&!public_resolver_calls,"Intro failure changed preceding physical verification");
 }
 }
 int main(){try{check();std::cout<<"PASS actual hooks_enabled: loader success and Start/Advance/Display/Pay/Sequence/Commit/Staff rollback\n";return 0;}

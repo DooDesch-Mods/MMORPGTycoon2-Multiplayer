@@ -12,7 +12,7 @@ constexpr uintptr_t parent=0x1000,collection=0x2000,bug=0x3000,stream=0x4000,con
 std::vector<uintptr_t> members;
 template<class T>void put(uintptr_t p,const T& value){const auto* input=reinterpret_cast<const unsigned char*>(&value);for(size_t n=0;n<sizeof(T);++n)bytes[p+n]=input[n];}
 void require(bool yes,const char* cause){++checks;if(!yes)throw std::runtime_error(cause);}
-uintptr_t random(uintptr_t){++original_calls;return bug;}
+uintptr_t random(uintptr_t){++original_calls;members.push_back(bug);return bug;}
 uintptr_t specific(uintptr_t,int,float){++original_calls;return bug;}
 void anchor(uintptr_t,uintptr_t){++anchors;}
 void remove(uintptr_t,uintptr_t){++original_calls;}
@@ -46,9 +46,15 @@ namespace mt2mp::game::developer_staff::bug_creation {
 bool NativeServices::dispatch_anchor(uintptr_t,uintptr_t,uintptr_t){return fixture::anchor_handled;}
 bool create(Services&,const Lease&,const Value&,Receipt& receipt){receipt.confirmed=true;return true;}
 }
+namespace mt2mp::game::general_project_runtime {
+bool admit_bug_birth(const action_session::Context&,const action_session::Binding&,const std::string&,uintptr_t,bool& owned,std::string& error){
+    owned=false;error.clear();return false;
+}
+}
 extern "C" MH_STATUS WINAPI MH_CreateHook(LPVOID,LPVOID,LPVOID*){return MH_ERROR_UNSUPPORTED_FUNCTION;}
 extern "C" MH_STATUS WINAPI MH_EnableHook(LPVOID){return MH_ERROR_NOT_CREATED;}
-int main(){using fixture::require;
+int main(){
+ try {using fixture::require;
  fixture::reset();require(bugs::add_random(fixture::collection)==fixture::bug&&fixture::original_calls==1,"standalone original random forwarded");
  fixture::reset();fixture::active=true;fixture::role=mt2mp::action_session::Role::Client;require(bugs::add_random(fixture::collection)==0&&fixture::original_calls==0,"exact bound Client random suppressed");
  fixture::reset();fixture::active=true;require(bugs::add_random(fixture::collection)==fixture::bug&&fixture::original_calls==1&&fixture::births==1,"Host original random forwards and witnesses birth");
@@ -89,4 +95,8 @@ int main(){using fixture::require;
  require(std::size(entries)==10&&entries[0].rva==0x58da0&&entries[1].rva==0xc2e810,"actual installed hook set lacks MakeJob/D0 or differs from10");
  require(entries[0].detour==reinterpret_cast<uintptr_t>(&make_job)&&entries[1].detour==reinterpret_cast<uintptr_t>(&destroy_job),"original MakeJob/D0 hook route differs");}
  std::cout<<fixture::checks<<" actual native hook boundary checks PASS\n";
+ return 0;
+ } catch(const std::exception& error) {
+ std::cerr<<error.what()<<"\n";return 1;
+ }
 }

@@ -1,6 +1,7 @@
 # These state and codec sources are used unchanged by several source-only test binaries.
 # Keep one compiled copy while retaining every executable and test registration.
 set(shared_codec_sources
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/state.cpp"
@@ -19,6 +20,7 @@ if(WIN32)
         "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/state.cpp")
 endif()
 get_property(shared_codec_consumers DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
+if(NOT TARGET source_check_codecs)
 foreach(archive source_check_codecs source_check_codecs_windows)
     add_library(${archive} STATIC ${shared_codec_sources})
     target_include_directories(${archive} PRIVATE
@@ -31,7 +33,11 @@ foreach(archive source_check_codecs source_check_codecs_windows)
     endif()
 endforeach()
 target_compile_definitions(source_check_codecs_windows PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+endif()
 foreach(target IN LISTS shared_codec_consumers)
+    if(target STREQUAL "source_check_codecs" OR target STREQUAL "source_check_codecs_windows")
+        continue()
+    endif()
     get_target_property(sources ${target} SOURCES)
     set(uses_shared_codec FALSE)
     foreach(source IN LISTS shared_codec_sources)
@@ -50,7 +56,9 @@ foreach(target IN LISTS shared_codec_consumers)
             endif()
             set(archive source_check_codecs_windows)
         endif()
-        set_property(TARGET ${target} PROPERTY SOURCES "${sources}")
+        if(sources)
+            set_property(TARGET ${target} PROPERTY SOURCES "${sources}")
+        endif()
         target_link_libraries(${target} PRIVATE ${archive})
     endif()
 endforeach()

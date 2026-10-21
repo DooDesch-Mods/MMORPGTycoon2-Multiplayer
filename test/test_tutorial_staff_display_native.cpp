@@ -8,8 +8,12 @@
 #include <map>
 #include <set>
 #include <stdexcept>
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 #include <windows.h>
 #include "live_host_state/memory_query_timing.h"
 #define LOG_INFO(...) ((void)0)

@@ -60,7 +60,7 @@ catalog=source('src/hooks/framework_catalog.inc')
 for route in ['mp.monster-entity-update.3c0750','mp.character-adjust-attribute.39fb80']:assert catalog.count(route)==1,route
 runtime=source('src/game/typed_action_runtime.cpp')
 assert 'bind_monsters(npc_probe::monster_action_runtime::live_port(),error)' in runtime
-write('monster_live_idle_binding.inc',body(runtime,'bool network_binding(')+'\n')
+write('monster_live_idle_binding.inc',body(runtime,'bool read_binding(')+'\n'+body(runtime,'bool network_binding(')+'\n')
 bound=source('src/game/npc_action_runtime.inc')
 write('monster_live_world_binding.inc',body(bound,'bool bound(const host::WorldState&')+'\n')
 pending=[]

@@ -7,7 +7,7 @@ def extract(source,begin,end,name,change=None):
  if change:body=change(body)
  (a.output/name).write_text(body)
  rows.append({'source':source,'source_sha256':hashlib.sha256((a.source_root/source).read_bytes()).hexdigest(),'output':name,'body_sha256':hashlib.sha256(body.encode()).hexdigest()})
-extract('src/game/typed_action_runtime.cpp','bool network_binding(','bool observe_startingpoint_submission(','quest_rating_idle.inc')
+extract('src/game/typed_action_runtime.cpp','bool read_binding(','bool observe_startingpoint_submission(','quest_rating_idle.inc')
 extract('src/game/live_host_state/economic_fence.h','bool quest_binding(','bool allow(EconomicLeaf','quest_rating_binding.inc')
 extract('src/game/live_host_state/day_rollover/economy/native_quest_runtime.inc','template<class Guard>bool store_quest_runtime','\n}', 'quest_rating_scalar.inc')
 # The function end marker above selects its outer closing brace; append it.

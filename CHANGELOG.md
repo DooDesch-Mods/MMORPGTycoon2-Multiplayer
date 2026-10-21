@@ -6,7 +6,7 @@
 
 - Copy supported buildings and scenery together.
 - Group scenery, copy a group and ungroup the original or its copy.
-- Clear scenery with the game's eraser and share the removal and refund.
+- Clear individual scenery with one click of the game's eraser and share the refund.
 - Undo and redo shared building and scenery edits.
 
 ### Fixed

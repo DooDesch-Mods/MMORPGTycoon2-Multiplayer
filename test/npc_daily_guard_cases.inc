@@ -143,13 +143,15 @@ uint32_t call(SaveScopeCall fn,void*){
 
 namespace mt2mp {
 // The native code-image boundary is simulated; the real template still checks its digest.
-std::string sha256(const std::vector<unsigned char>& bytes){
+std::string fixture_advertisement_sha256(const std::vector<unsigned char>& bytes){
     daily_guard_test::require(bytes.size()==192,"runtime advertisement body extent differs");
     return daily_guard_test::fixture.runtime_code_bad?"changed":"b2b4ef433836335fa6de391315d0398860a1bd3c20ff1e70a62ea55feade575c";
 }
 }
 namespace daily_guard_test {
+#define sha256 fixture_advertisement_sha256
 #include "npc_quest_runtime_actual.inc"
+#undef sha256
 #include "npc_daily_guard_actual.inc"
 #include "npc_daily_metadata_baseline.inc"
 #include "npc_daily_guard_original.inc"

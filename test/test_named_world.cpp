@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include "src/game/live_host_state/apply_timing.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include <algorithm>
@@ -103,7 +104,8 @@ bool read_world_status(WorldStatus& out, std::string& error) {
 }
 
 namespace mt2mp::game::live_host_state::apply_timing {
-SIZE_T virtual_query(LPCVOID, PMEMORY_BASIC_INFORMATION memory, SIZE_T size) {
+SIZE_T virtual_query(LPCVOID, PMEMORY_BASIC_INFORMATION memory, SIZE_T size, Part category) {
+    if(category!=Part::QueryEngine)throw std::runtime_error("unexpected Software cache query category");
     if (size != sizeof(*memory)) return 0;
     memory->Protect = mt2mp::game::native::memory_writable ? PAGE_READWRITE : PAGE_READONLY;
     return sizeof(*memory);

@@ -14,3 +14,5 @@ foreach(name dungeon_input_action dungeon_input_capture dungeon_input_authored d
     add_test(NAME ${name} COMMAND test_${name})
     set_tests_properties(${name} PROPERTIES TIMEOUT 60)
 endforeach()
+
+target_sources(test_dungeon_input_action PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/state.cpp")

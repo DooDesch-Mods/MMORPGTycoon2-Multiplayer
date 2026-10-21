@@ -68,6 +68,12 @@ action::Outcome perform(action::Action,const std::string&,std::string& error){
     if(bad_cash)++fixture_money.cash;return action::Outcome::Confirmed;
 }
 }
+namespace world_path_runtime {
+bool owns_history(const std::string&){return false;}
+action::Outcome perform_history(const action::Binding&,const action::Request&,const action::Evidence*,std::string& e){e="unexpected World Path history";return action::Outcome::RejectedNoEffect;}
+bool observe_history(const action::Binding&,const action::Request&,action::Evidence&,std::string& e){e="unexpected World Path history observation";return false;}
+bool retire_history(const action::Binding&,const action::Request&,std::string& e){e="unexpected World Path history retirement";return false;}
+}
 #include "path_history_runtime.inc"
 
 action::Request reset(action::Action direction,bool source_remove=false){

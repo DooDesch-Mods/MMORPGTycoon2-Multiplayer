@@ -34,7 +34,8 @@ struct Session final:action::Session {bool current(action::Context& out,std::str
 namespace latch {using ApplyReceipt=mt2mp::game::live_host_state::ApplyReceipt;
 #include "developer_failure_latch.inc"
 }
-uint32_t GetCurrentThreadId(){return 1;}
+uint32_t fixture_current_thread(){return 1;}
+#define GetCurrentThreadId fixture_current_thread
 namespace mt2mp {struct Config {bool local_test=true;static Config& instance(){static Config value;return value;}};}
 namespace mt2mp::action_session {Session& selected_session(){return fixture::session;}}
 namespace mt2mp::game::typed_action_runtime {
@@ -110,13 +111,13 @@ uint32_t invoke_count(uintptr_t,uintptr_t,int32_t count){
 }
 namespace {
 namespace runtime=staff::action_runtime;
-constexpr const char* id="11111111-1111-4111-8111-111111111111";
+constexpr const char* fixture_action_id="11111111-1111-4111-8111-111111111111";
 constexpr const char* snapshot="22222222-2222-4222-8222-222222222222";
 void reset(runtime::Runtime& owner,bool hire=true){
     using namespace fixture;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
     ui_accepted=ui_returned=ui_clean=ui_label=ui_effect=true;wrong_owner=wrong_immediate_actor=wrong_final_actor=count_fault=false;
     session_ok=role_ok=display_ok=true;carried=scalar_ledger_change=false;scalar_calls=fail_scalar=display_calls=0;cause.clear();context={};context.role=action::Role::Host;context.snapshot_uuid=snapshot;
-    controller={{"pending",true},{"action_uuid",id}};current={};pool={};pool.count=hire?1:2;
+    controller={{"pending",true},{"action_uuid",fixture_action_id}};current={};pool={};pool.count=hire?1:2;
     current.local.lounge=0x3000;current.state.business_count=current.state.lounge_count=pool.count;
     current.pin.origin.uuid=snapshot;current.pin.origin.world_epoch=7;current.pin.origin.generation=9;
     auto& l=current.pin.ledger;l.cash=l.record_cash=93640;l.record_present=1;l.record_day=l.flat_day=0;
@@ -125,7 +126,7 @@ void reset(runtime::Runtime& owner,bool hire=true){
     update_ok=network_ok=true;show_visible=ui_unexpected_effect=false;mt2mp::Config::instance().local_test=true;
     owner.operations.clear();owner.ready=true;owner.frame_locked=false;owner.frame_cause.clear();owner.frame_fields=0;owner.thread=1;owner.owner.target=owner.image+0x6c7b70;owner.pending.reset();owner.captured=0;owner.intent={};owner.ui_proofs.clear();owner.ui_proof_locked=false;owner.ui_proof_cause.clear();runtime::published=&owner;
 }
-action::Request request(bool hire=true){action::Request r;r.action=hire?action::Action::HireDeveloper:action::Action::FireDeveloper;r.action_uuid=id;r.snapshot_uuid=snapshot;r.canonical_record_key="staff:developers";return r;}
+action::Request request(bool hire=true){action::Request r;r.action=hire?action::Action::HireDeveloper:action::Action::FireDeveloper;r.action_uuid=fixture_action_id;r.snapshot_uuid=snapshot;r.canonical_record_key="staff:developers";return r;}
 action::Outcome run(bool hire=true,const action::Evidence* host=nullptr){return runtime::perform(fixture::binding,request(hire),host,fixture::cause);}
 void unchanged(){fixture::need(!fixture::ui_calls&&!fixture::count_calls,"preflight rejection performed native work");}
 void unknown_once(runtime::Runtime& owner,bool hire=true,const action::Evidence* host=nullptr){
@@ -138,7 +139,7 @@ int main(){try{
     using namespace fixture;runtime::Runtime owner;
     for(bool hire:{true,false}){
         reset(owner,hire);need(run(hire)==action::Outcome::Confirmed&&ui_calls==1&&count_calls==1,"native original Hire/Fire body did not confirm exact once");
-        const auto evidence=owner.operations.at(id).evidence;need(evidence.developers_before&&evidence.developers_after,"confirmed action lost full native pools");
+        const auto evidence=owner.operations.at(fixture_action_id).evidence;need(evidence.developers_before&&evidence.developers_after,"confirmed action lost full native pools");
         need(hire?evidence.after.cash==93140:evidence.after.cash==93640,"native action payment differs");
         need(run(hire)==action::Outcome::Unknown&&ui_calls==1&&count_calls==1,"confirmed UUID replayed original UI or SetDevCount");
         reset(owner,hire);context.role=action::Role::Client;need(run(hire,&evidence)==action::Outcome::Confirmed&&ui_calls==1&&count_calls==1,"Client authoritative effect did not use the actual native body");
@@ -184,7 +185,7 @@ int main(){try{
     const auto construction_cause=cause;need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&!attempted&&construction_applies==1&&cause==construction_cause,"construction Unknown replayed or cause replaced");
     reset(owner);context.role=action::Role::Client;target=construction_target();display_ok=false;
     need(!runtime::adopt_frame(context,binding,target,attempted,unknown,cause)&&attempted&&unknown&&owner.frame_locked&&construction_applies==1,"construction cache failure not Unknown");
-    const auto ui_args=[](const std::string& command="Hire"){return nlohmann::json{{"command",command},{"token",id},{"native_origin_uuid",snapshot},{"epoch",uint64_t(7)},{"generation",uint64_t(9)},{"expected_count",1}};};
+    const auto ui_args=[](const std::string& command="Hire"){return nlohmann::json{{"command",command},{"token",fixture_action_id},{"native_origin_uuid",snapshot},{"epoch",uint64_t(7)},{"generation",uint64_t(9)},{"expected_count",1}};};
     const auto ui_ready=[&](){reset(owner);context.role=action::Role::Client;controller={{"initialized",true},{"started",true},{"pending",false},{"locked",false}};};
     nlohmann::json ui;
     for(const auto* command:{"Show","Hire","Fire"}){ui_ready();const auto before=current.state;

@@ -9,6 +9,9 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <windows.h>
+#include <bcrypt.h>
+#include "mt2mp/net/local_membership.h"
 #include "vendor/nlohmann/json.hpp"
 #include "mt2mp/net/local_session.h"
 
@@ -72,6 +75,9 @@ uint64_t session_id(){return Config::instance().session_id;}
 std::map<int,int> handlers;
 std::array<uint64_t,5> ids{};
 uint64_t lobby=0,own=0,repeats=0,retiring_packets=0;
+uint64_t current_session=0,pending_session=0,last_refresh_session=0,discarded_epoch_packets=0,discarded_unknown_packets=0;
+bool refresh_allowed=false,restart_pending=false;
+std::array<uint64_t,5> remote_instances{},observed_slots{};
 uint8_t mask=0,hello_ack=0;
 bool bound=false,hello_sent=false,ended=false,actions_suspended=false;
 std::string failure,last_logged;
@@ -83,6 +89,7 @@ bool leave(std::string& error){++fixture::leave_calls;if(!fixture::leave_ok)erro
 }
 namespace mt2mp::game::native_lobby {
 bool local_admitted=true;
+std::atomic<uint64_t> toggle_requested{0};
 uint64_t owner=999,generation=5;
 std::string departed_host_attempt,departed_host_error,cause,ui_status;
 bool fail(const std::string& error){++fixture::fail_calls;cause=error;return false;}
@@ -94,16 +101,22 @@ void reset(bool host){
     mt2mp::Config::instance()={true,host,77,host?1u:2u};
     local::is_host=host;local::local_peer=host?1:2;local::session_id=77;
     local::connected=true;local::ended=false;local::session_started=true;
-    local::peers.clear();local::received.clear();local::sequence=0;
+    local::peers.clear();local::sequence=1;
+    local::participating=true;local::membership_refresh=false;
+    std::string membership_error;bool fresh=false;
+    fixture::check(local::membership.initialize(host?1:2,host?101:202,membership_error),membership_error);
+    fixture::check(local::membership.observe(host?2:1,host?202:101,1,fresh,membership_error)&&fresh,membership_error);
+    if(host)fixture::check(local::membership.commit_host(membership_error),membership_error);
+    else {fixture::check(local::membership.stage(1,{0,101,202,0,0},membership_error),membership_error);fixture::check(local::membership.adopt_client(membership_error),membership_error);}
     if(!host)local::peers[1]=local::clock::now();
     local::host_left_snapshot.clear();local::published_leave_snapshot.clear();local::publish_leave_error.clear();
     fixture::connected=fixture::ready=fixture::queue_ok=fixture::retire_ok=fixture::leave_ok=true;
     fixture::steam_lobby=false;fixture::snapshot=fixture::first;fixture::transport_error.clear();
     fixture::send_calls=fixture::retire_calls=fixture::leave_calls=fixture::fail_calls=0;fixture::packets.clear();
-    lobby::local_admitted=true;lobby::owner=999;lobby::generation=5;
+    lobby::toggle_requested=0;lobby::local_admitted=true;lobby::owner=999;lobby::generation=5;
     lobby::departed_host_attempt.clear();lobby::departed_host_error.clear();lobby::cause.clear();
 }
-Json departure(uint64_t seq=1){return {{"version",1},{"session",uint64_t{77}},{"sequence",seq},{"type","host_left"},{"snapshot",fixture::first}};}
+Json departure(uint64_t seq=2){return {{"version",2},{"session",uint64_t{77}},{"sequence",seq},{"instance",uint64_t{101}},{"participating",true},{"generation",uint64_t{1}},{"slots",std::array<uint64_t,5>{0,101,202,0,0}},{"type","host_left"},{"snapshot",fixture::first}};}
 void receive(Json value,uint64_t sender=1){const auto bytes=value.dump();local::receive(sender,reinterpret_cast<const uint8_t*>(bytes.data()),uint32_t(bytes.size()));}
 int main(){try{
     using fixture::check;std::string error;
@@ -121,7 +134,7 @@ int main(){try{
     check(lobby::retire_departed_host(preparation,error)&&fixture::leave_calls==1,"Client did not use existing native Leave");
     check(lobby::retire_departed_host(preparation,error)&&fixture::leave_calls==1,"Client replayed existing Leave before next status tick");
     check(lobby::ui_status=="Host hat die Sitzung beendet","Host departure not visible");
-    receive(packet);check(local::received[1]==1,"duplicate advanced control receipt");
+    auto duplicate=packet;duplicate["snapshot"]=fixture::next;receive(duplicate);check(local::local_host_left(fixture::first)&&!local::local_host_left(fixture::next),"duplicate advanced control receipt");
     reset(false);fixture::leave_ok=false;receive(departure());
     check(!lobby::retire_departed_host(preparation,error)&&error.find(fixture::leave_error)!=std::string::npos,"native Leave cause lost");
     check(!lobby::retire_departed_host(preparation,error)&&fixture::leave_calls==1&&fixture::fail_calls==1,"failed native Leave automatically replayed");
@@ -149,7 +162,7 @@ int main(){try{
     fixture::queue_ok=true;check(!mt2mp::net::session_wire::retire_lobby(error)&&fixture::send_calls==1,"failed send retried on retirement tick");
     reset(true);fixture::retire_ok=false;check(!mt2mp::net::session_wire::retire_lobby(error)&&error=="original action owner retirement failure","owner retirement failure hidden");
     check(fixture::send_calls==1,"owner failure generated extra departure");
-    reset(false);check(mt2mp::net::session_wire::retire_lobby(error)&&fixture::send_calls==0&&fixture::retire_calls==1,"Client broadcast Host departure");
+    reset(false);check(mt2mp::net::session_wire::retire_lobby(error)&&fixture::send_calls==1&&fixture::retire_calls==1&&fixture::packets.back().at("type")=="left"&&fixture::packets.back().at("participating")==false,"Client did not publish its own departure without broadcasting Host departure");
     reset(true);fixture::snapshot.clear();check(mt2mp::net::session_wire::retire_lobby(error)&&fixture::send_calls==0,"unshared Title fabricated snapshot departure");
     reset(true);fixture::ready=false;fixture::transport_error="original transport failure";
     check(!mt2mp::net::session_wire::retire_lobby(error)&&!fixture::retire_calls&&error.find(fixture::transport_error)!=std::string::npos,"unavailable transport cause lost");

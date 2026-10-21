@@ -34,6 +34,11 @@ public:
     void adjustment(){++adjustments;}
 }monster_live_port;
 #include "monster_live_classify.inc"
+namespace management_runtime {bool intervention_replaying(){return false;}}
+namespace interventions::actors::live {
+bool monster_update(uintptr_t,float,bool& owned,std::string& e){owned=false;e.clear();return true;}
+bool adjustment(uintptr_t,bool& owned,std::string& e){owned=false;e.clear();return true;}
+}
 #include "monster_live_callbacks.inc"
 void reset(){monster_live_port.enabled=true;monster_live_port.world_okay=monster_live_port.full_okay=monster_live_port.actor_okay=monster_live_port.present_okay=true;
     monster_live_port.failures=monster_live_port.updates=monster_live_port.adjustments=0;monster_live_port.wrong_thread_=false;monster_live_port.cause.clear();

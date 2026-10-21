@@ -31,12 +31,12 @@ struct Gates{
  bool okay=true,waiting=false;bool timely(std::chrono::steady_clock::time_point,std::string& e){return okay||::fail(e,"exact full ACK timeout");}
  bool ready(std::chrono::steady_clock::time_point,bool& out,std::string&){out=waiting;return true;}
 };
-struct FakePort{bool publication_ready(uint64_t,bool& waiting,std::string&){waiting=false;return true;}};
+struct FakePort{Pin current;bool read(Pin& out,std::string&){out=current;return true;}bool publication_ready(uint64_t,bool& waiting,std::string&){waiting=false;return true;}};
 struct FakeDay{uint64_t sequence(){return 1;}};
 struct Receipt{};
 class Bridge{
 public:
- Context context_;uint64_t common_epoch_=7,source_generation_=9,host_revision_=0,last_day_sequence_=1;
+ Context context_;Binding binding_;bool paused_idle_equal_=false;uint64_t common_epoch_=7,source_generation_=9,host_revision_=0,last_day_sequence_=1;
  bool suspended_=false,locked_=false;std::string publication_wait_,publication_last_wait_,publication_first_wait_;uint64_t publication_wait_count_=0,publication_recovery_count_=0;bool publication_was_waiting_=false;
  Gates fragments_,apply_acks_;FakePort port_;FakeDay day_value_;FakeDay* day_=&day_value_;bool economy_value_=true;bool* economy_=&economy_value_;
  std::function<bool(uint64_t&,std::string&)> time_=[](uint64_t& out,std::string&){out=1;return true;};

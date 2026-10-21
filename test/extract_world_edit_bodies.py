@@ -32,7 +32,7 @@ body('src/game/service_membership_runtime.inc','action::Outcome perform(','json 
 body('src/game/move_kiss/move_kiss.cpp','bool live(','\n}\nbool Capture::','selection_move_live_actual.inc')
 body('src/game/move_kiss/move_kiss.cpp','bool write_transform(','action_session::Outcome execute(','selection_move_transform_actual.inc')
 body('src/game/selection_move_runtime.inc','bool refresh_targets(','bool current(','selection_move_refresh_actual.inc')
-body('src/game/typed_action_runtime.cpp','action::Outcome perform_selection_move(','action::Outcome perform_duplicate(','selection_move_shared_actual.inc')
+body('src/game/typed_action_runtime.cpp','action::Outcome perform_selection_move(','action::Outcome perform_boss_placement(','selection_move_shared_actual.inc')
 body('src/game/district_text_runtime.inc','bool sample(','void name_entry(','district_sample_capture_actual.inc')
 body('src/game/district_text_runtime.inc','action::Outcome perform(','json status(','district_perform_actual.inc')
 body('src/core/dll_main.cpp','static game::district_saved_identity_runtime::PropertyCall original_save_district_property=','static game::monster_saved_identity_runtime::PropertyCall original_save_monster_property=','district_property_wrappers_actual.inc')

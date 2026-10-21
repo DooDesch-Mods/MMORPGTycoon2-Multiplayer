@@ -73,7 +73,7 @@ using Json=nlohmann::json;
 Json captures=Json::object(),snapshot_status=Json::object();
 uint32_t thread=7;
 unsigned suspended=0,invalidated=0,deleted=0,wire_retired=0,membership_left=0,native_retired=0;
-unsigned dungeon_invalidated=0;
+unsigned dungeon_invalidated=0,path_retired=0;
 bool software_armed=true,software_ok=true,time_active=false;
 bool tutorial_fenced=true,tutorial_fenced_at_delete=true;unsigned tutorial_retired=0;std::string tutorial_cause;
 void reset_software_stream();
@@ -84,7 +84,7 @@ unsigned vip_retired=0,chat_closes=0,added_journals_retired=0;bool chat_admitted
 void reset(){
     captures=Json::object();snapshot_status=Json::object();thread=7;
     suspended=invalidated=deleted=wire_retired=membership_left=native_retired=0;
-    dungeon_invalidated=0;
+    dungeon_invalidated=path_retired=0;
     software_armed=software_ok=true;time_active=false;reset_software_stream();
     tutorial_fenced=tutorial_fenced_at_delete=true;tutorial_retired=0;tutorial_cause.clear();
     title=transition=saving=time_initialized=false;in_lobby=true;
@@ -150,6 +150,26 @@ namespace ui_remove_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_move_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_region_runtime {fixture::Json status(){return fixture::captures;}}
 namespace ui_price_runtime {fixture::Json status(){return fixture::captures;}}
+namespace ui_path_runtime {
+bool world_path_pending(){return fixture::captures.value("path_pending",false);}
+void retire_world(){require(fixture::title&&!fixture::transition&&!fixture::saving&&fixture::bug_retired==1,"path retired before idle Title");++fixture::path_retired;}
+}
+namespace npc_probe::zone_edit_runtime {
+bool pending(){return fixture::captures.value("zone_edit_pending",false);}
+bool retire_session(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::character_membership {
+bool pending_ui(){return fixture::captures.value("character_membership_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::ability_membership {
+bool pending_ui(){return fixture::captures.value("ability_membership_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
+namespace npc_probe::monster_action_runtime::dungeon_input {
+bool pending_ui(){return fixture::captures.value("dungeon_input_pending",false);}
+bool retire_lobby(std::string& error){return fixture::retire_added_journal(error);}
+}
 namespace management_runtime {
 bool pending_ui(){return fixture::captures.value("management_pending",false);}
 bool retire_lobby(std::string& e){e.clear();return true;}
@@ -367,7 +387,7 @@ void idle_departure(){
     require(runtime::finish_lobby_leave(ready,p.error)&&ready,p.error);
     require(fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&!runtime::published_runtime.load(),"Leave did not finish membership/handler/storage retirement");
     require(fixture::vip_retired==1,"settled Leave did not retire VIP owner exactly once");
-    require(fixture::added_journals_retired==10,"settled Leave did not retire all ten added journals exactly once");
+    require(fixture::added_journals_retired==14&&fixture::path_retired==1,"settled Leave did not retire all added runtime owners exactly once");
     require(p.client.status().locked&&p.client.status().cause==cause,"retirement cleared original Controller lock");
 }
 void completed_actions_and_reentry(){
@@ -407,7 +427,7 @@ void pending_and_unknown(){
 }
 void other_guards(){
     Pair p;p.cs.available=false;require(!p.client.tick(2,p.error),"setup failed");
-    for(const char* key:{"deferred_build_capture","replay_active","pending_ui","npc_pending","monster_pending","quest_pending",
+    for(const char* key:{"path_pending","zone_edit_pending","character_membership_pending","ability_membership_pending","dungeon_input_pending","deferred_build_capture","replay_active","pending_ui","npc_pending","monster_pending","quest_pending",
                         "management_pending","general_project_pending","release_pending","logo_pending","quest_list_pending","character_pending","ability_pending","building_status_pending","costume_pending","dungeon_pending","light_pending","sound_pending","palette_pending","gizmo_pending"}){
         fixture::reset();fixture::captures[key]=true;
         auto* owner=new runtime::Runtime(p.client);runtime::published_runtime.store(owner);

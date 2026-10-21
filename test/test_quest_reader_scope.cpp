@@ -42,11 +42,11 @@ bool read_bytes(int backend,uintptr_t address,void* out,size_t count,std::string
     placement_copy::ProcessMemory m;return m.copy(address,out,count,e);
 }
 int backend=0;
-bool inject_failure=false,inject_exception=false,changed=false;
+bool inject_failure=false,inject_exception=false,fixture_changed=false;
 bool scan(std::string& e){
     if(inject_failure)return fail(e,"original owner cause");
     if(inject_exception)throw std::runtime_error("original owner exception");
-    for(size_t i=0;i<1000;++i){unsigned char actual=0;if(changed&&i==500)allocation[0]=77;
+    for(size_t i=0;i<1000;++i){unsigned char actual=0;if(fixture_changed&&i==500)allocation[0]=77;
         if(!read_bytes(backend,uintptr_t(allocation),&actual,1,e))return false;
         if(actual!=allocation[0])return fail(e,"stale byte value");}
     return true;
@@ -100,7 +100,7 @@ int main(){try{
         need(queries()-start<=2,"scoped adapter avoids repeated OS query");need(GetLastError()==123,"LastError preserved");
         need(rows.size()==1&&rows[0].id==33&&owner_entry::calls==before_calls+1,"arguments output and call count preserved");
         need(timing::page_read_scope==nullptr,"owner read ends before mutation");
-        changed=true;need(owner_entry::state_owners({11},{22},rows,e)&&allocation[0]==77,"changed bytes read live");changed=false;
+        fixture_changed=true;need(owner_entry::state_owners({11},{22},rows,e)&&allocation[0]==77,"changed bytes read live");fixture_changed=false;
         inject_failure=true;e.clear();need(!owner_entry::state_owners({11},{22},rows,e)&&e=="original owner cause","original failure retained");inject_failure=false;
         inject_exception=true;bool caught=false;try{owner_entry::state_owners({11},{22},rows,e);}catch(const std::runtime_error& x){caught=std::string(x.what())=="original owner exception";}inject_exception=false;
         need(caught&&timing::page_read_scope==nullptr,"exception and unwind preserved");

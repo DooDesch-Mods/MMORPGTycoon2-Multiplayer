@@ -19,6 +19,7 @@ host_departure_extract("${host_departure_lobby}" "bool retire_departed_host(" "b
 host_departure_extract("${host_departure_wire}" "bool retire_lobby(std::string& error){" "\n}" host_departure_wire_body.inc)
 add_executable(test_host_departure "${MT2MP_SOURCE_ROOT}/test/test_host_departure.cpp")
 target_include_directories(test_host_departure PRIVATE "${CMAKE_CURRENT_BINARY_DIR}" "${MT2MP_SOURCE_ROOT}/include")
+target_link_libraries(test_host_departure PRIVATE bcrypt)
 if(MSVC)
     target_compile_options(test_host_departure PRIVATE /W4 /WX /utf-8)
 endif()

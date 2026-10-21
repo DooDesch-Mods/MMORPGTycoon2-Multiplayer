@@ -14,14 +14,14 @@ namespace economy=live::day::economy;
 namespace {
 unsigned checks=0;
 void need(bool value,const std::string& why){++checks;if(!value)throw std::runtime_error(why);}
-constexpr const char* id="11111111-1111-4111-8111-111111111111";
+constexpr const char* fixture_action_id="11111111-1111-4111-8111-111111111111";
 constexpr const char* snapshot="22222222-2222-4222-8222-222222222222";
 research::Row baseline(){research::Row r{"bridges",{}};r.value.release_change_count=4;r.value.release_counter=9;return r;}
 research::Row project(){auto r=baseline();r.value.project_present=r.value.purchased=true;return r;}
 research::Row complete_project(){auto r=project();r.value.work=21600;r.value.lines=36;r.value.desired_workers=2;r.value.bugs_total=5;r.value.bugs_known=3;return r;}
 research::Row deployed(){auto r=baseline();r.value.purchased=r.value.deployed=true;r.value.inventory_count=r.value.release_feature_count=1;++r.value.release_change_count;++r.value.release_counter;r.value.commit_bugs=tutorial::startingpoint::CommitBugs{5,3};return r;}
 Ledger initial(){Ledger v;v.cash=v.record_cash=88160;v.record_present=1;v.flat_day=v.record_day=2;v.record_expense=40;v.record_income=200;v.line_counts[3]=2;v.line_income[3]=-40;v.line_counts[19]=7;v.line_income[19]=93;return v;}
-Message request(Action action){Message m;m.session=5;m.request.action=action;m.request.peer=2;m.request.sequence=1;m.request.action_uuid=id;m.request.snapshot_uuid=snapshot;m.request.canonical_record_key="tech:bridges";if(action==Action::SetResearchWorkers)m.request.desired_workers=3;return m;}
+Message request(Action action){Message m;m.session=5;m.request.action=action;m.request.peer=2;m.request.sequence=1;m.request.action_uuid=fixture_action_id;m.request.snapshot_uuid=snapshot;m.request.canonical_record_key="tech:bridges";if(action==Action::SetResearchWorkers)m.request.desired_workers=3;return m;}
 Evidence effect(Action action){
     Evidence e;e.before=e.after=initial();std::string cause;
     if(action==Action::StartResearch){e.research_before=baseline();e.research_after=project();need(start::expected_payment(e.before,10000,e.after,cause),cause);}
@@ -141,9 +141,9 @@ struct Wire:Transport {
     bool send(uint64_t target,const std::vector<uint8_t>& bytes,std::string&)override{packets.push_back({peer,target,bytes});return true;}
 };
 bool submit(Controller& c,Action action,const std::string& key,uint64_t now,std::string& e){
-    if(action==Action::StartResearch)return c.submit_start_research(id,key,now,e);
-    if(action==Action::SetResearchWorkers)return c.submit_research_workers(id,key,3,now,e);
-    return c.submit_commit_research(id,key,now,e);
+    if(action==Action::StartResearch)return c.submit_start_research(fixture_action_id,key,now,e);
+    if(action==Action::SetResearchWorkers)return c.submit_research_workers(fixture_action_id,key,3,now,e);
+    return c.submit_commit_research(fixture_action_id,key,now,e);
 }
 void flow(Action action,int mode){
     LocalSession hs(1),cs(2);LocalEngine he(action),ce(action);std::deque<Packet> packets;Wire hw(1,packets),cw(2,packets);
