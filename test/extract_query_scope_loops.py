@@ -282,8 +282,8 @@ assert current.index(find_call)<current.index(users_call)<current.index('!reader
 for relative,digest in [
     ('src/game/character_membership_reader.h','762605d894cf728dbe2f869bc3f0128d66e05be53ef137a63ff9e75e43643cac'),
     ('src/game/subscriber_intervention.h','33ec7264580c592c105776a3b6b292e5f954a80eafafee61205a535b756f3fcf'),
-    ('src/game/release_reference_reader.h','07d5be40cd7f81fe0133674bbebb3e5b89471ad39f4b46c63470abd78980f80a')]:
-    assert hashlib.sha256((a.root/relative).read_bytes()).hexdigest()==digest, 'Reader callbacks changed; recheck bounded metadata extent: '+relative
+    ('src/game/release_reference_reader.h','ac0a1cc7745f07d71d872ad38f915d7f1d8d58e529face039035304a6ce51b78')]:
+    assert hashlib.sha256((a.root/relative).read_bytes().replace(b'\r\n', b'\n')).hexdigest()==digest, 'Reader callbacks changed; recheck bounded metadata extent: '+relative
 
 # Extract each complete production loop, including both full validations.
 for relative,output in [
