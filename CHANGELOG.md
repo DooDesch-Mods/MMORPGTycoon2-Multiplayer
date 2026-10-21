@@ -11,6 +11,7 @@
 
 ### Fixed
 
+- Fix a failed return to the main menu caused by Multiplayer save data.
 - Keep both players in sync when copying a building after placement and undo/redo.
 - Restore scenery correctly when undoing a building placement that cleared it.
 - Keep group names and selection consistent when ungrouping scenery.

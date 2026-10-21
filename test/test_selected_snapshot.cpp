@@ -1,8 +1,12 @@
 #include "selected_snapshot.h"
+BOOL WINAPI snapshot_fixture_set_information(HANDLE,FILE_INFO_BY_HANDLE_CLASS,LPVOID,DWORD);
+#define SetFileInformationByHandle snapshot_fixture_set_information
 #include "save_companion_retirement.h"
+#undef SetFileInformationByHandle
 #include "mt2mp/game/native_engine.h"
 #include <iostream>
 #include <random>
+#include <set>
 using json=nlohmann::json;
 namespace fs=std::filesystem;
 namespace mt2mp {
@@ -11,12 +15,26 @@ namespace net {inline void invalidate_snapshot_world(const std::string&);}
 }
 using namespace mt2mp;
 namespace fixture {
+std::set<size_t> rename_residues;
 fs::path root;std::vector<std::string> calls;bool title=true,title_pending=false,reject_prepare=false,reject_begin=false,reject_request=false;
 unsigned checks=0;
 void need(bool b,const std::string& e){++checks;if(!b)throw std::runtime_error(e);}
 void write(const fs::path& p,const std::string& s){fs::create_directories(p.parent_path());std::ofstream f(p,std::ios::binary);f<<s;f.close();need(bool(f),"fixture write failed");}
 std::string read(const fs::path& p){std::ifstream f(p,std::ios::binary);return {std::istreambuf_iterator<char>(f),std::istreambuf_iterator<char>()};}
 std::string uuid(unsigned n){auto s=std::string("00000000-0000-4000-8000-000000000000");s.replace(s.size()-std::to_string(n).size(),std::to_string(n).size(),std::to_string(n));return s;}
+}
+BOOL WINAPI snapshot_fixture_set_information(HANDLE handle,FILE_INFO_BY_HANDLE_CLASS kind,LPVOID data,DWORD length){
+    if(kind==FileRenameInfo){
+        fixture::need(data&&length>=offsetof(FILE_RENAME_INFO,FileName),"rename information header missing");
+        const auto* info=static_cast<const FILE_RENAME_INFO*>(data);
+        fixture::need(info->FileNameLength%sizeof(wchar_t)==0,"rename filename has partial UTF-16 code unit");
+        fixture::need(size_t(length)>=offsetof(FILE_RENAME_INFO,FileName)+info->FileNameLength+sizeof(wchar_t),
+                      "rename buffer does not reserve the filename terminator");
+        const auto characters=info->FileNameLength/sizeof(wchar_t);
+        fixture::need(info->FileName[characters]==wchar_t{},"rename filename is not NUL terminated");
+        fixture::rename_residues.insert(characters%4);
+    }
+    return ::SetFileInformationByHandle(handle,kind,data,length);
 }
 namespace mt2mp::game {
 namespace native {

@@ -1,6 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-beta.17",
-  "summary": "Build with a friend: copy buildings and scenery, group your decorations, and clear individual scenery with one click of the eraser.",
+  "summary": "Build together: copy buildings and scenery, group decorations, erase individual scenery and undo supported shared edits with a friend.",
   "native_evidence": "docs/evidence/beta17-native.json"
 }

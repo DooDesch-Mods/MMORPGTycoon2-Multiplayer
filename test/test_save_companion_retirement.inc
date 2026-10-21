@@ -32,8 +32,8 @@ DWORD call_string(uintptr_t address,void* mode,const char* command){
     return 0;
 }
 #include "selected_snapshot_quit_actual.inc"
-void reset(bool companion=true,bool meta=true){
-    ++serial;write_root=fixture::root/("quit-"+std::to_string(serial));archive_root=write_root/"owned-archive";
+void reset(bool companion=true,bool meta=true,size_t padding=0){
+    ++serial;write_root=fixture::root/(std::string(padding,'p')+"quit-"+std::to_string(serial));archive_root=write_root/"owned-archive";
     native_file=write_root/"save/World/autosave.vrz";companion_file=fs::path(native_file.wstring()+L".monsters.json");
     fixture::write(native_file,"old exact native save");
     if(meta)fixture::write(write_root/"save/World/autosave.meta.vrz","old exact native metadata");
@@ -60,7 +60,8 @@ void check_archive(bool meta){
 void cases(){
     for(const bool meta:{false,true}){
         reset(true,meta);std::string error;
-        need(request_return_to_title(error)&&error.empty()&&quit_calls==1&&archive_calls==1,"original Quit is called once after complete archival");
+        const bool returned=request_return_to_title(error);
+        need(returned&&error.empty()&&quit_calls==1&&archive_calls==1,"original Quit is called once after complete archival; cause="+error);
         check_archive(meta);
         need(!fs::exists(companion_file)&&fixture::read(native_file)=="new bytes from original native autosave","native autosave writes normally without stale companion");
         auto copied=game::selected_snapshot::copy(write_root,"save/World/autosave.vrz",fixture::uuid(100+unsigned(serial)),net::snapshot_max_bytes,net::hash_snapshot_file);
@@ -105,5 +106,11 @@ void cases(){
              " returned="+std::to_string(result)+" quit_calls="+std::to_string(quit_calls)+" archive_calls="+std::to_string(archive_calls)+" cause="+error);
         check_archive(true);
     }
+    for(size_t padding=0;padding<4;++padding){
+        reset(true,true,padding);std::string error;const bool returned=request_return_to_title(error);
+        need(returned&&quit_calls==1&&archive_calls==1,"terminated rename failed; padding="+std::to_string(padding)+" cause="+error);
+        check_archive(true);
+    }
+    need(fixture::rename_residues.size()==4,"rename checks did not cover all four UTF-16 buffer alignments");
 }
 }

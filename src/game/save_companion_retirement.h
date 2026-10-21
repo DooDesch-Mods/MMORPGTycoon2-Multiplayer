@@ -67,12 +67,13 @@ inline Json archive(const fs::path& write,const std::string& world,const fs::pat
     }
     const auto retired=destination/companion.filename();const auto name=retired.wstring();
     const auto name_bytes=name.size()*sizeof(wchar_t);
-    const auto rename_bytes=offsetof(FILE_RENAME_INFO,FileName)+name_bytes;
+    // Reserve the Win32 filename terminator independently of vector padding.
+    const auto rename_bytes=offsetof(FILE_RENAME_INFO,FileName)+name_bytes+sizeof(wchar_t);
     require(rename_bytes<=MAXDWORD,"autosave companion archive rename path exceeds Win32 byte budget");
     std::vector<uint64_t> storage((rename_bytes+sizeof(uint64_t)-1)/sizeof(uint64_t));
     auto* rename=reinterpret_cast<FILE_RENAME_INFO*>(storage.data());
     rename->ReplaceIfExists=FALSE;rename->RootDirectory=nullptr;rename->FileNameLength=DWORD(name_bytes);
-    std::memcpy(rename->FileName,name.data(),name_bytes);
+    std::memcpy(rename->FileName,name.c_str(),name_bytes+sizeof(wchar_t));
     require_win32(SetFileInformationByHandle(companion_pin.get(),FileRenameInfo,rename,DWORD(rename_bytes))!=0,
                   "autosave companion pinned retirement failed");
     require(private_profile::equal(private_profile::final_path(companion_pin.get()),retired)&&!selected_snapshot::regular(companion,false),
