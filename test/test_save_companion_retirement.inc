@@ -99,8 +99,10 @@ void cases(){
     }
     for(int failure=0;failure<3;++failure){
         reset();if(failure==0)native_exception=5;if(failure==1)quit_flag=false;if(failure==2)desktop=true;
-        std::string error;need(!request_return_to_title(error)&&error.find(failure==0?"native call failed":"acknowledgement failed")!=std::string::npos&&quit_calls==1,
-                               "original native exception/acknowledgement failure remains visible with no retry");
+        std::string error;const bool result=request_return_to_title(error);
+        need(!result&&error.find(failure==0?"native call failed":"acknowledgement failed")!=std::string::npos&&quit_calls==1,
+             "original native exception/acknowledgement failure remains visible with no retry; mode="+std::to_string(failure)+
+             " returned="+std::to_string(result)+" quit_calls="+std::to_string(quit_calls)+" archive_calls="+std::to_string(archive_calls)+" cause="+error);
         check_archive(true);
     }
 }

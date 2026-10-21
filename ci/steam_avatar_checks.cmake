@@ -10,4 +10,7 @@ if(WIN32)
     add_test(NAME steam_avatar_png_decode COMMAND "${Python3_EXECUTABLE}" -B -X utf8
         "${CMAKE_CURRENT_SOURCE_DIR}/../test/check_avatar_png.py" "${CMAKE_CURRENT_BINARY_DIR}/avatar-profile")
     set_tests_properties(steam_avatar_png_decode PROPERTIES FIXTURES_REQUIRED avatar_png)
+    # The PNG consumer and its native provider share one runner and output directory.
+    set_tests_properties(steam_avatar_provider steam_avatar_png_decode
+        PROPERTIES LABELS "source-target:test_steam_avatars")
 endif()

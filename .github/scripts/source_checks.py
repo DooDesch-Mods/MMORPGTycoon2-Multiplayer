@@ -54,6 +54,21 @@ def test_plan(targets, tests, build, count):
         name = test['name']
         if chr(10) in name or chr(13) in name:
             raise ValueError('CTest name contains a line break')
+        properties = {row['name']: row['value'] for row in test.get('properties', [])}
+        labels = properties.get('LABELS', [])
+        if isinstance(labels, str):
+            labels = labels.split(';')
+        forced = [label.removeprefix('source-target:') for label in labels if label.startswith('source-target:')]
+        fixture = any(properties.get(key) for key in ('FIXTURES_SETUP', 'FIXTURES_REQUIRED', 'FIXTURES_CLEANUP', 'DEPENDS'))
+        if fixture and not forced:
+            raise ValueError('dependent CTest needs an explicit source-target owner: ' + name)
+        if forced:
+            if len(forced) != 1 or forced[0] not in owners:
+                raise ValueError('CTest source-target owner is missing or ambiguous: ' + name)
+            selected[owners[forced[0]]].append(name)
+            if not test.get('command'):
+                unavailable.append(name)
+            continue
         command = test.get('command')
         if not command:
             # CTest omits commands for binaries not built on this runner.

@@ -66,6 +66,25 @@ class SourceCheckShards(unittest.TestCase):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 source.verify_receipts(rows, 'abc')
 
+    def test_fixture_provider_and_consumer_keep_the_native_owner(self):
+        label = {'name': 'LABELS', 'value': ['source-target:alpha']}
+        provider = {'name': 'provider', 'properties': [label, {'name': 'FIXTURES_SETUP', 'value': ['png']}]}
+        consumer = {'name': 'consumer', 'command': ['C:/python/python.exe'],
+                    'properties': [label, {'name': 'FIXTURES_REQUIRED', 'value': ['png']}]}
+        groups, tests, _, unavailable = source.test_plan(self.targets, [provider, consumer], 'D:/build', 2)
+        owner = next(i for i, group in enumerate(groups) if 'alpha' in group)
+        self.assertEqual(tests[owner], ['consumer', 'provider'])
+        self.assertEqual(unavailable, ['provider'])
+
+    def test_unassigned_or_unknown_fixture_owner_rejected(self):
+        fixture = {'name': 'consumer', 'command': ['python'],
+                   'properties': [{'name': 'FIXTURES_REQUIRED', 'value': ['png']}]}
+        with self.assertRaisesRegex(ValueError, 'explicit source-target'):
+            source.test_plan(self.targets, [fixture], 'D:/build', 2)
+        fixture['properties'].append({'name': 'LABELS', 'value': ['source-target:unknown']})
+        with self.assertRaisesRegex(ValueError, 'owner is missing'):
+            source.test_plan(self.targets, [fixture], 'D:/build', 2)
+
     def test_junit_requires_the_actual_selected_checks(self):
         root = source.ET.fromstring('<testsuite><testcase name="alpha"/><testcase name="beta"/></testsuite>')
         self.assertEqual(source.confirmed_test_names(root, ['beta', 'alpha']), ['alpha', 'beta'])
