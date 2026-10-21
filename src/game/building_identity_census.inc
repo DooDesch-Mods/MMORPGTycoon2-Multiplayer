@@ -54,7 +54,7 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     }
     const auto resolve=[&](const json& row,LocalTarget& target,std::string& cause){
         const auto found=indexed.find(row.at("local_uid").get<uint64_t>());
-        if(found==indexed.end()||found->second->snapshot!=row.at("snapshot_id")||found->second->key!=row.at("record_key")){
+        if(found==indexed.end()||json(found->second->snapshot)!=row.at("snapshot_id")||json(found->second->key)!=row.at("record_key")){
             cause="Service census supplied binding differs from complete UID index";return false;
         }
         return building_identity_resolve(*found->second,world,api,target,cause);
@@ -136,8 +136,8 @@ bool party_identity_bindings(json& out,std::string& error){
     for(const auto& row:sources.at("bindings")){
         if(row.at("revoked").get<bool>())continue;
         const auto uid=row.at("local_uid").get<uint64_t>();const auto found=indexed.find(uid);
-        if(row.at("unknown").get<bool>()||found==indexed.end()||found->second->snapshot!=row.at("snapshot_id")||
-           found->second->key!=row.at("record_key")||!seen.insert(uid).second){
+        if(row.at("unknown").get<bool>()||found==indexed.end()||json(found->second->snapshot)!=row.at("snapshot_id")||
+           json(found->second->key)!=row.at("record_key")||!seen.insert(uid).second){
             error="Party prop alias differs from complete current UID index";return false;
         }
         const auto& saved=*found->second;void* actual=nullptr;uint32_t seh=0;
