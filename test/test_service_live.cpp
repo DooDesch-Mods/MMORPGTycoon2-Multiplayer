@@ -29,6 +29,9 @@ void codec(){
     auto target=before;++target[0].rows[0].counts[0].total;need(compatible(before,target,e),e);
     target[0].metadata[0]='b';need(!compatible(before,target,e),"static service drift admitted");target=before;target[0].key="action:b";need(!compatible(before,target,e),"canonical owner drift admitted");
     target=before;target[0].rows.push_back({});need(!compatible(before,target,e),"membership drift admitted");target=before;target.push_back(before[0]);need(!valid(target,e),"duplicate Building admitted");
+    State modular_before{{"action:modular",std::string(64,'a'),{}, {}}};auto modular_after=modular_before;modular_after[0].uptime={1,1,1,1,1,1};
+    need(compatible(modular_before,modular_after,e)&&modular_before!=modular_after,"zero-Service Modular uptime change omitted from complete state");
+    need(decode(encode(modular_after),actual,e)&&actual==modular_after&&actual[0].rows.empty(),"zero-Service Modular actual uptime lost in existing wire");
     auto history_target=before;history_target[0].uptime={1,1};need(compatible(before,history_target,e),"authoritative uptime transition rejected");
     auto history_wire=encode(before);history_wire[0].erase("uptime");need(!decode(history_wire,actual,e),"missing uptime admitted");
     history_wire=encode(before);history_wire[0]["uptime"]={2};need(!decode(history_wire,actual,e),"non-Boolean uptime admitted");

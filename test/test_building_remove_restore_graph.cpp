@@ -72,7 +72,23 @@ void selection_graph_case(){
     reset(runtime);need(!remember_graph(remove_id,"selection:"+snap,100,e),"mismatched group source bound");
     published=nullptr;
 }
-int main(){try{path_graph_case();region_graph_case();selection_graph_case();Runtime runtime;std::string e;reset(runtime);
+void zone_and_district_stroke_graph_cases(){
+    using Remember=bool(*)(const std::string&,uintptr_t,std::string&);
+    struct Family {const char* prefix;Remember remember;};
+    const Family families[]={{"zone-edit:",remember_zone_edit},{"district-stroke:",remember_district_stroke}};
+    for(const auto& family:families){
+        Runtime runtime;std::string e;reset(runtime);const std::string key=family.prefix+remove_id;
+        need(family.remember(remove_id,100,e)&&runtime.buildings.at(remove_id).object_key==key,e);
+        need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_key==key&&submitted_target==remove_id,"family Undo lost exact source key: "+e);
+        need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==1,e);
+        uintptr_t graph=0;need(graph_for(action::Action::RedoBuilding,remove_id,graph,e)&&graph==next_graph,e);
+        need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::RedoBuilding,e)&&submitted_key==key&&submitted_target==remove_id,"family Redo lost exact source key: "+e);
+        need(perform(action::Action::RedoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==2,e);
+        reset(runtime);need(!remember_graph(remove_id,std::string(family.prefix)+snap,100,e)&&runtime.buildings.empty(),"family history bound another source action");
+        published=nullptr;
+    }
+}
+int main(){try{path_graph_case();region_graph_case();selection_graph_case();zone_and_district_stroke_graph_cases();Runtime runtime;std::string e;reset(runtime);
 need(remember_remove(remove_id,fixture_object_key,100,e),"exact removed graph not retained: "+e);
 need(submit_ui(reinterpret_cast<void*>(native_stack.receiver),action::Action::UndoBuilding,e)&&submitted_target==remove_id&&submitted_key==fixture_object_key,"UI did not preserve mutation/key distinction");
 need(perform(action::Action::UndoBuilding,remove_id,e)==action::Outcome::Confirmed&&original_calls==1&&runtime.buildings.at(remove_id).object_key==fixture_object_key,"Undo graph transition changed key: "+e);

@@ -32,7 +32,7 @@ class ConsumerStartupHookTests(unittest.TestCase):
 
     def test_historical_startup_omissions_are_detected(self):
         required = self.targets | {self.thought}
-        for rva in (0x585270, 0x5854E0, self.thought):
+        for rva in (0x585270, 0x5854E0, 0x5BA2C0, self.thought):
             with self.subTest(rva=hex(rva)):
                 self.assertIn(rva, required)
                 incomplete = dict(self.consumer)

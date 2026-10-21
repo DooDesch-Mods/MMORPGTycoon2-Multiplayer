@@ -2,30 +2,30 @@
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
-  "version_label": "Early Beta 17",
-  "release_label": "Early Beta 17 + development progress",
+  "version_label": "Early Beta 18",
+  "release_label": "Early Beta 18 - broader experimental co-op",
   "graphic_title": "Build a shared world.",
   "coverage_title": "Co-op, one feature at a time",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Play [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17) today. Development progress below is separate from the download. Each row names one feature and its exact scope.",
+  "overview_intro": "Play [Early Beta 18](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.18) with modular building and experimental Dungeon, character-design and management tools. Experimental features are included in the download; their in-game coverage is still incomplete.",
   "stages": [
     {
       "label": "Play now",
       "title": "Build together",
       "items": [
-        "Copy buildings and props",
-        "Group, erase and undo",
-        "Buy regions, build roads"
+        "Modular blocks and doors",
+        "Copy, group and erase",
+        "Save and reload worlds"
       ]
     },
     {
-      "label": "In development",
-      "title": "Build in more ways",
+      "label": "Also included",
+      "title": "Try experimental tools",
       "items": [
-        "Modular blocks and doors",
-        "Save modular worlds",
-        "Construction and right-click"
+        "Dungeon tools",
+        "Character design",
+        "MMO management"
       ]
     },
     {
@@ -45,7 +45,7 @@
       "name": "Host a Steam lobby",
       "status": "released",
       "scope": "Open a lobby from the Multiplayer window.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "join-lobby",
@@ -53,7 +53,7 @@
       "name": "Join a lobby",
       "status": "released",
       "scope": "Join the Host and receive the selected world.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "new-world",
@@ -61,7 +61,7 @@
       "name": "Create a shared world",
       "status": "released",
       "scope": "The Host uses the original new-world wizard while the other player waits.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "session-chat",
@@ -69,7 +69,7 @@
       "name": "Send session messages",
       "status": "released",
       "scope": "Send and read basic messages in the Multiplayer window.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "shared-pause",
@@ -77,7 +77,7 @@
       "name": "Pause together",
       "status": "released",
       "scope": "Pause or resume the shared world from either player.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "shared-speed",
@@ -85,7 +85,7 @@
       "name": "Change game speed",
       "status": "released",
       "scope": "Keep both players on the same selected simulation speed.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "building-place",
@@ -93,7 +93,7 @@
       "name": "Place a building",
       "status": "released",
       "scope": "Place supported buildings with shared costs.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "building-move",
@@ -101,7 +101,7 @@
       "name": "Move a building",
       "status": "released",
       "scope": "Move a supported building and preserve its shared identity.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "building-remove",
@@ -109,7 +109,7 @@
       "name": "Remove a building",
       "status": "released",
       "scope": "Remove a supported building and share its refund.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "building-copy",
@@ -117,7 +117,7 @@
       "name": "Copy a building",
       "status": "released",
       "scope": "Copy supported buildings, including after placement and undo/redo.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -126,7 +126,7 @@
       "name": "Undo and redo building placement",
       "status": "released",
       "scope": "Restore the building and scenery cleared by its placement.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -135,7 +135,7 @@
       "name": "Place individual scenery",
       "status": "released",
       "scope": "Place a supported scenery object with shared costs.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "scenery-move",
@@ -143,7 +143,7 @@
       "name": "Move individual scenery",
       "status": "released",
       "scope": "Move one scenery object with both players seeing the same pose.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "scenery-remove",
@@ -151,7 +151,7 @@
       "name": "Remove individual scenery",
       "status": "released",
       "scope": "Remove one selected scenery object and share its refund.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "scenery-copy",
@@ -159,7 +159,7 @@
       "name": "Copy individual scenery",
       "status": "released",
       "scope": "Create a shared copy with its own identity.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -168,7 +168,7 @@
       "name": "Group scenery",
       "status": "released",
       "scope": "Group selected scenery objects together.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -177,7 +177,7 @@
       "name": "Copy a scenery group",
       "status": "released",
       "scope": "Copy the group and its member objects.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -186,7 +186,7 @@
       "name": "Ungroup scenery",
       "status": "released",
       "scope": "Ungroup either the original group or its copy.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -195,7 +195,7 @@
       "name": "Undo and redo grouping",
       "status": "released",
       "scope": "Restore group membership and names through shared history.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -204,7 +204,7 @@
       "name": "Erase one scenery object",
       "status": "released",
       "scope": "Use one eraser click and share the refund. Held strokes and large brushes are separate work.",
-      "evidence": "beta17",
+      "evidence": "beta18",
       "milestone": "Early Beta 17"
     },
     {
@@ -213,7 +213,7 @@
       "name": "Buy a region",
       "status": "released",
       "scope": "Share the region purchase and cost.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "region-biome",
@@ -221,7 +221,7 @@
       "name": "Change a region biome",
       "status": "released",
       "scope": "Share supported biome-style changes.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "region-level",
@@ -229,7 +229,7 @@
       "name": "Change region levels",
       "status": "released",
       "scope": "Share the selected region level range.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "forest-paint",
@@ -237,7 +237,7 @@
       "name": "Paint forest terrain",
       "status": "released",
       "scope": "Share a completed forest-terrain stamp.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "road-place",
@@ -245,7 +245,7 @@
       "name": "Build a road",
       "status": "released",
       "scope": "Place a road, including a connection to an existing endpoint.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "road-remove",
@@ -253,7 +253,7 @@
       "name": "Remove a road",
       "status": "released",
       "scope": "Remove a road and share its refund.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "trainer-place",
@@ -261,7 +261,7 @@
       "name": "Place a Class Trainer",
       "status": "released",
       "scope": "Place a Class Trainer in the shared world.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "trainer-move",
@@ -269,7 +269,7 @@
       "name": "Move a Class Trainer",
       "status": "released",
       "scope": "Move an existing Class Trainer.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "trainer-remove",
@@ -277,7 +277,7 @@
       "name": "Remove a Class Trainer",
       "status": "released",
       "scope": "Remove an existing Class Trainer.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-giver-place",
@@ -285,7 +285,7 @@
       "name": "Place a Quest Giver",
       "status": "released",
       "scope": "Place a Quest Giver in the shared world.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-giver-move",
@@ -293,7 +293,7 @@
       "name": "Move a Quest Giver",
       "status": "released",
       "scope": "Move an existing Quest Giver.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-giver-remove",
@@ -301,7 +301,7 @@
       "name": "Remove a Quest Giver",
       "status": "released",
       "scope": "Remove an existing Quest Giver.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "elite-place",
@@ -309,7 +309,7 @@
       "name": "Place an Elite monster",
       "status": "released",
       "scope": "Place an individual Elite monster while paused.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "elite-move",
@@ -317,7 +317,7 @@
       "name": "Move an Elite monster",
       "status": "released",
       "scope": "Move an individual Elite monster while paused.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "elite-remove",
@@ -325,7 +325,7 @@
       "name": "Remove an Elite monster",
       "status": "released",
       "scope": "Remove an individual Elite monster while paused.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-create",
@@ -333,7 +333,7 @@
       "name": "Create a quest",
       "status": "released",
       "scope": "Add a quest to a supported Quest Giver.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-remove",
@@ -341,7 +341,7 @@
       "name": "Remove a quest",
       "status": "released",
       "scope": "Remove a supported authored quest.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-title",
@@ -349,7 +349,7 @@
       "name": "Rename a quest",
       "status": "released",
       "scope": "Share changes to its title.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-count",
@@ -357,7 +357,7 @@
       "name": "Change quest counts",
       "status": "released",
       "scope": "Share changes to the required count.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-rewards",
@@ -365,7 +365,7 @@
       "name": "Change quest rewards",
       "status": "released",
       "scope": "Share XP, gold and default-reward changes.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-building-target",
@@ -373,7 +373,7 @@
       "name": "Choose a building destination",
       "status": "released",
       "scope": "Use a supported building as the quest destination.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "quest-npc-target",
@@ -381,7 +381,7 @@
       "name": "Choose an NPC destination",
       "status": "released",
       "scope": "Use a supported NPC as the quest destination.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "research-bridges",
@@ -389,7 +389,7 @@
       "name": "Research Bridges",
       "status": "released",
       "scope": "Start Bridges research, assign workers and unlock it together.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "resume-host-save",
@@ -397,327 +397,367 @@
       "name": "Continue a saved world",
       "status": "released",
       "scope": "Continue together from the Host's supported saved world.",
-      "evidence": "beta17"
+      "evidence": "beta18"
     },
     {
       "id": "modular-prefab",
       "group": "modular",
       "name": "Place a modular prefab",
-      "status": "verified",
+      "status": "released",
       "scope": "Place a normal prefab with its selected theme. Other theme variants are not confirmed.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-block-add",
       "group": "modular",
       "name": "Add a modular block",
-      "status": "verified",
+      "status": "released",
       "scope": "Use the normal block-adding tool.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-block-remove",
       "group": "modular",
       "name": "Remove a modular block",
-      "status": "verified",
+      "status": "released",
       "scope": "Use the left-click block-removal tool.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-entrance-add",
       "group": "modular",
       "name": "Add a modular entrance",
-      "status": "verified",
+      "status": "released",
       "scope": "Use the normal entrance-adding tool.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-entrance-remove",
       "group": "modular",
       "name": "Remove a modular entrance",
-      "status": "verified",
+      "status": "released",
       "scope": "Use the normal entrance-removal tool.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-undo",
       "group": "modular",
       "name": "Undo a modular layout edit",
-      "status": "verified",
+      "status": "released",
       "scope": "The Client undoes a shared layout change.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-redo",
       "group": "modular",
       "name": "Redo a modular layout edit",
-      "status": "verified",
+      "status": "released",
       "scope": "The Host redoes that shared layout change.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "save-modular-world",
       "group": "saves",
       "name": "Save a modular world",
-      "status": "verified",
+      "status": "released",
       "scope": "Save the current world through the original game operation.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "reload-modular-host",
       "group": "saves",
       "name": "Reload a modular world",
-      "status": "verified",
+      "status": "released",
       "scope": "Load the saved modular world on the Host.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "distribute-modular-save",
       "group": "saves",
       "name": "Share the loaded modular world",
-      "status": "verified",
+      "status": "released",
       "scope": "Load it on a Client that has already joined. This does not cover a later join.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "edit-loaded-modular",
       "group": "saves",
       "name": "Edit a loaded modular building",
-      "status": "verified",
+      "status": "released",
       "scope": "Continue editing after the save assigns new object identities.",
-      "evidence": "modular"
+      "evidence": "beta18",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-construction",
       "group": "modular",
       "name": "Progress modular construction",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share developer assignment, movement, activation and job completion from the Host.",
-      "evidence": "construction"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "modular-right-click",
       "group": "modular",
       "name": "Remove a block with right-click",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Use right-click in block-building mode to request a shared removal.",
-      "evidence": "construction"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "terrain-other-styles",
       "group": "terrain",
       "name": "Paint other terrain styles",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the other active terrain-paint styles.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "walls-build",
       "group": "terrain",
       "name": "Build and remove walls",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the active wall tool and its changes.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "district-shape",
       "group": "terrain",
       "name": "Draw and edit a district",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share district shape, height and title placement.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "region-sell",
       "group": "regions",
       "name": "Sell a region",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the ownership change and its financial effects.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "monster-zone-edit",
       "group": "monsters",
       "name": "Edit a monster zone",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share zone shape, population settings and resets.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "monster-live-state",
       "group": "monsters",
       "name": "Share moving monster state",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "npc-properties",
       "group": "npcs",
       "name": "Edit NPC properties",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the offered NPC property controls and affected quest references.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-portal",
       "group": "dungeons",
       "name": "Place and remove a Dungeon portal",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Keep the exterior building, Dungeon identity and related references together.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-tiles",
       "group": "dungeons",
       "name": "Open and close Dungeon cells",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share layout-cell edits and their history.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-paint",
       "group": "dungeons",
       "name": "Paint Dungeon floors",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the offered Dungeon paint and theme controls.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-door",
       "group": "dungeons",
       "name": "Place Dungeon doors",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share a door and its layout references.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-key",
       "group": "dungeons",
       "name": "Place Dungeon keys",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Preserve the shared key-to-door relationship.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-treasure",
       "group": "dungeons",
       "name": "Place Dungeon treasure",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share treasure placement and references.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-lighting",
       "group": "dungeons",
       "name": "Change Dungeon lighting",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share authored light and palette settings.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "dungeon-instances",
       "group": "dungeons",
       "name": "Configure Dungeon instances",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the offered instance configuration values. Creation, removal, entering and party lifecycles are not included in this claim.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "character-definitions",
       "group": "characters",
       "name": "Create and copy character types",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share committed character-type creation, copy and variant membership commands. This does not claim every editor operation.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "character-costume",
       "group": "characters",
       "name": "Edit a character costume",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share committed model, body, color and animation choices.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "character-import",
       "group": "characters",
       "name": "Import a character PNG card",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share a character-definition import through the original image-loading operation. This is not a world or map import.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "ability-edit",
       "group": "characters",
       "name": "Edit abilities",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share offered ability costs, effects and membership changes.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "boss-phase-edit",
       "group": "characters",
       "name": "Edit Boss phases",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share offered phase and character-stat controls.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "network-nodes",
       "group": "management",
       "name": "Place server-network nodes",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the offered server-network node operations.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "network-cables",
       "group": "management",
       "name": "Connect server-network cables",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share endpoints, waypoints and connection removal.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "business-fees",
       "group": "management",
       "name": "Change game fees",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share purchase, subscription and offered service prices.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "business-loans",
       "group": "management",
       "name": "Take and repay loans",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the loan state and resulting money changes.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "business-ads",
       "group": "management",
       "name": "Run advertising campaigns",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share campaigns, budgets and financial effects.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "staff-management",
       "group": "management",
       "name": "Manage developers and Game Masters",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the implemented staff-assignment and job-state commands. This does not claim the whole staff simulation.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "release-management",
       "group": "management",
       "name": "Publish MMO updates",
-      "status": "implemented",
+      "status": "experimental",
       "scope": "Share the implemented release-state and committed-project commands. This does not claim every MMO-update workflow.",
-      "evidence": "source"
+      "evidence": "experimental",
+      "milestone": "Early Beta 18"
     },
     {
       "id": "scenery-brush",
@@ -880,6 +920,16 @@
     "future": {
       "status": "planned",
       "summary": "No complete implementation or game acceptance is claimed for this scope."
+    },
+    "beta18": {
+      "status": "released",
+      "url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.18",
+      "summary": "Included in EarlyBeta18 within the listed confirmed scope."
+    },
+    "experimental": {
+      "status": "experimental",
+      "url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.18",
+      "summary": "Integrated and shipped in EarlyBeta18; end-to-end in-game confirmation incomplete."
     }
   }
 }

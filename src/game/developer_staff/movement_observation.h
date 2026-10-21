@@ -38,10 +38,19 @@ inline bool observe_movement(const Read& read,const Capture& capture,const Censu
             remove_diagnostics::LocalTarget target;
             if(!remove_diagnostics::resolve_local_target(selection,receiver,target,error))return false;
             const auto& origin=capture.pin.origin;
-            if(!target.normal_building||target.object!=receiver||target.manager!=selection||!target.uid||
+            if(target.object!=receiver||target.manager!=selection||!target.uid||
                target.record_key.empty()||target.snapshot_id.empty()||target.world_epoch!=origin.world_epoch||
                target.world_generation!=origin.generation)
                 return fail("Developer movement Building binding differs from actual Origin/receiver");
+            if(target.normal_scenery)return fail("Developer movement target is native Scenery, not a Building");
+            if(!target.normal_building){
+                if(target.type!="Scenery"||target.variant!="base")
+                    return fail(target.kind_cause.empty()?"Developer movement target is not a supported native Building":target.kind_cause);
+                if(!remove_diagnostics::is_modular_target(target,error)){
+                    if(error.empty())error="Developer movement strict Modular current binding proof failed";
+                    return false;
+                }
+            }
             uid=target.uid;
             binding={{"present",true},{"building_key",target.record_key},{"binding_snapshot_uuid",target.snapshot_id},
                      {"native_origin_uuid",origin.uuid},{"type",target.type},{"variant",target.variant}};

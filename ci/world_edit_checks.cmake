@@ -15,6 +15,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/group_history_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/group_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/move_kiss/move_kiss.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/modular_capture.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/modular_graph.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/npc_property_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/prop_text_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/region_appearance_runtime.inc"

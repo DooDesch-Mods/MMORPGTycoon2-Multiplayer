@@ -42,7 +42,7 @@ building_guard='''bool object_effect(const Request& r,const Evidence& e) {
 emit('registry_history.inc','src/game/remove_diagnostics.cpp',['bool history_retirement(','bool retire_undone_building(','static bool restore_redone_building_impl(','bool restore_redone_building(','bool history_target_absent(','bool confirmed_remove_graph('])
 emit('registry_binding.inc','src/game/remove_diagnostics.cpp',['struct Bound '])
 with (a.output/'registry_binding.inc').open('a') as out:out.write(';\n')
-emit('graph_history.inc','src/game/building_history_slice/native_bridge.cpp',['bool bind_current_snapshot(','bool submit_ui(','static bool remember_graph(','bool remember_place(','bool remember_remove(','bool remember_selection(','bool remember_region(','bool remember_path(','bool graph_for(','action::Outcome perform('])
+emit('graph_history.inc','src/game/building_history_slice/native_bridge.cpp',['bool bind_current_snapshot(','bool submit_ui(','static bool remember_graph(','bool remember_place(','bool remember_remove(','bool remember_selection(','bool remember_region(','bool remember_path(','bool remember_zone_edit(','bool remember_district_stroke(','bool graph_for(','action::Outcome perform('])
 runtime=(a.root/'src/game/typed_action_runtime.cpp').read_text(encoding='utf-8')
 dispatch=body(runtime,'    bool retire(const action::Binding&')
 assert 'return request.dungeon_building?retire_dungeon_building(binding,request,error):retire_base(binding,request,error);' in dispatch

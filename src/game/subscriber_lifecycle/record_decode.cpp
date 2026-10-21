@@ -185,13 +185,45 @@ bool decode_logo_record(const DecodeApi& a,Memory& memory,const std::vector<Reco
         if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
     r.complete=true;e.clear();return true;
 }
+static bool modular_layout_load_records(const std::vector<Record>& source,std::vector<Record>& out,std::string& e){
+    size_t grid=SIZE_MAX;
+    for(size_t i=1;i<source.size();++i)if(source[i].parent==0&&source[i].label.type==1&&source[i].label.text=="grid"){
+        if(grid!=SIZE_MAX)return fail(e,"Modular Layout has repeated root grid Records");grid=i;
+    }
+    if(grid==SIZE_MAX){out=source;return true;}
+    std::vector<size_t> cells;
+    for(size_t i=1;i<source.size();++i)if(source[i].parent==grid)cells.push_back(i);
+    for(const auto& token:source[grid].tokens)if(token.type!=4)return fail(e,"Modular Layout grid token is not an integer");
+    if(cells.empty()){out=source;return true;}
+    if(!source[grid].tokens.empty())return fail(e,"Modular Layout grid mixes child and token values");
+    std::vector<bool> omitted(source.size());std::vector<Token> values;values.reserve(cells.size());
+    for(const auto index:cells){const auto& cell=source[index];
+        if(cell.label.type!=0||cell.label.bits||!cell.label.text.empty()||cell.tokens.size()>1||
+           (cell.tokens.empty()&&cells.size()!=1)||(!cell.tokens.empty()&&cell.tokens[0].type!=4))
+            return fail(e,"Modular Layout grid child differs from original integer Save Record");
+        omitted[index]=true;if(!cell.tokens.empty())values.push_back(cell.tokens[0]);
+    }
+    for(size_t i=1;i<source.size();++i)if(omitted[source[i].parent])return fail(e,"Modular Layout grid integer child has descendants");
+    // The exact native integer-array child loader reserves capacity but loops
+    // over the prior destination length, which is zero for a factory Layout.
+    // Its token branch sets length first. Change only this detached Load tree;
+    // the original Save writer reconstructs the request's child form on readback.
+    out.clear();out.reserve(source.size()-cells.size());std::vector<size_t> remap(source.size()),children(source.size());
+    for(size_t i=0;i<source.size();++i){if(omitted[i])continue;auto row=source[i];remap[i]=out.size();
+        if(i){row.parent=remap[row.parent];row.child_index=children[row.parent]++;}
+        if(i==grid)row.tokens=values;out.push_back(std::move(row));
+    }
+    return true;
+}
 bool decode_modular_record(const DecodeApi& a,Memory& memory,bool plan,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
     r={};if(tree.root||!tree.detached.empty())return fail(e,"Modular Record output already owns objects");
     if(!validate_record_tree(source,e))return false;
     if(source.size()>100000||source[0].label.type!=1||source[0].label.text!=(plan?"mmoBuildingPlan":"mmoBuildingLayout"))return fail(e,"Modular Record typed root/budget differs");
     if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||!a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Modular Record native API incomplete");
-    std::vector<uintptr_t> objects(source.size());tree.detached.reserve(source.size());
-    for(size_t i=0;i<source.size();++i){if(!create(a,memory,source[i],objects[i],tree,r,e))return false;if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
+    std::vector<Record> load_records;if(!plan&&!modular_layout_load_records(source,load_records,e))return false;
+    const auto& records=plan?source:load_records;
+    std::vector<uintptr_t> objects(records.size());tree.detached.reserve(records.size());
+    for(size_t i=0;i<records.size();++i){if(!create(a,memory,records[i],objects[i],tree,r,e))return false;if(!i)tree.root=objects[i];else if(!attach(a,objects[records[i].parent],objects[i],tree,r,e))return false;}
     r.complete=true;e.clear();return true;
 }
 bool decode_dungeon_fill_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){

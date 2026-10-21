@@ -22,6 +22,9 @@ bool restore_native_buildings(const world_state::Origin&,uint64_t revision,const
 
 world_state::Admission commit_scenery_stroke(const world_state::Origin&,uint64_t revision,const std::string& action_uuid,
     const std::vector<std::string>& retired,const std::vector<world_state::LocalBinding>& created,std::string& error){
+    if(fixture::request.action==action::Action::EditModularBuilding){fixture::calls.push_back("modular-commit");
+        if(!fixture::commit_ok){error="actual Modular world commit failure";return world_state::Admission::Rejected;}
+        for(const auto& key:retired)rows_.at(key).state.alive=false;for(const auto& row:created)rows_[row.object_key].state=row.state;fixture_revision=revision;return world_state::Admission::New;}
     fixture::calls.push_back("commit");
     fixture::need(action_uuid==fixture::request.action_uuid&&created.size()==1&&created[0].object_key==fixture::request.canonical_record_key&&
         created[0].local_uid==500&&created[0].state==fixture::building,"clearance World batch lost exact native Building birth");
@@ -31,4 +34,8 @@ world_state::Admission commit_scenery_stroke(const world_state::Origin&,uint64_t
     auto next=rows_;
     for(const auto& key:retired){fixture::need(next.contains(key)&&next.at(key).state.alive,"clearance World batch retired unknown/dead Scenery");next.at(key).state.alive=false;}
     next[created[0].object_key].state=created[0].state;rows_=std::move(next);fixture_revision=revision;return world_state::Admission::New;
+}
+world_state::Admission commit_scenery_history(const world_state::Origin& origin,uint64_t revision,const std::string& id,
+    const std::vector<std::string>& retired,const std::vector<world_state::LocalBinding>& created,std::string& error){
+    return commit_scenery_stroke(origin,revision,id,retired,created,error);
 }

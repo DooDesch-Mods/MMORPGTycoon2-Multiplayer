@@ -33,6 +33,7 @@ bool admit_created_dungeon_building(const std::string&,const std::string&,uint64
 bool restore_redone_modular(const std::string&,const std::string&,uint64_t,std::string&);
 bool restore_redone_dungeon_building(const std::string&,const std::string&,uint64_t,const std::string& scene,std::string&);
 bool is_modular_target(const LocalTarget&,std::string&);
+bool building_uptime_target(const LocalTarget&,bool& matched,std::string&);
 bool dungeon_building_scene(const LocalTarget&,std::string& scene,bool& matched,std::string&);
 bool is_dungeon_building_target(const LocalTarget&,const std::string& scene,std::string&);
 bool admit_created_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);

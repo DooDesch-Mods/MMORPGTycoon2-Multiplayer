@@ -22,9 +22,11 @@ bool current_owner(Runtime& r,uintptr_t history,bool& owned,std::string& e){
     remove_diagnostics::LocalTarget target;
     {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);
         if(!remove_diagnostics::resolve_identity_destination(object,target,e))return false;}
-    if(!target.normal_building||target.normal_scenery||target.object!=object||!target.uid||
+    if(target.normal_scenery||target.object!=object||!target.uid||
        target.snapshot_id!=context.snapshot_uuid||target.world_epoch!=world.world_epoch||target.world_generation!=world.generation)
         return fail(e,"Building uptime canonical current Building/UID differs");
+    bool uptime_owner=false;if(!remove_diagnostics::building_uptime_target(target,uptime_owner,e))return false;
+    if(!uptime_owner)return fail(e,"Building uptime canonical current Building family differs");
     building_uptime::Native value;if(!building_uptime::read(r.memory,r.image,object,value,e))return false;
     owned=true;return true;
 }

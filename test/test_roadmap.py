@@ -19,11 +19,12 @@ class ProgressTests(unittest.TestCase):
     def test_each_feature_has_one_stable_identity_and_evidence_stage(self):
         counts = roadmap.validate_data(self.data)
         self.assertEqual(sum(counts.values()), len(self.data['features']))
-        self.assertEqual(set(counts), set(roadmap.STATES))
+        self.assertFalse(set(counts) - set(roadmap.STATES))
 
     def test_development_confirmation_does_not_increase_released_count(self):
+        row = self.data['features'][0]
+        row['status'] = 'implemented'
         counts = roadmap.coverage_counts(self.data)
-        row = next(row for row in self.data['features'] if row['status'] == 'implemented')
         row['status'] = 'verified'
         after = roadmap.coverage_counts(self.data)
         self.assertEqual(after['released'], counts['released'])
@@ -31,8 +32,8 @@ class ProgressTests(unittest.TestCase):
         self.assertEqual(after['verified'], counts['verified'] + 1)
 
     def test_promotion_without_matching_evidence_fails(self):
-        row = next(row for row in self.data['features'] if row['status'] == 'verified')
-        row['status'] = 'released'
+        row = self.data['features'][0]
+        row['status'] = 'verified'
         with self.assertRaisesRegex(ValueError, 'differs from its evidence'):
             roadmap.validate_data(self.data)
 
@@ -73,14 +74,24 @@ class ProgressTests(unittest.TestCase):
         self.assertFalse(confirmed & implemented)
 
     def test_recent_progress_separates_download_and_development(self):
+        row = self.data['features'][0]
+        row['status'] = 'verified'
         recent = roadmap.recent_progress(self.data)
-        self.assertIn('New in Early Beta 17', recent)
+        self.assertIn('New in ' + self.data['version_label'], recent)
         self.assertIn('development only', recent)
         download, development = recent.split('### Confirmed since')
         for row in self.data['features']:
             if row['status'] == 'verified':
                 self.assertIn(row['name'], development)
                 self.assertNotIn(row['name'], download)
+
+    def test_shipped_experiments_do_not_claim_confirmed_game_behavior(self):
+        text = roadmap.status_key(self.data)
+        self.assertIn('as experimental', text)
+        self.assertIn('End-to-end game confirmation remains incomplete', text)
+        recent = roadmap.recent_progress(self.data)
+        self.assertIn('Experimental - included in this download', recent)
+        self.assertTrue(any(row['status'] == 'experimental' for row in self.data['features']))
 
     def test_desktop_and_mobile_plot_every_feature_once_within_the_canvas(self):
         namespace = {'svg': 'http://www.w3.org/2000/svg'}

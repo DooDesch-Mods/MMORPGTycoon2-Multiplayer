@@ -137,5 +137,32 @@ void building_identity_checks(){
     canonical=setup(false);std::vector<LocalTarget> full;
     need(identity_targets(full,error)&&full.size()==4&&saved_prop_reads==1&&settlement_reads[101]==2,
          "default Release census lost complete fresh Scenery proof");
+    for(unsigned fault=0;fault<8;++fault){
+        reset();fixture_modular=true;auto& value=live.at(101);value.type="Scenery";
+        registry.at(registry_id(::uuid,key(101))).metadata["type"]="Scenery";
+        if(fault==1)fixture_modular_art=true;
+        if(fault==2)fixture_modular_layout=false;
+        if(fault==3)fixture_modular_root=false;
+        if(fault==4)fixture_modular_valid=false;
+        if(fault==5)fixture_modular_memory=false;
+        if(fault==6)registry.at(registry_id(::uuid,key(101))).revoked=true;
+        if(fault==7)registry.at(registry_id(::uuid,key(101))).unknown=true;
+        error.clear();const bool accepted=identity_building_targets(owners,error,&destinations);
+        if(fault==4||fault==5||fault==7)need(!accepted&&!error.empty()&&owners.empty()&&destinations.empty(),"Modular census concealed original owner failure");
+        else {
+            need(accepted&&owners.size()==(fault?3u:4u),"Modular uptime inclusion broadened Art/non-root/non-Modular owners or omitted exact Modular");
+            if(!fault)need(owners.front().uid==101&&!owners.front().normal_building&&!owners.front().normal_scenery&&fixture_modular_proofs==1,"Modular uptime changed normal Building/Service UI classification");
+            else need(!fixture_modular_proofs,"excluded or revoked Modular entered original proof");
+            ServiceLocalFixture local;local.service_destinations=destinations;ServiceBindingFixture binding;
+            need(service_owners_actual(owners,local,binding,error)&&local.services.size()==owners.size(),"actual Service Frame loop omitted an admitted Modular uptime owner");
+            if(!fault){
+                need(local.services.front().key==key(101)&&local.services.front().uid==101,"actual Service Frame lost Modular full UID/key");
+                local.services.clear();++binding.native_generation;
+                need(!service_owners_actual(owners,local,binding,error)&&local.services.empty(),"actual Modular Frame loop bypassed current World binding");
+            }
+        }
+        if(fault==4)need(error=="original Modular Layout/Plan proof failed","Modular census original cause lost");
+        if(fault==5)need(error=="original Modular Art flag unreadable","Modular census read failure lost");
+    }
     reset();
 }

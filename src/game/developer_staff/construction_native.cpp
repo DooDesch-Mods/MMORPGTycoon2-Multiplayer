@@ -90,8 +90,9 @@ bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
     action_session::Context context;if(!action_session::selected_session().current(context,e))return false;
     if(!remove_diagnostics::resolve_identity_destination(context.snapshot_uuid,link.building_key,out.binding,e))return false;
     const auto& b=out.binding;
-    if(!b.normal_building||b.normal_scenery)return fail(e,b.kind_cause.empty()?
-        "Construction target is not a supported native Building":b.kind_cause);
+    if(b.normal_scenery)return fail(e,"Construction target is native Scenery, not a Building");
+    if(!b.normal_building){if(b.type!="Scenery"||b.variant!="base")return fail(e,b.kind_cause.empty()?"Construction target is not a supported native Building":b.kind_cause);
+        if(!remove_diagnostics::is_modular_target(b,e))return false;}
     if(b.manager!=selection||b.uid!=link.building_uid||b.record_key!=link.building_key||
        b.snapshot_id!=context.snapshot_uuid||b.world_epoch!=c.pin.origin.world_epoch||
        b.world_generation!=c.pin.origin.generation)return fail(e,"Construction existing Building binding/UID/type/variant/native Origin differs");
@@ -332,7 +333,10 @@ bool finish_placement(const PlacementBefore& before,const std::string& snapshot,
     if(!remove_diagnostics::resolve_record_target(snapshot,key,target,e))return false;
     const auto& job=queue.jobs.back();uintptr_t region=0;
     if(!at(target.object,0x178,region,e))return false;
-    if(!target.normal_building||target.uid!=uid||target.record_key!=key||target.snapshot_id!=snapshot||
+    if(target.normal_scenery)return fail(e,"Construction original new Job target is native Scenery");
+    if(!target.normal_building){if(target.type!="Scenery"||target.variant!="base")return fail(e,target.kind_cause.empty()?"Construction original new Job target is not a supported Building":target.kind_cause);
+        if(!remove_diagnostics::is_modular_target(target,e))return false;}
+    if(target.uid!=uid||target.record_key!=key||target.snapshot_id!=snapshot||
        target.world_epoch!=after.pin.origin.world_epoch||target.world_generation!=after.pin.origin.generation||
        job.type!=1||!job.valid||job.building!=target.object||!job.building_proxy||job.region!=region||job.developer||
        job.bug.pointer||job.monster||job.monster_proxy)return fail(e,"Construction original new Job does not bind exact created Building");

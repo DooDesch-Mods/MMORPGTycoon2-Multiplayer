@@ -31,6 +31,26 @@ bool building_identity_resolve(const Bound& binding,const host::WorldState& worl
     return resolve_local_target_impl(world.selection,uintptr_t(object),target,error,&world.origin,true,&binding);
 }
 }
+bool building_uptime_target(const LocalTarget& target,bool& matched,std::string& error){
+    matched=false;
+    if(target.normal_scenery)return true;
+    if(target.normal_building){matched=true;return true;}
+    if(target.type!="Scenery"||target.variant!="base")return true;
+    if(!target.object||target.object>UINTPTR_MAX-0xcc0){error="Modular uptime target pointer extent invalid";return false;}
+    host::opened::CurrentWorld world;if(!current(world,error))return false;
+    if(target.snapshot_id!=net::current_snapshot_id()||target.world_epoch!=world.world_epoch||target.world_generation!=world.generation){
+        error="Modular uptime current canonical World differs";return false;
+    }
+    host::ProcessMemory memory;uintptr_t root=0,layout=0;uint8_t art=1;
+    if(!memory.copy(target.object+0x170,&root,sizeof root,error)||!memory.copy(target.object+0xcba,&art,sizeof art,error))return false;
+    // The original Building update excludes Art. This authority path admits
+    // only current root owners with the complete Modular UID/Layout/Plan proof.
+    if(root!=uintptr_t(world.map)+0x1c0||art)return true;
+    if(!memory.copy(target.object+0x7d0,&layout,sizeof layout,error))return false;
+    if(!layout)return true;
+    if(!is_modular_target(target,error))return false;
+    matched=true;return true;
+}
 bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,std::map<uintptr_t,std::string>* destinations){
     out.clear();if(destinations)destinations->clear();host::RootSceneryReadBatch batch;
     auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
@@ -64,7 +84,8 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,binding->key);
     for(auto& target:sampled){
         if(!candidates.emplace(target.object,target.record_key).second){error="Building owner census current receiver is ambiguous";return false;}
-        if(target.normal_building)pending.push_back(std::move(target));
+        bool uptime_owner=false;if(!building_uptime_target(target,uptime_owner,error))return false;
+        if(uptime_owner)pending.push_back(std::move(target));
     }
     if(!batch.finish(error))return false;
     out=std::move(pending);if(destinations)*destinations=std::move(candidates);return true;

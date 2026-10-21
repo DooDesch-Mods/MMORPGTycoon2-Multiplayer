@@ -28,7 +28,8 @@ bool services_read(Runtime& r,const a::Context& c,const a::Binding& b,Local& loc
     for(const auto& target:census){
         const auto destination=local.service_destinations.find(target.object);
         if(target.world_epoch!=b.native_epoch||target.world_generation!=b.native_generation||destination==local.service_destinations.end()||destination->second!=target.record_key||!proved_buildings.insert(target.object).second)return fail(e,"Service Frame duplicate or changed canonical Building owner");
-        if(target.normal_building)local.services.push_back({target.record_key,target.object,target.uid,{},{}});
+        // The census also proves Modular uptime owners with an empty Service array.
+        local.services.push_back({target.record_key,target.object,target.uid,{},{}});
     }
     std::sort(local.services.begin(),local.services.end(),[](const auto& x,const auto& y){return x.key<y.key;});
     for(auto& owner:local.services){service_live::Building value;if(!service_sample(r,local.service_destinations,owner,value,e,&proved_buildings))return false;out.push_back(std::move(value));}

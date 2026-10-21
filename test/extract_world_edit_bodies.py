@@ -62,4 +62,25 @@ body('src/game/duplicate_history_runtime.inc','action::Outcome perform_history('
 body('src/game/duplicate_runtime.inc','void retain_source_records(','void reject(','duplicate_record_status_actual.inc')
 body('src/game/duplicate_runtime.inc','void tick(){','action::Outcome perform(','duplicate_tick_actual.inc')
 body('src/game/duplicate_runtime.inc','void retire_session(){','json status(){','duplicate_retire_session_actual.inc')
+body('src/game/modular_graph.inc','bool prefab_graph(','bool Port::readback(','modular_prefab_graph_actual.inc')
+# Modular history must select its native receipt before generic Building history.
+runtime=(a.source/'src/game/typed_action_runtime.cpp').read_text()
+observe=runtime[runtime.index('    bool observe_action_base('):runtime.index('    bool observe_remove(')]
+history_header='        if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding) {'
+binding_guard='            if(!current(binding,request.snapshot_uuid,error))return false;'
+history_route='            if(request.canonical_record_key=="modular:"+request.target_action_uuid)return ui_move_runtime::modular::observe(binding,request,out,error);'
+forward_route='        if(request.action==action::Action::EditModularBuilding)return ui_move_runtime::modular::observe(binding,request,out,error);'
+assert observe.count(history_header)==observe.count(history_route)==observe.count(forward_route)==1, 'Modular history lacks separate history/forward observer routes'
+start=observe.index(history_header);owner=observe.index(binding_guard,start);route=observe.index(history_route)
+assert start<owner<route<observe.index('            const auto found=history_.find(request.action_uuid);')<observe.index(forward_route), 'Modular history observation is shadowed by generic Building history'
+retire=runtime[runtime.index('    bool retire_base('):runtime.index('    bool retire_base(')+runtime[runtime.index('    bool retire_base('):].index('const auto found=history_.find(request.action_uuid);')]
+retire_route='        if(request.action==action::Action::EditModularBuilding||((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="modular:"+request.target_action_uuid))return ui_move_runtime::modular::retire(binding,request,error);'
+assert retire.count(retire_route)==1, 'Modular retirement is shadowed by generic Building history'
+(a.output/'modular_observe_route_actual.inc').write_text(history_header+'\n'+binding_guard+'\n'+history_route+'\n            ++fallbacks;return false;\n        }\n'+forward_route+'\n        ++fallbacks;return false;\n')
+(a.output/'modular_retire_route_actual.inc').write_text(retire_route+'\n        ++fallbacks;return false;\n')
+body('src/game/modular_capture.inc','void right_entry(','void prefab_entry(','modular_right_entry_actual.inc')
+capture=(a.source/'src/game/modular_capture.inc').read_text()
+mode_begin=capture.index('    int32_t mode=-1;',capture.index('bool capture_input('))
+mode_end=capture.index('    out.snapshot=',mode_begin)
+(a.output/'modular_capture_mode_actual.inc').write_text(capture[mode_begin:mode_end])
 (a.output/'body-hashes.json').write_text(json.dumps(receipt,indent=2)+'\n')

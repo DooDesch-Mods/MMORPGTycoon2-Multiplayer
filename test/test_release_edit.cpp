@@ -1,6 +1,7 @@
 #include "release_edit_codec.h"
 #include "release_edit_reader.h"
 #include "release_ui_owner.h"
+#include "modular_code.h"
 #include "typed_action/action_session.h"
 #include <iostream>
 #include <sstream>
@@ -41,6 +42,37 @@ void physical_owner(){namespace o=mt2mp::game::release_ui_owner;std::string e;
         need(o::verify(v,copy,digest,digest(v.pristine),e),e);trampoline[stolen+6]^=1;need(!o::verify(v,copy,digest,digest(v.pristine),e),"wrong trampoline continuation admitted");trampoline[stolen+6]^=1;body[64]^=1;need(!o::verify(v,copy,digest,digest(v.pristine),e),"mutated full body admitted");body[64]^=1;v.generation=0;need(!o::verify(v,copy,digest,digest(v.pristine),e),"unowned route admitted");
     }
 }
+void modular_physical_owner(){namespace o=mt2mp::game::release_ui_owner;namespace code=mt2mp::game::modular_code;std::string e;
+    need(code::route_stolen(0x5ba2c1)==0,"Unknown Modular entry inherited a stolen length");
+    for(const auto& route:std::array<std::pair<uintptr_t,size_t>,3>{{{0x5bad60,6},{0x5bc0c0,6},{0x5ba2c0,7}}}){
+        const auto guard=std::find_if(std::begin(code::guards),std::end(code::guards),[&](const auto& row){return row.rva==route.first;});
+        need(guard!=std::end(code::guards),"Modular physical fixture lacks its complete pinned body");
+        const auto stolen=code::route_stolen(route.first);need(stolen==route.second,"Modular installed stolen length differs from exact prologue");
+        o::Owner v;v.entry=0x10000000+route.first;v.trampoline=0x20000000;v.detour=0x30000000;v.generation=9;v.stolen=stolen;v.pristine.assign(guard->original,guard->original+guard->bytes);
+        auto body=v.pristine;body[0]=0xe9;const int32_t delta=int32_t(v.trampoline+stolen+14-v.entry-5);std::memcpy(body.data()+1,&delta,4);
+        std::vector<unsigned char> trampoline(stolen+28);std::copy_n(v.pristine.begin(),stolen,trampoline.begin());constexpr unsigned char jump[]{0xff,0x25,0,0,0,0};
+        std::memcpy(trampoline.data()+stolen,jump,6);const uintptr_t continuation=v.entry+stolen;std::memcpy(trampoline.data()+stolen+6,&continuation,8);
+        std::memcpy(trampoline.data()+stolen+14,jump,6);std::memcpy(trampoline.data()+stolen+20,&v.detour,8);
+        const auto clean_body=body,clean_trampoline=trampoline;
+        auto copy=[&](uintptr_t address,void* output,size_t count,std::string& error){const auto& bytes=address==v.entry?body:trampoline;if((address!=v.entry&&address!=v.trampoline)||count>bytes.size()){error="Modular fixture address extent";return false;}std::memcpy(output,bytes.data(),count);return true;};
+        auto digest=[](const auto& bytes){return hash(std::string(bytes.begin(),bytes.end()));};const auto expected=digest(v.pristine);
+        need(o::verify(v,copy,digest,expected,e),e);
+        if(route.first==0x5ba2c0){v.stolen=6;need(!o::verify(v,copy,digest,expected,e)&&e=="Release UI trampoline/continuation/relay differs","Six-byte RightPress owner did not reproduce the native failure");v.stolen=stolen;}
+        for(unsigned changed=0;changed<8;++changed){body=clean_body;trampoline=clean_trampoline;v.generation=9;
+            if(changed==0)trampoline[0]^=1;
+            if(changed==1)trampoline[stolen+6]^=1;
+            if(changed==2)body[1]^=1;
+            if(changed==3)trampoline[stolen+20]^=1;
+            if(changed==4)body.back()^=1;
+            if(changed==5)body[stolen-1]^=1;
+            if(changed==6)v.generation=0;
+            if(changed==7)trampoline[stolen+14]^=1;
+            need(!o::verify(v,copy,digest,expected,e)&&!e.empty(),"Modular physical-owner tampering was accepted");
+        }
+        body=clean_body;trampoline=clean_trampoline;v.generation=9;need(o::verify(v,copy,digest,expected,e),e);
+    }
+}
+
 struct Session:a::Session {a::Context c;Session(uint64_t peer):c{77,peer,1,3,peer==1?a::Role::Host:a::Role::Client,snapshot}{}bool current(a::Context& out,std::string&)override{out=c;return true;}};
 struct Engine:a::Engine {p::State state=initial();a::Ledger money;a::Evidence receipt;bool partial=false;int executions=0;
     Engine(){money.record_present=1;money.cash=money.record_cash=20000;}
@@ -57,4 +89,4 @@ void controller(bool partial){Session hs(1),cs(2);Engine he,ce;ce.partial=partia
     need(deliver()&&deliver()&&deliver(),e);need(host.status().ack_mask==3&&host.status().confirmed==1&&client.status().confirmed==1&&he.state==ce.state,"complete original/ACK3 absent");need(host.receive(request.from,request.bytes.data(),request.bytes.size(),2,e)&&client.receive(result.from,result.bytes.data(),result.bytes.size(),2,e),e);need(he.executions==1&&ce.executions==1,"duplicate delivery replayed native original");need(!client.submit_release_edit(id,i,3,e),"consumed UUID replayed");
 }
 }
-int main(){try{state_and_codec();physical_owner();controller(false);controller(true);std::cout<<checks<<" Release policy/codec/Controller/physical-owner checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{state_and_codec();physical_owner();modular_physical_owner();controller(false);controller(true);std::cout<<checks<<" Release policy/codec/Controller/physical-owner checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

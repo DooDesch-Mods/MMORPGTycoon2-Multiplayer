@@ -10,7 +10,7 @@ bool prefab_graph(Runtime& r,uintptr_t graph,const std::map<uint64_t,Scenery>& m
         if(ap==r.image+0x1786fb0){action::DuplicateCash value;uintptr_t method=0;if(!q::at(r.memory,ap,0x10,method,e)||method!=r.image+0x53ccf0||!q::at(r.memory,node,0xb8,value.amount,e)||!q::at(r.memory,node,0xbc,value.position,e)||!scenery_make_history::uid_set(r.memory,node+8,0,e)||!scenery_make_history::uid_set(r.memory,node+0x30,0,e)||!scenery_make_history::uid_set(r.memory,node+0x58,0,e))return false;checked.cash.push_back(value);continue;}
         if(related&&related(node,ap,e))continue;return q::fail(e,e.empty()?"Modular Prefab graph has an unowned operation RVA="+std::to_string(ap>=r.image?ap-r.image:0):e);
     }
-    if(made_scenery.size()!=make_scenery.size()||made_buildings.size()!=make_buildings.size()||destroyed!=destroy||!duplicate_history::cash_equal(checked.cash,cash))return q::fail(e,"Modular graph lacks complete Make/Destroy/signed Cash coverage");std::vector<uintptr_t> order;return q::unchanged(r.memory,graph+0x18,100000,bounds,e)&&duplicate_history::execution_order(r.memory,r.image,graph,checked,order,e);
+    if(made_scenery.size()!=make_scenery.size()||made_buildings.size()!=make_buildings.size()||destroyed!=destroy||!duplicate_history::cash_equal(checked.cash,cash))return q::fail(e,"Modular graph lacks complete Make/Destroy/signed Cash coverage");return modular_layout_graph::complete_order(r.memory,r.image,graph,bounds,checked,e);
 }
 bool Port::readback(uintptr_t graph,uintptr_t created,const action::ModularIntent& input,std::string& e){
     host::WorldState world_now;duplicate_reader::Census census;auto find=[&](uint64_t uid,uintptr_t& object,std::string& why){return group_edit::find(r,uid,object,why);};

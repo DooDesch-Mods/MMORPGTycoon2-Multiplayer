@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.18",
+  "game_build": "24993678",
+  "framework_version": "0.2.6",
+  "players": 2,
+  "accepted_scope": [
+    "Current source parent reaches Playing on Host and Client after world transfer",
+    "Normal modular prefab placement, individual block and entrance tools",
+    "One Client layout undo and matching Host redo",
+    "Original modular-world save, Host reload, distribution to an already joined Client and continued editing"
+  ],
+  "experimental_scope": [
+    "Dungeon tools",
+    "Character Design and character PNG import",
+    "Abilities and Boss-phase editing",
+    "Network and MMO-management commands",
+    "Other integrated terrain, region, NPC and monster operations",
+    "Running construction and right-click block removal"
+  ],
+  "shared_state_acknowledged": true,
+  "full_coop_proven": false,
+  "performance_scope": "Paused small-world update counters only; no controlled FPS or multiplayer-load acceptance.",
+  "scope": "Broad experimental EarlyBeta. Confirmed scopes are retained from matching source parents; experimental features are included with incomplete runtime coverage."
+}

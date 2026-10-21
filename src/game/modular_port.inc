@@ -17,7 +17,7 @@ struct Port {
         if(target){uintptr_t found=0,root=0,region=0;uint64_t uid=0;if(!group_edit::find(r,target_uid,found,e)||found!=target||!q::typed(r.memory,r.image,target,0x16d93c0,e)||!q::at(r.memory,target,0x18,uid,e)||uid!=target_uid||!q::at(r.memory,target,0x170,root,e)||root!=before.props.world.root||!q::at(r.memory,target,0x178,region,e)||region!=before.region)return q::fail(e,e.empty()?"Modular current full target UID/root/Region changed":e);}return true;
     }
     bool native(calls::Work& work,std::string& e){if(!current(e))return false;receipt.attempted=true;return call(r,work,e);}
-    bool load(Resource& owned,const json& input,bool plan,std::string& e){owned.plan=plan;std::vector<subscriber_lifecycle::Record> records;if(!value::records(input,plan,records,e))return false;duplicate_edit::GraphMemory memory(r.memory);
+    bool load(Resource& owned,const json& input,bool plan,std::string& e){owned.plan=plan;std::vector<subscriber_lifecycle::Record> records;if(!value::records(input,plan,records,e))return false;json expected=input;if(!plan&&!value::resolved_layout_record(records,expected,e))return false;duplicate_edit::GraphMemory memory(r.memory);
         receipt.attempted=true;if(!subscriber_lifecycle::first_append::decode_modular_record(api.records,memory,plan,records,owned.record,owned.decoded,e))return false;
         calls::Work factory;factory.op=calls::Op::Factory;factory.mode=uint8_t(plan);if(!native(factory,e)||!factory.result)return q::fail(e,e.empty()?"Modular original typed factory returned null":e);owned.object=factory.result;
         subscriber_lifecycle::CallReceipt initialized;owned.context_entered=true;
@@ -25,12 +25,13 @@ struct Port {
         calls::Work load;load.op=calls::Op::Load;load.mode=uint8_t(plan);load.object=owned.object;load.other=uintptr_t(&owned.context);load.input=reinterpret_cast<void*>(owned.record.root);if(!native(load,e))return false;
         subscriber_lifecycle::CallReceipt resolved;owned.context_exit_attempted=true;
         {live_host_state::apply_timing::PageReadScope boundary(live_host_state::apply_timing::PageBoundary::OriginalCall);if(!subscriber_lifecycle::first_append::context_call(api.context_destroy,&owned.context,resolved,e))return false;}owned.context_exited=true;
-        json actual;std::string digest;if(!owned_record(r,owned.object,plan,actual,digest,e)||actual!=input)return q::fail(e,e.empty()?"Modular original detached typed Record readback differs":e);return current(e);
+        json actual;std::string digest;if(!owned_record(r,owned.object,plan,actual,digest,e)){e=std::string("Modular original detached ")+(plan?"Plan":"Layout")+" Record capture failed: "+(e.empty()?"original capture returned no cause":e);return false;}
+        if(actual!=expected){e=value::record_readback_difference(expected,actual,plan);return false;}return current(e);
     }
     bool ready(const action::ModularIntent& input,std::string& e){
         if(!action::selected_session().current(context,e)||!action::valid_modular(input)||!code(r,e)||!current(e)||!duplicate_edit::history_local_selection(r,before.props,selection,filter,camera,e))return false;
         if(!dependencies(r,binding,before,nullptr,before_dependencies,e))return false;point=input.position;
-        if(input.mode){const auto found=before.props.objects.find(input.target);const auto handle=before.props.handles.find(input.target);if(found==before.props.objects.end()||handle==before.props.handles.end()||found->second.family!=Family::Building||found->second.record_sha!=input.before_record_sha||found->second.region!=input.region)return q::fail(e,"Modular exact original target Record changed before Host action");
+        if(input.mode){const auto found=before.props.objects.find(input.target);const auto handle=before.props.handles.find(input.target);if(!value::target_matches(input,found==before.props.objects.end()?nullptr:&found->second,handle!=before.props.handles.end(),e))return false;
             target=handle->second.object;target_uid=handle->second.uid;Building saved;if(!duplicate_edit::history_building_value(r,target,saved,e)||saved.form!=duplicate_building_history::Form::Modular)return q::fail(e,e.empty()?"Modular selected Building is not an original modular form":e);buildings.emplace(target_uid,std::move(saved));
             if(input.mode==1){calls::Work adjusted;adjusted.op=calls::Op::AddBlockPosition;adjusted.object=target;adjusted.input=input.position.data();adjusted.extra=point.data();if(!native(adjusted,e))return false;}return current(e);
         }

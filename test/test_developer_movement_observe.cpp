@@ -13,6 +13,9 @@ developer_staff::job_census::Census census;
 std::string resolver_error;
 int checks=0,resolves=0,passes=0;
 bool change_owner=false,change_binding=false,change_uid=false;
+bool modular_ok=true;
+int modular_checks=0;
+uint64_t modular_uid=0;
 constexpr uintptr_t image=0x10000000,map=0x20000000,actor=0x30000000,building=0x40000000;
 constexpr uintptr_t selection=0x50000000,fixture_region=0x60000000,array=0x61000000;
 template<class T>void put(uintptr_t p,const T& value){const auto* data=reinterpret_cast<const unsigned char*>(&value);for(size_t n=0;n<sizeof(T);++n)fixture_bytes[p+n]=data[n];}
@@ -23,7 +26,7 @@ bool read(uintptr_t p,void* target,size_t n,std::string& error){
     return true;
 }
 void need(bool value,const char* name){++checks;if(!value)throw std::runtime_error(name);}
-void reset(){fixture_bytes.clear();capture={};census={};resolver_error.clear();resolves=passes=0;change_owner=change_binding=change_uid=false;
+void reset(){fixture_bytes.clear();capture={};census={};resolver_error.clear();resolves=passes=modular_checks=0;modular_uid=0;modular_ok=true;change_owner=change_binding=change_uid=false;
     capture.image=image;capture.pin.origin.map=reinterpret_cast<void*>(map);capture.pin.origin.uuid="native-origin";
     capture.pin.origin.world_epoch=4;capture.pin.origin.generation=7;
     for(int32_t i=0;i<50;++i){const auto receiver=actor+uintptr_t(i)*0x1000;
@@ -49,6 +52,11 @@ bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget& out,std::string& erro
     if(change_binding&&resolves==2)out.record_key="action:changed";
     if(change_uid&&resolves==2)++out.uid;return true;
 }
+bool is_modular_target(const LocalTarget& target,std::string& error){
+    ++modular_checks;modular_uid=target.uid;
+    if(!modular_ok){error="original strict Modular movement proof failure";return false;}
+    return target.type=="Scenery"&&target.variant=="base";
+}
 }
 int main(){try{namespace j=developer_staff::job_census;nlohmann::json out;std::string error;
     auto run=[&]{passes=resolves=0;return j::observe_movement(read,capture,census,out,error);};
@@ -58,6 +66,18 @@ int main(){try{namespace j=developer_staff::job_census;nlohmann::json out;std::s
     need(run()&&out.at("actors")[0].at("region").at("saved_id")==33&&out.at("actors")[0].at("shard_is_root")==true&&
          out.at("actors")[0].at("destination_building").at("binding_snapshot_uuid")=="common-snapshot","actual saved Region and distinct binding snapshot");
     need(out.dump().find(std::to_string(building))==std::string::npos&&out.dump().find(std::to_string(fixture_region))==std::string::npos,"no local pointer serialization");
+    need(modular_checks==0,"normal Building movement keeps its existing proof path");
+    reset();root_region();put(actor+0x338,building);put(actor+0x348,building);bound.normal_building=false;bound.type="Scenery";
+    need(run()&&modular_checks==4&&modular_uid==42&&out.at("actors")[0].at("current_building").at("type")=="Scenery"&&
+         out.at("actors")[0].at("destination_building").at("building_key")=="action:building","Modular current and destination use strict full UID proof on both reads");
+    modular_ok=false;need(!run()&&error=="original strict Modular movement proof failure","Modular movement retains strict proof cause");
+    modular_ok=true;bound.variant="other";modular_checks=0;need(!run()&&modular_checks==0,"nonbase Scenery cannot enter Modular movement proof");
+    bound.variant="base";bound.normal_scenery=true;need(!run()&&modular_checks==0,"normal Scenery cannot enter Modular movement proof");
+    bound.normal_scenery=false;bound.uid=0;need(!run()&&modular_checks==0,"Modular movement requires full UID before proof");
+    bound.uid=42;bound.world_generation=8;need(!run()&&modular_checks==0,"Modular movement requires current generation before proof");
+    bound.world_generation=7;bound.object+=8;need(!run()&&modular_checks==0,"Modular movement requires exact receiver before proof");
+    bound.object-=8;bound.manager+=8;need(!run()&&modular_checks==0,"Modular movement requires exact manager before proof");
+    bound.manager-=8;change_uid=true;need(!run()&&error.find("local owners changed")!=std::string::npos,"Modular movement full UID drift is rejected");
     reset();root_region();j::Job job;job.pointer=0x70000000;job.region=fixture_region;census.jobs.push_back(job);census.developers[0].job=job.pointer;census.developers[0].job_index=0;
     need(run()&&out.at("actors")[0].at("region_matches_job")==true,"actual assigned Job Region");
     census.developers[0].job_index=1;need(!run()&&error.find("absent from census")!=std::string::npos,"invalid Job index");

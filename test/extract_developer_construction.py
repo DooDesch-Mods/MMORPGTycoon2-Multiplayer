@@ -15,7 +15,8 @@ for name,anchor,tail in [('operation','struct Operation {',';'),('build_operatio
 for name,anchor,tail in [('duplicate_type','struct DuplicateConstruction {',';'),
                          ('retire_absent','void retire_absent_construction(',''),
                          ('perform_duplicate','action::Outcome perform_duplicate(',''),
-                         ('perform_duplicate_history','action::Outcome perform_duplicate_history(','')]:
+                         ('perform_duplicate_history','action::Outcome perform_duplicate_history(',''),
+                         ('perform_modular','action::Outcome perform_modular(','')]:
  (a.output/f'construction_{name}.inc').write_text(body(anchor)+tail+'\n',encoding='utf8')
 
 action_source=(a.source.parent/'typed_action/action_session.cpp').read_text(encoding='utf8')

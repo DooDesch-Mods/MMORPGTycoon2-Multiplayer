@@ -95,7 +95,7 @@ bool record(Runtime& r,const Sample& sample,const std::string& key,action::Dupli
 }
 bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,
             const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,
-            const std::function<bool(Sample&,std::string&)>& prepare_records={},bool untouched_scenery_scope=false,bool duplicate_scope=false){
+            const std::function<bool(Sample&,std::string&)>& prepare_records={},bool untouched_scenery_scope=false,bool duplicate_scope=false,const std::string& diagnostic_key={}){
     out={};if(!world(r,out.world,e)||out.world.origin.world_epoch!=binding.native_epoch||out.world.origin.generation!=binding.native_generation)
         return q::fail(e,e.empty()?"Duplicate current complete World binding differs":e);
     auto find=[&](uint64_t uid,uintptr_t& p,std::string& why){return group_edit::find(r,uid,p,why);};
@@ -149,6 +149,9 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
             return q::fail(e,"Duplicate current NPC canonical owner census repeats or is incomplete");}
     if(prepare_records&&!prepare_records(out,e))return false;
     std::set<std::string> diagnostic_keys;
+    // A caller may select one existing target after census preparation. Its
+    // diagnostic shares the original Save used for the complete Record SHA.
+    if(Config::instance().diagnostic_mailbox_enabled&&!diagnostic_key.empty()&&out.objects.contains(diagnostic_key))diagnostic_keys.insert(diagnostic_key);
     if(intent&&Config::instance().diagnostic_mailbox_enabled)for(const auto& target:intent->rows){
         if(diagnostic_keys.size()==duplicate_records::diagnostic_sources)break;
         diagnostic_keys.insert(target.key);

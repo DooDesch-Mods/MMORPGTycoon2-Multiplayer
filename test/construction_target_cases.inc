@@ -16,6 +16,7 @@ struct Session {bool current(Context& out,std::string& error){if(session_failure
 Session selected_session(){return {};}
 }
 namespace remove_diagnostics {
+bool is_modular_target(const LocalTarget&,std::string& error){error="Construction target-only fixture is not Modular";return false;}
 bool resolve_identity_destination(const std::string& snapshot,const std::string& canonical,LocalTarget& out,std::string& error){
     return identity_refund_fixture::resolve_identity_destination(snapshot,canonical,out,error);
 }

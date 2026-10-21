@@ -25,7 +25,8 @@ struct PageReadScope {explicit PageReadScope(PageBoundary){}};
 }
 namespace remove_diagnostics {
 struct LocalTarget {bool normal_building=true,normal_scenery=false;uintptr_t object=fixture_object;uint64_t uid=123,world_epoch=7,world_generation=11;std::string snapshot_id="shared";};
-LocalTarget fixture_target;bool fixture_target_ok=true;unsigned fixture_target_reads=0;
+LocalTarget fixture_target;bool fixture_target_ok=true,fixture_modular=false,fixture_modular_valid=true;unsigned fixture_target_reads=0;
+bool building_uptime_target(const LocalTarget& target,bool& matched,std::string& e){matched=false;if(!fixture_modular_valid)return fail(e,"original Modular Plan owner changed");matched=target.normal_building||fixture_modular;return true;}
 bool resolve_identity_destination(uintptr_t object,LocalTarget& out,std::string& e){++fixture_target_reads;out=fixture_target;return (fixture_target_ok&&object==fixture_object)||fail(e,"fixture canonical target changed");}
 }
 namespace building_uptime {
@@ -34,10 +35,10 @@ bool read(int&,uintptr_t,uintptr_t object,Native&,std::string& e){return (fixtur
 }
 #include "building_uptime_owner_actual.inc"
 void run(){
-    for(unsigned fixture_case=0;fixture_case<20;++fixture_case){
+    for(unsigned fixture_case=0;fixture_case<24;++fixture_case){
         Runtime fixture_runtime;a::fixture_context={};a::fixture_session_ok=true;native_open_runtime::fixture_world={};native_open_runtime::fixture_world_ok=true;
         fixture_root=fixture_runtime.gm_root;fixture_class_ok=fixture_field_ok=true;remove_diagnostics::fixture_target={};remove_diagnostics::fixture_target_ok=true;
-        remove_diagnostics::fixture_target_reads=0;building_uptime::fixture_history_ok=true;
+        remove_diagnostics::fixture_target_reads=0;building_uptime::fixture_history_ok=true;remove_diagnostics::fixture_modular=false;remove_diagnostics::fixture_modular_valid=true;
         auto& fixture_target=remove_diagnostics::fixture_target;
         if(fixture_case==1)fixture_runtime.thread=0;
         if(fixture_case==2)fixture_runtime.gm_context.reset();
@@ -58,10 +59,15 @@ void run(){
         if(fixture_case==17)++fixture_target.world_epoch;
         if(fixture_case==18)++fixture_target.world_generation;
         if(fixture_case==19)building_uptime::fixture_history_ok=false;
+        if(fixture_case>=20){fixture_target.normal_building=false;remove_diagnostics::fixture_modular=true;}
+        if(fixture_case==21)remove_diagnostics::fixture_modular_valid=false;
+        if(fixture_case==22)++fixture_target.world_generation;
+        if(fixture_case==23)building_uptime::fixture_history_ok=false;
         bool fixture_owned=false;std::string fixture_error;
         const bool fixture_result=current_owner(fixture_runtime,fixture_object+0xc60,fixture_owned,fixture_error);
-        if(!fixture_case)need(fixture_result&&fixture_owned&&remove_diagnostics::fixture_target_reads==1,"exact Client Building owner was not admitted");
+        if(!fixture_case||fixture_case==20)need(fixture_result&&fixture_owned&&remove_diagnostics::fixture_target_reads==1,"exact Client Building owner was not admitted");
         else need(!fixture_result&&!fixture_owned&&!fixture_error.empty(),"changed Client Building owner was admitted or lost cause");
+        if(fixture_case==21)need(fixture_error=="original Modular Plan owner changed","Modular uptime ownership failure cause lost");
     }
     Runtime fixture_runtime;a::fixture_context={};native_open_runtime::fixture_world={};fixture_class_ok=fixture_field_ok=true;
     fixture_root=0x9000;remove_diagnostics::fixture_target_reads=0;bool fixture_owned=true;std::string fixture_error;

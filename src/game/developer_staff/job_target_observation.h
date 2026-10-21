@@ -56,10 +56,20 @@ inline bool observe_building_targets(const Read& read, const Capture& capture,
             remove_diagnostics::LocalTarget target;
             if (!remove_diagnostics::resolve_local_target(selection, job.building, target, error)) return false;
             const auto& origin = capture.pin.origin;
-            if (!target.normal_building || target.object != job.building || target.manager != selection ||
+            if (target.object != job.building || target.manager != selection ||
                 target.snapshot_id.empty() || target.world_epoch != origin.world_epoch ||
                 target.world_generation != origin.generation || target.record_key.empty() || !target.uid)
                 return fail("Job target existing Building binding differs from actual Origin/receiver");
+            if (target.normal_scenery)
+                return fail("Job target is native Scenery, not a Building");
+            if (!target.normal_building) {
+                if (target.type != "Scenery" || target.variant != "base")
+                    return fail(target.kind_cause.empty() ? "Job target is not a supported native Building" : target.kind_cause);
+                if (!remove_diagnostics::is_modular_target(target, error)) {
+                    if (error.empty()) error = "Job target strict Modular current binding proof failed";
+                    return false;
+                }
+            }
             uintptr_t shard = 0, region = 0, dungeon = 0, instance = 0;
             int32_t state = 0;
             uint8_t field_7e1 = 0, field_a8e = 0;

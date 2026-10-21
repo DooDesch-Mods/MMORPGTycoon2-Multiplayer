@@ -290,6 +290,7 @@ void admission_and_shim() {
 }
 int main() {
     try{publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
+        monster_named_admission(0x5ba2c0,"mp.modular-b07.5ba2c0");
         monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
         monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");
         monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");monster_named_admission(0x859e30,"mp.building-uptime-add.859e30");admission_and_shim();

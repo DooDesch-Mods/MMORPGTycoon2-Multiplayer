@@ -102,13 +102,14 @@ action::Binding loaded_construction_binding_{};
 std::string loaded_construction_snapshot_;
 std::vector<developer_staff::construction::LocalJob> loaded_construction_;
 #include "construction_duplicate_type.inc"
-std::map<std::string,DuplicateConstruction> duplicate_construction_;
+std::map<std::string,DuplicateConstruction> duplicate_construction_,modular_construction_;
 #include "construction_retire_absent.inc"
 #include "construction_engine_jobs.inc"
 #include "construction_engine_bug_parent.inc"
 #include "construction_perform_place.inc"
 #include "construction_perform_duplicate.inc"
 #include "construction_perform_duplicate_history.inc"
+#include "construction_perform_modular.inc"
 };
 uint32_t GetCurrentThreadId(){return 1;}
 struct Session {bool good=true;bool current(action::Context& out,std::string& e){if(!good){e="actual Session unavailable";return false;}out=fixture::context;return true;}};
@@ -122,10 +123,12 @@ void reset(Runtime& r){clearance_placement_fixture::clear();using namespace fixt
 #include "loaded_construction_engine_cases.inc"
 #include "duplicate_construction_engine_cases.inc"
 #include "construction_clearance_cases.inc"
+#include "modular_construction_cases.inc"
 int main(){try{using namespace fixture;Runtime runtime;std::string e;std::vector<developer_staff::construction::LocalJob> jobs;
 loaded_engine_cases();
 duplicate_engine_cases(runtime);
 clearance_placement_cases(runtime);
+modular_construction_cases(runtime);
 reset(runtime);bool known=true,alive=true;
 need(bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&!known&&!alive,"missing Building row became a tombstone");
 runtime.engine.world_.rows_[request.canonical_record_key].state.alive=true;

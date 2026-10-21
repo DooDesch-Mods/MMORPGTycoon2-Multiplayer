@@ -31,9 +31,9 @@ bool region(Runtime& r,const host::WorldState& world,int32_t id,uintptr_t expect
     bool owned=false;for(int32_t i=0;i<count;++i){uintptr_t item=0;if(!q::at(r.memory,data,size_t(i)*8,item,e))return false;owned|=item==out;}
     return owned||q::fail(e,"Scenery stroke Region is not owned");
 }
-bool sample(Runtime& r,const action::Binding& binding,int32_t id,const std::map<uint64_t,std::string>& created,Sample& out,std::string& e){
+bool sample(Runtime& r,const action::Binding& binding,int32_t id,const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,const std::string& diagnostic_key={}){
     out={};
-    if(!duplicate_edit::sample(r,binding,nullptr,created,out.props,e)||!region(r,out.props.world,id,0,out.region,e)||
+    if(!duplicate_edit::sample(r,binding,nullptr,created,out.props,e,{},false,false,diagnostic_key)||!region(r,out.props.world,id,0,out.region,e)||
        !q::at(r.memory,out.region,0x160,out.region_random,e)||!out.region_random||!q::at(r.memory,out.region_random,0,out.state.region_random,e)||
        !scenery_stroke_state::digest(out.props.objects,digest,out.state.props_sha,e)||
        !scenery_stroke_bugs::read(r.memory,r.image,out.region,digest,out.state.bug_count,out.state.bugs_sha,e))return false;

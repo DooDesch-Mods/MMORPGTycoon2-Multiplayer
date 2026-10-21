@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.17",
-  "summary": "Build together: copy buildings and scenery, group decorations, erase individual scenery and undo supported shared edits with a friend.",
-  "native_evidence": "docs/evidence/beta17-native.json"
+  "version": "0.1.0-beta.18",
+  "summary": "Build modular worlds together and try experimental Dungeon, character-design and MMO-management tools in this broader Early Beta.",
+  "native_evidence": "docs/evidence/beta18-native.json"
 }

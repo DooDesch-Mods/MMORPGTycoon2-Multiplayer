@@ -214,6 +214,18 @@ int main()try{
             actual.state==with_diagnostics&&captured.size()==3,"created Record diagnostics changed full authority state or Save count");
         Config::instance().diagnostic_mailbox_enabled=true;runtime=setup();
     }
+    {
+        runtime=setup();remove_diagnostics::rows.push_back(binding(f::member_uid,scenery_key));remove_diagnostics::rows.push_back(binding(f::free_uid,"action:33333333-3333-4333-8333-333333333333"));
+        Sample plain,diagnosed;f::need(sample(runtime,admitted,nullptr,{},plain,error),error);captured.clear();std::string diagnostic_key;
+        const auto select=[&](Sample& current,std::string&){f::need(captured.empty()&&current.handles.at(building_key).uid==fixture_building_uid,"Modular diagnostic selection happened after original Save or before exact census");diagnostic_key=building_key;return true;};
+        f::need(sample(runtime,admitted,nullptr,{},diagnosed,error,select,false,false,diagnostic_key)&&captured.size()==3&&diagnosed.selected_records.size()==1&&diagnosed.selected_records.at(building_key).at("record_sha")==plain.objects.at(building_key).record_sha&&diagnosed.objects==plain.objects&&diagnosed.state==plain.state&&diagnosed.uptime.empty(),"One-target diagnostic repeated Save, projected uptime, or changed complete original state");
+        f::need(diagnosed.selected_records.at(building_key).at("state")=="complete"&&diagnosed.selected_records.at(building_key).at("record_count")==records.at(building).records.size(),"One-target diagnostic lost complete retained original Record tokens");
+        captured.clear();Config::instance().diagnostic_mailbox_enabled=false;
+        f::need(sample(runtime,admitted,nullptr,{},diagnosed,error,{},false,false,building_key)&&captured.size()==3&&diagnosed.selected_records.empty()&&diagnosed.objects==plain.objects&&diagnosed.state==plain.state,"Disabled one-target diagnostics altered Save count or exact state");
+        Config::instance().diagnostic_mailbox_enabled=true;captured.clear();
+        f::need(sample(runtime,admitted,nullptr,{},diagnosed,error,{},false,false,"action:absent")&&captured.size()==3&&diagnosed.selected_records.empty()&&diagnosed.objects==plain.objects,"Missing diagnostic target fabricated a row or changed original sampling");
+        runtime=setup();
+    }
     // Changing local UIDs and manager order must not change portable content.
     runtime.memory.put(f::scenery+0x18,uint64_t(700));runtime.memory.put(f::free_prop+0x18,uint64_t(800));
     uid_objects.erase(f::member_uid);uid_objects.erase(f::free_uid);uid_objects.emplace(700,f::scenery);uid_objects.emplace(800,f::free_prop);

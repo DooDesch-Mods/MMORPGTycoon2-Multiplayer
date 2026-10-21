@@ -1,6 +1,7 @@
 #include "developer_staff/construction_native.h"
 #include "developer_staff/construction_occurrence.h"
 #include "remove_diagnostics.h"
+#include "modular_identity.h"
 #include "mt2mp/game/native_engine.h"
 #include "live_host_state/memory_query_timing.h"
 #include <cstring>
@@ -52,6 +53,10 @@ struct FixtureSession {bool current(Context& out,std::string& e){if(!fixture::se
 FixtureSession& selected_session(){static FixtureSession value;return value;}
 }
 namespace mt2mp::game::remove_diagnostics {
+bool is_modular_target(const LocalTarget& target,std::string& error){
+    const auto read=[](uintptr_t p,size_t offset,auto& out,std::string& cause){return fixture::memory.copy(p+offset,&out,sizeof out,cause);};
+    return modular_identity::read(read,fixture::image,target.object,fixture::actual,error);
+}
 bool classify(LocalTarget& out,std::string& e){
     out=fixture::binding;
     const prop_lease::Prop prop{fixture::image+0x16d93c0,fixture::object,out.uid};
@@ -108,7 +113,7 @@ void reset(const std::string& type="SmallInn",const std::string& variant="base",
     capture={};capture.image=image;capture.pin.origin.map=reinterpret_cast<void*>(map);
     capture.pin.origin.world_epoch=7;capture.pin.origin.generation=9;
     binding={selection,object,3176,7,9,context.snapshot_uuid,"action:22222222-2222-4222-8222-222222222222",type,variant};
-    actual={};actual.type=type;actual.variant=variant;
+    actual={};actual.type=type;actual.variant=variant;actual.prop.uid=3176;
     if(flags==UINT32_MAX){const std::map<std::string,uint32_t> known{{"SmallInn",1},{"Inn",1},{"Shop",2},
         {"StartingPoint",4},{"Respawn",8},{"Tavern",16},{"Blacksmith",64},{"Landmark",128},{"PotionShop",512}};
         flags=known.at(type);}
@@ -141,7 +146,16 @@ void run(){
 }
 }
 #include "duplicate_construction_native_cases.inc"
-int main(){try{duplicate_construction_native_fixture::run();registry_failure_fixture::run();using namespace fixture;std::string e;construction::State out;
+void modular_construction_target_cases(){using namespace fixture;std::string error;construction::State out;
+    const auto setup=[](){reset("Scenery","base",0);put(object,image+0x16d93c0);put(object+0x18,uint64_t(3176));put(object+0xcba,uint8_t(0));
+        put(object+0x7d0,uintptr_t(0xb0000000));put(object+0x7d8,uintptr_t(0xc0000000));put(uintptr_t(0xb0000000),image+0x1712a60);put(uintptr_t(0xc0000000),image+0x16fea40);put(object+0x7a8,int32_t(0));};
+    setup();need(graph(out,error)&&out.jobs.size()==1&&out.jobs[0].present&&!out.jobs[0].active,"Exact Modular original queued Job rejected: "+error);
+    for(int fault=0;fault<5;++fault){setup();error.clear();if(fault==0)put(object+0xcba,uint8_t(1));if(fault==1)put(object+0x7d0,uintptr_t(0));if(fault==2)put(uintptr_t(0xc0000000),image+0x16fea48);if(fault==3)put(proxy,uintptr_t(0));if(fault==4){auto foreign=queue.jobs[0];foreign.pointer++;queue.jobs.push_back(foreign);}
+        need(!graph(out,error)&&!error.empty(),"Modular construction admitted art/foreign Layout/Plan/proxy/unknown Job");
+        if(fault==4)need(error=="Construction queue contains a Job outside retained original placement occurrences","Modular admission weakened complete unknown-Job guard");}
+    setup();put(object+0x7a8,int32_t(2));put(object+0x7e1,uint8_t(1));queue.jobs.clear();need(graph(out,error)&&!out.jobs[0].present&&out.jobs[0].active,"Modular completed Job lost authoritative activation");
+}
+int main(){try{duplicate_construction_native_fixture::run();registry_failure_fixture::run();modular_construction_target_cases();using namespace fixture;std::string e;construction::State out;
     for(const auto& [type,variant]:std::vector<std::pair<std::string,std::string>>{
         {"SmallInn","base"},{"Inn","boat"},{"Blacksmith","elf"},{"Tavern","base"},{"PotionShop","base"},
         {"Shop","base"},{"Landmark","lighthouse"},{"Respawn","base"},{"StartingPoint","base"}}){
@@ -162,7 +176,7 @@ int main(){try{duplicate_construction_native_fixture::run();registry_failure_fix
             type+" missing Job became an activated Building");
     }
     for(const auto& [type,flags,cause]:std::vector<std::tuple<std::string,uint32_t,std::string>>{
-        {"Scenery",0,"native UI target is a separate Scenery definition"},
+        {"Scenery",0,"unmapped fixture field"},
         {"Inn",1u<<13,"native UI target is a separate Scenery definition"},
         {"DungeonExterior",1u<<16,"native UI target is a separate dungeon definition"},
         {"DungeonPortal",1u<<17,"native UI target is a separate dungeon definition"},

@@ -52,6 +52,8 @@ uint64_t refund_failure=0,identity_failure=0;
 bool world_failure=false,heap_failure=false,lookup_failure=false,class_failure=false,prop_failure=false;
 bool change_world_on_target=false,change_world_on_lookup=false;
 bool scene_target=false,scene_owner_failure=false,scene_owner_changed=false;
+bool fixture_modular=false,fixture_modular_art=false,fixture_modular_layout=true,fixture_modular_valid=true,fixture_modular_memory=true,fixture_modular_root=true;
+unsigned fixture_modular_proofs=0;
 bool saved_only=false,saved_owner_failure=false;unsigned saved_prop_reads=0;int fixture_saves=0;
 constexpr uintptr_t fixture_root=0x400001c0,fixture_saved_region=0x61000000;
 uintptr_t lookup_override=0;
@@ -69,10 +71,12 @@ struct WorldState {opened::CurrentWorld origin;uintptr_t selection=identity_refu
 struct ProcessMemory {
     bool copy(uintptr_t p,void* to,size_t size,std::string& e){
         for(const auto& [uid,unused]:live){(void)unused;
+            if(fixture_modular&&uid==101&&p==object(uid)+0xcba&&size==1){if(!fixture_modular_memory)return fail(e,"original Modular Art flag unreadable");const uint8_t art=fixture_modular_art;std::memcpy(to,&art,1);return true;}
             if(p==object(uid)+0x18&&size==sizeof(uid)){std::memcpy(to,&uid,size);return true;}
             uintptr_t value=0;bool found=true;
             if(p==object(uid))value=scene_target&&uid==101?fixture_image+0x16c1390:fixture_addresspoint;
-            else if(p==object(uid)+0x170)value=fixture_root;
+            else if(p==object(uid)+0x170)value=fixture_modular&&uid==101&&!fixture_modular_root?fixture_root+8:fixture_root;
+            else if(fixture_modular&&uid==101&&p==object(uid)+0x7d0)value=fixture_modular_layout?0x78000000:0;
             else if(p==object(uid)+0x178)value=fixture_saved_region;
             else found=false;
             if(found&&size==sizeof value){std::memcpy(to,&value,size);return true;}
@@ -151,7 +155,7 @@ bool lookup(host::LookupApi,uint64_t uid,void*& out,uint32_t& seh){
 }
 bool classify_normal_building(host::ProcessMemory&,uintptr_t,const prop_lease::Prop& prop,const native::BuildingState&,
     bool& normal,bool& scenery,std::string& cause,std::string& e){
-    normal=prop.class_addresspoint==fixture_addresspoint;scenery=prop.class_addresspoint==fixture_image+0x16c1390;cause.clear();return !class_failure||fail(e,"fixture target definition failed");
+    normal=prop.class_addresspoint==fixture_addresspoint&&!(fixture_modular&&prop.uid==101);scenery=prop.class_addresspoint==fixture_image+0x16c1390;cause.clear();return !class_failure||fail(e,"fixture target definition failed");
 }
 namespace modular_identity {template<class Read>bool read(Read&,uintptr_t,uintptr_t,const native::BuildingState&,std::string& e){return fail(e,"fixture Modular path is not configured");}}
 bool dungeon_building_target(host::ProcessMemory&,uintptr_t,uintptr_t,uintptr_t,const native::BuildingState&,const std::string&,std::string& e){return fail(e,"fixture Dungeon path is not configured");}
@@ -207,16 +211,25 @@ namespace service_building_census {
 bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);
 bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget&,std::string&);
 #include "identity_refund_split_bodies.inc"
+bool is_modular_target(const LocalTarget& target,std::string& e){++fixture_modular_proofs;return (fixture_modular&&fixture_modular_valid&&target.uid==101&&target.object==object(101))||fail(e,"original Modular Layout/Plan proof failed");}
 #include "building_identity_census_actual.inc"
 namespace remove_diagnostics {
 bool resolve_identity_destination(uintptr_t p,LocalTarget& out,std::string& e){return identity_refund_fixture::resolve_identity_destination(p,out,e);}
 }
 #include "service_destination_actual.inc"
+struct ServiceOwnerFixture {std::string key;uintptr_t object;uint64_t uid;int local=0,uptime=0;};
+struct ServiceLocalFixture {std::map<uintptr_t,std::string> service_destinations;std::vector<ServiceOwnerFixture> services;};
+struct ServiceBindingFixture {uint64_t native_epoch=41,native_generation=7;};
+bool service_owners_actual(const std::vector<LocalTarget>& census,ServiceLocalFixture& local,const ServiceBindingFixture& b,std::string& e){
+    std::set<uintptr_t> proved_buildings;
+#include "service_owners_actual.inc"
+}
 #undef LOG_INFO
 #undef LOG_ERROR
 
 void reset(){
     scene_scenery::append_calls=0;scene_scenery::append_fixture={};
+    fixture_modular=fixture_modular_art=false;fixture_modular_layout=fixture_modular_valid=fixture_modular_memory=fixture_modular_root=true;fixture_modular_proofs=0;
     saved_only=saved_owner_failure=false;saved_prop_reads=0;fixture_saves=0;
     registry.clear();live.clear();settlement_reads.clear();registry_generation=1;next_entry=0;unknown_locked=false;
     admitted_world={};live_world={};refund_calls=registered_reads=prop_reads=world_reads=logs=seals=0;refund_uids.clear();

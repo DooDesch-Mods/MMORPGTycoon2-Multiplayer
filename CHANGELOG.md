@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.1.0-beta.18
+
+### Added
+
+- Build with modular prefabs, add or remove blocks and entrances, and undo or redo shared layout edits.
+- Save a modular world, load it together and keep editing your buildings.
+
+### Experimental
+
+- Try Dungeon portals, layout tools, doors, keys, treasure and lighting together.
+- Create and copy character types, change costumes, edit abilities and import character PNG cards.
+- Try server networks, game fees, loans, advertising, staff commands and MMO updates.
+- Try the integrated terrain, region, NPC and monster tools, running construction and right-click block removal.
+
+### Known issues
+
+- Experimental features are included, but some interactions can fail or desync. Start with two players in a small world and keep save backups.
+- Shared edits can take several seconds or longer. Full simulation, four-player play, larger worlds and performance under load remain incomplete.
+
+### Requirements
+
+Both players need Early Beta 18 and MT2 Mod Framework Runtime 0.2.6. Close the game before updating.
+
+
 ## 0.1.0-beta.17
 
 ### Added

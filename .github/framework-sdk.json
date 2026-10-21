@@ -1,6 +1,6 @@
 {
   "repository": "DooDesch-Mods/MMORPGTycoon2-ModFramework",
-  "revision": "83ec95b317aea6584f06dae014332ce0806c923a",
+  "revision": "1241c3d9a2471666fb77b68ffeeb9c34220ecaf3",
   "headers": {
     "include/mt2fw/plugin.h": "6a25a61c1bcc942888b8e991618919c61f6e2fd22676a0c2c5bc35faa6d32d3d",
     "adapters/mt2/sdk/native_services.h": "7f51729f6f9ac22133051a75e165c39615d15a9262a186d0a5d1a1d0a07717c0",

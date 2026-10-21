@@ -150,6 +150,8 @@ print('Extracted complete collector, public report, refund enrichment, both reso
 owner=(args.root/'src/game/building_identity_census.inc').read_text(encoding='utf-8')
 (args.output/'building_identity_census_actual.inc').write_text(owner,encoding='utf-8')
 service=(args.root/'src/game/service_live_native.inc').read_text(encoding='utf-8')
+owners=body('for(const auto& target:census)',service)
+(args.output/'service_owners_actual.inc').write_text(owners+'\nreturn true;\n',encoding='utf-8')
 callback=body('auto destination=',service)
 assert callback.endswith('}')
 (args.output/'service_destination_actual.inc').write_text(

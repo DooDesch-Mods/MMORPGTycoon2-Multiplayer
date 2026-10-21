@@ -11,11 +11,11 @@ import textwrap
 ROOT = Path(__file__).resolve().parents[1]
 START, END = '<!-- roadmap:start -->', '<!-- roadmap:end -->'
 COLORS = ('#64e4d5', '#ffca67', '#a8c1d5')
-STATES = {'released': 'Released', 'verified': 'Confirmed in game',
+STATES = {'released': 'Released', 'experimental': 'Experimental', 'verified': 'Confirmed in game',
           'implemented': 'Implemented', 'planned': 'Planned'}
-COVERAGE_COLORS = {'released': ('#64e4d5', '#15383d'), 'verified': ('#8cb9ff', '#1b304a'),
+COVERAGE_COLORS = {'experimental': ('#ffca67', '#3e321f'), 'released': ('#64e4d5', '#15383d'), 'verified': ('#8cb9ff', '#1b304a'),
                    'implemented': ('#ffca67', '#3e321f'), 'planned': ('#a8c1d5', '#21303e')}
-STATE_SCOPE = {'verified': 'Development build only',
+STATE_SCOPE = {'experimental': 'In the download', 'verified': 'Development build only',
                'implemented': 'Not confirmed in game', 'planned': 'Future scope'}
 
 
@@ -103,14 +103,18 @@ def validate_data(data):
 def progress_summary(data):
     counts = coverage_counts(data)
     total = sum(counts.values())
-    return ', '.join(f'{counts[status]} {STATES[status].lower()}' for status in STATES)
+    return ', '.join(f'{counts[status]} {STATES[status].lower()}' for status in STATES if counts[status])
 
 
 def coverage_graphic(data, mobile=False):
     counts = coverage_counts(data)
     total = sum(counts.values())
+    statuses = [status for status in STATES if counts[status]]
+    delivery_note = ('Experimental features are included in this download.' if counts['experimental']
+                     else 'Development features are not in the current download.')
     width = 600 if mobile else 1200
-    first_row = 416 if mobile else 240
+    columns = 3 if len(statuses) > 4 else len(statuses)
+    first_row = 160 + len(statuses) * 64 if mobile else 240 + ((len(statuses) - 1) // 4) * 72
     row_height = 106 if mobile else 62
     height = first_row + len(data['groups']) * row_height + 100
     description = progress_summary(data)
@@ -123,13 +127,13 @@ def coverage_graphic(data, mobile=False):
            f'<path fill="#0b1723" d="M0 0h{width}v{height}H0z"/>',
            text(28, 44, data['coverage_title'], 30, '#f2f7fb', 700),
            text(28, 80, data['release_label'], 22)]
-    for index, status in enumerate(STATES):
+    for index, status in enumerate(statuses):
         color = COVERAGE_COLORS[status][0]
         percent = 100 * counts[status] / total
         if mobile:
             x, y = 28, 126 + index * 64
         else:
-            x, y = 28 + index * 292, 130
+            x, y = 28 + (index % columns) * (1144 / columns), 130 + (index // columns) * 72
         scope = 'In ' + data['version_label'] if status == 'released' else STATE_SCOPE[status]
         out.extend([text(x, y, f'{counts[status]} {STATES[status]}', 24, color, 700),
                     text(x, y + 27, f'{percent:.1f}% - {scope}', 18)])
@@ -150,7 +154,7 @@ def coverage_graphic(data, mobile=False):
         out.append(text(count_x, bar_y + 23, str(len(rows)), 21))
     out.extend([text(28, height - 64, f'{total} named features - updated {data["updated_on"]}', 20),
                 text(28, height - 36, 'This is feature progress, not a project completion score.', 20),
-                text(28, height - 10, 'Development features are not in the current download.', 20), '</svg>'])
+                text(28, height - 10, delivery_note, 20), '</svg>'])
     return '\n'.join(out) + '\n'
 
 
@@ -161,7 +165,7 @@ def feature_table(data):
         for row in data['features']:
             if row['group'] == group['id']:
                 label = STATES[row['status']]
-                if row['status'] == 'released':
+                if row['status'] in ('released', 'experimental'):
                     label += ' - ' + data['version_label']
                 elif row['status'] in ('verified', 'implemented'):
                     label += ' - development'
@@ -173,21 +177,26 @@ def feature_table(data):
 def status_key(data):
     counts = coverage_counts(data)
     lines = ['| Status | Features | What it means |', '| --- | ---: | --- |']
-    meanings = {'released': 'Included in ' + data['version_label'] + ', within the scope listed below.',
+    meanings = {'experimental': 'Included in ' + data['version_label'] + ' as experimental. End-to-end game confirmation remains incomplete.', 'released': 'Included in ' + data['version_label'] + ', within the scope listed below.',
                 'verified': 'Works in the development build within the listed scope. Not released yet.',
                 'implemented': 'Code is integrated, but successful in-game behavior is not yet confirmed.',
                 'planned': 'No completed implementation or in-game confirmation is claimed for this scope.'}
-    lines.extend(f'| {STATES[status]} | {counts[status]} | {meanings[status]} |' for status in STATES)
+    lines.extend(f'| {STATES[status]} | {counts[status]} | {meanings[status]} |' for status in STATES if counts[status])
     return '\n'.join(lines)
 
 
 def recent_progress(data):
-    recent = [row for row in data['features'] if row.get('milestone') == data['version_label']]
+    recent = [row for row in data['features'] if row.get('milestone') == data['version_label'] and row['status'] == 'released']
+    experimental = [row for row in data['features'] if row['status'] == 'experimental']
     verified = [row for row in data['features'] if row['status'] == 'verified']
     lines = ['## Recent progress', '', '### New in ' + data['version_label'], '']
     lines.extend('- ' + row['name'] + '.' for row in recent)
-    lines.extend(['', '### Confirmed since the release - development only', ''])
-    lines.extend('- ' + row['name'] + '.' for row in verified)
+    if experimental:
+        lines.extend(['', '### Experimental - included in this download', ''])
+        lines.extend('- ' + row['name'] + '.' for row in experimental)
+    if verified:
+        lines.extend(['', '### Confirmed since the release - development only', ''])
+        lines.extend('- ' + row['name'] + '.' for row in verified)
     return '\n'.join(lines)
 
 
@@ -198,7 +207,7 @@ def readme_block(data):
     summary = progress_summary(data)
     return '\n'.join([START, f"## {data['overview_heading']}", '', data['overview_intro'], '',
         '<picture>', f'  <source media="(max-width: 600px)" srcset="{raw}{assets}/coverage-mobile.svg">',
-        f'  <img src="{assets}/coverage.svg" alt="Feature progress: {summary}. Development features are not in the download." width="1200">',
+        f'  <img src="{assets}/coverage.svg" alt="Feature progress: {summary}. See each feature delivery status below." width="1200">',
         '</picture>', '',
         status_key(data), '',
         'Each feature has its own status. Counts describe this list, not how close the whole project is to completion.', '',

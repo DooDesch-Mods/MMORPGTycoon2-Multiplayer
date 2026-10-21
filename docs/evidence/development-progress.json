@@ -1,9 +1,22 @@
 {
   "schema_version": 1,
   "as_of": "2026-10-22",
-  "released_baseline": "0.1.0-beta.17",
+  "released_baseline": "0.1.0-beta.18",
   "development_features_are_released": false,
   "confirmed": {
+    "environment": "Two local game instances",
+    "milestones": []
+  },
+  "implemented": {
+    "features": [],
+    "in_game_success_claimed": false
+  },
+  "limits": [
+    "The formerly confirmed Modular and save scopes are now included in EarlyBeta18. Experimental scopes are shipped without complete in-game confirmation.",
+    "These records do not establish complete gameplay, later join, full live simulation, four-player play, large-world performance or separate-account online compatibility.",
+    "Integrated code and successful builds do not establish successful in-game behavior."
+  ],
+  "released_confirmations": {
     "environment": "Two local game instances",
     "milestones": [
       {
@@ -31,7 +44,7 @@
       }
     ]
   },
-  "implemented": {
+  "released_experimental": {
     "features": [
       {
         "id": "modular-construction",
@@ -151,10 +164,5 @@
       }
     ],
     "in_game_success_claimed": false
-  },
-  "limits": [
-    "Confirmed development scopes are not included in Early Beta17.",
-    "These records do not establish complete gameplay, later join, full live simulation, four-player play, large-world performance or separate-account online compatibility.",
-    "Integrated code and successful builds do not establish successful in-game behavior."
-  ]
+  }
 }

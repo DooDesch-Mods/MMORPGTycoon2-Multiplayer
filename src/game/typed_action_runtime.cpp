@@ -388,7 +388,7 @@ public:
         std::vector<developer_staff::construction::LocalJob> jobs;
         bool confirmed=false,restored=false;
     };
-    std::map<std::string,DuplicateConstruction> duplicate_construction_;
+    std::map<std::string,DuplicateConstruction> duplicate_construction_,modular_construction_;
     void retire_absent_construction(const developer_staff::construction::PlacementBefore& before){
         const auto retire=[&](developer_staff::construction::LocalJob& job){
             if(job.retired)return;
@@ -398,6 +398,7 @@ public:
         for(auto& job:loaded_construction_)retire(job);
         for(auto& [id,op]:buildings_){(void)id;if(op.construction_confirmed&&op.construction_job.job)retire(op.construction_job);}
         for(auto& [id,op]:duplicate_construction_){(void)id;if(op.confirmed)for(auto& job:op.jobs)retire(job);}
+        for(auto& [id,op]:modular_construction_){(void)id;if(op.confirmed)for(auto& job:op.jobs)retire(job);}
     }
     bool construction_jobs(const action::Binding& binding,const std::string& snapshot,
                            std::vector<developer_staff::construction::LocalJob>& out,std::string& error){
@@ -445,6 +446,12 @@ public:
                op.request.action!=action::Action::DuplicateSelection||op.request.action_uuid!=id){
                 error="Construction local Job does not belong to confirmed current DuplicateSelection";return false;}
             for(const auto& job:op.jobs)if(!append(job,{},op.restored))return false;
+        }
+        for(const auto& [id,op]:modular_construction_){
+            if(op.jobs.empty())continue;
+            if(!op.confirmed||op.binding!=binding||op.request.snapshot_uuid!=snapshot||op.request.action!=action::Action::EditModularBuilding||op.request.modular.mode!=0||op.request.action_uuid!=id||op.jobs.size()!=1||op.jobs[0].building_key!="action:"+id){
+                error="Construction local Job does not belong to confirmed current Modular Prefab";return false;}
+            if(!append(op.jobs[0],{},op.restored))return false;
         }
         out=std::move(result);error.clear();return true;
     }
@@ -816,12 +823,40 @@ public:
         if(revision<=world_.revision()){error="Modular shared revision must advance once for the complete original graph";return action::Outcome::RejectedNoEffect;}
         for(const auto& key:targets){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,key,target,error)||(!target.normal_building&&!target.normal_scenery&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),key,target,actual,observed,error)||!world_.refresh_current(world_.origin(),key,observed,error))return action::Outcome::RejectedNoEffect;}
+        const bool prefab=request.action==action::Action::EditModularBuilding&&request.modular.mode==0;
+        const bool history=request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding;
+        auto construction=modular_construction_.find(history?request.target_action_uuid:request.action_uuid);
+        if(prefab&&construction!=modular_construction_.end()){error="Modular construction already attempted; no replay";return action::Outcome::Unknown;}
+        if(history&&construction!=modular_construction_.end()){
+            const auto& source=construction->second;
+            if(!source.confirmed||source.binding!=binding||source.request.snapshot_uuid!=request.snapshot_uuid||source.request.action_uuid!=request.target_action_uuid||source.request.action!=action::Action::EditModularBuilding||source.request.modular.mode!=0){error="Modular history construction source is not current confirmed Prefab";return action::Outcome::RejectedNoEffect;}
+            for(const auto& job:source.jobs)if(request.action==action::Action::UndoBuilding){remove_diagnostics::LocalTarget target;
+                if(job.building_key!="action:"+request.target_action_uuid||!remove_diagnostics::resolve_record_target(request.snapshot_uuid,job.building_key,target,error)||target.uid!=job.building_uid){if(error.empty())error="Modular history original construction key/full UID differs";return action::Outcome::RejectedNoEffect;}}
+        }
+        developer_staff::construction::PlacementBefore construction_before;
+        if(prefab){if(!developer_staff::construction::capture_placement(construction_before,error))return action::Outcome::RejectedNoEffect;
+            retire_absent_construction(construction_before);construction=modular_construction_.emplace(request.action_uuid,DuplicateConstruction{request,binding}).first;}
         const auto result=ui_move_runtime::modular::perform(binding,request,authority,error);if(result!=action::Outcome::Confirmed)return result;
         action::ModularEffect effect;if(!ui_move_runtime::modular::publication(binding,request,effect,error))return action::Outcome::Unknown;
         std::vector<std::string> removed;for(const auto& row:effect.removed)removed.push_back(row.key);std::vector<world_state::LocalBinding> created;
         for(const auto& row:effect.created){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,row.key,target,error)||(!target.normal_building&&!target.normal_scenery&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),row.key,target,actual,observed,error))return action::Outcome::Unknown;created.push_back(std::move(observed));}
-        if(!removed.empty()||!created.empty()){const bool history=request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding;const auto admitted=history?world_.commit_scenery_history(world_.origin(),revision,request.action_uuid,removed,created,error):world_.commit_scenery_stroke(world_.origin(),revision,request.action_uuid,removed,created,error);return admitted==world_state::Admission::New?action::Outcome::Confirmed:action::Outcome::Unknown;}
+        if(prefab){
+            const auto key="action:"+request.action_uuid;
+            if(effect.created.size()!=1||effect.created[0].family!=action::DuplicateFamily::Building||effect.created[0].key!=key||created.size()!=1||created[0].object_key!=key){error="Modular construction lacks its exact original Prefab birth";return action::Outcome::Unknown;}
+            developer_staff::construction::LocalJob job;if(!developer_staff::construction::finish_placement(construction_before,request.snapshot_uuid,key,created[0].local_uid,job,error))return action::Outcome::Unknown;
+            if(job.job)construction->second.jobs.push_back(std::move(job));
+        }
+        if(history&&construction!=modular_construction_.end())for(const auto& job:construction->second.jobs){
+            const bool undo=request.action==action::Action::UndoBuilding;
+            const bool matched=undo?std::count(removed.begin(),removed.end(),job.building_key)==1:
+                std::count_if(created.begin(),created.end(),[&](const auto& row){return row.object_key==job.building_key&&row.local_uid==job.building_uid;})==1;
+            if(!matched){error="Modular history construction original Building key/full UID is absent from effect";return action::Outcome::Unknown;}
+        }
+        if(!removed.empty()||!created.empty()){const auto admitted=history?world_.commit_scenery_history(world_.origin(),revision,request.action_uuid,removed,created,error):world_.commit_scenery_stroke(world_.origin(),revision,request.action_uuid,removed,created,error);
+            if(admitted!=world_state::Admission::New)return action::Outcome::Unknown;
+            if(construction!=modular_construction_.end()){if(prefab)construction->second.confirmed=true;else if(history)construction->second.restored=request.action==action::Action::RedoBuilding;}
+            return action::Outcome::Confirmed;}
         for(const auto& pair:effect.changed)if(pair[1].family==action::DuplicateFamily::Building){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;const auto prior=world_.rows().find(pair[1].key);
             if(prior==world_.rows().end()||!remove_diagnostics::resolve_record_target(request.snapshot_uuid,pair[1].key,target,error)||(!target.normal_building&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),pair[1].key,target,actual,observed,error))return action::Outcome::Unknown;
             if(prior->second.state!=observed.state){const world_state::Change change{world_state::Kind::Move,revision,request.action_uuid,pair[1].key,prior->second.state,observed.state};return world_.commit(world_.origin(),change,observed,error)==world_state::Admission::New?action::Outcome::Confirmed:action::Outcome::Unknown;}}
@@ -1328,6 +1363,7 @@ public:
             if(request.canonical_record_key=="selection:"+request.target_action_uuid)
                 return current(binding,request.snapshot_uuid,error)&&ui_move_runtime::selection_move::observe_history(binding,request,out,error);
             if(!current(binding,request.snapshot_uuid,error))return false;
+            if(request.canonical_record_key=="modular:"+request.target_action_uuid)return ui_move_runtime::modular::observe(binding,request,out,error);
             if(request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid)return npc_probe::monster_action_runtime::dungeon_cells::observe_history(binding,request,out,error);
             if(action::npc_history(request))return npc_probe::action_runtime::history::observe(binding,request,out,error);
             if(action::monster_history(request))return npc_probe::monster_action_runtime::history::observe(binding,request,out,error);
@@ -1377,7 +1413,7 @@ public:
         if(request.action==action::Action::PlaceBoss)return ui_move_runtime::boss_placement::observe(binding,request,out,error);
         if(request.action==action::Action::ReorderBossPhase)return ui_move_runtime::boss_phase::observe(binding,request,out,error);
         if(request.action==action::Action::EditGroup)return ui_move_runtime::group_edit::observe(binding,request,out,error);
-        if(request.action==action::Action::EditModularBuilding||((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="modular:"+request.target_action_uuid))return ui_move_runtime::modular::observe(binding,request,out,error);
+        if(request.action==action::Action::EditModularBuilding)return ui_move_runtime::modular::observe(binding,request,out,error);
         if(request.action==action::Action::EditDistrict)return ui_move_runtime::district_edit::observe(binding,request,out,error);
         if(request.action==action::Action::DistrictStroke)return ui_move_runtime::district_stroke::observe(binding,request,out,error);
         if(request.action==action::Action::EditZone)return npc_probe::zone_edit_runtime::observe(binding,request,out,error);

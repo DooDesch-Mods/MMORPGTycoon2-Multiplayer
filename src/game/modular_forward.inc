@@ -10,7 +10,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!r||!installed||!r->ready||r->thread!=GetCurrentThreadId()||request.action!=action::Action::EditModularBuilding||!action::valid_modular(request.modular)||request.snapshot_uuid!=net::current_snapshot_id()||bool(authority)==Config::instance().is_host||!contract::pending(typed_action_runtime::controller_status(),request,revision,e)){if(e.empty())e="Modular exact pending action/role is unavailable";return action::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)||quarantined.contains(request.action_uuid)){e="Modular original transaction already attempted; no replay";return action::Outcome::Unknown;}
     if(authority&&!action::valid_modular_effect(request,*authority)){e="Modular Host evidence is invalid";return action::Outcome::RejectedNoEffect;}
-    Sample before;if(!module_sample(*r,binding,request.modular.region,{},before,e))return action::Outcome::RejectedNoEffect;
+    Sample before;if(!module_sample(*r,binding,request.modular.region,{},before,e,request.modular.target))return action::Outcome::RejectedNoEffect;
     if(authority&&(!content_equal(before.state,*authority->modular_before)||before.props.money!=authority->before)){e="Modular Client complete objects/bugs/Release/Ledger differ from Host";return action::Outcome::RejectedNoEffect;}
     auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
     op.port=std::make_shared<Port>(Port{*r,binding,request,std::move(before),{},op.receipt});auto& port=*op.port;
@@ -58,13 +58,20 @@ void tick(){
         uintptr_t layout=0;if(!q::at(r->memory,view.receiver,0x378,layout,e)){view.cause=e;reject(e);continue;}if(layout){calls::Work work;work.op=calls::Op::NewLayout;work.object=view.receiver;if(!call(*r,work,e)){view.cause=e;reject(e);continue;}}view.confirmed=true;
     }
 }
-void retire_session(){if(queued)reject("Modular captured input cancelled after session retirement");queued.reset();presentations.clear();
+void retire_session(){if(queued)reject("Modular captured input cancelled after session retirement");queued.reset();presentations.clear();last_source_records=nullptr;
     for(auto it=operations.begin();it!=operations.end();){if(!it->second.confirmed&&it->second.receipt.attempted&&(!it->second.port||!it->second.port->no_effect)){auto node=operations.extract(it++);quarantined.insert(std::move(node));}else it=operations.erase(it);}
     for(auto it=histories.begin();it!=histories.end();){if(it->second.attempted&&!it->second.confirmed){auto node=histories.extract(it++);history_quarantined.insert(std::move(node));}else it=histories.erase(it);}
 }
 json status(){json rows=json::object(),history=json::object(),views=json::object();for(const auto& [id,op]:operations)rows[id]={{"action",uint8_t(op.request.action)},{"region",op.request.modular.region},{"mode",op.request.modular.mode},{"attempted",op.receipt.attempted},{"calls",op.receipt.calls},{"returns",op.receipt.returned},{"graph",op.graph},{"graph_committed",op.receipt.graph_committed},{"edit_closed",op.receipt.edit_closed},{"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"cleanup_cause",op.receipt.cleanup_cause}};
+    for(const auto& [id,op]:operations){rows[id]["target"]=op.request.modular.target;rows[id]["before_record_sha"]=op.request.modular.before_record_sha;
+    for(const auto& [id,op]:operations)rows[id]["target_records"]=op.port&&!op.request.modular.target.empty()?op.port->before.props.selected_records:json(nullptr);
+        rows[id]["authored"]=op.confirmed&&op.evidence.modular_before&&op.evidence.modular_after&&op.evidence.modular_result?
+            value::authored_status(*op.evidence.modular_before,*op.evidence.modular_after,*op.evidence.modular_result):json(nullptr);}
     for(const auto& [id,op]:histories)history[id]={{"attempted",op.attempted},{"returned",op.returned},{"graph",op.graph},{"inverse",op.inverse},{"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"cleanup_cause",op.cleanup_cause}};
+    for(const auto& [id,op]:histories){history[id]["action"]=uint8_t(op.request.action);history[id]["target_action_uuid"]=op.request.target_action_uuid;
+        history[id]["authored"]=op.confirmed&&op.evidence.modular_before&&op.evidence.modular_after&&op.evidence.modular_result?
+            value::authored_status(*op.evidence.modular_before,*op.evidence.modular_after,*op.evidence.modular_result):json(nullptr);}
     for(const auto& [id,view]:presentations)views[id]={{"attempted",view.attempted},{"confirmed",view.confirmed},{"cause",view.cause}};
-    return {{"enabled",installed},{"pending",pending()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"cause",cause},{"operations",std::move(rows)},{"history",std::move(history)},{"source_preview",std::move(views)},{"quarantined",quarantined.size()},{"history_quarantined",history_quarantined.size()}};
+    return {{"enabled",installed},{"pending",pending()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"cause",cause},{"operations",std::move(rows)},{"history",std::move(history)},{"source_preview",std::move(views)},{"last_source_records",last_source_records},{"quarantined",quarantined.size()},{"history_quarantined",history_quarantined.size()}};
 }
 }
