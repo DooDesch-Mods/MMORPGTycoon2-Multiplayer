@@ -24,7 +24,10 @@ def body(source, anchor):
 
 for filename, source_path, anchor in (
     ('move_history_method.inc', 'src/game/typed_action_runtime.cpp', '    action::Outcome perform_move_history('),
+    ('dungeon_original_scope.inc', 'src/game/typed_action_runtime.cpp', '    bool dungeon_scope('),
     ('history_effect.inc', 'src/game/typed_action/action_session.cpp', 'bool object_effect('),
+    ('session_wire_generation.inc', 'src/net/session_wire.cpp', 'uint64_t session_id()'),
+    ('local_session_context.inc', 'src/game/typed_action/sidecar_adapter.cpp', 'bool LocalSession::current('),
 ):
     source = (args.root / source_path).read_text(encoding='utf-8')
     (args.output / filename).write_text(body(source, anchor), encoding='utf-8')

@@ -60,7 +60,7 @@ def publish(tag, commit, directory, milestone=None):
             raise ValueError('GitHub generated an empty release changelog')
         notes = body.strip() + '\n\n' + changelog.strip() + '\n'
         release = api('POST', base + '/releases', {'tag_name': tag, 'target_commitish': commit,
-                      'name': tag + ' - ' + heading[2:].strip(), 'body': notes, 'draft': True, 'prerelease': True, 'make_latest': 'false'})
+                      'name': heading[2:].strip(), 'body': notes, 'draft': True, 'prerelease': True, 'make_latest': 'false'})
     if release['tag_name'] != tag or release['target_commitish'] != commit or release['prerelease'] is not True:
         raise ValueError('existing release identity or prerelease flag differs')
     assets_url = base + '/releases/' + str(release['id']) + '/assets'

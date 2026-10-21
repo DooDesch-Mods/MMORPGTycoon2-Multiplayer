@@ -5,10 +5,12 @@ if(WIN32)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${_coop_root}/src/game/typed_action_runtime.cpp"
         "${_coop_root}/src/game/typed_action/action_session.cpp"
+        "${_coop_root}/src/net/session_wire.cpp"
+        "${_coop_root}/src/game/typed_action/sidecar_adapter.cpp"
         "${_coop_root}/test/extract_coop_session.py")
     execute_process(COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${_coop_root}/test/extract_coop_session.py"
         --root "${_coop_root}" --output "${_coop_extracted}" COMMAND_ERROR_IS_FATAL ANY)
-    foreach(group coop_cursor coop_cursor_native coop_quorum session_binding session_reload snapshot_unsent move_history move_history_controller)
+    foreach(group coop_cursor coop_cursor_native coop_quorum session_binding local_membership session_reload snapshot_unsent move_history move_history_controller)
         set(target test_${group})
         add_executable(${target} "${_coop_root}/test/${target}.cpp")
         target_compile_features(${target} PRIVATE cxx_std_20)

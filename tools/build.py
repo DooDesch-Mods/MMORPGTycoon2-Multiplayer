@@ -16,6 +16,10 @@ parser.add_argument('--version', help='Full version to embed in a local tester b
 parser.add_argument('--mode', choices=('standalone', 'framework'), default='standalone')
 parser.add_argument('--framework-sdk', type=Path, help='Framework SDK source tree for the native plugin')
 parser.add_argument('--reconfigure', action='store_true', help='Run configure even when the selected CMake cache already matches')
+parser.add_argument('--jobs', type=int, default=4, choices=range(1, 65), metavar='N',
+                    help='Maximum build jobs, 1..64 (default: 4)')
+parser.add_argument('--no-node-reuse', action='store_true',
+                    help='Make MSBuild workers exit after this build')
 args = parser.parse_args()
 if args.version and not re.fullmatch(r'\d+\.\d+\.\d+(?:-beta\.[1-9]\d*)?', args.version):
     parser.error('version must be X.Y.Z or X.Y.Z-beta.N')
@@ -73,8 +77,9 @@ commands = [
      "-DMT2MP_FRAMEWORK_PLUGIN=" + ('ON' if sdk else 'OFF'),
      *(["-DMT2_FRAMEWORK_SDK=" + str(sdk)] if sdk else []),
      *(["-DMT2MP_BUILD_VERSION=" + version] if version else [])],
-    [cmake, "--build", str(build), "--config", "Release", "--parallel", "4",
-     *(["--target", *args.target] if args.target else [])],
+    [cmake, "--build", str(build), "--config", "Release", "--parallel", str(args.jobs),
+     *(["--target", *args.target] if args.target else []),
+     *(["--", "/nr:false"] if args.no_node_reuse else [])],
 ]
 for index, command in enumerate(commands):
     log = history / f"build-{index}.log"

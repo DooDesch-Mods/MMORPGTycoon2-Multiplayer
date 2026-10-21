@@ -21,8 +21,9 @@ struct TestPort {
     bool readback(const DuplicateIntent&,const std::vector<dn::Handle>&,const dn::Receipt&,std::string& e){++reads;need(!startup||ends==1,"read under original open EditScope");return step("read",e);}
     bool restore_selection(std::string& e){++restores;return step("restore",e);}
 };
+#include "duplicate_selection_rng_cases.inc"
 int main()try{
-    unsigned count=0;std::string e;auto intent=message().request.duplicate;std::vector<dn::Handle> sources{{100,1}};
+    unsigned count=duplicate_selection_rng_cases();std::string e;auto intent=message().request.duplicate;std::vector<dn::Handle> sources{{100,1}};
     TestPort p;dn::Receipt r;need(dn::execute(p,intent,sources,r,e),e);
     need(p.order==std::vector<std::string>{"ready","charge","begin","graph","cash","duplicate","destroy","select","release","commit","end","read","restore"},"whole original order differs");
     need(r.graph_committed&&r.charged&&r.duplicate_returns==1&&r.destroy_inverses==1&&r.edit_closed&&r.selection_restored,"complete original receipt absent");count+=3;

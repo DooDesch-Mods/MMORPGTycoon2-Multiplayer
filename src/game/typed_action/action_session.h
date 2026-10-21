@@ -21,9 +21,13 @@
 #include "npc_property_action.h"
 #include "prop_text_action.h"
 #include "district_action.h"
+#include "district_stroke_action.h"
+#include "zone_edit_action.h"
+#include "../district_property.h"
 #include "group_action.h"
 #include "duplicate_action.h"
 #include "scenery_stroke_action.h"
+#include "modular_action.h"
 #include "group_object_action.h"
 #include "boss_placement_action.h"
 #include "world_path_action.h"
@@ -31,7 +35,10 @@
 #include "service_membership_action.h"
 #include "zone_action.h"
 #include "monster_action.h"
+#include "monster_history.h"
+#include "npc_history.h"
 #include "monster_quest_retirement.h"
+#include "npc_quest_removal.h"
 #include "npc_quest_action.h"
 #include "npc_quest_list_action.h"
 #include "character_rename_action.h"
@@ -42,6 +49,8 @@
 #include "dungeon_config_action.h"
 #include "dungeon_sound_action.h"
 #include "dungeon_palette_action.h"
+#include "dungeon_input_action.h"
+#include "dungeon_building_action.h"
 #include "dungeon_gizmo_action.h"
 #include "dungeon_light_action.h"
 #include "building_status_action.h"
@@ -63,7 +72,7 @@ namespace mt2mp::action_session {
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=60000, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27,PlaceMonster=28,MoveMonster=29,RemoveMonster=30,SetNpcQuestDestination=31,EditNpcProperty=40,EditPropText=41,ReorderBossPhase=42,EditServiceMembership=43,MoveSelection=44,EditDistrictText=45,MoveDistrictTitle=46,EditGroup=47,DuplicateSelection=48,SceneryBrushStroke=49,SceneryEraseStroke=50,MoveGroup=51,RemoveGroup=52,PlaceBoss=53,PlaceWall=54,PlacePass=55,ManagementCommand=128,RemoveNetworkObject=129,SetLogo=130,GeneralProject=133,ReleaseEdit=134,ReleaseCycle=135,GmPolicy=136,GameRules=137,Intervention=138,SetNpcQuestList=32,EditNpcQuest=33,RenameCharacter=80,SetCharacterHealth=81,SetCharacterMana=82,SetCharacterRage=83,SetCharacterSpeed=84,EditCharacterAbility=85,EditCharacterCostume=86,EditCharacterMembership=87,EditAbilityMembership=88,SetBuildingStatus=100,ConfigureDungeonInstances=101,SetDungeonAtmosphere=103,SetDungeonPalette=104,EditDungeonGizmo=105,SetDungeonLighting=102 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27,PlaceMonster=28,MoveMonster=29,RemoveMonster=30,SetNpcQuestDestination=31,EditNpcProperty=40,EditPropText=41,ReorderBossPhase=42,EditServiceMembership=43,MoveSelection=44,EditDistrictText=45,MoveDistrictTitle=46,EditGroup=47,DuplicateSelection=48,SceneryBrushStroke=49,SceneryEraseStroke=50,MoveGroup=51,RemoveGroup=52,PlaceBoss=53,PlaceWall=54,PlacePass=55,RemoveWorldPath=56,DungeonInput=66,EditDistrict=57,EditZone=58,DistrictStroke=60,EditModularBuilding=59,ManagementCommand=128,RemoveNetworkObject=129,SetLogo=130,GeneralProject=133,ReleaseEdit=134,ReleaseCycle=135,GmPolicy=136,GameRules=137,Intervention=138,SetNpcQuestList=32,EditNpcQuest=33,RenameCharacter=80,SetCharacterHealth=81,SetCharacterMana=82,SetCharacterRage=83,SetCharacterSpeed=84,EditCharacterAbility=85,EditCharacterCostume=86,EditCharacterMembership=87,EditAbilityMembership=88,SetBuildingStatus=100,ConfigureDungeonInstances=101,SetDungeonAtmosphere=103,SetDungeonPalette=104,EditDungeonGizmo=105,SetDungeonLighting=102 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -82,6 +91,7 @@ struct PropTextState {
     std::string name,description;
     bool dungeon=false;
     std::string dungeon_name,dungeon_region_name;
+    std::optional<DungeonGizmoState> gizmos;
     bool operator==(const PropTextState&)const=default;
 };
 struct Request {
@@ -89,6 +99,7 @@ struct Request {
     uint64_t peer=0,sequence=0,host_revision=0;
     std::string action_uuid,snapshot_uuid,canonical_record_key,target_action_uuid;
     BuildingState building;
+    bool dungeon_building=false;std::string dungeon_scene;
     RegionIntent region;
     RegionPropertyIntent region_property;
     PriceIntent price;
@@ -113,10 +124,14 @@ struct Request {
     ServiceMembershipIntent service_membership;
     SelectionMoveIntent selection_move;
     DistrictTextIntent district_text;
+    DistrictStrokeIntent district_stroke;
+    ZoneEditIntent zone_edit;
+    game::district_property::Value district_property;
     DistrictTitleIntent district_title;
     GroupIntent group;
     DuplicateIntent duplicate;
     SceneryStrokeIntent scenery_stroke;
+    ModularIntent modular;
     GroupObjectIntent group_object;
     BossPlacementIntent boss_placement;
     WorldPathIntent world_path;
@@ -131,6 +146,7 @@ struct Request {
     DungeonLightIntent dungeon_light;
     DungeonGizmoIntent dungeon_gizmo;
     DungeonPaletteIntent dungeon_palette;
+    DungeonInputIntent dungeon_input;
     DungeonSoundIntent dungeon_sound;
     DungeonConfigIntent dungeon_config;
     CostumeEditIntent costume_edit;
@@ -141,6 +157,8 @@ struct Request {
     int32_t desired_workers=0;
     bool operator==(const Request&) const = default;
 };
+inline bool npc_history(const Request& request){return (request.action==Action::UndoBuilding||request.action==Action::RedoBuilding)&&request.canonical_record_key=="npc-history:"+request.target_action_uuid;}
+inline bool monster_history(const Request& request){return (request.action==Action::UndoBuilding||request.action==Action::RedoBuilding)&&game::monster_target_key::uuid(request.target_action_uuid)&&request.canonical_record_key=="monster-history:"+request.target_action_uuid;}
 struct Ledger {
     int32_t cash=0,flat_day=0,record_present=0,record_day=0;
     int32_t record_cash=0,record_income=0,record_expense=0;
@@ -149,6 +167,8 @@ struct Ledger {
 };
 struct Evidence {
     Ledger before,after;
+    std::optional<DungeonBuildingEffect> dungeon_building_effect;
+    std::optional<SceneryStrokeEffect> building_clearance;
     std::optional<ManagementState> management_before,management_after;
     std::optional<NetworkRemoval> network_removal_before,network_removal_after;
     std::optional<NetworkHistoryProof> network_history;
@@ -170,22 +190,30 @@ struct Evidence {
     PathState path_before,path_after;
     NetworkState network_before,network_after;
     NpcState npc_before,npc_after;
+    std::optional<NpcQuestRemovalProof> npc_quest_removal;
     std::optional<NpcPropertyState> npc_property_before,npc_property_after;
     std::optional<PropTextState> prop_text_before,prop_text_after;
     std::optional<BossPhaseState> boss_phase_before,boss_phase_after;
     std::optional<ServiceMembershipState> service_membership_before,service_membership_after;
     std::optional<SelectionMoveState> selection_move_before,selection_move_after;
     std::optional<DistrictState> district_before,district_after;
+    uint32_t district_continent_height=0;
+    std::optional<DistrictStrokeEffect> district_stroke;
+    std::optional<ZoneEditEffect> zone_edit;
     std::optional<GroupState> group_before,group_after;
     std::optional<DuplicateState> duplicate_before,duplicate_after;
     std::vector<DuplicateCash> duplicate_cash;
     std::optional<SceneryStrokeState> scenery_stroke_before,scenery_stroke_after;
+    std::optional<ModularState> modular_before,modular_after;
+    std::optional<ModularEffect> modular_result;
     std::optional<SceneryStrokeEffect> scenery_stroke_result;
     std::optional<GroupObjectState> group_object_before,group_object_after;
     std::optional<BossPlacementState> boss_placement_before,boss_placement_after;
     std::optional<WorldPathState> world_path_before,world_path_after;
     ZoneState zone_before,zone_after;
     MonsterState monster_before,monster_after;
+    std::optional<MonsterHistoryProof> monster_history_proof;
+    std::optional<NpcHistoryProof> npc_history_proof;
     MonsterQuestRetirement monster_quests;
     NpcQuestState quest_before,quest_after;
     NpcQuestListState quest_list_before,quest_list_after;
@@ -194,6 +222,8 @@ struct Evidence {
     DungeonLightState dungeon_light_before,dungeon_light_after;
     DungeonGizmoState dungeon_gizmo_before,dungeon_gizmo_after;
     DungeonPaletteState dungeon_palette_before,dungeon_palette_after;
+    DungeonInputState dungeon_input_before,dungeon_input_after;
+    std::optional<DungeonInputIntent> dungeon_input_origin;
     DungeonSoundState dungeon_sound_before,dungeon_sound_after;
     DungeonConfigState dungeon_config_before,dungeon_config_after;
     CostumeEditState costume_edit_before,costume_edit_after;
@@ -288,6 +318,7 @@ bool dungeon_config_effect(const Request&,const Ledger&,const Ledger&,const Dung
 bool dungeon_light_wire_fits(const Request&,const DungeonLightState&,const Ledger&,std::string&);
 bool dungeon_gizmo_wire_fits(const Request&,const DungeonGizmoState&,const Ledger&,std::string&);
 bool dungeon_palette_wire_fits(const Request&,const DungeonPaletteState&,const Ledger&,std::string&);
+bool dungeon_input_wire_fits(const Request&,const DungeonInputState&,const Ledger&,std::string&,const DungeonInputIntent* origin=nullptr,const DungeonInputBirth* restored=nullptr,const std::vector<std::string>* control_names=nullptr);
 bool character_membership_wire_fits(const Request&,const CharacterMembershipState&,const Ledger&,std::string&);
 bool ability_membership_wire_fits(const Request&,const AbilityMembershipState&,const Ledger&,std::string&);
 bool dungeon_sound_wire_fits(const Request&,const DungeonSoundState&,const Ledger&,std::string&);
@@ -321,6 +352,13 @@ bool valid_district_title(const DistrictTitleIntent&);
 bool valid_district_title_effect(const Request&,const Evidence&);
 bool district_title_wire_fits(const Request&,const DistrictState&,const Ledger&,std::string&);
 bool valid_district_text(const DistrictTextIntent&);
+bool valid_zone_edit_evidence(const Request&,const Evidence&);
+bool zone_edit_wire_fits(const Request&,const Ledger&,const ZoneEditState&,std::string&);
+bool valid_district_stroke_effect(const Request&,const Evidence&);
+bool district_stroke_wire_fits(const Request&,const Ledger&,const DistrictStrokeState&,std::string&);
+bool valid_district_property_effect(const Request&,const Evidence&);
+bool district_history_wire_fits(const Request&,const Evidence&,std::string&);
+bool district_property_wire_fits(const Request&,const DistrictState&,const Ledger&,uint32_t continent,std::string&);
 bool valid_district_effect(const Request&,const Evidence&);
 bool district_wire_fits(const Request&,const DistrictState&,const Ledger&,std::string&);
 bool valid_selection_move(const SelectionMoveIntent&);
@@ -336,8 +374,15 @@ bool valid_npc_property(const NpcPropertyIntent&);
 bool valid_npc_property_effect(const Request&,const Evidence&);
 bool valid_npc(const NpcIntent&);
 bool valid_npc_effect(const Request&,const Evidence&);
+bool valid_npc_history_effect(const Request&,const Evidence&);
+bool valid_npc_quest_removal(const NpcQuestRemovalProof&,const std::string&);
+bool npc_quest_removal_wire_fits(const Request&,const NpcState&,const Ledger&,const NpcQuestRemovalProof&,std::string&);
+bool valid_modular(const ModularIntent&);
+bool valid_modular_effect(const Request&,const Evidence&);
 class Controller {
 public:
+    bool submit_dungeon_building(const std::string& id,Action,const std::string& key,const std::string& scene,
+        const BuildingState&,const std::string& target_action,uint64_t now,std::string& error);
     bool submit_release_edit(const std::string&,const ReleaseEditIntent&,uint64_t,std::string&);
     bool submit_intervention(const std::string&,const InterventionIntent&,uint64_t,std::string&);
     bool submit_game_rules(const std::string&,const GameRulesIntent&,uint64_t,std::string&);
@@ -355,7 +400,8 @@ public:
     bool submit_commit_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
     bool submit_startingpoint_workers(const std::string& action_uuid,int32_t desired,uint64_t now,std::string&);
     bool submit_start_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
-    Controller(Session&,Engine&,Transport&,Logger,uint64_t ack_timeout_ms=10000);
+    using Clock=std::function<uint64_t()>;
+    Controller(Session&,Engine&,Transport&,Logger,uint64_t ack_timeout_ms=10000,Clock clock={});
     Controller(const Controller&)=delete;
     Controller& operator=(const Controller&)=delete;
     bool start(uint64_t now_ms,std::string& cause);
@@ -376,6 +422,7 @@ public:
     bool submit_dungeon_light(const std::string&,const DungeonLightIntent&,uint64_t,std::string&);
     bool submit_dungeon_gizmo(const std::string&,const DungeonGizmoIntent&,uint64_t,std::string&);
     bool submit_dungeon_palette(const std::string&,const DungeonPaletteIntent&,uint64_t,std::string&);
+    bool submit_dungeon_input(const std::string&,const DungeonInputIntent&,uint64_t,std::string&);
     bool submit_dungeon_sound(const std::string&,const DungeonSoundIntent&,uint64_t,std::string&);
     bool submit_dungeon_config(const std::string&,const DungeonConfigIntent&,uint64_t,std::string&);
     bool submit_costume_edit(const std::string&,const CostumeEditIntent&,uint64_t,std::string&);
@@ -393,10 +440,14 @@ public:
     bool submit_boss_placement(const std::string&,const BossPlacementIntent&,uint64_t,std::string&);
     bool submit_world_path(const std::string&,const WorldPathIntent&,uint64_t,std::string&);
     bool submit_group_object(bool,const std::string&,const GroupObjectIntent&,uint64_t,std::string&);
+    bool submit_modular(const std::string&,const ModularIntent&,uint64_t,std::string&);
     bool submit_scenery_stroke(const std::string&,const SceneryStrokeIntent&,uint64_t,std::string&);
     bool submit_duplicate(const std::string&,const DuplicateIntent&,uint64_t,std::string&);
     bool submit_district_title(const std::string&,const std::string&,const DistrictTitleIntent&,uint64_t,std::string&);
     bool submit_district_text(const std::string&,const std::string&,const DistrictTextIntent&,uint64_t,std::string&);
+    bool submit_zone_edit(const std::string&,const ZoneEditIntent&,uint64_t,std::string&);
+    bool submit_district_stroke(const std::string&,const DistrictStrokeIntent&,uint64_t,std::string&);
+    bool submit_district_property(const std::string&,const std::string&,const game::district_property::Value&,uint64_t,std::string&);
     bool submit_selection_move(const std::string&,const SelectionMoveIntent&,uint64_t,std::string&);
     bool submit_service_membership(const std::string&,const std::string&,const ServiceMembershipIntent&,uint64_t,std::string&);
     bool submit_boss_phase(const std::string&,const BossPhaseIntent&,uint64_t,std::string&);
@@ -420,7 +471,7 @@ private:
         bool has_result=false,has_completion=false,has_ack=false;
         std::array<std::optional<Message>,5> peer_acks{};
     };
-    Session& session_;Engine& engine_;Transport& transport_;Logger logger_;
+    Session& session_;Engine& engine_;Transport& transport_;Logger logger_;Clock clock_;
     Context context_;Binding binding_;Status status_;
     std::thread::id thread_{};
     uint64_t timeout_,now_=0,deadline_=0,local_deadline_=0,local_sequence_=0,last_result_revision_=0;
@@ -432,6 +483,8 @@ private:
     std::optional<Message> local_request_;
     bool busy_=false,idle_session_loss_=false;
     std::string last_logged_error_;
+    bool update_time(uint64_t,std::string&);
+    bool arm_deadline(uint64_t&,std::string&);
     bool guard(std::string&);
     bool invoke(const std::function<bool()>&,std::string&);
     bool fail(const std::string&,std::string&,bool lock=false,bool session_loss=false);

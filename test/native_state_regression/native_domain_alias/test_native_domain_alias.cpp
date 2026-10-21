@@ -2,6 +2,8 @@
 #include "npc_quest_targets.h"
 #include "remove_diagnostics.h"
 #include <iostream>
+#include <algorithm>
+#include <compare>
 #include <stdexcept>
 
 namespace typed=mt2mp::action_session;
@@ -67,7 +69,16 @@ uint32_t main_thread=7,current_thread=7;bool host_active=false,client_active=fal
 uint32_t GetCurrentThreadId(){return current_thread;}
 bool healthy(std::string& error){return healthy_value||fail(error,"original Quest owner locked");}
 }
+namespace fixture {json prop_input;bool prop_read_ok=true;unsigned prop_read_calls=0;}
+namespace remove_diagnostics {
+bool identity_bindings(json& out,std::string& error){++fixture::prop_read_calls;if(!fixture::prop_read_ok)return fail(error,"original prop hydration failed");out=fixture::prop_input;return true;}
+}
+namespace live_host_state::apply_timing {
+enum class PageBoundary {OriginalCall};
+struct PageReadScope {explicit PageReadScope(PageBoundary){}};
+}
 #include "domain_bodies.inc"
+#include "actor_census_scope.inc"
 
 namespace {
 World native(const std::string& uuid){World value;value.uuid=uuid;value.sha256=uuid==fixture::shared?fixture::shared_sha:fixture::local_sha;
@@ -80,7 +91,52 @@ Target target(){Target value;value.snapshot_id=fixture::shared;value.record_key=
     value.uid=1097;value.object=0x4000;value.normal_building=true;return value;}
 void has(const std::string& error,const std::string& value){fixture::check(error.find(value)!=std::string::npos,"Diagnostic lost measured identity/lifetime");}
 }
-int main(){try{using fixture::check;std::string error;const typed::Binding binding{1,1};
+void actor_census_checks(){
+    const auto ctx=context(typed::Role::Host);const typed::Binding bound{1,1};auto world=native(fixture::local);Census next;std::string error;
+    fixture::prop_input=props();fixture::prop_read_calls=0;fixture::prop_read_ok=false;
+    fixture::check(cases::actor_only::props(false,ctx,bound,world,next,error)&&fixture::prop_read_calls==0&&next.owners.empty(),"Actor-only current census hydrated unused props");
+    ++world.world_epoch;
+    fixture::check(!cases::actor_only::props(false,ctx,bound,world,next,error)&&fixture::prop_read_calls==0&&error.find("native lifetime differs")!=std::string::npos,"Actor-only census skipped independent NativeWorld-vs-Binding guard");
+    world=native(fixture::local);error.clear();
+    fixture::check(!cases::actor_only::props(true,ctx,bound,world,next,error)&&error=="original prop hydration failed"&&fixture::prop_read_calls==1,"default complete census lost original prop failure");
+    fixture::prop_read_ok=true;error.clear();
+    fixture::check(cases::actor_only::props(true,ctx,bound,world,next,error)&&fixture::prop_read_calls==2&&next.owners.size()==1,"default complete census omitted native prop owner");
+    fixture::prop_input["bindings"][0]["unknown"]=true;error.clear();
+    fixture::check(!cases::actor_only::props(true,ctx,bound,world,next,error)&&error.find("unknown or foreign")!=std::string::npos,"default complete census suppressed Unknown prop alias");
+    fixture::prop_input=props();fixture::prop_input["world_generation"]=2;error.clear();
+    fixture::check(!cases::actor_only::props(true,ctx,bound,world,next,error)&&error.find("native lifetime differs")!=std::string::npos,"default complete census lost prop generation guard");
+    fixture::prop_input=props();fixture::prop_read_calls=0;
+}
+namespace actor_order_fixture {
+#include "actor_order_comparators.inc"
+template<class Key>struct Row {struct Target {uint8_t family=0;Key key;bool operator==(const Target&)const=default;};Target target;bool operator==(const Row&)const=default;};
+struct TrackedKey {
+    std::string text;inline static unsigned copies=0;
+    explicit TrackedKey(std::string value):text(std::move(value)){}
+    TrackedKey(const TrackedKey& other):text(other.text){++copies;}
+    TrackedKey& operator=(const TrackedKey& other){text=other.text;++copies;return *this;}
+    TrackedKey(TrackedKey&&)=default;TrackedKey& operator=(TrackedKey&&)=default;
+    auto operator<=>(const TrackedKey&)const=default;
+};
+void run(){
+    using fixture::check;
+    const std::vector<std::string> keys{"", "a", "aa", "subscriber:1", "subscriber:10", "subscriber:2", "action:"+fixture::shared,
+        fixture::shared_sha+":world:zone:1:monster:0", std::string(4096,'x'), std::string("a\0b",3), std::string("\x80",1)};
+    std::vector<Row<std::string>> rows;
+    for(uint8_t family=0;family<4;++family)for(const auto& key:keys)rows.push_back({{family,key}});
+    for(const auto& a:rows)for(const auto& b:rows)
+        check(actual_actor_less(a,b)==previous_actor_less(a,b),"Actor canonical family/key ordering differs from actual previous comparator");
+    auto prior=rows,actual=rows;std::reverse(actual.begin(),actual.end());prior=actual;
+    std::sort(prior.begin(),prior.end(),previous_actor_less);std::sort(actual.begin(),actual.end(),actual_actor_less);
+    check(actual==prior,"Actor census output order changed");
+    const Row<TrackedKey> a{{0,TrackedKey(std::string(128,'a'))}},b{{0,TrackedKey(std::string(128,'b'))}};
+    TrackedKey::copies=0;check(actual_actor_less(a,b),"Actor comparator reversed same-family keys");
+    check(TrackedKey::copies==0,"Actor comparator copied canonical keys");
+    TrackedKey::copies=0;check(previous_actor_less(a,b),"Previous comparator fixture reversed keys");
+    check(TrackedKey::copies==2,"Previous comparator fixture did not observe its two owning key copies");
+}
+}
+int main(){try{actor_census_checks();actor_order_fixture::run();using fixture::check;std::string error;const typed::Binding binding{1,1};
     const auto host=context(typed::Role::Host);const auto host_world=native(fixture::local);
     for(const auto role:{typed::Role::Host,typed::Role::Client}){
         const auto ctx=context(role);const auto world=native(role==typed::Role::Host?fixture::local:fixture::shared);Census owners;

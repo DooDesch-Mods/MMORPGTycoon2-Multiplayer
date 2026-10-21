@@ -1,4 +1,5 @@
 #include "shared_state.h"
+#include "../snapshot_building_key.h"
 #include "../bug_authority/job_codec.h"
 #include <cmath>
 #include <set>
@@ -29,7 +30,7 @@ bool valid_construction(const PoolState& s,std::string& e){
     static const std::regex building_key("^action:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     std::set<std::string> keys;std::set<int32_t> assigned;
     for(const auto& job:c.jobs){
-        if(!std::regex_match(job.building_key,building_key)||!keys.insert(job.building_key).second||job.developer_id< -1||job.developer_id>49)
+        if((!std::regex_match(job.building_key,building_key)&&!snapshot_building_key::valid(job.building_key))||!keys.insert(job.building_key).second||job.developer_id< -1||job.developer_id>49)
             return fail(e,"Developer construction Building key/developer invalid or duplicated");
         if(!job.present&&(job.active||job.developer_id!=-1))return fail(e,"Developer restored inactive Building requires absent Job, inactive property and no assigned Developer");
         if(job.developer_id>=0){

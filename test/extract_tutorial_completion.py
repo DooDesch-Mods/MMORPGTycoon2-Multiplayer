@@ -14,7 +14,12 @@ def extract(root,output):
     paths={name:folder/name for name in ('native.cpp','lifecycle_owner.inc','lifecycle_hook.inc','lifecycle_apply.inc')}
     source={name:path.read_text(encoding='utf-8-sig') for name,path in paths.items()}
     native=source['native.cpp'];hook=source['lifecycle_hook.inc'];apply=source['lifecycle_apply.inc']
+    intro=folder/"intro_native.inc"
+    intro_text=intro.read_text(encoding="utf-8")
+    paths["intro_native.inc"]=intro
     bodies={
+        "intro_adopt_actual.inc":intro_text[intro_text.index("bool adopt("):intro_text.rfind("\n}")],
+        "intro_callback_actual.inc":part(intro_text,"void update(","void start("),
         'lifecycle_cache.inc':part(source['lifecycle_owner.inc'],'struct Cache {','bool array('),
         'lifecycle_advance.inc':part(hook,'void advance(void* value){','void scenario_start('),
         'lifecycle_start.inc':hook[hook.index('void scenario_start('):hook.rfind('\n}')],

@@ -4,6 +4,7 @@ if(WIN32 AND MSVC)
     set(native_regression_generated "${CMAKE_CURRENT_BINARY_DIR}/native_state_regression")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${MT2MP_SOURCE_ROOT}/src/core/dll_main.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp"
         "${MT2MP_SOURCE_ROOT}/src/core/framework_plugin.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/control_input/control_runtime.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/control_input/control_route_initializers.inc"
@@ -91,7 +92,8 @@ if(WIN32 AND MSVC)
         set(dungeon_boundary_generated "${native_regression_generated}/dungeon_boundary")
         set(dungeon_boundary_minhook "${MT2_FRAMEWORK_SDK}/third_party/vendor/minhook/src")
         set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-            "${dungeon_boundary_root}/check.py" "${dungeon_boundary_root}/baseline.json")
+            "${dungeon_boundary_root}/check.py" "${dungeon_boundary_root}/baseline.json"
+            "${dungeon_boundary_root}/d03_gizmo_delta.json")
         foreach(name gizmo config sound light palette cells)
             set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
                 "${MT2MP_SOURCE_ROOT}/src/game/dungeon_${name}_runtime.inc")

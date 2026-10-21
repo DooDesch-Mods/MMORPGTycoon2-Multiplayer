@@ -11,6 +11,7 @@ a = p.parse_args()
 a.output.mkdir(parents=True, exist_ok=True)
 rows = {}
 for source, begin, end, output in [
+    ('src/game/npc_quest_target_runtime.cpp', 'template<class Left,class Right>bool same_world(', 'void reset(', 'quest_same_world_actual.inc'),
     ('src/game/npc_quest_target_runtime.cpp', 'bool validate_scene(', '\nbool current(', 'dungeon_quest_seal_actual.inc'),
     ('src/game/monster_saved_identity_runtime.cpp', 'void reset(', '\nbool context(', 'saved_monster_reset_actual.inc'),
     ('src/game/monster_saved_identity_runtime.cpp', 'bool arm_client(', '\nvoid cancel(', 'saved_monster_load_finish_actual.inc'),

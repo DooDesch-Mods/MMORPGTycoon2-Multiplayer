@@ -81,7 +81,7 @@ void progress_only_cases(){
         need(apply(c,b,desired_state,attempted,unknown,e)&&attempted&&!unknown&&state_reads==2&&research_calls==1&&physical_state==desired_state,"Progress did not retain exactly full before/final captures");
         need(apply(c,b,desired_state,attempted,unknown,e)&&!attempted&&!unknown&&state_reads==3&&research_calls==1,"confirmed Progress replayed native writes");
         pass("Progress keeps two full captures and equal replay performs no effect");}
-    {reset("leveltwo_tutorial",16);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);
+    {reset("leveltwo_tutorial",16);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);
         need(apply(c,b,desired_state,attempted,unknown,e)&&state_reads==3&&attempted&&!unknown&&completes==1&&advances==2,"ordinary lifecycle lost post-research capture or original effects");
         pass("non-Research lifecycle retains three captures and original Advance/Complete");}
 }

@@ -18,7 +18,7 @@ bool property_fields(Memory& memory,uintptr_t object,action::NpcPropertyState& o
     if(out.online<0||out.online>2||forced>1||bool(forced)!=(out.online!=2))
         return fail(error,"NPC online mode/forced tint invalid mode="+std::to_string(out.online)+" forced="+std::to_string(forced));
     for(float v:out.tint)if(!std::isfinite(v))return fail(error,"NPC forced tint is nonfinite");
-    if(out.region_min<0||out.region_max<out.region_min||out.command_level<out.region_min||out.command_level>out.region_max)
+    if(out.region_min<0||out.region_max<out.region_min||out.command_level<0)
         return fail(error,"NPC command level/Region bounds invalid level="+std::to_string(out.command_level)+
             " min="+std::to_string(out.region_min)+" max="+std::to_string(out.region_max));
     out.force_tint=forced!=0;return true;

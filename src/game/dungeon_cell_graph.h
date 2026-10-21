@@ -2,16 +2,21 @@
 #include "duplicate_history_reader.h"
 #include <array>
 #include <algorithm>
+#include <bit>
+#include <cmath>
 namespace mt2mp::game::dungeon_cell_graph {
 namespace q=npc_quest_targets;
-enum class Kind:uint8_t {Paint,Layout,Scenery,Monster,Zone,EditZone,Gizmo,Door,Destroy,Quests};
+enum class Kind:uint8_t {Paint,Layout,Scenery,Monster,Zone,EditZone,Gizmo,Door,Destroy,Quests,Cash,Move};
+enum class Shape:uint8_t {Cells,Paint,Door,Key,Monster,Zones,GizmoMove,Gizmos,SceneMove,SceneControls};
+struct Policy {Shape shape=Shape::Cells;uint32_t cash=0,targets=1;bool operator==(const Policy&)const=default;};
 struct Descriptor {Kind kind;uintptr_t ap,method;size_t end;};
-inline constexpr std::array<Descriptor,10> descriptors{{
+inline constexpr std::array<Descriptor,12> descriptors{{
     {Kind::Paint,0x1713270,0x53eaf0,0xd8},{Kind::Layout,0x1719190,0x53f490,0x158},
     {Kind::Scenery,0x1706590,0x55a3c0,0x141},{Kind::Monster,0x1706550,0x5507c0,0x178},
     {Kind::Zone,0x16e4a00,0x55bd50,0x150},{Kind::EditZone,0x16e4980,0x55c710,0x150},
     {Kind::Gizmo,0x16fb990,0x54c680,0x18c},{Kind::Door,0x17191d0,0x54c920,0x180},
-    {Kind::Destroy,0x16de860,0x53e1c0,0xc0},{Kind::Quests,0x1713330,0x563f50,0xe0}}};
+    {Kind::Destroy,0x16de860,0x53e1c0,0xc0},{Kind::Quests,0x1713330,0x563f50,0xe0},
+    {Kind::Cash,0x1786fb0,0x53ccf0,0xc8},{Kind::Move,0x1786ff0,0x55ed80,0xe8}}};
 struct Node {
     uintptr_t pointer=0;Kind kind=Kind::Paint;uint64_t uid=0;
     std::array<std::vector<uint64_t>,3> dependencies;
@@ -49,25 +54,68 @@ template<class Read>bool uid_set(Read& at,uintptr_t object,std::vector<uint64_t>
     return true;
 }
 template<class Memory,class Read,class Copy,class Values,class Owner>
-bool read(Memory& memory,Read& at,Copy& copy,Values& values,Owner& owner,uintptr_t image,uintptr_t pointer,Graph& out,std::string& error){
+bool read(Memory& memory,Read& at,Copy& copy,Values& values,Owner& owner,uintptr_t image,uintptr_t pointer,Graph& out,std::string& error,Policy policy={}){
     out={};q::Bounds array;if(!q::typed(memory,image,pointer+0x18,0x16e2dc0,error)||!q::bounds(memory,pointer+0x18,100000,array,error)||!array.count)
         return q::fail(error,error.empty()?"Dungeon original complete DoGraph node array is empty":error);
-    Graph next;next.pointer=pointer;duplicate_history::Graph membership;std::set<uintptr_t> unique;size_t paints=0,layouts=0;
+    Graph next;next.pointer=pointer;duplicate_history::Graph membership;std::set<uintptr_t> unique;size_t paints=0,layouts=0,cash=0,targets=0;
     for(int32_t i=0;i<array.count;++i){Node node;uintptr_t ap=0,method=0;
         if(!at(array.data,size_t(i)*8,node.pointer,error)||!node.pointer||!unique.insert(node.pointer).second||!at(node.pointer,0,ap,error))return q::fail(error,error.empty()?"Dungeon original DoGraph node is absent or repeated":error);
         const auto descriptor=std::find_if(descriptors.begin(),descriptors.end(),[&](const auto& d){return ap==image+d.ap;});
         if(descriptor==descriptors.end())return q::fail(error,"Dungeon original DoGraph contains an unsupported original node addresspoint="+std::to_string(ap-image));
-        if(!at(ap,0x10,method,error)||method!=image+descriptor->method||!at(node.pointer,0xb8,node.uid,error)||!node.uid)
-            return q::fail(error,error.empty()?"Dungeon original Do virtual method/full target UID differs":error);
-        node.kind=descriptor->kind;paints+=node.kind==Kind::Paint;layouts+=node.kind==Kind::Layout;
+        if(!at(ap,0x10,method,error)||method!=image+descriptor->method)
+            return q::fail(error,error.empty()?"Dungeon original Do virtual method differs":error);
+        node.kind=descriptor->kind;
+        if(node.kind==Kind::Move&&policy.shape!=Shape::GizmoMove&&policy.shape!=Shape::SceneMove)return q::fail(error,"Original Move node is outside the fixed Gizmo Move graph policy");
+        if(node.kind==Kind::Cash){
+            int32_t amount=0;std::array<uint32_t,3> position{};
+            if(!at(node.pointer,0xb8,amount,error)||!at(node.pointer,0xbc,position,error))return false;
+            for(auto bits:position)if(!std::isfinite(std::bit_cast<float>(bits)))return q::fail(error,"Dungeon original Cash position is not finite");
+            node.values.push_back(std::to_string(amount));for(auto bits:position)node.values.push_back(std::to_string(bits));++cash;
+        }else{
+            if(!at(node.pointer,0xb8,node.uid,error))return false;
+            if(!node.uid)return q::fail(error,"Dungeon original Do full target UID is zero");
+            paints+=node.kind==Kind::Paint;layouts+=node.kind==Kind::Layout;
+            targets+=node.kind==Kind::Destroy||node.kind==Kind::Gizmo||node.kind==Kind::Door||node.kind==Kind::Monster||node.kind==Kind::Move||(policy.shape==Shape::SceneControls&&node.kind==Kind::Scenery);
+        }
+        if(policy.shape==Shape::GizmoMove||policy.shape==Shape::SceneMove){
+            if(node.kind!=Kind::Move)return q::fail(error,"Gizmo Move graph contains an unrelated original node");
+        }else if(policy.shape==Shape::Gizmos||policy.shape==Shape::SceneControls){
+            if(node.kind!=Kind::Gizmo&&node.kind!=Kind::Door&&node.kind!=Kind::Destroy&&node.kind!=Kind::Cash&&
+               !(policy.shape==Shape::SceneControls&&node.kind==Kind::Scenery))
+                return q::fail(error,"Gizmo control graph contains an unrelated original node");
+        }else if(policy.shape==Shape::Zones){
+            if(node.kind!=Kind::Zone&&node.kind!=Kind::EditZone&&node.kind!=Kind::Monster&&node.kind!=Kind::Destroy&&
+               node.kind!=Kind::Quests&&node.kind!=Kind::Cash)
+                return q::fail(error,"Zone edit graph contains a node outside its original Zone contract");
+        }else if(policy.shape!=Shape::Cells){
+            const bool paint=policy.shape==Shape::Paint&&node.kind==Kind::Paint;
+            const bool actor=policy.shape!=Shape::Paint&&(node.kind==Kind::Destroy||
+                (policy.shape==Shape::Monster?node.kind==Kind::Monster:
+                 policy.shape==Shape::Door?(node.kind==Kind::Door||node.kind==Kind::Gizmo):node.kind==Kind::Gizmo));
+            if(!paint&&!actor&&node.kind!=Kind::Cash)return q::fail(error,"Dungeon input graph contains a node outside its original tool contract");
+        }
         for(size_t set=0;set<3;++set)if(!uid_set(at,node.pointer+8+set*0x28,node.dependencies[set],error))return false;
         q::Bounds regions;if(!q::typed(memory,image,node.pointer+0xa0,0x1749040,error)||!q::bounds(memory,node.pointer+0xa0,4096,regions,error))return false;
         for(int32_t r=0;r<regions.count;++r){uintptr_t region=0;if(!at(regions.data,size_t(r)*8,region,error)||!owner(node,region,error))return false;node.regions.push_back(region);}
         if(!q::unchanged(memory,node.pointer+0xa0,4096,regions,error))return false;
-        node.payload.resize(descriptor->end-0x80);if(!copy(node.pointer+0x80,node.payload.data(),node.payload.size(),error)||!values(node,error))return false;
+        node.payload.resize(descriptor->end-0x80);if(!copy(node.pointer+0x80,node.payload.data(),node.payload.size(),error))return false;
+        if(node.kind!=Kind::Cash&&!values(node,error))return false;
         membership.top_operations.push_back(node.pointer);next.nodes.push_back(std::move(node));
     }
-    if(paints!=1||layouts!=1)return q::fail(error,"Dungeon original graph requires exactly one complete Paint and Layout node");
+    if(policy.shape==Shape::GizmoMove||policy.shape==Shape::Gizmos||policy.shape==Shape::SceneMove||policy.shape==Shape::SceneControls){
+        if(!policy.targets||targets!=policy.targets||cash!=policy.cash||paints||layouts||
+           ((policy.shape==Shape::GizmoMove||policy.shape==Shape::SceneMove)&&cash))return q::fail(error,"Gizmo control graph complete target/Cash count differs");
+    }else if(policy.shape==Shape::Cells){
+        if(paints!=1||layouts!=1||cash)return q::fail(error,"Dungeon original cell graph requires exactly one Paint and Layout and no Cash node");
+    }else if(policy.shape==Shape::Zones){
+        if(cash!=policy.cash||next.nodes.size()<=cash)
+            return q::fail(error,"Zone edit graph requires a non-Cash operation and its exact Cash count");
+    }else{
+        const bool painting=policy.shape==Shape::Paint;
+        if(uint8_t(policy.shape)>uint8_t(Shape::Monster)||layouts||paints!=size_t(painting)||targets!=size_t(!painting)||cash!=policy.cash||
+           (painting&&cash)||(policy.shape==Shape::Monster&&cash)||(policy.shape==Shape::Door&&cash!=1)||(policy.shape==Shape::Key&&cash>1))
+            return q::fail(error,"Dungeon input original graph exact Paint/target/Cash shape differs");
+    }
     if(!q::unchanged(memory,pointer+0x18,100000,array,error)||!duplicate_history::execution_order(memory,image,pointer,membership,next.execution,error))return false;
     out=std::move(next);error.clear();return true;
 }

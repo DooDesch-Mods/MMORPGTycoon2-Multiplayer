@@ -29,6 +29,8 @@ if(WIN32)
         "${_restore_root}/src/game/typed_action/action_session.cpp"
         "${_restore_root}/src/game/tutorial_replication/startingpoint.cpp"
         "${_restore_root}/src/game/developer_staff/shared_state.cpp")
+    target_sources(test_building_remove_restore_history PRIVATE
+        "${_restore_root}/src/game/typed_action/action_session.cpp")
 endif()
 
 if(WIN32)

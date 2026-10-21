@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 #include "host_failure_action_session.h"
+#include "live_host_state/apply_timing.h"
 using json=nlohmann::json;
 namespace fixture {
 const std::string id="11111111-1111-4111-8111-111111111111";
@@ -31,7 +32,7 @@ static bool snapshot_failed=false,snapshot_world_valid=true,receiving=false,load
 static uint64_t discarded_after_failure=0;
 static std::string snapshot_failure,status,incoming_id=fixture::id,last_loaded=fixture::id,outbound_id=fixture::id;
 static json host_failure_notice=nullptr;
-struct Stoppable {void stop(){++fixture::stops;}} buffer,outbound;
+struct Stoppable {void stop(){++fixture::stops;}} buffer,outbound,monster_buffer,monster_outbound;
 namespace session_wire {
 bool send(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target){
     fixture::need(channel==4,"failure notice changed existing snapshot channel");
@@ -102,10 +103,18 @@ void weapon_bootstrap(Runtime&){++fixture::action_ticks;}
 #define IDLE_TICK(name) namespace name {void tick(){++fixture::action_ticks;}}
 IDLE_TICK(ui_move_runtime) IDLE_TICK(ui_region_runtime) IDLE_TICK(ui_price_runtime)
 IDLE_TICK(ui_terrain_runtime) IDLE_TICK(ui_path_runtime) IDLE_TICK(ui_network_runtime)
+IDLE_TICK(release_runtime) IDLE_TICK(general_project_runtime) IDLE_TICK(logo_runtime) IDLE_TICK(management_runtime)
 namespace developer_staff {IDLE_TICK(action_runtime)}
 namespace bug_authority {IDLE_TICK(manual_action)}
-namespace npc_probe {IDLE_TICK(action_runtime) IDLE_TICK(zone_action_runtime)
-namespace monster_action_runtime {void tick(){++fixture::action_ticks;} IDLE_TICK(quest_authoring)}}
+namespace npc_probe {IDLE_TICK(action_runtime) IDLE_TICK(zone_action_runtime) IDLE_TICK(zone_edit_runtime)
+namespace monster_action_runtime {
+void tick(){++fixture::action_ticks;}
+IDLE_TICK(quest_authoring) IDLE_TICK(quest_list) IDLE_TICK(character_membership) IDLE_TICK(character_rename)
+IDLE_TICK(ability_membership) IDLE_TICK(ability_edit) IDLE_TICK(costume_edit) IDLE_TICK(dungeon_config)
+IDLE_TICK(dungeon_sound) IDLE_TICK(dungeon_gizmo) IDLE_TICK(dungeon_palette) IDLE_TICK(dungeon_input)
+IDLE_TICK(dungeon_light) IDLE_TICK(building_status)
+}}
+#undef IDLE_TICK
 #include "host_failure_runtime.inc"
 }
 namespace panel_fixture {
@@ -117,12 +126,12 @@ bool fail(const std::string& detail){cause=detail;return false;}
 namespace {
 void host_client_chain(){
     using namespace fixture;namespace runtime=mt2mp::game::typed_action_runtime;namespace net=mt2mp::net;
-    reset(true);runtime::Runtime host;runtime::published_runtime=&host;runtime::tick();
-    need(host.live_failure_terminal&&host.live_error==original&&host.live_state->captures==1&&!action_ticks,"Host failure did not stop the capture/action path once");
+    reset(true);runtime::Runtime host;runtime::published_runtime=&host;runtime::tick();runtime::tick_after_transport();
+    need(host.live_failure_terminal&&host.live_error==original&&host.live_state->captures==1&&!action_ticks&&stops==4,"Host failure did not stop the capture/action path once");
     need(net::snapshot_failed&&!net::snapshot_world_valid&&net::snapshot_failure==original&&invalidations==1,"Host authority remained live or cause changed");
     need(queue_calls==1&&net::host_failure_notice.at("attempted")==true&&net::host_failure_notice.at("queued")==true,"Host notice was not queued through existing route");
     need(host.controller.status().locked&&host.controller.status().outcome==action::Outcome::Unknown&&host.controller.can_retire_lobby(),"idle Host session did not lock while retaining Leave");
-    const auto notice=packets.front();runtime::tick();runtime::tick();
+    const auto notice=packets.front();runtime::tick();runtime::tick_after_transport();runtime::tick();runtime::tick_after_transport();
     need(host.live_state->captures==1&&queue_calls==1&&host.live_error==original&&!action_ticks,"terminal Host capture/notice replayed or cause recovered");
     std::string e;need(!net::fail_host_world(id,"later error",e)&&net::snapshot_failure==original&&queue_calls==1,"late error replaced first cause or retried send");
 
@@ -130,10 +139,10 @@ void host_client_chain(){
     need(net::receive_host_world_failure(1,notice),"Client did not admit exact Host terminal notice");
     const auto expected="Host synchronization failed: "+original;
     need(net::snapshot_failed&&!net::snapshot_world_valid&&net::snapshot_failure==expected&&invalidations==1,"Client retained live authority or lost Host cause");
-    runtime::tick();need(client.live_failure_terminal&&client.live_error==expected&&client.live_state->captures==0&&!action_ticks,"Client replayed cached live state after Host failure");
+    runtime::tick();runtime::tick_after_transport();need(client.live_failure_terminal&&client.live_error==expected&&client.live_state->captures==0&&!action_ticks,"Client replayed cached live state after Host failure");
     need(client.controller.status().locked&&client.controller.status().outcome==action::Outcome::Unknown&&client.controller.can_retire_lobby(),"idle Client did not lock or Leave was trapped");
     need(client.controller.status().confirmed==1,"terminal state erased earlier accepted evidence");
-    const auto sends=queue_calls;need(net::receive_host_world_failure(1,notice)&&net::snapshot_failure==expected&&queue_calls==sends&&invalidations==1,"duplicate notice replayed or replaced first failure");
+    const auto sends=queue_calls;need(net::receive_host_world_failure(1,notice)&&net::snapshot_failure==expected&&queue_calls==sends&&invalidations==1&&stops==4,"duplicate notice replayed or replaced first failure");
 
     panel_fixture::failure_notice_attempted.clear();panel_fixture::failure_notice_error.clear();panel_fixture::cause.clear();panel_fixture::ui_status.clear();
     const json preparation={{"error",client.live_error},{"leaving",false}};
@@ -160,8 +169,8 @@ void admission_and_queue_cases(){
     const auto retained=e;need(!panel_fixture::show_failed_panel_once({{"error",original}},e)&&shows==1&&e==retained,"uncertain native panel Show replayed or false recovery");
     reset(true);mt2mp::game::typed_action_runtime::Runtime ordinary;
     ordinary.live_state->okay=true;mt2mp::game::typed_action_runtime::published_runtime=&ordinary;
-    mt2mp::game::typed_action_runtime::tick();
-    need(!ordinary.live_failure_terminal&&ordinary.live_error.empty()&&ordinary.live_state->captures==1&&action_ticks>0&&!queue_calls&&!net::snapshot_failed&&!ordinary.controller.status().locked,"ordinary confirmed Runtime path became terminal");
+    mt2mp::game::typed_action_runtime::tick();mt2mp::game::typed_action_runtime::tick_after_transport();
+    need(!ordinary.live_failure_terminal&&ordinary.live_error.empty()&&ordinary.live_state->captures==1&&action_ticks==31&&!queue_calls&&!net::snapshot_failed&&!ordinary.controller.status().locked,"ordinary confirmed Runtime path became terminal");
     mt2mp::game::typed_action_runtime::published_runtime=nullptr;
 }
 }

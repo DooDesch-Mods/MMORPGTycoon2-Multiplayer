@@ -28,6 +28,7 @@ struct NativePort {
 };
 bool hash(const std::string& source,std::string& out,std::string&){out=std::string(64,source.empty()?'a':'b');return true;}
 }
+#include "modular_transaction_cases.inc"
 int main()try{
     unsigned count=0;std::string e;auto packet=message(false);const auto& effect=*packet.evidence.scenery_stroke_result;
     state::Objects before,after;before.emplace(old(1),effect.removed[0]);before.emplace(effect.changed[0].before.key,effect.changed[0].before);
@@ -69,5 +70,16 @@ int main()try{
     need(table.commit_scenery_stroke(origin,4,fixture_snapshot,{old(1)},{created},e)==world::Admission::Rejected&&table.rows()==history_rows,
          "forward stroke silently restored an old action key");++count;
     need(table.commit_scenery_history(origin,4,fixture_snapshot,{old(1)},{created},e)==world::Admission::New&&table.rows().at(born.key).state.alive,e);++count;
+    world::Table natural;const auto natural_key=mt2mp::game::scenery_scene_key::root_record(std::string(64,'c'),59,12,0);
+    const auto native_record=mt2mp::game::scenery_scene_key::root_record(origin.sha256,59,12,0);
+    need(natural.bind_snapshot(origin,{{natural_key,native_record,building},{born.key,mt2mp::game::scenery_scene_key::root_record(origin.sha256,59,8,0),building}},0,e),e);++count;
+    need(natural.rows().at(natural_key).snapshot_record_key==native_record,"resnapshot lost saved record vs canonical key");++count;
+    need(natural.commit_scenery_stroke(origin,1,fixture_action,{natural_key},{},e)==world::Admission::New&&!natural.rows().at(natural_key).state.alive,e);++count;
+    const world::LocalBinding natural_restored{origin,natural_key,900,building};
+    need(natural.commit_scenery_history(origin,2,fixture_snapshot,{}, {natural_restored},e)==world::Admission::New&&natural.rows().at(natural_key).state.alive,e);++count;
+    need(natural.commit_scenery_history(origin,3,fixture_action,{natural_key},{},e)==world::Admission::New&&!natural.rows().at(natural_key).state.alive,e);++count;
+    world::Table invalid_scene;
+    need(!invalid_scene.bind_snapshot(origin,{{natural_key,origin.sha256+":world:dungeon:scenery:region59/building[0]/template/scenery[0]",building}},0,e),"Dungeon Scenery admitted as a Root World snapshot record");++count;
+    count+=modular_transaction_cases();
     std::cout<<count<<" Scenery complete diff/native ownership/atomic publication cases passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

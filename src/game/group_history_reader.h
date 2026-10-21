@@ -2,8 +2,18 @@
 #include "group_history.h"
 #include "group_reader.h"
 namespace mt2mp::game::group_history {
-struct Known {uint64_t uid=0;action_session::GroupRow row;std::string name;};
+struct Known {uint64_t uid=0;action_session::GroupRow row;std::string name,restore_name;};
 struct LocalNode {Node value;uintptr_t operation=0;uint64_t group_uid=0;std::string saved_name;};
+// AddToGroup saves the virtual GetName result, not mmoObject's backing name.
+// Its Do assigns that saved result to the backing name when recreating a Group.
+template<class Memory,class Text>bool restore_name(Memory& m,uintptr_t image,Text&& text,std::string& out,std::string& e){
+    namespace q=npc_quest_targets;uintptr_t method=0;std::array<uint8_t,8> actual{};
+    const std::array<uint8_t,8> expected{0x48,0x8d,0x05,0x79,0xbf,0x56,0x01,0xc3};
+    if(!q::at(m,image,0x1749de0+0xa8,method,e)||!q::at(m,image,0x4cc4e0,actual,e))return false;
+    if(method!=image+0x4cc4e0||actual!=expected)return q::fail(e,"Group history original GetName vslot/body differs");
+    return text(image+0x1a38460,out,e);
+}
+
 template<class Memory>bool code(Memory& m,uintptr_t image,std::string& e){
     struct Guard{uintptr_t rva;std::array<uint8_t,16> prefix;};
     const Guard guards[]={{0x546700,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x58}},
@@ -45,7 +55,9 @@ bool read(Memory& m,uintptr_t image,uintptr_t root,uintptr_t graph,const group_r
             if(!q::at(m,row.operation,0xc0,saved_root,e)||!q::at(m,row.operation,0xc8,saved_region,e)||
                !q::at(m,row.operation,0xf0,row.value.saved_pose,e)||!text(row.operation+0xd0,row.saved_name,e)||
                !region(row.value.region,expected_region,e))return false;
-            if(saved_root!=root||saved_region!=expected_region||row.saved_name!=remembered->second.name)return q::fail(e,"Group history original saved root/Region/name differs");
+            if(saved_root!=root)return q::fail(e,"Group history original saved root differs");
+            if(saved_region!=expected_region)return q::fail(e,"Group history original saved Region differs");
+            if(row.saved_name!=remembered->second.restore_name)return q::fail(e,"Group history original saved GetName differs");
             if(!group_transition::finite(row.value.saved_pose))return q::fail(e,"Group history original saved transform nonfinite");
         }
         const size_t offset=row.value.kind==Kind::Add?0x160:0xc0;q::Bounds members;

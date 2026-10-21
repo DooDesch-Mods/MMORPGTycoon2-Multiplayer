@@ -271,7 +271,10 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
     bool read(ml::State& out,std::string& e){
         out={};locals_.clear();Memory m;LiveWorld p;if(!world(m,p,e))return false;
         std::vector<std::pair<std::string,identity::Entry>> entries;if(!identity::registry.enumerate(p.world.origin.uuid,p.world.origin.world_epoch,p.world.origin.generation,p.world.root,entries,e))return false;
-        std::map<std::string,identity::Entry> expected;for(const auto& [birth,entry]:entries)if(entry.retired)out.retired.push_back(birth);else expected.emplace(birth,entry);
+        std::map<std::string,identity::Entry> expected;for(const auto& [birth,entry]:entries){
+            if(!identity::root_owned(entry.scope))continue;
+            if(entry.retired)out.retired.push_back(birth);else expected.emplace(birth,entry);
+        }
         d::ReadMemory memory{m};q::Bounds regions;if(!q::typed(memory,state.image,uintptr_t(p.world.origin.map)+0x230,0x16f04e0,e)||!q::bounds(memory,uintptr_t(p.world.origin.map)+0x230,4096,regions,e))return false;
         std::set<int32_t> ids;std::set<uintptr_t> region_pointers,objects;
         for(int32_t i=0;i<regions.count;++i){uintptr_t region=0,ap=0,root=0,manager=0,owner=0;int32_t id=-1;

@@ -36,12 +36,18 @@ class RelayFixture:
         self.errors, self.events = [], []
         self.terminal_reset = None
         self.heartbeats, self.sequence = 0, 0
+        self.client_instance = None
+        self.generation = 1
+        self.roster_sent = False
         self.thread = threading.Thread(target=self.run, name=f"session-relay-{mode}")
         self.thread.start()
 
     def control(self, kind, sequence=None):
         self.sequence += 1
-        payload = json.dumps({"version": 1, "session": 42, "sequence": self.sequence if sequence is None else sequence, "type": kind}).encode()
+        payload = json.dumps({"version": 2, "session": 42, "sequence": self.sequence if sequence is None else sequence,
+                              "instance": 101, "participating": True, "type": kind,
+                              "generation": self.generation,
+                              "slots": [0, 101, self.client_instance, 303 if self.generation == 2 else 0, 0]}).encode()
         return frame(2, 3, struct.pack("<QQ", 2, 1) + payload)
 
     def run(self):
@@ -83,6 +89,9 @@ class RelayFixture:
                         elif kind == 2 and channel == 3:
                             message = json.loads(payload[16:])
                             if message["type"] == "hello" and not welcomed:
+                                if message["version"] != 2 or not message["instance"] or not message["participating"]:
+                                    raise ValueError("fixture process membership handshake mismatch")
+                                self.client_instance = message["instance"]
                                 endpoint.sendall(self.control("welcome"))
                                 endpoint.sendall(frame(2, 4, struct.pack("<QQ", 2, 1) + b"snapshot-once"))
                                 endpoint.sendall(frame(2, 6, struct.pack("<QQ", 2, 1) + b"action-once"))
@@ -92,7 +101,12 @@ class RelayFixture:
                                 self.heartbeats += 1
                     now = time.monotonic()
                     if authenticated and welcomed:
-                        if self.mode == "stall" and now - last_heartbeat >= 0.2:
+                        if self.mode == "roster" and not self.roster_sent and now - connected_time >= 0.25:
+                            self.generation = 2
+                            endpoint.sendall(self.control("binding"))
+                            endpoint.sendall(frame(2, 14, struct.pack("<QQ", 2, 1) + b"roster-queued"))
+                            self.roster_sent = True
+                        if self.mode in ("stall", "roster") and now - last_heartbeat >= 0.2:
                             endpoint.sendall(self.control("heartbeat"))
                             last_heartbeat = now
                         elif self.mode == "replay" and now - last_heartbeat >= 0.2:
@@ -154,7 +168,7 @@ class SessionLivenessTests(unittest.TestCase):
             raise RuntimeError(f"MSVC environment script missing: {vcvars}")
         options = ["cl", "/nologo", "/std:c++20", "/EHsc", "/utf-8", "/DWIN32_LEAN_AND_MEAN", "/DNOMINMAX", "/I", str(ROOT / "include"),
                    "/I", str(ROOT / "include/vendor/steam"), "/Fo" + EVIDENCE.as_posix() + "/", "/Fe" + str(cls.executable),
-                   str(ROOT / "test/session_liveness_fixture.cpp"), str(ROOT / "src/net/sidecar_client.cpp"), str(ROOT / "src/net/local_session.cpp"), "/link", "ws2_32.lib"]
+                   str(ROOT / "test/session_liveness_fixture.cpp"), str(ROOT / "src/net/sidecar_client.cpp"), str(ROOT / "src/net/local_session.cpp"), "/link", "ws2_32.lib", "bcrypt.lib"]
         build_script = ROOT / "test/session_liveness_build.cmd"
         build_script.write_text('@echo off\ncall "' + str(vcvars) + '"\nif errorlevel 1 exit /b %errorlevel%\n' + subprocess.list2cmdline(options) + '\nexit /b %errorlevel%\n', encoding="utf-8")
         command = ["cmd.exe", "/d", "/c", str(build_script)]
@@ -166,7 +180,8 @@ class SessionLivenessTests(unittest.TestCase):
                         "compile_exit": result.returncode, "fixture_sha256": hashlib.sha256(cls.executable.read_bytes()).hexdigest(),
                         "source_sha256": {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                                           for path in [ROOT / "src/net/sidecar_client.cpp", ROOT / "src/net/local_session.cpp",
-                                                       ROOT / "include/mt2mp/net/sidecar_client.h", ROOT / "include/mt2mp/net/local_session.h"]}, "checks": []}
+                                                       ROOT / "include/mt2mp/net/sidecar_client.h", ROOT / "include/mt2mp/net/local_session.h",
+                                                       ROOT / "include/mt2mp/net/local_membership.h", ROOT / "include/mt2mp/net/session_binding.h"]}, "checks": []}
 
     def check_mode(self, mode):
         relay = RelayFixture(mode)
@@ -179,7 +194,7 @@ class SessionLivenessTests(unittest.TestCase):
             relay.finish()
         text = log_path.read_text(encoding="utf-8")
         if relay.terminal_reset:
-            orderly_fixture_end = (mode == "stall" and result.returncode == 0 and '"passed":true' in text
+            orderly_fixture_end = (mode in ("stall", "roster") and result.returncode == 0 and '"passed":true' in text
                                    and "checkpoint: explicit-owner-shutdown" in text
                                    and "TRANSPORT_WORKER_STOPPED" in text and "SESSION_ENDED" not in text)
             if orderly_fixture_end:
@@ -204,6 +219,9 @@ class SessionLivenessTests(unittest.TestCase):
             self.assertIn("MAINTHREAD_DISPATCH_DELAY", text)
             self.assertIn("MAINTHREAD_DISPATCH_RECOVERED", text)
             self.assertNotIn("SESSION_ENDED", text)
+        elif mode == "roster":
+            self.assertNotIn("SESSION_ENDED", text)
+            self.assertIn("roster-generation1-to2-after-retirement", text)
         else:
             self.assertEqual(text.count("SESSION_ENDED"), 1, text)
             self.assertIn("existing session cannot be implicitly reset", text)
@@ -223,6 +241,9 @@ class SessionLivenessTests(unittest.TestCase):
 
     def test_native_queue_limit_has_precise_cause(self):
         self.check_mode("overflow")
+
+    def test_roster_generation_waits_for_world_retirement(self):
+        self.check_mode("roster")
 
 
 if __name__ == "__main__":

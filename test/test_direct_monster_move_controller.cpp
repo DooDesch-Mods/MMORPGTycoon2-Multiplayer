@@ -1,5 +1,6 @@
 #include "direct_monster_fixture.h"
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 using namespace mt2mp::action_session;
 namespace {
@@ -48,13 +49,13 @@ struct Wire:Transport {
     bool send(uint64_t target,const std::vector<uint8_t>& bytes,std::string&)override{packets.push_back({peer,target,bytes});return true;}
 };
 void flow(int mode){
-    SessionMock hs(1),cs(2);EngineMock he,ce;std::deque<Packet> packets;Wire hw(1,packets),cw(2,packets);
+    SessionMock hs(1),cs(2);auto host_engine=std::make_unique<EngineMock>(),client_engine=std::make_unique<EngineMock>();auto& he=*host_engine;auto& ce=*client_engine;std::deque<Packet> packets;Wire hw(1,packets),cw(2,packets);
     he.reject=mode==1;ce.partial=mode==2;ce.wait=mode==3;he.retirement_bad=mode==4;he.spawn=mode==5?0:4;
     if(mode>=6){he.row.roster.region_random={10238309950409534676ull,84209630741485398ull,17637438588495041383ull,8573256517064726746ull};
         ce.row.roster.region_random={11031208541562408887ull,7264565988762834373ull,9860586388526540594ull,17295355788292699441ull};}
     ce.row.roster.next_tag=7;ce.row.actor.tag=-11752269;he.row.actor.tag=123;
     ce.region_drift=mode==7;ce.retirement_region_drift=mode==8;const auto client_before=ce.row;
-    Controller host(hs,he,hw,{}),client(cs,ce,cw,{});std::string e;
+    auto host_controller=std::make_unique<Controller>(hs,he,hw,Logger{}),client_controller=std::make_unique<Controller>(cs,ce,cw,Logger{});auto& host=*host_controller;auto& client=*client_controller;std::string e;
     need(host.start(0,e)&&client.start(0,e),e);need(client.submit_move_monster(id,action_id,move_intent(),0,e),e);
     need(!he.executed&&!ce.applied&&ce.row==client_before&&ce.cash==money(),"UI submission caused local effect");const auto request=packets.front();
     auto deliver=[&]{need(!packets.empty(),"missing serialized Monster packet");auto p=packets.front();packets.pop_front();return (p.target==1?host:client).receive(p.sender,p.bytes.data(),p.bytes.size(),1,e);};
@@ -65,7 +66,7 @@ void flow(int mode){
     if(mode==2||mode==7||mode==8){need(!applied&&ce.applied==1&&client.status().locked,"partial Monster effect escaped Unknown");need(deliver(),e);need(host.status().locked&&!host.status().confirmed,"partial Monster ACK became success");return;}
     need(applied,e);if(mode==3){need(!ce.applied&&packets.empty(),"missing BEFORE frame ACKed");ce.wait=false;need(client.tick(2,e),e);}
     need(ce.applied==1&&monster_shared_state(ce.row,he.row)&&ce.row.roster.region_random==client_before.roster.region_random&&ce.cash==he.cash&&ce.cash==money()&&!client.status().confirmed,"Client state/ledger/ACK ordering wrong");
-    const auto ack_packet=packets.front();Message actual_ack;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),actual_ack,e),e);
+    const auto ack_packet=packets.front();auto ack_storage=std::make_unique<Message>();auto& actual_ack=*ack_storage;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),actual_ack,e),e);
     need(actual_ack.evidence.monster_before.roster.region_random==client_before.roster.region_random&&actual_ack.evidence.monster_after.roster.region_random==client_before.roster.region_random,"wire ACK falsified Client Region RNG");
     need(actual_ack.evidence.monster_before.roster.next_tag==client_before.roster.next_tag&&
         actual_ack.evidence.monster_before.roster.created_monsters==client_before.roster.created_monsters&&
@@ -74,7 +75,7 @@ void flow(int mode){
         need(deliver(),e);need(host.status().locked&&!host.status().confirmed&&host.status().cause.find("differs from Host")!=std::string::npos,"Host accepted changed shared global RNG");return;}
     need(deliver(),e);need(deliver(),e);need(host.status().confirmed==1&&client.status().confirmed==1,"full peer ACK missing");
     need(host.receive(request.sender,request.bytes.data(),request.bytes.size(),3,e),e);need(client.receive(result.sender,result.bytes.data(),result.bytes.size(),3,e),e);
-    if(mode==10){Message altered;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),altered,e),e);
+    if(mode==10){auto altered_storage=std::make_unique<Message>();auto& altered=*altered_storage;need(decode(ack_packet.bytes.data(),ack_packet.bytes.size(),altered,e),e);
         ++altered.evidence.monster_before.roster.region_random[0];++altered.evidence.monster_after.roster.region_random[0];std::vector<uint8_t> bytes;need(encode(altered,bytes,e),e);
         need(!host.receive(2,bytes.data(),bytes.size(),3,e)&&e.find("conflicting duplicate native apply ACK")!=std::string::npos,"changed peer-local duplicate ACK accepted");}
     need(he.executed==1&&ce.applied==1,"duplicate Monster message replayed native effect");need(!client.submit_move_monster(id,action_id,move_intent(),4,e),"Monster UUID resubmitted");

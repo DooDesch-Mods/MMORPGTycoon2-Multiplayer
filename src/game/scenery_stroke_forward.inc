@@ -94,7 +94,7 @@ void retire_session(){
     }
 }
 json status(){
-    json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.native.attempted},{"stamp_calls",op.native.stamp_calls},
+    json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"action",uint8_t(op.request.action)},{"region",op.request.scenery_stroke.region},{"mode",op.request.scenery_stroke.mode},{"stamps",op.request.scenery_stroke.stamps.size()},{"attempted",op.native.attempted},{"stamp_calls",op.native.stamp_calls},
         {"stamp_returns",op.native.stamp_returns},{"graph",op.native.graph},{"graph_committed",op.native.graph_committed},
         {"context_restored",op.native.context_restored},{"selection_restored",op.native.selection_restored},{"cursor_destroyed",op.native.cursor_destroyed},
         {"resources_released",op.native.resources_released},{"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"cleanup_cause",op.native.cleanup_cause}};

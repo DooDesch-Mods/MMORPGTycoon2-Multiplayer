@@ -15,15 +15,24 @@ struct Memory {
     template<class T>void put(uintptr_t p,const T& v){need(p>=base&&p-base+sizeof v<=bytes.size(),"fixture write extent");std::memcpy(bytes.data()+p-base,&v,sizeof v);}
     void reset(const Count& c,int32_t cap=10){bytes.fill(0);put(daily,image+0x16e4710);put(daily+0x38,image+0x1749370);put(daily+0x40,history);std::array<int32_t,8> w{int32_t(c.history.size()),cap,c.today,c.total,c.day,10,c.highest,17};put(daily+0x48,w);put(daily+0x68,uint8_t(c.warning));for(size_t i=0;i<c.history.size();++i)put(history+i*4,c.history[i]);}
 };
+#include "building_uptime_cases.inc"
 void codec(){
     std::string e;State before{{"action:a",std::string(64,'a'),{{{{Count{1,8,2,4,{3,4},false},Count{0,0,2,0,{},true}}}}}}};
-    State actual;need(valid(before,e)&&decode(encode(before),actual,e)&&actual==before,e);
+    before[0].uptime={1,0,1};State actual;need(valid(before,e)&&decode(encode(before),actual,e)&&actual==before,e);
     mt2mp::game::management_simulation::LiveState frame,decoded;frame.services=before;
+    mt2mp::game::dungeon_gizmo_live::Row gizmo;
+    gizmo.key="action:44444444-4444-4444-8444-444444444444:dungeon:gizmo:0";gizmo.state=1;gizmo.immediate=1;gizmo.triggered=true;
+    gizmo.clips[3]={uint32_t(0x40000000),uint32_t(0x3f000000),false,uint32_t(0x3f800000)};
+    frame.gizmos=mt2mp::game::dungeon_gizmo_live::State{{"action:33333333-3333-4333-8333-333333333333/template",9,{gizmo}}};
     need(mt2mp::game::management_simulation::decode(mt2mp::game::management_simulation::encode(frame),decoded,e)&&frame==decoded,e);
     auto bad_frame=mt2mp::game::management_simulation::encode(frame);bad_frame.erase("services");need(!mt2mp::game::management_simulation::decode(bad_frame,decoded,e),"incomplete Service Frame admitted");
     auto target=before;++target[0].rows[0].counts[0].total;need(compatible(before,target,e),e);
     target[0].metadata[0]='b';need(!compatible(before,target,e),"static service drift admitted");target=before;target[0].key="action:b";need(!compatible(before,target,e),"canonical owner drift admitted");
     target=before;target[0].rows.push_back({});need(!compatible(before,target,e),"membership drift admitted");target=before;target.push_back(before[0]);need(!valid(target,e),"duplicate Building admitted");
+    auto history_target=before;history_target[0].uptime={1,1};need(compatible(before,history_target,e),"authoritative uptime transition rejected");
+    auto history_wire=encode(before);history_wire[0].erase("uptime");need(!decode(history_wire,actual,e),"missing uptime admitted");
+    history_wire=encode(before);history_wire[0]["uptime"]={2};need(!decode(history_wire,actual,e),"non-Boolean uptime admitted");
+    history_wire=encode(before);history_wire[0]["uptime"]=std::vector<int>(11);need(!decode(history_wire,actual,e),"oversized uptime admitted");
     auto wire=encode(before);wire[0]["rows"][0][0]["total"]=uint64_t{1}<<35;need(!decode(wire,actual,e),"int32 overflow admitted");wire=encode(before);wire[0]["rows"][0][0]["warning"]=1;need(!decode(wire,actual,e),"non-bool warning admitted");
     wire=encode(before);wire[0]["rows"][0][0]["history"]=std::vector<int>(11);need(!decode(wire,actual,e),"oversized history admitted");wire=encode(before);wire[0]["extra"]=1;need(!decode(wire,actual,e),"unexpected wire field admitted");
     mt2mp::action_session::ServiceMembershipState s;s.building_definition="Inn";s.spawn_type="Spawn";s.rows.push_back({});mt2mp::service_membership_reader::Local local;local.rows.push_back({});
@@ -179,4 +188,4 @@ void census(){
     data["bindings"][0]["revoked"]=true;calls=0;need(mt2mp::game::service_building_census::read(data,resolve,values,e)&&values.empty()&&!calls,"retired owner resolved");
 }
 }
-int main(){try{codec();native();census();service_ui_cache();service_ui_satisfaction();std::cout<<checks<<" service codec/native checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{uptime_cases();codec();native();census();service_ui_cache();service_ui_satisfaction();std::cout<<checks<<" service codec/native checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

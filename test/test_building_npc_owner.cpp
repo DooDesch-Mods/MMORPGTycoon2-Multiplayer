@@ -1,4 +1,5 @@
 #include "building_npc_owner.h"
+#include "building_npc_scope.h"
 #include "npc_target_key.h"
 #include <iostream>
 #include <map>
@@ -76,5 +77,48 @@ int main()try{
     set_up();memory.put(link+0x10,link);need(!owner::inverse_uid_set(at,set,npc_uid,error),"dependency chain cycle");
     set_up();memory.put(set+0x20,int32_t(2));need(!owner::inverse_uid_set(at,set,npc_uid,error),"extra dependency member count");
     set_up();memory.changing=set+0x18;need(!owner::inverse_uid_set(at,set,npc_uid,error),"dependency header changed during read");
+    setup();building.scene=parent_key+"/template";
+    constexpr uintptr_t world_root=0x61000000;
+    memory.put(root,image+0x174ad20);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x1787930);
+    mt2mp::game::dungeon_scene_roster::Scene active;active.owner.key=building.scene;active.owner.shard=root;active.owner.region=region;
+    std::vector<mt2mp::game::dungeon_scene_roster::Scene> scenes{active};
+    int scene_mode=0;unsigned root_calls=0;owner::Scope scope;
+    auto root_region=[&](int32_t id,uintptr_t& result,std::string&){++root_calls;need(id==7,"root resolver preserves saved ID");result=region;return true;};
+    auto read_scenes=[&](auto& result,std::string& cause){if(scene_mode==1){cause="exact native Scene census cause";return false;}result=scenes;return true;};
+    auto held=[&](uintptr_t object,std::string& key,bool& matched,std::string& cause,std::string* scene){
+        need(object==parent,"held query exact original parent");if(scene_mode==2){cause="exact original held graph cause";return false;}
+        matched=scene_mode>=3;key=scene_mode==4?"foreign":parent_key;if(scene)*scene=scene_mode==5?parent_key+"/instance/2":building.scene;return true;};
+    auto scoped=[&]{return owner::scope(at,root_region,read_scenes,held,find,image,world_root,building,scope,error);};
+    need(scoped()&&scope.root==root&&scope.region==region&&!root_calls,"actual template scope uses original scene, not root Region ID");
+    scenes.push_back(active);need(!scoped(),"duplicate active scene rejected");scenes.resize(1);
+    scene_mode=1;need(!scoped()&&error=="exact native Scene census cause","Scene failure cause preserved");scene_mode=0;
+    registry[parent_uid]=0;need(!scoped()&&error.find("full UID registry")!=std::string::npos,"no retained parent dereference after full UID disappeared");registry[parent_uid]=parent;
+    scenes.clear();need(!scoped(),"absent active scene is not implicitly retired or held");
+    scene_mode=2;need(!scoped()&&error=="exact original held graph cause","held graph failure cause preserved");
+    scene_mode=3;need(scoped()&&scope.root==root,"exact original held scene remains visible without fake deletion");
+    scene_mode=4;need(!scoped(),"foreign held parent rejected");scene_mode=5;need(!scoped(),"foreign held scene rejected");
+    scene_mode=3;memory.put(region+0x70,world_root);need(!scoped(),"held scene reciprocal Region remains mandatory");memory.put(region+0x70,root);
+    memory.put(root+0x48,int32_t(2));need(!scoped(),"template cannot become Instance by retained key");memory.put(root+0x48,int32_t(1));
+    building.scene="world";need(scoped()&&scope.root==world_root&&root_calls==1,"legacy root Region resolution unchanged");
+    auto scoped_npc=before.child;scoped_npc.native_shard=root;scoped_npc.native_region=region;scoped_npc.scene=parent_key+"/template";
+    memory.put(npc+0x170,root);memory.put(npc+0x178,region);uintptr_t bound_region=0;
+    need(owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error)&&bound_region==region,"existing NPC target binding keeps exact nonroot Region");
+    scoped_npc.native_shard=world_root;need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error),"invalid Scene proof never falls back to root");scoped_npc.native_shard=root;
+    memory.put(npc+0x178,region+8);need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error),"foreign actual NPC Region rejected");memory.put(npc+0x178,region);
+    scoped_npc.scene=parent_key+"/instance/2";need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error),"template Shard cannot impersonate current Instance");scoped_npc.scene=parent_key+"/template";
+    scoped_npc.row.local_pointer=npc+0x10000;need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error)&&error=="fixture unreadable exact native field","scoped target native read failure cause retained");
+    setup();before.parent.scene=parent_key+"/template";scenes={active};
+    memory.put(root,image+0x174ad20);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x1787930);
+    for(auto it=memory.bytes.begin();it!=memory.bytes.end();){if(it->first>=parent&&it->first<parent+0x1000)it=memory.bytes.erase(it);else ++it;}
+    registry.erase(parent_uid);registry.erase(npc_uid);rows.rows.clear();
+    const auto retiring=[&]{return owner::retirement_scope(at,scenes,image,before,scope,error);};
+    need(retiring()&&scope.region==region&&scope.root==root,"retirement proves current original Scene without reading destroyed parent");
+    need(owner::absent(find,rows,before.child.row,error),"retirement still requires both actual UID and complete census absence");
+    scenes.clear();need(!retiring(),"missing retirement Scene is not inferred from retained addresses");scenes={active};
+    scenes.push_back(active);need(!retiring(),"repeated retirement Scene rejected");scenes.resize(1);
+    scenes[0].owner.region+=8;need(!retiring(),"changed original retirement Region rejected");scenes={active};
+    memory.put(region+0x70,world_root);need(!retiring(),"retirement reciprocal owner still exact");memory.put(region+0x70,root);
+    memory.put(root+0x48,int32_t(2));need(!retiring(),"retirement template cannot become Instance");memory.put(root+0x48,int32_t(1));
+    memory.bytes.erase(region);need(!retiring()&&error=="fixture unreadable exact native field","retirement reader preserves native cause");
     std::cout<<"Building child NPC ownership/inverse "<<checks<<" comparisons passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

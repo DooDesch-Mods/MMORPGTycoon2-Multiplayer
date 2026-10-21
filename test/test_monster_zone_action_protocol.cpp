@@ -1,6 +1,8 @@
 #include "typed_action/action_session.h"
 #include <iostream>
 #include <stdexcept>
+#include "zone_edit_portable_cases.inc"
+#include "zone_edit_message_cases.inc"
 using namespace mt2mp::action_session;
 void need(bool ok,const std::string& e){if(!ok)throw std::runtime_error(e);}
 const char* id="11111111-1111-4111-8111-111111111111";
@@ -19,5 +21,6 @@ int main(){try{std::string e;std::vector<uint8_t> bytes;Message out;unsigned cou
  invalid([](Message& v){++v.evidence.zone_after.region_random[0];});invalid([](Message& v){++v.evidence.zone_after.release_edits[4];});
  invalid([](Message& v){v.evidence.zone_after.release_edits[5]=0;});invalid([](Message& v){v.evidence.zone_after.undo_count=0;});
  invalid([](Message& v){v.request.npc.type=1;});invalid([](Message& v){v.evidence.retirement_confirmed=false;});
+ count+=zone_edit_portable_cases();count+=zone_edit_message_cases();
  std::cout<<count<<" Zone actual schema/effect checks passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

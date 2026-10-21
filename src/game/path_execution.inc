@@ -47,7 +47,7 @@ bool enable(std::string& e) {
     path.ready=true;return true;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e) {
-    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath)
         return world_path_runtime::perform(binding,request,authority,e);
     if(request.action==action::Action::RemovePath)return perform_remove(binding,request,authority,e);
     auto* r=runtime(e);if(!r||!path.ready||request.action!=action::Action::PlacePath||!action::valid_path(request.path)){e="path runtime/intent unavailable: "+e;return action::Outcome::RejectedNoEffect;}
@@ -100,7 +100,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     op.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e) {
-    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath)
         return world_path_runtime::observe(binding,request,out,e);
     auto* r=runtime(e);if(!r)return false;const auto found=path.operations.find(request.action_uuid);
     if(found==path.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"path observation lacks exact confirmed operation");
@@ -111,7 +111,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }
 bool retire(const action::Binding& binding,const action::Request& request,std::string& e) {
-    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)
+    if(request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath)
         return world_path_runtime::retire(binding,request,e);
     action::Evidence evidence;if(!observe(binding,request,evidence,e))return false;auto& op=path.operations.at(request.action_uuid);auto* r=runtime(e);if(!r)return false;
     if(op.retired)return fail(e,"path receipt already retired");

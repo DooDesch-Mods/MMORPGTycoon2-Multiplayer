@@ -1,6 +1,7 @@
 #include "live_host_state/memory_query_timing.h"
 #include "developer_staff/action_native.h"
 #include "native.h"
+#include "../release_ui_owner.h"
 #include "general_project_runtime.h"
 #include "bug_authority/codec.h"
 #include "lifecycle.h"
@@ -176,6 +177,7 @@ bool native_state(const action_session::Context& c,const action_session::Binding
     if(!lifecycle_native::decorate(w,c,out,e)||!research_capture(c,b,w,out,e))return false;
     return valid(out,e);
 }
+namespace intro_native {void start(void*,void*,void*);}
 #include "lifecycle_hook.inc"
 bool interval(const NativeCursor& n,const Cursor& target,const std::optional<startingpoint::Row>& technology,std::string& e){
     mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
@@ -226,6 +228,7 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 #include "staff_native.inc"
 #include "research_native.inc"
 #include "lifecycle_apply.inc"
+#include "intro_native.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -249,7 +252,7 @@ bool initialize(uintptr_t base,std::string& e){
     std::array<unsigned char,16> staff_entry{};
     if(!memory.copy(image+staff::allocate_rva,staff_entry.data(),staff_entry.size(),e)||staff_entry!=staff::allocate_entry)
         return fail(e,e.empty()?"Startingpoint original AllocateTechWorkers entry differs":e);
-    if(!display_native::verify_code(e)||!lifecycle_native::verify_code(e))return false;
+    if(!display_native::verify_code(e)||!lifecycle_native::verify_code(e)||!intro_native::prepare_hooks(e))return false;
     owned_scenario_start={image+0x4f3b00,reinterpret_cast<uintptr_t>(&lifecycle_native::scenario_start),0,true,false};
     owned_advance={image+0x4fceb0,reinterpret_cast<uintptr_t>(&lifecycle_native::advance),0,true,false};
     owned_display={image+0x6c6660,reinterpret_cast<uintptr_t>(&display_update),0,true,false};
@@ -259,6 +262,8 @@ bool initialize(uintptr_t base,std::string& e){
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {0x4f2330,reinterpret_cast<void*>(&intro_native::update),reinterpret_cast<void**>(&intro_native::original_update)},
+        {0x4f1940,reinterpret_cast<void*>(&intro_native::event),reinterpret_cast<void**>(&intro_native::original_event)},
         {0x4f3b00,reinterpret_cast<void*>(&lifecycle_native::scenario_start),reinterpret_cast<void**>(&original_scenario_start)},
         {0x4fceb0,reinterpret_cast<void*>(&lifecycle_native::advance),reinterpret_cast<void**>(&original_advance)},
         {0x6c6660,reinterpret_cast<void*>(&display_update),reinterpret_cast<void**>(&original_display)},
@@ -271,6 +276,8 @@ bool initialize(uintptr_t base,std::string& e){
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
+    intro_native::update_owner.trampoline=reinterpret_cast<uintptr_t>(intro_native::original_update);
+    intro_native::event_owner.trampoline=reinterpret_cast<uintptr_t>(intro_native::original_event);
     owned_scenario_start.trampoline=reinterpret_cast<uintptr_t>(original_scenario_start);
     owned_advance.trampoline=reinterpret_cast<uintptr_t>(original_advance);
     owned_display.trampoline=reinterpret_cast<uintptr_t>(original_display);
@@ -282,7 +289,7 @@ bool hooks_enabled(std::string& e){
     owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=true;
     if(!tutorial_sync::verify_owned_scenario_start_entry(owned_scenario_start,owned_scenario_start.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!tutorial_sync::verify_owned_advance_entry(owned_advance,owned_advance.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff_display::verify_owned_display_entry(owned_display,owned_display.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
         owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=false;return false;
-    }return true;
+    }return intro_native::verify_owned(e);
 }
 bool verify_pay_entry(uintptr_t address,std::string& e){
     uintptr_t base=0;uint32_t thread=0;std::string sha;
@@ -305,7 +312,7 @@ bool verify_commit_entry(uintptr_t address,std::string& e){
 bool verify_sequence_entry(uintptr_t address,std::string& e){return tutorial_sync::verify_owned_sequence_entry(owned,address,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e);}
 bool arm_client_load(const std::string& uuid,uint64_t generation,std::string& e){
     if(!owned.enabled||!generation||uuid.empty())return fail(e,"tutorial Client load requires enabled hooks and exact origin");
-    display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
+    display_native::clear();lifecycle_native::clear();intro_native::start_wait_logged=false;pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};
     commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;load={uuid,generation,true,false,{}};mainthread=GetCurrentThreadId();fault.clear();return true;
 }
 bool finish_client_load(bool& pending,std::string& e){
@@ -346,6 +353,8 @@ bool finish_client_load(bool& pending,std::string& e){
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;display_native::clear();lifecycle_native::clear();}
 void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+bool capture_intro(const action_session::Context& c,const action_session::Binding& b,scenario_intro::State& out,std::string& e){World world;intro_native::Owners owners;if(!mainthread)mainthread=GetCurrentThreadId();return intro_native::sample(c,b,world,owners,out,e);}
+bool apply_intro(const action_session::Context& c,const action_session::Binding& b,const scenario_intro::State& target,bool& attempted,std::string& e){return intro_native::adopt(c,b,target,attempted,e);}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
     out=nullptr;

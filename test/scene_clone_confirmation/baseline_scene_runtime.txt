@@ -1,0 +1,106 @@
+#include "runtime.h"
+#include "raw.h"
+#include "quest_preview.h"
+#include "../npc_quest_target_runtime.h"
+#include "../direct_monster_identity.h"
+#include "../session_provider.h"
+#include "../typed_action_runtime.h"
+#include "mt2mp/game/native_engine.h"
+#include <Windows.h>
+namespace mt2mp::game::scene_clone {
+namespace {
+namespace gizmo=dungeon_scene_identity_runtime;
+namespace gi=dungeon_gizmo_identity;
+namespace direct=direct_monster_identity;
+bool fail(std::string& e,const std::string& cause){e=cause;return false;}
+direct::Scope direct_scope(const Raw& raw,const Pool& pool){return {raw.world.uuid,raw.world.world_epoch,raw.world.generation,uintptr_t(raw.world.map)+0x1c0,pool.scene.owner.region,pool.managers[2]};}
+gi::Member gizmo_member(const Pool& pool,const Member& member){return {pool.scene.owner.key,member.object,pool.managers[3],pool.scene.owner.shard,pool.scene.owner.region,member.uid};}
+const Pool* pool_named(const Raw& raw,const std::string& name){const auto found=std::find_if(raw.pools.begin(),raw.pools.end(),[&](const auto& pool){return pool.scene.owner.key==name;});return found==raw.pools.end()?nullptr:&*found;}
+const Member* assigned(const Pool* pool,const Assignment& assignment){if(!pool)return nullptr;const auto found=std::find_if(pool->members.begin(),pool->members.end(),[&](const auto& member){return member.family==assignment.family&&member.child==assignment.child;});return found==pool->members.end()?nullptr:&*found;}
+bool identities(Raw& raw,const direct::Registry& registry,std::string& e,const Raw* before=nullptr){
+    for(auto& pool:raw.pools){if(before&&!pool_named(*before,pool.scene.owner.key))continue;for(auto& member:pool.members){
+        if(member.family==Family::Gizmo){if(!gizmo::resolve(member.object,member.uid,member.key,e))return false;}
+        else if(member.family==Family::MonsterZone){if(!npc_quest_target_runtime::clone_alias(raw,pool,member,member.key,e))return false;}
+        else if(!registry.resolve(direct_scope(raw,pool),member.object,member.uid,member.key,e))return false;
+    }}return true;
+}
+bool verify_direct(const Raw& raw,const direct::Registry& registry,std::string& e){
+    std::vector<std::pair<std::string,direct::Entry>> entries;
+    if(!registry.enumerate(raw.world.uuid,raw.world.world_epoch,raw.world.generation,uintptr_t(raw.world.map)+0x1c0,entries,e))return false;
+    for(const auto& [key,entry]:entries){(void)key;if(entry.retired)continue;
+        const auto pool=std::find_if(raw.pools.begin(),raw.pools.end(),[&](const auto& p){return p.managers[2]==entry.scope.manager;});
+        if(pool==raw.pools.end())continue;
+        if(entry.scope!=direct_scope(raw,*pool)||std::none_of(pool->members.begin(),pool->members.end(),[&](const auto& member){return member.family==Family::DirectMonster&&member.object==entry.pointer&&member.uid==entry.uid;}))return fail(e,"Scene clone surviving direct Monster registry contains a missing/replaced full UID");
+    }
+    for(const auto& pool:raw.pools)for(const auto& member:pool.members)if(member.family==Family::DirectMonster){std::string key;if(!registry.resolve(direct_scope(raw,pool),member.object,member.uid,key,e))return false;}
+    return true;
+}
+bool same_raw(const Raw& a,const Raw& b){
+    if(!same_world(a.world,b.world)||a.pools.size()!=b.pools.size())return false;
+    for(size_t n=0;n<a.pools.size();++n){const auto& x=a.pools[n];const auto& y=b.pools[n];if(!same_owner(x,y)||x.members.size()!=y.members.size()||x.zones!=y.zones)return false;
+        for(size_t i=0;i<x.members.size();++i){const auto& u=x.members[i];const auto& v=y.members[i];if(u.family!=v.family||u.child!=v.child||u.object!=v.object||u.uid!=v.uid)return false;}}
+    return true;
+}
+}
+struct Runtime::State {
+    action_session::Context context;action_session::Binding binding;DWORD thread=GetCurrentThreadId();
+    Raw baseline;Mapping mapping;bool prepared=false,locked=false;std::string cause;std::set<std::string> operations;
+};
+Runtime::Runtime()=default;
+Runtime::~Runtime()=default;
+namespace {
+bool current(const action_session::Context& context,const action_session::Binding& binding,std::string& e){action_session::Context observed;action_session::Binding actual;
+    return action_session::selected_session().current(observed,e)&&observed==context&&typed_action_runtime::network_binding(context.snapshot_uuid,actual,e)&&actual==binding||fail(e,e.empty()?"Scene clone exact current Context/Binding differs":e);
+}
+}
+bool Runtime::bind(const action_session::Context& context,const action_session::Binding& binding,std::string& e){
+    if(!current(context,binding,e))return false;
+    if(state_){if(state_->locked)return fail(e,state_->cause);if(state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding)return fail(e,"Scene clone changed world binding requires explicit reset");e.clear();return true;}
+    auto ready=std::make_unique<State>();ready->context=context;ready->binding=binding;
+    gizmo::Census census;if(!read_raw(ready->baseline,e))return fail(e,e.empty()?"Scene clone initial confirmed raw world/registry differs":e);
+    if(ready->baseline.world.uuid.empty()||ready->baseline.world.world_epoch!=binding.native_epoch||ready->baseline.world.generation!=binding.native_generation)
+        return fail(e,"Scene clone initial native binding differs: session_snapshot="+context.snapshot_uuid+" native_snapshot="+ready->baseline.world.uuid+
+            " native_epoch="+std::to_string(ready->baseline.world.world_epoch)+" binding_epoch="+std::to_string(binding.native_epoch)+
+            " native_generation="+std::to_string(ready->baseline.world.generation)+" binding_generation="+std::to_string(binding.native_generation));
+    if(!gizmo::read_current(census,e)||!same_world(census.world,ready->baseline.world)||!verify_direct(ready->baseline,direct::registry,e)||!identities(ready->baseline,direct::registry,e))return fail(e,e.empty()?"Scene clone initial confirmed raw world/registry differs":e);
+    state_=std::move(ready);e.clear();return true;
+}
+bool Runtime::prepare(const action_session::Context& context,const action_session::Binding& binding,std::string& e){
+    if(!state_||state_->locked||state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding||!current(context,binding,e))return fail(e,e.empty()?"Scene clone preparation lacks a healthy bound Mainthread":e);
+    // Natural Host births may already exist. Keep the last confirmed baseline.
+    Raw actual;if(!read_raw(actual,e)||!same_world(actual.world,state_->baseline.world))return fail(e,e.empty()?"Scene clone preparation world changed":e);
+    state_->prepared=true;e.clear();return true;
+}
+bool Runtime::confirm(const action_session::Context& context,const action_session::Binding& binding,const std::string& operation,
+    const Mapping* authority,Mapping& out,gizmo::Census& admitted,bool& attempted,std::string& e){
+    out={};admitted={};attempted=false;
+    if(!state_||!state_->prepared||state_->locked||state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding||!current(context,binding,e)||(authority!=nullptr)!=(context.role==action_session::Role::Client)||state_->operations.contains(operation))return fail(e,e.empty()?"Scene clone confirmation token/current bound preparation differs":e);
+    Raw actual;Mapping mapping;Changes changes;
+    if(!read_raw(actual,e)||!identities(actual,direct::registry,e,&state_->baseline)||!plan(state_->baseline,actual,operation,state_->mapping,authority,mapping,changes,e))return false;
+    Mapping departed;departed.retired=changes.retired;
+    if(!retirements_ready(state_->baseline,departed,find_uid,e))return false;
+    std::vector<std::pair<std::string,gi::Member>> gizmo_births,gizmo_retired;
+    auto direct_before=direct::registry,direct_after=direct_before;
+    for(const auto& row:changes.retired){const auto* pool=pool_named(state_->baseline,row.scene);const auto* member=assigned(pool,row);uintptr_t found{};
+        if(!member||member->key!=row.key||!find_uid(member->uid,found,e)||found)return fail(e,e.empty()?"Scene clone original member retirement is incomplete":e);
+        if(row.family==Family::Gizmo)gizmo_retired.emplace_back(row.key,gizmo_member(*pool,*member));
+        if(row.family==Family::DirectMonster){direct::Entry entry;if(!direct_after.lookup(monster_target_key::argument(row.key),direct_scope(state_->baseline,*pool),entry,e)||entry.pointer!=member->object||entry.uid!=member->uid||!direct_after.retire(monster_target_key::argument(row.key),entry,e))return fail(e,e.empty()?"Scene clone direct Monster retirement exact UID differs":e);}
+    }
+    for(const auto& row:changes.births){const auto* pool=pool_named(actual,row.scene);const auto* member=assigned(pool,row);if(!member)return fail(e,"Scene clone birth raw scene/member absent");
+        if(row.family==Family::Gizmo)gizmo_births.emplace_back(row.key,gizmo_member(*pool,*member));
+        if(row.family==Family::DirectMonster){const auto id=monster_target_key::argument(row.key);if(!direct_after.stage(id,direct_scope(actual,*pool),member->object,member->uid,e)||!direct_after.confirm(id,e))return false;}
+    }
+    gizmo::ClonePreview gizmos;npc_quest_target_runtime::ClonePreview zones;
+    if(!gizmo::preview_clones(actual.world,gizmo_births,gizmo_retired,gizmos,admitted,e)||!npc_quest_target_runtime::preview_clones(actual,mapping,zones,e)||!verify_direct(actual,direct_after,e))return false;
+    Raw final;if(!read_raw(final,e)||!same_raw(actual,final)||!current(context,binding,e)||!gizmo::check_clones(gizmos,e)||!npc_quest_target_runtime::check_clones(zones,e)||direct::registry!=direct_before)return fail(e,e.empty()?"Scene clone complete native preview changed before publication":e);
+    const auto unknown=[&](){state_->locked=true;state_->cause="Scene clone registry publication incomplete: "+e;e=state_->cause;return false;};
+    attempted=true;
+    if(!gizmo::publish_clones(gizmos,e)||!npc_quest_target_runtime::publish_clones(zones,e))return unknown();
+    direct::registry=std::move(direct_after);
+    if(!identities(final,direct::registry,e)||!gizmo::read_current(admitted,e))return unknown();
+    for(auto& pool:final.pools)for(auto& member:pool.members){const auto row=std::find_if(mapping.members.begin(),mapping.members.end(),[&](const auto& value){return value.scene==pool.scene.owner.key&&value.family==member.family&&value.child==member.child;});
+        if(row==mapping.members.end()||row->key!=member.key){e="Scene clone published alias differs from complete mapping";return unknown();}member.origin=row->origin;member.ordinal=row->ordinal;}
+    state_->mapping=mapping;state_->baseline=std::move(final);state_->prepared=false;state_->operations.insert(operation);out=std::move(mapping);e.clear();return true;
+}
+void Runtime::reset(){state_.reset();}
+}

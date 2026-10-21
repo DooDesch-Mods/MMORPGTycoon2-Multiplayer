@@ -106,7 +106,7 @@ struct Port {
                     return q::fail(why,why.empty()?"Duplicate newborn Building child receipt repeats":why);
             }return true;
         };
-        if(!sample(r,binding,&intent,created,after,e,birth)||!host::same_world(before.world.origin,after.world.origin)||before.business!=after.business||
+        if(!sample_duplicate(r,binding,&intent,created,after,e,birth)||!host::same_world(before.world.origin,after.world.origin)||before.business!=after.business||
            before.release!=after.release||before.random!=after.random)return q::fail(e,e.empty()?"Duplicate original complete owner binding changed":e);
         if(after.census.objects.size()!=before.census.objects.size()+created.size())return q::fail(e,"Duplicate original complete native manager count differs");
         for(const auto& [p,row]:before.census.objects){const auto found=after.census.objects.find(p);if(found==after.census.objects.end()||found->second!=row)return q::fail(e,"Duplicate replaced or changed existing full native prop");}
@@ -121,7 +121,26 @@ struct Port {
         const auto& desired=source_peer&&receipt.graph_committed?new_selection:prior_selection;
         for(size_t i=0;i<prior_selection.size();++i){uintptr_t found=0;if(!group_edit::find(r,prior_uids[i],found,e)||found!=prior_selection[i])return q::fail(e,e.empty()?"Duplicate local prior Selection full UID changed":e);}
         const duplicate_calls::Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
-        if(!fault(duplicate_calls::select(r.image,before.world.selection,array),"local Selection restore",e))return false;
+        host::WorldState boundary;bool admitted=false;
+        auto guard=[&](std::string& why){
+            if(GetCurrentThreadId()!=r.thread||!r.ready||request.snapshot_uuid!=net::current_snapshot_id())
+                return q::fail(why,"Duplicate local Selection RNG current thread/session differs");
+            host::NativeOrigin origin;host::LookupApi api;host::WorldState current;
+            if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,why))return false;
+            host::Reader reader(r.memory.process,origin,r.image,r.thread,api);
+            uintptr_t owner=0;
+            if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x164b250,owner,why))return false;
+            if(!host::same_world(before.world.origin,current.origin)||current.root!=before.world.root||
+               current.selection!=before.world.selection||!owner||owner!=before.random)
+                return q::fail(why,"Duplicate local Selection RNG current World/owner differs");
+            if(admitted&&(current.saves!=boundary.saves||current.edits!=boundary.edits||current.active_graph!=boundary.active_graph))
+                return q::fail(why,"Duplicate local Selection RNG save/edit/graph boundary changed");
+            boundary=std::move(current);admitted=true;return true;
+        };
+        auto read=[&](std::array<uint64_t,4>& value,std::string& why){return q::at(r.memory,before.random,0,value,why);};
+        auto invoke=[&](std::string& why){return fault(duplicate_calls::select(r.image,before.world.selection,array),"local Selection restore",why);};
+        auto write=[&](const std::array<uint64_t,4>& value,std::string& why){return fault(duplicate_calls::restore_random(before.random,value),"local Selection RNG restore",why);};
+        if(!duplicate_native::restore_selection_random(guard,read,invoke,write,e))return false;
         std::vector<uintptr_t> raw,filtered;uintptr_t manager=0,shard=0;
         if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,shard,e))return false;
         return (raw==desired&&shard==local_shard)||q::fail(e,"Duplicate local Selection/current Shard restoration differs");

@@ -2,9 +2,15 @@ namespace dungeon_cells {
 namespace {
 namespace calls=dungeon_cells_calls;
 struct Sample {dungeon_palette::Sample palette;dungeon_scene_identity_runtime::Census scenes;dungeon_scene_records::Witness records;
-    qr::Witness quests;quest_list::References references;a::DungeonPaletteState value;
-    std::vector<std::pair<std::string,identity::Entry>> monsters;};
-struct MonsterMemory {Memory& source;bool read(uintptr_t p,void* out,size_t bytes,std::string& error){return source.copy(p,out,bytes,error);}};
+    qr::Witness quests;quest_list::References references;a::DungeonPaletteState value;std::string canvas_sha;
+    std::vector<std::pair<std::string,identity::Entry>> monsters;
+    std::map<uint64_t,std::pair<std::string,scenery_make_history::Saved>> scenery;};
+bool authored(Memory&,const a::Binding&,const std::string&,Sample&,std::string&,std::vector<dungeon_input_authored::Scene>* typed=nullptr);
+struct MonsterMemory {
+    Memory& source;
+    bool read(uintptr_t p,void* out,size_t bytes,std::string& error){return source.copy(p,out,bytes,error);}
+    bool copy(uintptr_t p,void* out,size_t bytes,std::string& error){return source.copy(p,out,bytes,error);}
+};
 bool monster_members(Memory& memory,const dungeon_scene_identity_runtime::Census& scenes,
                      std::vector<std::pair<std::string,identity::Entry>>& out,bool allow_missing,std::string& error,const identity::Registry* prepared=nullptr){
     out.clear();std::vector<std::pair<std::string,identity::Entry>> aliases;
@@ -35,6 +41,17 @@ bool retire_monsters(Memory& memory,const Sample& before,std::string& error){
         if(!next.retire(key,entry,error))return false;
     }
     identity::registry=std::move(next);return true;
+}
+bool retire_scenery(const Sample& before,const dungeon_scene_identity_runtime::Census& after,std::string& error){
+    std::set<uint64_t> live;for(const auto& pool:after.pools)for(const auto& member:pool.scenery.members){
+        const auto found=before.scenery.find(member.uid);
+        if(found==before.scenery.end()||found->second.second.object!=member.object||!live.insert(member.uid).second)return fail(error,"Dungeon cell Scenery cascade introduced/replaced a native member");}
+    std::vector<remove_diagnostics::scene_buildings::Row> retired;
+    for(const auto& pool:before.scenes.pools)for(const auto& member:pool.scenery.members)if(!live.contains(member.uid)){
+        const auto found=before.scenery.find(member.uid);if(found==before.scenery.end())return fail(error,"Dungeon cell Scenery cascade before proof is incomplete");
+        retired.push_back({found->second.first,pool.scene.owner.key,member.object,pool.scene.owner.shard,pool.scene.owner.region,pool.managers[0],member.uid,true});}
+    remove_diagnostics::scene_buildings::Preview preview;
+    return remove_diagnostics::scene_buildings::preview(before.scenes.world,{},retired,{},preview,error)&&remove_diagnostics::scene_buildings::publish(preview,error);
 }
 bool add_owner(std::map<uintptr_t,std::string>& owners,uintptr_t pointer,const std::string& key,std::string& error){
     if(!pointer||key.empty())return fail(error,"Dungeon cell complete external owner is empty");
@@ -79,10 +96,21 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     if(!dungeon_scene_identity_runtime::read_records(external,out.scenes,out.records,error)||!monster_members(memory,out.scenes,out.monsters,false,error)||
        !read_remove_quests(memory,binding,snapshot,0,{},out.quests,error,previous)||
        !quest_list::references(memory,binding,snapshot,out.quests,out.references,error))return false;
-    out.value=out.palette.value;out.value.cells.clear();out.value.stroke.scenes_sha=out.records.sha;
-    const auto dungeon=out.records.dungeons.find(intent.key);
-    if(dungeon==out.records.dungeons.end())return fail(error,"Dungeon cell original complete Dungeon record is absent");
-    out.value.stroke.dungeon_sha=dungeon->second;std::string quests;
+    host::LookupApi scenery_lookup;if(!host::resolve_lookup(memory.process,state.image,exe_sha,scenery_lookup,error))return false;
+    MonsterMemory scenery_memory{memory};const auto scenery_find=[&](uint64_t uid,uintptr_t& object,std::string& cause){const auto seh=lookup(scenery_lookup.find,uid,object);
+        return !seh||fail(cause,"Dungeon Scenery complete sample FindUID failed SEH="+std::to_string(seh));};
+    for(const auto& pool:out.scenes.pools)for(const auto& member:pool.scenery.members){scenery_make_history::Saved saved;std::string key;
+        if(!remove_diagnostics::scene_scenery::resolve(out.scenes.world,member.object,member.uid,key,error)||
+           !scenery_make_history::live(scenery_memory,state.image,member.object,member.uid,pool.scene.owner.shard,pool.scene.owner.region,scenery_find,saved,error)||
+           !out.scenery.emplace(member.uid,std::pair{key,saved}).second)return fail(error,error.empty()?"Dungeon complete Scenery saved-input census repeats":error);}
+    out.value=out.palette.value;out.value.cells.clear();
+    if(!out.records.dungeons.contains(intent.key))return fail(error,"Dungeon cell original complete Dungeon record is absent");
+    // Retain raw native records locally. Peer proof covers complete authored
+    // Canvas/layout/membership; the existing Actor frame carries live motion.
+    std::string layout;
+    if(!authored(memory,binding,snapshot,out,error)||!dungeon_palette::digest(out.palette.value,layout,error)||
+       !dungeon_input_authored::cell_digest(out.canvas_sha,layout,out.value.stroke.dungeon_sha,error))return false;
+    std::string quests;
     if(!quest_digest(out.quests,quests,error)||!quest_bridge::sha256(json{{"quests",quests},{"active",out.references.rows}}.dump(),out.value.stroke.quests_sha,error))return false;
     for(const auto index:intent.stroke.cells){if(index<0||size_t(index)>=out.palette.value.cells.size())return fail(error,"Dungeon cell requested index is outside the current original layout");
         out.value.stroke.cells.push_back({index,out.palette.value.cells[size_t(index)]});}

@@ -12,6 +12,11 @@ need(legacy.size()==4&&!legacy.contains("construction"),"legacy shape changed");
 auto s=construction();need(staff::valid(s,e),"unassigned pending "+e);const auto wire=staff::encode(s);need(staff::decode(wire,out,e)&&out==s,"construction roundtrip "+e);
 auto assigned=s;assigned.rows[0].job_link=assigned.rows[0].on_map=true;assigned.indoor.erase(assigned.indoor.begin());assigned.outdoor={49};assigned.construction->jobs[0].developer_id=49;
 need(staff::valid(assigned,e),"assigned inactive Building rejected "+e);assigned.construction->jobs[0].active=true;need(staff::valid(assigned,e),"transient active Building rejected "+e);
+for(const auto& saved_key:{std::string(64,'a')+":world:building:12",std::string(64,'b')+":world:building:inline:region{60}/buildingManager/building[0]"}){
+    auto loaded=assigned;loaded.construction->jobs[0].building_key=saved_key;
+    need(staff::valid(loaded,e)&&staff::decode(staff::encode(loaded),out,e)&&out==loaded,"loaded partial construction snapshot key/progress roundtrip "+e);
+    auto wrong=loaded;wrong.construction->jobs[0].building_key=saved_key+"foreign";need(!staff::valid(wrong,e),"malformed snapshot construction key admitted");
+}
 auto completed=s;completed.construction->jobs.clear();need(staff::valid(completed,e)&&staff::decode(staff::encode(completed),out,e)&&out==completed,"explicit empty pending set rejected "+e);
 auto restored=s;restored.construction->jobs[0].present=false;need(staff::valid(restored,e)&&staff::decode(staff::encode(restored),out,e)&&out==restored,"restored inactive row rejected "+e);
 auto invalid=restored;invalid.construction->jobs[0].developer_id=49;need(!staff::valid(invalid,e),"absent assigned row accepted");

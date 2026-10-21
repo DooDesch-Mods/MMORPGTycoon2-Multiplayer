@@ -97,6 +97,8 @@ bool read(Memory& source,uintptr_t actual,uintptr_t region,State& out,std::strin
 // data use test_building_npc_owner; this adapter has no child registry.
 namespace building_child_detail {
 bool has_region(int32_t){return false;}
+template<class Find>bool append_scenes(const opened::CurrentWorld&,Find&,std::vector<Current>& rows,std::string&){
+    need(rows.size()==2,"metadata-only fixture expects its complete two root NPCs and no child registry");return true;}
 template<class Find>bool append(int32_t,uintptr_t,const npc_census::State&,Find&,std::vector<Current>&,std::string&){return true;}
 }
 #include "npc_saved_metadata_bodies.inc"

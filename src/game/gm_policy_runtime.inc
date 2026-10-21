@@ -62,7 +62,7 @@ void policy_boolean(size_t index,void* receiver,bool desired){auto* r=published.
     if(!r||!original)throw std::runtime_error("GM policy original checkbox was not published");
     if(r->replay||!net::session_wire::connected()||!typed_action_runtime::controller_status().value("started",false)){original(receiver,desired);return;}
     gp::Intent intent;bool ours=false;std::string error;if(!policy_capture(*r,uintptr_t(receiver),true,intent,error,ours)){reject(*r,error);return;}
-    if(!ours){bool handled=false;if(!rules_checkbox(*r,uintptr_t(receiver),desired,handled,error)){reject(*r,error);return;}if(!handled)original(receiver,desired);return;}intent.value=int32_t(desired);if(intent.value==intent.before){original(receiver,desired);return;}if(!policy_queue(*r,intent,error))reject(*r,error);
+    if(!ours){bool district=false;if(!ui_move_runtime::district_edit::checkbox(uintptr_t(receiver),desired,reinterpret_cast<void*>(original),district,error)){reject(*r,error);return;}if(district)return;bool handled=false;if(!rules_checkbox(*r,uintptr_t(receiver),desired,handled,error)){reject(*r,error);return;}if(!handled)original(receiver,desired);return;}intent.value=int32_t(desired);if(intent.value==intent.before){original(receiver,desired);return;}if(!policy_queue(*r,intent,error))reject(*r,error);
 }
 void policy_checkbox(void* p,bool v){policy_boolean(0,p,v);}void policy_toggled(void* p,bool v){policy_boolean(1,p,v);}void policy_instant(void* p,bool v){policy_boolean(2,p,v);}
 void policy_integer(size_t index,void* receiver,int32_t desired){auto* r=published.load(std::memory_order_acquire);auto original=reinterpret_cast<void(*)(void*,int32_t)>(policy.routes[index].original);

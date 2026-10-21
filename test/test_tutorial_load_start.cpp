@@ -38,6 +38,7 @@ template<class... Args>void fixture_log(const char*,const Args&...){}
 #define LOG_INFO fixture_log
 void original_scenario_start(void*,void*,void*){++original_calls;}
 #include "load_start_owners.inc"
+namespace intro_native {void start(void*,void*,void*){throw std::runtime_error("unexpected Intro in fixed Tutorial load fixture");}}
 #include "load_start_hook.inc"
 #include "load_start_finish.inc"
 void array_seed(uintptr_t owner,size_t offset,uintptr_t data,int32_t count){seed(owner+offset,data);seed(owner+offset+8,count);seed(owner+offset+12,count);}
@@ -64,5 +65,9 @@ int main(){try{
  reset();scope={actual_world};creation=&scope;origin_available=true;scope.world.sha256="foreign";start();need(!fault.empty()&&!original_calls,"scoped full Origin mismatch accepted");
  reset();load.ready=true;start();need(fault=="current_world_read_origin_unavailable"&&origin_reads==1&&!original_calls,"ready Client Origin guard weakened");
  reset();strings[asset_addr+0x18]="streamer";start();need(fault.empty()&&original_calls==1&&!origin_reads,"unsupported original route changed");
+ reset();strings[asset_addr+0x18]="intro_cutscene";strings.erase(asset_addr+0x60);seed(asset_addr,image+0x1708d60);Owners intro;
+ need(bootstrap_owners("intro_cutscene",intro,e)&&intro.asset==asset_addr&&intro.log==log_addr,"actual Intro catalogue owner incorrectly requires a Sequence filename");
+ seed(asset_addr,image+0x1720510);need(!bootstrap_owners("intro_cutscene",intro,e),"Sequence Scenario class accepted as Intro");
+ seed(asset_addr,image+0x1708d60);seed(asset_addr+0x58,uint8_t(1));need(!bootstrap_owners("intro_cutscene",intro,e),"repeatable Intro catalogue owner accepted");
  std::cout<<"PASS "<<checks<<" actual bootstrap/Start/load-completion cases\n";return 0;
  }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}

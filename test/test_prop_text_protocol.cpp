@@ -1,5 +1,6 @@
 #include "typed_action/action_session.h"
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 using namespace mt2mp::action_session;
 void need(bool ok,const std::string& why){if(!ok)throw std::runtime_error(why);}
@@ -13,13 +14,14 @@ Message sample(PropTextKind kind,bool scenery=false){
     auto b=a;if(kind==PropTextKind::Name)b.name=r.prop_text.text;else b.description=r.prop_text.text;
     m.evidence.prop_text_before=a;m.evidence.prop_text_after=b;m.evidence.retirement_confirmed=true;return m;
 }
-int main(){try{unsigned count=0;std::string error;std::vector<uint8_t> bytes;Message decoded;
+#include "gizmo_prop_text_protocol_cases.inc"
+int main(){try{unsigned count=0;std::string error;std::vector<uint8_t> bytes;auto decoded_storage=std::make_unique<Message>();auto& decoded=*decoded_storage;
     for(auto kind:{PropTextKind::Name,PropTextKind::Description}){
-        auto value=sample(kind);need(encode(value,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);
+        auto value_storage=std::make_unique<Message>(sample(kind));auto& value=*value_storage;need(encode(value,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);
         need(decoded==value,"Prop text result roundtrip");++count;
-        auto request=value;request.kind=Kind::Request;request.revision=0;request.required_mask=0;request.outcome=Outcome::Pending;request.evidence={};
+        auto request_storage=std::make_unique<Message>(value);auto& request=*request_storage;request.kind=Kind::Request;request.revision=0;request.required_mask=0;request.outcome=Outcome::Pending;request.evidence={};
         need(encode(request,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);need(decoded==request,"Prop text request roundtrip");++count;
-        auto reject=[&](auto change){auto bad=value;change(bad);need(!encode(bad,bytes,error),"invalid Prop text result accepted");++count;};
+        auto reject=[&](auto change){auto bad=std::make_unique<Message>(value);change(*bad);need(!encode(*bad,bytes,error),"invalid Prop text result accepted");++count;};
         reject([](auto& m){m.evidence.prop_text_after->object.x=1;});
         reject([](auto& m){m.evidence.prop_text_after->object.alive=false;});
         reject([](auto& m){m.evidence.prop_text_after->object.variant="different";});
@@ -34,14 +36,16 @@ int main(){try{unsigned count=0;std::string error;std::vector<uint8_t> bytes;Mes
         need(encode(request,bytes,error),error);auto raw=nlohmann::json::parse(bytes);raw["request"]["prop_text"]["pointer"]=123;
         auto text=raw.dump();need(!decode(reinterpret_cast<const uint8_t*>(text.data()),text.size(),decoded,error),"unknown Prop field accepted");++count;
     }
-    auto scene=sample(PropTextKind::Name,true);need(encode(scene,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);need(scene==decoded,"Scenery text roundtrip");++count;
-    auto empty=sample(PropTextKind::Description);empty.request.prop_text.text.clear();empty.evidence.prop_text_after->description.clear();need(encode(empty,bytes,error),error);++count;
-    auto bad=sample(PropTextKind::Description,true);need(!encode(bad,bytes,error),"Scenery description accepted");++count;
-    auto mixed=sample(PropTextKind::Name);mixed.request.action=Action::EditNpcProperty;mixed.request.prop_text={};need(!encode(mixed,bytes,error),"foreign action Prop evidence accepted");++count;
-    auto dungeon=sample(PropTextKind::Name);dungeon.evidence.prop_text_before->dungeon=true;dungeon.evidence.prop_text_after->dungeon=true;
+    auto scene=std::make_unique<Message>(sample(PropTextKind::Name,true));need(encode(*scene,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);need(*scene==decoded,"Scenery text roundtrip");++count;
+    auto empty=std::make_unique<Message>(sample(PropTextKind::Description));empty->request.prop_text.text.clear();empty->evidence.prop_text_after->description.clear();need(encode(*empty,bytes,error),error);++count;
+    auto bad=std::make_unique<Message>(sample(PropTextKind::Description,true));need(!encode(*bad,bytes,error),"Scenery description accepted");++count;
+    auto mixed=std::make_unique<Message>(sample(PropTextKind::Name));mixed->request.action=Action::EditNpcProperty;mixed->request.prop_text={};need(!encode(*mixed,bytes,error),"foreign action Prop evidence accepted");++count;
+    auto dungeon_storage=std::make_unique<Message>(sample(PropTextKind::Name));auto& dungeon=*dungeon_storage;dungeon.evidence.prop_text_before->dungeon=true;dungeon.evidence.prop_text_after->dungeon=true;
     dungeon.evidence.prop_text_before->dungeon_name="Dungeon";dungeon.evidence.prop_text_before->dungeon_region_name="Region";
     dungeon.evidence.prop_text_after->dungeon_name=dungeon.request.prop_text.text;dungeon.evidence.prop_text_after->dungeon_region_name=dungeon.request.prop_text.text;
     need(encode(dungeon,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error)&&decoded==dungeon,error);++count;
     dungeon.evidence.prop_text_after->dungeon_region_name="Region";need(!encode(dungeon,bytes,error),"Dungeon Region rename missing");++count;
+    auto check=[&](bool ok,const std::string& cause){need(ok,cause);++count;};
+    gizmo_rename_protocol_fixture::run(check);
     std::cout<<count<<" actual Prop text protocol cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

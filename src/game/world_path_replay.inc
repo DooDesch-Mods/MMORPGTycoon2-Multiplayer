@@ -91,7 +91,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
                         const action::Evidence* authority,std::string& error){
     auto* r=runtime(error);
     if(!r||!capture.ready||!action::world_path_valid(request.world_path)||
-       (request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass)){
+       (request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemoveWorldPath)){
         if(error.empty())error="Wall/Pass original native runtime or intent unavailable";
         return action::Outcome::RejectedNoEffect;}
     if(GetCurrentThreadId()!=r->thread||bool(authority)==Config::instance().is_host){
@@ -118,11 +118,28 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         return action::Outcome::RejectedNoEffect;}
     if(intent.kind==action::WorldPathKind::Wall&&!wall_private_ready(*r,error))
         return action::Outcome::RejectedNoEffect;
+    uintptr_t removal_target=0;int32_t removal_price=0;action::PathPoint removal_position{};
+    action::Ledger removal_money;
+    if(intent.kind==action::WorldPathKind::Remove){
+        if(!code(*r,true,error)||!remove_live(*r,before,error)||!remove_target(before,intent,removal_target,error)||
+           !native_error(remove_quote(r->image,removal_target,removal_price,removal_position),
+                         "mixed Path Remove original Cost/CostPosition",error))return action::Outcome::RejectedNoEffect;
+        if(removal_price<0||!money.record_present){
+            error="mixed Path Remove original refund or current cash record invalid";
+            return action::Outcome::RejectedNoEffect;}
+        if(!building_history_slice::cash_effect(money,removal_price,removal_money,error))
+            return action::Outcome::RejectedNoEffect;
+    }
     auto& operation=operations[request.action_uuid];
     operation.binding=binding;operation.request=request;operation.before=before;
     operation.evidence.before=money;operation.evidence.world_path_before=before.wire;
     operation.attempted=true;
-    if(intent.kind==action::WorldPathKind::Wall){
+    if(intent.kind==action::WorldPathKind::Remove){
+        bool returned=false;
+        if(!native_error(replay_remove(r->image,removal_target,returned),"mixed Path Remove original Command",error)||!returned){
+            if(error.empty())error="mixed Path Remove original Command returned false";
+            operation.cause=error;return action::Outcome::Unknown;}
+    }else if(intent.kind==action::WorldPathKind::Wall){
         wall_private_native::Receipt receipt;
         active_wall=&operation;
         struct ResetWallReplay{~ResetWallReplay(){active_wall=nullptr;}} reset_wall_replay;
@@ -163,7 +180,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!mixed_path_native::read_world(r->memory,r->image,map,view.world.root,after_census,error)){
         operation.cause=error;return action::Outcome::Unknown;}
     std::vector<identity::Birth> births;
-    if(!world_path_births(request.action_uuid,before,after_census,births,error)||
+    if((intent.kind!=action::WorldPathKind::Remove&&!world_path_births(request.action_uuid,before,after_census,births,error))||
        !world_path_sample(*r,request.snapshot_uuid,intent.start_region,intent.end_region,operation.after,error)||
        !region::ledger(operation.evidence.after,error)){
         operation.cause=error;return action::Outcome::Unknown;}
@@ -172,6 +189,18 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        !undo::read_graph(r->memory,r->image,undo_after.undo.back(),graph,error)||
        !undo::validate_undo_commit(undo_before,undo_after,graph,error)){
         operation.cause=error;return action::Outcome::Unknown;}
+    if(intent.kind==action::WorldPathKind::Remove){
+        std::set<std::string> retired;
+        if(!mixed_path_remove::delta(before.mixed.graph,operation.after.mixed.graph,intent.target_path,retired,error)||
+           !remove_selection(*r,removal_target,error)||
+           !remove_inverse(*r,before,retired,intent.target_path,undo_after.undo.back(),graph,
+                           removal_price,removal_position,error)){
+            operation.cause=error;return action::Outcome::Unknown;}
+        if(operation.evidence.after!=removal_money||operation.after.effects!=before.effects){
+            error=operation.cause="mixed Path Remove original refund or unrelated World effects differ";
+            return action::Outcome::Unknown;}
+        operation.evidence.target_retired=true;operation.evidence.selection_confirmed=true;
+    }
     operation.original_graph=undo_after.undo.back();
     operation.evidence.world_path_after=operation.after.wire;
     operation.evidence.undo_confirmed=true;

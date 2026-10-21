@@ -22,7 +22,7 @@ int main()try{
     std::map<uint64_t,uintptr_t> full_uids;bool resolve_fail=false;
     auto find=[&](uint64_t uid,uintptr_t& found,std::string& cause){const auto value=full_uids.find(uid);if(value==full_uids.end()){cause="original Dungeon full UID lookup failed";return false;}found=value->second;return true;};
     auto resolve=[&](const identities::Scope& current,uintptr_t object,uint64_t uid,std::string& key,std::string& cause){if(resolve_fail){cause="original confirmed identity resolution failed";return false;}return registry.resolve(current,object,uid,key,cause);};
-    const auto setup=[&]{memory={};full_uids={{target_uid,target},{sibling_uid,sibling}};resolve_fail=false;registry={};
+    const auto setup=[&]{scope.scene=scene.owner.key;memory={};full_uids={{target_uid,target},{sibling_uid,sibling}};resolve_fail=false;registry={};
         memory.put(manager,image+0x1714100);memory.put(manager+0x80,region);memory.put(region+0x70,shard);memory.put(region+0x988,manager);
         memory.put(manager+0x38,image+0x16e8b60);memory.put(manager+0x40,data);memory.put(manager+0x48,int32_t(2));memory.put(manager+0x4c,int32_t(2));memory.put(data,target);memory.put(data+8,sibling);
         for(const auto object:{target,sibling}){memory.put(object,image+0x16c0770);memory.put(object+0x18,object==target?target_uid:sibling_uid);memory.put(object+0x170,shard);memory.put(object+0x178,region);memory.put(object+0x8d0,uintptr_t(0));memory.put(object+0x8d8,uintptr_t(0));}
@@ -30,7 +30,7 @@ int main()try{
     };
     references::Witness witness;setup();check(references::read(at,find,resolve,image,scope,scene,manager,target,witness,error),error);
     check(witness.key==canonical&&witness.uid==target_uid&&witness.shard==shard&&witness.members.size()==2,"Template reference key/full UID/complete manager lost");
-    scene.owner.type=2;scene.owner.instance_index=17;scene.owner.key=std::string(64,'a')+":world:building:7/instance/17";
+    scene.owner.type=2;scene.owner.instance_index=17;scene.owner.key=std::string(64,'a')+":world:building:7/instance/17";setup();
     check(references::read(at,find,resolve,image,scope,scene,manager,target,witness,error)&&witness.scene==scene.owner.key,error);
     for(int mode=0;mode<15;++mode){setup();
         if(mode==0)memory.put(manager,image+0x1714101);if(mode==1)memory.put(manager+0x80,region+8);if(mode==2)memory.put(region+0x70,shard+8);
@@ -47,6 +47,8 @@ int main()try{
     setup();check(!references::read(at,find,resolve,image,scope,scene,manager,target+8,witness,error)&&error.find("absent")!=std::string::npos,"Unmanaged target was inferred by matching content");
     setup();auto wrong_scope=scope;wrong_scope.generation++;
     check(!references::read(at,find,resolve,image,wrong_scope,scene,manager,target,witness,error),"Foreign world generation adopted a confirmed identity");
+    setup();auto wrong_scene=scope;wrong_scene.scene="world";
+    check(!references::read(at,find,resolve,image,wrong_scene,scene,manager,target,witness,error),"Existing direct canonical binding crossed Root/Dungeon scene owner");
     setup();scene.owner.type=0;check(!references::read(at,find,resolve,image,scope,scene,manager,target,witness,error),"Root scene accepted through Dungeon-only binder");
     std::cout<<checks<<" Dungeon direct Monster current scene/full UID/manager/confirmed key comparisons passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

@@ -1,5 +1,6 @@
 #include "coupling.h"
 #include "capture_readback.h"
+#include "loan_retirement.h"
 namespace mt2mp::game::live_host_state::day::economy {
 namespace {bool fail(std::string& error,const std::string& cause){error=cause;return false;}}
 bool Coupling::capture(const Target& actual_day,State& out,std::string& error){
@@ -39,6 +40,13 @@ bool Coupling::before_day(const State& target,Owners& before,std::string& error)
     Target actual_day;Port::ReadScope observed(port_,before);
     if(!day_.actual_current(target.day.frame,actual_day,error)||!port_.bind_actual_receipt(actual_day,error)||!observed.read(error))return false;
     if(parties_&&(!target.day.frame.party||!target.additions.available))return fail(error,"Party Frame requires complete Subscriber birth state before mutation");
+    Receipt loan_retirement;
+    struct LoanGuard {bool& locked;Receipt& receipt;bool admitted=false;~LoanGuard(){if(receipt.attempted&&!admitted)locked=true;}} loan_guard{locked_,loan_retirement};
+    if(before.state.loans.size()!=target.loans.size()){
+        observed.close();
+        if(!reconcile_retired_loans(port_,before,target,loan_retirement,error)){locked_=loan_retirement.unknown;return false;}
+        if(!observed.read(error)){locked_=loan_retirement.attempted;return false;}
+    }
     if(target.additions.available){
         if(target.additions.next_id<before.next_id)return fail(error,"Subscriber Host nextID moved backwards before membership effects");
         if(before.state.loans.size()!=target.loans.size()||before.state.offers!=target.offers)return fail(error,"Subscriber append cannot repair foreign Loan/Offer membership");
@@ -68,7 +76,7 @@ bool Coupling::before_day(const State& target,Owners& before,std::string& error)
         }
     }
     if(!observed.preflight(target,error))return false;
-    if(!admit_existing(before,target,error)){locked_=addition_receipt_.is_object()&&addition_receipt_.value("attempted",false)&&!addition_receipt_.value("frame_committed",false);return false;}return true;
+    if(!admit_existing(before,target,error)){locked_=locked_||(addition_receipt_.is_object()&&addition_receipt_.value("attempted",false)&&!addition_receipt_.value("frame_committed",false));return false;}loan_guard.admitted=true;return true;
 }
 bool Coupling::after_day(const State& target,const Owners& before,std::string& error){
     if(locked())return fail(error,"economy after-Day Apply locked; no replay");

@@ -1,5 +1,6 @@
 #pragma once
 #include "character_membership_reader.h"
+#include "character_catalogue_proof.h"
 #include "subscriber_lifecycle/record_graph.h"
 #include "subscriber_lifecycle/capture.h"
 #include "duplicate_records.h"
@@ -18,6 +19,8 @@ struct Result {
 };
 bool read_current(const action_session::Context&,const action_session::Binding&,
                   character_definition_identity::Census&,character_membership_reader::Users&,std::string&);
+struct CatalogueProof {std::string sha256;bool operator==(const CatalogueProof&)const=default;};
+bool capture_catalogue(const action_session::Context&,const action_session::Binding&,CatalogueProof&,std::string&);
 bool read_definition(const action_session::Context&,const action_session::Binding&,
                      int32_t kind,int32_t global_id,std::string& original_record_sha,std::string&);
 // The complete original tree and its separate canonical reference manifest are

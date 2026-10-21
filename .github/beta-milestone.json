@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.14",
-  "summary": "Open Multiplayer from the game desktop, create or load one shared world, and follow visible Host and Client loading states in the corrected native menu.",
-  "native_evidence": "docs/evidence/beta14-native.json"
+  "version": "0.1.0-beta.17",
+  "summary": "Copy and group scenery, clear space with the scenery eraser, and undo shared building edits in a two-player world.",
+  "native_evidence": "docs/evidence/beta17-native.json"
 }

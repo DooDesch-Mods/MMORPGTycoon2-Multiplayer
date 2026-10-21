@@ -35,6 +35,8 @@ enum class MarketingRecordKind { Award, Campaign };
 // Fresh typed object loads consume the object Record itself, without an array wrapper.
 bool decode_marketing_record(const DecodeApi&,Memory&,MarketingRecordKind,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
 bool decode_logo_record(const DecodeApi&,Memory&,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
+bool decode_modular_record(const DecodeApi&,Memory&,bool plan,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
+bool decode_dungeon_fill_record(const DecodeApi&,Memory&,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&);
 bool decode_release_record(const DecodeApi&,Memory&,const std::vector<Record>&,NativeTree&,DecodeReceipt&,std::string&,ReleaseRecordKind kind=ReleaseRecordKind::Manager);
 bool decode_integer_record(const DecodeApi&,Memory&,const char*,int32_t,NativeTree&,DecodeReceipt&,std::string&);
 bool decode_string_record(const DecodeApi&,Memory&,const char*,const std::string&,NativeTree&,DecodeReceipt&,std::string&);

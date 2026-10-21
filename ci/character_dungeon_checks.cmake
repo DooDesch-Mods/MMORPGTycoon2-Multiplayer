@@ -13,7 +13,7 @@ foreach(name protocol controller)
     add_test(NAME npc_quest_edit_${name} COMMAND ${target})
     set_tests_properties(npc_quest_edit_${name} PROPERTIES TIMEOUT 60)
 endforeach()
-foreach(name character_membership_reader character_npc_completion character_actor_records character_membership_protocol character_membership_controller character_remove_origin character_boss_retirement)
+foreach(name character_membership_reader character_npc_completion character_actor_records character_membership_protocol character_membership_controller character_remove_origin character_boss_retirement quest_cascade character_catalogue_proof)
     set(target "test_${name}")
     add_executable(${target} "${MT2MP_SOURCE_ROOT}/test/${target}.cpp")
     if(name STREQUAL "character_membership_protocol" OR name STREQUAL "character_membership_controller")
@@ -56,6 +56,9 @@ foreach(family ability_edit costume_edit dungeon_config dungeon_light dungeon_so
             "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
             "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
             "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+        if(family STREQUAL "dungeon_gizmo" AND name STREQUAL "controller")
+            target_sources(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/network/node_state.cpp")
+        endif()
         target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
         target_compile_features(${target} PRIVATE cxx_std_20)
         target_compile_definitions(${target} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
@@ -185,7 +188,7 @@ add_test(NAME dungeon_scene_roster COMMAND test_dungeon_scene_roster)
 set_tests_properties(dungeon_scene_roster PROPERTIES TIMEOUT 60)
 
 add_executable(test_dungeon_gizmo_native "${MT2MP_SOURCE_ROOT}/test/test_dungeon_gizmo_native.cpp")
-target_include_directories(test_dungeon_gizmo_native PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+target_include_directories(test_dungeon_gizmo_native PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
 target_compile_features(test_dungeon_gizmo_native PRIVATE cxx_std_20)
 if(MSVC)
     target_compile_options(test_dungeon_gizmo_native PRIVATE /W4 /WX /utf-8 /EHsc)
@@ -221,6 +224,7 @@ add_custom_command(
     OUTPUT "${DUNGEON_REFERENCE_EXTRACTED}/dungeon_quest_destination_actual.inc"
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_dungeon_quest_destination.py" "${MT2MP_SOURCE_ROOT}" "${DUNGEON_REFERENCE_EXTRACTED}"
     DEPENDS "${MT2MP_SOURCE_ROOT}/test/extract_dungeon_quest_destination.py" "${MT2MP_SOURCE_ROOT}/src/game/npc_quest_target_runtime.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/npc_quest_authoring_runtime.inc"
     VERBATIM)
 
 add_executable(test_dungeon_monster_reference "${MT2MP_SOURCE_ROOT}/test/test_dungeon_monster_reference.cpp")
@@ -454,9 +458,67 @@ add_executable(test_scene_clone "${MT2MP_SOURCE_ROOT}/tests/test_scene_clone.cpp
     "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/plan.cpp")
 target_include_directories(test_scene_clone PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
 target_compile_features(test_scene_clone PRIVATE cxx_std_20)
+target_sources(test_scene_clone PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/scenery_witness.cpp")
 target_compile_definitions(test_scene_clone PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 if(MSVC)
     target_compile_options(test_scene_clone PRIVATE /utf-8 /EHsc)
 endif()
 add_test(NAME scene_clone COMMAND test_scene_clone)
 set_tests_properties(scene_clone PROPERTIES TIMEOUT 60)
+
+add_executable(test_costume_weapon "${MT2MP_SOURCE_ROOT}/test/test_costume_weapon.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+target_include_directories(test_costume_weapon PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_costume_weapon PRIVATE cxx_std_20)
+target_compile_definitions(test_costume_weapon PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(test_costume_weapon PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME costume_weapon COMMAND test_costume_weapon)
+set_tests_properties(costume_weapon PROPERTIES TIMEOUT 60)
+set(COSTUME_WEAPON_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/costume_weapon")
+add_custom_command(OUTPUT "${COSTUME_WEAPON_GENERATED}/costume_weapon_capture_body.inc"
+    COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_costume_weapon.py"
+        --source "${MT2MP_SOURCE_ROOT}" --output "${COSTUME_WEAPON_GENERATED}"
+    DEPENDS "${MT2MP_SOURCE_ROOT}/test/extract_costume_weapon.py"
+        "${MT2MP_SOURCE_ROOT}/src/game/costume_edit_runtime.inc" VERBATIM)
+add_executable(test_costume_weapon_capture "${MT2MP_SOURCE_ROOT}/test/test_costume_weapon_capture.cpp"
+    "${COSTUME_WEAPON_GENERATED}/costume_weapon_capture_body.inc")
+target_include_directories(test_costume_weapon_capture PRIVATE "${COSTUME_WEAPON_GENERATED}"
+    "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_costume_weapon_capture PRIVATE cxx_std_20)
+target_compile_definitions(test_costume_weapon_capture PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(test_costume_weapon_capture PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME costume_weapon_capture COMMAND test_costume_weapon_capture)
+set_tests_properties(costume_weapon_capture PROPERTIES TIMEOUT 60)
+
+add_executable(test_ability_adjustment "${MT2MP_SOURCE_ROOT}/test/test_ability_adjustment.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+target_include_directories(test_ability_adjustment PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_ability_adjustment PRIVATE cxx_std_20)
+target_compile_definitions(test_ability_adjustment PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(test_ability_adjustment PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME ability_adjustment COMMAND test_ability_adjustment)
+set_tests_properties(ability_adjustment PROPERTIES TIMEOUT 60)
+set(ABILITY_ADJUSTMENT_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/ability_adjustment")
+add_custom_command(OUTPUT "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_capture_body.inc" "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_tail_body.inc" "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_record_body.inc"
+    COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_ability_adjustment.py" --source "${MT2MP_SOURCE_ROOT}" --output "${ABILITY_ADJUSTMENT_GENERATED}"
+    DEPENDS "${MT2MP_SOURCE_ROOT}/test/extract_ability_adjustment.py" "${MT2MP_SOURCE_ROOT}/src/game/ability_adjustment_runtime.inc" "${MT2MP_SOURCE_ROOT}/src/game/ability_edit_runtime.inc" VERBATIM)
+add_executable(test_ability_adjustment_capture "${MT2MP_SOURCE_ROOT}/test/test_ability_adjustment_capture.cpp"
+    "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_capture_body.inc" "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_tail_body.inc" "${ABILITY_ADJUSTMENT_GENERATED}/ability_adjustment_record_body.inc")
+target_include_directories(test_ability_adjustment_capture PRIVATE "${ABILITY_ADJUSTMENT_GENERATED}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_ability_adjustment_capture PRIVATE cxx_std_20)
+target_compile_definitions(test_ability_adjustment_capture PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+if(MSVC)
+    target_compile_options(test_ability_adjustment_capture PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME ability_adjustment_capture COMMAND test_ability_adjustment_capture)
+set_tests_properties(ability_adjustment_capture PROPERTIES TIMEOUT 60)

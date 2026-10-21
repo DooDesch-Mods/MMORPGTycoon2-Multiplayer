@@ -15,6 +15,9 @@ struct Local {
     std::vector<ItemLocal> items;
     bool operator==(const Local&)const=default;
 };
+inline bool direct_dungeon_scope(const Target& target,const boss_identity::Scope& scope){
+    return boss_identity::valid(scope)&&scope.shard!=scope.root&&direct_dungeon_monster(target,scope.scene);
+}
 template<class Read,class Copy,class Maximum,class ClipRead>
 bool read_row(Read& at,Copy& copy,Maximum& maximum,ClipRead& clip,uintptr_t image,const Local& owner,Row& out,Local& local,std::string& error){
     out={};local=owner;const auto object=owner.object;uintptr_t ap=0,root=0,region=0,set_map=0,transform_ap=0,notify=0;uint64_t uid=0;uint8_t dead=2,on_map=2;
@@ -25,6 +28,13 @@ bool read_row(Read& at,Copy& copy,Maximum& maximum,ClipRead& clip,uintptr_t imag
        !at(object,0x170,root,error)||root!=owner.scope.shard||!at(object,0x178,region,error)||region!=owner.scope.region||
        !at(ap,0x290,set_map,error)||set_map!=image+(family==Family::Npc?0x3c2a00:0x39a920))return failed(error.empty()?"Actor Frame class/full UID/scene/map method differs":error);
     out.target=owner.target;
+    const bool direct=family==Family::Monster&&!zone_monster_key(owner.target.key);
+    if(direct){
+        if(!direct_dungeon_scope(owner.target,owner.scope)||owner.zone||owner.zone_uid||owner.zone_index!=-1)
+            return failed("Actor Frame direct Monster requires its exact current non-root Dungeon scene and no Zone owner");
+        out.dungeon_scene=owner.scope.scene;
+    }
+
     if(!at(object,0x4a8,out.slot,error)||!at(object,0x4a4,out.type,error)||!at(object,0x6f8,out.level,error)||
        !at(region,0x834,out.pose.region,error)||!at(object,0x100,out.pose.orientation,error)||!at(object,0x110,out.pose.position,error)||!at(object,0x11c,out.pose.scale,error)||
        !at(object,0x4ac,dead,error)||dead>1||!at(object,0x368,on_map,error)||on_map>1||!at(object,0x7f8,out.action,error))return failed(error.empty()?"Actor Frame current Character/transform/boolean fields differ":error);
@@ -43,10 +53,15 @@ bool read_row(Read& at,Copy& copy,Maximum& maximum,ClipRead& clip,uintptr_t imag
     }else if(family==Family::Boss){Boss value;
         if(!at(object,0x968,value.phase,error)||!at(object,0x96c,value.state,error)||!at(object,0x9ac,value.respawn,error)||!at(object,0x970,value.spawn,error))return false;out.lifecycle=value;
     }else{ZoneMonster value;
-        if(!zone_monster_key(owner.target.key)||!at(object,0x824,value.status,error)||!at(object,0x828,value.ai,error)||!at(object,0x910,value.respawn,error)||!at(object,0x82c,value.spawn,error))return failed(error.empty()?"Actor Frame Zone Monster current lifecycle differs":error);
+        if((!zone_monster_key(owner.target.key)&&!direct)||!at(object,0x824,value.status,error)||!at(object,0x828,value.ai,error)||!at(object,0x910,value.respawn,error)||!at(object,0x82c,value.spawn,error))return failed(error.empty()?"Actor Frame Zone Monster current lifecycle differs":error);
         uintptr_t zone=0,zone_ap=0,zone_root=0,zone_region=0,zone_data=0,zone_member=0;uint64_t zone_uid=0;int32_t zone_count=-1,zone_capacity=-1;
+        if(direct){uintptr_t proxy=0;
+            if(!at(object,0x8d0,zone,error)||zone||!at(object,0x8d8,proxy,error)||proxy)
+                return failed(error.empty()?"Actor Frame direct Dungeon Monster acquired a foreign Zone or weak proxy":error);
+        }else{
         if(!owner.zone||!owner.zone_uid||owner.zone_index<0||!at(object,0x8d0,zone,error)||zone!=owner.zone||!at(zone,0,zone_ap,error)||zone_ap!=image+0x1745ce0||!at(zone,0x18,zone_uid,error)||zone_uid!=owner.zone_uid||!at(zone,0x170,zone_root,error)||zone_root!=owner.scope.shard||!at(zone,0x178,zone_region,error)||zone_region!=owner.scope.region||!at(zone,0x388,zone_data,error)||!at(zone,0x390,zone_count,error)||!at(zone,0x394,zone_capacity,error))return failed(error.empty()?"Actor Frame Zone Monster canonical parent/full UID/owner differs":error);
         if(zone_count<0||zone_count>4096||zone_capacity<zone_count||owner.zone_index>=zone_count||!zone_data||zone_data>UINTPTR_MAX-size_t(zone_count)*8||!at(zone_data,size_t(owner.zone_index)*8,zone_member,error)||zone_member!=object)return failed(error.empty()?"Actor Frame Zone Monster current canonical member ordinal no longer names this full UID":error);
+        }
         uintptr_t manager=0,manager_owner=0,data=0;int32_t ready_count=-1,capacity=-1;
         if(!at(region,0x988,manager,error)||!at(manager,0,ap,error)||ap!=image+0x1714100||!at(manager,0x80,manager_owner,error)||manager_owner!=region||!at(manager,0x70,data,error)||!at(manager,0x78,ready_count,error)||!at(manager,0x7c,capacity,error))return failed(error.empty()?"Actor Frame Zone Monster ready manager reciprocity differs":error);
         if(ready_count<0||ready_count>4096||capacity<ready_count||(ready_count&&(!data||data>UINTPTR_MAX-size_t(ready_count)*8)))return failed("Actor Frame Zone Monster ready array extent invalid");

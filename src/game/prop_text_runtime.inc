@@ -10,6 +10,8 @@ struct Operation {
     action::Binding binding;action::Request request;remove_diagnostics::LocalTarget target;
     action::Evidence evidence;witness::UndoWitness undo;
     prop_text_dungeon::Owners dungeon_owners{};
+    std::optional<dungeon_gizmo_identity::Member> gizmo;
+    std::array<uint64_t,4> gizmo_random{};
     bool attempted=false,returned=false,confirmed=false,retired=false;
     std::string cause;
 };
@@ -116,11 +118,13 @@ uint32_t invoke(Runtime& r,const action::PropTextIntent& intent,const remove_dia
         returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+#include "gizmo_prop_text_runtime.inc"
 }
 bool capture_rename(uintptr_t object,const void* native_text,bool& handled,std::string& e){
     handled=false;auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready){e="Prop text UI runtime unavailable";return false;}
     uintptr_t ap=0;if(!r->memory.read(object,&ap,sizeof ap,e))return false;
+    if(ap==r->image+0x1749ab0){handled=true;return capture_gizmo(*r,object,native_text,e);}
     if(!scenery_kiss::can_move_rva(r->image,ap))return true;
     host::WorldState w;if(!world(*r,w,e))return false;
     remove_diagnostics::LocalTarget target;
@@ -151,6 +155,7 @@ void tick(){
     const auto id=uuid(e);if(id.empty()||!typed_action_runtime::submit_prop_text(id,value.key,value.intent,e)){reject(e);return;}++submits;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
+    if(!request.prop_text.gizmo_scene.empty())return perform_gizmo(binding,request,authority,e);
     auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready||!installed||r->thread!=GetCurrentThreadId()||request.action!=action::Action::EditPropText||!action::valid_prop_text(request.prop_text)){
         e="Prop text runtime/request unavailable";return action::Outcome::RejectedNoEffect;}
@@ -186,7 +191,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
     const auto found=operations.find(request.action_uuid);auto* r=published.load(std::memory_order_acquire);
     if(!r||found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed){e="Prop text observation lacks exact confirmed operation";return false;}
-    const auto& op=found->second;host::WorldState w;action::PropTextState current;action::Ledger money;witness::UndoWitness undo;
+    const auto& op=found->second;if(op.gizmo)return observe_gizmo(op,out,e);host::WorldState w;action::PropTextState current;action::Ledger money;witness::UndoWitness undo;
     prop_text_dungeon::Owners owners{};
     if(!read(*r,op.target,w,current,money,undo,e,&owners))return false;
     if(current!=op.evidence.prop_text_after||money!=op.evidence.after||undo!=op.undo||owners!=op.dungeon_owners){e="Prop text current object/UID/World/Undo/Ledger/Dungeon differs from confirmed result";return false;}
@@ -198,7 +203,7 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
 }
 json status(){
     json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},
-        {"confirmed",op.confirmed},{"retired",op.retired},{"local_uid",op.target.uid},{"key",op.request.canonical_record_key},{"cause",op.cause}};
+        {"confirmed",op.confirmed},{"retired",op.retired},{"local_uid",op.gizmo?op.gizmo->uid:op.target.uid},{"key",op.request.canonical_record_key},{"cause",op.cause}};
     return {{"enabled",installed},{"pending",pending()},{"captures",captures},{"submitted",submits},{"rejected",rejections},{"cause",cause},{"operations",std::move(rows)}};
 }
 }

@@ -12,8 +12,9 @@ struct Memory {std::map<uintptr_t,unsigned char> bytes;
     bool copy(uintptr_t address,void* out,size_t size,std::string& error){auto* target=static_cast<unsigned char*>(out);for(size_t n=0;n<size;++n){const auto found=bytes.find(address+n);if(found==bytes.end()){error="missing fixture byte";return false;}target[n]=found->second;}return true;}
     template<class T>bool read(uintptr_t object,size_t offset,T& out,std::string& error){return copy(object+offset,&out,sizeof out,error);}
 };
+#include "subscriber_cheat_state_cases.inc"
 void fixture(){constexpr uintptr_t image=0x10000000,manager=0x20000000,data=0x30000000,a=0x40000000,b=0x50000000;Memory memory;memory.put(image+0x13df690,manager);memory.put(manager,image+0x1725f40);memory.put(manager+0x40,data);memory.put(manager+0x48,int32_t(2));memory.put(manager+0x4c,int32_t(2));memory.put(data,std::array<uintptr_t,2>{a,b});
-    for(auto [object,id]:{std::pair{a,7},std::pair{b,3}}){memory.put(object,image+0x16e75f0);memory.put(object+0x20,id);memory.put(object+0x50,uint32_t(2));memory.put(object+0x70,std::bit_cast<uint32_t>(4.5f));memory.put(object+0xc8,uint8_t(0));memory.put(object+0x125,uint8_t(1));}
+    for(auto [object,id]:{std::pair{a,7},std::pair{b,3}}){memory.put(object,image+0x16e75f0);memory.put(object+0x20,id);memory.put(object+0x80,uintptr_t(0));memory.put(object+0x50,uint32_t(2));memory.put(object+0x70,std::bit_cast<uint32_t>(4.5f));memory.put(object+0xc8,uint8_t(0));memory.put(object+0x125,uint8_t(1));}
     auto read=[&](uintptr_t object,size_t offset,auto& out,std::string& error){return memory.read(object,offset,out,error);};auto copy=[&](uintptr_t object,void* out,size_t size,std::string& error){return memory.copy(object,out,size,error);};
     s::State state; s::Owners owners;std::string error;need(s::read_all(read,copy,image,state,owners,error),error);need(state.size()==2&&state[0].id==3&&state[1].id==7&&owners.rows[0].first==a&&owners.rows[0].second.id==7,"native order was confused with serialized identity");s::State decoded;need(s::decode(s::encode(state),decoded,error)&&decoded==state,error);
     memory.put(b+0x20,int32_t(7));need(!s::read_all(read,copy,image,state,owners,error),"duplicated serialized Subscriber identity accepted");memory.put(b+0x20,int32_t(3));
@@ -39,4 +40,4 @@ void fixture(){constexpr uintptr_t image=0x10000000,manager=0x20000000,data=0x30
     memory.put(manager+0x48,int32_t(0));memory.put(manager+0x4c,int32_t(0));memory.put(manager+0x40,uintptr_t(0));need(s::read_all(read,copy,image,state,owners,error)&&state.empty()&&owners.rows.empty(),error);
 }
 }
-int main()try{fixture();std::cout<<checks<<" actual Subscriber intervention owner/field/schema assertions passed\n";return 0;}catch(const std::exception& exception){std::cerr<<exception.what()<<'\n';return 1;}
+int main()try{fixture();subscriber_cheat_fixture::run();std::cout<<checks<<" actual Subscriber intervention owner/field/schema assertions passed\n";return 0;}catch(const std::exception& exception){std::cerr<<exception.what()<<'\n';return 1;}

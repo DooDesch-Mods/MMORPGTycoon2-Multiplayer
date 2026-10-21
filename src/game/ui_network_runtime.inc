@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "ui_network_runtime.h"
 #include "network_remove_runtime.h"
 #include "ui_remove_runtime.h"
@@ -76,7 +77,7 @@ bool purchase_entry(void*,const void*);
 bool code(region::Runtime& r,bool hooked,std::string& e){
     for(size_t i=0;i<std::size(network_node_codes);++i){const auto& g=network_node_codes[i];std::vector<unsigned char> actual(g.size);
         if(!r.memory.copy(r.image+g.rva,actual.data(),actual.size(),e))return false;
-        if(!hooked||i>=2){if(std::memcmp(actual.data(),g.bytes,g.size))return fail(e,"network original code differs RVA="+std::to_string(g.rva));continue;}
+        if(!hooked||i>=2){if(g.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(r.image+g.rva,actual.data(),g.bytes,g.size,e))return fail(e,"network original code differs RVA="+std::to_string(g.rva)+" original="+e);}else if(std::memcmp(actual.data(),g.bytes,g.size))return fail(e,"network original code differs RVA="+std::to_string(g.rva));continue;}
         if(actual[0]!=0xe9||std::memcmp(actual.data()+5,g.bytes+5,g.size-5))return fail(e,"network owned hook tail differs");
         const auto original=i?uintptr_t(state.purchase):uintptr_t(state.press);std::vector<unsigned char> prefix(g.span);
         if(!r.memory.copy(original,prefix.data(),prefix.size(),e)||std::memcmp(prefix.data(),g.bytes,g.span))return fail(e,"network original trampoline prefix differs");

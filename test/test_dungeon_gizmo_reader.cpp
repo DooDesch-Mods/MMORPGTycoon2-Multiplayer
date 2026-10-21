@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <limits>
 namespace gizmo=mt2mp::game::dungeon_gizmo_reader;
+namespace gizmo_reader_fixture {
 constexpr uintptr_t image=0x10000000,manager=0x20000000,shard=0x20001000,region=0x20002000,roster=0x20003000;
 constexpr std::array<uintptr_t,3> objects{0x30000000,0x30001000,0x30002000};
 constexpr std::array<uint64_t,3> ids{0x100000012,0x200000012,0x300000012};
@@ -20,7 +21,9 @@ struct Memory {
         put(objects[2],0,image+0x1749ab0);put(objects[2],0x18,ids[2]);
     }
 };
-int main()try{size_t checks=0;const auto check=[&](bool ok,const char* why){++checks;if(!ok)throw std::runtime_error(std::string(why)+" comparison "+std::to_string(checks));};
+}
+#include "gizmo_live_cases.inc"
+int main()try{using namespace gizmo_reader_fixture;size_t checks=0;const auto check=[&](bool ok,const char* why){++checks;if(!ok)throw std::runtime_error(std::string(why)+" comparison "+std::to_string(checks));};
     std::vector<gizmo::Record> record;gizmo::Local local;std::string error;
     const auto run=[&](Memory& m){auto read=[&](auto base,auto offset,auto& value,auto& e){return m.read(base,offset,value,e);};
         auto text=[&](uintptr_t base,size_t offset,std::string& value,std::string& e){const auto found=m.strings.find(base+offset);if(found==m.strings.end()){e="original Gizmo string read failure";return false;}value=found->second;if(m.mutate){m.put(manager,0x78,uint32_t(8));m.mutate=false;}return true;};
@@ -39,5 +42,6 @@ int main()try{size_t checks=0;const auto check=[&](bool ok,const char* why){++ch
     Memory unreadable;unreadable.bytes.erase(objects[0]+0x264);check(!run(unreadable)&&error=="original Gizmo field read failure","Original native field cause lost");
     Memory reordered;reordered.put(roster,0,objects[1]);reordered.put(roster,8,objects[0]);check(run(reordered)&&record[0].name=="Chest #2"&&local.members[0].uid==ids[1],"Native volatile roster order was sorted or replaced");
     Memory same_name;same_name.strings[objects[1]+0x38]="Door #1";check(run(same_name)&&record.size()==2&&local.members[0].uid!=local.members[1].uid,"Full UID identity was replaced with an assumed unique name");
+    gizmo_live_fixture::run(check);
     std::cout<<checks<<" actual Dungeon Gizmo roster/prototype/authored-state/identity comparisons passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

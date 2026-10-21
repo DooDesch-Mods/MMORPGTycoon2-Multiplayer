@@ -9,7 +9,7 @@ Message moved(){auto m=moving();m.kind=Kind::HostResult;m.revision=1;m.required_
  e.monster_after.roster.content_sha256=std::string(64,'c');e.undo_confirmed=e.selection_confirmed=e.retirement_confirmed=true;return m;}
 int main(){try{std::string e;std::vector<uint8_t> bytes;Message out;unsigned count=0;
  for(auto m:{moving(),moved()}){need(encode(m,bytes,e),e);need(decode(bytes.data(),bytes.size(),out,e)&&out==m,e);++count;}
- need(encode(moving(),bytes,e),e);auto raw=nlohmann::json::parse(bytes);need(raw["schema"]==31,"MoveMonster schema differs");
+ need(encode(moving(),bytes,e),e);auto raw=nlohmann::json::parse(bytes);need(raw["schema"]==36,"MoveMonster schema differs");
  auto bad=[&](nlohmann::json j){auto s=j.dump();need(!decode(reinterpret_cast<const uint8_t*>(s.data()),s.size(),out,e),"bad move wire accepted");++count;};
  for(auto value:{nlohmann::json(true),nlohmann::json(1.0),nlohmann::json(-1),nlohmann::json("1")}){auto j=raw;j["request"]["monster_move"]["region"]=value;bad(j);}
  {auto j=raw;j["schema"]=30;bad(j);} {auto j=raw;j["request"]["monster_move"]["extra"]=1;bad(j);}

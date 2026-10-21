@@ -1,10 +1,14 @@
 #include "dungeon_scene_identity_runtime.h"
+#include "scene_clone/raw.h"
 #include "dungeon_template_owner.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "remove_diagnostics.h"
+#include "scenery_scene_key.h"
+#include "region_saved_identity.h"
+#include "building_capture_identity.h"
 #include "dungeon_scene_records.h"
 #include "dungeon_scene_record_codes.h"
 #include "subscriber_lifecycle/capture.h"
@@ -35,10 +39,14 @@ World copy_world(const building_mixed_identity::opened_file::CurrentWorld& w){
     return {w.game,w.mode,w.state,w.world,w.map,w.generation,w.world_epoch,w.uuid,w.sha256};
 }
 struct SceneSceneryHost final:mt2mp::build_actions::private_native::place::SceneryHost {
-    const World& expected;const Pool& pool;host::LookupApi api;uint32_t thread;
-    SceneSceneryHost(const World& w,const Pool& p,host::LookupApi lookup,uint32_t owner):expected(w),pool(p),api(lookup),thread(owner){}
+    const World& expected;const Pool& pool;host::LookupApi api;uint32_t thread;bool snapshot=false;
+    SceneSceneryHost(const World& w,const Pool& p,host::LookupApi lookup,uint32_t owner,bool capture=false):expected(w),pool(p),api(lookup),thread(owner),snapshot(capture){}
     bool current(mt2mp::build_actions::private_native::place::SceneryContext& out,std::string& error)override{
         out={};building_mixed_identity::opened_file::CurrentWorld actual;
+        if(snapshot&&!expected.generation&&!expected.world_epoch){
+            if(thread!=GetCurrentThreadId()||!building_capture_identity::confirm_current_receivers(expected.game,expected.mode,expected.state,expected.world,expected.map,error))return false;
+            out={0,pool.scene.owner.region,pool.scene.owner.shard,pool.managers[0],true,true,true,true};return true;
+        }
         if(!native_open_runtime::read_current_world(actual,error))return false;
         if(actual.game!=expected.game||actual.mode!=expected.mode||actual.state!=expected.state||actual.world!=expected.world||
            actual.map!=expected.map||actual.generation!=expected.generation||actual.world_epoch!=expected.world_epoch)
@@ -55,6 +63,7 @@ bool active(identity::Scope& out,std::string& e){
     return registry.current(out,e);
 }
 }
+#include "root_scenery_snapshot.inc"
 static bool read_census(const World& world,const std::vector<Exterior>& exteriors,bool snapshot,Census& out,std::string& error,const identity::Registry* preview=nullptr)try{
     live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     out={};uintptr_t image=0;uint32_t thread=0;std::string digest;
@@ -63,7 +72,10 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
         return fail(error,"Dungeon scene snapshot classification requires exact native image/Mainthread/owned file world");
     host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,digest,api,error))return false;
     struct Pin{uintptr_t rva;size_t bytes;const char* sha;};
-    constexpr std::array<Pin,5> stream_contract{{
+    constexpr std::array<Pin,7> stream_contract{{
+        {0xe39220,880,"a774f62245dc31d1e2750a00fa09d6c3edd8a4b42eb0113c81a7a4c73d000973"},
+        {0xe39170,176,"dcf90d69d55472cbbed118382fc2cff02015f0990e868dcdbbd06d8e3f9b28b2"},
+
         {0xdde8e0,337,"d0361f2626f6af644b4f2f349adfcdf15f698f63e1c80a6234b63eb966ef4c5f"},
         {0xdde8b0,37,"1130ec4f456035af71b381da6e5d47daf5cfd2df532c22d3a23c3d5f86eeb1e3"},
         {0xe14190,268,"f9ce3891249b849fcd54b435745454f39ad8afab8c88589125e0630227798b4e"},
@@ -91,6 +103,7 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
         if(!find(uid,found,e))return false;if(found!=exterior)return fail(e,"Dungeon scene sealed exterior full UID registry differs");key=row->second;return true;
     };
     Census result;result.world=world;result.snapshot_census=snapshot;std::vector<dungeon_scene_roster::Scene> scenes;
+    if(snapshot&&!root_scenery_rows(world,image,thread,api,true,result.scenery_saved,error))return false;
     const auto root=uintptr_t(world.map)+0x1c0;
     if(!([&]{live_host_state::apply_timing::PageReadScope roster_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return dungeon_scene_roster::read(at,typed,find,identify,image,uintptr_t(world.map),root,scenes,error);}()))return false;
     std::map<std::pair<uintptr_t,uint64_t>,std::string> parent_records;
@@ -107,7 +120,7 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
                 if(shard!=scene.owner.shard)return fail(error,"Dungeon scene classification manager reciprocal Shard differs");}
         }
         if(!dungeon_zone_roster::read(at,find,image,pool.managers[1],scene.owner.shard,scene.owner.region,pool.zones,error))return false;
-        SceneSceneryHost scenery_host(world,pool,api,thread);
+        SceneSceneryHost scenery_host(world,pool,api,thread,snapshot);
         if(!mt2mp::build_actions::private_native::place::read_scenery(memory,scenery_host,image,pool.scenery,error))return false;
         const auto manager=pool.managers[3];dungeon_scene_roster::Array array;if(!dungeon_scene_roster::array(at,manager+0x18,array,error))return false;
         for(size_t i=0;i<array.members.size();++i){const auto object=array.members[i];uint64_t uid=0;uintptr_t found=0;
@@ -122,6 +135,11 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
                 else if(!resolve(object,uid,canonical,error)||!lookup(canonical,known,error))return false;
                 if(known!=member)return fail(error,"Dungeon Gizmo live canonical scene/full owner differs from confirmed identity");}
             result.saved.push_back({snapshot?record:std::string{},member});result.keys.push_back(canonical);parent_records.emplace(std::pair{object,uid},canonical);
+        }
+        if(snapshot)for(size_t child=0;child<pool.scenery.members.size();++child){const auto& member=pool.scenery.members[child];
+            const auto record=scenery_scene_key::record(world.sha256,scene.exterior_region,scene.exterior_slot,scene.owner.instance_index,int32_t(child));
+            if(!scenery_scene_key::saved(record))return fail(error,"Scene Scenery original saved child record path invalid");
+            result.scenery_saved.push_back({record,scene.owner.key,member.object,pool.managers[0],scene.owner.shard,scene.owner.region,member.uid});
         }
         if(!dungeon_scene_roster::unchanged(at,manager+0x18,array,error))return false;result.pools.push_back(std::move(pool));
     }
@@ -143,6 +161,17 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
         return fail(error,"Dungeon scene full owner identity/order changed during complete census");
     out=std::move(result);error.clear();return true;
 }catch(const std::exception& e){out={};return fail(error,std::string("Dungeon scene snapshot classification: ")+e.what());}
+bool read_scenery_pool(const World& world,const dungeon_scene_roster::Scene& scene,const std::array<uintptr_t,4>& managers,
+    mt2mp::build_actions::private_native::place::SceneryWitness& out,std::string& error){
+    out={};uintptr_t image=0;uint32_t thread=0;std::string digest;
+    if(!native::read_resolver_receipt(image,thread,digest,error))return false;
+    if(digest!=executable||image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=GetCurrentThreadId()||!world.world||!world.map||
+       !identity::uuid(world.uuid)||!identity::digest(world.sha256)||!identity::scene(scene.owner.key)||!managers[0])
+        return fail(error,"Scene Scenery pool requires exact Mainthread/world/Scene owner");
+    host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,digest,api,error))return false;
+    Pool pool;pool.scene=scene;pool.managers=managers;SceneSceneryHost owner(world,pool,api,thread);
+    return mt2mp::build_actions::private_native::place::read_scenery(memory,owner,image,out,error);
+}
 bool classify(const World& world,const std::vector<Exterior>& exteriors,Census& out,std::string& error){return read_census(world,exteriors,true,out,error);}
 bool classify_capture(const std::string& id,const std::string& sha,const CaptureWorld& capture,const std::vector<Exterior>& exteriors,Census& out,std::string& error){
     out={};World world;world.game=capture.game;world.mode=capture.mode;world.state=capture.state;world.world=capture.world;world.map=capture.map;
@@ -270,7 +299,7 @@ bool confirm_cell_restoration(const action_session::Binding& binding,const actio
                              const std::vector<GizmoRestore>& restored,const std::vector<std::pair<std::string,identity::Member>>& retired,Census& after,std::string& error){
     after={};const auto controller=typed_action_runtime::controller_status();
     if((request.action!=action_session::Action::UndoBuilding&&request.action!=action_session::Action::RedoBuilding)||
-       request.canonical_record_key!="dungeon-tiles:"+request.target_action_uuid||request.snapshot_uuid!=net::current_snapshot_id()||
+       (request.canonical_record_key!="dungeon-tiles:"+request.target_action_uuid&&request.canonical_record_key!="dungeon-input:"+request.target_action_uuid)||request.snapshot_uuid!=net::current_snapshot_id()||
        binding.native_epoch!=before.world.world_epoch||binding.native_generation!=before.world.generation||
        !controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid)
         return fail(error,"Dungeon original Gizmo restoration requires exact pending cell history lease");
@@ -332,15 +361,16 @@ bool confirmed_retirement(const std::string& key,const identity::Member& member,
     std::lock_guard lock(gate);identity::Scope actual;return active(actual,error)&&registry.retire(actual,key,member,error);
 }
 bool preview_clones(const World& world,const std::vector<std::pair<std::string,identity::Member>>& births,
-    const std::vector<std::pair<std::string,identity::Member>>& retired,ClonePreview& out,Census& census,std::string& error){
+    const std::vector<std::pair<std::string,identity::Member>>& retired,ClonePreview& out,Census& census,std::string& error,const std::vector<GizmoRestore>& restored,const std::string& template_exterior,const scene_clone::Raw* held){
     out={};census={};ClonePreview next;next.scope=scope(world);
     {std::lock_guard lock(gate);identity::Scope current_scope;if(!active(current_scope,error)||current_scope!=next.scope)return fail(error,error.empty()?"Scene clone Gizmo current world differs":error);next.before=registry;next.after=registry;}
     host::ProcessMemory memory;host::LookupApi api;uintptr_t image{};uint32_t thread{};std::string digest;
     if(!native::read_resolver_receipt(image,thread,digest,error)||thread!=GetCurrentThreadId()||digest!=executable||!host::resolve_lookup(memory,image,digest,api,error))return fail(error,error.empty()?"Scene clone Gizmo exact Mainthread lookup absent":error);
     for(const auto& [key,member]:retired){uintptr_t found{};const auto exception=original_find(api.find,member.uid,found);
-        if(exception||found)return fail(error,"Scene clone Gizmo original retirement is incomplete SEH="+std::to_string(exception));
+        if(exception||(scene_clone::held_member(held,member.scene,member.object,member.uid)?found!=member.object:found!=0))return fail(error,"Scene clone Gizmo original retirement is incomplete SEH="+std::to_string(exception));
         if(!next.after.retire(next.scope,key,member,error))return false;}
     for(const auto& [key,member]:births)if(!next.after.append(next.scope,key,member,error))return false;
+    for(const auto& row:restored)if(!next.after.restore_scene(next.scope,row.key,row.before,row.after,template_exterior,error))return false;
     if(!current_census(census,true,error,&next.after)||scope(census.world)!=next.scope)return fail(error,error.empty()?"Scene clone complete Gizmo preview census differs":error);
     next.prepared=true;out=std::move(next);error.clear();return true;
 }

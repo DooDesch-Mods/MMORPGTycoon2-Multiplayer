@@ -1,6 +1,7 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
 #include "npc_quest_daily_apply.h"
+#include "building_uptime.h"
 #include <array>
 #include <climits>
 #include <set>
@@ -16,6 +17,7 @@ struct Row {std::array<Count,2> counts;bool operator==(const Row&)const=default;
 struct Building {
     std::string key,metadata;
     std::vector<Row> rows;
+    building_uptime::Values uptime;
     bool operator==(const Building&)const=default;
 };
 using State=std::vector<Building>;
@@ -24,17 +26,18 @@ inline bool valid(const State& v,std::string& e){
     if(v.size()>65536){e="Service Frame Building bound exceeded";return false;}
     std::string last;for(const auto& b:v){
         if(b.key.empty()||b.key.size()>512||b.key.find('\0')!=std::string::npos||(!last.empty()&&b.key<=last)||!digest(b.metadata)||b.rows.size()>1024){e="Service Frame key/order/metadata/row extent invalid";return false;}last=b.key;
+        if(!building_uptime::valid(b.uptime)){e="Service Frame Building uptime history invalid";return false;}
         for(const auto& r:b.rows)for(const auto& c:r.counts)if(c.history.size()>10){e="Service Frame DailyCount history bound exceeded";return false;}
     }e.clear();return true;
 }
 inline nlohmann::json encode(const State& v){
-    auto out=nlohmann::json::array();for(const auto& b:v){auto rows=nlohmann::json::array();for(const auto& r:b.rows){auto counts=nlohmann::json::array();for(const auto& c:r.counts)counts.push_back({{"today",c.today},{"total",c.total},{"day",c.day},{"highest",c.highest},{"history",c.history},{"warning",c.warning}});rows.push_back(std::move(counts));}out.push_back({{"key",b.key},{"metadata",b.metadata},{"rows",std::move(rows)}});}return out;
+    auto out=nlohmann::json::array();for(const auto& b:v){auto rows=nlohmann::json::array();for(const auto& r:b.rows){auto counts=nlohmann::json::array();for(const auto& c:r.counts)counts.push_back({{"today",c.today},{"total",c.total},{"day",c.day},{"highest",c.highest},{"history",c.history},{"warning",c.warning}});rows.push_back(std::move(counts));}out.push_back({{"key",b.key},{"metadata",b.metadata},{"rows",std::move(rows)},{"uptime",b.uptime}});}return out;
 }
 inline bool decode(const nlohmann::json& j,State& out,std::string& e){
     try{
         const auto number=[](const auto& v){if(!v.is_number_integer()||(v.is_number_unsigned()?v.template get<uint64_t>()>uint64_t(INT32_MAX):v.template get<int64_t>()<INT32_MIN||v.template get<int64_t>()>INT32_MAX))throw std::runtime_error("Service Frame signed int32 required");return v.template get<int32_t>();};
         if(!j.is_array()||j.size()>65536)throw std::runtime_error("Service Frame Building array required");State v;
-        for(const auto& b:j){if(!b.is_object()||b.size()!=3||!b.at("rows").is_array()||b.at("rows").size()>1024)throw std::runtime_error("Service Frame Building shape invalid");Building item;item.key=b.at("key").get<std::string>();item.metadata=b.at("metadata").get<std::string>();
+        for(const auto& b:j){if(!b.is_object()||b.size()!=4||!b.at("uptime").is_array()||b.at("uptime").size()>10||!b.at("rows").is_array()||b.at("rows").size()>1024)throw std::runtime_error("Service Frame Building shape invalid");Building item;item.key=b.at("key").get<std::string>();item.metadata=b.at("metadata").get<std::string>();for(const auto& bit:b.at("uptime"))item.uptime.push_back(number(bit));
             for(const auto& r:b.at("rows")){if(!r.is_array()||r.size()!=2)throw std::runtime_error("Service Frame two counters required");Row row;
                 for(size_t i=0;i<2;++i){const auto& c=r[i];if(!c.is_object()||c.size()!=6||!c.at("history").is_array()||c.at("history").size()>10||!c.at("warning").is_boolean())throw std::runtime_error("Service Frame DailyCount shape invalid");auto& x=row.counts[i];x.today=number(c.at("today"));x.total=number(c.at("total"));x.day=number(c.at("day"));x.highest=number(c.at("highest"));x.warning=c.at("warning").get<bool>();for(const auto& h:c.at("history"))x.history.push_back(number(h));}item.rows.push_back(std::move(row));}v.push_back(std::move(item));}
         if(!valid(v,e))return false;out=std::move(v);e.clear();return true;

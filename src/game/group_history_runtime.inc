@@ -25,14 +25,16 @@ std::vector<group_history::Node> history_values(const std::vector<group_history:
 }
 bool remember_history(Runtime& r,const Operation& op,std::string& e){
     if(history_sources.contains(op.request.action_uuid))return q::fail(e,"Group source history already registered");
-    HistorySource source;
+    HistorySource source;std::string restore_name;
+    auto text=[&](uintptr_t object,std::string& value,std::string& why){return prop_text::text(r,object,value,why);};
+    if(!group_history::restore_name(r.memory,r.image,text,restore_name,e))return false;
     for(const auto* state:{&op.before,&op.after})for(const auto& row:state->local.state.groups){
         const auto handle=state->local.handles.at(row.key);const auto name=state->group_names.find(row.key);
         if(name==state->group_names.end())return q::fail(e,"Group history source original name absent");
         const auto found=source.known.find(handle.uid);
         if(found!=source.known.end()&&(found->second.row.key!=row.key||found->second.name!=name->second))
             return q::fail(e,"Group source changed canonical UID/name");
-        source.known[handle.uid]={handle.uid,row,name->second};
+        source.known[handle.uid]={handle.uid,row,name->second,restore_name};
     }
     std::vector<group_history::LocalNode> nodes;
     if(!history_nodes(r,op.after,op.native.graph,source,nodes,e))return false;
@@ -50,7 +52,7 @@ bool history_identity(Runtime& r,const Sample& before,const Sample& after,const 
         const auto known=source.known.find(h.uid);
         if(old!=before.local.handles.end()){
             if(old->second!=h||before.group_names.at(group.key)!=after.group_names.at(group.key))return q::fail(e,"Group history replaced surviving Group full UID/name");
-        }else if(known==source.known.end()||known->second.row.key!=group.key||known->second.name!=after.group_names.at(group.key))
+        }else if(known==source.known.end()||known->second.row.key!=group.key||known->second.restore_name!=after.group_names.at(group.key))
             return q::fail(e,"Group history recreated foreign Group UID/name");
     }
     for(const auto& group:before.local.state.groups)if(!after.local.handles.contains(group.key)){uintptr_t actual=0;

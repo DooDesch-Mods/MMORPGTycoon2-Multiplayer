@@ -32,14 +32,38 @@ bool read_record(Memory& memory,uintptr_t object,a::CostumeRecord& value,std::st
     auto text=[&](uintptr_t address,std::string& out,std::string& e){return npc_quest_records::read_string(memory,address,0,"Costume authored string",out,e);};
     return costume_record_reader::record(read,text,state.image,object,value,error);
 }
+bool read_categories(Memory& memory,uintptr_t owner,std::vector<std::string>& values,std::string& error){
+    auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};
+    auto text=[&](uintptr_t address,std::string& value,std::string& e){return npc_quest_records::read_string(memory,address,0,"Costume weapon category",value,e);};
+    return costume_weapon_read::categories(read,text,owner+0x38,values,error);
+}
+bool read_weapon_command(Memory& memory,uintptr_t record,a::CostumeWeaponIntent& intent,std::string& error){
+    auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};
+    auto text=[&](uintptr_t address,std::string& value,std::string& e){return npc_quest_records::read_string(memory,address,0,"Costume weapon command string",value,e);};
+    return costume_weapon_read::command(read,text,record,intent.category,intent.enabled,error);
+}
+uint32_t weapon_original(uintptr_t owner,const a::CostumeWeaponIntent& intent,uint32_t& calls,bool& returned)noexcept{
+    const quest_list::QuestTitleView category{intent.category.c_str(),intent.category.size()};
+    __try{++calls;reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+(intent.enabled?0x91060:0x910e0))(reinterpret_cast<void*>(owner+0x38),category);returned=true;return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+uint32_t weapon_dirty(uintptr_t outer)noexcept{__try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x6b1c40)(reinterpret_cast<void*>(outer),true);return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+bool weapon_dirty_readback(Memory& memory,uintptr_t outer,std::string& error){
+    for(size_t offset:{size_t(0x328),size_t(0x330)}){uintptr_t button=0;uint8_t disabled=1;
+        if(!field(memory,outer,offset,button,error))return false;
+        if(button&&(!field(memory,button,0x46d,disabled,error)||disabled))return fail(error,error.empty()?"Costume weapon original dirty-button readback differs":error);}
+    return true;
+}
 a::CharacterRenameIntent owner_intent(const a::CostumeEditIntent& intent){a::CharacterRenameIntent out;out.kind=intent.kind;out.id=intent.id;return out;}
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::CostumeEditIntent& intent,Sample& out,std::string& error){
     out={};const auto owner=owner_intent(intent);if(!character_rename::sample(memory,binding,snapshot,owner,out.character,error))return false;out.value.owner=out.character.value;
     json rows=json::array();std::set<uintptr_t> pointers;bool found=false;
     for(size_t kind=0;kind<5;++kind){const auto& types=out.character.arrays[kind];for(size_t id=0;id<types[1];++id){uintptr_t type=0,object=0;a::CostumeRecord record;
         if(!field(memory,types[0],id*8,type,error)||!field(memory,type,0xf0,object,error)||!object||!pointers.insert(object).second||!read_record(memory,object,record,error))return fail(error,error.empty()?"Costume actual Character-owned record identity differs":error);
-        out.local.push_back({type,object,0});rows.push_back({{"kind",kind},{"id",id},{"record",record_json(record)}});++out.value.count;
-        if(int32_t(kind)==intent.kind&&int32_t(id)==intent.id){found=true;out.costume=object;out.value.record=record;}}}
+        std::vector<std::string> categories;if(!read_categories(memory,type,categories,error))return false;
+        out.local.push_back({type,object,0});rows.push_back({{"kind",kind},{"id",id},{"record",record_json(record)},{"weapon_categories",categories}});++out.value.count;
+        if(int32_t(kind)==intent.kind&&int32_t(id)==intent.id){found=true;out.costume=object;out.value.record=record;out.value.weapon_categories=std::move(categories);}}}
     if(!found)return fail(error,"Costume canonical Character owner absent");return quest_bridge::sha256(rows.dump(),out.value.all_sha256,error);
 }
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& live,uintptr_t& draft,uintptr_t& owner,std::string& error){
@@ -70,14 +94,17 @@ bool same_menu_identity(const Sample& before,const Sample& after){return same_lo
 bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Costume original unavailable");}if(!net::session_wire::connected())return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
-    auto seh=quest_list::label(api.label_equals,record,"Apply",relevant);if(seh){fault=true;return reject("Costume Apply label SEH="+std::to_string(seh));}if(!relevant)return original(receiver,record);
+    auto seh=quest_list::label(api.label_equals,record,"Apply",relevant);if(seh){fault=true;return reject("Costume Apply label SEH="+std::to_string(seh));}
+    bool weapon=false;if(!relevant){seh=quest_list::label(api.label_equals,record,"WeaponCategory",weapon);if(seh){fault=true;return reject("Costume weapon label SEH="+std::to_string(seh));}}if(!relevant&&!weapon)return original(receiver,record);
     if(replaying){if(uintptr_t(receiver)!=replay_receiver||original_calls){fault=true;return reject("Costume original-once receiver/count differs");}++original_calls;return original(receiver,record);}
     const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending||building_status::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))return reject(error.empty()?"Costume capture requires idle bound Mainthread Controller":error);
     uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error)||outer!=uintptr_t(receiver)||!live||!draft)return reject(error.empty()?"Costume captured Window current draft absent":error);
     if(!owner)return original(receiver,record);
     a::CostumeEditIntent intent;if(!field(memory,owner,0x2c,intent.kind,error)||!field(memory,owner,0x30,intent.id,error))return reject(error);
-    Sample before;if(!read_record(memory,draft,intent.record,error)||!sample(memory,binding,snapshot,intent,before,error)||before.costume!=live||before.character.selected!=owner)return reject(error.empty()?"Costume captured owner/draft census differs":error);
+    Sample before;if(!read_record(memory,weapon?live:draft,intent.record,error)||!sample(memory,binding,snapshot,intent,before,error)||before.costume!=live||before.character.selected!=owner)return reject(error.empty()?"Costume captured owner/draft census differs":error);
+    if(weapon){a::CostumeWeaponIntent checkbox;if(!read_weapon_command(memory,uintptr_t(record),checkbox,error))return reject(error);std::vector<std::string> after;if(!a::costume_weapon_after(before.value.weapon_categories,checkbox,after))return reject("Costume weapon checkbox is unchanged");intent.weapon_category=std::move(checkbox);
+        seh=weapon_dirty(outer);if(seh||!weapon_dirty_readback(memory,outer,error)){fault=true;return reject(error.empty()?"Costume weapon original dirty tail SEH="+std::to_string(seh):error);}}
     if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Costume capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Costume capture non-standard exception");}
 }
@@ -115,19 +142,27 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(authority){auto portable=before.value;portable.owner.global_random=authority->costume_edit_before.owner.global_random;if(portable!=authority->costume_edit_before||before.character.money!=authority->before){error="Costume Client actual prior owner/census/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
     const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;error=op.cause=why.empty()?"Costume edit failed without cause":why;return a::Outcome::Unknown;};
-    uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error))return unknown(error);
+    uintptr_t outer=0;
+    if(!intent.weapon_category){
+    uintptr_t live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error))return unknown(error);
     op.prepared=true;auto seh=setup(outer,before.costume,before.character.selected);if(seh)return unknown("Costume original owned draft ReloadCostume SEH="+std::to_string(seh));
     if(!window(memory,outer,live,draft,owner,error)||live!=before.costume||owner!=before.character.selected||!draft)return unknown(error.empty()?"Costume original prepared owner/draft differs":error);
     if(!prepare(draft,intent.record,error))return unknown(error);
     a::CostumeRecord actual;if(!read_record(memory,draft,actual,error)||actual!=intent.record)return unknown(error.empty()?"Costume prepared actual owned draft differs":error);
     Sample prepared;if(!sample(memory,binding,request.snapshot_uuid,intent,prepared,error))return unknown(error);auto portable=prepared.value;portable.owner.global_random=before.value.owner.global_random;
     if(!same_menu_identity(before,prepared)||portable!=before.value)return unknown("Costume owned UI preparation changed live gameplay");
+    }else if(intent.record!=before.value.record)return unknown("Costume weapon intent changed an unrelated live Costume");
     const auto desired_rng=authority?authority->costume_edit_before.owner.global_random:before.value.owner.global_random;op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Costume Host RNG adoption SEH="+std::to_string(seed));
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.before,error)||op.before.value.owner.global_random!=desired_rng)return unknown(error.empty()?"Costume Host RNG readback differs":error);
     op.evidence.before=op.before.character.money;op.evidence.costume_edit_before=op.before.value;
+    if(intent.weapon_category){op.attempted=true;
+        const auto native=weapon_original(op.before.character.selected,*intent.weapon_category,op.calls,op.returned);
+        if(native||!op.returned||op.calls!=1)return unknown("Costume weapon original category setter did not return once SEH="+std::to_string(native));
+    }else{
     a::ui_diagnostic::Api api;a::ui_diagnostic::Window command_window;command_window.window=outer;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);api.command=reinterpret_cast<Command>(state.image+ui_code.rva);api.destroy_label="Apply";
     a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=outer;original_calls=0;const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;replaying=false;replay_receiver=0;
     if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed)return unknown(error.empty()?"Costume original transaction lacks exact once/cleanup receipt":error);
+    }
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::costume_edit_transition(intent,op.before.value,op.after.value))return unknown(error.empty()?"Costume original effect/owner/census/ledger/Undo differs":error);
     op.evidence.after=op.after.character.money;op.evidence.costume_edit_after=op.after.value;if(authority){auto expected=*authority;expected.retirement_confirmed=false;if(op.evidence!=expected)return unknown("Costume Client original result differs from Host");}
     op.confirmed=true;return a::Outcome::Confirmed;

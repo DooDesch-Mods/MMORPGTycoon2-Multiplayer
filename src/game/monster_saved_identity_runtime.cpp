@@ -1,4 +1,5 @@
 #include "monster_saved_identity_runtime.h"
+#include "scenery_scene_identity.h"
 #include "boss_saved_identity_runtime.h"
 #include "network_identity.h"
 #include "direct_monster_identity.h"
@@ -218,7 +219,7 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
                 const auto exception=exact_uid(row.uid,found_uid);
                 if(exception||found_uid!=row.pointer)return reject(error,"Dungeon Monster original full UID registry differs exception="+std::to_string(exception));
                 if(zone)continue;if(proxy)return reject(error,"Dungeon saved direct Monster has a nonnull Zone proxy");
-                direct_monster_identity::Scope scope{world.uuid,world.world_epoch,world.generation,root,region,manager};std::string canonical;
+                direct_monster_identity::Scope scope{world.uuid,world.world_epoch,world.generation,root,region,manager,scene.scene.owner.key};std::string canonical;
                 if(host_active){if(!direct_monster_identity::registry.capture_key(scope,row.pointer,row.uid,record,canonical,error))return reject(error,error);}
                 else if(prepared_present){const auto saved=std::find_if(prepared.rows.begin(),prepared.rows.end(),[&](const auto& value){return value.record==record;});
                     if(saved==prepared.rows.end()||saved->region!=scene.scene.exterior_region)return reject(error,"Monster companion lacks exact Dungeon scene record/owner");canonical=saved->key;
@@ -240,6 +241,13 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
             std::sort(records.dungeon_gizmos.rows.begin(),records.dungeon_gizmos.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
             if(!host_active&&prepared_present&&prepared.dungeon_gizmos.present)records.dungeon_gizmos=prepared.dungeon_gizmos;
         }
+    }
+    if(scene_census){
+        if(host_active){if(!remove_diagnostics::scene_scenery::capture_saved(*scene_census,records.scene_scenery,error))return reject(error,error);}
+        else if(prepared_present&&prepared.scene_scenery.present)records.scene_scenery=prepared.scene_scenery;
+        else {records.scene_scenery.present=true;records.scene_scenery.root_present=true;for(const auto& row:scene_census->scenery_saved)records.scene_scenery.rows.push_back({row.record,row.record});
+            std::sort(records.scene_scenery.rows.begin(),records.scene_scenery.rows.end(),[](const auto& first,const auto& second){return first.record<second.record;});}
+        if(!remove_diagnostics::scene_scenery::prepare_saved(*scene_census,records.scene_scenery,error))return reject(error,error);
     }
     std::sort(records.rows.begin(),records.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
     if(!host_active&&prepared_present&&records.rows!=prepared.rows)return reject(error,"Monster companion complete direct-record set differs");

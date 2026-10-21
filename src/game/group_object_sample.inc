@@ -10,18 +10,19 @@ bool hash(const std::string& text,std::string& out,std::string& e){
     return duplicate_transition::sha(out)||q::fail(e,"Group complete Record SHA256 failed");
 }
 bool sample(Runtime& r,const action::Binding& binding,const action::GroupObjectIntent& intent,Sample& out,std::string& e){
-    out={};if(!duplicate_edit::sample(r,binding,nullptr,{},out.props,e))return false;
+    out={};if(!duplicate_edit::sample_untouched_scenery(r,binding,nullptr,{},out.props,e))return false;
     out.state.ownership=out.props.groups.state;out.state.records.random=out.props.state.random;out.state.records.release=out.props.state.release;
     std::set<std::string> touched(intent.members.begin(),intent.members.end());touched.insert(intent.key);
     auto untouched=json::array();for(const auto& [key,row]:out.props.objects){
         if(touched.contains(key))out.state.records.sources.push_back(row);
         else untouched.push_back(scenery_stroke_state::row(row));
     }
+    duplicate_edit::append_untouched_scenery(out.props,untouched);
     return hash(untouched.dump(),out.state.records.untouched_sha,e);
 }
 bool same_binding(const Sample& before,const Sample& after){return duplicate_edit::same_binding(before.props,after.props);}
 void trim(Sample& value){
-    value.props.census={};value.props.groups={};value.props.handles.clear();value.props.objects.clear();value.props.props.clear();value.props.external_owners.clear();
+    value.props.census={};value.props.groups={};value.props.handles.clear();value.props.objects.clear();value.props.untouched_scenery.clear();value.props.props.clear();value.props.external_owners.clear();
     value.props.state.sources.clear();value.props.state.created.clear();
 }
 bool native_target(Runtime& r,const action::Binding& binding,uintptr_t manager,uintptr_t object,ui::LocalBinding& out,std::string& e){

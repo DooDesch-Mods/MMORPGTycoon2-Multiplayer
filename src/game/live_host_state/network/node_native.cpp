@@ -15,13 +15,14 @@ namespace {
 using Node=connected_network_native::Node;
 using Pipe=connected_network_native::Pipe;
 using Connection=network_topology_native::Connection;
-struct Census {State state;std::vector<Node> nodes;std::vector<Pipe> pipes;std::vector<Connection> connections;};
+struct ManagerLocal {uintptr_t region=0,object=0;int32_t id=-1;bool operator==(const ManagerLocal&)const=default;};
+struct Census {State state;std::vector<ManagerLocal> managers;std::vector<Node> nodes;std::vector<Pipe> pipes;std::vector<Connection> connections;};
 bool fail(std::string& e,const std::string& text){e=text;return false;}
 bool owner(const Node& a,const Node& b){return a.object==b.object&&a.uid==b.uid&&a.manager==b.manager&&a.region==b.region&&a.definition==b.definition&&a.type==b.type&&a.key==b.key&&a.transform==b.transform&&a.definition_values==b.definition_values;}
 bool owner(const Pipe& a,const Pipe& b){return a.object==b.object&&a.uid==b.uid&&a.manager==b.manager&&a.region==b.region&&a.definition==b.definition&&a.start==b.start&&a.end==b.end;}
 bool owner(const Connection& a,const Connection& b){return a.object==b.object&&a.region==b.region&&a.node==b.node&&a.pipe==b.pipe&&a.waypoint==b.waypoint&&a.position==b.position&&a.source_position==b.source_position&&a.connected==b.connected&&a.dynamic[6]==b.dynamic[6];}
 bool same_owners(const Census& a,const Census& b){
-    if(a.state.other_graph_sha256!=b.state.other_graph_sha256||a.nodes.size()!=b.nodes.size()||a.pipes.size()!=b.pipes.size()||a.connections.size()!=b.connections.size())return false;
+    if(a.managers!=b.managers||a.state.other_graph_sha256!=b.state.other_graph_sha256||a.nodes.size()!=b.nodes.size()||a.pipes.size()!=b.pipes.size()||a.connections.size()!=b.connections.size())return false;
     for(size_t i=0;i<a.nodes.size();++i)if(!owner(a.nodes[i],b.nodes[i]))return false;
     for(size_t i=0;i<a.pipes.size();++i)if(!owner(a.pipes[i],b.pipes[i]))return false;
     for(size_t i=0;i<a.connections.size();++i)if(!owner(a.connections[i],b.connections[i]))return false;
@@ -43,6 +44,18 @@ bool once(const Pin& pin,Census& out,std::string& e){
     if(!native_open_runtime::read_current_world(actual,e))return false;
     placement_ui_probe::ProcessMemory memory;connected_network_native::Graph graph;
     if(!connected_network_native::graph(memory,pin.image,uintptr_t(actual.map)+0x1c0,graph,e))return false;
+    namespace nr=network_node_native::read;std::vector<uintptr_t> regions;
+    if(!nr::array(memory,uintptr_t(actual.map),0x358,0x360,0x364,16384,regions,e))return false;
+    std::map<int32_t,std::pair<ManagerLocal,ManagerRow>> managers;
+    for(auto region:regions){uintptr_t shard=0,manager=0,reverse=0;int32_t id=-1;
+        if(!nr::ap(memory,region,pin.image,0x1787930,e)||!nr::at(memory,region,0x70,shard,e)||shard!=uintptr_t(actual.map)+0x1c0||
+           !nr::at(memory,region,0x834,id,e)||id<0||!nr::at(memory,region,0x978,manager,e))return fail(e,e.empty()?"network Manager current root Region differs":e);
+        if(!manager)continue;ManagerRow row;row.region=id;
+        if(!nr::ap(memory,manager,pin.image,0x17141e0,e)||!nr::at(memory,manager,0x168,reverse,e)||reverse!=region||
+           !nr::at(memory,manager,0xe4,row.values,e)||!managers.emplace(id,std::pair{ManagerLocal{region,manager,id},row}).second)
+            return fail(e,e.empty()?"network Manager actual reciprocal owner/RegionID differs":e);
+    }
+    out.state.managers.emplace();for(const auto& [id,manager]:managers){(void)id;out.managers.push_back(manager.first);out.state.managers->push_back(manager.second);}
     auto other=graph.rows;
     for(auto& region:other)for(auto& node:region[2]){node[5]=nullptr;node[6]=nullptr;}
     for(auto& region:other)for(auto& pipe:region[3]){pipe[11]=nullptr;pipe[12]=nullptr;}
@@ -155,6 +168,11 @@ DWORD connection_raw(uintptr_t image,const Connection* connection,size_t field,u
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 
+DWORD manager_raw(uintptr_t object,size_t field,uint32_t before,uint32_t target)noexcept{
+    __try{auto* address=reinterpret_cast<volatile LONG*>(object+0xe4+field*4);
+        return uint32_t(InterlockedCompareExchange(address,LONG(target),LONG(before)))==before?0:ERROR_INVALID_DATA;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
 class Native final:public Port {
     live_host_state::Port& root_;Pin pin_;Census pin_nodes_;bool planned_=false,sampled_=false,scalar_active_=false;
     ScalarMembership scalar_members_;std::vector<std::pair<bool,size_t>> scalar_parents_;
@@ -224,6 +242,8 @@ public:
         if(!root_.read(pin_,e)||pin_.context.role!=action_session::Role::Client||pin_.selected!=0)return fail(e,e.empty()?"network stores require actual Client Clock0":e);
         if(!network::read(pin_,pin_nodes_,e)||pin_nodes_.state!=before)return fail(e,e.empty()?"network actual expected-before changed":e);
         if(before.other_graph_sha256!=target.other_graph_sha256||before.nodes.size()!=target.nodes.size()||before.pipes.size()!=target.pipes.size()||before.connections.size()!=target.connections.size())return fail(e,"network complete non-Node graph differs");
+        if(before.managers.has_value()!=target.managers.has_value()||(before.managers&&before.managers->size()!=target.managers->size()))return fail(e,"network complete Manager membership differs");
+        if(before.managers)for(size_t i=0;i<before.managers->size();++i)if((*before.managers)[i].region!=(*target.managers)[i].region)return fail(e,"network Manager RegionID differs before native stores");
         placement_ui_probe::ProcessMemory memory;unsigned char bytes[8]{};
         constexpr unsigned char expected[]={0xc6,0x81,0x70,0x01,0,0,0x01,0xc3};
         if(!memory.copy(pin_.image+0x2a4fc0,bytes,sizeof bytes,e)||std::memcmp(bytes,expected,sizeof bytes))return fail(e,e.empty()?"network native bandwidth notification bytes differ":e);
@@ -287,6 +307,12 @@ public:
         const auto code=connection_raw(pin_.image,&pin_nodes_.connections[index],field,before,target);
         return !code||fail(e,"network connection native compare/SEH code="+std::to_string(code));
     }
+    bool store_manager(size_t index,size_t field,uint32_t before,uint32_t target,std::string& e)override{
+        end_scalar_stores();if(!planned_||index>=pin_nodes_.managers.size()||field>=2)return fail(e,"network Manager current scalar plan absent");
+        Census actual;if(!current(actual,e))return false;const auto& owner=pin_nodes_.managers[index];
+        if(!scalar_region(owner.region,owner.object,owner.id,e)||!actual.state.managers||(*actual.state.managers)[index].values[field]!=before)return fail(e,e.empty()?"network Manager scalar expected value changed":e);
+        const auto code=manager_raw(owner.object,field,before,target);return !code||fail(e,"network Manager scalar compare/SEH code="+std::to_string(code));
+    }
     bool notify_supply(size_t node,std::string& e)override{
         end_scalar_stores();
         if(!planned_||node>=pin_nodes_.nodes.size())return fail(e,"network notification plan absent");
@@ -296,6 +322,7 @@ public:
     }
 };
 }
+bool read_action105_effect(const Pin& pin,State& out,std::string& e){Census nodes;if(!read(pin,nodes,e)||!valid_action105_effect(nodes.state,e))return false;out=std::move(nodes.state);return true;}
 bool read_native(const Pin& pin,State& out,std::string& e){Census nodes;if(!read(pin,nodes,e)||!valid(nodes.state,e))return false;out=std::move(nodes.state);return true;}
 bool preflight_native(live_host_state::Port& root,const State& target,std::string& e){
     Native port(root);State before;if(!valid(target,e)||!port.read(before,e)||!valid(before,e))return false;if(auto unchanged=port.confirm_no_effect(before,target)){e=unchanged->cause;return unchanged->confirmed;}return port.preflight(before,target,e);

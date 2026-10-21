@@ -17,7 +17,18 @@ shared = '''
             if(!control_input::runtime::verify_item_activate(state.image,c.size,c.sha,owned,e))return false;
             if(owned)continue;
         }'''
-assert monster.count(shared)==1 and monster.replace(shared,"")==original
+dungeon_input_include = '#include "dungeon_input_runtime.inc"\n'
+assert monster.count(dungeon_input_include) == 1
+import_include = '#include "character_import_runtime.inc"\n'
+assert monster.count('#include "ability_edit_runtime.inc"\n' + import_include + '#include "ability_membership_runtime.inc"\n') == 1
+assert monster.count(import_include) == 1
+assert hashlib.sha256((args.source / "src/game/character_import_runtime.inc").read_bytes()).hexdigest() == "27d37f92590ca35944e19ca81b753c6bb1befad1021dbce648f804f76d50e363", "Character Import admitted implementation differs"
+comparison = monster.replace(import_include, '', 1)
+for admitted in json.loads((root / "monster_edit_delta.json").read_text(encoding="utf-8")):
+    assert comparison.count(admitted["after"]) == 1, "exact Monster edit delta differs"
+    comparison = comparison.replace(admitted["after"], admitted["before"], 1)
+comparison = comparison.replace(dungeon_input_include, '', 1)
+assert comparison.count(shared)==1 and comparison.replace(shared,"")==original
 route = control[control.index("bool verify_route("):control.index("bool routes(")]
 provider_start = control.index("bool verify_item_activate(")
 provider_end = control.find("bool verify_clock_time_scale(", provider_start)
@@ -37,4 +48,4 @@ inputs = {"source":str(args.source),"original_shared_sha":pins[0],"bytes":128,
         args.source / "src/game/control_input/control_runtime.cpp",args.source / "src/game/monster_action_runtime.inc",
         base / "release_ui_owner.h",root / "test_shared_itemactivate.cpp")]}
 (args.output / "inputs.json").write_text(json.dumps(inputs,indent=2)+"\n",encoding="utf-8")
-print("PASS shared pin equality, unchanged unrelated Monster checks, shared production verifier reuse; fixture extracted")
+print("PASS shared pin equality, exact Dungeon input include admitted, unchanged Monster checks and shared production verifier reuse; fixture extracted")

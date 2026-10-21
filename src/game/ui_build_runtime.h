@@ -12,5 +12,6 @@ bool enabled() noexcept;
 bool validate_scenery_ui_routes(uintptr_t image,uint32_t thread,std::string&);
 nlohmann::json status();
 bool place(const action_session::Request&,action_session::BuildingState&,nlohmann::json&,std::string&);
+bool complete_dungeon_local_ui(const action_session::Request&,uintptr_t,uint64_t,std::string&);
 bool can_reclaim_global_minhook(std::string&);
 }

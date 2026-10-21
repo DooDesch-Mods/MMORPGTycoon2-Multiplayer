@@ -5,6 +5,7 @@
 #include "path_history_graph.h"
 #include "mixed_path_state.h"
 #include "mixed_path_identity.h"
+#include "mixed_path_remove.h"
 #include "wall_pass_cursor.h"
 #include "wall_private_lifecycle.h"
 #include "wall_private_codes.h"
@@ -19,6 +20,7 @@ bool pending();
 bool wall_purchase(ui_region_runtime::Runtime&,int32_t,float,const void*,uintptr_t,std::string&);
 bool wall_replay_purchase(ui_region_runtime::Runtime&,int32_t,float,const void*,std::string&);
 void rejected(const std::string&);
+bool capture_remove(ui_region_runtime::Runtime&,uintptr_t,bool&,std::string&);
 }
 namespace {
 namespace action=action_session;
@@ -212,6 +214,8 @@ void press_entry(void* receiver,void* cursor,const void* point) {
 #include "world_path_sample.inc"
 #include "world_path_capture.inc"
 #include "world_path_wall_native.inc"
+#include "world_path_remove.inc"
+#include "world_path_remove_ui.inc"
 #include "world_path_replay.inc"
 #include "path_delete_execution.inc"
 #include "path_execution.inc"

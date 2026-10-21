@@ -141,6 +141,8 @@ public:
     virtual bool store_need(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string& e){e="native Subscriber Needs CAS unavailable";return false;}
     virtual bool store_next_id(const Owners&,int32_t,std::string& e){e="native Subscriber nextID store unavailable";return false;}
     virtual bool store_subscriber(const Owners&,size_t owner,size_t field,int32_t before,int32_t after,std::string&)=0;
+    virtual bool retire_loan(const Owners&,size_t,Receipt& receipt,std::string& e){receipt={};e="native Loan retirement unavailable";return false;}
+    virtual bool refresh_loan_offers(const Owners&,Receipt& receipt,std::string& e){receipt={};e="native Loan Offer refresh unavailable";return false;}
     virtual bool store_loan(const Owners&,size_t owner,size_t field,int32_t before,int32_t after,std::string&)=0;
 };
 bool valid(const State&,std::string&);

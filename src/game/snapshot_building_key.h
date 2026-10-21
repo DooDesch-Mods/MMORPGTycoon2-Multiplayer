@@ -23,7 +23,20 @@ inline bool valid(std::string_view value) {
     if (!suffix.starts_with(prefix) || !suffix.ends_with(']')) return false;
     const auto split = suffix.find(middle, prefix.size());
     if (split == std::string_view::npos) return false;
-    return number(suffix.substr(prefix.size(), split - prefix.size()), INT32_MAX, false) &&
-        number(suffix.substr(split + middle.size(), suffix.size() - split - middle.size() - 1), INT32_MAX, false);
+    if(!number(suffix.substr(prefix.size(), split-prefix.size()),INT32_MAX,false))return false;
+    auto children=suffix.substr(split+middle.size());
+    const auto parent_end=children.find(']');
+    if(parent_end==std::string_view::npos||!number(children.substr(0,parent_end),INT32_MAX,false))return false;
+    children.remove_prefix(parent_end+1);
+    if(children.empty())return true;
+    constexpr std::string_view child_array="/buildingManager/building[";
+    if(children.starts_with("/template"))children.remove_prefix(9);
+    else if(children.starts_with("/instance[")){
+        children.remove_prefix(10);const auto end=children.find(']');
+        if(end==std::string_view::npos||!number(children.substr(0,end),INT32_MAX,false))return false;
+        children.remove_prefix(end+1);
+    }else return false;
+    return children.starts_with(child_array)&&children.ends_with(']')&&
+        number(children.substr(child_array.size(),children.size()-child_array.size()-1),INT32_MAX,false);
 }
 }

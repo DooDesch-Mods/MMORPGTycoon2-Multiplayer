@@ -1,4 +1,6 @@
 #include "mt2mp/hooks/minhook_backend.h"
+#include "subscriber_lifecycle/append_calls.h"
+#include "subscriber_lifecycle/native_codes.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstring>
@@ -38,6 +40,7 @@ struct Fake {
     uint32_t verified_offset=0,verified_length=0;
     const void* verified_bytes=nullptr;
     std::string verified_name;
+    std::vector<unsigned char> required_code;
     static MT2FW_MT2_RouteReceipt initial(uintptr_t rva) {
         MT2FW_MT2_RouteReceipt value{};value.size=sizeof value;value.rva=rva;value.entry=image+rva;
         copy(value.game_sha256,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6");return value;
@@ -96,7 +99,7 @@ struct Fake {
     static MT2FW_MT2_Result MT2FW_CALL verify(void* context,const char* name,uint32_t offset,const void* expected,uint32_t length,MT2FW_MT2_RouteReceipt* out) {
         auto& self=*static_cast<Fake*>(context);self.calls.push_back(std::string("verify:")+name);
         self.verified_name=name;self.verified_offset=offset;self.verified_length=length;self.verified_bytes=expected;
-        *out=self.routes.at(name);if(self.fail_verify){copy(out->cause,"pristine or live bytes differ");return MT2FW_MT2_FAILED;}return MT2FW_MT2_OK;
+        *out=self.routes.at(name);if(self.fail_verify||(!self.required_code.empty()&&(offset!=0||length!=self.required_code.size()||!expected||std::memcmp(expected,self.required_code.data(),length)))){copy(out->cause,"pristine or live bytes differ");return MT2FW_MT2_FAILED;}return MT2FW_MT2_OK;
     }
     size_t count(const char* prefix)const {
         return static_cast<size_t>(std::count_if(calls.begin(),calls.end(),[&](const auto& call){return call.starts_with(prefix);}));
@@ -203,6 +206,72 @@ void monster_named_admission(uintptr_t monster,const char* name) {
     CHECK(rejected.error().find("prepare failed before ownership")!=std::string::npos);
     CHECK(rejected.enable(address(monster))==MH_UNKNOWN&&broken.count("prepare:")==1&&broken.count("enable:")==0);
 }
+
+void subscriber_append_owned_code(Fake& fake,Backend& backend) {
+    namespace append=mt2mp::subscriber_lifecycle::first_append;
+    struct CodeMemory final:mt2mp::subscriber_lifecycle::Memory {
+        std::map<uintptr_t,std::array<unsigned char,16>> bytes;
+        uintptr_t unreadable=0;
+        CodeMemory(){for(const auto& row:append::native_codes)bytes.emplace(image+row.rva,row.bytes);}
+        bool read(uintptr_t entry,void* out,size_t length,std::string& error)override{
+            if(entry==unreadable){error="exact code read failed";return false;}
+            const auto found=bytes.find(entry);
+            if(found==bytes.end()||length!=found->second.size()){error="unexpected code read";return false;}
+            std::memcpy(out,found->second.data(),length);return true;
+        }
+    } memory;
+    constexpr auto lookup=mt2mp::subscriber_lifecycle::lookup_rva;
+    constexpr char name[]="mp.subscriber-context-lookup.89e0f0";
+    append::AppendApi result;std::string error;
+    const auto before=fake.count("verify:");
+    CHECK(append::resolve_append_api(memory,image,result,error));CHECK(result.context_construct&&result.records.allocate);
+    CHECK(fake.count("verify:")==before);
+    const auto pristine=memory.bytes.at(image+lookup);
+    fake.required_code.assign(pristine.begin(),pristine.end());
+    memory.bytes.at(image+lookup)[0]^=0xff;
+    fake.fail_verify=true;
+    CHECK(!append::resolve_append_api(memory,image,result,error));CHECK(!result.context_construct&&!result.records.allocate);
+    CHECK(error.find("Subscriber append native code mismatch RVA=9036016")!=std::string::npos);
+    CHECK(error.find("pristine or live bytes differ")!=std::string::npos);
+    fake.fail_verify=false;
+    void* original=nullptr;
+    CHECK(backend.create(address(lookup),detour(),&original)==MH_OK);
+    CHECK(backend.enable(address(lookup))==MH_OK);
+    CHECK(append::resolve_append_api(memory,image,result,error));CHECK(error.empty());
+    CHECK(reinterpret_cast<uintptr_t>(result.context_construct)==image+0x89e940);
+    CHECK(reinterpret_cast<uintptr_t>(result.calls.array_load)==image+mt2mp::subscriber_lifecycle::array_load_rva);
+    CHECK(fake.verified_name==name&&fake.verified_offset==0&&fake.verified_length==16);
+    const auto saved=fake.routes.at(name);
+    for(unsigned mode=0;mode<7;++mode){
+        auto& route=fake.routes.at(name);route=saved;
+        if(mode==0)copy(route.owner,"foreign.plugin");
+        if(mode==1)++route.generation;
+        if(mode==2)++route.detour;
+        if(mode==3)++route.trampoline;
+        if(mode==4)route.state=MT2FW_MT2_ROUTE_UNKNOWN;
+        if(mode==5)route.game_sha256[0]='0';
+        if(mode==6)++route.entry;
+        CHECK(!append::resolve_append_api(memory,image,result,error));CHECK(!result.context_construct&&!result.records.allocate);
+        CHECK(error.find("Framework pristine/live code verification failed or receipt differs")!=std::string::npos);
+    }
+    fake.routes.at(name)=saved;
+    fake.required_code[15]^=1;
+    CHECK(!append::resolve_append_api(memory,image,result,error));CHECK(!result.context_construct&&!result.records.allocate);
+    CHECK(error.find("pristine or live bytes differ")!=std::string::npos);
+    fake.required_code.assign(pristine.begin(),pristine.end());
+    memory.unreadable=image+lookup;const auto reads=fake.count("verify:");
+    CHECK(!append::resolve_append_api(memory,image,result,error));CHECK(error=="exact code read failed");
+    CHECK(fake.count("verify:")==reads&&!result.context_construct&&!result.records.allocate);memory.unreadable=0;
+    for(const auto& row:append::native_codes)if(row.rva!=lookup){
+        CodeMemory changed;changed.bytes.at(image+row.rva)[0]^=1;
+        const auto calls=fake.count("verify:");
+        CHECK(!append::resolve_append_api(changed,image,result,error));CHECK(!result.context_construct&&!result.records.allocate);
+        CHECK(error=="Subscriber append native code mismatch RVA="+std::to_string(row.rva));CHECK(fake.count("verify:")==calls);
+    }
+    CHECK(append::resolve_append_api(memory,image,result,error));CHECK(error.empty());
+    CHECK(backend.remove(address(lookup))==MH_OK);fake.required_code.clear();fake.calls.clear();fake.logs.clear();
+}
+
 void admission_and_shim() {
     Backend missing;CHECK(missing.initialize()==MH_ERROR_NOT_INITIALIZED);CHECK(!missing.error().empty());
     Fake invalid;auto api=invalid.api();api.code_verify=nullptr;
@@ -210,6 +279,7 @@ void admission_and_shim() {
     Fake fake;Backend backend;CHECK(fake.bind(backend));CHECK(!fake.bind(backend));
     auto result=MH_OK;std::thread worker([&]{result=backend.initialize();});worker.join();CHECK(result==MH_ERROR_NOT_INITIALIZED);CHECK(fake.calls.empty());
     Fake global;auto& process=mt2mp::hooks::framework::process_backend();CHECK(global.bind(process));
+    subscriber_append_owned_code(global,process);
     CHECK(MH_Initialize()==MH_OK);void* original=nullptr;global.published=&original;
     CHECK(MH_CreateHook(address(first),detour(),&original)==MH_OK);CHECK(MH_EnableHook(MH_ALL_HOOKS)==MH_OK);CHECK(global.publication_seen);
     CHECK(MH_DisableHook(MH_ALL_HOOKS)==MH_ERROR_UNSUPPORTED_FUNCTION);CHECK(MH_Uninitialize()==MH_UNKNOWN);
@@ -222,7 +292,7 @@ int main() {
     try{publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
         monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
         monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");
-        monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");admission_and_shim();
+        monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");monster_named_admission(0x859e30,"mp.building-uptime-add.859e30");admission_and_shim();
         std::printf("framework_hook_backend: %u checks passed\n",checks);return 0;}
     catch(const std::exception& error){std::fprintf(stderr,"framework_hook_backend failed: %s\n",error.what());return 1;}
 }

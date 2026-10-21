@@ -18,6 +18,8 @@ Receipt apply(Port& port,const State& target){
                 r.cause="network actual pipe key/current shape differs";return r;}
         }
         for(size_t i=0;i<before.connections.size();++i)if(before.connections[i].key!=target.connections[i].key){r.cause="network connection owner/rank differs";return r;}
+        if(before.managers.has_value()!=target.managers.has_value()||(before.managers&&before.managers->size()!=target.managers->size())){r.cause="network complete Manager membership differs";return r;}
+        if(before.managers)for(size_t i=0;i<before.managers->size();++i)if((*before.managers)[i].region!=(*target.managers)[i].region){r.cause="network Manager RegionID differs before stores";return r;}
         if(!port.preflight(before,target,r.cause))return r;
         r.activations.reserve(before.nodes.size());
         for(size_t i=0;i<before.nodes.size();++i)if(!before.nodes[i].flags[2]&&target.nodes[i].flags[2]){
@@ -41,6 +43,8 @@ Receipt apply(Port& port,const State& target){
             }
             for(size_t k=0;k<fresh.connections.size();++k)if(fresh.connections[k].key!=before.connections[k].key){
                 r.unknown=true;r.cause="network post-event connection membership changed";return r;}
+            if(fresh.managers.has_value()!=before.managers.has_value()||(fresh.managers&&fresh.managers->size()!=before.managers->size())){r.unknown=true;r.cause="network post-event Manager membership changed";return r;}
+            if(fresh.managers)for(size_t k=0;k<fresh.managers->size();++k)if((*fresh.managers)[k].region!=(*before.managers)[k].region){r.unknown=true;r.cause="network post-event Manager RegionID changed";return r;}
             // Original listeners ran synchronously; their scalar results are the next expected values.
             before=std::move(fresh);
         }
@@ -84,6 +88,9 @@ Receipt apply(Port& port,const State& target){
             ++r.connection_stores;
         }
         }
+        if(before.managers)for(size_t i=0;i<before.managers->size();++i)for(size_t field=0;field<2;++field){
+            const auto old=(*before.managers)[i].values[field],value=(*target.managers)[i].values[field];if(old==value)continue;
+            r.attempted=true;++r.attempted_stores;if(!port.store_manager(i,field,old,value,r.cause)){r.unknown=true;r.cause="network Manager scalar Unknown RegionID="+std::to_string((*target.managers)[i].region)+" field="+std::to_string(field)+" original="+r.cause;return r;}++r.completed_stores;}
         State actual;if(!port.read(actual,r.cause)||actual!=target){r.unknown=r.attempted;if(r.cause.empty())r.cause="network complete native readback differs";return r;}
         r.actual=std::move(actual);r.actual_present=true;r.confirmed=true;return r;
     }catch(const std::exception& x){r.cause=std::string("network apply exception original=")+x.what();r.unknown=r.attempted;return r;}

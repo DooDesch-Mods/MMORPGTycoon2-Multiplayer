@@ -27,17 +27,48 @@ bool census(const opened::CurrentWorld& world,int32_t id,uintptr_t& region,npc_c
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
     return region_saved_identity::resolve(image,map,map+0x1c0,id,0,region,at,error)&&npc_census::read(memory,image,region,out,error);
 }
+template<class Find>
+bool scene_census(const opened::CurrentWorld& world,const child::Parent& parent,Find& find,
+                  owner::Scope& scope,npc_census::State& out,std::string& error){
+    auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+    const auto root=[&](int32_t id,uintptr_t& region,std::string& cause){
+        const auto map=reinterpret_cast<uintptr_t>(world.map);
+        return region_saved_identity::resolve(image,map,map+0x1c0,id,0,region,at,cause);};
+    const auto scenes=[&](std::vector<dungeon_scene_roster::Scene>& rows,std::string& cause){
+        dungeon_scene_identity_runtime::World current_world;
+        if(!dungeon_scene_identity_runtime::read_scene_roster(current_world,rows,cause))return false;
+        return (current_world.uuid==world.uuid&&current_world.sha256==world.sha256&&current_world.generation==world.generation&&
+            current_world.world_epoch==world.world_epoch&&current_world.world==world.world&&current_world.map==world.map)||
+            q::fail(cause,"Building child NPC complete scene roster World differs");};
+    const auto held=[&](uintptr_t object,std::string& key,bool& matched,std::string& cause,std::string* scene){
+        return typed_action_runtime::resolve_held_dungeon_destination(object,key,matched,cause,scene);};
+    if(!owner::scope(at,root,scenes,held,find,image,reinterpret_cast<uintptr_t>(world.map)+0x1c0,parent,scope,error))return false;
+    return npc_census::read(memory,image,scope.region,out,error);
+}
+template<class Find>
+bool retirement_census(const opened::CurrentWorld& world,const child::Receipt& before,Find& find,
+                       owner::Scope& scope,npc_census::State& rows,std::string& error){
+    if(before.parent.scene=="world")return scene_census(world,before.parent,find,scope,rows,error);
+    auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+    std::vector<dungeon_scene_roster::Scene> scenes;dungeon_scene_identity_runtime::World current_world;
+    if(!dungeon_scene_identity_runtime::read_scene_roster(current_world,scenes,error))return false;
+    if(current_world.uuid!=world.uuid||current_world.sha256!=world.sha256||current_world.generation!=world.generation||
+       current_world.world_epoch!=world.world_epoch||current_world.world!=world.world||current_world.map!=world.map)
+        return q::fail(error,"Building child NPC retirement scene roster World differs");
+    if(!owner::retirement_scope(at,scenes,image,before,scope,error))return false;
+    return npc_census::read(memory,image,scope.region,rows,error);
+}
 bool read(const child::Lease& expected,const child::Parent& parent,opened::CurrentWorld& world,
           npc_census::State& rows,npc_census::Row& row,bool& present,Lookup& find,std::string& error){
-    uintptr_t region=0;if(!lease(expected,world,error)||!find.initialize(error)||!census(world,parent.saved_region,region,rows,error))return false;
+    owner::Scope scope;if(!lease(expected,world,error)||!find.initialize(error)||!scene_census(world,parent,find,scope,rows,error))return false;
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
-    return owner::read(at,find,{image,reinterpret_cast<uintptr_t>(world.map)+0x1c0,region},parent,rows,row,present,error);
+    return owner::read(at,find,scope,parent,rows,row,present,error);
 }
 bool same_lease(const child::Lease& a,const child::Lease& b){
     return a.snapshot==b.snapshot&&a.duplicate_uuid==b.duplicate_uuid&&a.epoch==b.epoch&&a.generation==b.generation;
 }
 bool same_before(const child::Receipt& a,const child::Receipt& b){
-    if(a.parent.object!=b.parent.object||a.parent.uid!=b.parent.uid||a.parent.saved_region!=b.parent.saved_region||
+    if(a.parent.object!=b.parent.object||a.parent.uid!=b.parent.uid||a.parent.saved_region!=b.parent.saved_region||a.parent.scene!=b.parent.scene||
        a.original_record_sha!=b.original_record_sha||a.original_character_uid!=b.original_character_uid||
        a.original_shard!=b.original_shard||a.original_region!=b.original_region||a.original_transform!=b.original_transform||
        a.original_display_name!=b.original_display_name||a.original_quests.records!=b.original_quests.records||
@@ -130,7 +161,8 @@ bool witness(const opened::CurrentWorld& world,const child::OwnerResolver& exter
         (!retained->deleted||q::fail(error,"Building child NPC Character definition retired during capture"));
 }
 bool select_key(const child::Parent& parent,const npc_census::Row& row,std::string& key,std::string& error){
-    key.clear();const auto saved=pools.find(parent.saved_region);
+    key.clear();if(parent.scene!="world"){key=building_npc_key::make(parent.key);return building_npc_key::valid(key)||q::fail(error,"Building child NPC scene parent key invalid");}
+    const auto saved=pools.find(parent.saved_region);
     if(saved==pools.end())return q::fail(error,"Building child NPC Region has no complete snapshot pool");
     for(const auto& record:saved->second.pool.records)if(record.pointer==row.local_pointer||record.uid==row.local_uid){
         if(record.pointer!=row.local_pointer||record.uid!=row.local_uid||record.type!=row.type)
@@ -150,7 +182,7 @@ bool capture(const child::Lease& expected,const child::Parent& parent,const chil
     if(present){next.child.saved_region=parent.saved_region;next.child.row=row;
         if(!select_key(parent,row,next.child.key,error))return false;}
     if(!birth&&old!=building_children.end()){
-        if(old->second.retired||!same_lease(expected,old->second.receipt.lease)||old->second.receipt.present!=present||
+        if(old->second.retired||old->second.history_detached||!same_lease(expected,old->second.receipt.lease)||old->second.receipt.present!=present||
            (present&&(old->second.receipt.child.key!=next.child.key||old->second.receipt.child.row.local_pointer!=row.local_pointer||
                       old->second.receipt.child.row.local_uid!=row.local_uid)))return q::fail(error,"Building child NPC before receipt differs from retained current alias");
     }
@@ -164,7 +196,7 @@ template<class Find>
 bool append(int32_t id,uintptr_t region,const npc_census::State& census_rows,Find& find,std::vector<Current>& rows,std::string& error){
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
     for(const auto& [key,bound]:building_children){(void)key;const auto& receipt=bound.receipt;
-        if(bound.retired||!receipt.present||receipt.parent.saved_region!=id)continue;
+        if(bound.retired||!receipt.present||receipt.parent.scene!="world"||receipt.parent.saved_region!=id)continue;
         uintptr_t registered=0;if(!find(receipt.child.row.local_uid,registered,error))return false;
         if(!registered){
             if(!owner::absent(find,census_rows,receipt.child.row,error))return false;
@@ -172,7 +204,23 @@ bool append(int32_t id,uintptr_t region,const npc_census::State& census_rows,Fin
         }
         if(registered!=receipt.child.row.local_pointer)return q::fail(error,"Building child NPC current alias requires an explicit original restoration receipt");
         npc_census::Row row;bool present=false;
-        if(!owner::read(at,find,{image,reinterpret_cast<uintptr_t>(origin.map)+0x1c0,region},receipt.parent,census_rows,row,present,error))return false;
+        if(bound.history_detached){
+            uintptr_t parent_registered=0,parent_ap=0,parent_region=0,parent_root=0;uint64_t parent_uid=0,parent_child=0;
+            if(!find(receipt.parent.uid,parent_registered,error)||parent_registered!=receipt.parent.object||
+               !at(parent_registered,0,parent_ap,error)||parent_ap!=image+0x16d93c0||
+               !at(parent_registered,0x18,parent_uid,error)||parent_uid!=receipt.parent.uid||
+               !at(parent_registered,0x170,parent_root,error)||parent_root!=reinterpret_cast<uintptr_t>(origin.map)+0x1c0||
+               !at(parent_registered,0x178,parent_region,error)||parent_region!=region||
+               !at(parent_registered,0xa30,parent_child,error)||(parent_child&&parent_child!=receipt.child.row.local_uid))
+                return q::fail(error,error.empty()?"NPC history retained detached Building source changed":error);
+            for(const auto& candidate:census_rows.rows){uintptr_t actual_owner=0;
+                if(!at(candidate.local_pointer,0x268,actual_owner,error))return false;
+                if(candidate.local_uid==receipt.child.row.local_uid){
+                    if(present||candidate.local_pointer!=registered||actual_owner)return q::fail(error,"NPC history detached current owner/full UID differs");
+                    row=candidate;present=true;
+                }else if(actual_owner==receipt.parent.object)return q::fail(error,"NPC history detached alias has a conflicting Building child");
+            }
+        }else if(!owner::read(at,find,{image,reinterpret_cast<uintptr_t>(origin.map)+0x1c0,region},receipt.parent,census_rows,row,present,error))return false;
         if(!present||row.local_pointer!=receipt.child.row.local_pointer||row.local_uid!=receipt.child.row.local_uid)
             return q::fail(error,"Building child NPC retained active alias no longer matches its complete current owner");
         bool found=false;for(const auto& existing:rows)if(existing.key==receipt.child.key||existing.row.local_pointer==row.local_pointer||existing.row.local_uid==row.local_uid){
@@ -180,6 +228,28 @@ bool append(int32_t id,uintptr_t region,const npc_census::State& census_rows,Fin
                 return q::fail(error,"Building child NPC active alias collides with a current saved member");found=true;
         }
         if(!found)rows.push_back({receipt.child.key,id,row});
+    }return true;
+}
+template<class Find>
+bool append_scenes(const opened::CurrentWorld& world,Find& find,std::vector<Current>& output,std::string& error){
+    for(const auto& [key,bound]:building_children){(void)key;const auto& receipt=bound.receipt;
+        if(bound.retired||!receipt.present||receipt.parent.scene=="world")continue;
+        owner::Scope scope;npc_census::State rows;
+        uintptr_t registered=0;if(!find(receipt.child.row.local_uid,registered,error))return false;
+        if(!registered){
+            if(!retirement_census(world,receipt,find,scope,rows,error)||!owner::absent(find,rows,receipt.child.row,error))return false;
+            continue;
+        }
+        if(!scene_census(world,receipt.parent,find,scope,rows,error))return false;
+        if(registered!=receipt.child.row.local_pointer)return q::fail(error,"Building child NPC scene alias requires explicit original restoration");
+        npc_census::Row row;bool present=false;
+        auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+        if(!owner::read(at,find,scope,receipt.parent,rows,row,present,error))return false;
+        if(!present||row.local_pointer!=receipt.child.row.local_pointer||row.local_uid!=receipt.child.row.local_uid)
+            return q::fail(error,"Building child NPC complete retained scene alias changed without original restoration");
+        for(const auto& current:output)if(current.key==receipt.child.key||current.row.local_pointer==row.local_pointer||current.row.local_uid==row.local_uid)
+            return q::fail(error,"Building child NPC scene alias collides with another current owner");
+        output.push_back({receipt.child.key,receipt.parent.saved_region,row,scope.root,scope.region,receipt.parent.scene});
     }return true;
 }
 }

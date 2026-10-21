@@ -1,6 +1,9 @@
 #include "typed_action/action_session.h"
 #include "remove_diagnostics.h"
 #include "prop_text_dungeon.h"
+#include "dungeon_gizmo_identity.h"
+#include "npc_quest_targets.h"
+#include <memory>
 namespace prop_text_dungeon=mt2mp::game::prop_text_dungeon;
 #include <atomic>
 #include <cstring>
@@ -77,6 +80,8 @@ struct Pending {action::Binding binding;std::string snapshot,key;action::PropTex
 struct Operation {
     action::Binding binding;action::Request request;remove_diagnostics::LocalTarget target;
     action::Evidence evidence;witness::UndoWitness undo;prop_text_dungeon::Owners dungeon_owners{};
+    std::optional<mt2mp::game::dungeon_gizmo_identity::Member> gizmo;
+    std::array<uint64_t,4> gizmo_random{};
     bool attempted=false,returned=false,confirmed=false,retired=false;std::string cause;
 };
 std::optional<Pending> captured;std::map<std::string,Operation> operations;uint64_t captures=0;
@@ -105,6 +110,7 @@ uint32_t invoke(Runtime&,const action::PropTextIntent& intent,const remove_diagn
     if(intent.kind==action::PropTextKind::Name){fixture_name=intent.text;if(fixture_dungeon){fixture_dungeon_name=intent.text;if(!fixture_skip_region)fixture_region_name=intent.text;}}else fixture_description=intent.text;
     strings();if(fixture_corrupt)++fixture_money.cash;returned=fixture_exception==0;return fixture_exception;
 }
+#include "gizmo_prop_text_native_ports.inc"
 #include "prop_text_perform_actual.inc"
 action::Request request(){
     action::Request r;r.action=action::Action::EditPropText;r.action_uuid="11111111-1111-4111-8111-111111111111";
@@ -121,6 +127,7 @@ void reset(){
     fixture_lookup=fixture_window=true;fixture_dungeon=fixture_skip_region=false;fixture_dungeon_name="Dungeon old";fixture_region_name="Region old";fixture_calls=0;fixture_exception=0;fixture_corrupt=false;Config::instance().is_host=true;
     witness::fixture_undo={};operations.clear();captured.reset();captures=0;strings();
 }
+#include "gizmo_prop_text_native_cases.inc"
 int main(){try{unsigned count=0;std::string e;auto r=request();
     reset();need(capture(fixture_runtime,fixture_target.object,r.prop_text,e),e);need(captured&&captures==1&&fixture_calls==0,"capture must suppress setter");++count;
     reset();auto noop=r.prop_text;noop.text=fixture_name;need(capture(fixture_runtime,fixture_target.object,noop,e)&&!captured,"unchanged notification queues no action");++count;
@@ -144,5 +151,6 @@ int main(){try{unsigned count=0;std::string e;auto r=request();
     reset();fixture_dungeon=true;strings();fixture_runtime.memory.put(0x40070,uintptr_t(0x123));fixture_controller["pending"]=true;
     need(perform(fixture_binding,r,nullptr,e)==action::Outcome::RejectedNoEffect&&fixture_calls==0,"Foreign Dungeon Region Shard accepted");++count;
     reset();r.prop_text={action::PropTextKind::Description,""};fixture_controller["pending"]=true;need(perform(fixture_binding,r,nullptr,e)==action::Outcome::Confirmed&&fixture_description.empty(),e);++count;
+    gizmo_rename_native_fixture::run(count);
     std::cout<<count<<" actual Prop capture/read/perform/observe/retire cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

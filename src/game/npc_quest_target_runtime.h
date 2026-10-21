@@ -1,5 +1,6 @@
 #pragma once
 #include "npc_quest_targets.h"
+#include "world_zone_runtime.h"
 #include "dungeon_scene_identity_runtime.h"
 #include <cstdint>
 #include <string>
@@ -34,6 +35,7 @@ bool bind_current_destination(uintptr_t destination,std::string& key,bool& in_du
 struct DungeonCellCascade {
     std::string snapshot,request;uint64_t epoch=0,generation=0;
     std::map<uintptr_t,npc_quest_targets::SavedPool> before;
+    std::map<uintptr_t,std::map<uint64_t,world_zone_runtime::Current>> other_before;
     bool confirmed=false;
 };
 bool prepare_dungeon_cells(const action_session::Binding&,const action_session::Request&,DungeonCellCascade&,std::string&);

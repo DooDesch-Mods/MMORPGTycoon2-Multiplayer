@@ -211,6 +211,8 @@ bool NativePort::store_next_id(const Owners& before,int32_t target,std::string& 
 }
 bool NativePort::store_subscriber(const Owners& before,size_t index,size_t field,int32_t old,int32_t target,std::string& e){if(index>=before.subscribers.size()||field>=6)return fail(e,"economic Subscriber fixed slot invalid");const auto owner=before.subscribers[index];if(!current_subscriber(before,index,e))return false;return compare_fixed_i32(owner+sub_fields[field],old,target,e);}
 bool NativePort::store_loan(const Owners& before,size_t index,size_t field,int32_t old,int32_t target,std::string& e){if(index>=before.loans.size()||field>=4)return fail(e,"economic Loan fixed slot invalid");const auto owner=before.loans[index];if(!current(before,owner,false,e))return false;return compare_fixed_i32(owner+0x78+field*4,old,target,e);}
+#include "native_loan_retirement.inc"
+
 bool NativePort::subscriber_retirements(const Owners& actual,std::vector<mt2mp::subscriber_lifecycle::additions::Retirement>& out,std::string& e){
     out.clear();if(!subscriber_retirement::bind(actual,e))return false;
     std::vector<std::pair<int32_t,int32_t>> rows;if(!subscriber_retirement::facts(rows,e))return false;

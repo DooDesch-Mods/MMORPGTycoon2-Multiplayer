@@ -57,6 +57,8 @@ action::Outcome perform(action::Action direction,const std::string&,std::string&
     if(fault=="bridge-reject"){e="original history queue not ready";return action::Outcome::RejectedNoEffect;}
     ++original_calls;if(fault=="original"||fault=="original-restore"){e="first original graph failure";return action::Outcome::Unknown;}
     auto& source=operations.at(fixture_action_uuid);fixture_state=direction==action::Action::UndoBuilding?source.before:source.after;
+    if(direction==action::Action::RedoBuilding)for(auto& [key_value,name]:fixture_state.group_names){
+        (void)key_value;name=history_sources.at(fixture_action_uuid).known.at(77).restore_name;}
     graph_current=direction==action::Action::UndoBuilding?2:1;fixture_state.undo=unsigned(graph_current);
     if(fault=="cash")++fixture_state.money.cash;
     if(fault=="member-uid")fixture_state.local.handles.at(key(1)).uid++;
@@ -75,7 +77,7 @@ void reset(){fixture_runtime={};installed=true;operations.clear();history_source
     const auto prior=before(),after=apply(prior,{GroupKind::Group,{key(1),key(2)}});auto& source=operations[fixture_action_uuid];
     source.binding=fixture_binding;source.request.action=Action::EditGroup;source.request.action_uuid=fixture_action_uuid;source.request.snapshot_uuid=fixture_snapshot_uuid;
     source.before=local_sample(prior);source.after=local_sample(after);fixture_state=source.after;
-    auto& remembered=history_sources[fixture_action_uuid];const auto& g=after.groups[0];remembered.known[77]={77,g,"Group"};
+    auto& remembered=history_sources[fixture_action_uuid];const auto& g=after.groups[0];remembered.known[77]={77,g,"Group","Group"};
     remembered.undo_nodes={{gh::Kind::Remove,g.key,g.region,g.pose,{key(1),key(2)}}};
     const auto r=request();fixture_controller={{"started",true},{"pending",true},{"locked",false},{"action_uuid",r.action_uuid},{"host_revision",uint64_t(2)}};
 }
@@ -86,6 +88,24 @@ void run(){std::string e;reset();auto req=request();need(perform_history(fixture
     auto redo=request(Action::RedoBuilding);redo.action_uuid="44444444-4444-4444-8444-444444444444";fixture_controller["action_uuid"]=redo.action_uuid;fixture_controller["host_revision"]=uint64_t(3);
     need(perform_history(fixture_binding,redo,nullptr,e)==Outcome::Confirmed&&original_calls==2,e);
     need(fixture_state.local.handles.at("group:"+key(1)).uid==77,"Redo lost original restored Group full UID");
+    reset();const auto fixture_group_key="group:"+key(1);
+    operations.at(fixture_action_uuid).after.group_names[fixture_group_key]="Backing property";
+    fixture_state=operations.at(fixture_action_uuid).after;
+    history_sources.at(fixture_action_uuid).known.at(77).name="Backing property";
+    history_sources.at(fixture_action_uuid).known.at(77).restore_name="Native display label";
+    need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed&&original_calls==1,e);
+    need(observe_history(fixture_binding,req,authority,e)&&retire_history(fixture_binding,req,e),e);
+    fixture_controller["action_uuid"]=redo.action_uuid;fixture_controller["host_revision"]=uint64_t(3);
+    need(perform_history(fixture_binding,redo,nullptr,e)==Outcome::Confirmed&&original_calls==2,e);
+    need(fixture_state.group_names.at(fixture_group_key)=="Native display label","original recreate name was not retained");
+    need(observe_history(fixture_binding,redo,authority,e)&&retire_history(fixture_binding,redo,e),e);
+    auto fixture_recreated=fixture_state;auto fixture_absent=operations.at(fixture_action_uuid).before;
+    const auto& fixture_source=history_sources.at(fixture_action_uuid);
+    fixture_recreated.group_names[fixture_group_key]="Backing property";
+    need(!history_identity(fixture_runtime,fixture_absent,fixture_recreated,fixture_source,e),"recreated Group accepted backing name instead of saved native name");
+    fixture_recreated=fixture_state;auto fixture_survivor=fixture_state;fixture_survivor.group_names[fixture_group_key]="Changed property";
+    need(!history_identity(fixture_runtime,fixture_recreated,fixture_survivor,fixture_source,e),"surviving Group backing name drift accepted");
+    reset();need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed&&observe_history(fixture_binding,req,authority,e),e);
     reset();Config::instance().is_host=false;need(perform_history(fixture_binding,req,&authority,e)==Outcome::Confirmed&&original_calls==1&&!public_binding_calls,e);
     auto rejected=[&](auto change){reset();auto r=req;change(r);need(perform_history(fixture_binding,r,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"invalid Group history request mutated");};
     rejected([](auto&){fixture_controller["pending"]=false;});rejected([](auto&){fixture_controller["locked"]=true;});

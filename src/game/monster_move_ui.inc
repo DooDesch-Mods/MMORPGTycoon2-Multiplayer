@@ -6,7 +6,7 @@ bool move_ui_captured(const move_kiss::Intent& intent,const std::string& id,std:
     auto job=state.ui_jobs.find(move_ui_token);
     if(job==state.ui_jobs.end()||job->second.value("operation",std::string{})!="move"||
        job->second.value("canonical_record_key",std::string{})!=intent.object_key||job->second.value("captured",false)||
-       intent.family!=move_kiss::Family::DirectMonster||intent.object_key!=monster_target_key::canonical(job->second.at("target_action_uuid").get<std::string>()))
+       intent.family!=move_kiss::Family::DirectMonster||intent.object_key!=monster_move_key::canonical(job->second.at("target_action_uuid").get<std::string>()))
         return fail(e,"Monster Move UI exact birth capture differs");
     job->second["captured"]=true;job->second["awaiting_original_update"]=false;job->second["action_uuid"]=id;
     job->second["intent"]={{"position",{intent.after.x,intent.after.y,intent.after.z}},
@@ -32,7 +32,7 @@ bool native_move_ui(const json& args,json& result,std::string& e)try{
        !args.contains("position")||!args.at("position").is_array()||args.at("position").size()!=3)
         return fail(e,"Monster Move UI requires exact family, token, target_action_uuid and position");
     const auto token=args.at("token").get<std::string>(),birth=args.at("target_action_uuid").get<std::string>();
-    if(!token_valid(token)||!monster_target_key::input(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64||!move_ui_token.empty())
+    if(!token_valid(token)||!monster_move_key::input(birth)||token==birth||state.ui_jobs.contains(token)||state.ui_jobs.size()>=64||!move_ui_token.empty())
         return fail(e,"Monster Move UI token or birth UUID invalid/used");
     std::array<float,3> point{};
     for(size_t i=0;i<3;++i){const auto& scalar=args.at("position")[i];
@@ -45,8 +45,7 @@ bool native_move_ui(const json& args,json& result,std::string& e)try{
     Memory m;a::Binding binding;Pin p;d::Sample before;a::MonsterState value;a::ui_capture::LocalBinding local;
     if(!info_code(m,e)||!info_target(birth,binding,p,before,value,local,e))return false;
     if(before.undo.active_graph)return fail(e,"Monster Move UI requires idle Undo");
-    uintptr_t destination=0;const auto region_seh=shard_region(state.image,p.world.root,point,destination);
-    if(region_seh||destination!=p.region.region)return fail(e,"Monster Move UI original same-Region destination differs SEH="+std::to_string(region_seh));
+    if(!move_destination(m,p,local.object,point,e))return false;
     a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(m,state.image,exe_sha,api,e))return false;
     api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x7490c0);api.destroy_label="Move";
     a::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,binding.native_epoch,binding.native_generation,exe_sha,a::ui_diagnostic::Family::Building};

@@ -1,9 +1,11 @@
 #include "party_frame_native.h"
+#include "live_host_state/apply_timing.h"
 #include "scene_clone/runtime.h"
 #include "party_live_native.h"
 #include "dungeon_instance_native.h"
 #include "dungeon_instance_runtime.h"
 #include "intervention_census.h"
+#include "remove_diagnostics.h"
 #include "native_open_runtime.h"
 #include "subscriber_lifecycle/runtime_append.h"
 #include "subscriber_lifecycle/payload.h"
@@ -20,7 +22,7 @@ namespace life=dungeon_instance_lifecycle;
 namespace journal=marketing_authority::notice;
 namespace append=subscriber_lifecycle_append;
 namespace local=mt2mp::subscriber_lifecycle;
-struct Owner {uintptr_t object=0,stamp=0;uint64_t uid=0;};
+struct Owner {uintptr_t object=0,stamp=0;uint64_t uid=0;bool prop=false;};
 bool read(uintptr_t object,size_t offset,void* value,size_t bytes,std::string& error){
     if(!object||offset>UINTPTR_MAX-object||bytes>UINTPTR_MAX-(object+offset))return fail(error,"native field span invalid");
     SIZE_T actual=0;if(!ReadProcessMemory(GetCurrentProcess(),reinterpret_cast<void*>(object+offset),value,bytes,&actual)||actual!=bytes)
@@ -49,6 +51,7 @@ class Native final:public live_host_state::PartyPort {
     live_host_state::Port& authority_;
     party_live_native::NativePort native_;
     scene_clone::Runtime scenes_;
+    std::optional<action_session::Request> dungeon_building_;
     std::optional<scene_clone::Mapping> scene_mapping_;
     party_live::Adapter parties_{native_};
     dungeon_instance_native::NativePort instances_;
@@ -87,12 +90,29 @@ class Native final:public live_host_state::PartyPort {
     }
     bool checked(const Owner& row,std::string& error){
         if(!current(error))return false;uintptr_t found=0,stamp=0;
+        if(row.prop){const auto key=keys_.find(row.object);
+            if(key==keys_.end())return fail(error,"Party prop owner lost its canonical key");
+            if(!remove_diagnostics::party_identity_current(context_.snapshot_uuid,key->second,row.uid,row.object,row.stamp,error))return false;}
         if(row.uid){const auto code=find_uid(image_,row.uid,found);if(code||found!=row.object)return fail(error,"canonical external full UID changed SEH="+std::to_string(code));}
         return at(row.object,0,stamp,error)&&(stamp==row.stamp||fail(error,"canonical external owner header changed"));
     }
+    bool prop_pins(std::map<std::string,Owner>& owners,std::map<uintptr_t,std::string>& keys,std::string& error){
+        nlohmann::json props;if(!remove_diagnostics::party_identity_bindings(props,error))return false;
+        for(const auto& prop:props){
+            if(prop.at("snapshot_id")!=context_.snapshot_uuid)return fail(error,"Party prop alias snapshot differs from current Session");
+            const auto key=prop.at("record_key").get<std::string>();
+            const Owner row{prop.at("object").get<uintptr_t>(),prop.at("stamp").get<uintptr_t>(),prop.at("local_uid").get<uint64_t>(),true};
+            const auto pointer=keys.find(row.object);const auto named=owners.find(key);
+            if((pointer!=keys.end()&&pointer->second!=key)||(named!=owners.end()&&
+               (named->second.object!=row.object||named->second.stamp!=row.stamp||(named->second.uid&&named->second.uid!=row.uid))))
+                return fail(error,"Party prop alias conflicts with a current external owner");
+            keys[row.object]=key;owners[key]=row;
+        }
+        return true;
+    }
     bool pins(std::string& error){
         if(held_)return fail(error,"complete external owner census requires SaveIdle");
-        interventions::Census census;if(!current(error)||!interventions::census(context_,binding_,census,error))return false;
+        interventions::Census census;if(!current(error)||!interventions::actor_census(context_,binding_,census,error))return false;
         std::map<uintptr_t,uint64_t> uids;for(const auto& actor:census.actors)uids.emplace(actor.object,actor.uid);
         for(const auto& definition:census.definitions.definitions)if(definition.uid)uids.emplace(definition.object,definition.uid);
         party_live::Raw raw;if(!parties_.raw_current(context_,binding_,raw,error))return false;
@@ -101,6 +121,7 @@ class Native final:public live_host_state::PartyPort {
         for(const auto& [pointer,key]:census.owners){Owner row;row.object=pointer;if(!at(pointer,0,row.stamp,error))return false;
             const auto uid=uids.find(pointer);if(uid!=uids.end())row.uid=uid->second;
             if(!owners.emplace(key,row).second||!keys.emplace(pointer,key).second)return fail(error,"complete canonical external owners repeat");}
+        if(!prop_pins(owners,keys,error)||!current(error))return false;
         owners_=std::move(owners);keys_=std::move(keys);return true;
     }
     bool any_identify(uintptr_t pointer,std::string& key,std::string& error){
@@ -175,7 +196,7 @@ public:
         host_actions_.clear();client_actions_.clear();return pins(error);
     }
     bool suspend(std::string& error)override{
-        suspended_=true;scenes_.reset();scene_mapping_.reset();const bool okay=dungeon_instance_native::reset(error);if(!okay)return false;
+        suspended_=true;scenes_.reset();scene_mapping_.reset();dungeon_building_.reset();const bool okay=dungeon_instance_native::reset(error);if(!okay)return false;
         reserved_.clear();pending_toons_.clear();pending_=nullptr;prepared_.reset();owners_.clear();keys_.clear();error.clear();return true;
     }
     bool identify(uintptr_t pointer,std::string& key,std::string& error)override{
@@ -202,15 +223,55 @@ public:
         if(!any_resolve(key,pointer,error))return false;uintptr_t ap=0;
         return at(pointer,0,ap,error)&&(ap==image_+dungeon_party_census::party_ap||fail(error,"resolved shared Party class differs"));
     }
+    bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& matched,std::string& error,std::string* scene)override{
+        return scenes_.resolve_retained_destination(pointer,key,matched,error,scene);
+    }
+    bool begin_dungeon_building(const action_session::Context& context,const action_session::Binding& binding,
+        const action_session::Request& request,std::string& error)override{
+        using A=action_session::Action;
+        const bool place=request.action==A::PlaceBuilding;
+        const bool move=request.action==A::MoveBuilding;
+        const bool other=request.action==A::RemoveSnapshotBuilding||request.action==A::UndoBuilding||request.action==A::RedoBuilding;
+        const auto controller=typed_action_runtime::controller_status();
+        if(dungeon_building_||!request.dungeon_building||(!place&&!move&&!other)||
+           request.snapshot_uuid!=context.snapshot_uuid||!dungeon_scene_key::building_key(request.canonical_record_key)||
+           !controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||
+           controller.value("action_uuid",std::string{})!=request.action_uuid||!this->context(context,binding,error))
+            return fail(error,error.empty()?"Dungeon Building scene phase has no exact pending original action":error);
+        if(!scenes_.prepare(context,binding,error))return false;
+        dungeon_building_=request;return true;
+    }
+    bool finish_dungeon_building(const action_session::Context& context,const action_session::Binding& binding,
+        const action_session::Request& request,const scene_clone::Mapping* authority,
+        scene_clone::Mapping& mapping,bool& attempted,std::string& error,uintptr_t held_node)override{
+        attempted=false;mapping={};
+        if(!dungeon_building_||*dungeon_building_!=request||!this->context(context,binding,error)||
+           bool(authority)!=(context.role==action_session::Role::Client))
+            return fail(error,error.empty()?"Dungeon Building scene completion differs from prepared action":error);
+        // The original Building path has completed its queued maker before this
+        // registry publication. Keep the same retained baseline used by Frames.
+        dungeon_scene_identity_runtime::Census admitted;
+        if(!scenes_.confirm_template(context,binding,request,authority,mapping,admitted,attempted,error,held_node))
+            return reject(error,error,attempted);
+        scene_mapping_=mapping;dungeon_building_.reset();return true;
+    }
+    bool cancel_dungeon_building(const action_session::Context& context,const action_session::Binding& binding,
+        const action_session::Request& request,std::string& error)override{
+        if(!dungeon_building_||*dungeon_building_!=request||!this->context(context,binding,error))
+            return fail(error,error.empty()?"Dungeon Building cancellation differs from exact prepared action":error);
+        if(!scenes_.cancel_prepare(context,binding,error))return reject(error,error,true);
+        dungeon_building_.reset();return true;
+    }
     bool prepare_capture(const action_session::Context& context,const action_session::Binding& binding,uint64_t revision,std::string& error)override{
+        if(dungeon_building_)return fail(error,"Party Frame capture waits for the exact Dungeon Building scene phase");
         if(!this->context(context,binding,error)||context.role!=action_session::Role::Host||!revision)return false;
-        if(!scenes_.prepare(context,binding,error)||!host_batch([](std::string& e){e.clear();return true;},error))return false;
+        if(!([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyScenePrepare);return scenes_.prepare(context,binding,error);}())||!([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyNativeBatch);return host_batch([](std::string& e){e.clear();return true;},error);}()))return false;
         capture_operation_=operation();capture_revision_=revision;birth_ordinal_=0;
-        std::vector<life::Event> events;std::vector<life::Pin> pools;if(!dungeon_instance_native::drain(capture_operation_,events,pools,error))return false;
+        std::vector<life::Event> events;std::vector<life::Pin> pools;if(!([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyDrain);return dungeon_instance_native::drain(capture_operation_,events,pools,error);}()))return false;
         for(const auto& event:events){if(!life::append(host_,origin_,event,error))return false;if(event.action)host_actions_.insert(event.operation);}
         scene_clone::Mapping mapping;dungeon_scene_identity_runtime::Census admitted;bool attempted=false;
-        if(!scenes_.confirm(context,binding,operation(),nullptr,mapping,admitted,attempted,error))return reject(error,error,attempted);
-        scene_mapping_=std::move(mapping);return births(error)&&pins(error);
+        if(!([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartySceneConfirm);return scenes_.confirm(context,binding,operation(),nullptr,mapping,admitted,attempted,error);}()))return reject(error,error,attempted);
+        scene_mapping_=std::move(mapping);return ([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyBirths);return births(error);}())&&([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyPins);return pins(error);}());
     }
     bool capture(const action_session::Context& context,const action_session::Binding& binding,const live_host_state::Frame& frame,State& out,std::string& error)override{
         out={};if(!this->context(context,binding,error)||context.role!=action_session::Role::Host||capture_revision_!=frame.revision)return false;

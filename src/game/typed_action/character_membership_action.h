@@ -8,10 +8,10 @@
 #include <string>
 #include <vector>
 namespace mt2mp::action_session {
-enum class CharacterMembershipCommand:uint8_t {CreateVariant,Destroy};
+enum class CharacterMembershipCommand:uint8_t {CreateVariant,Destroy,Import};
 struct CharacterMembershipIntent {
     CharacterMembershipCommand command=CharacterMembershipCommand::CreateVariant;
-    int32_t kind=-1,id=-1;std::string name,before_sha;
+    int32_t kind=-1,id=-1;std::string name,before_sha,compressed_record;
     bool operator==(const CharacterMembershipIntent&)const=default;
 };
 struct CharacterMembershipRow {
@@ -24,7 +24,7 @@ struct CharacterMembershipState {
     std::array<int32_t,5> first_deleted{-1,-1,-1,-1,-1};CharacterMembershipRow selected;
     std::optional<CharacterMembershipRow> created;
     std::vector<int32_t> retired_definitions;
-    std::string manager_sha,family_sha,others_sha,users_sha,quests_sha,economy_sha,monsters_sha,bosses_sha;
+    std::string manager_sha,family_sha,others_sha,users_sha,quests_sha,economy_sha,monsters_sha,bosses_sha,import_art_sha,import_release_sha;
     std::array<uint64_t,4> global_random{};uint64_t undo_count=0;std::array<int32_t,8> release_edits{};
     bool operator==(const CharacterMembershipState&)const=default;
 };
@@ -37,9 +37,16 @@ inline bool character_membership_row(const CharacterMembershipRow& row){
 inline bool character_membership_transition(const CharacterMembershipIntent& intent,const CharacterMembershipState& before,const CharacterMembershipState& after){
     if(before.selected.kind!=intent.kind||before.selected.id!=intent.id||before.selected.deleted||before.created||
        !character_membership_row(before.selected)||!character_membership_row(after.selected)||
-       before.manager_sha==after.manager_sha||!before.retired_definitions.empty()||
+       (intent.command!=CharacterMembershipCommand::Import&&before.manager_sha==after.manager_sha)||!before.retired_definitions.empty()||
        before.selected.kind!=after.selected.kind||before.selected.id!=after.selected.id||
-       before.selected.name!=after.selected.name)return false;
+       (intent.command!=CharacterMembershipCommand::Import&&before.selected.name!=after.selected.name))return false;
+    if(intent.command==CharacterMembershipCommand::Import)
+        return !intent.compressed_record.empty()&&intent.name.empty()&&!after.selected.deleted&&
+            before.counts==after.counts&&before.first_deleted==after.first_deleted&&before.selected.parent==after.selected.parent&&
+            before.selected.variants==after.selected.variants&&!after.created&&after.retired_definitions.empty()&&
+            before.undo_count==after.undo_count&&before.others_sha==after.others_sha&&
+            !before.import_art_sha.empty()&&!after.import_art_sha.empty()&&!before.import_release_sha.empty()&&!after.import_release_sha.empty();
+    if(!before.import_art_sha.empty()||!after.import_art_sha.empty()||!before.import_release_sha.empty()||!after.import_release_sha.empty())return false;
     if(intent.command==CharacterMembershipCommand::CreateVariant){
         auto counts=before.counts;if(intent.kind<0||intent.kind>4||counts[size_t(intent.kind)]==INT32_MAX)return false;
         const auto vacant=before.first_deleted[size_t(intent.kind)];const auto expected_id=vacant>=0?vacant:counts[size_t(intent.kind)]++;

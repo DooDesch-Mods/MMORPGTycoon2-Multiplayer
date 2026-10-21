@@ -48,6 +48,7 @@ node_modules/
 
 # Historical analysis/staging trees are not canonical source
 /tools/*/
+!/tools/e2e/
 !/tools/mcp/
 !/tools/sidecar/
 !/tools/packaging/

@@ -1,6 +1,8 @@
 #include "live_host_state/day_rollover/economy/state_difference.h"
 #include "live_host_state/day_rollover/economy/capture_pause_restore.h"
 #include "live_host_state/day_rollover/economy/codec.h"
+#include "live_host_state/day_rollover/economy/loan_retirement.h"
+#include "live_host_state/party_port.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -73,8 +75,10 @@ void capture_motion(){
 }
 }
 #include "subscriber_save_transition_checks.inc"
+#include "loan_retirement_cases.inc"
 int main(){try{
  subscriber_save_transition::run();
+ loan_retirement_cases::run();
  capture_motion();
  const auto base=baseline();auto target=desired(base);auto p=fixture(base);const auto before=p.value;Apply a;auto result=a.run(p,before,target);
  need(result.confirmed&&!result.unknown&&p.value.state==target&&p.counters==2&&p.poses==2,"two NPC/Subscriber scopes did not settle: "+result.cause);

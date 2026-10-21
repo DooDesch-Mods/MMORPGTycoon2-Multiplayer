@@ -1,14 +1,22 @@
 bool valid_character_membership_intent(const CharacterMembershipIntent& v){
+    const bool imported=v.command==CharacterMembershipCommand::Import;
+    if(imported){if(v.compressed_record.empty()||(v.compressed_record.size()&1)||v.compressed_record.size()>60000)return false;
+        for(const auto c:v.compressed_record)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f')))return false;
+    }else if(!v.compressed_record.empty())return false;
     return v.kind>=0&&v.kind<5&&v.id>=0&&v.id<1000000&&digest(v.before_sha)&&
         ((v.command==CharacterMembershipCommand::CreateVariant&&quest_text(v.name)&&v.name.size()<=1024)||
-         (v.command==CharacterMembershipCommand::Destroy&&v.name.empty()));
+         (v.command==CharacterMembershipCommand::Destroy&&v.name.empty())||(imported&&v.name.empty()));
 }
-json character_membership_intent_json(const CharacterMembershipIntent& v){return {{"command",uint64_t(v.command)},
-    {"kind",v.kind},{"id",v.id},{"name",v.name},{"before_sha",v.before_sha}};}
-CharacterMembershipIntent character_membership_intent_read(const json& j){
-    exact(j,{"command","kind","id","name","before_sha"});const auto command=u64(j.at("command"));
-    if(command>uint64_t(CharacterMembershipCommand::Destroy))throw std::runtime_error("Character membership command outside domain");
-    return {CharacterMembershipCommand(command),i32(j.at("kind")),i32(j.at("id")),j.at("name").get<std::string>(),j.at("before_sha").get<std::string>()};
+json character_membership_intent_json(const CharacterMembershipIntent& v){json out={{"command",uint64_t(v.command)},
+    {"kind",v.kind},{"id",v.id},{"name",v.name},{"before_sha",v.before_sha}};
+    if(v.command==CharacterMembershipCommand::Import)out["compressed_record"]=v.compressed_record;return out;}
+CharacterMembershipIntent character_membership_intent_read(const json& j,bool imported=false){
+    if(imported)exact(j,{"command","kind","id","name","before_sha","compressed_record"});
+    else exact(j,{"command","kind","id","name","before_sha"});const auto command=u64(j.at("command"));
+    if(imported?command!=uint64_t(CharacterMembershipCommand::Import):command>uint64_t(CharacterMembershipCommand::Destroy))
+        throw std::runtime_error("Character membership command/schema outside domain");
+    CharacterMembershipIntent out{CharacterMembershipCommand(command),i32(j.at("kind")),i32(j.at("id")),j.at("name").get<std::string>(),j.at("before_sha").get<std::string>()};
+    if(imported)out.compressed_record=j.at("compressed_record").get<std::string>();return out;
 }
 json character_membership_row_json(const CharacterMembershipRow& v){return {{"kind",v.kind},{"id",v.id},
     {"parent",v.parent},{"deleted",v.deleted},{"name",v.name},{"variants",v.variants}};}
@@ -22,6 +30,8 @@ CharacterMembershipRow character_membership_row_read(const json& j){
 }
 bool valid_character_membership_state(const CharacterMembershipState& v){
     if(v==CharacterMembershipState{})return true;
+    if((!v.import_art_sha.empty()&&!digest(v.import_art_sha))||(!v.import_release_sha.empty()&&!digest(v.import_release_sha))||
+       v.import_art_sha.empty()!=v.import_release_sha.empty())return false;
     if(!character_membership_row(v.selected)||!quest_text(v.selected.name)||v.selected.name.size()>1024||v.undo_count>20||
        (v.created&&(!character_membership_row(*v.created)||!quest_text(v.created->name)||v.created->name.size()>1024)))return false;
     for(size_t kind=0;kind<5;++kind)if(v.counts[kind]<0||v.counts[kind]>1000000||v.first_deleted[kind]< -1||v.first_deleted[kind]>=v.counts[kind])return false;
@@ -32,15 +42,19 @@ bool valid_character_membership_state(const CharacterMembershipState& v){
     return true;
 }
 json character_membership_state_json(const CharacterMembershipState& v){if(v==CharacterMembershipState{})return nullptr;
-    return {{"counts",v.counts},{"first_deleted",v.first_deleted},{"selected",character_membership_row_json(v.selected)},
+    json out={{"counts",v.counts},{"first_deleted",v.first_deleted},{"selected",character_membership_row_json(v.selected)},
         {"created",v.created?character_membership_row_json(*v.created):json(nullptr)},{"retired_definitions",v.retired_definitions},
         {"manager_sha",v.manager_sha},{"family_sha",v.family_sha},{"others_sha",v.others_sha},{"users_sha",v.users_sha},
         {"quests_sha",v.quests_sha},{"economy_sha",v.economy_sha},{"monsters_sha",v.monsters_sha},{"bosses_sha",v.bosses_sha},
         {"global_random",v.global_random},{"undo_count",v.undo_count},{"release_edits",v.release_edits}};
+    if(!v.import_art_sha.empty()){out["import_art_sha"]=v.import_art_sha;out["import_release_sha"]=v.import_release_sha;}return out;
 }
-CharacterMembershipState character_membership_state_read(const json& j){if(j.is_null())return {};
-    exact(j,{"counts","first_deleted","selected","created","retired_definitions","manager_sha","family_sha","others_sha","users_sha",
+CharacterMembershipState character_membership_state_read(const json& j,bool imported=false){if(j.is_null())return {};
+    if(imported)exact(j,{"counts","first_deleted","selected","created","retired_definitions","manager_sha","family_sha","others_sha","users_sha",
+        "quests_sha","economy_sha","monsters_sha","bosses_sha","global_random","undo_count","release_edits","import_art_sha","import_release_sha"});
+    else exact(j,{"counts","first_deleted","selected","created","retired_definitions","manager_sha","family_sha","others_sha","users_sha",
         "quests_sha","economy_sha","monsters_sha","bosses_sha","global_random","undo_count","release_edits"});CharacterMembershipState out;
+    if(imported){out.import_art_sha=j.at("import_art_sha").get<std::string>();out.import_release_sha=j.at("import_release_sha").get<std::string>();}
     for(const auto* name:{"counts","first_deleted"})if(!j.at(name).is_array()||j.at(name).size()!=5)throw std::runtime_error("Character membership census dimension differs");
     if(!j.at("global_random").is_array()||j.at("global_random").size()!=4||!j.at("release_edits").is_array()||j.at("release_edits").size()!=8||
        !j.at("retired_definitions").is_array()||j.at("retired_definitions").size()>1000000)throw std::runtime_error("Character membership consequence dimension differs");

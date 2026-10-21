@@ -149,7 +149,7 @@ bool NativeBuild::publish_typed_original(Update fn,std::string& cause) {
     if(!image_||original_||!fn||GetCurrentThreadId()!=thread_) { cause="error: guarded original publication requires actual mainthread and one typed original"; return false; }
     original_=fn; return true;
 }
-Capture NativeBuild::capture_at_update_entry(void* receiver,Request& r,std::string& cause) const {
+Capture NativeBuild::capture_at_update_entry(void* receiver,Request& r,std::string& cause,bool dungeon_family) const {
     if(!image_||GetCurrentThreadId()!=thread_) { cause="error: placement capture requires guarded actual mainthread"; return Capture::BlockedKnownCommit; }
     auto* p=static_cast<std::byte*>(receiver);
     std::uint32_t exception=0;
@@ -166,6 +166,7 @@ Capture NativeBuild::capture_at_update_entry(void* receiver,Request& r,std::stri
     if(!read(prop,&prop_ap,8,exception)||!read(blueprint,&bp_ap,8,exception)||prop_ap!=image_+0x1705230||bp_ap!=image_+0x16dd870) { cause="error: native Blueprint child class differs"; return Capture::BlockedKnownCommit; }
     auto* identifier=static_cast<std::byte*>(data)+std::size_t(index)*64;
     if(!string_read(identifier,r.type,exception)||!string_read(identifier+32,r.variant,exception)||!read(static_cast<std::byte*>(prop)+0x100,r.pose.quaternion.data(),16,exception)||!read(static_cast<std::byte*>(prop)+0x110,r.pose.position.data(),12,exception)||!read(static_cast<std::byte*>(prop)+0x11c,r.pose.scale.data(),12,exception)) { cause="error: pending native building scalar capture failed, exception="+std::to_string(exception); return Capture::BlockedKnownCommit; }
+    r.dungeon_family=dungeon_family;
     if(!valid_scalars(r,cause)) return Capture::BlockedKnownCommit;
     void* definition=nullptr;
     if(!normal_definition(image_,r,definition,cause,exception))return Capture::BlockedKnownCommit;
@@ -180,7 +181,7 @@ bool NativeBuild::prepare(const Request& r,void* shard,PrivateBuild& out,std::st
 }
 bool NativeBuild::consume_captured_intent(void* receiver,const Request& captured,std::uint32_t& exception,std::string& cause) const {
     Request fresh;
-    if(capture_at_update_entry(receiver,fresh,cause)!=Capture::Captured||fresh.type!=captured.type||fresh.variant!=captured.variant||fresh.pose!=captured.pose) { if(cause.empty()) cause="error: captured native intent changed before its cleanup"; return false; }
+    if(capture_at_update_entry(receiver,fresh,cause,captured.dungeon_family)!=Capture::Captured||fresh.type!=captured.type||fresh.variant!=captured.variant||fresh.pose!=captured.pose) { if(cause.empty()) cause="error: captured native intent changed before its cleanup"; return false; }
     if(!consume(image_,receiver,exception)) { cause="error: native captured-intent Clear failed, exception="+std::to_string(exception)+"; cleanup cannot replay"; return false; }
     unsigned char flags[3]{};
     if(!read(static_cast<std::byte*>(receiver)+0x660,flags,3,exception)||flags[0]||flags[1]||flags[2]) { cause="error: native captured-intent flags did not clear; cleanup cannot replay"; return false; }

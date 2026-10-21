@@ -3,6 +3,7 @@
 #include "snapshot_zone_key.h"
 #include <iostream>
 #include <stdexcept>
+#include "scene_scenery_companion_cases.inc"
 namespace gizmo=mt2mp::game::dungeon_gizmo_identity;
 namespace companion=mt2mp::game::monster_snapshot_companion;
 constexpr const char* first_uuid="11111111-1111-4111-8111-111111111111";
@@ -81,5 +82,6 @@ int main()try{
     for(int32_t instance:{-1,0,9})check(mt2mp::game::snapshot_zone_key::valid(sha+":world:zone:"+mt2mp::game::snapshot_zone_key::scene_suffix(67,3,instance,1)),"Original Dungeon Monster Zone child key rejected");
     check(!mt2mp::game::snapshot_zone_key::valid(sha+":world:zone:"+mt2mp::game::snapshot_zone_key::scene_suffix(67,3,9,-1)),"Negative Dungeon Monster Zone child admitted");
     registry.invalidate();check(!registry.lookup(third,born,target,error),"Title/world reload retained usable scene identity");
+    scene_scenery_companion_fixture::run(check);
     std::cout<<checks<<" Dungeon Gizmo saved/birth/load/retirement/companion comparisons passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

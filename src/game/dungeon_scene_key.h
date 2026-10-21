@@ -26,8 +26,8 @@ inline bool building_key(const std::string& key){
 // through the existing full-UID root Building registry and current owner census.
 // Instance indices identify current scene membership within that world lifetime;
 // they do not manufacture a historical action/birth UUID after a bare load.
-template<class Read,class Typed,class Identify>
-bool read(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Identify&& identify,Scene& out,std::string& e){
+template<class Read,class Typed>
+bool read_owner(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Scene& out,std::string& e){
     out={};e.clear();
     if(!image||!root||!current||image>UINTPTR_MAX-0x174ad20)return fail(e,"Dungeon scene requires the current image/root/active Shard");
     const auto addresspoint=[&](uintptr_t object,uintptr_t rva){uintptr_t ap=0;
@@ -78,13 +78,24 @@ bool read(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typ
        !at(result.exterior,0x18,result.exterior_uid,e)||!result.exterior_uid||!typed(result.exterior,0x1673900,0x1655090,e)||
        !at(result.exterior,0xa38,reverse,e)||reverse!=result.dungeon||!at(result.exterior,0x170,reverse,e)||reverse!=root)
         return fail(e,e.empty()?"Dungeon scene exterior full UID/RTTI/root/reverse owner differs":e.c_str());
-    if(!identify(result.exterior,result.exterior_uid,result.exterior_key,e)||!building_key(result.exterior_key))
-        return fail(e,e.empty()?"Dungeon scene exterior has no current canonical Building key":e.c_str());
     uintptr_t final_owner=0;uint64_t final_uid=0;
     if(!at(result.exterior,0x18,final_uid,e)||final_uid!=result.exterior_uid||!at(result.exterior,0xa38,final_owner,e)||final_owner!=result.dungeon||
        !at(current,type==1?0x18:0x20,final_owner,e)||final_owner!=(type==1?result.dungeon:result.instance))
         return fail(e,e.empty()?"Dungeon scene identity changed during canonical lookup":e.c_str());
-    result.key=result.exterior_key+(type==1?"/template":"/instance/"+std::to_string(result.instance_index));
+    out=std::move(result);return true;
+}
+template<class Read,class Typed,class Identify>
+bool read(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Identify&& identify,Scene& out,std::string& e){
+    out={};Scene result;
+    if(!read_owner(image,root,current,at,typed,result,e))return false;
+    if(current==root){out=std::move(result);return true;}
+    if(!identify(result.exterior,result.exterior_uid,result.exterior_key,e)||!building_key(result.exterior_key))
+        return fail(e,e.empty()?"Dungeon scene exterior has no current canonical Building key":e.c_str());
+    uintptr_t final_owner=0;uint64_t final_uid=0;
+    if(!at(result.exterior,0x18,final_uid,e)||final_uid!=result.exterior_uid||!at(result.exterior,0xa38,final_owner,e)||final_owner!=result.dungeon||
+       !at(current,result.type==1?0x18:0x20,final_owner,e)||final_owner!=(result.type==1?result.dungeon:result.instance))
+        return fail(e,e.empty()?"Dungeon scene identity changed during canonical lookup":e.c_str());
+    result.key=result.exterior_key+(result.type==1?"/template":"/instance/"+std::to_string(result.instance_index));
     out=std::move(result);return true;
 }
 }

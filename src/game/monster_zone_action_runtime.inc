@@ -190,6 +190,7 @@ bool capture_unchanged(Memory& m,const Capture& c,const d::Sample& before,std::s
     return d::sample_json(after)==d::sample_json(before)||fail(e,"Zone suppressed callback changed native state/ledger/RNG/Undo");
 }
 void press_entry(void* brush,void* cursor,const float* point)try{
+    bool handled=false;if(!zone_edit_runtime::capture_press(brush,cursor,point,handled)||handled)return;
     if(!net::session_wire::connected()){state.press(brush,cursor,point);return;}
     const auto controller=typed_action_runtime::controller_status();std::string e;
     if(!state.ready||GetCurrentThreadId()!=state.thread||state.capture||state.pending||state.capture_fault||
@@ -218,6 +219,7 @@ void press_entry(void* brush,void* cursor,const float* point)try{
 }catch(const std::exception& x){const auto e=std::string("Zone Press boundary: ")+x.what();if(state.capture){state.capture_fault=true;state.capture->cause=e;}reject(e);}
  catch(...){if(state.capture){state.capture_fault=true;state.capture->cause="Zone Press non-standard boundary exception";}reject("Zone Press non-standard boundary exception");}
 void paint_entry(void* brush,const void* shape)try{
+    bool handled=false;if(!zone_edit_runtime::capture_paint(brush,shape,handled)||handled)return;
     if(!net::session_wire::connected()){state.paint(brush,shape);return;}
     if(!state.capture||state.capture->brush!=uintptr_t(brush)){reject("Zone AddPaint lacks owned suppressed capture");return;}
     auto& c=*state.capture;if(!c.cause.empty())return;Memory m;a::ZoneStamp stamp;std::string e;
@@ -226,6 +228,7 @@ void paint_entry(void* brush,const void* shape)try{
     c.intent.stamps.push_back(std::move(stamp));if(!a::valid_zone_intent(c.intent)){c.cause="Zone captured geometry exceeds typed action domain";reject(c.cause);}
 }catch(const std::exception& x){if(state.capture)state.capture->cause=std::string("Zone AddPaint boundary: ")+x.what();reject(state.capture?state.capture->cause:"Zone AddPaint boundary without capture");}catch(...){if(state.capture)state.capture->cause="Zone AddPaint non-standard boundary exception";reject("Zone AddPaint non-standard boundary exception");}
 void finished_entry(void* brush,const void* shape)try{
+    bool handled=false;if(!zone_edit_runtime::capture_finished(brush,shape,handled)||handled)return;
     if(!net::session_wire::connected()){state.finished(brush,shape);return;}
     if(!state.capture||state.capture->brush!=uintptr_t(brush)){reject("Zone Finish lacks owned capture");return;}
     auto& c=*state.capture;Memory m;std::string e;uintptr_t graph=0;int32_t operations=-1;
@@ -290,7 +293,7 @@ void tick(){
     if(id.empty()||!typed_action_runtime::submit_zone(id,c.intent,e)){rejected(e.empty()?"Zone Controller submit failed":e);return;}
     state.last_action=id;++state.submits;if(!c.ui_token.empty()){auto& job=state.ui_jobs.at(c.ui_token);job["submitted"]=true;job["action_uuid"]=id;}
 }
-bool pending_ui(){return bool(state.capture)||bool(state.pending);}
+bool pending_ui(){return bool(state.capture)||bool(state.pending)||zone_edit_runtime::pending();}
 bool begin_ui_capture(const std::string& token,std::string& e){
     if(!state.ready||GetCurrentThreadId()!=state.thread||pending_ui()||state.capture_fault||!state.ui_token.empty()||
        state.ui_jobs.contains(token)||state.ui_jobs.size()>=64)return fail(e,"Zone fixed UI capture owner/token/pending state differs");

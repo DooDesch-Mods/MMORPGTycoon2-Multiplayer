@@ -1,3 +1,4 @@
+#include "district_widget_scope.h"
 #include <cstdint>
 #include <iostream>
 #include <stdexcept>
@@ -33,5 +34,27 @@ int main()try{
         require(after_calls==(thrown?0U:1U)&&failed_calls==(thrown?1U:0U),"failed original reported as completed");
         if(thrown)require(!cause.empty(),"original cause not retained");++checks;
     }
+
+    struct ScopePort{
+        uintptr_t value=99;unsigned exchanges=0;
+        bool exchange(uintptr_t slot,uintptr_t expected,uintptr_t desired,std::string& error){
+            ++exchanges;if(slot!=1||value!=expected){error="fixture exact binding differs";return false;}value=desired;return true;
+        }
+    };
+    for(int failure=0;failure<5;++failure){
+        ScopePort port;unsigned called=0;std::string error;
+        const bool ok=mt2mp::game::district_widget_scope::run(port,1,99,[&](std::string& original_error){
+            ++called;require(port.value==0,"world binding still connected during presentation");
+            if(failure==1){original_error="original presentation failure";return false;}
+            if(failure==2)throw std::runtime_error("original C++ failure");
+            if(failure==3){port.value=100;return true;}
+            if(failure==4){std::string nested;require(!mt2mp::game::district_widget_scope::run(port,1,99,[&](auto&){++called;return true;},nested),"reentrant stale binding accepted");}
+            return true;
+        },error);
+        require(called==1,"original presentation repeated");require(ok==(failure==0||failure==4),"original presentation failure success-shaped");
+        require(port.value==(failure==3?100U:99U),"scope overwrote foreign binding or failed to restore");
+        if(!ok)require(!error.empty(),"original presentation failure lost");++checks;
+    }
+
     std::cout<<checks<<" actual District original Save/Load wrapper cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

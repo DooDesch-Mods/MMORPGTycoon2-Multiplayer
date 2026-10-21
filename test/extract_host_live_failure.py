@@ -18,9 +18,9 @@ header=(a.source_root/'src/game/typed_action/action_session.h').read_text(encodi
 def emit(name,source,anchors):
     (a.output/name).write_text('\n'.join(body(source,anchor) for anchor in anchors)+'\n',encoding='utf-8')
 emit('host_failure_snapshot.inc',snapshot,['static bool valid_id(','static void message(','static void fail(','static bool receive_host_world_failure(','bool fail_host_world('])
-emit('host_failure_runtime.inc',runtime,['void tick() {'])
+emit('host_failure_runtime.inc',runtime,['void tick() {','void tick_after_transport() {'])
 emit('host_failure_panel.inc',lobby,['bool show_failed_panel_once('])
-emit('host_failure_controller.inc',controller,['Controller::Controller(','bool Controller::invoke(','bool Controller::can_retire_lobby(','bool Controller::fail(','bool Controller::guard(','bool Controller::tick('])
+emit('host_failure_controller.inc',controller,['Controller::Controller(','bool Controller::update_time(','bool Controller::arm_deadline(','bool Controller::invoke(','bool Controller::can_retire_lobby(','bool Controller::fail(','bool Controller::guard(','bool Controller::tick('])
 emit('host_failure_callback.inc',controller,['template<class Function>bool callback('])
 (a.output/'host_failure_action_session.h').write_text(header.replace('private:\n    struct Cached','public:\n    struct Cached',1),encoding='utf-8')
 

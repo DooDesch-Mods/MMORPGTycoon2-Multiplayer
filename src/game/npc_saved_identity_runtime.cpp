@@ -1,10 +1,13 @@
 #include "npc_saved_identity_runtime.h"
+#include "npc_history_identity.h"
 #include "live_host_state/memory_query_timing.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "building_capture_identity.h"
 #include "root_saved_building.h"
 #include "building_npc_lifecycle.h"
 #include "building_npc_owner.h"
+#include "building_npc_scope.h"
+#include "dungeon_scene_identity_runtime.h"
 #include "character_definition_identity.h"
 #include "typed_action_runtime.h"
 #include "subscriber_lifecycle/capture.h"
@@ -47,7 +50,7 @@ std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Pool> observed;
 std::map<int32_t, q::SavedPool> pools;
-struct ChildBinding { building_npc_lifecycle::Receipt receipt;bool retired=false; };
+struct ChildBinding { building_npc_lifecycle::Receipt receipt;bool retired=false,history_detached=false; };
 std::map<std::string,ChildBinding> building_children;
 #ifdef MT2MP_NPC_SAVED_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
@@ -370,10 +373,12 @@ bool read_current(std::vector<Current>& out, std::string& error, bool share_meta
         if (!building_child_detail::append(id, region, census, lookup, rows, error)) return false;
         result.insert(result.end(), rows.begin(), rows.end());
     }
+    if (!building_child_detail::append_scenes(world, lookup, result, error)) return false;
     opened::CurrentWorld after;
     if (!current(after, error) || !same_world(world, after)) return q::fail(error, error.empty() ? "NPC world changed during read" : error);
     out = std::move(result); error.clear(); return true;
 }
+#include "npc_history_saved.inc"
 bool resolve(const std::string& key, Current& out, std::string& error) {
     out = {};
     if (!snapshot_npc_key::valid(key) && !building_npc_key::valid(key)) return q::fail(error, "Saved or Building child NPC key invalid");

@@ -4,9 +4,13 @@
 #include "../typed_action/action_session.h"
 #include <memory>
 namespace mt2mp::game::scene_clone {
+struct Raw;
 class Runtime {
     struct State;
     std::unique_ptr<State> state_;
+    bool confirm_impl(const action_session::Context&,const action_session::Binding&,
+        const std::string&,const Mapping*,Mapping&,dungeon_scene_identity_runtime::Census&,
+        bool&,std::string&,const std::string&,const Raw*,uintptr_t);
 public:
     Runtime();
     ~Runtime();
@@ -24,6 +28,11 @@ public:
     bool confirm(const action_session::Context&,const action_session::Binding&,
         const std::string& operation,const Mapping* authority,Mapping& out,
         dungeon_scene_identity_runtime::Census& admitted,bool& attempted,std::string&);
+    bool confirm_template(const action_session::Context&,const action_session::Binding&,
+        const action_session::Request&,const Mapping*,Mapping&,
+        dungeon_scene_identity_runtime::Census&,bool&,std::string&,uintptr_t held_node=0);
+    bool cancel_prepare(const action_session::Context&,const action_session::Binding&,std::string&);
+    bool resolve_retained_destination(uintptr_t,std::string&,bool&,std::string&,std::string* scene=nullptr);
     void reset();
 };
 }

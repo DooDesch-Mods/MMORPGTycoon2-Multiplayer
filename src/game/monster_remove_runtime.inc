@@ -88,7 +88,7 @@ bool remove_inverse(Memory& m,const Pin& p,const RemoveOperation& op,const d::Sa
        !field(m,inverse,0xf8,zone,e)||!field(m,inverse,0x100,rotation,e)||!field(m,inverse,0x110,position,e)||
        !field(m,inverse,0x11c,scale,e)||!field(m,inverse,0x16c,level,e)||!field(m,inverse,0x170,id,e))return false;
     const auto& actor=op.evidence.monster_before.actor;
-    return (ap==state.image+0x1706550&&uid==op.birth.uid&&root==p.world.root&&region==p.region.region&&
+    return (ap==state.image+0x1706550&&uid==op.birth.uid&&root==p.region.root&&region==p.region.region&&
         rank==actor.rank&&!zone&&rotation==actor.rotation&&position==actor.position&&scale==actor.scale&&level==actor.level&&
         name==actor.name&&id==op.character_id)||fail(e,"Monster Remove original DoMakeMonster identity/name/owner/pose/level inverse differs");
 }
@@ -124,13 +124,13 @@ static bool remove_bound_local(const a::Binding& binding,const std::string& snap
     if(!remove_code(m,e)||!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||!field(m,object,0x18,uid,e)||
        !field(m,object,0x178,region,e)||!field(m,region,0x834,saved,e))return fail(e,e.empty()?"Monster Remove capture class/full UID/Region differs":e);
     Pin p;d::Sample sample;std::string key;
-    if(!pin(m,binding,snapshot,saved,p,e))return false;
+    if(!direct_receiver(m,binding,snapshot,object,uid,key,e)||!direct_target_pin(m,binding,snapshot,monster_target_key::argument(key),saved,p,e))return false;
     if(p.world.selection!=manager||p.region.region!=region)
         return fail(e,"Monster Remove current SelectionManager or reciprocal Region differs");
-    if(!d::sample(m,p.region,sample,e)||!identity::registry.resolve(scope(p,sample),object,uid,key,e))return false;
+    if(!direct_sample(m,p,sample,e))return false;
     monster_zone_read::Monster row;
-    if(!move_target(m,binding,snapshot,saved,monster_target_key::argument(key),p,sample,row,e)||row.pointer!=object||row.uid!=uid||row.rank!=1)
-        return fail(e,e.empty()?"Monster Remove requires confirmed current direct Elite birth":e);
+    if(!move_target(m,binding,snapshot,saved,monster_target_key::argument(key),p,sample,row,e)||row.pointer!=object||row.uid!=uid||(row.rank<0||row.rank>2))
+        return fail(e,e.empty()?"Monster Remove requires confirmed current direct Monster":e);
     qr::Witness quests;if(!read_remove_quests(m,binding,snapshot,object,key,quests,e))return false;
     out={manager,object,uid,binding.native_epoch,binding.native_generation,snapshot,key,false,false,false,true};return true;
 }
@@ -197,7 +197,7 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
     if(!remove_code(m,e)||!move_target(m,binding,request.snapshot_uuid,request.monster_remove.region,monster_target_key::argument(request.canonical_record_key),p,before,row,e)||
        !identity::registry.lookup(monster_target_key::argument(request.canonical_record_key),scope(p,before),birth,e)||
        !read_remove_quests(m,binding,request.snapshot_uuid,row.pointer,request.canonical_record_key,quests,e)||!effect(m,p,before,value,e,row.uid))return a::Outcome::RejectedNoEffect;
-    if(before.undo.active_graph||row.rank!=1){e="Monster Remove requires idle Undo and confirmed Elite rank";return a::Outcome::RejectedNoEffect;}
+    if(before.undo.active_graph||(row.rank<0||row.rank>2)){e="Monster Remove requires idle Undo and confirmed original Monster rank";return a::Outcome::RejectedNoEffect;}
     uintptr_t character=0;uint64_t character_id=0;
     if(!field(m,row.pointer,0x498,character,e)||!field(m,character,0x2c,character_id,e))return a::Outcome::RejectedNoEffect;
     std::map<uint64_t,std::string> names;
@@ -240,7 +240,7 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
     op.original_calls=after_calls>=calls?after_calls-calls:0;
     if(!performed||op.original_calls!=1)return unknown(e.empty()?"Monster Remove expected exactly one returned DestroyProps original":e);
     op.returned=true;Pin after;d::Sample result;a::MonsterState final;
-    if(!pin(m,binding,request.snapshot_uuid,request.monster_remove.region,after,e)||!same_world(p.world,after.world)||
+    if(!direct_target_pin(m,binding,request.snapshot_uuid,monster_target_key::argument(request.canonical_record_key),request.monster_remove.region,after,e)||!same_world(p.world,after.world)||
        after.world.saves||after.world.edits||after.world.active_graph||after.region.region!=p.region.region||
        !effect(m,after,result,final,e)||!remove_absent(m,after,result,op,e)||!remove_inverse(m,after,op,result,e))return unknown(e.empty()?"Monster Remove current world or absence proof differs":e);
     qr::Witness quest_after;
@@ -255,6 +255,7 @@ a::Outcome remove_perform(const a::Binding& binding,const a::Request& request,co
        (authority&&(!a::monster_shared_state(final,authority->monster_after)||op.evidence.after!=authority->after)))
         return unknown("Monster Remove actor/roster/counters/RNG/Release/Undo/ledger differs from Host");
     if(!identity::registry.retire(monster_target_key::argument(request.canonical_record_key),birth,e))return unknown(e);
+    if(!building_history_slice::remember_monster(request.action_uuid,op.graph,e))return unknown(e);
     op.confirmed=true;e.clear();return a::Outcome::Confirmed;
 }catch(const std::exception& x){e=std::string("Monster Remove perform boundary: ")+x.what();auto found=removals.find(request.action_uuid);if(found!=removals.end())found->second.cause=e;return a::Outcome::Unknown;}
  catch(...){e="Monster Remove perform non-standard exception";return a::Outcome::Unknown;}
@@ -265,7 +266,7 @@ bool remove_observe(const a::Binding& binding,const a::Request& request,a::Evide
        !found->second.returned||found->second.original_calls!=1||!identity::registry.tombstone(monster_target_key::argument(request.canonical_record_key),found->second.birth))
         return fail(e,"Monster Remove observation lacks exact confirmed OriginalOnce and terminal birth tombstone");
     const auto& op=found->second;Memory m;Pin p;d::Sample sample;a::MonsterState value;
-    if(!pin(m,binding,request.snapshot_uuid,request.monster_remove.region,p,e)||!same_world(p.world,op.pin.world)||
+    if(!direct_target_pin(m,binding,request.snapshot_uuid,monster_target_key::argument(request.canonical_record_key),request.monster_remove.region,p,e,true)||!same_world(p.world,op.pin.world)||
        !effect(m,p,sample,value,e)||value!=op.evidence.monster_after||ledger(sample.money)!=op.evidence.after||
        sample.undo.undo.empty()||sample.undo.undo.back()!=op.graph||!remove_absent(m,p,sample,op,e)||!remove_inverse(m,p,op,sample,e))
         return fail(e,e.empty()?"Monster Remove current absence/Undo/effect differs before ACK":e);

@@ -16,7 +16,7 @@ static_assert(sizeof(Box)==0x1c&&sizeof(Transform)==0x6c);
 static_assert(offsetof(Transform,position)==0x10&&offsetof(Transform,dirty)==0x28&&offsetof(Transform,matrix)==0x2c);
 struct SceneryContext {
     uint64_t epoch=0;uintptr_t region=0,shard=0,manager=0;
-    bool exact_build=false,main_thread=false,owned_world_valid=false;
+    bool exact_build=false,main_thread=false,owned_world_valid=false,snapshot_observation=false;
     bool operator==(const SceneryContext&)const=default;
 };
 struct SceneryMember {

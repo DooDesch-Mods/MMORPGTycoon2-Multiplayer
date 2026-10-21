@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Coverage in [Early Beta 16](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 ## Available now: Build together
 
@@ -26,12 +26,12 @@ Priorities can change. No release dates are promised.
 
 ## Feature coverage
 
-| Feature | Early Beta 16 | What is covered |
+| Feature | Early Beta 17 | What is covered |
 | --- | --- | --- |
 | Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
 | A shared world | ✅ Available | The Host creates or loads a world; the joining player receives it. |
 | Session chat | ◐ Partial | Basic session messages in the Multiplayer window. |
-| Buildings and scenery | ◐ Partial | Place, move and remove supported buildings and individual scenery objects. |
+| Buildings and scenery | ◐ Partial | Place, move and remove supported buildings and scenery. Copy buildings or scenery, group and ungroup scenery, use the single-click scenery eraser, and undo or redo supported shared edits. |
 | Terrain and roads | ◐ Partial | Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned. |
 | Regions | ✅ Available | Share region purchases, biome styles and region levels. |
 | Pause and game speed | ✅ Available | Keep the same pause state and simulation speed. |

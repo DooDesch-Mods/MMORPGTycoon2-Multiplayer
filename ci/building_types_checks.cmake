@@ -3,7 +3,9 @@ if(WIN32)
     set(_building_types_body "${CMAKE_CURRENT_BINARY_DIR}/building_types_extracted")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/construction_native.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/read.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/remove_diagnostics.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/scenery_kiss/native_catalog.cpp"
         "${MT2MP_SOURCE_ROOT}/test/extract_building_types.py")
     execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_building_types.py"
         --root "${MT2MP_SOURCE_ROOT}" --output "${_building_types_body}"

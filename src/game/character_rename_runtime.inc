@@ -33,7 +33,8 @@ bool code(Memory& m,std::string& error){
     if(hash!=ui_code.sha)return fail(error,"Character rename immutable outer UI transaction body differs");
     for(const auto& pin:character_rename_codes::helpers){
         bytes.assign(pin.size,'\0');if(!m.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
-        if(hash!=pin.sha)return fail(error,"Character rename original transaction/preparation body differs RVA="+std::to_string(pin.rva));}
+        if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
+            return fail(error,"Character rename original transaction/preparation body differs RVA="+std::to_string(pin.rva)+" original="+error);}
     return true;
 }
 const char* stat_label(uint8_t property){switch(property){case 1:return "SetHealth";case 2:return "SetMana";case 3:return "SetRage";case 4:return "SetSpeed";default:return "DoRename";}}
@@ -152,6 +153,9 @@ bool entry(void* receiver,void* record)try{
     bool membership=false;std::string membership_error;
     if(!character_membership::capture_variant(receiver,record,membership,membership_error)){reject(membership_error);return false;}
     if(membership)return true;
+    bool adjusted=false;std::string adjustment_error;
+    if(!ability_edit::capture_adjustment(receiver,record,adjusted,adjustment_error)){reject(adjustment_error);return false;}
+    if(adjusted)return true;
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;reject(error);return false;}
     uint8_t property=0;auto seh=quest_list::label(api.label_equals,record,"DoRename",relevant);

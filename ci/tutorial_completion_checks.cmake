@@ -3,7 +3,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/native.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_owner.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_hook.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_apply.inc")
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_apply.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/intro_native.inc")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_tutorial_completion.py"
     --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/tutorial_completion_extracted"
     COMMAND_ERROR_IS_FATAL ANY)

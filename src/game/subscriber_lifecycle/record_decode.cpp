@@ -185,6 +185,26 @@ bool decode_logo_record(const DecodeApi& a,Memory& memory,const std::vector<Reco
         if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
     r.complete=true;e.clear();return true;
 }
+bool decode_modular_record(const DecodeApi& a,Memory& memory,bool plan,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};if(tree.root||!tree.detached.empty())return fail(e,"Modular Record output already owns objects");
+    if(!validate_record_tree(source,e))return false;
+    if(source.size()>100000||source[0].label.type!=1||source[0].label.text!=(plan?"mmoBuildingPlan":"mmoBuildingLayout"))return fail(e,"Modular Record typed root/budget differs");
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||!a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Modular Record native API incomplete");
+    std::vector<uintptr_t> objects(source.size());tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){if(!create(a,memory,source[i],objects[i],tree,r,e))return false;if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
+    r.complete=true;e.clear();return true;
+}
+bool decode_dungeon_fill_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e){
+    r={};if(tree.root||!tree.detached.empty())return fail(e,"Dungeon Fill Record output already owns objects");
+    if(source.empty()||source.size()>2048||source[0].label.type!=1||source[0].label.text!="mmoFill")return fail(e,"Dungeon Fill Record typed root differs");
+    auto structural=source;structural[0].label.text="mmoSubscriber";if(!validate_records(structural,e))return false;
+    if(!a.allocate||!a.release||!a.record_construct||!a.record_destroy||!a.string_destroy||!a.add_child||!a.set_label||!a.set_string||
+       !a.token_count||!a.set_integer||!a.set_type||!a.set_float||!a.string_construct)return fail(e,"Dungeon Fill Record API incomplete");
+    std::vector<uintptr_t> objects(source.size(),0);tree.detached.reserve(source.size());
+    for(size_t i=0;i<source.size();++i){if(!create(a,memory,source[i],objects[i],tree,r,e))return false;
+        if(!i)tree.root=objects[i];else if(!attach(a,objects[source[i].parent],objects[i],tree,r,e))return false;}
+    r.complete=true;e.clear();return true;
+}
 bool decode_release_record(const DecodeApi& a,Memory& memory,const std::vector<Record>& source,NativeTree& tree,DecodeReceipt& r,std::string& e,ReleaseRecordKind kind){
     r={};if(tree.root||!tree.detached.empty())return fail(e,"Release Record output already owns objects");
     const auto expected=release_record_root(kind);

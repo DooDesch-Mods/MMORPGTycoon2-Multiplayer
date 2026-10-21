@@ -2,12 +2,13 @@
 #include "costume_native_view.h"
 #include "costume_record_reader.h"
 #include <iostream>
+#include <memory>
 #include <limits>
-int main()try{size_t checks=0;std::string error;std::vector<uint8_t> bytes;Message decoded;
+int main()try{size_t checks=0;std::string error;std::vector<uint8_t> bytes;auto decoded_storage=std::make_unique<Message>();auto& decoded=*decoded_storage;
     const auto check=[&](bool ok,const char* cause){++checks;if(!ok)throw std::runtime_error(std::string(cause)+" at comparison "+std::to_string(checks));};
     for(int32_t kind=0;kind<5;++kind)for(bool edited:{false,true}){character_kind=kind;edited_before=edited;
-        for(auto message:{request(),result()}){check(encode(message,bytes,error),error.c_str());const bool read_ok=decode(bytes.data(),bytes.size(),decoded,error);if(!read_ok)throw std::runtime_error(error);check(decoded==message,"Costume complete authored record schema35 roundtrip differs");}
-        const auto invalid=[&](auto mutate){auto message=result();mutate(message);check(!encode(message,bytes,error),"Costume accepted foreign record/effect/domain");};
+        for(auto make:{&request,&result}){auto message_storage=std::make_unique<Message>(make());auto& message=*message_storage;check(encode(message,bytes,error),error.c_str());const bool read_ok=decode(bytes.data(),bytes.size(),decoded,error);if(!read_ok)throw std::runtime_error(error);check(decoded==message,"Costume complete authored record schema36 roundtrip differs");}
+        const auto invalid=[&](auto mutate){auto invalid_storage=std::make_unique<Message>(result());auto& message=*invalid_storage;mutate(message);check(!encode(message,bytes,error),"Costume accepted foreign record/effect/domain");};
         invalid([](auto& m){m.request.costume_edit.kind=5;});invalid([](auto& m){m.request.costume_edit.id=-1;});
         invalid([](auto& m){m.request.canonical_record_key="character:9:1/costume";});invalid([](auto& m){m.request.costume_edit.before_sha256="not a digest";});
         invalid([](auto& m){m.request.costume_edit.record.parts[0].pose.rotation[0]=std::numeric_limits<float>::infinity();});
@@ -23,14 +24,16 @@ int main()try{size_t checks=0;std::string error;std::vector<uint8_t> bytes;Messa
         invalid([](auto& m){++m.evidence.costume_edit_after.owner.release_edits[0];});invalid([](auto& m){++m.evidence.after.cash;});invalid([](auto& m){m.request.ability_edit.id=1;});
         invalid([](auto& m){m.evidence.ability_edit_before.owner.name="foreign";});
         invalid([](auto& m){m.evidence.costume_edit_after.all_sha256=m.evidence.costume_edit_before.all_sha256;});
-        auto equal=result();equal.request.costume_edit.record=equal.evidence.costume_edit_before.record;equal.evidence.costume_edit_after.record=equal.request.costume_edit.record;equal.evidence.costume_edit_after.all_sha256=equal.evidence.costume_edit_before.all_sha256;
+        auto equal_storage=std::make_unique<Message>(result());auto& equal=*equal_storage;equal.request.costume_edit.record=equal.evidence.costume_edit_before.record;equal.evidence.costume_edit_after.record=equal.request.costume_edit.record;equal.evidence.costume_edit_after.all_sha256=equal.evidence.costume_edit_before.all_sha256;
         check(encode(equal,bytes,error),"Original equal Apply metadata transaction rejected");
-        auto message=request();check(encode(message,bytes,error),error.c_str());auto encoded=nlohmann::json::parse(bytes);encoded["request"]["costume_edit"]["record"]["flag"]=1;
+        auto message_storage=std::make_unique<Message>(request());auto& message=*message_storage;check(encode(message,bytes,error),error.c_str());auto encoded=nlohmann::json::parse(bytes);encoded["request"]["costume_edit"]["record"]["flag"]=1;
         auto malformed=encoded.dump();check(!decode(reinterpret_cast<const uint8_t*>(malformed.data()),malformed.size(),decoded,error),"Costume bool accepted integer");
         encoded=nlohmann::json::parse(bytes);encoded["request"]["costume_edit"]["record"]["parts"][0]["pose"]["rotation"].push_back(0);malformed=encoded.dump();check(!decode(reinterpret_cast<const uint8_t*>(malformed.data()),malformed.size(),decoded,error),"Costume transform accepted foreign dimension");
         const bool fits=costume_edit_wire_fits(request().request,before(),{},error);if(!fits)throw std::runtime_error("Normal Costume receipt preflight: "+error);check(fits,"Normal Costume receipt failed packet preflight");
         auto oversized=request().request;oversized.costume_edit.record.parts.resize(max_payload/1000+2,record().parts[0]);for(auto& p:oversized.costume_edit.record.parts)p.model=std::string(1000,'x');
-        check(!costume_edit_wire_fits(oversized,before(),{},error)&&error.find("budget")!=std::string::npos,"Costume oversized receipt allowed before effect or rejected for another cause");
+        const bool oversized_fits=costume_edit_wire_fits(oversized,before(),{},error);
+        const auto cap_error="action payload exceeds "+std::to_string(max_payload)+" bytes";
+        check(!oversized_fits&&(error==cap_error||error=="Costume full before/after receipt exceeds existing action packet budget before original effect"),"Costume oversized receipt allowed before effect or rejected for another cause");
     }
     using namespace mt2mp::game;
     costume_native_view::Borrowed view;const auto original=record();constexpr uintptr_t image=0x140000000;

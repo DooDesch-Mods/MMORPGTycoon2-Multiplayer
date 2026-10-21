@@ -4,7 +4,7 @@ p=argparse.ArgumentParser();p.add_argument('--source',type=Path,required=True);p
 a.output.mkdir(parents=True,exist_ok=True);receipt={}
 def body(source,begin,end,output):
  text=(a.source/source).read_text();assert text.count(begin)==1,(source,begin)
- stop=len(text)-(2 if end=='EOF_NAMESPACE' else 0) if end.startswith('EOF') else text.index(end,text.index(begin))
+ stop=len(text)-(2 if end=='EOF_NAMESPACE' else 4 if end=='EOF_TWO_NAMESPACES' else 0) if end.startswith('EOF') else text.index(end,text.index(begin))
  value=text[text.index(begin):stop];assert value.strip(),output;target=a.output/output
  if not target.exists() or target.read_text()!=value:target.write_text(value)
  receipt[output]={'source':source,'sha256':hashlib.sha256(value.encode()).hexdigest()}
@@ -19,6 +19,7 @@ body('src/game/region_sale_runtime.inc','bool sale_inverse(','EOF','region_sale_
 body('src/game/prop_text_runtime.inc','bool text(','bool current_object(','prop_text_string_actual.inc')
 body('src/game/prop_text_runtime.inc','bool read(','bool capture(','prop_text_read_actual.inc')
 body('src/game/prop_text_runtime.inc','bool capture(','void building_name_entry(','prop_text_capture_actual.inc')
+body('src/game/prop_text_runtime.inc','bool capture_rename(','bool enable(','prop_text_rename_capture_actual.inc')
 body('src/game/prop_text_runtime.inc','action::Outcome perform(','json status(','prop_text_perform_actual.inc')
 body('src/game/boss_phase_runtime.inc','bool live_list(','bool sample(','boss_phase_list_actual.inc')
 body('src/game/boss_phase_runtime.inc','bool sample(','#include "boss_phase_property_runtime.inc"','boss_phase_sample_actual.inc')
@@ -35,6 +36,7 @@ body('src/game/typed_action_runtime.cpp','action::Outcome perform_selection_move
 body('src/game/district_text_runtime.inc','bool sample(','void name_entry(','district_sample_capture_actual.inc')
 body('src/game/district_text_runtime.inc','action::Outcome perform(','json status(','district_perform_actual.inc')
 body('src/core/dll_main.cpp','static game::district_saved_identity_runtime::PropertyCall original_save_district_property=','static game::monster_saved_identity_runtime::PropertyCall original_save_monster_property=','district_property_wrappers_actual.inc')
+body('src/game/district_edit_runtime.inc','action::Outcome perform(','#include "district_edit_history_runtime.inc"','district_edit_perform_actual.inc')
 body('src/game/district_title_runtime.inc','bool capture(','uint32_t restore_flag_call(','district_title_capture_actual.inc')
 body('src/game/district_title_runtime.inc','bool restore_source(','void position_entry(','district_title_restore_actual.inc')
 body('src/game/district_title_runtime.inc','action::Outcome perform(','json status(','district_title_perform_actual.inc')
@@ -44,9 +46,20 @@ body('src/game/group_history_runtime.inc','struct HistorySource {','bool history
 body('src/game/group_history_runtime.inc','bool history_identity(','bool history_ready(','group_history_identity_actual.inc')
 body('src/game/group_history_runtime.inc','bool history_ready(','action::Outcome perform_history(','group_history_restore_actual.inc')
 body('src/game/group_history_runtime.inc','action::Outcome perform_history(','EOF','group_history_perform_actual.inc')
+body('src/game/group_object_sample.inc','struct Sample {','bool same_binding(','group_object_sample_actual.inc')
+body('src/game/group_object_sample.inc','void trim(','bool native_target(','group_object_trim_actual.inc')
+body('src/game/duplicate_sample.inc','struct Sample {','bool external_owner(','duplicate_sample_type_actual.inc')
+body('src/game/duplicate_sample.inc','bool external_owner(','namespace child_npc=','duplicate_sample_owner_actual.inc')
+body('src/game/duplicate_sample.inc','bool sample(Runtime&','EOF_TWO_NAMESPACES','duplicate_sample_actual.inc')
+body('src/game/duplicate_runtime.inc','bool same_binding(','bool cash_position(','duplicate_sample_binding_actual.inc')
 body('src/game/duplicate_runtime.inc','bool source_matches(','\n}\n#include "duplicate_history_runtime.inc"','duplicate_source_actual.inc')
 body('src/game/duplicate_runtime.inc','action::Outcome perform(','void retire_session()','duplicate_perform_actual.inc')
 body('src/game/duplicate_history_runtime.inc','struct HistorySource {','bool history_known(','duplicate_history_structs_actual.inc')
 body('src/game/duplicate_history_runtime.inc','bool history_survivors(','action::Outcome perform_history(','duplicate_history_survivors_actual.inc')
 body('src/game/duplicate_history_runtime.inc','action::Outcome perform_history(','EOF','duplicate_history_perform_actual.inc')
+
+
+body('src/game/duplicate_runtime.inc','void retain_source_records(','void reject(','duplicate_record_status_actual.inc')
+body('src/game/duplicate_runtime.inc','void tick(){','action::Outcome perform(','duplicate_tick_actual.inc')
+body('src/game/duplicate_runtime.inc','void retire_session(){','json status(){','duplicate_retire_session_actual.inc')
 (a.output/'body-hashes.json').write_text(json.dumps(receipt,indent=2)+'\n')

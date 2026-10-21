@@ -33,8 +33,12 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     const bool undo_direction=request.action==action::Action::UndoBuilding;
     const Sample& expected_before=undo_direction?source.after:source.before;
     const Sample& expected_after=undo_direction?source.before:source.after;
-    const action::Ledger& money_before=undo_direction?source.evidence.after:source.evidence.before;
-    const action::Ledger& money_after=undo_direction?source.evidence.before:source.evidence.after;
+    const int64_t original_cash=int64_t(source.evidence.after.cash)-source.evidence.before.cash;
+    const int64_t inverse_cash=undo_direction?-original_cash:original_cash;
+    if(inverse_cash<INT32_MIN||inverse_cash>INT32_MAX){
+        error="mixed Path history original cash inverse exceeds native integer";
+        return action::Outcome::RejectedNoEffect;}
+    action::Ledger money_after;
     const auto& intent=source.request.world_path;
     region::LocalView view;Sample before;action::Ledger ledger;uintptr_t graph_pointer=0;
     if(!region::read(*r,intent.start_region,0,view,error)||
@@ -43,10 +47,12 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
        !region::ledger(ledger,error)||
        !building_history_slice::graph_for(request.action,request.target_action_uuid,graph_pointer,error))
         return action::Outcome::RejectedNoEffect;
-    if(before.wire.complete_sha256!=expected_before.wire.complete_sha256||ledger!=money_before){
+    if(!mixed::same(before.mixed,expected_before.mixed,error)){
         error="Wall/Pass history complete current topology, Records or ledger differs from original source";
         return action::Outcome::RejectedNoEffect;}
-    if(authority&&(authority->before!=ledger||!authority->world_path_before||
+    if(!building_history_slice::cash_effect(ledger,int32_t(inverse_cash),money_after,error))
+        return action::Outcome::RejectedNoEffect;
+    if(authority&&(authority->before!=ledger||authority->after!=money_after||!authority->world_path_before||
                    *authority->world_path_before!=before.wire)){
         error="Wall/Pass history Client before state differs from Host";
         return action::Outcome::RejectedNoEffect;}
@@ -65,7 +71,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
        !world_path_sample(*r,request.snapshot_uuid,intent.start_region,intent.end_region,operation.after,error)||
        !region::ledger(operation.evidence.after,error)){
         operation.cause=error;return action::Outcome::Unknown;}
-    if(operation.after.wire.complete_sha256!=expected_after.wire.complete_sha256||operation.evidence.after!=money_after){
+    if(!mixed::same(operation.after.mixed,expected_after.mixed,error)||operation.evidence.after!=money_after){
         error=operation.cause="Wall/Pass original Undo/Redo did not restore complete source topology, Records or ledger";
         return action::Outcome::Unknown;}
     uintptr_t inverse=0;

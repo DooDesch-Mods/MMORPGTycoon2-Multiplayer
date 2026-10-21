@@ -1,4 +1,5 @@
 #include "tutorial_replication/lifecycle.h"
+#include "scenario_intro_state.h"
 #include <algorithm>
 #include <cstring>
 #include <iostream>
@@ -23,7 +24,7 @@ unsigned advances=0,starts=0,completes=0,version_sets=0;
 unsigned updates=0,terminals=0,scenario_starts=0;
 DWORD start_code=0,advance_code=0,complete_code=0,version_code=0;
 int32_t limit=17;
-constexpr uintptr_t fixture_sequence=0x10000,instance=0x20000,fixture_steps=0x30000,first_step=0x40000;
+constexpr uintptr_t fixture_sequence=0x10000,fixture_instance=0x20000,fixture_steps=0x30000,first_step=0x40000;
 std::array<int32_t,3> current_version{};
 NativeCursor native_cursor;
 std::vector<uintptr_t> instances;
@@ -69,7 +70,8 @@ bool array(uintptr_t address,size_t offset,int32_t,uintptr_t& data,int32_t& coun
 void remember_terminal(uintptr_t){++terminals;}
 #include "lifecycle_advance.inc"
 bool host(World& w,action_session::Context&,action_session::Binding&,std::string& e){if(!origin_ok)return fail(e,"original Host owner changed");w={};return bind_cache(w,{},e);}
-void original_scenario_start(void*,void*,void*){++scenario_starts;fixture_present=true;instances.push_back(instance);original_advance(reinterpret_cast<void*>(fixture_sequence));}
+void original_scenario_start(void*,void*,void*){++scenario_starts;fixture_present=true;instances.push_back(fixture_instance);original_advance(reinterpret_cast<void*>(fixture_sequence));}
+namespace intro_native {void start(void*,void*,void*){throw std::runtime_error("unexpected Intro in fixed Tutorial fixture");}}
 #include "lifecycle_start.inc"
 }
 #include "lifecycle_update.inc"
@@ -80,7 +82,7 @@ struct ProgressCalls {};
 struct Memory {} memory;
 namespace message_progress {bool verify_code(Memory&,uintptr_t,std::string& e){return code_ok||fail(e,"original message code failed");}bool apply(Memory&,uintptr_t,uintptr_t,int32_t,const std::optional<MessageProgress>&,ProgressCalls&,bool&,std::string&){return true;}}
 namespace lifecycle_native {
-DWORD start_call(uintptr_t,uintptr_t){++starts;fixture_present=true;if(append_ok)instances.push_back(instance);advance(reinterpret_cast<void*>(fixture_sequence));return start_code;}
+DWORD start_call(uintptr_t,uintptr_t){++starts;fixture_present=true;if(append_ok)instances.push_back(fixture_instance);advance(reinterpret_cast<void*>(fixture_sequence));return start_code;}
 DWORD complete_call(uintptr_t,uintptr_t){++completes;if(remove_ok){fixture_present=false;completed_ids=1;instances.clear();physical_state=desired_state;}return complete_code;}
 DWORD set_version_call(uintptr_t){++version_sets;if(version_ok)current_version={0,0,100};return version_code;}
 bool version(const World&,uintptr_t& owner,std::array<int32_t,3>& out,std::string&){owner=77;out=current_version;return true;}
@@ -127,7 +129,7 @@ void reset(const std::string& id="leveltwo_tutorial",int32_t next=0){
     physical_state={};desired_state={};preflight_observed={};state_reads=fail_read=research_calls=0;
     code_ok=research_ok=prepare_ok=display_ok=research_effect_ok=true;display_fail_install=false;
     current_version={0,0,0};instances.clear();completed_ids=0;lifecycle_native::cache.reset();lifecycle_native::creation=nullptr;
-    native_cursor={instance,fixture_sequence,fixture_steps,{id,"",limit,next,false,{},{}}};
+    native_cursor={fixture_instance,fixture_sequence,fixture_steps,{id,"",limit,next,false,{},{}}};
     seed(fixture_sequence+0x20,fixture_steps);seed(fixture_sequence+0x28,limit);seed(fixture_sequence+0x50,next);seed<uint8_t>(fixture_sequence+0x54,0);seed<uintptr_t>(fixture_sequence+0x48,0);
     seed(fixture_steps,first_step);seed(fixture_steps+93*8,first_step+93);seed(fixture_steps+100*8,first_step+100);
     memory_strings[first_step+0x40]=id=="initial_tutorial"?"MessageTo SoftwareStatus LockLevelUp":"MessageTo Hud Tutorial 1";
@@ -155,22 +157,24 @@ void execute(){using namespace lifecycle_native;action_session::Context c;action
     {reset();auto t=target();need(create(c,b,w,1,t,attempted,e)&&attempted&&starts==1&&advances==1&&load.quarantined.empty()&&load.sequences.contains(fixture_sequence)&&cache->proof.lifecycle_order[1][0]==1&&!creation,"original Start readback not adopted: "+e);need(!create(c,b,w,1,t,attempted,e)&&starts==1,"existing scenario was started twice");pass("one original Start appends and confirms before releasing quarantine; duplicate rejects");}
     {reset();append_ok=false;auto t=target();need(!create(c,b,w,1,t,attempted,e)&&attempted&&starts==1&&load.quarantined.contains(fixture_sequence)&&!creation&&!cache,"partial append was falsely confirmed");pass("partial Start retains fence and cannot confirm cache metadata");}
     {reset();start_code=37;auto t=target();need(!create(c,b,w,1,t,attempted,e)&&attempted&&e.find("exception=37")!=std::string::npos&&load.quarantined.contains(fixture_sequence),"original Start exception cause lost");pass("Start exception after original attempt stays visible and fenced");}
-    {reset("leveltwo_tutorial",16);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);auto t=target("leveltwo_tutorial",true);need(complete(c,b,w,1,t,attempted,e)&&advances==2&&completes==1&&!load.sequences.contains(fixture_sequence)&&cache->proof.terminal==t.terminal,"terminal Stop/Complete readback failed: "+e);need(!complete(c,b,w,1,t,attempted,e)&&completes==1,"completed scenario called native Complete twice");pass("final Stop executes once then Complete once; only confirmed erase removes fence");}
-    {reset("leveltwo_tutorial",17);fixture_present=true;instances={instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);auto t=target("leveltwo_tutorial",true);need(complete(c,b,w,1,t,attempted,e)&&!advances&&completes==1,"already stopped cursor stopped twice");pass("already confirmed Stop is not repeated");}
-    {reset("leveltwo_tutorial",17);fixture_present=true;instances={instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);remove_ok=false;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&completes==1&&load.sequences.contains(fixture_sequence)&&!cache&&e.find("removal/completed-ID")!=std::string::npos,"partial Complete falsely erased fence");pass("partial Complete retains early fence and does not claim metadata");}
-    {reset("leveltwo_tutorial",17);fixture_present=true;instances={instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);owner_change=true;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&completes==1&&load.sequences.contains(fixture_sequence),"changed native owner falsely acknowledged");pass("post-Complete owner change remains unconfirmed and fenced");}
-    {reset("leveltwo_tutorial",16);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);advance_code=91;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&!completes&&e.find("exception=91")!=std::string::npos&&load.sequences.contains(fixture_sequence),"failed Advance reached native Complete");pass("Advance failure preserves original cause before Complete");}
-    {reset("initial_tutorial",100);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,0,100};need(forward(c,b,w,0,101,t,false,attempted,e)&&version_sets==1&&advances==1&&current_version==*t.version,"exact Version Set failed: "+e);pass("actual forward runs exact Version Set before Step100 Advance");}
-    {reset("initial_tutorial",100);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,0,100};version_ok=false;need(!forward(c,b,w,0,101,t,false,attempted,e)&&version_sets==1&&!advances&&e.find("full owner/value")!=std::string::npos,"false Version Set readback advanced cursor");pass("wrong Version Set readback stops before cursor mutation");}
-    {reset("initial_tutorial",100);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,1,100};need(!forward(c,b,w,0,101,t,false,attempted,e)&&!version_sets&&!advances,"arbitrary Version Set executed");pass("invented version never reaches native Set or Advance");}
-    {reset("leveltwo_tutorial",16);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);bool unknown=false;
+    {reset("leveltwo_tutorial",16);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);auto t=target("leveltwo_tutorial",true);need(complete(c,b,w,1,t,attempted,e)&&advances==2&&completes==1&&!load.sequences.contains(fixture_sequence)&&cache->proof.terminal==t.terminal,"terminal Stop/Complete readback failed: "+e);need(!complete(c,b,w,1,t,attempted,e)&&completes==1,"completed scenario called native Complete twice");pass("final Stop executes once then Complete once; only confirmed erase removes fence");}
+    {reset("leveltwo_tutorial",17);fixture_present=true;instances={fixture_instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);auto t=target("leveltwo_tutorial",true);need(complete(c,b,w,1,t,attempted,e)&&!advances&&completes==1,"already stopped cursor stopped twice");pass("already confirmed Stop is not repeated");}
+    {reset("leveltwo_tutorial",17);fixture_present=true;instances={fixture_instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);remove_ok=false;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&completes==1&&load.sequences.contains(fixture_sequence)&&!cache&&e.find("removal/completed-ID")!=std::string::npos,"partial Complete falsely erased fence");pass("partial Complete retains early fence and does not claim metadata");}
+    {reset("leveltwo_tutorial",17);fixture_present=true;instances={fixture_instance};seed<uint8_t>(fixture_sequence+0x54,1);load.sequences.insert(fixture_sequence);owner_change=true;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&completes==1&&load.sequences.contains(fixture_sequence),"changed native owner falsely acknowledged");pass("post-Complete owner change remains unconfirmed and fenced");}
+    {reset("leveltwo_tutorial",16);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);advance_code=91;auto t=target("leveltwo_tutorial",true);need(!complete(c,b,w,1,t,attempted,e)&&!completes&&e.find("exception=91")!=std::string::npos&&load.sequences.contains(fixture_sequence),"failed Advance reached native Complete");pass("Advance failure preserves original cause before Complete");}
+    {reset("initial_tutorial",100);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,0,100};need(forward(c,b,w,0,101,t,false,attempted,e)&&version_sets==1&&advances==1&&current_version==*t.version,"exact Version Set failed: "+e);pass("actual forward runs exact Version Set before Step100 Advance");}
+    {reset("initial_tutorial",100);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,0,100};version_ok=false;need(!forward(c,b,w,0,101,t,false,attempted,e)&&version_sets==1&&!advances&&e.find("full owner/value")!=std::string::npos,"false Version Set readback advanced cursor");pass("wrong Version Set readback stops before cursor mutation");}
+    {reset("initial_tutorial",100);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);auto t=target("initial_tutorial");t.active[0].next=101;t.version=std::array<int32_t,3>{0,1,100};need(!forward(c,b,w,0,101,t,false,attempted,e)&&!version_sets&&!advances,"arbitrary Version Set executed");pass("invented version never reaches native Set or Advance");}
+    {reset("leveltwo_tutorial",16);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);bool unknown=false;
         need(apply(c,b,desired_state,attempted,unknown,e)&&attempted&&!unknown&&completes==1&&advances==2,"actual outer Apply failed confirmed terminal: "+e);
         need(apply(c,b,desired_state,attempted,unknown,e)&&!attempted&&!unknown&&completes==1&&advances==2,"duplicate confirmed outer Apply replayed native effect");pass("actual outer Apply confirms complete readback and duplicate has no native replay");}
-    {reset("leveltwo_tutorial",16);fixture_present=true;instances={instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);remove_ok=false;bool unknown=false;
+    {reset("leveltwo_tutorial",16);fixture_present=true;instances={fixture_instance};load.sequences.insert(fixture_sequence);physical_state=target();physical_state.active[0].next=16;desired_state=target("leveltwo_tutorial",true);remove_ok=false;bool unknown=false;
         need(!apply(c,b,desired_state,attempted,unknown,e)&&attempted&&unknown&&completes==1&&!fault.empty()&&load.sequences.contains(fixture_sequence),"partial outer Apply lost Unknown/fence");const auto cause=e;
         need(!apply(c,b,desired_state,attempted,unknown,e)&&!attempted&&!unknown&&completes==1&&advances==2&&e==cause,"faulted outer Apply replayed original or lost original cause");pass("actual outer Apply latches partial Unknown and blocks replay with original cause");}
 }
 #include "tutorial_preflight_reuse_cases.inc"
 #include "tutorial_progress_only_cases.inc"
 }
-int main(){try{hooks();execute();preflight_reuse_cases();progress_only_cases();std::cout<<checks<<" actual lifecycle native-body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}
+
+#include "intro_native_cases.inc"
+int main(){try{intro_fixture::run();hooks();execute();preflight_reuse_cases();progress_only_cases();std::cout<<checks<<" actual lifecycle native-body checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

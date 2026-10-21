@@ -11,6 +11,7 @@ namespace monster_target_key=mt2mp::game::monster_target_key;
 #include <memory>
 #include <cstring>
 using json=nlohmann::json;
+namespace remove_adapter_fixture {
 namespace a=mt2mp::action_session;
 namespace identity=mt2mp::game::direct_monster_identity;
 namespace ur=a::ui_capture;
@@ -19,12 +20,16 @@ namespace monster_zone_read=mt2mp::game::monster_zone_read;
 namespace npc_census=mt2mp::npc_census;
 unsigned GetCurrentThreadId(){return 1;}
 bool fail(std::string& e,const std::string& why){e=why;return false;}
+uintptr_t service_ap=1+0x16c0770;bool service_read_failure=false;unsigned foreign_resolves=0;
 struct Memory{bool copy(uintptr_t object,void* out,size_t size,std::string& e){
  if(object!=100||size!=sizeof(uintptr_t))return fail(e,"service memory span differs");
- const uintptr_t ap=1+0x16c0770;std::memcpy(out,&ap,size);return true;}};
-namespace mt2mp::npc_census{bool read_name(::Memory&,uintptr_t,std::string& out,std::string&){out="Deathblood";return true;}}
+ if(service_read_failure)return fail(e,"fixture service read failed");
+ std::memcpy(out,&service_ap,size);return true;}};
+}
+namespace mt2mp::npc_census{bool read_name(::remove_adapter_fixture::Memory&,uintptr_t,std::string& out,std::string&){out="Deathblood";return true;}}
+namespace remove_adapter_fixture {
 struct World{uintptr_t root=10,selection=40;bool saves=false,edits=false,active_graph=false;};
-struct Pin{World world;struct Region{uintptr_t region=20;}region;};
+struct Pin{World world;struct Region{uintptr_t region=20,root=10;}region;};
 namespace d {struct Sample{mz::State state;a::Ledger money;struct Undo{uintptr_t active_graph=0;std::vector<uintptr_t> undo;}undo;};}
 namespace qr {struct Witness{std::vector<uintptr_t> quests;int completed=0;std::vector<a::MonsterRetiredQuest> rows;};bool survivors(const Witness&,const Witness&,std::string&){return true;}bool unchanged(const Witness&,const Witness&,std::string&){return true;}}
 namespace rr {
@@ -40,6 +45,7 @@ struct Session{bool current(a::Context& context,std::string&){context.snapshot_u
 struct Engine{bool current(const a::Binding& binding,const std::string& snapshot,std::string&){return binding==a::Binding{3,4}&&snapshot==snapshot_id;}};
 struct Runtime{unsigned thread=1;bool lobby_retiring=false;Controller controller;Session session;Engine engine;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
+#include "remove_read_binding_body.inc"
 #include "remove_network_binding_body.inc"
 json controller_status(){const auto value=fixture_runtime.controller.status();return {{"started",value.started},{"locked",value.locked},{"pending",value.pending&&mode!=13},{"action_uuid",value.action_uuid}};}
 }
@@ -62,8 +68,17 @@ bool pin(Memory&,const a::Binding& binding,const std::string& snapshot,int32_t,P
  if(binding!=a::Binding{3,4}||snapshot!=snapshot_id)return fail(e,"current binding differs");
  return mode!=4||removals.empty()||fail(e,"current local binding changed");}
 namespace d {bool sample(Memory&,const Pin::Region&,Sample& out,std::string&){out.state.monster_manager=30;return true;}}
+bool direct_target_pin(Memory& memory,const a::Binding& binding,const std::string& snapshot,const std::string& target,int32_t region,Pin& out,std::string& e,bool retired=false){
+ if(target!=birth_id)return fail(e,"fixture canonical target differs");
+ identity::Entry entry;if(!retired&&!identity::registry.lookup(target,current_scope,entry,e))return false;
+ return pin(memory,binding,snapshot,region,out,e);
+}
+bool direct_receiver(Memory&,const a::Binding&,const std::string&,uintptr_t object,uint64_t uid,std::string& key,std::string& e){return identity::registry.resolve(current_scope,object,uid,key,e);}
+bool direct_sample(Memory& memory,const Pin& owner,d::Sample& out,std::string& e){return d::sample(memory,owner.region,out,e);}
+namespace building_history_slice{bool remember_monster(const std::string& id,uintptr_t graph,std::string& e){return (id==action_id&&graph==50)||fail(e,"fixture retained graph differs");}}
+
 bool move_target(Memory&,const a::Binding&,const std::string&,int32_t,const std::string&,Pin&,d::Sample& s,mz::Monster& row,std::string& e){
- if(mode==2)return fail(e,"full UID/current manager mismatch");row.pointer=100;row.uid=0x100000001ull;row.rank=1;s.money=money();return true;}
+ if(mode==2)return fail(e,"full UID/current manager mismatch");row.pointer=100;row.uid=0x100000001ull;row.rank=before_value.actor.rank;s.money=money();return true;}
 bool effect(Memory&,const Pin&,d::Sample& s,MonsterState& v,std::string&,uint64_t=0){
  v=mutated?removed(before_value):before_value;s.money=money();s.state.monster_manager=30;s.undo.undo=mutated?std::vector<uintptr_t>{50}:std::vector<uintptr_t>{};
  if(mutated&&mode==10)++s.money.line_income[19];if(mutated&&mode==11)++v.roster.created_monsters;
@@ -88,13 +103,19 @@ bool authorize_remove_replay(const ur::Replay&,std::string&);
 bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string&);
 namespace npc_probe {
 namespace action_runtime {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){return fail(e,"unexpected NPC service branch");}}
-namespace monster_action_runtime {using ::remove_local_binding;using ::authorize_remove_replay;}
+namespace monster_action_runtime {using ::remove_adapter_fixture::remove_local_binding;using ::remove_adapter_fixture::authorize_remove_replay;}
 }
 namespace remove_diagnostics {
 struct LocalTarget{bool normal_building=false,normal_scenery=false;std::string kind_cause;};
 bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget&,std::string& e){return fail(e,"unexpected Building service branch");}
 }
 ur::LocalBinding local_binding(const remove_diagnostics::LocalTarget&){throw std::runtime_error("unexpected Building conversion");}
+namespace ui_move_runtime {
+namespace district_stroke {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){++foreign_resolves;return fail(e,"fixture District resolver rejected");}}
+namespace group_object {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){++foreign_resolves;return fail(e,"fixture Group resolver rejected");}}
+}
+namespace ui_path_runtime {bool remove_local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){++foreign_resolves;return fail(e,"fixture Path resolver rejected");}}
+namespace network_remove_runtime {bool local_binding(uintptr_t,uintptr_t,ur::LocalBinding&,std::string& e){++foreign_resolves;return fail(e,"fixture Network resolver rejected");}}
 namespace ui=ur;
 struct ActualServices:ur::Services {
 
@@ -105,7 +126,7 @@ struct ActualServices:ur::Services {
  #include "remove_service_resolve_body.inc"
  bool fresh_action_uuid(std::string& out,std::string&)override{out=action_id;return true;}
  bool submit(const ur::Intent&,std::string& e)override{return fail(e,"unexpected public submit");}
- bool authorize_replay(const ur::Replay& replay,std::string& e)override{return ::authorize_remove_replay(replay,e);}
+ bool authorize_replay(const ur::Replay& replay,std::string& e)override{return ::remove_adapter_fixture::authorize_remove_replay(replay,e);}
  void original(ur::DestroyProps function,void* manager,ur::NativePropArray* array)override{function(manager,array);}
  void log(const char*,const char*,const std::string&)noexcept override{}
  void show_rejection(const std::string&)noexcept override{}
@@ -128,11 +149,12 @@ namespace ui_remove_runtime{
 #include "remove_replay_binding_body.inc"
 #include "remove_perform_body.inc"
 void reset(unsigned selected){
- mode=selected;in_callback=false;capture=std::make_unique<ur::Capture>(services);std::string setup;need(capture->publish_disabled(&actual_original,setup)&&capture->set_enabled(true,setup),setup);Config::instance().is_host=true;typed_action_runtime::fixture_runtime.controller.value={};remove_replay=nullptr;original_count=seeds=0;mutated=false;removals.clear();identity::registry=identity::Registry{};
+ mode=selected;in_callback=false;service_ap=1+0x16c0770;service_read_failure=false;foreign_resolves=0;capture=std::make_unique<ur::Capture>(services);std::string setup;need(capture->publish_disabled(&actual_original,setup)&&capture->set_enabled(true,setup),setup);Config::instance().is_host=true;typed_action_runtime::fixture_runtime.controller.value={};remove_replay=nullptr;original_count=seeds=0;mutated=false;removals.clear();identity::registry=identity::Registry{};
  before_value=born(empty());std::string e;need(identity::registry.stage(birth_id,current_scope,100,0x100000001ull,e),e);
  need(identity::registry.confirm(birth_id,e),e);
 }
-int main(){try{unsigned n=0;std::string e;
+}
+int main(){try{using namespace remove_adapter_fixture;unsigned n=0;std::string e;
  for(unsigned which=0;which<=16;++which){reset(which);auto request=remove_request().request;
   const auto result=remove_perform({3,4},request,nullptr,e);
   if(which==0){need(result==a::Outcome::Confirmed&&original_count==1&&removals.at(action_id).confirmed,"original Remove did not confirm");identity::Entry entry;need(!identity::registry.lookup(birth_id,current_scope,entry,e),"confirmed absence did not tombstone birth");}
@@ -196,5 +218,18 @@ int main(){try{unsigned n=0;std::string e;
  need(!capture->with_replay(replay,[&](std::string& nested){capture->record_entry_failure("exact nested caller failure");nested="later generic callback failure";return false;},e)&&
       e=="exact nested caller failure"&&capture->status().cause==e&&!original_count,"nested cause did not survive callback failure");++n;
  remove_replay=nullptr;
+ reset(0);before_value.actor.rank=0;need(remove_perform({3,4},remove_request().request,nullptr,e)==a::Outcome::Confirmed&&original_count==1,"ordinary rank0 original Remove failed: "+e);++n;
+ reset(0);typed_action_runtime::fixture_runtime.controller.value.pending=false;
+ for(const auto ap:{uintptr_t(0x16da000),uintptr_t(0x1743f10),uintptr_t(0x1749de0),uintptr_t(0x16fc700),uintptr_t(0x16fca60)}){
+  service_ap=1+ap;const auto old=foreign_resolves;e.clear();local={};
+  need(!services.resolve(40,100,local,e)&&foreign_resolves==old+1&&local==ur::LocalBinding{}&&e.starts_with("fixture "),"foreign resolver did not preserve its rejection");++n;
+ }
+ service_read_failure=true;const auto old_resolves=foreign_resolves;e.clear();
+ need(!services.resolve(40,100,local,e)&&e=="fixture service read failed"&&foreign_resolves==old_resolves,"service read failure reached a resolver or lost cause");++n;
+ reset(0);typed_action_runtime::fixture_runtime.controller.value.pending=false;
+ need(!typed_action_runtime::network_binding(birth_id,admitted,e)&&admitted==a::Binding{}&&e=="binding read actual Session/snapshot differs from Controller","actual current binding read accepted a foreign snapshot");++n;
+ typed_action_runtime::fixture_runtime.lobby_retiring=true;
+ need(!typed_action_runtime::network_binding(snapshot_id,admitted,e)&&admitted==a::Binding{}&&e=="network admission requires idle unlocked Controller","retiring Controller admitted a Remove binding");++n;
+ typed_action_runtime::fixture_runtime.lobby_retiring=false;
  std::cout<<n<<" actual Remove perform/shared Capture/Services pending and no-replay cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

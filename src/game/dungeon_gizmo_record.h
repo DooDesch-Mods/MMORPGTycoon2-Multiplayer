@@ -3,7 +3,7 @@
 #include <array>
 #include <string_view>
 namespace mt2mp::game::dungeon_gizmo_record {
-inline constexpr std::array<const char*,5> labels{"SetGold","SetLoot","SetVendorTrash","SetKeys","SetBossKeys"};
+inline constexpr std::array<const char*,6> labels{"SetGold","SetLoot","SetVendorTrash","SetKeys","SetBossKeys","SetState"};
 struct Window {uintptr_t object=0,target=0,proxy=0,grid=0;uint64_t uid=0;};
 template<class Read,class Find>
 bool window(Read& at,Find& find,uintptr_t image,uintptr_t object,Window& out,std::string& error){
@@ -34,10 +34,11 @@ template<class Read>bool value(Read& at,uintptr_t record,int32_t& number,std::st
 }
 inline bool replay(uintptr_t receiver,action_session::DungeonGizmoEdit edit,int32_t value,uintptr_t expected_receiver,
                    action_session::DungeonGizmoEdit expected_edit,int32_t expected_value,const action_session::DungeonGizmoRecord* preparation,
-                   uint32_t& calls,bool& execute,std::string& error){
+                   uint32_t& calls,bool& execute,std::string& error,bool door=false){
     execute=false;if(receiver!=expected_receiver){error="Gizmo replay native Window differs";return false;}
     if(preparation){auto copy=*preparation;const auto* field=action_session::dungeon_gizmo_value(copy,edit);
-        if(!field||*field!=value){error="Gizmo native Window preparation attempted a different gameplay value";return false;}
+        const auto current=edit==action_session::DungeonGizmoEdit::State?(door?copy.state+1:copy.triggered?1:3):(field?*field:-1);
+        if(current!=value){error="Gizmo native Window preparation attempted a different gameplay value";return false;}
         ++calls;return true;
     }
     if(edit!=expected_edit||value!=expected_value||calls){error="Gizmo original-once edit/value/count differs";return false;}

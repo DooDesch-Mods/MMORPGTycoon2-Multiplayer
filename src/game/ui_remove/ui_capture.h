@@ -8,7 +8,7 @@ namespace mt2mp::action_session::ui_capture {
 struct NativePropArray {uintptr_t addresspoint=0;uintptr_t* data=nullptr;int32_t count=0,capacity=0;};
 static_assert(sizeof(NativePropArray)==0x18&&offsetof(NativePropArray,data)==8&&offsetof(NativePropArray,count)==0x10);
 using DestroyProps=void(*)(void* manager,NativePropArray* native_array);
-enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow,NetworkWindow };
+enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow,NetworkWindow,DistrictWindow,ZoneWindow };
 enum class Policy:uint8_t { Standalone,AuthorityRequired,Unavailable };
 enum class Disposition:uint8_t { ForeignOriginal,StandaloneOriginal,EmptyOriginal,IntentCaptured,Rejected,OwnReplayOriginal };
 enum class ReplayPurpose:uint8_t { HostExecution,ConfirmedHostApplication };
@@ -16,7 +16,7 @@ struct LocalBinding {
     uintptr_t manager=0,object=0;
     uint64_t uid=0,native_epoch=0,native_generation=0;
     std::string snapshot_uuid,canonical_record_key;
-    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false,supported_monster=false,supported_network=false,supported_group=false;
+    bool supported_normal_building=false,supported_normal_scenery=false,supported_npc=false,supported_monster=false,supported_network=false,supported_group=false,supported_path=false,supported_district=false,supported_zone=false,supported_dungeon_building=false;
     bool operator==(const LocalBinding&)const=default;
 };
 struct Intent {std::string action_uuid,snapshot_uuid,canonical_record_key;};
@@ -35,6 +35,9 @@ public:
     virtual Policy policy(std::string& cause)=0;
     // Read the existing native array. Never create a native ownership object here.
     virtual bool array(NativePropArray*,ArrayObservation&,std::string& cause)=0;
+    // A complete Scene collection can use its existing typed Scene controller.
+    // The default preserves the normal single-prop route for other owners.
+    virtual bool scene_collection(uintptr_t,NativePropArray*,bool& handled,std::string&){handled=false;return true;}
     // Root reads exact current object+UID, snapshot registry metadata and native world.
     virtual bool resolve(uintptr_t manager,uintptr_t object,LocalBinding&,std::string& cause)=0;
     virtual bool fresh_action_uuid(std::string&,std::string& cause)=0;
@@ -44,6 +47,9 @@ public:
     virtual bool submit_monster(const Intent&,std::string& cause){cause="Monster UI submit service unavailable";return false;}
     virtual bool submit_network(const Intent&,std::string& cause){cause="Network UI submit service unavailable";return false;}
     virtual bool submit_group(const Intent&,std::string& cause){cause="Group UI submit service unavailable";return false;}
+    virtual bool submit_path(const Intent&,std::string& cause){cause="Path UI submit service unavailable";return false;}
+    virtual bool submit_district(const Intent&,std::string& cause){cause="District UI submit service unavailable";return false;}
+    virtual bool submit_zone(const Intent&,std::string& cause){cause="Zone UI submit service unavailable";return false;}
     // Root admits this private scope only from its actual authoritative engine bridge.
     virtual bool authorize_replay(const Replay&,std::string& cause)=0;
     virtual void original(DestroyProps,void*,NativePropArray*)=0;

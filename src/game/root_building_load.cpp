@@ -1,5 +1,6 @@
 #include "root_building_load.h"
 #include "root_saved_building.h"
+#include "saved_building_path.h"
 #include "snapshot_building_key.h"
 #include "native_open_witness.h"
 #include "mt2mp/core/logger.h"
@@ -213,9 +214,8 @@ bool finalize(std::vector<normal_load_identity::Binding>& result, std::string& e
                 return reject(error, "loaded Building final registry/readback failed uid=" + std::to_string(row.uid) + " cause=" + error);
             std::string suffix = std::to_string(row.id);
             if (!row.id) {
-                int32_t region = -1;
-                if (!slot(image, world.map, pointer, row.child, region, error, array.array)) return reject(error, "loaded inline Building owner rejected: " + error);
-                suffix = snapshot_building_key::root_suffix(region, row.child);
+                if (!saved_building_path::read(image,world.map,pointer,row.child,suffix,error,array.array))
+                    return reject(error,"loaded inline Building owner rejected: "+error);
             }
             const auto key = sha + ":world:building:" + suffix;
             if (!keys.insert(key).second || !uids.insert(row.uid).second || !pointers.insert(pointer).second)

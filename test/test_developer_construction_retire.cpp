@@ -52,6 +52,7 @@ struct Memory {bool copy(uintptr_t p,void* output,size_t n,std::string& e){auto&
     return true;
 }} memory;
 const job_census::Read copy=[](auto p,auto out,auto n,auto& e){return memory.copy(p,out,n,e);};
+bool read_jobs(const Capture& capture,job_census::Census& out,std::string& e){return job_census::read(copy,capture,out,e);}
 struct Work {Capture before;bool attempted=false;bool fresh(std::string&){return true;}};
 struct Target {struct Binding{uintptr_t object=0;} binding;uintptr_t region=0;uint8_t active=1;};
 bool owners(const Capture&,const Capture&,std::string&){return true;}
@@ -134,5 +135,13 @@ int main(){try{using namespace mt2mp::game::developer_staff::construction;size_t
         std::string e;size_t reads=0;
         const job_census::Read never=[&](uintptr_t,void*,size_t,std::string&){++reads;return false;};
         require(!occurrence(old,j,0,0,never,e)&&reads==0,"foreign cleared Job pointer reached proxy read");++cases;}
+    reset();{Work w;std::string e;auto loaded=link(3000,5000);
+        loaded.building_key=std::string(64,'a')+":world:building:inline:region{60}/buildingManager/building[0]";
+        require(retire(w,loaded,e)&&fixture::model.destroy_calls==1&&fixture::model.reads_after_free==0,
+                "loaded snapshot occurrence did not use exact selected original retirement");++cases;}
+    reset();fixture::model.expired=true;{Work w;std::string e;auto loaded=link(3000,5000,false);
+        loaded.building_key=std::string(64,'a')+":world:building:12";
+        require(retire(w,loaded,e)&&fixture::model.building_calls==0&&fixture::model.cached_reads==0,
+                "removed loaded snapshot target was dereferenced on retirement");++cases;}
     std::cout<<"PASS "<<cases<<" actual selected retirement cases\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

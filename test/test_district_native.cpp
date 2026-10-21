@@ -1,3 +1,6 @@
+#include "district_property_ui.h"
+#include "district_edit_history.h"
+#include "move_contract.cpp"
 #include "typed_action/action_session.h"
 #include "district_reader.h"
 #include <atomic>
@@ -178,5 +181,7 @@ void action_checks(){
     fixture_runtime.memory.put(object_ptr+0x328,uint32_t(1));action::Evidence out;
     need(!observe(fixture_binding,r,out,e),"changed complete property accepted at ACK");
 }
-int main()try{reader_checks();action_checks();std::cout<<checks<<" actual District reader/capture/Host/Client/Unknown checks passed\n";return 0;}
+#include "district_property_read_checks.inc"
+#include "district_edit_execution_checks.inc"
+int main()try{reader_checks();action_checks();property_read_checks();district_edit_fixture::run();std::cout<<checks<<" actual District reader/capture/Host/Client/Unknown checks passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

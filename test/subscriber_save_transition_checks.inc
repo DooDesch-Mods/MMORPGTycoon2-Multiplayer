@@ -1,4 +1,5 @@
 namespace subscriber_save_transition {
+namespace party_frame=mt2mp::game::party_frame;
 using Target=live::day::Target;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 Owners before_logout(){
@@ -38,7 +39,7 @@ struct Cache {
  }
 };
 struct Coupling {
- Port& port_;bool locked_=false;std::string capture_cause_;Cache additions_;
+ Port& port_;live::PartyPort* parties_=nullptr;bool locked_=false;std::string capture_cause_;Cache additions_;
  explicit Coupling(Port& p):port_(p){}
  bool locked()const{return locked_||additions_.locked();}
  bool capture(const live::day::Target&,State&,std::string&);

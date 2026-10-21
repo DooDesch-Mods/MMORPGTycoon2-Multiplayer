@@ -53,11 +53,17 @@ void partition(){
 #include "open_witness_scope_cases.inc"
 #include "npc_saved_metadata_cases.inc"
 #include "world_prop_attribution_cases.inc"
+#include "pure_scenery_field_cases.inc"
+#include "scenery_state_field_cases.inc"
 #include "character_definition_scope_cases.inc"
 #include "pure_reader_followup_cases.inc"
 #include "region_identity_scope_cases.inc"
+#include "saved_root_index_scope_cases.inc"
+#include "saved_root_batch_lifetime_cases.inc"
+#include "saved_root_origin_cases.inc"
 #include "dungeon_roster_scope_cases.inc"
 #include "party_pool_scope_cases.inc"
+#include "world_zone_manager_scope_cases.inc"
 #include "shared_census_scope_cases.inc"
 #include "general_project_identity_cases.inc"
 #include "composed_character_census_cases.inc"
@@ -87,7 +93,40 @@ void host_capture_query_cases(void*& owned){
         need(count(t::Part::HostQueryOther)==1&&count(t::Part::MemoryVirtualQuery)==0,"Host-only queries do not alter Client Take counters");
         {t::Scope management(t::Part::HostCaptureManagement);
             {t::Scope release(t::Part::HostCaptureRelease);need(t::host_query_part==t::Part::HostQueryRelease,"nested Host stage selects its own category");}
-            need(t::host_query_part==t::Part::HostQueryManagement,"nested Host stage restores parent category");}
+            need(t::host_query_part==t::Part::HostQueryManagement,"nested Host stage restores parent category");
+            constexpr std::pair<t::Part,const char*> subreaders[]={
+                {t::Part::HostManagementPrimaryRead,"host_management_primary_read"},
+                {t::Part::HostManagementCalendar,"host_management_calendar"},
+                {t::Part::HostManagementFinishCalendar,"host_management_finish_calendar"},
+                {t::Part::HostManagementThought,"host_management_thought"},
+                {t::Part::HostManagementFinishThought,"host_management_finish_thought"},
+                {t::Part::HostManagementIdentityBuildings,"host_management_identity_buildings"},
+                {t::Part::HostManagementFinishIdentityBuildings,"host_management_finish_identity_buildings"}};
+            for(const auto& [part,name]:subreaders){
+                const auto before=count(part),queries=count(t::Part::HostQueryManagement);
+                {std::optional<t::Scope> measured;if(t::host_capture_depth)measured.emplace(part);
+                    need(t::host_capture_depth==1&&t::host_query_part==t::Part::HostQueryManagement,"subreader timer preserves Host query owner");
+                    t::detail::query<Fake::query,Clock>(address,&info,sizeof info);}
+                need(count(part)==before+1&&count(t::Part::HostQueryManagement)==queries+1,"subreader scope records once without stealing parent OS queries");
+                need(t::snapshot().at(name).at("count")==count(part),"subreader timer exports exact existing snapshot count");
+            }}
+        {t::Scope party(t::Part::HostCaptureParty);
+            constexpr std::pair<t::Part,const char*> preparation[]={
+                {t::Part::HostPartyScenePrepare,"host_party_scene_prepare"},
+                {t::Part::HostPartyNativeBatch,"host_party_native_batch"},
+                {t::Part::HostPartyDrain,"host_party_drain"},
+                {t::Part::HostPartySceneConfirm,"host_party_scene_confirm"},
+                {t::Part::HostPartyBirths,"host_party_births"},
+                {t::Part::HostPartyPins,"host_party_pins"}};
+            need(size_t(t::Part::HostPartyScenePrepare)==size_t(t::Part::HostManagementFinishIdentityBuildings)+1,"Party timers append after all existing counter indices");
+            for(const auto& [part,name]:preparation){
+                const auto before=count(part),queries=count(t::Part::HostQueryParty);
+                {t::Scope measured(part);
+                    need(t::host_capture_depth==1&&t::host_query_part==t::Part::HostQueryParty,"Party subreader timer preserves existing Host query attribution");
+                    t::detail::query<Fake::query,Clock>(address,&info,sizeof info);}
+                need(count(part)==before+1&&count(t::Part::HostQueryParty)==queries+1,"Party subreader records once without changing OS query owner");
+                need(t::snapshot().at(name).at("count")==count(part),"Party timing snapshot keeps exact appended counter name");
+            }}
         const auto completed=count(t::Part::HostMemoryVirtualQuery);Fake::throws=true;bool caught=false;
         try{t::detail::query<Fake::query,Clock>(address,&info,sizeof info);}
         catch(const std::runtime_error& error){caught=std::string(error.what())=="original query exception";}Fake::throws=false;
@@ -114,6 +153,8 @@ void host_capture_query_cases(void*& owned){
 }
 int main(){void* owned=nullptr;try{
     world_prop_attribution_cases();
+    pure_scenery_field_cases();
+    scenery_state_field_cases();
     npc_saved_metadata_cases();
     open_witness_scope_cases();
     prefix_cases();
@@ -124,8 +165,12 @@ int main(){void* owned=nullptr;try{
     character_definition_scope_cases();
     pure_reader_followup_cases();
     region_identity_scope_cases();
+    saved_root_index_scope_cases();
+    saved_root_batch_lifetime_cases();
+    saved_root_origin_cases();
     dungeon_roster_scope_cases();
     party_pool_scope_cases();
+    world_zone_manager_scope_cases();
     shared_census_scope_cases();
     project_identity_fixture::checks();
     composed_character_fixture::checks();

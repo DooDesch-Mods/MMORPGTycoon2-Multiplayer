@@ -49,12 +49,12 @@ inline bool valid(const Event& event){
     switch(event.source){
     case Source::BossWait:case Source::BossRespawn:case Source::BossGenerate:case Source::BossRegenerate:case Source::BossAdd:return event.target.family==Family::Boss&&event.effect==Effect::OnSpawn;
     case Source::NpcRespawn:case Source::NpcGenerate:case Source::NpcAdd:return event.target.family==Family::Npc&&event.effect==Effect::OnSpawn;
-    case Source::MonsterRespawn:case Source::MonsterGenerate:case Source::MonsterRegenerate:return event.target.family==Family::Monster&&zone_monster_key(event.target.key)&&event.effect==Effect::OnSpawn;
+    case Source::MonsterRespawn:case Source::MonsterGenerate:case Source::MonsterRegenerate:return event.target.family==Family::Monster&&(zone_monster_key(event.target.key)||monster_target_key::valid(event.target.key))&&event.effect==Effect::OnSpawn;
     case Source::NpcDeath:return event.target.family==Family::Npc&&event.effect==Effect::ClearLivePointers;
-    case Source::MonsterDeath:return event.target.family==Family::Monster&&zone_monster_key(event.target.key)&&event.effect==Effect::ClearLivePointers;
+    case Source::MonsterDeath:return event.target.family==Family::Monster&&(zone_monster_key(event.target.key)||monster_target_key::valid(event.target.key))&&event.effect==Effect::ClearLivePointers;
     case Source::BossBaseDeath:return event.target.family==Family::Boss&&event.effect==Effect::CharacterDie;
     case Source::NpcBaseDeath:return event.target.family==Family::Npc&&event.effect==Effect::CharacterDie;
-    case Source::MonsterBaseDeath:return event.target.family==Family::Monster&&zone_monster_key(event.target.key)&&event.effect==Effect::CharacterDie;
+    case Source::MonsterBaseDeath:return event.target.family==Family::Monster&&(zone_monster_key(event.target.key)||monster_target_key::valid(event.target.key))&&event.effect==Effect::CharacterDie;
     default:return false;}
 }
 inline nlohmann::json encode(const Event& event){return {{"target",interventions::encode(event.target)},{"effect",uint8_t(event.effect)},{"source",uint8_t(event.source)},{"action",event.action},{"ordinal",event.ordinal}};}

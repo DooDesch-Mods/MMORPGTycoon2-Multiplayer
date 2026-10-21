@@ -12,5 +12,6 @@ struct Census {
     std::map<uintptr_t,std::string> owners;
     std::vector<Actor> actors;std::vector<Zone> zones;
 };
+bool actor_census(const action_session::Context&,const action_session::Binding&,Census&,std::string&);
 bool census(const action_session::Context&,const action_session::Binding&,Census&,std::string&);
 }

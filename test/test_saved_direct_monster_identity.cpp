@@ -68,6 +68,26 @@ void restoration(){
     auto reloaded=client;++reloaded.generation;for(auto& row:rows){row.second.scope=reloaded;row.second.pointer+=1000;row.second.uid+=0x100000000;}
     need(registry.restore(reloaded,rows,e),e);need(registry.lookup(action,reloaded,value,e),"explicit old snapshot reload did not restore old key in new generation");
 }
+void scenes(){
+    std::string e,key;identity::Registry registry;identity::Entry value;
+    identity::Scope root{"origin",1,2,10,20,30};
+    need(root.scene=="world"&&identity::root_owned(root)&&identity::valid_scene(root),"existing Root aggregate lost its default scene owner");
+    auto dungeon=root;dungeon.region=21;dungeon.manager=31;dungeon.scene="action:"+action+"/instance/0";
+    const auto canonical=digest+":world:monster:17";
+    need(registry.restore(root,{{canonical,{dungeon,400,first_uid,true,false}}},e),e);
+    need(registry.lookup(canonical,dungeon,value,e)&&value.scope.scene==dungeon.scene,"restored canonical Dungeon scope was lost");
+    auto foreign=dungeon;foreign.scene="world";need(!registry.lookup(canonical,foreign,value,e),"Root scope borrowed an existing Dungeon receiver/full UID");
+    foreign=dungeon;foreign.scene="action:"+action+"/instance/1";need(!registry.resolve(foreign,400,first_uid,key,e),"different current Instance borrowed a canonical Monster");
+    need(registry.lookup(canonical,dungeon,value,e)&&registry.retire(canonical,value,e),e);
+    need(registry.restore(root,{},e),e);std::vector<std::pair<std::string,identity::Entry>> rows;
+    need(registry.enumerate(root.snapshot,root.epoch,root.generation,root.root,rows,e)&&rows.size()==1&&rows[0].second.retired&&rows[0].second.scope.scene==dungeon.scene,
+        "same-world retirement forgot the original Dungeon owner or read a replacement actor");
+    auto invalid=dungeon;invalid.scene="pointer:1234";need(!identity::valid_scene(invalid)&&!registry.stage(action,invalid,500,second_uid,e),"unconfirmed scene alias entered the retained identity registry");
+    auto reload=dungeon;++reload.generation;auto bad=reload;bad.scene.clear();
+    need(!registry.restore(reload,{{canonical,{bad,600,second_uid,true,false}}},e),"empty scene restored as a successful native lifetime");
+    need(registry.restore(reload,{{canonical,{reload,600,second_uid,true,false}}},e)&&registry.lookup(canonical,reload,value,e)&&value.uid==second_uid,
+        "original explicit snapshot reload failed to rebind the same canonical key in its new proven scene/generation");
+}
 void companion(){
     std::string e,bytes;side::Manifest out;
     side::Manifest m{digest,241170,{{67,digest+":world:monster:17","action:"+action},{67,digest+":world:monster:18",older+":world:monster:9"}}};
@@ -83,5 +103,5 @@ void companion(){
     m.rows.clear();need(side::encode(m,bytes,e)&&side::decode(bytes,digest,m.native_bytes,out,e)&&out.rows.empty(),"explicit zero-direct companion rejected");
 }
 }
-int main()try{fixture::observer();fixture::restoration();fixture::companion();std::cout<<"saved Monster original observer, full UID restoration and companion cases passed\n";return 0;}
+int main()try{fixture::observer();fixture::restoration();fixture::scenes();fixture::companion();std::cout<<"saved Monster original observer, full UID restoration and companion cases passed\n";return 0;}
 catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

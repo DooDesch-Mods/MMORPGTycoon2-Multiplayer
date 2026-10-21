@@ -169,7 +169,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     op.start=port.started;op.commit=port.committed;
     if(!applied||!op.native.committed||!op.native.finished||!op.native.changes||op.native.active)return unknown(error.empty()?"Dungeon cell native graph lacks committed once-only receipt":error);
     if(intent.stroke.mode==a::DungeonCellMode::Close){dungeon_scene_identity_runtime::Census cascade;
-        if(!dungeon_scene_identity_runtime::confirm_cell_cascade(binding,request,op.before.scenes,cascade,error)||!retire_monsters(memory,op.before,error))return unknown(error);}
+        if(!dungeon_scene_identity_runtime::confirm_cell_cascade(binding,request,op.before.scenes,cascade,error)||!retire_scenery(op.before,cascade,error)||!retire_monsters(memory,op.before,error))return unknown(error);}
     if(!npc_quest_target_runtime::confirm_dungeon_cells(binding,request,op.zone_cascade,error))return unknown(error);
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error,&op.before.quests)||
        !dungeon_palette::same_local(op.before.palette,op.after.palette)||!a::dungeon_palette_transition(intent,op.before.value,op.after.value)||

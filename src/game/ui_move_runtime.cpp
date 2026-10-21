@@ -1,7 +1,18 @@
+#include "dungeon_gizmo_runtime.h"
+#include "dungeon_input_runtime.h"
+#include "district_stroke_runtime.h"
+#include "district_stroke_transition.h"
+#include "district_stroke_calls.h"
+#include "ui_remove_runtime.h"
 #include "ui_move_runtime.h"
 #include "prop_text_runtime.h"
 #include "district_text_runtime.h"
 #include "district_title_runtime.h"
+#include "district_edit_runtime.h"
+#include "district_property_ui.h"
+#include "district_edit_history.h"
+#include "district_widget_scope.h"
+#include "mt2mp/hooks/original_body.h"
 #include "group_runtime.h"
 #include "group_object_runtime.h"
 #include "boss_placement_runtime.h"
@@ -24,6 +35,7 @@
 #include "building_history_slice/native_bridge.h"
 #include "district_title_reader.h"
 #include "live_host_state/economic_fence.h"
+#include "live_host_state/memory_query_timing.h"
 #include "district_reader.h"
 #include "district_saved_identity_runtime.h"
 #include "boss_phase_runtime.h"
@@ -35,6 +47,17 @@
 #include "selection_move_native.h"
 #include "duplicate_runtime.h"
 #include "scenery_stroke_runtime.h"
+#include "building_clearance_runtime.h"
+#include "building_clearance_graph.h"
+#include "modular_runtime.h"
+#include "modular_calls.h"
+#include "modular_code.h"
+#include "modular_transaction.h"
+#include "modular_transition.h"
+#include "modular_layout_graph.h"
+#include "release_ui_owner.h"
+#include "native_open_runtime.h"
+#include "subscriber_lifecycle/append_calls.h"
 #include "scenery_alias_order.h"
 #include "scenery_stroke_capture.h"
 #include "scenery_stroke_calls.h"
@@ -72,6 +95,9 @@
 #include "scenery_kiss/lifecycle_contract.h"
 #include "scenery_kiss/lifecycle_native.h"
 #include "move_contract.h"
+#include "move_selection_refresh.h"
+#include "move_widget_refresh.h"
+#include "mt2mp/core/hash.h"
 #include "move_ui_probe/contract.h"
 #include "move_ui_probe/native_guards.h"
 #include "object_ui_probe/contract.h"
@@ -151,7 +177,9 @@ bool current_prop(Runtime& r,const remove_diagnostics::LocalTarget& target,host:
     host::Reader reader(r.memory.process,origin,r.image,r.thread,api);prop_lease::Prop prop;
     if(!reader.current(w,true,e)||!reader.prop(reinterpret_cast<void*>(target.object),target.uid,prop,e)||!scenery_kiss::read_action_prop(target.uid,building,e))return false;
     if(w.origin.world_epoch!=target.world_epoch||w.origin.generation!=target.world_generation||building.prop.uid!=target.uid||building.type!=target.type||building.variant!=target.variant){e="move native World, UID or type/variant changed";return false;}
-    if(!target.normal_building&&!target.normal_scenery){e=target.kind_cause.empty()?"move target is not an actual normal Building":target.kind_cause;return false;}
+    std::string dungeon_scene;bool dungeon=false;
+    if(!remove_diagnostics::dungeon_building_scene(target,dungeon_scene,dungeon,e))return false;
+    if(!target.normal_building&&!target.normal_scenery&&!dungeon){e=target.kind_cause.empty()?"move target is not a supported current Building":target.kind_cause;return false;}
     if(target.normal_scenery&&!scenery_kiss::move_code(r.memory.process,r.image,e))return false;
     host::WorldState after;
     if(!reader.current(after,true,e)||!host::same_world(w.origin,after.origin)){if(e.empty())e="move complete native world changed during property read";return false;}
@@ -204,14 +232,18 @@ bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t 
     if(!remove_diagnostics::resolve_local_target(w.selection,object,target,e)||target.uid!=uid||target.snapshot_id!=o.snapshot_uuid||
        target.world_epoch!=o.world_epoch||target.world_generation!=o.generation){if(e.empty())e="move UI native target differs from snapshot";return false;}
     native::BuildingState actual;if(!current_prop(runtime,target,w,actual,e))return false;
-    if(!target.normal_building&&!target.normal_scenery){e=target.kind_cause.empty()?"move target is not an actual normal Building":target.kind_cause;return false;}
+    std::string dungeon_scene;bool dungeon=false;
+    if(!remove_diagnostics::dungeon_building_scene(target,dungeon_scene,dungeon,e))return false;
+    if(!target.normal_building&&!target.normal_scenery&&!dungeon){e=target.kind_cause.empty()?"move target is not a supported current Building":target.kind_cause;return false;}
     uintptr_t ghost_blueprint=0,ap=0,shard=0;bool movable=false;
     const auto exception=can_move(runtime.image,object,movable);
     if(exception||!movable){e="move native CanMove rejected SEH="+std::to_string(exception);return false;}
     if(!runtime.memory.read(ghost+0x210,&ghost_blueprint,sizeof ghost_blueprint,e))return false;
     if(!ghost_blueprint){e="move native owned Ghost Blueprint missing";return false;}
     if(!runtime.memory.read(ghost_blueprint,&ap,sizeof ap,e)||!runtime.memory.read(ghost_blueprint+8,&shard,sizeof shard,e))return false;
-    if(ap!=runtime.image+0x16dd870||shard!=w.root){e="move native owned Ghost Blueprint class or shard differs";return false;}
+    uintptr_t target_shard=w.root;
+    if(dungeon&&!runtime.memory.read(target.object+0x170,&target_shard,sizeof target_shard,e))return false;
+    if(ap!=runtime.image+0x16dd870||shard!=target_shard){e="move native owned Ghost Blueprint class or shard differs";return false;}
     state=world_state::building_state(actual);key=target.record_key;return true;
 }
 bool Services::submit_move(const move_kiss::Intent& intent,std::string& e){
@@ -234,6 +266,12 @@ bool purchase_entry(void* receiver){
     auto* r=published.load(std::memory_order_acquire);
     const uintptr_t caller=uintptr_t(_ReturnAddress());
     bool duplicate_handled=false;std::string duplicate_error;
+    bool gizmo_handled=false;std::string gizmo_error;
+    try{if(!npc_probe::monster_action_runtime::dungeon_input::capture_gizmo_move(uintptr_t(receiver),caller,gizmo_handled,gizmo_error)){
+        LOG_ERROR("[Move] Gizmo control capture failed: {}",gizmo_error);return false;}
+        if(gizmo_handled)return false;
+    }catch(const std::exception& exception){LOG_ERROR("[Move] Gizmo control capture exception: {}",exception.what());return false;}
+    catch(...){LOG_ERROR("[Move] Gizmo control capture non-standard exception");return false;}
     try{if(!duplicate_edit::capture_purchase(uintptr_t(receiver),caller,duplicate_handled,duplicate_error)){
             r->services.reject(duplicate_error);return false;}
         if(duplicate_handled)return false;
@@ -283,9 +321,13 @@ bool hook_route(Runtime& r,std::string& e){
     if(std::memcmp(relay,"\xff\x25\0\0\0\0",6)||detour!=uintptr_t(&purchase_entry)){e="move own relay target differs";return false;}
     return true;
 }
+#include "move_selection_refresh.inc"
+#include "move_widget_refresh.inc"
 struct ExecuteServices final:move_kiss::ExecutionServices {
     Runtime& runtime;remove_diagnostics::LocalTarget target;
     host::WorldState before_world;witness::UndoWitness undo_before;action::Request request;
+    witness::SelectionWitness selection_before;move_selection_refresh::Receipt outline_refresh;
+    move_widget_refresh::Receipt widget_refresh;
     explicit ExecuteServices(Runtime& r):runtime(r){}
     bool prepare(const action::Request& req,move_kiss::LocalBinding& b,std::string& e)override{
         request=req;uint64_t revision=0;
@@ -293,9 +335,27 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
         native::BuildingState actual;
         if(!current_prop(runtime,target,before_world,actual,e)||!ledger(b.ledger,e)||!witness::read_undo(runtime.memory.process,runtime.image,undo_before,e))return false;
         if(undo_before.active_graph){e="move native Undo graph already active";return false;}
+        if(target.normal_building){
+            witness::SelectionCounts counts;
+            if(!witness::read_selection(runtime.memory.process,runtime.image,before_world.selection,selection_before,counts,e))return false;
+        }
         bool movable=false;const auto exception=can_move(runtime.image,target.object,movable);
         if(exception||!movable){e="move native CanMove rejected SEH="+std::to_string(exception);return false;}
-        if(target.normal_scenery){
+        if(req.dungeon_building){
+            if(!remove_diagnostics::is_dungeon_building_target(target,req.dungeon_scene,e))return false;
+            if(req.dungeon_scene!="world"){
+                uintptr_t shard=0,dungeon=0;int32_t instances=-1;
+                if(!runtime.memory.read(target.object+0x170,&shard,sizeof shard,e)||!shard||
+                   !runtime.memory.read(shard+0x18,&dungeon,sizeof dungeon,e)||!dungeon||
+                   !runtime.memory.read(dungeon+0x4c8,&instances,sizeof instances,e))return false;
+                if(instances){e="Dungeon Building original MovedByCursor is suppressed while Instances are active";return false;}
+                if(!scenery_kiss::move_destination(runtime.memory.process,runtime.image,shard,req.building,e))return false;
+            }else{
+                native::RegionState region;
+                if(!native::read_region_state(req.building.x,req.building.z,region,e))return false;
+                if(!region.owned||!region.building_manager_present||!region.path_manager_present){e="Dungeon Exterior Move destination region unavailable or not owned";return false;}
+            }
+        }else if(target.normal_scenery){
             if(!scenery_kiss::move_destination(runtime.memory.process,runtime.image,before_world.root,req.building,e))return false;
         }else{
             native::RegionState region;
@@ -332,6 +392,28 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
         witness::SelectionWitness selected;witness::SelectionCounts counts;
         if(!witness::read_selection(runtime.memory.process,runtime.image,after_world.selection,selected,counts,e))return false;
         out.selection_present=std::find(selected.lists[1].begin(),selected.lists[1].end(),target.object)!=selected.lists[1].end();
+        if(target.normal_building&&!move_selection_refresh::retained(selection_before,selected,target.object,outline_refresh,
+            [&](move_selection_refresh::Receipt& receipt,std::string& error){return refresh_outline(runtime,target.object,receipt,error);},
+            [&](witness::SelectionWitness& current,std::string& error){witness::SelectionCounts current_counts;
+                return witness::read_selection(runtime.memory.process,runtime.image,after_world.selection,current,current_counts,error);},e))return false;
+        if(outline_refresh.required){
+            if(!refresh_widgets(runtime,target.object,widget_refresh,e))return false;
+            if(widget_refresh.required){
+                witness::SelectionWitness current;witness::SelectionCounts current_counts;
+                if(!witness::read_selection(runtime.memory.process,runtime.image,after_world.selection,current,current_counts,e)){
+                    widget_refresh.error=e;return false;
+                }
+                if(current!=selected){e="move widget refresh changed local selection";widget_refresh.error=e;return false;}
+                widget_refresh.selection_preserved=true;
+            }
+            native::BuildingState refreshed;host::WorldState refreshed_world;
+            if(!current_prop(runtime,target,refreshed_world,refreshed,e)||!host::same_world(after_world.origin,refreshed_world.origin)||
+               world_state::building_state(refreshed)!=out.current.actual){
+                if(e.empty())e="move presentation refresh changed current world or Building pose";
+                if(widget_refresh.required)widget_refresh.error=e;return false;
+            }
+        }
+        if(widget_refresh.required)widget_refresh.world_pose_preserved=true;
         out.edit_closed=after_world.edits==0&&after_world.active_graph==0;
         return true;
     }
@@ -340,6 +422,14 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
 #include "prop_text_runtime.inc"
 #include "district_text_runtime.inc"
 #include "district_title_runtime.inc"
+#include "district_edit_runtime.inc"
+namespace group_edit { namespace { bool find(Runtime&,uint64_t,uintptr_t&,std::string&); } }
+#include "district_stroke_sample.inc"
+#include "district_stroke_capture.inc"
+#include "district_stroke_execute.inc"
+#include "district_stroke_remove.inc"
+#include "district_stroke_history.inc"
+#include "district_stroke_routes.inc"
 #include "group_runtime.inc"
 #include "boss_phase_runtime.inc"
 #include "service_membership_runtime.inc"
@@ -351,11 +441,19 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
 #include "scenery_stroke_port.inc"
 #include "scenery_stroke_forward.inc"
 #include "scenery_stroke_history_runtime.inc"
+#include "building_clearance_runtime.inc"
 #include "group_object_sample.inc"
 #include "group_object_capture.inc"
 #include "group_object_runtime.inc"
 #include "group_object_history.inc"
 #include "group_object_exports.inc"
+#include "modular_sample.inc"
+#include "modular_dependencies.inc"
+#include "modular_port.inc"
+#include "modular_graph.inc"
+#include "modular_history.inc"
+#include "modular_capture.inc"
+#include "modular_forward.inc"
 #include "boss_placement_sample.inc"
 #include "boss_placement_capture.inc"
 #include "boss_placement_execution.inc"
@@ -388,9 +486,9 @@ bool enable(std::string& e){
         if(disabled!=MH_OK)e+="; own hook Disable failed: "+std::string(MH_StatusToString(disabled));
         return failed();
     }
-    if(!group_edit::enable(e)||!district_title::enable(e)||!district_text::enable(e)||!prop_text::enable(e)||!boss_phase::enable(e)||!service_membership::enable(e))return failed();
+    if(!group_edit::enable(e)||!district_edit::enable(e)||!district_stroke::enable(e)||!district_title::enable(e)||!district_text::enable(e)||!prop_text::enable(e)||!boss_phase::enable(e)||!service_membership::enable(e))return failed();
     r->ready=true;
-    if(!scenery_stroke::enable(e)||!boss_placement::enable(e)){r->ready=false;return failed();}
+    if(!scenery_stroke::enable(e)||!modular::enable(e)||!boss_placement::enable(e)){r->ready=false;return failed();}
     r->cause.clear();return true;
 }
 bool enabled()noexcept{const auto* r=published.load(std::memory_order_acquire);return r&&r->ready&&r->thread==GetCurrentThreadId();}
@@ -398,8 +496,11 @@ void tick(){
     boss_placement::tick();
     group_object::tick();
     scenery_stroke::tick();
+    modular::tick();
     duplicate_edit::tick();
     group_edit::tick();
+    district_edit::tick();
+    district_stroke::tick();
     district_title::tick();
     district_text::tick();
     prop_text::tick();
@@ -454,6 +555,13 @@ bool move(const action::Request& req,action::BuildingState& state,json& receipt,
         {"move_attempted",native_receipt.move_attempted},{"move_returned",native_receipt.move_returned},{"ctor_attempted",native_receipt.ctor_attempted},
         {"ctor_returned",native_receipt.ctor_returned},{"dtor_attempted",native_receipt.dtor_attempted},{"dtor_returned",native_receipt.dtor_returned},
         {"exception",native_receipt.exception},{"cleanup_exception",native_receipt.cleanup_exception},{"error",e}};
+    receipt["outline_refresh"]={{"required",io.outline_refresh.required},{"attempted",io.outline_refresh.attempted},
+        {"returned",io.outline_refresh.returned},{"selection_preserved",io.outline_refresh.selection_preserved},
+        {"exception",io.outline_refresh.exception}};
+    receipt["widget_refresh"]={{"required",io.widget_refresh.required},{"attempted",io.widget_refresh.attempted},
+        {"returned",io.widget_refresh.returned},{"readback",io.widget_refresh.readback},
+        {"selection_preserved",io.widget_refresh.selection_preserved},{"world_pose_preserved",io.widget_refresh.world_pose_preserved},
+        {"widget_count",io.widget_refresh.widget_count},{"exception",io.widget_refresh.exception},{"error",io.widget_refresh.error}};
     receipt["loc_attempted"]=native_receipt.loc_attempted;receipt["loc_returned"]=native_receipt.loc_returned;
     receipt["begin_attempted"]=native_receipt.begin_attempted;receipt["begin_returned"]=native_receipt.begin_returned;
     receipt["open_attempted"]=native_receipt.open_attempted;receipt["open_returned"]=native_receipt.open_returned;
@@ -467,7 +575,7 @@ bool move(const action::Request& req,action::BuildingState& state,json& receipt,
 }
 json status(){const auto* r=published.load(std::memory_order_acquire);if(!r)return {{"initialized",false}};
     if(r->thread!=GetCurrentThreadId())return {{"initialized",false},{"error","move status requires bound Mainthread"}};
-    return {{"initialized",true},{"enabled",r->ready.load()},{"pending_ui",r->pending.has_value()||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||group_edit::pending()||district_title::pending()||district_text::pending()||prop_text::pending()||boss_phase::pending()||service_membership::pending()||selection_move::pending()},{"boss_placement",boss_placement::status()},{"group_object",group_object::status()},{"duplicate",duplicate_edit::status()},{"group_edit",group_edit::status()},{"district_title",district_title::status()},{"district_text",district_text::status()},{"prop_text",prop_text::status()},{"boss_phase",boss_phase::status()},{"service_membership",service_membership::status()},{"selection_move",selection_move::status()},{"captured",r->captured},{"submitted",r->submitted},
+    return {{"initialized",true},{"enabled",r->ready.load()},{"pending_ui",r->pending.has_value()||modular::pending()||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||group_edit::pending()||district_stroke::pending()||district_edit::pending()||district_title::pending()||district_text::pending()||prop_text::pending()||boss_phase::pending()||service_membership::pending()||selection_move::pending()},{"scenery_stroke",scenery_stroke::status()},{"modular",modular::status()},{"boss_placement",boss_placement::status()},{"group_object",group_object::status()},{"duplicate",duplicate_edit::status()},{"group_edit",group_edit::status()},{"district_stroke",district_stroke::status()},{"district_edit",district_edit::status()},{"district_title",district_title::status()},{"district_text",district_text::status()},{"prop_text",prop_text::status()},{"boss_phase",boss_phase::status()},{"service_membership",service_membership::status()},{"selection_move",selection_move::status()},{"captured",r->captured},{"submitted",r->submitted},
         {"rejected",r->rejected},{"forwarded",r->forwarded.load()},{"last_ui_action",r->last_ui_action},{"ui_cleanup_confirmed",r->last_ui_cleaned},{"cause",r->cause},{"last_native",r->last_native}};
 }
 #include "object_ui_probe/runtime.inc"

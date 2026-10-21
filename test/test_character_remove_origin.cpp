@@ -38,5 +38,9 @@ int main()try{
     memory.bytes.erase(slot+0xa0);check(!ui::classify_origin(memory,image,slot,origin,error)&&error=="original native caller frame read failure","Unreadable native frame fabricated a classification or lost its cause");
     memory.put(slot,image+0x2d55a8);memory.put(slot+0xa0,image+0x759c53);
     check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::NpcWindow,"Actual native NPC user click lost its existing capture domain");
+    memory.put(slot,image+0x2d55a8);memory.put(slot+0xa0,image+0x6cb61c);
+    check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::DistrictWindow,"Actual District InfoWindow caller lost its exact capture domain");
+    memory.put(slot+0xa0,image+0x6cb61d);
+    check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::Foreign,"Adjacent unproved District return address was admitted");
     std::cout<<checks<<" actual Character callback caller classification and original-once pending-Controller comparisons passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

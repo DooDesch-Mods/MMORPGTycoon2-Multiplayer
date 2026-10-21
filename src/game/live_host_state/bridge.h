@@ -69,10 +69,12 @@ class Bridge {
     bool suspended_=false,lobby_retiring_=false;
     Context context_;Binding binding_;Port& port_;
     std::function<bool(uint64_t& revision,std::string&)> time_;
+    std::function<std::chrono::steady_clock::time_point()> capture_clock_;
     action_session::Transport& transport_;
     std::optional<Frame> last_,queued_,host_before_;
     uint64_t last_day_sequence_=0;
     std::optional<std::chrono::steady_clock::time_point> last_capture_;
+    bool paused_idle_equal_=false;
     uint64_t host_revision_=0,common_epoch_=0,source_generation_=0;
     bool locked_=false;
     std::string publication_wait_;
@@ -91,9 +93,30 @@ class Bridge {
     bool acknowledge_frame(const Frame&,std::string&);
 public:
     Bridge(const Context& c,const Binding& b,uint64_t common_epoch,Port& p,action_session::Transport& t,
-        std::function<bool(uint64_t&,std::string&)> time):context_(c),binding_(b),port_(p),time_(std::move(time)),transport_(t),common_epoch_(common_epoch){}
+        std::function<bool(uint64_t&,std::string&)> time,
+        std::function<std::chrono::steady_clock::time_point()> capture_clock={}):context_(c),binding_(b),port_(p),time_(std::move(time)),capture_clock_(std::move(capture_clock)),transport_(t),common_epoch_(common_epoch){}
     bool bind_vip(VipPort&,std::string&);
     bool bind_parties(PartyPort&,std::string&);
+    bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& matched,std::string& e,std::string* scene=nullptr){
+        if(scene)scene->clear();
+        key.clear();matched=false;
+        if(!party_port_){e.clear();return true;}
+        return party_port_->resolve_held_dungeon_destination(pointer,key,matched,e,scene);
+    }
+    bool cancel_dungeon_building(const action_session::Request& request,std::string& e){
+        if(!party_port_){e="Dungeon Building preparation has no bound Party provider";return false;}
+        return party_port_->cancel_dungeon_building(context_,binding_,request,e);
+    }
+    bool begin_dungeon_building(const action_session::Request& request,std::string& e){
+        if(locked_||suspended_||!party_port_){e="Dungeon Building action requires active bound Party provider";return false;}
+        return party_port_->begin_dungeon_building(context_,binding_,request,e);
+    }
+    bool finish_dungeon_building(const action_session::Request& request,const scene_clone::Mapping* authority,
+        scene_clone::Mapping& mapping,bool& attempted,std::string& e,uintptr_t held_node=0){
+        attempted=false;
+        if(locked_||suspended_||!party_port_){e="Dungeon Building completion lost bound Party provider";return false;}
+        return party_port_->finish_dungeon_building(context_,binding_,request,authority,mapping,attempted,e,held_node);
+    }
     nlohmann::json party_status()const{return party_port_?party_port_->status():nlohmann::json(nullptr);}
     bool bind_release(ReleasePort& value,std::string& e){if(release_port_||host_revision_||last_||queued_){e="Release provider must bind before Frame publication";return false;}if(!value.bind(context_,binding_,common_epoch_,e))return false;release_port_=&value;e.clear();return true;}
     nlohmann::json release_status()const{return release_port_?release_port_->status():nlohmann::json(nullptr);}

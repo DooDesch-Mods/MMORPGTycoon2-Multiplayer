@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "npc_saved_identity.h"
+#include "typed_action/action_session.h"
 
 namespace mt2mp::game::npc_saved_identity_runtime {
 // Current saved NPCs only. Missing members are omitted without dereferencing
@@ -13,6 +14,7 @@ bool current_snapshot_sha(std::string& out, std::string& error);
 bool read_current(std::vector<Current>&, std::string& error, bool share_metadata=false);
 bool resolve(const std::string& key, Current&, std::string& error);
 bool bind_local(uintptr_t object, uint64_t uid, std::string& key, std::string& error);
+bool restore_history(const action_session::Binding&,const action_session::Request&,const std::string& key,int32_t region,uint64_t uid,uintptr_t previous,uintptr_t restored,std::string& error);
 
 using PropertyCall = bool(*)(const void*, void*, void*, void*);
 using Ticket = uint64_t;

@@ -1,10 +1,13 @@
 #include "direct_monster_fixture.h"
 #include "monster_target_key.h"
 namespace monster_target_key=mt2mp::game::monster_target_key;
+namespace monster_move_key=mt2mp::game::monster_move_key;
 #include "monster_move_read.h"
+#include "monster_move_destination.h"
 #include "move_kiss/move_kiss.h"
 #include <iostream>
 #include <cstring>
+#include <type_traits>
 namespace a=mt2mp::action_session;namespace mr=mt2mp::game::monster_move_read;
 namespace monster_zone_read=mt2mp::game::monster_zone_read;namespace d {
 struct Undo{std::vector<uintptr_t> undo;uintptr_t active_graph=0;};
@@ -12,14 +15,14 @@ struct Sample{monster_zone_read::State state;a::Ledger money;Undo undo;};}
 using json=nlohmann::json;namespace move_kiss=mt2mp::move_kiss;
 constexpr const char* move_id="33333333-3333-4333-8333-333333333333";
 constexpr const char* exe_sha="fixture";
-namespace {
+namespace monster_move_fixture {
 struct Memory{int process=0;};struct MonsterMoveMemory{explicit MonsterMoveMemory(Memory&){};};
 struct World{uintptr_t root=100;int saves=0,edits=0;uintptr_t active_graph=0;};
-struct Region{uintptr_t region=900;};struct Pin{World world;Region region;};
+struct Region{uintptr_t region=900,root=100;};struct Pin{World world;Region region;};
 struct MoveOperation{a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;uintptr_t pointer=0;uint64_t uid=0;move_kiss::Receipt receipt;mr::Actor actor_before,actor_after;bool confirmed=false,retired=false,seed_attempted=false;std::string cause;};
 std::map<std::string,MoveOperation> moves;bool move_fault=false;json move_preflight=json::object();
 struct Runtime{bool ready=true;unsigned thread=7;uintptr_t image=0x140000000;}state;
-struct Model{d::Sample sample;a::MonsterState value;mr::Actor actor;std::string fault;unsigned calls=0,seeds=0;bool after=false,pending=true;}model;
+struct Model{d::Sample sample;a::MonsterState value;mr::Actor actor;std::string fault;unsigned calls=0,seeds=0;bool after=false,pending=true,cross_boundary=false;}model;
 unsigned GetCurrentThreadId(){return 7;}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 bool gate(const char* name,std::string& e){return model.fault!=name||fail(e,std::string(name)+" failed");}
@@ -28,7 +31,18 @@ bool move_code(Memory&,std::string& e){return gate("code",e);}
 bool same_world(const World&,const World&){return model.fault!="owner";}
 bool move_target(Memory&,const a::Binding&,const std::string&,int32_t,const std::string&,Pin&,d::Sample& sample,monster_zone_read::Monster& row,std::string& e){
  if(!gate(model.after?"after_lookup":"lookup",e))return false;sample=model.sample;row=sample.state.monsters[0];return true;}
-uint32_t shard_region(uintptr_t,uintptr_t,const std::array<float,3>&,uintptr_t& out){out=model.fault=="region"?901:900;return 0;}
+uint32_t shard_region(uintptr_t,uintptr_t,const std::array<float,3>&,uintptr_t& out){out=model.fault=="region"||model.cross_boundary?901:900;return 0;}
+bool move_destination(Memory&,const Pin& owner,uintptr_t object,const std::array<float,3>& point,std::string& error){
+ const uintptr_t destination=model.fault=="region"||model.cross_boundary?901:900;
+ const std::map<uintptr_t,uint64_t> fields{{object+0x170,owner.region.root},{object+0x178,owner.region.region},{object+0x490,0},
+     {owner.region.region+0x70,owner.region.root},{owner.region.root+0x18,0},{destination+0x70,model.fault=="region"?101:owner.region.root}};
+ const auto at=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){const auto found=fields.find(base+offset);
+     if(found==fields.end()){cause="fixture destination field absent";return false;}out=static_cast<std::remove_reference_t<decltype(out)>>(found->second);return true;};
+ const auto locate=[&](uintptr_t shard,const std::array<float,3>& position,uintptr_t& out,std::string& cause){
+     if(shard!=owner.region.root||position!=point){cause="fixture original destination args differ";return false;}
+     const auto seh=shard_region(state.image,shard,position,out);if(seh){cause="fixture original GetRegionAt failed";return false;}return true;};
+ return mt2mp::game::monster_move_destination::check(object,owner.region.root,owner.region.region,point,at,locate,error);
+}
 bool effect(Memory&,const Pin&,d::Sample& sample,a::MonsterState& value,std::string& e,uint64_t){
  if(!gate(model.after?"after_effect":"effect",e))return false;sample=model.sample;value=model.value;return true;}
 bool move_actor(Memory&,uintptr_t,mr::Actor& out,std::string& e){out=model.actor;return gate("actor",e);}
@@ -39,10 +53,12 @@ bool read_graph(int,uintptr_t,uintptr_t,GraphWitness&,std::string& e){return gat
 bool validate_undo_commit(const d::Undo&,const d::Undo&,const GraphWitness&,std::string& e){return gate("undo",e);}}
 bool move_inverse(Memory&,uintptr_t,uint64_t,const a::MonsterActor&,std::string& e){return gate("inverse",e);}
 bool move_selected(Memory&,const Pin&,uintptr_t,std::string& e){return gate("selected",e);}
+namespace building_history_slice{bool remember_monster(const std::string&,uintptr_t graph,std::string& e){return graph==500&&gate("remember",e);}}
 namespace action_runtime{uint32_t seed(uintptr_t,const std::array<uint64_t,4>& v){++model.seeds;model.value.roster.global_random=model.sample.state.global_random=v;
  if(model.fault=="seed_region")++model.sample.state.region_random[0];return model.fault=="seed"?5:0;}}
 }
 namespace mt2mp::move_kiss {
+using namespace ::monster_move_fixture;
 bool resolve_calls(MonsterMoveMemory&,uintptr_t,const char*,Calls&,std::string& e){return gate("calls",e);}
 bool character_transform(const State& value,std::array<unsigned char,0x6c>& out,std::string& e){out={};std::memcpy(out.data()+0x10,&value.x,4);std::memcpy(out.data()+0x14,&value.y,4);std::memcpy(out.data()+0x18,&value.z,4);return gate("transform",e);}
 bool execute_once(const Calls&,uintptr_t,const std::array<unsigned char,0x6c>& pose,Receipt& receipt,std::string& e){
@@ -56,15 +72,17 @@ bool execute_once(const Calls&,uintptr_t,const std::array<unsigned char,0x6c>& p
  if(model.fault=="region_rng")++model.value.roster.region_random[0];return true;
 }
 }
+namespace monster_move_fixture {
 #include "monster_move_native_body.inc"
 void reset(){moves.clear();move_fault=false;state={};model={};move_preflight=json::object();model.value=born(empty());model.sample.money=money();model.sample.undo.undo={400};
  model.sample.state.manager=700;model.sample.state.monster_manager=1000;model.sample.state.next_monster_tag=model.value.roster.next_tag;model.sample.state.created_monsters=model.value.roster.created_monsters;
  auto& actor=model.value.actor;monster_zone_read::Monster row;row.pointer=800;row.uid=0x100000001ull;row.tag=actor.tag;row.status=actor.status;row.rank=actor.rank;row.slot=actor.character_slot;row.type=actor.character_type;row.level=actor.level;row.position=actor.position;row.rotation=actor.rotation;row.scale=actor.scale;model.sample.state.monsters={row};
  model.sample.state.global_random=model.value.roster.global_random;model.actor={2000,3000,4000,true,true,row.position};}
 a::Request moving(){auto r=request().request;r.action=Action::MoveMonster;r.action_uuid=move_id;r.target_action_uuid=action_id;r.monster={};r.monster_move={63,{8030,70.576828f,8560}};return r;}
-int main(){try{unsigned checks=0;std::string e;const auto req=moving();const a::Binding binding{3,4};
+}
+int main(){try{using namespace monster_move_fixture;unsigned checks=0;std::string e;const auto req=moving();const a::Binding binding{3,4};
  for(const char* fault:{"code","calls","lookup","region","effect","actor","transform"}){reset();model.fault=fault;need(move_perform(binding,req,nullptr,e)==a::Outcome::RejectedNoEffect&&!model.calls&&!e.empty(),std::string("pre-effect guard ")+fault);++checks;}
- for(const char* fault:{"native","after_lookup","owner","uid","after_effect","spawn","offmap","graph","undo","inverse","selected","release","ledger","region_rng","tag","counter"}){
+ for(const char* fault:{"native","after_lookup","owner","uid","after_effect","spawn","offmap","graph","undo","inverse","selected","release","ledger","region_rng","tag","counter","remember"}){
   reset();model.fault=fault;need(move_perform(binding,req,nullptr,e)==a::Outcome::Unknown&&model.calls==1&&!e.empty(),std::string("unknown guard ")+fault+": "+e);
   need(move_perform(binding,req,nullptr,e)==a::Outcome::Unknown&&model.calls==1,"native failure replayed");++checks;}
  reset();model.actor.on_map=false;e.clear();need(move_perform(binding,req,nullptr,e)==a::Outcome::RejectedNoEffect&&!model.calls&&moves.empty(),"off-map target mutated");
@@ -84,5 +102,7 @@ int main(){try{unsigned checks=0;std::string e;const auto req=moving();const a::
  need(move_perform(binding,req,&host,e)==a::Outcome::Confirmed&&model.calls==1&&model.seeds==1,e);
  need(moves.at(move_id).evidence.monster_after.actor.tag==-11752269&&moves.at(move_id).evidence.monster_after.roster.next_tag==7,"Move replaced local serial/counter");++checks;
  for(const char* fault:{"seed","seed_region"}){reset();model.fault=fault;need(move_perform(binding,req,&host,e)==a::Outcome::Unknown&&!model.calls&&model.seeds==1,e);need(move_perform(binding,req,&host,e)==a::Outcome::Unknown&&model.seeds==1,"seed replayed");++checks;}
+ reset();model.value.actor.rank=model.sample.state.monsters[0].rank=0;need(move_perform(binding,req,nullptr,e)==a::Outcome::Confirmed&&model.calls==1,"ordinary rank0 original Move failed: "+e);++checks;
+ reset();model.cross_boundary=true;need(move_perform(binding,req,nullptr,e)==a::Outcome::Confirmed&&model.calls==1,"fixed-owner cross-boundary original Move failed: "+e);++checks;
  std::cout<<checks<<" actual MoveMonster adapter body cases passed\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

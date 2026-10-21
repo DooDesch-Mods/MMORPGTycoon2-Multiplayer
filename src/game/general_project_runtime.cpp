@@ -1,6 +1,7 @@
 #include "general_project_runtime.h"
 #include "general_project_reader.h"
 #include "general_project_identity_reader.h"
+#include "character_actor_records.h"
 #include "typed_action_runtime.h"
 #include "session_provider.h"
 #include "native_open_runtime.h"
@@ -105,6 +106,11 @@ bool snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::Local& local
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;uintptr_t owned=0;
     if(world.world_epoch!=b.native_epoch||world.generation!=b.native_generation||!at(r,uintptr_t(world.state),0x180,owned,e)||owned!=local.lounge||!at(r,uintptr_t(world.state),0x1c8,owned,e)||owned!=local.software||!at(r,uintptr_t(world.mode),0x150,owned,e)||owned!=local.player)return fail(e,e.empty()?"General project actual World/State/Mode reciprocal owners differ":e);
     money=live::ledger(pin.values);e.clear();return true;
+}
+bool project_proof(const a::Context& c,const a::Binding& b,const p::Source& selected,const p::State& state,p::Proof& out,std::string& e){
+    npc_probe::character_actor_records::CatalogueProof catalogue;
+    if(!npc_probe::character_actor_records::capture_catalogue(c,b,catalogue,e))return false;
+    return p::proof(selected,state,catalogue.sha256,hash,out,e);
 }
 std::string uuid(std::string& e){unsigned char b[16]{};const auto code=BCryptGenRandom(nullptr,b,sizeof b,BCRYPT_USE_SYSTEM_PREFERRED_RNG);if(code){e="General project UUID NTSTATUS="+std::to_string(code);return {};}
     b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;char text[37]{};std::snprintf(text,sizeof text,"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15]);return text;
@@ -222,7 +228,7 @@ a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Eviden
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(c,e)||c.snapshot_uuid!=request.snapshot_uuid||(c.role==a::Role::Client)!=(authority!=nullptr)||!code(*r,e)){if(e.empty())e="General project exact pending Controller/role/Context unavailable";return a::Outcome::RejectedNoEffect;}
     const auto& intent=request.general_project;if(intent.command==p::Command::Commit&&!bug_authority::native_code(e))return a::Outcome::RejectedNoEffect;
     p::Local local;p::State before;a::Ledger money;p::Proof before_proof;
-    if(!snapshot(*r,c,b,local,before,money,e)||!p::before(intent,before,e)||!completed(*r,local.lounge,intent.command,e)||!p::proof(intent.source,before,hash,before_proof,e))return a::Outcome::RejectedNoEffect;
+    if(!snapshot(*r,c,b,local,before,money,e)||!p::before(intent,before,e)||!completed(*r,local.lounge,intent.command,e)||!project_proof(c,b,intent.source,before,before_proof,e))return a::Outcome::RejectedNoEffect;
     const auto source=local.sources.find(p::key(intent.source));if(source==local.sources.end()){e="General project exact native source pointer missing";return a::Outcome::RejectedNoEffect;}
     if(authority){if(!authority->general_project_before||!authority->general_project_after||money!=authority->before){e="General project Client complete immediate Ledger/Host proof missing";return a::Outcome::RejectedNoEffect;}
         auto compared=before_proof;compared.random=authority->general_project_before->random;
@@ -244,7 +250,7 @@ a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Eviden
     const uint32_t expected_calls=intent.command==p::Command::Start?3:intent.command==p::Command::Cancel?4:intent.command==p::Command::Commit?8:16;
     if(op.calls!=expected_calls)return unknown("General project original returned-call mask differs");
     p::Local after_local;p::State after;p::Proof after_proof;
-    if(!snapshot(*r,c,b,after_local,after,op.evidence.after,e)||!p::transition(intent,before,after,e)||!p::proof(intent.source,after,hash,after_proof,e))return unknown(e);
+    if(!snapshot(*r,c,b,after_local,after,op.evidence.after,e)||!p::transition(intent,before,after,e)||!project_proof(c,b,intent.source,after,after_proof,e))return unknown(e);
     if(local.lounge!=after_local.lounge||local.software!=after_local.software||local.tree!=after_local.tree||local.library!=after_local.library||local.store!=after_local.store||local.player!=after_local.player||local.catalogue!=after_local.catalogue||local.techs!=after_local.techs||local.records!=after_local.records||local.packs!=after_local.packs||local.sources!=after_local.sources||local.random!=after_local.random)return unknown("General project original changed actual native owner/catalogue identity");
     if(intent.command==p::Command::Start){if(!after_local.current||(local.current&&after_local.current!=local.current))return unknown("General project original current clone ownership differs");}
     else if(intent.command==p::Command::Workers){if(after_local.current!=local.current)return unknown("General project worker setter replaced native project owner");}
@@ -259,9 +265,9 @@ bool observe(const a::Binding& b,const a::Request& q,a::Evidence& out,std::strin
     auto* r=published.load(std::memory_order_acquire);if(!r)return fail(e,"General project owner absent");const auto found=r->operations.find(q.action_uuid);
     if(found==r->operations.end()||found->second.binding!=b||found->second.request!=q||!found->second.confirmed)return fail(e,"General project exact confirmed original receipt absent");const auto& op=found->second;
     p::Local local;p::State current;p::Proof proof;a::Ledger money;
-    if(!snapshot(*r,op.context,b,local,current,money,e)||!p::proof(q.general_project.source,current,hash,proof,e))return false;
+    if(!snapshot(*r,op.context,b,local,current,money,e)||!project_proof(op.context,b,q.general_project.source,current,proof,e))return false;
     const auto& after=*op.evidence.general_project_after;
-    if(proof.catalogue_sha256!=after.catalogue_sha256||proof.ownership_sha256!=after.ownership_sha256||proof.progress.current!=after.progress.current)return fail(e,"General project confirmed native source/complete ownership changed before retirement");
+    if(proof.catalogue_sha256!=after.catalogue_sha256||proof.ownership_sha256!=after.ownership_sha256||proof.character_catalogue_sha256!=after.character_catalogue_sha256||proof.progress.current!=after.progress.current)return fail(e,"General project confirmed native source/complete ownership changed before retirement");
     out=op.evidence;out.retirement_confirmed=op.retired;e.clear();return true;
 }
 bool retire(const a::Binding& b,const a::Request& q,std::string& e){

@@ -13,9 +13,10 @@ namespace mt2mp::action_session{Session& selected_session();}
 namespace a=mt2mp::action_session;
 namespace action=a;
 namespace identity=mt2mp::game::direct_monster_identity;
+namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace ml=mt2mp::game::live_host_state::monsters;
 namespace q=mt2mp::game::npc_quest_targets;
-namespace {
+namespace fixture {
 constexpr uintptr_t image_base=0x140000000,world_root=0x100000,map_pointer=0x200000,region_pointer=0x300000,manager_pointer=0x400000,object_pointer=0x500000,regions_data=0x600000,members_data=0x700000;
 constexpr uint64_t full_uid=0x100001d01;
 const std::string shared_snapshot="11111111-1111-4111-8111-111111111111",local_origin="22222222-2222-4222-8222-222222222222",birth_id="33333333-3333-4333-8333-333333333333",other_id="44444444-4444-4444-8444-444444444444";
@@ -86,10 +87,11 @@ void reset(MonsterLivePort& port,a::Role role=a::Role::Host){
 void stage(bool confirm=true,const std::string& birth=birth_id,identity::Scope scope=local_scope(),uintptr_t object=object_pointer,uint64_t uid=full_uid){
     std::string e;need(identity::registry.stage(birth,scope,object,uid,e),e);if(confirm)need(identity::registry.confirm(birth,e),e);
 }
-void reject_read(MonsterLivePort& port,const std::string& cause){ml::State out;std::string e;need(!port.read(out,e)&&e.find(cause)!=std::string::npos,"expected "+cause+", got "+e);}
+void reject_read(MonsterLivePort& port,const std::string& cause){ml::State out;std::string e;const bool accepted=port.read(out,e);need(!accepted&&e.find(cause)!=std::string::npos,"expected "+cause+", got "+e);}
 }
-namespace mt2mp::action_session{Session& selected_session(){return ::session;}}
+namespace mt2mp::action_session{Session& selected_session(){return ::fixture::session;}}
 int main(){try{
+    using namespace fixture;
     MonsterLivePort port;std::string e;
     for(auto role:{a::Role::Host,a::Role::Client}){
         reset(port,role);host::current_world.origin.uuid=role==a::Role::Host?local_origin:"55555555-5555-4555-8555-555555555555";stage();
@@ -98,14 +100,22 @@ int main(){try{
         ml::State out;need(port.read(out,e)&&out.rows.size()==1&&out.rows[0].birth==birth_id&&port.locals_.size()==1,"actual complete census lost distinct origin: "+e);
         need(world_reads==3&&entry.scope.snapshot!=port.context_.snapshot_uuid,"world binding or distinct IDs fixture bypassed");
     }
-    reset(port);auto wrong=local_scope();wrong.snapshot=shared_snapshot;stage(true,birth_id,wrong);reject_read(port,"no confirmed full-UID/current-world action binding");
+    reset(port);auto wrong=local_scope();wrong.snapshot=shared_snapshot;stage(true,birth_id,wrong);reject_read(port,"no confirmed full-UID/current-world canonical binding");
     reset(port);stage(false);reject_read(port,"unconfirmed birth");
-    reset(port);reject_read(port,"no confirmed full-UID/current-world action binding");
+    reset(port);reject_read(port,"no confirmed full-UID/current-world canonical binding");
     reset(port);stage();identity::Entry retired;need(identity::registry.lookup(birth_id,local_scope(),retired,e),e);need(identity::registry.retire(birth_id,retired,e),e);
     array(manager_pointer+0x38,0x16e8b60,members_data,0);ml::State out;need(port.read(out,e)&&out.rows.empty()&&out.retired==std::vector<std::string>{birth_id},"local-origin tombstone absent: "+e);
     reset(port);stage();array(manager_pointer+0x38,0x16e8b60,members_data,0);reject_read(port,"confirmed birth absent");
     reset(port);stage();stage(true,other_id,local_scope(),object_pointer+0x1000,full_uid+1);reject_read(port,"confirmed birth absent");
     reset(port);stage();auto foreign=local_scope();foreign.snapshot="foreign-origin";stage(true,other_id,foreign,object_pointer+0x1000,full_uid+1);need(port.read(out,e)&&out.rows.size()==1,"foreign origin polluted local census: "+e);
+    reset(port);stage();auto dungeon=local_scope();dungeon.region+=0x1000;dungeon.manager+=0x1000;
+    dungeon.scene="action:"+other_id+"/template";stage(true,other_id,dungeon,object_pointer+0x1000,full_uid+1);
+    need(port.read(out,e)&&out.rows.size()==1&&out.rows[0].birth==birth_id&&out.retired.empty(),"Root Monster projection duplicated or rejected confirmed Dungeon-owned actor: "+e);
+    identity::Entry dungeon_actor;need(identity::registry.lookup(other_id,dungeon,dungeon_actor,e),e);
+    need(identity::registry.retire(other_id,dungeon_actor,e)&&port.read(out,e)&&out.retired.empty(),"Root projection read or published retired Dungeon receiver: "+e);
+    need(!identity::root_owned(dungeon)&&identity::valid_scene(dungeon),"retained Dungeon scene provenance was lost after native retirement");
+    auto wrong_scene=dungeon;wrong_scene.scene="world";need(!identity::registry.lookup(other_id,wrong_scene,dungeon_actor,e),"Root owner repaired a Dungeon lifetime by Region/UID guess");
+    reset(port);stage();dungeon.scene="pointer:1234";need(!identity::registry.stage(other_id,dungeon,object_pointer+0x1000,full_uid+1,e),"invalid unconfirmed scene alias entered existing identity registry");
     reset(port);stage();host::current_world.origin.generation=10;reject_read(port,"native World or snapshot differs");
     reset(port);stage();host::current_world.origin.world_epoch=10;reject_read(port,"native World or snapshot differs");
     reset(port);stage();network_snapshot="changed-shared";reject_read(port,"native World or snapshot differs");

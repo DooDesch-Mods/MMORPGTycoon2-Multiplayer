@@ -47,7 +47,7 @@ inline bool valid_monster_intent(const MonsterIntent& v){
         v.level>=1&&v.rank>0&&v.loose==0&&monster_pose(v.position,v.rotation,v.scale);
 }
 inline bool valid_monster_actor(const MonsterActor& v){
-    return v==MonsterActor{}||(v.status==3&&v.rank>0&&v.character_slot==1&&v.character_type>=0&&
+    return v==MonsterActor{}||(v.status==3&&v.rank>=0&&v.rank<=2&&v.character_slot==1&&v.character_type>=0&&
         v.level>=0&&!v.name.empty()&&v.name.size()<=256&&v.name.find('\0')==std::string::npos&&
         monster_pose(v.position,v.rotation,v.scale));
 }
@@ -64,7 +64,7 @@ inline bool monster_move_transition(const MonsterMoveIntent& intent,const Monste
        a.roster==ZoneState{}||b.roster==ZoneState{}||a.actor==MonsterActor{}||b.actor==MonsterActor{})return false;
     const auto& x=a.roster;const auto& y=b.roster;
     if(!x.monsters||x.monsters!=y.monsters||x.zones!=y.zones||x.next_tag!=y.next_tag||
-       x.created_monsters!=y.created_monsters||x.undo_count>=100000||y.undo_count!=x.undo_count+1||
+       x.created_monsters!=y.created_monsters||x.undo_count>20||y.undo_count!=std::min(x.undo_count+1,20u)||
        x.region_random!=y.region_random||x.release_edits!=y.release_edits)return false;
     auto expected=a.actor;expected.position=intent.position;expected.rotation=intent.rotation;expected.scale=intent.scale;
     return b.actor==expected;

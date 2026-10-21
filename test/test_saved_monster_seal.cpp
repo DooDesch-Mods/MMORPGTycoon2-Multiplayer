@@ -51,6 +51,78 @@ bool capture_aliases(const Census& c,const std::string& target_sha,Manifest& out
     out={};if(export_failed){e="original Gizmo alias export failure";return false;}out.present=true;
     return gizmos.capture(scope(c),target_sha,c.saved,out.rows,e)&&gizmos.tombstones(scope(c),out.retired,e);}
 }
+namespace alias_ports {
+std::string failure;
+unsigned party_capture=0,party_prepare=0,boss_prepare=0,scenery_capture=0,scenery_prepare=0;
+mt2mp::game::party_snapshot_alias::Manifest party_source,party_prepared;
+mt2mp::game::boss_snapshot_alias::Manifest boss_prepared;
+mt2mp::game::scenery_scene_snapshot_alias::Manifest scenery_prepared;
+bool identity(const std::string& id,const std::string& digest,std::string& error){
+    if(id!=birth||digest!=fixture_digest){error="fixture alias exact snapshot UUID/SHA differs";return false;}return true;
+}
+bool entered(const char* operation,std::string& error){
+    if(failure==operation){error=std::string("original ")+operation+" failure";return false;}return true;
+}
+void clear(){failure.clear();party_capture=party_prepare=boss_prepare=scenery_capture=scenery_prepare=0;
+    party_source={};party_source.present=true;const auto record=fixture_digest+":world:party:1";party_source.rows.push_back({record,record});
+    party_prepared={};boss_prepared={};scenery_prepared={};
+}
+}
+namespace party_saved_identity_runtime {
+using Manifest=mt2mp::game::party_snapshot_alias::Manifest;
+bool aliases(const std::string& id,const std::string& digest,Manifest& out,std::string& error){
+    ++alias_ports::party_capture;out={};if(!alias_ports::identity(id,digest,error)||!alias_ports::entered("Party capture",error))return false;
+    const auto& expected=alias_ports::party_source;
+    if(!mt2mp::game::party_snapshot_alias::valid(expected,digest,error))return false;
+    if(expected.present){if(!mt2mp::game::party_snapshot_alias::decode(mt2mp::game::party_snapshot_alias::encode(expected),digest,out,error))return false;}
+    if(out!=expected){error="fixture Party capture complete alias readback differs";return false;}return true;
+}
+bool prepare_aliases(const std::string& id,const std::string& digest,uint64_t bytes,const Manifest& input,std::string& error){
+    ++alias_ports::party_prepare;if(!alias_ports::identity(id,digest,error)||!alias_ports::entered("Party admission",error))return false;
+    if(bytes!=77){error="fixture Party admission exact file length differs";return false;}
+    if(!mt2mp::game::party_snapshot_alias::valid(input,digest,error))return false;
+    Manifest decoded;if(input.present){if(!mt2mp::game::party_snapshot_alias::decode(mt2mp::game::party_snapshot_alias::encode(input),digest,decoded,error))return false;
+        if(decoded!=input){error="fixture Party admission complete alias readback differs";return false;}}
+    alias_ports::party_prepared=input;return true;
+}
+}
+namespace boss_saved_identity_runtime {
+using Manifest=mt2mp::game::boss_snapshot_alias::Manifest;
+bool prepare_aliases(const std::string& id,const std::string& digest,uint64_t bytes,const Manifest& input,std::string& error){
+    ++alias_ports::boss_prepare;if(!alias_ports::identity(id,digest,error)||!alias_ports::entered("Boss admission",error))return false;
+    if(bytes!=77){error="fixture Boss admission exact file length differs";return false;}
+    if(!mt2mp::game::boss_snapshot_alias::valid(input,digest,error))return false;
+    Manifest decoded;if(input.present){if(!mt2mp::game::boss_snapshot_alias::decode(mt2mp::game::boss_snapshot_alias::encode(input),digest,decoded,error))return false;
+        if(decoded!=input){error="fixture Boss admission complete alias readback differs";return false;}}
+    alias_ports::boss_prepared=input;return true;
+}
+}
+namespace remove_diagnostics::scene_scenery {
+using Manifest=mt2mp::game::scenery_scene_snapshot_alias::Manifest;
+using Census=mt2mp::game::dungeon_scene_identity_runtime::Census;
+bool census_matches(const Census& census,std::string& error){
+    if(!scene_census||&census!=&*scene_census||!census.snapshot_census||census.world.uuid!=birth||census.world.sha256!=fixture_digest){error="fixture Scenery exact original census/file differs";return false;}return true;
+}
+bool capture_saved(const Census& census,Manifest& out,std::string& error){
+    ++alias_ports::scenery_capture;out={};if(!census_matches(census,error)||!alias_ports::entered("Scenery capture",error))return false;
+    Manifest next;next.present=true;next.root_present=true;
+    for(const auto& row:census.scenery_saved)next.rows.push_back({row.record,row.record});
+    std::sort(next.rows.begin(),next.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
+    if(!mt2mp::game::scenery_scene_snapshot_alias::valid(next,census.world.sha256,error))return false;
+    Manifest decoded;if(!mt2mp::game::scenery_scene_snapshot_alias::decode(mt2mp::game::scenery_scene_snapshot_alias::encode(next),census.world.sha256,decoded,error))return false;
+    if(decoded!=next){error="fixture Scenery capture complete alias readback differs";return false;}out=std::move(decoded);return true;
+}
+bool prepare_saved(const Census& census,const Manifest& input,std::string& error){
+    ++alias_ports::scenery_prepare;if(!census_matches(census,error)||!alias_ports::entered("Scenery admission",error))return false;
+    if(!input.present){error="fixture Scenery admission has no complete alias manifest";return false;}
+    if(!mt2mp::game::scenery_scene_snapshot_alias::valid(input,census.world.sha256,error))return false;
+    std::set<std::string> expected,actual;
+    for(const auto& row:census.scenery_saved)if(!expected.insert(row.record).second){error="fixture Scenery original census repeats a saved member";return false;}
+    for(const auto& row:input.rows)actual.insert(row.record);
+    if(expected!=actual){error="fixture Scenery admission omits or adds an original member";return false;}
+    alias_ports::scenery_prepared=input;return true;
+}
+}
 attachment::Manifest prepared,captured;
 opened::CurrentWorld origin,current;
 std::map<uint64_t,uintptr_t> uid_registry;
@@ -62,7 +134,7 @@ namespace native_open_runtime {bool read_current_world(opened::CurrentWorld& out
 #include "saved_monster_seal_actual.inc"
 void need(bool value,const std::string& cause){++assertions;if(!value)throw std::runtime_error(cause);}
 void setup(){
-    bound_context=9;
+    bound_context=9;uuid=birth;alias_ports::clear();
     memory={};failure.clear();observed.clear();pools.clear();prepared={};captured={};prepared_present=false;host_active=false;world_changed=false;scene_census.reset();gizmo_seals=0;export_failed=false;dungeon_scene_identity_runtime::gizmos={};
     direct_monster_identity::registry={};current={"local-native-origin",7,9,reinterpret_cast<void*>(map_address)};
     const auto root=map_address+0x1c0;
@@ -98,7 +170,7 @@ void add_scene(){
 }
 void scene_tests(){
     std::string e,key;direct_monster_identity::Entry entry;
-    setup();add_scene();const direct_monster_identity::Scope local{current.uuid,current.world_epoch,current.generation,map_address+0x1c0,scene_region,scene_manager};
+    setup();add_scene();const direct_monster_identity::Scope local{current.uuid,current.world_epoch,current.generation,map_address+0x1c0,scene_region,scene_manager,scene_census->pools.at(0).scene.owner.key};
     need(seal_world(current,false,e),e);need(pools.size()==2&&captured.rows.size()==2&&gizmo_seals==1,"Complete root/Instance native pools or Gizmo seal were lost");
     need(direct_monster_identity::registry.resolve(local,scene_actor,0x400000012,key,e)&&key==scene_record,"Dungeon original saved record did not bind full UID/scene owner");
     setup();add_scene();prepared_present=true;prepared={fixture_digest,77,{{67,scene_record,"action:22222222-2222-4222-8222-222222222222"},{67,record(),"action:"+birth}}};
@@ -201,6 +273,29 @@ void load_lifecycle_tests(){
     initial();need(prepare_load(absent,birth,fixture_digest,77,error),error);network_identity::invalidate_world("verified-local-load");opened::pinned.bytes=78;
     need(!arm_client(birth,fixture_digest,error)&&!client_active&&!network_identity::client_active,"NativeOpen pinned byte count did not match exact prepared file");
 }
+void alias_port_tests(){
+    std::string error;direct_monster_identity::Entry entry;
+    setup();need(seal_world(current,false,error),error);
+    need(alias_ports::party_capture==1&&captured.parties==alias_ports::party_source&&captured.parties.rows.size()==1,"actual seal lost complete Party aliases");
+    for(const std::string operation:{"Party capture","Scenery capture","Scenery admission"}){
+        setup();add_scene();host_active=true;alias_ports::failure=operation;
+        need(!seal_world(current,false,error)&&error=="original "+operation+" failure"&&failure==error&&pools.empty()&&captured.rows.empty(),"actual seal hid original alias failure or published success");
+        need(!direct_monster_identity::registry.lookup(birth,scope(),entry,error),"failed alias capture/admission committed direct Monster bindings");
+    }
+    setup();add_scene();const auto root_record=mt2mp::game::scenery_scene_key::root_record(fixture_digest,67,8,0);
+    scene_census->scenery_saved.push_back({root_record,"world",0x100,0x200,0x300,0x400,0x500});
+    need(seal_world(current,false,error)&&alias_ports::scenery_prepare==1&&captured.scene_scenery==alias_ports::scenery_prepared&&captured.scene_scenery.rows.size()==1,"actual seal dropped populated original Root Scenery aliases");
+    setup();add_scene();prepared_present=true;prepared={fixture_digest,77,{{67,scene_record,scene_record},{67,record(),record()}}};
+    prepared.scene_scenery.present=true;prepared.scene_scenery.root_present=true;
+    scene_census->scenery_saved.push_back({root_record,"world",0x100,0x200,0x300,0x400,0x500});
+    need(!seal_world(current,false,error)&&error=="fixture Scenery admission omits or adds an original member"&&pools.empty(),"actual seal accepted incomplete prepared Scenery aliases");
+    const auto absent=std::filesystem::path(__FILE__).parent_path()/"load-lifecycle-absent/native-snapshot.dat";
+    for(const std::string operation:{"Party admission","Boss admission"}){
+        setup();network_identity::clear();prepared_uuid.clear();prepared_sha.clear();prepared_bytes=0;alias_ports::failure=operation;
+        need(!prepare_load(absent,birth,fixture_digest,77,error)&&error=="original "+operation+" failure"&&prepared_uuid.empty()&&prepared_bytes==0&&!client_active,"actual prepare hid alias admission failure or armed a load");
+        if(operation=="Party admission")need(alias_ports::boss_prepare==0,"failed Party admission continued to Boss admission");
+    }
+}
 }
 
-int main()try{fixture::tests();fixture::scene_tests();fixture::load_lifecycle_tests();std::cout<<fixture::assertions<<" actual Monster root/Dungeon seal, ownership, companion and atomic world comparisons passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
+int main()try{fixture::tests();fixture::scene_tests();fixture::load_lifecycle_tests();fixture::alias_port_tests();std::cout<<fixture::assertions<<" actual Monster root/Dungeon seal, ownership, companion and atomic world comparisons passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

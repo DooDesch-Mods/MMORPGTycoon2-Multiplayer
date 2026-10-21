@@ -1,0 +1,20 @@
+namespace thought_lifetime_fixture {
+namespace values=mt2mp::game::toon_thought;
+constexpr uintptr_t image_base=0x100000,zone_owner=0x200000,list_data=0x300000,dead_identity=0xdeaddead;
+std::map<uintptr_t,unsigned char> bytes;size_t reads=0,removes=0,current_calls=0;bool owner_valid=true,mutate=false,remove_error=false;
+template<class T>void put(uintptr_t address,const T& value){const auto* data=reinterpret_cast<const unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i)bytes[address+i]=data[i];}
+template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& e){++reads;if(object==dead_identity)throw std::runtime_error("freed Thought identity was dereferenced");auto* data=reinterpret_cast<unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i){const auto found=bytes.find(object+offset+i);if(found==bytes.end()){e="fixture native byte missing";return false;}data[i]=found->second;}return true;}
+bool current(std::string& e){++current_calls;if(!owner_valid){e="fixture current Zone lifetime changed";return false;}if(mutate&&current_calls==2)put(list_data+8,uintptr_t{0x5555});return true;}
+bool remove(uintptr_t zone,uintptr_t thought,std::string& e){++removes;need(zone==zone_owner&&thought==dead_identity,"opaque original cleanup receiver/identity changed");if(remove_error){e="fixture original cleanup failure";return false;}
+    int32_t count=0;need(read(zone,0x5a8,count,e),"fixture original count");std::vector<uintptr_t> slots;for(int32_t i=0;i<count;++i){uintptr_t value=0;need(read(list_data,size_t(i)*8,value,e),"fixture original slot");if(value!=thought)slots.push_back(value);}for(size_t i=0;i<slots.size();++i)put(list_data+i*8,slots[i]);put(zone+0x5a8,int32_t(slots.size()));return true;}
+void reset(){bytes.clear();reads=removes=current_calls=0;owner_valid=true;mutate=remove_error=false;put(zone_owner,image_base+0x1745ce0);put(zone_owner+0x580,image_base+0x1717220);put(zone_owner+0x5a0,list_data);put(zone_owner+0x5a8,std::array<int32_t,2>{3,4});put(list_data,uintptr_t{11});put(list_data+8,dead_identity);put(list_data+16,uintptr_t{22});}
+void run(){std::string e;bool attempted=false;auto at=[](uintptr_t object,size_t offset,auto& value,std::string& cause){return read(object,offset,value,cause);};auto fresh=[](std::string& cause){return current(cause);};auto original=[](uintptr_t zone,uintptr_t identity,std::string& cause){return remove(zone,identity,cause);};
+    reset();need(values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&attempted&&removes==1,"actual opaque stale Thought cleanup failed");values::ZoneList after;need(values::zone_list(at,image_base,zone_owner,after,e)&&after.members==std::vector<uintptr_t>{11,22}&&after.array.capacity==4,"opaque cleanup lost order/capacity");
+    attempted=false;need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&!attempted&&removes==1,"missing stale identity replayed original");
+    reset();attempted=false;owner_valid=false;need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&!attempted&&!removes,"foreign Zone lifetime mutated");
+    reset();attempted=false;mutate=true;need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&!attempted&&!removes,"fresh complete Zone list drift reached original");
+    reset();attempted=false;put(list_data+16,dead_identity);need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&!attempted&&!removes,"duplicate opaque identity accepted");
+    reset();attempted=false;remove_error=true;need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&attempted&&removes==1&&e=="fixture original cleanup failure","attempted opaque cleanup failure lost cause");
+    reset();attempted=false;put(zone_owner+0x5ac,int32_t{2});need(!values::remove_zone_link(at,fresh,original,image_base,zone_owner,dead_identity,attempted,e)&&!attempted&&!removes,"invalid native extent reached cleanup");
+}
+}

@@ -36,7 +36,19 @@ template<class Memory>bool read(Memory& memory,uintptr_t image,uintptr_t graph,
     }
     if(made.size()!=removed.size()||destroyed!=born||!duplicate_history::cash_equal(out.cash,cash))
         return q::fail(e,"Scenery original graph lacks complete removal/birth/cash coverage");
+    q::Bounds dependency_nodes,ordered;
+    if(!q::typed(memory,image,graph,0x16e32d0,e)||!q::bounds(memory,graph,100000,dependency_nodes,e)||
+       !q::typed(memory,image,graph+0x30,0x1748aa0,e)||!q::bounds(memory,graph+0x30,100000,ordered,e))return false;
+    // AddUndo locks the inverse graph. Its dependency and execution caches
+    // remain empty until the original Do calls Sort before executing it.
+    if(!dependency_nodes.count&&!ordered.count)
+        return q::unchanged(memory,graph+0x18,100000,span,e)&&q::unchanged(memory,graph,100000,dependency_nodes,e)&&
+            q::unchanged(memory,graph+0x30,100000,ordered,e);
+    if(!dependency_nodes.count||ordered.count!=span.count)
+        return q::fail(e,"Scenery original sorted graph count differs nodes="+std::to_string(dependency_nodes.count)+
+            " sorted="+std::to_string(ordered.count)+" operations="+std::to_string(span.count));
     std::vector<uintptr_t> sorted;
-    return q::unchanged(memory,graph+0x18,100000,span,e)&&duplicate_history::execution_order(memory,image,graph,out,sorted,e);
+    return q::unchanged(memory,graph+0x18,100000,span,e)&&duplicate_history::execution_order(memory,image,graph,out,sorted,e)&&
+        q::unchanged(memory,graph,100000,dependency_nodes,e)&&q::unchanged(memory,graph+0x30,100000,ordered,e);
 }
 }

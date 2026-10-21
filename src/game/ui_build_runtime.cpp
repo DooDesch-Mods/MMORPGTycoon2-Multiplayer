@@ -1,4 +1,14 @@
 #include "ui_build_runtime.h"
+#include "dungeon_build_cursor.h"
+#include "dungeon_build_local_ui.h"
+#include "object_identity/remove_runtime/copy/selection_witness.h"
+#include "dungeon_build_cursor_guard.h"
+#include "dungeon_build_calls.h"
+#include "live_host_state/apply_timing.h"
+#include "live_host_state/memory_query_timing.h"
+#include "mt2mp/hooks/original_body.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "scenery_stroke_calls.h"
 #include "scenery_kiss/native_scenery.h"
 #include "scenery_kiss/native_catalog.h"
 #include "scenery_kiss/ui_contract.h"
@@ -46,6 +56,7 @@ using ScenePurchase=bool(__fastcall*)(int32_t,const void*);
 using SceneAdd=void*(__fastcall*)(void*,int32_t,int32_t,const void*,bool);
 using Press=void(__fastcall*)(void*,void*,const void*);
 struct Scope {
+    dungeon_build_cursor::Scope cursor;
     bool scenery=false;int32_t category=-1,variant=0;void* manager=nullptr;
     std::array<float,3> position{};
     uint32_t purchase_attempted=0,purchase_returned=0,add_attempted=0,add_returned=0,undo_attempted=0,undo_returned=0;
@@ -59,7 +70,7 @@ struct DeferredBuilding {
     uintptr_t receiver=0,ghost=0,blueprint=0;
     host::opened::CurrentWorld world;
     void* shard=nullptr;
-    std::string action_uuid,error;
+    std::string action_uuid,error,scene;
 };
 struct Runtime {
     uint32_t thread=GetCurrentThreadId();uintptr_t image=0;
@@ -74,6 +85,8 @@ struct Runtime {
     std::map<std::string,scenery_kiss::PrivateScenery> held_scenery;
     placement_kiss::Update original=nullptr;
     Purchase purchase=nullptr;Add add=nullptr;Undo undo=nullptr;
+    using CursorSet=void(__fastcall*)(void*,void*);
+    CursorSet cursor_behaviour=nullptr,cursor_selection=nullptr;
     Scope* scope=nullptr;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     struct CreatePair {MT2FW_MT2_CreateCall call{};Scope* scope=nullptr;};
@@ -88,9 +101,30 @@ struct Runtime {
     std::optional<DeferredBuilding> deferred_build;
     uint64_t purchase_intents=0;
     std::map<std::string,json> receipts;
+    struct LocalBuild {uintptr_t receiver=0;dungeon_build_local_ui::Receipt completion;};
+    std::map<std::string,LocalBuild> local_builds;
     std::map<std::string,placement_kiss::PrivateBuild> held_builds;
 };
 std::atomic<Runtime*> published{nullptr};
+void cursor_route(bool selected,uintptr_t caller,void* receiver,void* value){
+    auto* runtime=published.load(std::memory_order_acquire);
+    const auto original=selected?runtime->cursor_selection:runtime->cursor_behaviour;
+    if(runtime->thread==GetCurrentThreadId()&&runtime->replaying&&runtime->scope){
+        auto& scope=*runtime->scope;scope.cursor.building=uintptr_t(scope.building);
+        const auto result=dungeon_build_cursor::route(scope.cursor,selected,caller-runtime->image,uintptr_t(receiver),uintptr_t(value));
+        if(result!=dungeon_build_cursor::Route::Forward)return;
+    }
+    original(receiver,value);
+}
+void cursor_behaviour_entry(void* receiver,void* value){cursor_route(false,uintptr_t(_ReturnAddress()),receiver,value);}
+void cursor_selection_entry(void* receiver,void* value){cursor_route(true,uintptr_t(_ReturnAddress()),receiver,value);}
+bool cursor_guards(Runtime& runtime,bool enabled,std::string& error){
+    host::ProcessMemory memory;
+    return dungeon_build_cursor::guard(memory,runtime.image,dungeon_build_cursor::codes[0],
+        uintptr_t(runtime.cursor_behaviour),uintptr_t(&cursor_behaviour_entry),enabled,error)&&
+        dungeon_build_cursor::guard(memory,runtime.image,dungeon_build_cursor::codes[1],
+        uintptr_t(runtime.cursor_selection),uintptr_t(&cursor_selection_entry),enabled,error);
+}
 bool read_world(host::opened::CurrentWorld& opened,void*& shard,std::string& error) {
     shard=nullptr;
     if(!native_open_runtime::read_current_world(opened,error))return false;
@@ -107,6 +141,9 @@ bool read_world(host::opened::CurrentWorld& opened,void*& shard,std::string& err
     if(!shard){error="building action root shard unavailable";return false;}
     return true;
 }
+#include "dungeon_build_view.inc"
+#include "dungeon_build_capture.inc"
+#include "dungeon_build_tasks.inc"
 bool read_cost(uintptr_t image,const void* type,int32_t& out,uint32_t& exception) {
     __try {out=reinterpret_cast<int32_t(__fastcall*)(const void*)>(image+0x40a650)(type);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();return false;}
@@ -304,9 +341,10 @@ bool queue_building_purchase(Runtime& r,const void* type,const void* position,st
         error="building UI Purchase current native binding differs: session_snapshot="+snapshot+" native_snapshot="+fresh.world.uuid+
             " native_epoch="+std::to_string(fresh.world.world_epoch)+" binding_epoch="+std::to_string(binding.native_epoch)+
             " native_generation="+std::to_string(fresh.world.generation)+" binding_generation="+std::to_string(binding.native_generation);return false;}
-    if(r.build.capture_at_update_entry(reinterpret_cast<void*>(fresh.receiver),fresh.request,error)!=placement_kiss::Capture::Captured){
+    if(r.build.capture_at_update_entry(reinterpret_cast<void*>(fresh.receiver),fresh.request,error,true)!=placement_kiss::Capture::Captured){
         if(error.empty())error="building UI Purchase lacks final native pending intent";return false;
     }
+    if(!captured_build_scene(r,fresh.request,fresh.scene,error))return false;
     std::array<float,3> copied{};
     if(!position||!memory.copy(uintptr_t(position),copied.data(),sizeof copied,error)){
         if(error.empty())error="building UI Purchase copied position unavailable";return false;
@@ -346,8 +384,13 @@ bool submit_deferred_building(Runtime& r,std::string& error) {
     state.x=pending.request.pose.position[0];state.y=pending.request.pose.position[1];state.z=pending.request.pose.position[2];
     state.rotation=pending.request.pose.quaternion;state.scale=pending.request.pose.scale;state.alive=true;
     pending.action_uuid=action_uuid(error);if(pending.action_uuid.empty())return false;
+    std::string scene;
+    if(!captured_build_scene(r,pending.request,scene,error)||scene!=pending.scene){
+        if(error.empty())error="Building captured template scene changed before submission";return false;
+    }
     if(!placement_ui_diagnostics::capture_bound(reinterpret_cast<void*>(pending.receiver),pending.action_uuid,state,error)||
-       !typed_action_runtime::submit_place(pending.action_uuid,state,error))return false;
+       !submit_captured_build(r,pending.request,pending.action_uuid,state,error))return false;
+    if(pending.request.type=="DungeonExterior")r.local_builds.emplace(pending.action_uuid,Runtime::LocalBuild{pending.receiver,{}});
     ++r.captured;r.last_action=pending.action_uuid;r.cause.clear();r.deferred_build.reset();return true;
 }
 void building_original_ui(Runtime& r,void* receiver,float dt) {
@@ -381,9 +424,11 @@ void update_entry(void* receiver,float dt) {
     }
     if(runtime->deferred_build){reject(*runtime,runtime->deferred_build->error.empty()?"building captured request awaiting original cleanup; no replay":runtime->deferred_build->error);return;}
     placement_kiss::Request captured;std::string error;
-    const auto result=runtime->build.capture_at_update_entry(receiver,captured,error);
+    const auto result=runtime->build.capture_at_update_entry(receiver,captured,error,true);
     if(result==placement_kiss::Capture::PassOriginal){++runtime->forwarded;building_original_ui(*runtime,receiver,dt);return;}
     if(result!=placement_kiss::Capture::Captured){placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;}
+    std::string captured_scene;
+    if(!captured_build_scene(*runtime,captured,captured_scene,error)){placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;}
     uint32_t cleanup_exception=0;
     if(!runtime->build.consume_captured_intent(receiver,captured,cleanup_exception,error)){placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;}
     const auto id=action_uuid(error);
@@ -393,7 +438,13 @@ void update_entry(void* receiver,float dt) {
     state.x=captured.pose.position[0];state.y=captured.pose.position[1];state.z=captured.pose.position[2];
     state.rotation=captured.pose.quaternion;state.scale=captured.pose.scale;state.alive=true;
     if(!placement_ui_diagnostics::capture_bound(receiver,id,state,error)){reject(*runtime,error);return;}
-    if(!typed_action_runtime::submit_place(id,state,error)){placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;}
+    std::string final_scene;
+    if(!captured_build_scene(*runtime,captured,final_scene,error)||final_scene!=captured_scene){
+        if(error.empty())error="Building captured template scene changed during original cleanup";
+        placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;
+    }
+    if(!submit_captured_build(*runtime,captured,id,state,error)){placement_ui_diagnostics::capture_failed(receiver,error);reject(*runtime,error);return;}
+    if(captured.type=="DungeonExterior")runtime->local_builds.emplace(id,Runtime::LocalBuild{uintptr_t(receiver),{}});
     ++runtime->captured;runtime->last_action=id;runtime->cause.clear();
     LOG_INFO("[UIBuild] Normal building intent captured action={} type={} variant={}",id,state.type,state.variant);
 }
@@ -412,7 +463,7 @@ bool enable(std::string& error) {
        !runtime->scene.bind_before_hooks(runtime->image,thread,error)||
        !scenery_kiss::validate_ui_originals(runtime->image,error))return fail();
     host::opened::CurrentWorld install_world;void* install_shard=nullptr;
-    if(!read_world(install_world,install_shard,error))return fail();
+    if(!read_world(install_world,install_shard,error)||!cursor_guards(*runtime,false,error))return fail();
     const auto install=[&](uintptr_t rva,void* detour,void** original) {
         if(!hooks::create_hook(reinterpret_cast<void*>(runtime->image+rva),detour,original)) {
             error="building capture CreateHook failed RVA="+std::to_string(rva);return false;
@@ -425,6 +476,8 @@ bool enable(std::string& error) {
        !install(0x24ed30,reinterpret_cast<void*>(&add_entry),reinterpret_cast<void**>(&runtime->add))||
 #endif
        !install(0x53b260,reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))||
+       !install(0x5854e0,reinterpret_cast<void*>(&cursor_behaviour_entry),reinterpret_cast<void**>(&runtime->cursor_behaviour))||
+       !install(0x585270,reinterpret_cast<void*>(&cursor_selection_entry),reinterpret_cast<void**>(&runtime->cursor_selection))||
        !runtime->build.publish_typed_original(runtime->original,error)||
        !install(0x5d4620,reinterpret_cast<void*>(&scene_update_entry),reinterpret_cast<void**>(&runtime->scene_update))||
        !install(0x448330,reinterpret_cast<void*>(&scene_purchase_entry),reinterpret_cast<void**>(&runtime->scene_purchase))||
@@ -434,12 +487,12 @@ bool enable(std::string& error) {
        !install(0x5d0600,reinterpret_cast<void*>(&scene_release_entry),reinterpret_cast<void**>(&runtime->scene_release))||
        !runtime->scene.publish_typed_original(runtime->scene_update,error))return fail();
     runtime->scene_originals={uintptr_t(runtime->scene_update),uintptr_t(runtime->scene_purchase),uintptr_t(runtime->scene_add),uintptr_t(runtime->scene_press),uintptr_t(runtime->erase_press),uintptr_t(runtime->scene_release)};
-    if(!scenery_kiss::validate_ui_trampolines(runtime->image,runtime->scene_originals,error))return fail();
+    if(!scenery_kiss::validate_ui_trampolines(runtime->image,runtime->scene_originals,error)||!cursor_guards(*runtime,false,error))return fail();
     published.store(runtime,std::memory_order_release);
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     if(!framework_subscribe_create(*runtime,error))return fail();
 #endif
-    for(const auto rva:{0x593cc0,0x40bb10,0x24ed30,0x53b260,0x5d4620,0x448330,0x2cb340,0x5cf440,0x5d64e0,0x5d0600}) {
+    for(const auto rva:{0x593cc0,0x40bb10,0x24ed30,0x53b260,0x5854e0,0x585270,0x5d4620,0x448330,0x2cb340,0x5cf440,0x5d64e0,0x5d0600}) {
 #ifdef MT2MP_FRAMEWORK_PLUGIN
         if(rva==0x24ed30)continue;
 #endif
@@ -449,6 +502,7 @@ bool enable(std::string& error) {
     const std::array<uintptr_t,6> scene_entries{uintptr_t(&scene_update_entry),uintptr_t(&scene_purchase_entry),uintptr_t(&scene_add_entry),uintptr_t(&scene_press_entry),uintptr_t(&erase_press_entry),uintptr_t(&scene_release_entry)};
     if(!scenery_kiss::validate_ui_routes(runtime->image,runtime->scene_originals,scene_entries,error))return fail();
     if(!building_history_slice::enable(runtime->image,thread,error))return fail();
+    if(!cursor_guards(*runtime,true,error))return fail();
     runtime->ready=true;runtime->cause.clear();error.clear();
     LOG_INFO("[UIBuild] Original building Update capture enabled");return true;
 }
@@ -466,7 +520,7 @@ catch(...){error="Framework CreateBuilding retirement nonstandard exception";ret
 #endif
 bool enabled()noexcept {const auto* runtime=published.load(std::memory_order_acquire);return runtime&&runtime->ready&&runtime->thread==GetCurrentThreadId();}
 bool place_scenery(Runtime&,const action::Request&,action::BuildingState&,json&,std::string&);
-bool place(const action::Request& request,action::BuildingState& state,json& receipt,std::string& error) {
+bool place_bound(const action::Request& request,action::BuildingState& state,json& receipt,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
     receipt=json::object();state={};
     if(!enabled()||runtime->replaying||runtime->receipts.contains(request.action_uuid)
@@ -481,8 +535,9 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
     if(!catalog.classify_directory(request.building.type,scenery,error))return false;
     if(scenery)return place_scenery(*runtime,request,state,receipt,error);
     host::opened::CurrentWorld world;void* shard=nullptr;
-    if(!read_world(world,shard,error))return false;
+    if(!read_build_target(request,world,shard,error))return false;
     placement_kiss::Request native_request;
+    native_request.dungeon_family=request.dungeon_building;
     native_request.action_uuid=request.action_uuid;native_request.type=request.building.type;native_request.variant=request.building.variant;
     native_request.pose={{request.building.x,request.building.y,request.building.z},request.building.rotation,request.building.scale};
     native_request.world=uintptr_t(world.world);native_request.epoch=world.world_epoch;native_request.generation=world.generation;native_request.sequence=request.sequence;
@@ -495,9 +550,18 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
     if(!build_actions::private_native::read_undo(undo_memory,runtime->image,undo_before,error))return false;
     if(undo_before.active_graph){error="native building action requires inactive Undo graph";return false;}
     native::PropState grounded;
-    if(!native::probe_building_placement(request.building.type,request.building.variant,request.building.x,request.building.z,grounded,error))return false;
+    if(!request.dungeon_building&&!native::probe_building_placement(request.building.type,request.building.variant,request.building.x,request.building.z,grounded,error))return false;
     runtime->receipts.emplace(request.action_uuid,json{{"attempted",true},{"confirmed",false}});
-    Scope scope;runtime->scope=&scope;runtime->replaying=true;
+    if(!cursor_guards(*runtime,true,error))return false;
+    Scope scope;scope.cursor.exterior=request.dungeon_building&&request.building.type=="DungeonExterior";
+    if(scope.cursor.exterior){
+        uintptr_t ap=0;
+        if(!family_memory.copy(runtime->image+0x13df9d0,&scope.cursor.cursor,8,error)||!scope.cursor.cursor||
+           !family_memory.copy(scope.cursor.cursor,&ap,8,error)||ap!=runtime->image+0x1786dd0){
+            if(error.empty())error="Private Dungeon Build current global Cursor owner differs";return false;
+        }
+    }
+    runtime->scope=&scope;runtime->replaying=true;
     struct Reset {Runtime& r;~Reset(){r.scope=nullptr;r.replaying=false;}} reset{*runtime};
     auto& private_build=runtime->held_builds.emplace(request.action_uuid,placement_kiss::PrivateBuild{}).first->second;
     LOG_INFO("[UIBuild] Private prepare attempted action={}",request.action_uuid);
@@ -509,6 +573,8 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
         success=runtime->build.update_once(private_build,exception);
         LOG_INFO("[UIBuild] Original Update returned action={} success={} stage={} exception={}",request.action_uuid,success,private_build.stage,exception);
     }
+    json maker=json::object();
+    if(success&&!exception&&scope.cursor.exterior)success=finish_dungeon_maker(*runtime,maker,error);
     native::BuildingState actual;
     if(success&&!exception&&scope.building) {
         uint64_t uid=0;SIZE_T count=0;
@@ -523,6 +589,7 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
     effects.purchase_calls=scope.purchase_returned;effects.add_calls=scope.add_returned;effects.undo_calls=scope.undo_returned;
     effects.cash_before=before.cash;effects.cash_after=after.cash;effects.native_cost=scope.cost;effects.exception=exception;
     if(success&&!scope.cause.empty()){success=false;error=scope.cause;}
+    if(success&&!dungeon_build_cursor::complete(scope.cursor,error))success=false;
     host::opened::CurrentWorld after_world;
     if(success&&(!native_open_runtime::read_current_world(after_world,error)||!host::same_world(world,after_world))) {
         success=false;if(error.empty())error="native building world changed during execution";
@@ -532,7 +599,7 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
         build_actions::private_native::read_graph(undo_memory,runtime->image,scope.graph,graph,error)&&
         build_actions::private_native::validate_undo_commit(undo_before,undo_after,graph,error);
     void* cleanup_shard=nullptr;
-    if(success&&(!read_world(after_world,cleanup_shard,error)||!host::same_world(world,after_world)||cleanup_shard!=shard)) {
+    if(success&&(!read_build_target(request,after_world,cleanup_shard,error)||!host::same_world(world,after_world)||cleanup_shard!=shard)) {
         success=false;if(error.empty())error="native building cleanup world or shard changed";
     }
     if(success){
@@ -551,6 +618,8 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
     receipt["preview_effect"]={{"checked",preview.checked},{"present",preview.present},{"destroy_attempted",preview.attempted},{"destroy_returned",preview.returned},{"removed",preview.removed},{"slot_cleared",preview.slot_cleared},{"manager_count_before",preview.count_before},{"manager_count_after",preview.count_after},{"error",preview.cause}};
     receipt["undo_confirmed"]=success&&graph.locked&&graph.pending_delete==0;
     if(success)receipt["local_undo_graph"]=uint64_t(scope.graph);
+    receipt["dungeon_maker"]=maker;
+    receipt["cursor_behaviour_preserved"]=scope.cursor.behaviour;receipt["cursor_selection_preserved"]=scope.cursor.selection;
     receipt["purchase_attempted"]=scope.purchase_attempted;receipt["add_attempted"]=scope.add_attempted;
     receipt["undo_attempted"]=scope.undo_attempted;
     runtime->receipts.at(request.action_uuid)=receipt;
@@ -558,11 +627,69 @@ bool place(const action::Request& request,action::BuildingState& state,json& rec
     state={actual.type,actual.variant,actual.prop.x,actual.prop.y,actual.prop.z,actual.rotation,actual.scale,true};
     LOG_INFO("[UIBuild] Original building action confirmed action={} local_uid={}",request.action_uuid,actual.prop.uid);return true;
 }
+uint32_t cursor_complete_pod(Runtime::CursorSet original,uintptr_t cursor,uintptr_t value){
+    __try{original(reinterpret_cast<void*>(cursor),reinterpret_cast<void*>(value));return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+bool complete_dungeon_local_ui(const action::Request& request,uintptr_t building,uint64_t uid,std::string& error){
+    if(!request.dungeon_building||request.action!=action::Action::PlaceBuilding||request.building.type!="DungeonExterior")return true;
+    auto* runtime=published.load(std::memory_order_acquire);
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||runtime->scope||runtime->replaying){
+        error="Dungeon Building local UI completion requires its idle current native owner";return false;
+    }
+    const auto local=runtime->local_builds.find(request.action_uuid);
+    if(local==runtime->local_builds.end())return true;
+    const auto native=runtime->receipts.find(request.action_uuid);
+    if(native==runtime->receipts.end()||!native->second.value("confirmed",false)||
+       native->second.value("native_uid",uint64_t{0})!=uid||!building||!uid||!cursor_guards(*runtime,true,error)){
+        if(error.empty())error="Dungeon Building local UI has no exact confirmed original Building receipt";
+        return false;
+    }
+    host::ProcessMemory memory;
+    auto read=[&](uintptr_t pointer,size_t offset,uintptr_t& value,std::string& cause){
+        return memory.copy(pointer+offset,&value,sizeof value,cause);
+    };
+    auto call=[&](bool selected,uintptr_t cursor,uintptr_t value,std::string& cause){
+        const auto seh=cursor_complete_pod(selected?runtime->cursor_selection:runtime->cursor_behaviour,cursor,value);
+        if(seh){cause="Dungeon Building local UI original Cursor completion SEH="+std::to_string(seh);return false;}
+        return true;
+    };
+    auto selected=[&](uintptr_t owner,uintptr_t target,std::string& cause){
+        build_actions::private_native::SelectionWitness witness;
+        build_actions::private_native::SelectionCounts counts;
+        if(!build_actions::private_native::read_selection(memory,runtime->image,owner,witness,counts,cause))return false;
+        if(witness.lists[1]!=std::vector<uintptr_t>{target}){
+            cause="Dungeon Building original selection did not contain its exact new Exterior";return false;
+        }
+        return true;
+    };
+    auto& receipt=local->second.completion;
+    const bool result=dungeon_build_local_ui::complete(runtime->image,local->second.receiver,building,receipt,read,call,selected,error);
+    native->second["local_ui"]={{"attempted",receipt.attempted},{"switched",receipt.switched},
+        {"selected",receipt.selected},{"superseded",receipt.superseded},{"error",error}};
+    if(result&&receipt.superseded)LOG_INFO("[UIBuild] Dungeon local selection skipped after a newer local tool action action={}",request.action_uuid);
+    return result;
+}
 bool validate_scenery_ui_routes(uintptr_t image,uint32_t thread,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
     if(!runtime||!runtime->ready||runtime->image!=image||runtime->thread!=thread||thread!=GetCurrentThreadId()){error="scenery UI diagnostic actual hook owner/mainthread differs";return false;}
     const std::array<uintptr_t,6> entries{uintptr_t(&scene_update_entry),uintptr_t(&scene_purchase_entry),uintptr_t(&scene_add_entry),uintptr_t(&scene_press_entry),uintptr_t(&erase_press_entry),uintptr_t(&scene_release_entry)};
     return scenery_kiss::validate_ui_routes(image,runtime->scene_originals,entries,error);
+}
+bool place(const action::Request& request,action::BuildingState& state,json& receipt,std::string& error){
+    auto* runtime=published.load(std::memory_order_acquire);
+    if(!runtime||!enabled()){error="Dungeon Building execution has no bound native owner";return false;}
+    receipt=json::object();state={};
+    DungeonBuildView view(*runtime);
+    const bool prepared=view.begin(request,error);
+    bool success=prepared&&place_bound(request,state,receipt,error);
+    std::string cleanup;
+    if(!view.restore(cleanup)){
+        if(!error.empty())error+="; ";
+        error+=cleanup;success=false;receipt["confirmed"]=false;receipt["unknown"]=true;receipt["context_restore_error"]=cleanup;
+    }
+    if(request.dungeon_building)receipt["local_view_restored"]=view.finished&&(!view.active||view.local.restored);
+    return success;
 }
 bool place_scenery(Runtime& r,const action::Request& request,action::BuildingState& state,json& receipt,std::string& error) {
     host::opened::CurrentWorld world,after_world;void* shard=nullptr;
@@ -599,6 +726,7 @@ bool place_scenery(Runtime& r,const action::Request& request,action::BuildingSta
         {"purchase_attempted",scope.purchase_attempted},{"add_attempted",scope.add_attempted},{"undo_attempted",scope.undo_attempted},{"undo_confirmed",success&&graph.locked&&graph.pending_delete==0},
         {"update_attempted",owned.update_attempted},{"update_returned",owned.update_returned},{"cursor_dtor_attempted",owned.cursor_dtor_attempted},{"cursor_dtor_returned",owned.cursor_dtor_returned},{"options_dtor_attempted",owned.options_dtor_attempted},{"options_dtor_returned",owned.options_dtor_returned},
         {"requested_position",{request.building.x,request.building.y,request.building.z}},{"actual_position",{actual.prop.x,actual.prop.y,actual.prop.z}},{"actual_rotation",actual.rotation},{"actual_scale",actual.scale}};
+    if(success)receipt["local_undo_graph"]=uint64_t(scope.graph);
     r.receipts.at(request.action_uuid)=receipt;
     if(!success){if(error.empty())error="scenery action failed without cause";receipt["error"]=error;r.receipts.at(request.action_uuid)=receipt;LOG_ERROR("[UIBuild] Scenery action failed action={} cause={}",request.action_uuid,error);return false;}
     state={actual.type,actual.variant,actual.prop.x,actual.prop.y,actual.prop.z,actual.rotation,actual.scale,true};return true;

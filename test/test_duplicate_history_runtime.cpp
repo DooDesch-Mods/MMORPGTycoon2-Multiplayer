@@ -42,7 +42,7 @@ bool network_binding(const std::string&,Binding&,std::string& e){++public_bindin
 }
 namespace duplicate_code{bool check(int,uintptr_t,std::string& e){return fault!="code"||q::fail(e,"native body changed");}}
 bool same_binding(const Sample& first,const Sample& second){return first.generation==second.generation;}
-bool sample(Runtime&,const Binding& binding,const DuplicateIntent*,const std::map<uint64_t,std::string>&,Sample& out,std::string& e,
+bool sample_duplicate(Runtime&,const Binding& binding,const DuplicateIntent*,const std::map<uint64_t,std::string>&,Sample& out,std::string& e,
             const std::function<bool(Sample&,std::string&)>& prepare={}){
     if(binding!=fixture_binding||fixture_state.generation!=binding.native_generation)return q::fail(e,"native current generation changed");
     if(fault=="after-read"&&original_calls)return q::fail(e,"actual after read failed");out=fixture_state;return !prepare||prepare(out,e);}

@@ -54,8 +54,8 @@ bool EconomicFence::arm(const Context& c,const Binding& b,std::function<void(con
 bool EconomicFence::enter_game_update(std::string& e){if(!armed_||locked_||GetCurrentThreadId()!=pin_.thread||frame_depth_)return fail(e,"live economic actual GameUpdate scope not armed/locked/thread/reentry");++frame_depth_;e.clear();return true;}
 void EconomicFence::leave_game_update(){if(frame_depth_!=1||action_){locked_=true;cause_="live economic GameUpdate exit scope/action mismatch";if(logger_)logger_("error",cause_);}frame_depth_=0;}
 bool EconomicFence::read_current_fence(const Pin& expected,std::string& e){if(suspended_||!armed_||locked_||!prepared_||frame_depth_!=1||action_||GetCurrentThreadId()!=pin_.thread||expected.context!=context_||expected.binding!=binding_||expected.image!=pin_.image)return fail(e,"live economic actual Client GameUpdate fence unavailable/locked/active action");return routes_ready(e);}
-bool EconomicFence::begin_action(const action_session::Message& result,const Pin& actual,std::string& e){if(result.kind!=action_session::Kind::HostResult||result.outcome!=action_session::Outcome::Confirmed||result.session!=context_.session||result.request.snapshot_uuid!=context_.snapshot_uuid||ledger(actual.values)!=result.evidence.before||!read_current_fence(actual,e))return fail(e,e.empty()?"live economic authoritative cash scope origin/before differs":e);NativePort reader(context_,binding_,nullptr);if(!reader.current_owners(actual,e))return false;action_=result;action_pin_=actual;action_cash_calls_=0;e.clear();return true;}
-bool EconomicFence::end_action(std::string& e){if(!action_)return fail(e,"live economic action exit has no actual scope");const auto expected=action_->evidence.after;action_.reset();if(locked_)return fail(e,cause_.empty()?"live economic action already locked":cause_);NativePort reader(context_,binding_,nullptr);Pin actual;if(!reader.read(actual,e)||ledger(actual.values)!=expected){locked_=true;cause_=e.empty()?"live economic authoritative full Ledger after differs":e;return fail(e,cause_);}e.clear();return true;}
+bool EconomicFence::begin_action(const action_session::Message& result,const Pin& actual,std::string& e){if(result.kind!=action_session::Kind::HostResult||result.outcome!=action_session::Outcome::Confirmed||result.session!=context_.session||result.request.snapshot_uuid!=context_.snapshot_uuid||ledger(actual.values)!=result.evidence.before||!read_current_fence(actual,e))return fail(e,e.empty()?"live economic authoritative cash scope origin/before differs":e);NativePort reader(context_,binding_,nullptr);if(!reader.current_owners(actual,e))return false;action_=result;action_pin_=actual;action_cash_calls_=0;action_cash_ledger_=result.evidence.before;e.clear();return true;}
+bool EconomicFence::end_action(std::string& e){if(!action_)return fail(e,"live economic action exit has no actual scope");const auto expected=action_->evidence.after;const auto before=action_->evidence.before;const bool brush=action_->request.action==action_session::Action::SceneryBrushStroke;action_.reset();if(locked_)return fail(e,cause_.empty()?"live economic action already locked":cause_);if(brush&&!brush_cash_complete(before,expected,action_cash_ledger_,action_cash_calls_,e)){locked_=true;cause_=e;return false;}NativePort reader(context_,binding_,nullptr);Pin actual;if(!reader.read(actual,e)||ledger(actual.values)!=expected){locked_=true;cause_=e.empty()?"live economic authoritative full Ledger after differs":e;return fail(e,cause_);}e.clear();return true;}
 bool EconomicFence::allow_needs(void* receiver){
     if(!armed_||suspended_||context_.role==action_session::Role::Host)return true;
     if(locked_)return false;
@@ -72,13 +72,16 @@ bool EconomicFence::allow_needs(void* receiver){
     return false;
 }
 bool EconomicFence::allow(EconomicLeaf leaf,void* receiver,int32_t amount,int32_t category){if(!armed_||context_.role==action_session::Role::Host)return true;if(suspended_){const auto i=size_t(leaf);if(i<suppressed_.size())++suppressed_[i];return false;}std::string reason;
+    const bool brush=action_&&action_->request.action==action_session::Action::SceneryBrushStroke;
     const bool cash_scope=!locked_&&action_&&frame_depth_==1&&
-        (leaf==EconomicLeaf::AddCash||leaf==EconomicLeaf::SubtractCash)&&!action_cash_calls_;
+        (leaf==EconomicLeaf::AddCash||leaf==EconomicLeaf::SubtractCash)&&(brush||!action_cash_calls_);
     // History cash and Region Purchase use their original cash leaf inside one EditOperation.
     const bool edit_cash=cash_scope&&
-        ((leaf==EconomicLeaf::AddCash&&
+        ((category==6&&action_->request.action==action_session::Action::SceneryBrushStroke)||
+         (leaf==EconomicLeaf::AddCash&&
           (action_->request.action==action_session::Action::RemoveSnapshotBuilding||
            (category==6&&(action_->request.action==action_session::Action::RemovePath||
+                          action_->request.action==action_session::Action::SceneryEraseStroke||
                           action_->request.action==action_session::Action::UndoBuilding||
                           action_->request.action==action_session::Action::RedoBuilding))))||
          (leaf==EconomicLeaf::SubtractCash&&category==7&&
@@ -95,7 +98,7 @@ bool EconomicFence::allow(EconomicLeaf leaf,void* receiver,int32_t amount,int32_
     else if(owner)owner=uintptr_t(receiver)==owner_pin.business;
     if(!owner&&!locked_){locked_=true;cause_=reason.empty()?"live economic callback actual owner/Mainthread differs":reason;}
     if(owner&&!locked_&&management_loan)return true;
-    if(owner&&!locked_&&cash_scope){action_session::Ledger predicted;if(predicted_cash(action_->evidence.before,leaf==EconomicLeaf::SubtractCash,amount,category,predicted,reason)&&predicted==action_->evidence.after){++action_cash_calls_;return true;}locked_=true;cause_=reason.empty()?"live economic native cash arguments differ from exact Host after Ledger":reason;}
+    if(owner&&!locked_&&cash_scope){action_session::Ledger predicted;const bool accepted=brush?brush_cash_progress(action_->evidence.before,action_->evidence.after,action_cash_ledger_,leaf==EconomicLeaf::SubtractCash,amount,category,predicted,reason):(predicted_cash(action_->evidence.before,leaf==EconomicLeaf::SubtractCash,amount,category,predicted,reason)&&predicted==action_->evidence.after);if(accepted){++action_cash_calls_;if(brush)action_cash_ledger_=predicted;return true;}locked_=true;cause_=reason.empty()?"live economic native cash arguments differ from exact Host after Ledger":reason;}
     const auto index=size_t(leaf);if(index>=suppressed_.size()){locked_=true;cause_="live economic unknown leaf";if(logger_)logger_("error",cause_);return false;}++suppressed_[index];if(logger_&&suppressed_[index]==1)logger_(locked_?"error":"warn","live Client economic leaf suppressed index="+std::to_string(index)+(locked_?" original="+cause_:" reason=Host authority; no native original"));return false;}
 void EconomicFence::original_failed(EconomicLeaf leaf,uint32_t seh){locked_=true;cause_="live economic native original SEH leaf="+std::to_string(size_t(leaf))+" code="+std::to_string(seh)+"; no replay";if(logger_)logger_("error",cause_);}
 }

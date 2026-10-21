@@ -10,7 +10,7 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extra
     --source-root "${MT2MP_SOURCE_ROOT}" --output "${_host_failure_generated}" COMMAND_ERROR_IS_FATAL ANY)
 add_executable(test_host_live_failure "${MT2MP_SOURCE_ROOT}/test/test_host_live_failure.cpp")
 target_include_directories(test_host_live_failure PRIVATE "${_host_failure_generated}"
-    "${MT2MP_SOURCE_ROOT}/src/game/typed_action" "${MT2MP_SOURCE_ROOT}/include")
+    "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/src/game/typed_action" "${MT2MP_SOURCE_ROOT}/include")
 target_compile_features(test_host_live_failure PRIVATE cxx_std_20)
 if(MSVC)
     target_compile_options(test_host_live_failure PRIVATE /W4 /WX /utf-8 /EHsc)

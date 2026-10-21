@@ -882,6 +882,8 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         game::coop_cursor::production::tick();
 #endif
         }
+        // Drain queued action messages before evaluating their phase deadlines.
+        {FrameTimingScope measured(FrameTimingPart::Typed);GameUpdateWorkScope traced(game_update_pair::Section::Typed);game::typed_action_runtime::tick_after_transport();}
         if(time_initialized) {
             FrameTimingScope measured(FrameTimingPart::Time);GameUpdateWorkScope traced(game_update_pair::Section::Time);
             if(game::time_integration::instance().tick(time_tick_error)) { ++time_tick_confirmed; time_tick_error.clear(); }
@@ -1154,6 +1156,10 @@ static json status() {
     result["capabilities"]["read_cancel_tool"]=true;
     result["capabilities"]["native_buildings_tab"]=result["typed_actions"].value("started",false);
     result["capabilities"]["read_buildings_tab"]=true;
+    result["capabilities"]["native_network_tab"]=result["typed_actions"].value("started",false);
+    result["capabilities"]["read_network_tab"]=true;
+    result["capabilities"]["native_scenery_tab"]=result["typed_actions"].value("started",false);
+    result["capabilities"]["read_scenery_tab"]=true;
                 result["capabilities"]["native_build_button"]=game::ui_build_runtime::enabled();
                 result["capabilities"]["read_build_ui"]=true;
                 result["capabilities"]["native_building_history_ui"]=game::ui_build_runtime::enabled();
@@ -1473,7 +1479,7 @@ static void diagnostics_tick() {
             if(!valid||settled||timeout) {
                 json response={{"schema_version",1},{"id",pending_camera.at("id")},{"run_id",run_id},{"ok",settled}};
                 if(settled) response["result"]={{"state","camera_focus_applied"},{"engine",status()}};
-                else response["error"]={{"code",timeout?"CAMERA_FOCUS_TIMEOUT":"CAMERA_REJECTED"},{"message",timeout?"Kamerafokus nach 15 Sekunden nicht bestätigt: actual="+std::to_string(camera.distance)+" required_interval=["+std::to_string(lower)+","+std::to_string(upper)+"] blend="+std::to_string(camera.focus_blend)+" required_blend="+std::to_string(camera.focus_end_blend)+" pending="+std::to_string(camera.focus_pending)+" tolerance="+std::to_string(tolerance):error}};
+                else response["error"]={{"code",timeout?"CAMERA_FOCUS_TIMEOUT":"CAMERA_REJECTED"},{"message",timeout?"Kamerafokus nach 15 Sekunden nicht bestÃ¤tigt: actual="+std::to_string(camera.distance)+" required_interval=["+std::to_string(lower)+","+std::to_string(upper)+"] blend="+std::to_string(camera.focus_blend)+" required_blend="+std::to_string(camera.focus_end_blend)+" pending="+std::to_string(camera.focus_pending)+" tolerance="+std::to_string(tolerance):error}};
                 pending_camera=nullptr; respond(dir,response);
             }
             return;
@@ -1534,7 +1540,7 @@ static void diagnostics_tick() {
             if(!valid||title||timeout) {
                 json response={{"schema_version",1},{"id",pending_crash_dismiss.at("id")},{"run_id",run_id},{"ok",title}};
                 if(title) response["result"]={{"state","title_active"},{"report_uploaded",false},{"engine",status()}};
-                else response["error"]={{"code",timeout?"CRASH_DISMISS_TIMEOUT":"ENGINE_REJECTED"},{"message",timeout?"Titelmenü nach Crash-Dialog nicht innerhalb von 15 Sekunden aktiv":error}};
+                else response["error"]={{"code",timeout?"CRASH_DISMISS_TIMEOUT":"ENGINE_REJECTED"},{"message",timeout?"TitelmenÃ¼ nach Crash-Dialog nicht innerhalb von 15 Sekunden aktiv":error}};
                 pending_crash_dismiss=nullptr; respond(dir,response);
             }
             return;
@@ -1546,7 +1552,7 @@ static void diagnostics_tick() {
             if(changed||timeout) {
                 json response={{"schema_version",1},{"id",pending_overlay.at("id")},{"run_id",run_id},{"ok",changed}};
                 if(changed) response["result"]={{"state","SDL_F10_processed"},{"visible",visible},{"engine",status()}};
-                else response["error"]={{"code","OVERLAY_EVENT_TIMEOUT"},{"message","SDL-F10-Ereignis hat die Overlay-Sichtbarkeit nicht geändert"}};
+                else response["error"]={{"code","OVERLAY_EVENT_TIMEOUT"},{"message","SDL-F10-Ereignis hat die Overlay-Sichtbarkeit nicht geÃ¤ndert"}};
                 respond(dir,response); pending_overlay=nullptr;
             }
             return;
@@ -1578,7 +1584,7 @@ static void diagnostics_tick() {
             if(now-snapshot_started>=std::chrono::seconds(net::snapshot_native_capture_timeout_seconds)) {
                 auto cause="native snapshot capture/readback timeout saves_in_progress="+std::to_string(count)+" native_task_cancelled=false required idle save, complete file and identity decision within "+std::to_string(net::snapshot_native_capture_timeout_seconds)+"s";
                 game::building_capture_identity::cancel(cause);
-                if(pending_snapshot.value("distribute",Config::instance().is_host))game::network_identity::cancel_pending(cause);
+                if(pending_snapshot.at("bind_snapshot_identities").get<bool>())game::network_identity::cancel_pending(cause);
                 respond(dir,{{"schema_version",1},{"id",pending_snapshot.at("id")},{"run_id",run_id},{"ok",false},{"error",{{"code","SNAPSHOT_TIMEOUT"},{"message",cause}}}});
                 LOG_ERROR("[MCP] {}",cause); pending_snapshot=nullptr; return;
             }
@@ -1604,10 +1610,13 @@ static void diagnostics_tick() {
                     throw std::runtime_error("snapshot file final receipt differs bytes="+std::to_string(final_length)+" required="+std::to_string(length)+" sha256="+final_digest+" required="+digest);
                 if(sealed!=game::building_capture_identity::SealResult::Confirmed)
                     throw std::runtime_error("Snapshot identity seal incomplete: "+(error.empty()?identity.error:error));
-                if(!game::network_identity::seal_host_capture(id,digest,error))
-                    throw std::runtime_error("Network snapshot alias seal incomplete: "+error);
-                if(!game::monster_saved_identity_runtime::write_companion(id,digest,length,snapshot_path,error))
-                    throw std::runtime_error("Monster snapshot companion incomplete: "+(error.empty()?identity.error:error));
+                const bool publish_snapshot_identities=pending_snapshot.at("bind_snapshot_identities").get<bool>();
+                if(publish_snapshot_identities){
+                    if(!game::network_identity::seal_host_capture(id,digest,error))
+                        throw std::runtime_error("Network snapshot alias seal incomplete: "+error);
+                    if(!game::monster_saved_identity_runtime::write_companion(id,digest,length,snapshot_path,error))
+                        throw std::runtime_error("Monster snapshot companion incomplete: "+(error.empty()?identity.error:error));
+                }
                 const auto completed_at=std::chrono::steady_clock::now();
                 if(completed_at-snapshot_started>=std::chrono::seconds(net::snapshot_native_capture_timeout_seconds))
                     throw std::runtime_error("snapshot capture completion deadline exceeded elapsed_ms="+std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(completed_at-snapshot_started).count())+" required<"+std::to_string(net::snapshot_native_capture_timeout_seconds*1000)+" native_task_cancelled=false");
@@ -1616,7 +1625,7 @@ static void diagnostics_tick() {
                     LOG_ERROR("[MCP] Snapshot file complete id={} but building identity failed cause={}",id,identity.error);
                 const auto world_name=pending_snapshot.at("world_name").get<std::string>();
                 json record={{"snapshot_id",id},{"world_name",world_name},{"path",net::snapshot_world_path::utf8(snapshot_path)},{"bytes",length},{"sha256",digest},{"run_id",run_id},
-                    {"state","snapshot_file_complete"},{"distribution_requested",distribute},{"building_bindings_confirmed",identity.bindings_confirmed},{"building_identity_error",identity.error}};
+                    {"state","snapshot_file_complete"},{"distribution_requested",distribute},{"snapshot_identities_published",publish_snapshot_identities},{"building_bindings_confirmed",identity.bindings_confirmed},{"building_identity_error",identity.error}};
                 write_json(dir/("snapshot-"+id+".json"),record);
                 json response={{"schema_version",1},{"id",pending_snapshot.at("id")},{"run_id",run_id},{"ok",true},{"result",record}};
                 respond(dir,response);
@@ -1652,7 +1661,7 @@ static void diagnostics_tick() {
             throw std::runtime_error("path_ui_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_terrain_runtime::unresolved()&&operation!="read_terrain"&&operation!="status"&&operation!="inspect_engine"&&operation!="capture_frame"&&operation!="read_remove_bindings"&&operation!="dismiss_crash_report"&&operation!="exit_game")
             throw std::runtime_error("terrain_ui_previous_effect_unresolved; competing native operation rejected");
-        if(game::native_tool_prepare::unresolved() && operation!="read_cancel_tool" && operation!="read_buildings_tab" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
+        if(game::native_tool_prepare::unresolved() && operation!="read_cancel_tool" && operation!="read_buildings_tab" && operation!="read_network_tab" && operation!="read_scenery_tab" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("native_tool_prepare_previous_effect_unresolved; competing native operation rejected");
         if(game::ui_move_runtime::object_ui::unresolved() && operation!="read_object_ui" && operation!="status" && operation!="inspect_engine" && operation!="capture_frame" && operation!="read_remove_bindings" && operation!="dismiss_crash_report" && operation!="exit_game")
             throw std::runtime_error("object_ui_previous_effect_unresolved; inspect retained token, no replay");
@@ -1924,9 +1933,13 @@ static void diagnostics_tick() {
             response["ok"]=okay;response["result"]=std::move(result);
             if(!okay)response["error"]={{"code","BUILDING_HISTORY_UI_REJECTED"},{"message",error}};
         }
-        else if(operation=="native_cancel_tool"||operation=="read_cancel_tool"||operation=="native_buildings_tab"||operation=="read_buildings_tab") {
+        else if(operation=="native_cancel_tool"||operation=="read_cancel_tool"||operation=="native_buildings_tab"||operation=="read_buildings_tab"||operation=="native_network_tab"||operation=="read_network_tab"||operation=="native_scenery_tab"||operation=="read_scenery_tab") {
             std::string error;json result;
-            response["ok"]=operation=="native_buildings_tab"?game::native_tool_prepare::prepare_buildings_tab(request.at("args"),result,error):
+            response["ok"]=operation=="native_scenery_tab"?game::native_tool_prepare::prepare_scenery_tab(request.at("args"),result,error):
+                operation=="read_scenery_tab"?game::native_tool_prepare::read_scenery_tab(request.at("args"),result,error):
+                operation=="native_network_tab"?game::native_tool_prepare::prepare_network_tab(request.at("args"),result,error):
+                operation=="read_network_tab"?game::native_tool_prepare::read_network_tab(request.at("args"),result,error):
+                operation=="native_buildings_tab"?game::native_tool_prepare::prepare_buildings_tab(request.at("args"),result,error):
                 operation=="read_buildings_tab"?game::native_tool_prepare::read_buildings_tab(request.at("args"),result,error):
                 operation=="native_cancel_tool"?game::native_tool_prepare::invoke(request.at("args"),result,error):game::native_tool_prepare::read(request.at("args"),result,error);
             response["result"]=std::move(result);
@@ -2408,7 +2421,7 @@ static void diagnostics_tick() {
             const auto& args=request.at("args"); game::native::RegionState region; std::string error;
             response["ok"]=Config::instance().is_host&&game::native::diagnostic_purchase_region(args.at("x"),args.at("z"),region,error);
             if(response["ok"].get<bool>()) response["result"]={{"state","test_region_owned"},{"type",region.type},{"owned",region.owned},{"purchase_price",region.purchase_price},{"cash",region.cash},{"building_manager_present",region.building_manager_present},{"path_manager_present",region.path_manager_present},{"engine",status()}};
-            else response["error"]={{"code","REGION_PURCHASE_REJECTED"},{"message",Config::instance().is_host?error:"Testregion wird ausschließlich beim Host gekauft"}};
+            else response["error"]={{"code","REGION_PURCHASE_REJECTED"},{"message",Config::instance().is_host?error:"Testregion wird ausschlieÃŸlich beim Host gekauft"}};
         }
         else if(operation=="focus_test_camera") {
             const auto& args=request.at("args"); game::native::CameraState camera; std::string error;
@@ -2444,7 +2457,6 @@ static void diagnostics_tick() {
         else if(operation=="capture_snapshot"||operation=="capture_local_snapshot") {
             if(!request.at("args").empty())throw std::runtime_error("snapshot capture requires empty arguments");
             const bool distribute=operation=="capture_snapshot"&&Config::instance().is_host;
-            snapshot_network_observer_begun=distribute;
             auto current=status(); std::string error;
             auto actual_root=current.at("write_dir").get<std::string>();
             if(actual_root.empty()) throw std::runtime_error("PHYSFS write directory unavailable");
@@ -2462,18 +2474,21 @@ static void diagnostics_tick() {
             building_capture_original_start=building_original_attempted.load();
             building_capture_return_start=building_original_returned.load();
             building_capture_failure_start=building_original_failed.load();
-            game::native_network::State nodes;
-            if(!game::native_network::read_state(nodes,error))throw std::runtime_error("Network snapshot alias census failed before native capture: "+error);
-            if(nodes.node_slots<nodes.null_node_slots)throw std::runtime_error("network node census invalid slots="+std::to_string(nodes.node_slots)+" null="+std::to_string(nodes.null_node_slots));
-            if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error,world_name))
-                throw std::runtime_error("Network snapshot alias capture rejected before native file capture: "+error);
+            if(bind_snapshot_identities){
+                game::native_network::State nodes;
+                if(!game::native_network::read_state(nodes,error))throw std::runtime_error("Network snapshot alias census failed before native capture: "+error);
+                if(nodes.node_slots<nodes.null_node_slots)throw std::runtime_error("network node census invalid slots="+std::to_string(nodes.node_slots)+" null="+std::to_string(nodes.null_node_slots));
+                if(!game::network_identity::begin_host_capture(id,nodes.node_slots-nodes.null_node_slots,error,world_name))
+                    throw std::runtime_error("Network snapshot alias capture rejected before native file capture: "+error);
+                snapshot_network_observer_begun=true;
+            }
             response["ok"]=game::native::capture_snapshot(net::snapshot_world_path::capture(world_name,id),error);
             if(response["ok"].get<bool>()) {
-                pending_snapshot={{"id",id},{"snapshot_id",id},{"world_name",world_name},{"distribute",distribute}}; snapshot_started=now; last_request=id;
+                pending_snapshot={{"id",id},{"snapshot_id",id},{"world_name",world_name},{"distribute",distribute},{"bind_snapshot_identities",bind_snapshot_identities}}; snapshot_started=now; last_request=id;
                 LOG_INFO("[MCP] Snapshot pending: request={} target={}",id,snapshot_path.string()); return;
             }
             game::building_capture_identity::cancel(error);
-            if(distribute)game::network_identity::cancel_pending(error);
+            if(bind_snapshot_identities)game::network_identity::cancel_pending(error);
             response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
         }
         else if(operation=="load_snapshot") {
@@ -2562,7 +2577,7 @@ static void diagnostics_tick() {
             }
             if(pending==&pending_snapshot||snapshot_observer_begun) {
                 game::building_capture_identity::cancel(diagnostic_failure);
-                if((pending==&pending_snapshot&&pending_snapshot.value("distribute",Config::instance().is_host))||snapshot_network_observer_begun)
+                if((pending==&pending_snapshot&&pending_snapshot.at("bind_snapshot_identities").get<bool>())||snapshot_network_observer_begun)
                     game::network_identity::cancel_pending(diagnostic_failure);
             }
             if(pending) *pending=nullptr;

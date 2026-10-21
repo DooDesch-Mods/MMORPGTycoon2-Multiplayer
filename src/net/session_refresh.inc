@@ -1,8 +1,8 @@
 bool membership_pending(){
-    return !local()&&bound&&!ended&&(restart_pending||observed_slots!=ids);
+    return local()?local_membership_pending():bound&&!ended&&(restart_pending||observed_slots!=ids);
 }
 uint8_t membership_retirement_mask(){
-    if(local())return peer_mask();
+    if(local())return local_membership_retirement_mask();
     uint8_t result=0;
     for(size_t i=1;i<ids.size();++i)if(ids[i]&&std::find(observed_slots.begin()+1,observed_slots.end(),ids[i])!=observed_slots.end())result|=uint8_t(1u<<(i-1));
     return result;
@@ -10,11 +10,14 @@ uint8_t membership_retirement_mask(){
 bool retire_world(std::string& error){
     if(!actions_suspended){error="wire world retirement requires suspended actions";return false;}
     if(current_world_epoch()){error="wire world retirement requires invalidated snapshot authority";return false;}
-    if(local())return SidecarClient::instance().retire_action_handler(error);
+    if(local()){
+        if(!SidecarClient::instance().retire_action_handler(error))return false;
+        retire_local_membership();error.clear();return true;
+    }
     handlers.erase(9);refresh_allowed=true;error.clear();return true;
 }
 bool refresh_membership(std::string& error){
-    if(local()){error.clear();return true;}
+    if(local())return refresh_local_membership(error);
     try{
         if(bound&&!ended&&own==1&&actions_suspended&&!current_world_epoch()&&!refresh_allowed&&
            current_session==last_refresh_session&&!pending_session){error.clear();return true;}

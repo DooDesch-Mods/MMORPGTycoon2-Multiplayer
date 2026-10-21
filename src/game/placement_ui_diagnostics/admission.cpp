@@ -57,5 +57,31 @@ bool observe_confirmation(Job& j,const nlohmann::json& c,const nlohmann::json& r
     if(!n.value("confirmed",false)||!n.value("undo_confirmed",false)||!n.value("native_uid",uint64_t{})||n.value("purchase",0)!=1||n.value("add",0)!=1||n.value("undo",0)!=1||n.value("exception",uint32_t{}))return unknown(j,e,"build_ui_local_native_receipt_incomplete: "+n.value("error",std::string{}));
     j.receipt.host_confirmed_count=1;j.receipt.phase=Phase::HostConfirmed;e.clear();return true;
 }
+std::string observation_timeout(const Job& j,uint64_t now){
+    if(!j.receipt.capture_count&&now>=j.armed_at&&now-j.armed_at>10000)
+        return "build_ui_observation_timeout_required_ms<=10000_no_replay";
+    // The bound Controller owns the finite request/authority/ACK phases.
+    if(j.confirmation_observed&&now>=j.confirmation_observed_at&&now-j.confirmation_observed_at>10000)
+        return "build_ui_fresh_frame_timeout_required_ms<=10000_no_replay";
+    return {};
+}
+bool can_reconcile_timeout(const Job& j)noexcept{
+    using placement_ui_probe::Phase;
+    return j.reserved&&j.receipt.phase==Phase::Unknown&&j.receipt.capture_count==1&&!j.receipt.action_uuid.empty()&&
+        (j.receipt.cause=="build_ui_observation_timeout_required_ms<=10000_no_replay"||
+         j.receipt.cause=="build_ui_fresh_frame_timeout_required_ms<=10000_no_replay");
+}
+bool publish_reconciliation(Job& j,const Job& observed,std::string& e){
+    using placement_ui_probe::Phase;
+    if(!can_reconcile_timeout(j)||observed.input.native.token!=j.input.native.token||observed.input.snapshot_uuid!=j.input.snapshot_uuid||
+       observed.input.epoch!=j.input.epoch||observed.input.generation!=j.input.generation||observed.binding!=j.binding||
+       observed.input.native.type!=j.input.native.type||observed.input.native.variant!=j.input.native.variant||
+       observed.input.native.position!=j.input.native.position||observed.input.native.family!=j.input.native.family||
+       observed.receipt.action_uuid!=j.receipt.action_uuid||
+       observed.receipt.capture_count!=1||observed.receipt.phase!=Phase::HostConfirmed||observed.receipt.host_confirmed_count!=1||
+       !observed.fresh_pose.is_object()||!observed.fresh_pose.value("native_uid",uint64_t{}))
+        return fail(e,"build_ui_timeout_reconciliation_lacks_exact_confirmed_current_readback");
+    j.recovered_timeout_cause=j.receipt.cause;j.receipt=observed.receipt;j.fresh_pose=observed.fresh_pose;j.recovery_cause.clear();e.clear();return true;
+}
 bool may_read_fresh_pose(const Job& j,uint64_t completed)noexcept{return j.receipt.capture_count==1&&j.capture_frame<UINT64_MAX-1&&completed>j.capture_frame+1;}
 }

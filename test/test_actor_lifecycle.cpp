@@ -12,6 +12,12 @@ bool rejected(const nlohmann::json& value){try{(void)l::decode_event(value);retu
 void domain(){const auto died=boss(l::Source::BossBaseDeath,l::Effect::CharacterDie),wait=boss(l::Source::BossWait,l::Effect::OnSpawn),spawn=boss(l::Source::BossRespawn,l::Effect::OnSpawn);
     for(const auto& event:{died,wait,spawn}){need(l::valid(event),"actual Boss original lifecycle invocation rejected");need(l::decode_event(l::encode(event))==event,"actual original lifecycle value changed on wire");}
     need(l::call_return(wait.source)==0x397afa&&l::call_return(spawn.source)==0x3996cd,"Boss wait/respawn original return witnesses were collapsed");
+    for(const auto source:{l::Source::MonsterRespawn,l::Source::MonsterGenerate,l::Source::MonsterRegenerate,l::Source::MonsterDeath,l::Source::MonsterBaseDeath}){
+        const auto effect=source==l::Source::MonsterDeath?l::Effect::ClearLivePointers:source==l::Source::MonsterBaseDeath?l::Effect::CharacterDie:l::Effect::OnSpawn;
+        l::Event direct{{i::Family::Monster,"action:"+uuid},effect,source,uuid,1};
+        need(l::valid(direct)&&l::decode_event(l::encode(direct))==direct,"owned direct Dungeon Monster lost actual original lifecycle receipt");
+        direct.target.key="pointer:1234";need(!l::valid(direct),"Dungeon lifecycle invented raw native identity");
+    }
     l::Source source;need(l::source_for(i::Family::Boss,l::Effect::OnSpawn,0x397afa,source)&&source==l::Source::BossWait,"actual original Boss wait caller was not classified");
     need(!l::source_for(i::Family::Npc,l::Effect::OnSpawn,0x397afa,source),"NPC accepted Boss native OnSpawn caller");
     need(!l::source_for(i::Family::Toon,l::Effect::CharacterDie,0x3c200d,source),"Actor24 attempted to own Economy Toon lifecycle");

@@ -27,7 +27,31 @@ struct Services:ui::Services {
     void show_rejection(const std::string&)noexcept override{}
 };
 void original(void*,ui::NativePropArray*){}
-int main()try{
+namespace scene_collection_fixture {
+struct SceneServices final:Services {
+    bool handled=true,failed=false,standalone=false;unsigned collections=0;
+    ui::Policy policy(std::string&)override{return standalone?ui::Policy::Standalone:ui::Policy::AuthorityRequired;}
+    bool scene_collection(uintptr_t manager,ui::NativePropArray* array,bool& captured,std::string& error)override{
+        ++collections;need(manager==10&&array&&array->count==2,"Scene capture changed exact original collection");
+        captured=handled;if(failed){error="exact Scene roster changed";return false;}return true;
+    }
+};
+void cases(){
+    for(unsigned scenario=0;scenario<6;++scenario){SceneServices services;ui::Capture capture(services);std::string error;
+        uintptr_t targets[2]{20,30};ui::NativePropArray array{100,targets,2,2};
+        need(capture.publish_disabled(&original,error)&&capture.set_enabled(true,error),error);
+        services.failed=scenario==1;services.handled=scenario!=2;services.standalone=scenario==3;
+        const auto origin=scenario==4?ui::Origin::Foreign:scenario==5?ui::Origin::NpcWindow:ui::Origin::SelectionWindow;
+        const auto result=capture.destroy_props(reinterpret_cast<void*>(10),&array,origin);
+        if(scenario==0)need(result.disposition==ui::Disposition::IntentCaptured&&capture.status().captured==1&&services.collections==1&&!services.calls&&!services.submitted,"Scene collection ran an original or individual action before Host ordering");
+        if(scenario==1)need(result.disposition==ui::Disposition::Rejected&&capture.status().cause.find("exact Scene roster changed")!=std::string::npos&&!services.calls&&!services.submitted,"Scene failed roster lost its cause or reached original");
+        if(scenario==2)need(result.disposition==ui::Disposition::Rejected&&!services.calls&&!services.submitted,"unhandled collection bypassed original one-prop guard");
+        if(scenario==3||scenario==4)need(result.original_returned&&services.calls==1&&!services.collections,"standalone or foreign original entered Scene authority capture");
+        if(scenario==5)need(result.disposition==ui::Disposition::Rejected&&!services.collections&&!services.calls,"another native caller family entered Scene collection capture");
+    }
+}
+}
+int main()try{scene_collection_fixture::cases();
     constexpr uintptr_t image=0x10000000,stack=0x30000000;std::string e;Bytes bytes;ui::Origin origin;
     for(auto pc:{0x42d8a4u,0x43411cu,0x74f588u}){bytes.values={{stack,image+0x2d55a8},{stack+0xa0,image+pc}};
         need(ui::classify_origin(bytes,image,stack,origin,e)&&origin==ui::Origin::NetworkWindow,"actual Node/Pipe/NetworkInfoWindow return chain missed");}

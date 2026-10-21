@@ -1,5 +1,8 @@
+#include "mt2mp/hooks/original_body.h"
 #include "tool_cancel.h"
 #include "buildings_tab.h"
+#include "network_tab.h"
+#include "scenery_tab.h"
 #include "buy_region.h"
 #include "ui_region_runtime.h"
 #include "mt2mp/core/config.h"
@@ -77,11 +80,13 @@ bool observe(Job& j,std::string& e){Readback out;uintptr_t current=0,ap=0,manage
 }
 }
 #include "buildings_tab_runtime.inc"
-bool unresolved()noexcept{if(buildings_unresolved())return true;for(const auto& [token,j]:jobs){(void)token;if(unresolved_effect(j.attempted,j.confirmed))return true;}return false;}
+#include "network_tab_runtime.inc"
+#include "scenery_tab_runtime.inc"
+bool unresolved()noexcept{if(buildings_unresolved()||network_unresolved()||scenery_unresolved())return true;for(const auto& [token,j]:jobs){(void)token;if(unresolved_effect(j.attempted,j.confirmed))return true;}return false;}
 bool invoke(const json& args,json& out,std::string& e)try{active_job=nullptr;out=json::object();Context q;if(!parse(args,q,e))return false;if(jobs.contains(q.token)||unresolved())return fail(e,"tool_prepare_token_used_or_previous_effect_unresolved_no_replay");
     if(jobs.size()>=32)return fail(e,"tool_prepare_receipt_capacity_reached measured=32 required_less_than=32");
     Job initial;initial.context=q;if(!world(initial,e))return false;const auto controller=typed_action_runtime::status();if(!controller.value("started",false)||controller.value("pending",true)||controller.value("locked",true))return fail(e,"tool_prepare_actual_Controller_not_idle");
-    for(const auto& guard:code::guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(initial.image+guard.rva,bytes.data(),bytes.size(),e))return false;if(std::memcmp(bytes.data(),guard.bytes,guard.size))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva));}
+    for(const auto& guard:code::guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(initial.image+guard.rva,bytes.data(),bytes.size(),e))return false;if(guard.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(initial.image+guard.rva,bytes.data(),guard.bytes,guard.size,e))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva)+" original="+e);}else if(std::memcmp(bytes.data(),guard.bytes,guard.size))return fail(e,"tool_prepare_full_code_guard_differs rva="+std::to_string(guard.rva));}
     uintptr_t ap=0;unsigned char pending=0;
     if(!field(initial.image,0x13df9d0,initial.cursor,e)||!field(initial.cursor,0,ap,e)||ap!=initial.image+0x1786dd0||!field(initial.cursor,0x190,initial.old,e)||!field(initial.cursor,0x198,initial.desired,e)||!field(initial.desired,0,ap,e)||ap!=initial.image+0x17391a0)return fail(e,e.empty()?"tool_prepare_actual_default_cursor_class_differs":e);
     uintptr_t activation=0;unsigned char keeps_selection=0;if(!field(ap,0xa8,activation,e)||activation!=initial.image+0xbf6500||!field(initial.desired,0x120,keeps_selection,e)||keeps_selection!=1)return fail(e,"tool_prepare_Default_activation_or_selection_contract_differs");

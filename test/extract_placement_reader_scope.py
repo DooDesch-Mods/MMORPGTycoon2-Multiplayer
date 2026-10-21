@@ -18,7 +18,9 @@ emit('scoped_staff.inc',a.root/'src/game/tutorial_replication/staff_display_owne
 emit('placement_copy.inc',a.dependencies/'src/game/placement_ui_probe/ui_probe.cpp',['std::uint32_t copy_seh(','bool ProcessMemory::copy('])
 text=construction.read_text(encoding='utf-8')
 assert text.count('job_census::read(copy,')==1,'all Construction census calls use the pure helper'
-assert text.count('read_jobs(')==8,'seven call sites plus helper stay bound'
+assert text.count('read_jobs(')==9,'eight call sites plus helper stay bound'
+pending_target=body(construction,'bool building(const Capture&')
+assert pending_target.count('read_jobs(c,pending,e)')==1,'pending Building admission refreshes its exact current queue'
 pattern=re.compile(r'\(\[&\]\{live_host_state::apply_timing::PageReadScope pages;return (region_saved_identity::resolve\(.*?\));\}\(\)\)',re.S)
 assert len(pattern.findall(text))==2,'two non-loop Region scans keep their independent pure-read boundary'
 assert text.count('PageReadScope pages(!share_metadata);')==1

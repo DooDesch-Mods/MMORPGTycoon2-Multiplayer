@@ -2,6 +2,7 @@
 #include "duplicate_transition.h"
 #include <iostream>
 #include <stdexcept>
+#include <memory>
 using namespace mt2mp::action_session;
 void need(bool okay,const std::string& e){if(!okay)throw std::runtime_error(e);}
 const std::string fixture_action_uuid="11111111-1111-4111-8111-111111111111",fixture_snapshot_uuid="22222222-2222-4222-8222-222222222222";
@@ -24,11 +25,27 @@ Message message(bool group=false){
     m.evidence.after.cash-=10;m.evidence.after.record_cash-=10;m.evidence.after.record_expense+=10;m.evidence.after.line_counts[6]=1;m.evidence.after.line_income[6]=-10;
     m.evidence.undo_confirmed=m.evidence.selection_confirmed=m.evidence.retirement_confirmed=true;return m;
 }
+// Keep large protocol values off the fixture stack while the real codec
+// performs its nested complete Request validation on the default stack.
+std::unique_ptr<Message> fixture_message_heap(bool group=false){
+    return std::unique_ptr<Message>(new Message(message(group)));
+}
 int main()try{
-    unsigned count=0;std::string e;std::vector<uint8_t> bytes;Message decoded;
-    for(bool group:{false,true}){const auto m=message(group);need(encode(m,bytes,e),e);need(decode(bytes.data(),bytes.size(),decoded,e)&&decoded==m,e);
-        need(duplicate_wire_fits(m.request,*m.evidence.duplicate_before,m.evidence.before,e),e);count+=3;}
-    const auto m=message();auto bad=[&](auto change){auto v=m;change(v);need(!encode(v,bytes,e),"invalid Duplicate result accepted");++count;};
+    unsigned count=0;std::string e;std::vector<uint8_t> bytes;auto decoded=std::make_unique<Message>();
+    for(bool group:{false,true}){const auto m=fixture_message_heap(group);need(encode(*m,bytes,e),e);need(decode(bytes.data(),bytes.size(),*decoded,e)&&*decoded==*m,e);
+        need(duplicate_wire_fits(m->request,*m->evidence.duplicate_before,m->evidence.before,e),e);count+=3;}
+    const auto m=fixture_message_heap();auto bad=[&](auto change){auto v=std::make_unique<Message>(*m);change(*v);need(!encode(*v,bytes,e),"invalid Duplicate result accepted");++count;};
+    auto stale=std::make_unique<Message>(*m);stale->request.duplicate.rows[0].captured_uptime=std::vector<int32_t>(9,1);
+    stale->evidence.duplicate_before->sources[0].record_sha=std::string(64,'e');
+    stale->evidence.duplicate_after->sources[0].record_sha=std::string(64,'e');
+    need(encode(*stale,bytes,e)&&decode(bytes.data(),bytes.size(),*decoded,e)&&*decoded==*stale,
+        "explicit Building captured history lost original intent SHA or actual Host before/after SHA");++count;
+    stale->request.duplicate.rows[0].captured_uptime.reset();
+    need(!encode(*stale,bytes,e),"legacy Building full-record precondition was weakened");++count;
+    bad([](auto& v){v.request.duplicate.rows[0].captured_uptime=std::vector<int32_t>(11,1);});
+    bad([](auto& v){v.request.duplicate.rows[0].captured_uptime=std::vector<int32_t>{2};});
+    auto foreign_family=fixture_message_heap(true);foreign_family->request.duplicate.rows[0].captured_uptime=std::vector<int32_t>{1};
+    need(!encode(*foreign_family,bytes,e),"Group gained mutable Building history admission");++count;
     bad([](auto& v){v.request.duplicate.rows[0].created_keys[0]=key(2);});
     bad([](auto& v){v.request.duplicate.rows.push_back(v.request.duplicate.rows[0]);});
     bad([](auto& v){v.request.duplicate.rows[0].cost=-1;});
@@ -46,19 +63,26 @@ int main()try{
     bad([](auto& v){v.evidence.selection_confirmed=false;});
     bad([](auto& v){v.request.group.selected={key(1)};});
     bad([](auto& v){v.request.canonical_record_key="duplicate:"+fixture_snapshot_uuid;});
-    auto group=message(true);std::swap(group.evidence.duplicate_after->created[1],group.evidence.duplicate_after->created[2]);need(!encode(group,bytes,e),"Group original child order lost");++count;
-    group=message(true);group.evidence.duplicate_after->created[1].region=67;need(!encode(group,bytes,e),"Group child reciprocal Region lost");++count;
-    group=message(true);const auto retained="group:action:"+fixture_snapshot_uuid;
-    group.request.duplicate.rows[0].key=retained;group.evidence.duplicate_before->sources[0].key=retained;
-    group.evidence.duplicate_after->sources[0].key=retained;
-    need(encode(group,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==group,
+    auto group=fixture_message_heap(true);std::swap(group->evidence.duplicate_after->created[1],group->evidence.duplicate_after->created[2]);need(!encode(*group,bytes,e),"Group original child order lost");++count;
+    group=fixture_message_heap(true);group->evidence.duplicate_after->created[1].region=67;need(!encode(*group,bytes,e),"Group child reciprocal Region lost");++count;
+    group=fixture_message_heap(true);const auto retained="group:action:"+fixture_snapshot_uuid;
+    group->request.duplicate.rows[0].key=retained;group->evidence.duplicate_before->sources[0].key=retained;
+    group->evidence.duplicate_after->sources[0].key=retained;
+    need(encode(*group,bytes,e)&&decode(bytes.data(),bytes.size(),*decoded,e)&&*decoded==*group,
         "Duplicate rejected a Group whose retained identity differs from its current first member");count+=2;
-    need(duplicate_wire_fits(group.request,*group.evidence.duplicate_before,group.evidence.before,e),e);++count;
-    need(encode(m,bytes,e),e);const auto original=nlohmann::json::parse(bytes);
-    auto malformed=[&](auto change){auto j=original;change(j);const auto text=j.dump();need(!decode(reinterpret_cast<const uint8_t*>(text.data()),text.size(),decoded,e),"malformed Duplicate packet accepted");++count;};
+    need(duplicate_wire_fits(group->request,*group->evidence.duplicate_before,group->evidence.before,e),e);++count;
+    need(encode(*m,bytes,e),e);const auto original=nlohmann::json::parse(bytes);
+    auto malformed=[&](auto change){auto j=original;change(j);const auto text=j.dump();need(!decode(reinterpret_cast<const uint8_t*>(text.data()),text.size(),*decoded,e),"malformed Duplicate packet accepted");++count;};
     malformed([](auto& j){j["schema"]=34;});
     malformed([](auto& j){j["request"]["duplicate"][0][0][3]=67.0;});
     malformed([](auto& j){j["evidence"]["duplicate_after"][1][0][5][0]=-1;});
     malformed([](auto& j){j["evidence"]["duplicate_after"][1][0].push_back(0);});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nullptr);});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nlohmann::json::array({true}));});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nlohmann::json::array({1.0}));});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nlohmann::json::array({"1"}));});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nlohmann::json::array({-1}));});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(std::vector<int32_t>(11,1));});
+    malformed([](auto& j){j["request"]["duplicate"][0][0].push_back(nlohmann::json::array());j["request"]["duplicate"][0][0].push_back(0);});
     std::cout<<count<<" Duplicate full record/order/payment/codec cases passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

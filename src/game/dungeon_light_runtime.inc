@@ -20,8 +20,8 @@ bool code(Memory& memory,std::string& error){
         if(!std::equal(ui_code.prefix.begin(),ui_code.prefix.begin()+9,trampoline.begin())||!std::equal(continuation.begin(),continuation.end(),trampoline.begin()+9)||resume!=state.image+ui_code.rva+9)return fail(error,"Dungeon light exact original nine-byte instruction boundary differs");
         std::memcpy(bytes.data(),receipt.pristine,32);if(!quest_list::verify_code(state.image+ui_code.rva,bytes.data(),std::min<size_t>(bytes.size(),4096),error))return false;}
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Dungeon light original outer UI transaction body differs":error);
-    for(const auto& pin:dungeon_light_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
-        if(hash!=pin.sha)return fail(error,"Dungeon light original preparation/ownership helper body differs RVA="+std::to_string(pin.rva));}
+    for(const auto& pin:dungeon_light_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
+        if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Dungeon light original preparation/ownership helper body differs RVA="+std::to_string(pin.rva)+": "+error);}
     constexpr std::array<std::pair<uintptr_t,uint32_t>,5> constants{{{0x151f6c4,0xbc8efa36},{0x151f6c8,0},{0x151f6cc,0xbf800000},{0x151f6d0,0x3a83126f},{0x151f69c,0x3c23d70a}}};
     for(const auto& [rva,expected]:constants){uint32_t value=0;if(!field(memory,state.image,rva,value,error)||value!=expected)return fail(error,error.empty()?"Dungeon light pinned numeric constant differs":error);}return true;
 }

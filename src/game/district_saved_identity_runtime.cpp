@@ -14,6 +14,7 @@ template<class... Args> void quest_test_log(const char* message, const Args&...)
 #include "mt2mp/net/snapshot_sync.h"
 #include <atomic>
 #include <mutex>
+#include <optional>
 
 namespace mt2mp::game::native_open_runtime {
 bool read_current_world(building_mixed_identity::opened_file::CurrentWorld&, std::string&);
@@ -40,6 +41,11 @@ std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Pool> observed;
 std::map<int32_t, q::SavedPool> pools;
+std::map<int32_t,district_lifecycle::Roster> admitted;
+std::optional<Edit> active_edit;
+std::optional<Preview> active_preview;
+std::set<std::string> attempted_edits;
+uint64_t next_edit=0;
 #ifdef MT2MP_DISTRICT_SAVED_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
 using TestLink = bool(*)(uintptr_t, uintptr_t, int32_t&, std::string&);
@@ -57,7 +63,7 @@ struct Memory {
 } memory;
 bool reject(std::string& error, const std::string& cause) {
     if (failure.empty()) { failure = cause; LOG_ERROR("[SavedDistrict] snapshot={} cause={}; original serialization unchanged", uuid, cause); }
-    error = failure; pools.clear(); return false;
+    error = failure; pools.clear(); admitted.clear(); active_edit.reset(); active_preview.reset(); return false;
 }
 void caught(const char* cause) noexcept {
     emergency = true; OutputDebugStringA("ERROR SavedDistrict observer exception: ");
@@ -74,7 +80,7 @@ bool same_world(const opened::CurrentWorld& a, const opened::CurrentWorld& b) {
 }
 void reset(const std::string& id, const std::string& digest) {
     uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
+    load_stack.clear(); observed.clear(); pools.clear(); admitted.clear(); active_edit.reset(); active_preview.reset(); attempted_edits.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
     if (!actual || (bound_context && bound_context != actual)) return reject(error, "District property save/load context differs");
@@ -154,7 +160,14 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
         if (!ready.emplace(id, q::SavedPool{id, std::move(actual)}).second) return reject(error, "District saved Region ID repeats");
     }
     if (ready.empty() || !q::unchanged(memory, map + 0x230, 4096, regions, error)) return reject(error, error.empty() ? "saved root Regions absent" : error);
-    origin = world; pools = std::move(ready); observed.clear();
+    std::map<int32_t,district_lifecycle::Roster> identities;
+    for(const auto& [id,pool]:ready){
+        district_lifecycle::Roster roster{pool.pool.manager,id,{}};
+        for(const auto& row:pool.pool.records)roster.members.push_back({q::key(sha,id,row),row});
+        if(!district_lifecycle::valid(roster,error))return reject(error,error);
+        identities.emplace(id,std::move(roster));
+    }
+    origin = world; pools = std::move(ready); admitted=std::move(identities); observed.clear();
     LOG_INFO("[SavedDistrict] Native snapshot Districts bound uuid={} sha={} regions={}", uuid, sha, pools.size());
     error.clear(); return true;
 }
@@ -240,7 +253,7 @@ bool seal_client(std::string& error) {
         return reject(error, "District Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false; return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); }
+void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); admitted.clear(); active_edit.reset(); active_preview.reset(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
@@ -335,46 +348,19 @@ bool current_snapshot_sha(std::string& out, std::string& error) {
     if (!current(world, error)) return false;
     out = sha; error.clear(); return true;
 }
-bool read_current(std::vector<Current>& out, std::string& error, bool share_metadata) {
+#include "district_lifecycle_runtime.inc"
+bool read_current(std::vector<Current>& out,std::string& error,bool share_metadata){
     live_host_state::apply_timing::PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);
-    std::lock_guard lock(gate); out.clear(); opened::CurrentWorld world;
-    if (!current(world, error)) return false;
-    namespace host = build_actions::private_native::host;
-    host::ProcessMemory process; host::LookupApi api;
-    constexpr const char* exe_sha = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
-    if (!host::resolve_lookup(process, image, exe_sha, api, error)) return false;
-    auto lookup = [&](uint64_t uid, uintptr_t& pointer, std::string& cause) {
-        uint32_t code = 0;
-        code = find_call(api.find, uid, pointer);
-        return !code || q::fail(cause, "District UID lookup exception=" + std::to_string(code));
-    };
-    const auto map = reinterpret_cast<uintptr_t>(world.map);
-    std::vector<Current> result;
-    for (const auto& [id, saved] : pools) {
-        if (saved.pool.records.empty()) continue;
-        uintptr_t region = 0;
-        auto read = [&](uintptr_t p, size_t offset, auto& value, std::string& cause) { return q::at(memory, p, offset, value, cause); };
-        if (!region_saved_identity::resolve(image, map, map + 0x1c0, id, 0, region, read, error)) return false;
-        uintptr_t manager=0,owner=0;
-        if(!q::at(memory,region,0x970,manager,error)||manager!=saved.pool.manager||!q::at(memory,manager,0x60,owner,error)||owner!=region)
-            return q::fail(error,error.empty()?"District current reciprocal manager/Region differs":error);
-        q::Pool census;std::vector<Current> rows;
-        const auto no_link=[](uintptr_t,int32_t& link,std::string&){link=0;return true;};
-        if(!q::observe(memory,image,manager,no_link,census,error))return false;
-        for(const auto& row:census.records){uintptr_t actual_region=0,actual_root=0;
-            if(!q::at(memory,row.pointer,0x170,actual_root,error)||!q::at(memory,row.pointer,0x178,actual_region,error))return false;
-            if(actual_region!=region||actual_root!=map+0x1c0)return q::fail(error,"District current member root/Region differs");
-        }
-        if(!q::current_rows(sha,saved,census,lookup,rows,error))return false;
-        result.insert(result.end(), rows.begin(), rows.end());
-    }
-    opened::CurrentWorld after;
-    if (!current(after, error) || !same_world(world, after)) return q::fail(error, error.empty() ? "District world changed during read" : error);
-    out = std::move(result); error.clear(); return true;
+    std::lock_guard lock(gate);out.clear();
+    if(active_edit)return q::fail(error,"District current reader has an unconfirmed original edit");
+    opened::CurrentWorld world;std::map<int32_t,q::Pool> raw;
+    DistrictLookup lookup;if(!lookup.initialize(error))return false;
+    if(!raw_districts(lookup,world,raw,error))return false;
+    return admitted_rows(lookup,raw,out,error);
 }
 bool resolve(const std::string& key, Current& out, std::string& error) {
     out = {};
-    if (!snapshot_district_key::valid(key)) return q::fail(error, "Saved District key invalid");
+    if (!district_lifecycle::valid_key(key)) return q::fail(error, "Saved District key invalid");
     std::vector<Current> rows;
     if (!read_current(rows, error)) return false;
     for (const auto& row : rows) if (row.key == key) { out = row; return true; }

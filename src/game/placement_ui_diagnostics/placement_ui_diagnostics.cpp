@@ -42,7 +42,7 @@ bool actual(Job& j,ui::Context& out,std::string& e){
     // Mode+58 is the game state; the opened world has a separate native address.
     out={image,reinterpret_cast<uintptr_t>(w.state),w.world_epoch,w.generation,actual_thread};thread=actual_thread;return true;
 }
-json format(const Job& j){const auto& r=j.receipt;return {{"acceptance_token",j.input.native.token},{"snapshot_uuid",j.input.snapshot_uuid},{"world_epoch",j.input.epoch},{"generation",j.input.generation},{"phase",int(r.phase)},{"attempted_mask",r.attempted_mask},{"returned_mask",r.returned_mask},{"exception",r.exception},{"capture_count",r.capture_count},{"host_confirmed_count",r.host_confirmed_count},{"action_uuid",r.action_uuid},{"cause",r.cause},{"confirmed",r.phase==ui::Phase::HostConfirmed},{"capture_completed_frame",j.capture_frame},{"fresh_native_pose",j.fresh_pose},{"arm_observation",j.arm_observation},{"native_release_pose_measured",r.native_pose_measured},{"native_release_pose",{{"position",r.native_pose.position},{"rotation",r.native_pose.rotation},{"scale",r.native_pose.scale}}},{"frames_observed",j.frames_observed},{"build_entries_observed",j.build_entries_observed},{"first_frame",j.first_frame},{"last_frame",j.last_frame},{"first_build_entry",j.first_build_entry},{"last_build_entry",j.last_build_entry},{"observation_failures",j.observation_failures},{"first_observation_error",j.first_observation_error},{"last_observation_error",j.last_observation_error}};}
+json format(const Job& j){const auto& r=j.receipt;return {{"acceptance_token",j.input.native.token},{"snapshot_uuid",j.input.snapshot_uuid},{"world_epoch",j.input.epoch},{"generation",j.input.generation},{"phase",int(r.phase)},{"attempted_mask",r.attempted_mask},{"returned_mask",r.returned_mask},{"exception",r.exception},{"capture_count",r.capture_count},{"host_confirmed_count",r.host_confirmed_count},{"action_uuid",r.action_uuid},{"cause",r.cause},{"confirmed",r.phase==ui::Phase::HostConfirmed},{"recovered_timeout_cause",j.recovered_timeout_cause},{"recovery_cause",j.recovery_cause},{"capture_completed_frame",j.capture_frame},{"fresh_native_pose",j.fresh_pose},{"arm_observation",j.arm_observation},{"native_release_pose_measured",r.native_pose_measured},{"native_release_pose",{{"position",r.native_pose.position},{"rotation",r.native_pose.rotation},{"scale",r.native_pose.scale}}},{"frames_observed",j.frames_observed},{"build_entries_observed",j.build_entries_observed},{"first_frame",j.first_frame},{"last_frame",j.last_frame},{"first_build_entry",j.first_build_entry},{"last_build_entry",j.last_build_entry},{"observation_failures",j.observation_failures},{"first_observation_error",j.first_observation_error},{"last_observation_error",j.last_observation_error}};}
 void record_frame(Job& j,void* receiver,float dt,const char* boundary,bool entry) {
     const bool first=entry?j.build_entries_observed++==0:j.frames_observed++==0;
     ui::Context context;std::string error;json observed;
@@ -68,11 +68,14 @@ void observation_exception(Job& j,const char* boundary,const std::string& cause)
 void mark_unknown(Job& j,const std::string& cause){j.receipt.phase=ui::Phase::Unknown;j.receipt.cause=cause;LOG_ERROR("[BuildUIProbe] token={} action={} cause={}; no replay",j.input.native.token,j.receipt.action_uuid,cause);}
 bool observe(Job& j,std::string& e){
     const auto controller=typed_action_runtime::status();
-    // Capture runs inside the next frame; read after a further normal frame returns.
-    if(j.receipt.capture_count&&!may_read_fresh_pose(j,completed_frame)){e.clear();return true;}
     const auto receipts=ui_build_runtime::status().value("receipts",json::object());
+    const auto before=j.receipt;
     if(!observe_confirmation(j,controller,receipts,e,Config::instance().is_host))return false;
     if(j.receipt.phase!=ui::Phase::HostConfirmed)return true;
+    if(!j.confirmation_observed){j.confirmation_observed=true;j.confirmation_observed_at=GetTickCount64();}
+    // Preserve the complete Controller read even when a later normal frame is
+    // still required before reading the newly created native object.
+    if(!may_read_fresh_pose(j,completed_frame)){j.receipt=before;e.clear();return true;}
     native::BuildingState s;
     const auto uid=receipts.at(j.receipt.action_uuid).at("native_uid").get<uint64_t>();
     if(!scenery_kiss::read_action_prop(uid,s,e)){mark_unknown(j,"build_ui_fresh_native_pose_read_failed: "+e);return false;}
@@ -111,7 +114,17 @@ void after_game_update(uint64_t completed,float dt)noexcept {
 void build_update_entered(void* receiver,float dt)noexcept {
     if(thread!=GetCurrentThreadId())return;
     if(!active||active->receipt.capture_count)return;
-    try{record_frame(*active,receiver,dt,"actual_Build_Update_entry",true);}
+    try{
+        if(active->binding.family==ui::Family::Building&&
+           reinterpret_cast<uintptr_t>(receiver)==active->binding.behaviour&&
+           active->receipt.phase==ui::Phase::ArmedAwaitingGameUpdate&&
+           !(active->receipt.attempted_mask&((1u<<2)|(1u<<3)|(1u<<4)))){
+            Services services(*active);
+            active->receipt=ui::complete_build_input_at_update(active->input.native,active->binding,active->receipt,services);
+            if(active->receipt.phase==ui::Phase::Unknown)mark_unknown(*active,active->receipt.cause);
+        }
+        record_frame(*active,receiver,dt,"actual_Build_Update_entry",true);
+    }
     catch(const std::exception& error){observation_exception(*active,"actual_Build_Update_entry",error.what());}
     catch(...){observation_exception(*active,"actual_Build_Update_entry","build_ui_entry_observation_nonstandard_exception");}
 }
@@ -147,11 +160,21 @@ bool receipt(const json& args,json& out,std::string& e){
     out=json::object();std::string token;if(!parse_token(args,token,e))return false;
     if(thread!=GetCurrentThreadId())return fail(e,"build_ui_receipt_wrong_actual_mainthread");
     auto it=jobs.find(token);if(it==jobs.end())return fail(e,"build_ui_receipt_token_unknown");auto& j=it->second;
+    if(can_reconcile_timeout(j)){
+        auto observed=j;observed.receipt.phase=ui::Phase::CapturedAwaitingHost;observed.receipt.cause.clear();
+        ui::Context context;std::string cause;
+        if(!actual(observed,context,cause)||context!=observed.binding.context){if(cause.empty())cause="build_ui_world_changed_after_native_callbacks";}
+        else if(!observe(observed,cause)){if(cause.empty())cause="build_ui_timeout_reconciliation_observation_failed_without_cause";}
+        else if(observed.receipt.phase!=ui::Phase::HostConfirmed)cause="info: build_ui_timeout_reconciliation_waits_for_complete_current_readback";
+        else if(publish_reconciliation(j,observed,cause))LOG_INFO("[BuildUIProbe] Read-only timeout reconciliation token={} action={} previous={}",j.input.native.token,j.receipt.action_uuid,j.recovered_timeout_cause);
+        if(!cause.empty()&&j.recovery_cause!=cause)LOG_WARN("[BuildUIProbe] Timeout reconciliation token={} action={} cause={}; original={}",j.input.native.token,j.receipt.action_uuid,cause,j.receipt.cause);
+        j.recovery_cause=cause;
+    }
     if(!terminal(j)&&j.receipt.phase!=ui::Phase::Unknown){
         ui::Context c;
         if(!actual(j,c,e)||c!=j.binding.context)mark_unknown(j,e.empty()?"build_ui_world_changed_after_native_callbacks":e);
         else if(!observe(j,e))mark_unknown(j,e);
-        else if(j.receipt.phase!=ui::Phase::HostConfirmed&&GetTickCount64()-j.armed_at>10000)mark_unknown(j,"build_ui_observation_timeout_required_ms<=10000_no_replay");
+        else if(j.receipt.phase!=ui::Phase::HostConfirmed){const auto timeout=observation_timeout(j,GetTickCount64());if(!timeout.empty())mark_unknown(j,timeout);}
     }
     if(j.receipt.phase==ui::Phase::HostConfirmed&&active==&j)active=nullptr;
     out=format(j);out["unresolved"]=!terminal(j);e=j.receipt.cause;return true;

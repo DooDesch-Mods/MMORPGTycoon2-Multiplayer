@@ -5,6 +5,7 @@ set(shared_codec_sources
     "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/state.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/state.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/cash_contract.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/network/node_state.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/day.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/day_rollover/economy/codec.cpp"

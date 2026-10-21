@@ -1,4 +1,8 @@
 #include "dungeon_zone_roster.h"
+#include "world_zone_serialization.h"
+#include "zone_edit_identity.h"
+#include "zone_edit_read.h"
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <stdexcept>
@@ -6,8 +10,11 @@ namespace zones=mt2mp::game::dungeon_zone_roster;
 struct Memory {
     std::map<uintptr_t,unsigned char> bytes;uintptr_t changing=0;unsigned hits=0;
     template<class T>void put(uintptr_t address,const T& value){const auto* data=reinterpret_cast<const unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i)bytes[address+i]=data[i];}
+    bool read(uintptr_t address,void* value,size_t size,std::string& error){auto* target=reinterpret_cast<unsigned char*>(value);
+        for(size_t i=0;i<size;++i){const auto found=bytes.find(address+i);if(found==bytes.end()){error="original Zone serialization field read failed";return false;}target[i]=found->second;}return true;}
     template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& error){auto* target=reinterpret_cast<unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i){auto item=bytes.find(object+offset+i);if(item==bytes.end()){error="original Zone census field read failed";return false;}target[i]=item->second;}if(changing==object+offset&&++hits==2)target[0]^=8;return true;}
 };
+#include "zone_edit_identity_cases.inc"
 int main()try{
     constexpr uintptr_t image=0x10000000,manager=0x20000000,shard=0x21000000,region=0x22000000,data=0x23000000,actors=0x30000000;
     Memory memory;std::map<uint64_t,uintptr_t> registry;std::string error;size_t checks=0;
@@ -30,5 +37,29 @@ int main()try{
     }
     setup();memory.bytes.erase(actors+3*0x1000+0x18);need(!zones::read(at,find,image,manager,shard,region,census,error)&&error=="original Zone census field read failed","Original non-Monster field cause replaced");
     setup();registry.erase(0x400000007);need(!zones::read(at,find,image,manager,shard,region,census,error)&&error=="original Zone full UID lookup failed","Original non-Monster full UID cause replaced");
+    namespace serialized=mt2mp::game::world_zone_serialization;
+    setup();serialized::Pool saved;auto links=[&](uintptr_t actor,int32_t& link,std::string&){link=actor==actors?17:0;return true;};
+    need(serialized::read(memory,image,manager,links,saved,error),error);
+    need(saved.arrays[0][0].link==17&&saved.arrays[3][0].uid==0x400000007,"Four-array serialization lost original links/full UIDs");
+    const std::array<std::string,4> labels{"None","Monster","Puzzle","Story"};
+    const auto loaded=[&]{serialized::Load value;for(size_t type=0;type<4;++type){need(value.children(labels[type],1,1,error),error);
+        need(value.registered(int32_t(type),actors+type*0x1000,type==0?17:0,error),error);}return value;};
+    auto load=loaded();serialized::Pool restored;need(load.finish(memory,image,manager,restored,error)&&restored==saved,"Original four-group load differs from original save identities");
+    for(int mode=0;mode<7;++mode){auto bad=loaded();
+        if(mode==0)bad.active=2;if(mode==1)bad.declared[3]=2;if(mode==2)bad.registrations[0].clear();
+        if(mode==3)bad.registrations[0][actors]=18;if(mode==4)bad.registrations[3].emplace(actors+4*0x1000,0);
+        if(mode==5)bad.registrations[3].begin()->second=17;if(mode==6)std::swap(bad.registrations[0],bad.registrations[3]);
+        const bool result=bad.finish(memory,image,manager,restored,error);
+        if(mode==3)need(result&&restored!=saved,"Changed original linked record was silently replaced by save identity");
+        else need(!result&&!error.empty(),"Partial/duplicate/migrated original Zone registration admitted mode="+std::to_string(mode));
+    }
+    serialized::Load partial;need(!partial.children("Monster",0,0,error),"Skipped None enum group admitted");
+    need(partial.children("None",1,1,error),error);need(!partial.children("Monster",0,0,error),"Missing original None registration admitted");
+    need(!partial.registered(1,actors,0,error),"Registration outside current native enum admitted");
+    need(partial.registered(0,actors,0,error),error);need(!partial.registered(0,actors,0,error),"Duplicate native registration admitted");
+    need(!partial.children("Monster",1,0,error),"Original child count discrepancy admitted");
+    setup();memory.put(actors+3*0x1000+0x18,uint64_t(0x100000007));need(!serialized::read(memory,image,manager,links,restored,error),"Partial UID equality admitted across four arrays");
+    setup();memory.bytes.erase(actors+3*0x1000+0x18);need(!serialized::read(memory,image,manager,links,restored,error)&&error=="original Zone serialization field read failed","Original serialization read error lost");
+    checks+=zone_edit_identity_cases();
     std::cout<<checks<<" complete four-type Dungeon Zone membership/owner/full UID comparisons passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

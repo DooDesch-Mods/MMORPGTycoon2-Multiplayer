@@ -31,6 +31,8 @@ struct Current {
     std::string key;
     int32_t saved_region = -1;
     npc_census::Row row;
+    uintptr_t native_shard=0,native_region=0;
+    std::string scene="world";
 };
 inline std::string key(const std::string& sha, int32_t region, const Record& record) {
     return sha + ":world:npc:" + (record.link_id > 0 ? std::to_string(record.link_id) :

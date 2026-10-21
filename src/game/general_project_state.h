@@ -94,13 +94,14 @@ inline nlohmann::json encode(const Progress& p){return {{"current",p.current?enc
 inline nlohmann::json encode(const Catalogue& r){return {{"source",encode(r.source)},{"valid",r.valid},{"visible",r.visible},{"owned",r.owned},{"choose",r.choose},{"afford",r.afford},{"tech_flags",r.tech_flags},{"art_purchased",r.art_purchased},{"art_deployed",r.art_deployed}};}
 struct Proof {
     Catalogue selected;Progress progress;
-    std::string catalogue_sha256,ownership_sha256;
+    std::string catalogue_sha256,ownership_sha256,character_catalogue_sha256;
     std::array<uint64_t,4> random{};
     bool operator==(const Proof&)const=default;
 };
-inline nlohmann::json encode(const Proof& p){return {{"selected",encode(p.selected)},{"progress",encode(p.progress)},{"catalogue_sha256",p.catalogue_sha256},{"ownership_sha256",p.ownership_sha256},{"random",p.random}};}
-template<class Hash>bool proof(const Source& selected,const State& s,Hash&& hash,Proof& out,std::string& e){
+inline nlohmann::json encode(const Proof& p){return {{"selected",encode(p.selected)},{"progress",encode(p.progress)},{"catalogue_sha256",p.catalogue_sha256},{"ownership_sha256",p.ownership_sha256},{"character_catalogue_sha256",p.character_catalogue_sha256},{"random",p.random}};}
+template<class Hash>bool proof(const Source& selected,const State& s,const std::string& character_catalogue_sha256,Hash&& hash,Proof& out,std::string& e){
     const auto found=std::find_if(s.catalogue.begin(),s.catalogue.end(),[&](const auto& r){return r.source==selected;});
+    if(character_catalogue_sha256.size()!=64||character_catalogue_sha256.find_first_not_of("0123456789abcdef")!=std::string::npos){e="General project complete Character catalogue digest absent/invalid";return false;}
     if(!valid(s)||found==s.catalogue.end()){e="General project complete proof source/state invalid";return false;}
     auto catalogue=nlohmann::json::array(),techs=nlohmann::json::array(),packs=nlohmann::json::array();
     std::map<std::string,Source> canonical_sources;std::map<std::string,State::Tech> canonical_techs;std::map<std::string,State::Pack> canonical_packs;
@@ -108,7 +109,7 @@ template<class Hash>bool proof(const Source& selected,const State& s,Hash&& hash
     for(const auto& [k,row]:canonical_sources)catalogue.push_back(encode(row));
     for(const auto& [k,row]:canonical_techs){auto mods=nlohmann::json::array();for(const auto& m:row.mods)mods.push_back({m.value_id,m.payload,m.integer,m.active});techs.push_back({row.key,row.flags,mods});}for(const auto& [k,row]:canonical_packs)packs.push_back({row.key,row.purchased,row.deployed});
     auto values=nlohmann::json::array();for(const auto& rows:s.values){auto group=nlohmann::json::array();for(const auto& row:rows)group.push_back({row.name,row.base,row.current,row.mods});values.push_back(group);}
-    out.selected=*found;out.progress=s.progress;out.random=s.random;out.catalogue_sha256=hash(catalogue.dump());
+    out.character_catalogue_sha256=character_catalogue_sha256;out.selected=*found;out.progress=s.progress;out.random=s.random;out.catalogue_sha256=hash(catalogue.dump());
     out.ownership_sha256=hash(nlohmann::json{techs,packs,s.inventory,s.statistics,s.spent,s.purchased,s.free_points,s.purchased_points,s.features,values}.dump());e.clear();return true;
 }
 }

@@ -2,9 +2,11 @@
 #include "../dungeon_gizmo_identity.h"
 #include "vendor/nlohmann/json.hpp"
 #include <cstdint>
+#include <array>
 #include <vector>
 namespace mt2mp::game::scene_clone {
-enum class Family:uint8_t {Gizmo=0,MonsterZone=1,DirectMonster=2};
+enum class Family:uint8_t {Gizmo=0,MonsterZone=1,DirectMonster=2,NoneZone=3,PuzzleZone=4,StoryZone=5,Building=6,Scenery=7};
+inline int32_t zone_type(Family family){return family==Family::NoneZone?0:family==Family::PuzzleZone?2:family==Family::StoryZone?3:-1;}
 struct Assignment {
     std::string scene,key;
     Family family=Family::Gizmo;
@@ -15,6 +17,8 @@ struct Assignment {
 struct SceneCount {
     std::string scene;
     uint32_t gizmos=0,zones=0,monsters=0;
+    std::array<uint32_t,3> other_zones{};
+    uint32_t buildings=0,scenery=0;
     bool operator==(const SceneCount&)const=default;
 };
 struct Mapping {

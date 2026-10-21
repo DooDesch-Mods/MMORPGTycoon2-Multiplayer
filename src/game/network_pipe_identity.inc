@@ -56,7 +56,21 @@ bool finish_pipe_ids(Shared& s,const Pending& pending,std::string& cause){
 }
 objects::Entry object_entry(objects::Kind kind,const Binding& row){return {kind,reinterpret_cast<uintptr_t>(row.node),reinterpret_cast<uintptr_t>(row.region),reinterpret_cast<uintptr_t>(row.manager),row.uid,row.region_id,false};}
 bool publish_objects(Shared& s,const Roots& roots,std::vector<uint8_t>& digest,std::string& error){
-    objects::Scope scope;if(!object_scope(roots,scope,error))return false;
+    objects::Scope scope;
+    const bool first_capture=s.role=="host"&&!s.capture_origin.generation;
+    if(s.role=="host"){
+        const auto origin=building_mixed_identity::opened_file::status();
+        if(origin.generation!=s.capture_origin_generation||origin.world_epoch!=s.capture_world_epoch||
+           origin.current_origin_available==first_capture){
+            error="Network Host NativeOpen availability/generation/world epoch changed during capture";return false;
+        }
+    }
+    // A new local world's first Save precedes NativeOpen. Its original saved
+    // links become companion aliases; only a completed load owns a live registry.
+    if(!first_capture){
+        if(!object_scope(roots,scope,error))return false;
+        if(s.role=="host"&&scope!=s.capture_origin){error="Network Host completed origin changed during capture";return false;}
+    }
     std::map<uint64_t,Binding> live;if(!pipe_census(roots,live,error))return false;
     if(live.size()!=s.pipe_bindings.size()){error="Network Pipe complete saved/current census count differs";return false;}
     for(auto& [id,row]:s.pipe_bindings){const auto found=live.find(row.uid);void* exact=nullptr;const auto seh=lookup_native(row.uid,exact);
@@ -67,7 +81,7 @@ bool publish_objects(Shared& s,const Roots& roots,std::vector<uint8_t>& digest,s
             if(row.shard_id<=0){error="Network Pipe root shard link missing";return false;}}
     }
     std::vector<std::pair<std::string,objects::Entry>> previous;std::set<std::string> retired;std::string absent;
-    const bool had_registry=object_registry.enumerate(scope,previous,retired,absent);
+    const bool had_registry=!first_capture&&object_registry.enumerate(scope,previous,retired,absent);
     const bool load=s.role=="client";
     if(load&&(prepared_alias_uuid!=s.uuid||prepared_alias_sha!=s.sha)){error="Network load lacks exact prepared companion alias decision";return false;}
     aliases::Manifest result;result.present=true;if(load)result.retired=prepared_aliases.retired;else if(had_registry)result.retired=retired;
@@ -84,6 +98,6 @@ bool publish_objects(Shared& s,const Roots& roots,std::vector<uint8_t>& digest,s
         }
     }
     if(load&&prepared_aliases.present&&adopted!=prepared_aliases.rows.size()){error="Network companion has extra unadopted aliases";return false;}
-    if(!aliases::valid(result,error)||!object_registry.seal(scope,entries,result.retired,error))return false;
+    if(!aliases::valid(result,error)||(!first_capture&&!object_registry.seal(scope,entries,result.retired,error)))return false;
     captured_aliases=std::move(result);captured_alias_uuid=s.uuid;captured_alias_sha=s.sha;return true;
 }

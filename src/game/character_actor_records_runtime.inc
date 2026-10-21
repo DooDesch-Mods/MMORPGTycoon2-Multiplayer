@@ -1,4 +1,30 @@
 namespace character_actor_records {
+bool capture_catalogue(const action_session::Context& context,const action_session::Binding& binding,
+                       CatalogueProof& out,std::string& error)try{
+    out={};namespace member=monster_action_runtime::character_membership;
+    Memory memory;if(!member::code(memory,error))return false;
+    character_definition_identity::Census before,after;character_membership_reader::Users users,after_users;
+    if(!read_current(context,binding,before,users,error))return false;
+    const auto capture=[&](const character_definition_identity::Census& census,json& rows){
+        std::map<std::string,std::string> records;
+        for(const auto& definition:census.definitions)if(!definition.deleted){std::string record;
+            if(!read_definition(context,binding,definition.kind,definition.id,record,error))return false;
+            if(!records.emplace(definition.key,std::move(record)).second)
+                return fail(error,"Character catalogue repeats an original global key");
+        }
+        return character_catalogue_proof::rows(census,records,rows,error);
+    };
+    json first,second;
+    if(!capture(before,first)||!read_current(context,binding,after,after_users,error)||!capture(after,second))return false;
+    if(first!=second||before.state!=after.state||before.manager!=after.manager||users!=after_users)
+        return fail(error,"Character catalogue original records/manager/users changed during complete capture");
+    for(size_t kind=0;kind<before.arrays.size();++kind)
+        if(before.arrays[kind].object!=after.arrays[kind].object||before.arrays[kind].members!=after.arrays[kind].members)
+            return fail(error,"Character catalogue original global member lifetimes changed during capture");
+    std::string sha;if(!quest_bridge::sha256(first.dump(),sha,error))return false;
+    out.sha256=std::move(sha);error.clear();return true;
+}catch(const std::exception& exception){return fail(error,std::string("Character catalogue original capture: ")+exception.what());}
+
 namespace {
 using NativeMemory=Memory;
 struct RecordMemory final:subscriber_lifecycle::Memory {

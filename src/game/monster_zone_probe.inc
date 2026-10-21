@@ -284,7 +284,7 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
         };
         const auto observe=[&](std::string& cause){d::ReadMemory m{memory};d::z::State stage;
             if(!d::z::read(m,world,stage,cause))return unknown(cause);
-            if(shared){const auto capture=zone_action_runtime::status();
+            if(shared){const auto capture=zone_edit_runtime::status();
                 if(!capture.value("capture_active",false)||capture.value("capture_fault",true))
                     return unknown("Zone original Press capture failed: "+capture.value("cause",std::string{}));}
             result["after_press"]=d::state_json(stage);return true;};
@@ -300,7 +300,7 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
     if(shared&&phase=="stroke"){
         const auto capture=zone_action_runtime::ui_receipt(token);
         if(!monster_zone_shared_ui::captured(d::sample_json(before),d::sample_json(after),capture,zone_action_runtime::pending_ui(),
-           zone_action_runtime::status().value("cause",std::string{}),error))return unknown(error);
+           zone_edit_runtime::status().value("cause",std::string{}),error))return unknown(error);
         result["captured"]=true;result["submitted"]=false;result["action_uuid"]="";result["host_completion"]=false;
     }else if(phase=="stroke"){
         if(after.state.zones.size()!=before.state.zones.size()+1||after.undo.active_graph||after.undo.undo.size()!=before.undo.undo.size()+1)return unknown("zone probe stroke did not create one Zone and one closed original Undo graph");

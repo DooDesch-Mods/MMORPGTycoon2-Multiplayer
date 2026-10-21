@@ -30,6 +30,8 @@ struct Status {
     std::vector<Binding> buildings;
 };
 bool initialize(std::string& error);
+// This read is also used while the owned capture seal holds its mutex.
+bool confirm_current_receivers(void* game,void* mode,void* state,void* world,void* map,std::string& error);
 void* capture_entrypoint();
 bool begin(const std::string& capture_uuid, uint64_t session_epoch, std::string& error, const std::string& world_name="MPTestSession", bool bind_snapshot_identities=true);
 // Hook invokes original exactly once between these callbacks, even if the ticket is zero.

@@ -21,6 +21,7 @@ constexpr uintptr_t scene_region=0x30000000,scene_shard=0x31000000,scene_manager
 const std::string uuid="11111111-1111-4111-8111-111111111111",sha(64,'a');
 std::mutex gate;World origin,actual_world;uintptr_t image=fixture_image;unsigned main_thread=7,current_thread=7;
 bool host_active=false,client_active=false,world_failure=false,scene_failure=false,root_failure=false,validation_failure=false;
+bool held_match=false,held_failure=false;unsigned held_calls=0;
 unsigned root_calls=0,scene_reads=0,validations=0;int32_t root_id=-1;uintptr_t root_pointer=0;
 std::string failure,active_uuid;std::map<uintptr_t,ScenePool> scene_pools;
 unsigned GetCurrentThreadId(){return current_thread;}
@@ -35,11 +36,20 @@ bool read_current(Census& out,std::string& error){++scene_reads;if(scene_failure
 }
 bool validate_scene(ScenePool&,std::string& error){++validations;if(validation_failure){error="original saved scene validation failed";return false;}return true;}
 bool bind_destination(int32_t id,uintptr_t pointer,std::string& key,std::string& error){++root_calls;root_id=id;root_pointer=pointer;if(root_failure){error="original root destination binding failed";return false;}key=sha+":world:building:8";return true;}
+namespace typed_action_runtime {
+bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& matched,std::string& error){
+    ++held_calls;key.clear();matched=pointer==zone&&(held_match||held_failure);
+    if(matched&&held_failure){error="original held Dungeon ownership failed";return false;}
+    if(matched)key=sha+":world:zone:7";
+    error.clear();return true;
+}
+}
 #include "dungeon_quest_destination_actual.inc"
 size_t checks=0;
 void need(bool okay,const std::string& cause){++checks;if(!okay)throw std::runtime_error(cause+" comparison="+std::to_string(checks));}
 void setup(){
     memory={};scene_pools.clear();failure.clear();active_uuid=uuid;main_thread=current_thread=7;host_active=client_active=world_failure=scene_failure=root_failure=validation_failure=false;
+    held_match=held_failure=false;held_calls=0;
     root_calls=scene_reads=validations=0;root_id=-1;root_pointer=0;origin={};origin.uuid=uuid;origin.sha256=sha;origin.generation=9;origin.world_epoch=6;origin.map=reinterpret_cast<void*>(fixture_map);actual_world=origin;
     memory.put(root_target+0x170,fixture_root);memory.put(root_target+0x178,fixture_region);memory.put(fixture_region+0x70,fixture_root);memory.put(fixture_region+0x834,int32_t(67));
     memory.put(zone+0x170,scene_shard);memory.put(zone+0x178,scene_region);memory.put(scene_region+0x70,scene_shard);
@@ -53,7 +63,20 @@ void tests(){
     std::string key,error;bool in_dungeon=false;setup();
     need(bind_current_destination(root_target,key,in_dungeon,error),error);
     need(!in_dungeon&&root_calls==1&&root_id==67&&root_pointer==root_target&&scene_reads==0,"Root reference left its exact existing saved Region resolver");
+    need(held_calls==0,"Root Quest target entered a held Dungeon resolver");
+    setup();held_match=true;scene_failure=true;scene_pools.clear();dungeon_scene_identity_runtime::census.pools.clear();
+    need(bind_current_destination(zone,key,in_dungeon,error),"Exact graph-held target depended on active scene membership: "+error);
+    need(in_dungeon&&key==sha+":world:zone:7"&&held_calls==1&&scene_reads==0&&root_calls==0&&validations==0,"Held target lost canonical alias or entered an active pool");
+    setup();held_failure=true;scene_failure=true;
+    need(!bind_current_destination(zone,key,in_dungeon,error)&&error=="original held Dungeon ownership failed"&&held_calls==1&&scene_reads==0&&root_calls==0,"Invalid held ownership fell back or hid its original cause");
+    setup();held_match=true;actual_world.generation++;
+    need(!bind_current_destination(zone,key,in_dungeon,error)&&held_calls==0,"Held target bypassed the current native world lease");
+    setup();held_match=true;current_thread++;
+    need(!bind_current_destination(zone,key,in_dungeon,error)&&held_calls==0,"Held target bypassed Mainthread ownership");
+    setup();held_match=true;memory.put(scene_region+0x70,fixture_root);
+    need(!bind_current_destination(zone,key,in_dungeon,error)&&held_calls==0,"Held target bypassed actual reciprocal Region ownership");
     setup();need(bind_current_destination(zone,key,in_dungeon,error),error);
+    need(held_calls==1,"Active Dungeon target skipped explicit unmatched held-owner routing");
     need(in_dungeon&&key==sha+":world:zone:7"&&root_calls==0&&scene_reads==1&&validations==1,"Scene reference used root IDs, lost canonical key or skipped current ownership");
     setup();origin.uuid="53aebc01-fd57-45c5-8b76-b45c69d59e9d";origin.sha256=std::string(64,'b');actual_world=origin;dungeon_scene_identity_runtime::census.world=origin;
     need(bind_current_destination(zone,key,in_dungeon,error),"Host local NativeOpen UUID/SHA was equated with shared saved Zone origin: "+error);

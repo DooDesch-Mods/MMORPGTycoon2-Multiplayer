@@ -15,6 +15,25 @@ struct Receipt {
 // This is the original single Duplicate transaction with explicit source
 // cursor position. Native Duplicate leaves retain Building layout/plan/art
 // behavior; one graph owns all cash and destroy inverses.
+// Selection restoration is local presentation. Building entrance widgets use
+// Default RNG while finding their marker points; those draws are not Clone state.
+template<class Guard,class Read,class Invoke,class Write>
+bool restore_selection_random(Guard&& guard,Read&& read,Invoke&& invoke,Write&& write,std::string& error){
+    std::array<uint64_t,4> saved{},checked{};
+    if(!guard(error)||!read(saved,error))return false;
+    std::string original;const bool returned=invoke(original);
+    std::string cleanup;bool restored=guard(cleanup);
+    if(restored)restored=write(saved,cleanup);
+    if(restored)restored=read(checked,cleanup);
+    if(restored&&checked!=saved){cleanup="Duplicate local Selection RNG restore readback differs";restored=false;}
+    if(!returned||!restored){
+        error=original;
+        if(!cleanup.empty()){if(!error.empty())error+="; ";error+=cleanup;}
+        if(error.empty())error="Duplicate local Selection RNG boundary failed";
+        return false;
+    }
+    return true;
+}
 template<class Port>bool execute(Port& port,const action_session::DuplicateIntent& intent,
                                 const std::vector<Handle>& sources,Receipt& receipt,std::string& error){
     auto fail=[&](const std::string& e){error=e;return false;};

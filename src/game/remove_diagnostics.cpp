@@ -1,5 +1,8 @@
+#include "modular_identity.h"
 #include "service_building_census.h"
 #include "remove_diagnostics.h"
+#include "building_scene_identity.h"
+#include "scenery_scene_identity.h"
 #include "character_boss_retirement_read.h"
 #include "typed_action/action_session.h"
 #include "typed_action_runtime.h"
@@ -35,8 +38,9 @@ struct Bound {
     prop_lease::World world;
     bool revoked=false,unknown=false;
     json metadata;
-    uintptr_t object=0,class_addresspoint=0;
+    uintptr_t object=0,class_addresspoint=0;std::string scene_owner,scene_record;uintptr_t scene_manager=0,scene_shard=0,scene_region=0;
     std::string revocation_key;
+    bool operator==(const Bound&)const=default;
 };
 struct Attempt {json arguments,receipt;};
 std::map<std::string,Bound> registry;
@@ -118,7 +122,7 @@ bool classify_normal_building(host::ProcessMemory& memory,uintptr_t image,const 
     supported=true;return true;
 }
 bool current(host::opened::CurrentWorld& world,std::string& error) {
-    if(!native_open_runtime::read_current_world(world,error))return false;
+    if(!host::RootSceneryReadBatch::read_current(world,error))return false;
     const auto thread=GetCurrentThreadId();
     const auto existing=main_thread.load(std::memory_order_acquire);
     if(existing&&existing!=thread){error="remove diagnostics require bound Mainthread";return false;}
@@ -178,8 +182,8 @@ json status() {
 }
 namespace {bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);}
 namespace {
-enum class BindingDetails {Identity,Refund};
-bool collect_bindings(json& out,std::string& error,BindingDetails details) {
+enum class BindingDetails {Identity,Refund,BuildingTargets};
+bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr) {
     out=json::object();error.clear();host::opened::CurrentWorld world;
     if(!current(world,error))return false;
     if(unknown_locked){error="remove diagnostics are Unknown; no new binding admission";return false;}
@@ -191,10 +195,11 @@ bool collect_bindings(json& out,std::string& error,BindingDetails details) {
     }
     admitted_world=actual;
     const auto session_snapshot=net::current_snapshot_id();
-    json retained=json::array();
+    json retained=json::array();bool retained_present=false;
     for(auto& [id,saved]:registry) {
-        if(saved.generation!=registry_generation||saved.world!=actual||saved.snapshot!=session_snapshot)continue;
-        if(!saved.revoked&&!saved.unknown) {
+        if(saved.generation!=registry_generation||saved.world!=actual||saved.snapshot!=session_snapshot||saved.scene_owner=="retired")continue;
+        retained_present=true;
+        if(!saved.revoked&&!saved.unknown&&(!omit_metadata||!omit_metadata->contains(saved.uid))) {
             native::BuildingState settled;
             if(!scenery_kiss::read_action_prop(saved.uid,settled,error))return false;
             if(settled.prop.uid!=saved.uid||saved.metadata.at("type")!=settled.type||
@@ -209,16 +214,26 @@ bool collect_bindings(json& out,std::string& error,BindingDetails details) {
                 saved.metadata["y"]=settled.prop.y;
             }
         }
+        if(details==BindingDetails::BuildingTargets&&omit_metadata&&omit_metadata->contains(saved.uid)&&!saved.revoked&&!saved.unknown){
+            // The Building census already excludes this admitted saved Scenery.
+            // Preserve the stored field guards without allocating its unused row.
+            for(const char* field:{"type","variant","x","y","z"})(void)saved.metadata.at(field);
+            if(saved.metadata.contains("rotation"))(void)saved.metadata.at("rotation");
+            if(saved.metadata.contains("scale"))(void)saved.metadata.at("scale");
+            continue;
+        }
         retained.push_back({{"snapshot_id",saved.snapshot},{"record_key",saved.key},{"local_uid",saved.uid},
             {"entry_id",saved.entry},{"registry_generation",saved.generation},{"revoked",saved.revoked},
             {"unknown",saved.unknown},{"type",saved.metadata.at("type")},{"variant",saved.metadata.at("variant")},
             {"x",saved.metadata.at("x")},{"y",saved.metadata.at("y")},{"z",saved.metadata.at("z")}});
+        if(!saved.scene_record.empty())retained.back()["native_record_key"]=saved.scene_record;
         if(saved.metadata.contains("rotation"))retained.back()["rotation"]=saved.metadata.at("rotation");
         if(saved.metadata.contains("scale"))retained.back()["scale"]=saved.metadata.at("scale");
     }
     // The session baseline remains the identity source after confirmed local edits.
     // Target resolution validates each live UID against the current native world.
-    if(!retained.empty()) {
+    if(retained_present) {
+        if(!scene_scenery::append_saved(retained,error))return false;
         if(details==BindingDetails::Refund&&!attach_refunds(world,retained,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",retained}};return false;}
         out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",std::move(retained)}};
         return true;
@@ -258,11 +273,19 @@ bool collect_bindings(json& out,std::string& error,BindingDetails details) {
     } else {
         error="current complete NativeSnapshot building binding unavailable";return false;
     }
+    if(!scene_scenery::append_saved(list,error))return false;
     if(details==BindingDetails::Refund&&!attach_refunds(world,list,error)){out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},{"bindings",list}};return false;}
     out={{"world_epoch",actual.epoch},{"world_generation",actual.origin_generation},
         {"baseline_snapshot_id",baseline_snapshot},{"baseline_sha256",baseline_sha},{"bindings",std::move(list)}};
     return true;
 }
+bool collect_bindings(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr){
+    host::RootSceneryReadBatch batch;json pending;
+    if(!collect_bindings_body(pending,error,details,omit_metadata)){out=std::move(pending);return false;}
+    if(!batch.finish(error)){out=json::object();return false;}
+    out=std::move(pending);return true;
+}
+
 }
 bool bindings(json& out,std::string& error) {
     return collect_bindings(out,error,BindingDetails::Refund);
@@ -271,8 +294,10 @@ bool identity_bindings(json& out,std::string& error) {
     return collect_bindings(out,error,BindingDetails::Identity);
 }
 namespace {
+#include "dungeon_building_identity.inc"
+#include "root_scenery_metadata.inc"
 bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,native::BuildingState& building,
-                              uintptr_t& object,uintptr_t& addresspoint,std::string& error,bool readonly=false) {
+                              uintptr_t& object,uintptr_t& addresspoint,std::string& error,bool readonly=false,bool modular=false,const std::string& dungeon_scene={}) {
     object=0;addresspoint=0;
     if(!uid||!current(opened,error)) {
         if(error.empty())error="shared building requires a current world and positive local UID";
@@ -299,13 +324,19 @@ bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,na
     if(!lookup(api,uid,actual,seh)){error="shared building UID lookup SEH="+std::to_string(seh);return false;}
     if(!actual){error="shared building UID lookup returned no object";return false;}
     prop_lease::Prop prop;
-    if(!reader.prop(actual,uid,prop,error)||!scenery_kiss::read_action_prop(uid,building,error))return false;
+    if(!(readonly?read_metadata_prop(memory,reader,heap.image,before,actual,uid,prop,error):reader.prop(actual,uid,prop,error))||
+       !scenery_kiss::read_action_prop(uid,building,error))return false;
     if(!reader.current(after,true,error)||!host::same_world(opened,after.origin)||building.prop.uid!=uid) {
         if(error.empty())error="shared building world or UID changed during readback";return false;
     }
     bool normal_building=false,normal_scenery=false;std::string cause;
     if(!classify_normal_building(memory,heap.image,prop,building,normal_building,normal_scenery,cause,error))return false;
-    if(!normal_building&&!normal_scenery){error=cause.empty()?"shared created target has no supported native family":cause;return false;}
+    auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& why){if(base>UINTPTR_MAX-offset){why="Modular identity address overflow";return false;}return memory.copy(base+offset,&value,sizeof value,why);};
+    if(!dungeon_scene.empty()){
+        if(modular||prop.class_addresspoint!=heap.image+0x16d93c0||
+           !dungeon_building_target(memory,heap.image,before.root,uintptr_t(actual),building,dungeon_scene,error))return false;
+    }else if(modular){if(!modular_identity::read(at,heap.image,uintptr_t(actual),building,error))return false;}
+    else if(!normal_building&&!normal_scenery){error=cause.empty()?"shared created target has no supported native family":cause;return false;}
     object=uintptr_t(actual);addresspoint=prop.class_addresspoint;
     return true;
 }
@@ -346,7 +377,7 @@ json building_metadata(const native::BuildingState& building) {
         {"x",building.prop.x},{"y",building.prop.y},{"z",building.prop.z},{"rotation",building.rotation},{"scale",building.scale}};
 }
 }
-bool admit_created_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
+static bool admit_created_building_impl(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error,bool modular,const std::string& dungeon_scene={}) {
     error.clear();
     static const std::regex uuid("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     if(!std::regex_match(snapshot,uuid)||key.size()!=43||key.compare(0,7,"action:")||
@@ -354,7 +385,7 @@ bool admit_created_building(const std::string& snapshot,const std::string& key,u
     if(snapshot!=net::current_snapshot_id()){error="created building snapshot differs from current session";return false;}
     json baseline;if(!bindings(baseline,error))return false;
     host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,addresspoint=0;
-    if(!read_registered_building(uid,opened,building,object,addresspoint,error))return false;
+    if(!read_registered_building(uid,opened,building,object,addresspoint,error,false,modular,dungeon_scene))return false;
     const prop_lease::World world{opened.world_epoch,opened.generation,opened.world,opened.map};
     const auto id=registry_id(snapshot,key);
     const auto metadata=building_metadata(building);
@@ -379,9 +410,16 @@ bool admit_created_building(const std::string& snapshot,const std::string& key,u
     LOG_INFO("[Action] Created building binding admitted key={} local_uid={}",key,uid);
     return true;
 }
+bool admit_created_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return admit_created_building_impl(snapshot,key,uid,error,false);}
+bool admit_created_modular(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return admit_created_building_impl(snapshot,key,uid,error,true);}
+bool admit_created_dungeon_building(const std::string& snapshot,const std::string& key,uint64_t uid,const std::string& scene,std::string& error){
+    if(!action_session::valid_dungeon_building_scene(scene)){error="Dungeon Building admission scene invalid";return false;}
+    return admit_created_building_impl(snapshot,key,uid,error,false,scene);
+}
+
 bool retire_undone_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
     if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()||
-       (!snapshot_building_key::valid(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building undo current owner or key invalid";return false;}
+       (!snapshot_building_key::valid(key)&&!scenery_scene_key::saved(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building undo current owner or key invalid";return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.uid!=uid) {
         error="building undo exact live binding missing";return false;
@@ -399,21 +437,28 @@ bool retire_undone_building(const std::string& snapshot,const std::string& key,u
     if(object){error="building undo original UID still exists";return false;}
     found->second.revoked=true;error.clear();return true;
 }
-bool restore_redone_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
+static bool restore_redone_building_impl(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error,bool modular,const std::string& dungeon_scene={}) {
     if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()||
-       (!snapshot_building_key::valid(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building redo current owner or key invalid";return false;}
+       (!snapshot_building_key::valid(key)&&!scenery_scene_key::saved(key)&&!(key.size()==43&&key.compare(0,7,"action:")==0))) {error="building redo current owner or key invalid";return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||!found->second.revoked||found->second.unknown||found->second.uid!=uid) {
         error="building redo exact tombstone binding missing";return false;
     }
     if(!history_retirement(found->second,error))return false;
     host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,ap=0;
-    if(!read_registered_building(uid,opened,building,object,ap,error))return false;
+    if(!read_registered_building(uid,opened,building,object,ap,error,false,modular,dungeon_scene))return false;
     auto& saved=found->second;
     if(saved.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}||
        saved.metadata!=building_metadata(building)) {error="building redo UID/world/full native state differs";return false;}
     saved.object=object;saved.class_addresspoint=ap;saved.sequence=0;saved.revocation_key.clear();saved.revoked=false;error.clear();return true;
 }
+bool restore_redone_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return restore_redone_building_impl(snapshot,key,uid,error,false);}
+bool restore_redone_modular(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return restore_redone_building_impl(snapshot,key,uid,error,true);}
+bool restore_redone_dungeon_building(const std::string& snapshot,const std::string& key,uint64_t uid,const std::string& scene,std::string& error){
+    if(!action_session::valid_dungeon_building_scene(scene)){error="Dungeon Building admission scene invalid";return false;}
+    return restore_redone_building_impl(snapshot,key,uid,error,false,scene);
+}
+
 bool history_target_absent(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
     if(!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()) {
         error="building history absence requires current snapshot/Mainthread";return false;
@@ -457,14 +502,46 @@ bool confirmed_remove_graph(const std::string& token,const std::string& snapshot
     graph=record->committed_graph;error.clear();return true;
 }
 
-bool refresh_moved_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error) {
+bool is_dungeon_building_target(const LocalTarget& target,const std::string& scene,std::string& error){
+    host::opened::CurrentWorld opened;native::BuildingState value;uintptr_t object=0,ap=0;
+    if(target.snapshot_id!=net::current_snapshot_id()||
+       !read_registered_building(target.uid,opened,value,object,ap,error,true,false,scene))return false;
+    if(object!=target.object||opened.world_epoch!=target.world_epoch||opened.generation!=target.world_generation||
+       value.type!=target.type||value.variant!=target.variant){
+        error="Dungeon Building exact current target identity differs";return false;
+    }
+    error.clear();return true;
+}
+bool dungeon_building_scene(const LocalTarget& target,std::string& scene,bool& matched,std::string& error){
+    scene.clear();matched=false;error.clear();
+    if(target.normal_building||target.normal_scenery)return true;
+    native::BuildingState value;
+    if(!scenery_kiss::read_action_prop(target.uid,value,error))return false;
+    if(value.type!="DungeonExterior"&&!value.dungeon_membership&&!value.dungeon_instance_membership)return true;
+    matched=true;
+    if(value.type=="DungeonExterior"&&!value.dungeon_membership&&!value.dungeon_instance_membership)scene="world";
+    else{
+        host::ProcessMemory memory;uintptr_t shard=0,region=0;
+        if(!memory.copy(target.object+0x170,&shard,8,error)||!memory.copy(target.object+0x178,&region,8,error))return false;
+        dungeon_scene_identity_runtime::World world;std::vector<dungeon_scene_roster::Scene> scenes;
+        if(!dungeon_scene_identity_runtime::read_scene_roster(world,scenes,error))return false;
+        for(const auto& row:scenes)if(row.owner.shard==shard&&row.owner.region==region&&row.owner.type==1){
+            if(!scene.empty()){error="Dungeon Building current scene owner is ambiguous";return false;}
+            scene=row.owner.key;
+        }
+        if(scene.empty()){error="Dungeon Building target has no current template owner";return false;}
+    }
+    if(!is_dungeon_building_target(target,scene,error)){scene.clear();return false;}
+    return true;
+}
+bool refresh_moved_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error,const std::string& dungeon_scene) {
     error.clear();host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,addresspoint=0;
     if(snapshot!=net::current_snapshot_id()){error="moved building snapshot differs from current session";return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.uid!=uid) {
         error="moved building has no current shared binding";return false;
     }
-    if(!read_registered_building(uid,opened,building,object,addresspoint,error))return false;
+    if(!read_registered_building(uid,opened,building,object,addresspoint,error,false,false,dungeon_scene))return false;
     auto& saved=found->second;
     if(saved.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}||
        saved.metadata.at("type")!=building.type||saved.metadata.at("variant")!=building.variant||
@@ -475,7 +552,7 @@ bool refresh_moved_building(const std::string& snapshot,const std::string& key,u
 }
 namespace {
 bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error,
-                               const host::opened::CurrentWorld* admitted) {
+                               const host::opened::CurrentWorld* admitted,bool metadata_only=false,const Bound* known=nullptr) {
     out={};error.clear();
     host::opened::CurrentWorld opened;
     if(!current(opened,error))return false;
@@ -500,7 +577,8 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     if(!memory.copy(object+0x18,&uid,sizeof uid,error))return false;
     if(!uid){error="native UI target full UID is zero";return false;}
     prop_lease::Prop prop;
-    if(!reader.prop(reinterpret_cast<void*>(object),uid,prop,error))return false;
+    if(!(metadata_only?read_metadata_prop(memory,reader,heap.image,world,reinterpret_cast<void*>(object),uid,prop,error):
+         reader.prop(reinterpret_cast<void*>(object),uid,prop,error)))return false;
     native::BuildingState building;
     if(!scenery_kiss::read_action_prop(uid,building,error))return false;
     bool normal_building=false,normal_scenery=false;std::string kind_cause;
@@ -512,8 +590,12 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     const json metadata={{"type",building.type},{"variant",building.variant},
         {"x",building.prop.x},{"y",building.prop.y},{"z",building.prop.z}};
     const prop_lease::World actual{opened.world_epoch,opened.generation,opened.world,opened.map};
-    const Bound* matched=nullptr;
-    for(const auto& [id,binding]:registry) {
+    const Bound* matched=known;
+    if(known){
+        if(!metadata_only||!admitted||known->generation!=registry_generation||known->world!=actual||known->uid!=uid||known->revoked||known->unknown){
+            error="native readonly target supplied binding is no longer current";return false;
+        }
+    }else for(const auto& [id,binding]:registry) {
         if(binding.generation!=registry_generation||binding.world!=actual||binding.uid!=uid||binding.revoked||binding.unknown)continue;
         if(matched){error="native UI target snapshot binding is ambiguous";return false;}
         matched=&binding;
@@ -521,6 +603,12 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     if(!matched||!scenery_kiss::metadata_matches(matched->metadata,building)||building.prop.uid!=uid||
        (matched->object&&matched->object!=object)||(matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)) {
         error="native UI target type/coordinates or snapshot registry differs";return false;
+    }
+    if(normal_scenery&&!matched->scene_owner.empty()){
+        scene_scenery::Row scene;dungeon_scene_identity_runtime::World observed;
+        if(!scene_scenery::owner(object,uid,scene,observed,error)||scene.scene!=matched->scene_owner||observed.game!=opened.game||
+           observed.mode!=opened.mode||observed.state!=opened.state||observed.world!=opened.world||observed.map!=opened.map||
+           observed.world_epoch!=opened.world_epoch||observed.generation!=opened.generation){if(error.empty())error="Scene Scenery target changed its confirmed current Scene owner";return false;}
     }
     out={manager,object,uid,opened.world_epoch,opened.generation,matched->snapshot,matched->key,building.type,building.variant,normal_building,normal_scenery,std::move(kind_cause)};
     return true;
@@ -541,7 +629,7 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
     if(!reader.current(before,true,error)||!host::same_world(before.origin,opened)||
        !reader.prop(reinterpret_cast<void*>(object),uid,prop,error))return false;
     if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=reinterpret_cast<void*>(object)||
-       prop.class_addresspoint!=heap.image+0x16d93c0){error="current Building identity exact root/manager/RTTI/full UID proof differs";return false;}
+       (prop.class_addresspoint!=heap.image+0x16d93c0&&prop.class_addresspoint!=heap.image+0x16c1390)){error="current Building identity exact root/manager/RTTI/full UID proof differs";return false;}
     const Bound* matched=nullptr;
     for(const auto& [id,entry]:registry){(void)id;
         if(entry.generation!=registry_generation||entry.world!=expected||entry.uid!=uid||entry.revoked||entry.unknown)continue;
@@ -550,6 +638,10 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
     if(!matched||matched->snapshot!=snapshot||matched->key.empty()||
        (matched->object&&matched->object!=object)||(matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)){
         error="current Building identity has no exact unrevoked canonical registry entry";return false;}
+    if(prop.class_addresspoint==heap.image+0x16c1390){scene_scenery::Row row;dungeon_scene_identity_runtime::World world;
+        if(matched->scene_owner.empty()||!scene_scenery::owner(object,uid,row,world,error)||row.scene!=matched->scene_owner||
+           world.world_epoch!=opened.world_epoch||world.generation!=opened.generation||world.world!=opened.world||world.map!=opened.map)
+            {if(error.empty())error="Current Scene Scenery identity lacks its exact confirmed reciprocal Scene";return false;}}
     host::WorldState after;
     if(!reader.current(after,true,error)||!host::same_world(after.origin,opened)||after.root!=before.root||admitted_world!=expected){
         if(error.empty())error="current Building identity NativeOpen changed during read";return false;}
@@ -571,27 +663,44 @@ bool resolve_current_building_identity(const std::string& snapshot,const std::st
     if(reverse!=key){error="current Building exact full UID reverse mapping differs";return false;}object=uintptr_t(actual);uid=full_uid;return true;
 }
 bool identity_targets(std::vector<LocalTarget>& out,std::string& error) {
-    out.clear();json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
+    host::RootSceneryReadBatch batch;out.clear();json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
     auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
     if(!free.read_actual_receipt(heap,error))return false;
     host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
     if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
     host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
     if(!reader.current(world,true,error))return false;
+    const prop_lease::World expected{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map};
+    std::map<uint64_t,const Bound*> by_uid;
+    for(const auto& [id,binding]:registry){(void)id;
+        if(binding.generation!=registry_generation||binding.world!=expected||binding.revoked||binding.unknown)continue;
+        if(!by_uid.emplace(binding.uid,&binding).second){error="native UI target snapshot binding is ambiguous";return false;}
+    }
     const auto resolve=[&](const json& row,LocalTarget& target,std::string& cause){
         const auto snapshot=row.at("snapshot_id").get<std::string>(),key=row.at("record_key").get<std::string>();
         const auto found=registry.find(registry_id(snapshot,key));
         if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.world!=prop_lease::World{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map}){
             cause="Service census exact current unrevoked NativeOrigin binding missing";return false;
         }
+        const auto unique=by_uid.find(found->second.uid);
+        if(unique==by_uid.end()||unique->second!=&found->second){cause="Service census supplied binding differs from complete UID index";return false;}
         void* object=nullptr;uint32_t seh=0;
         if(!lookup(api,found->second.uid,object,seh)){cause="Service census full UID lookup SEH="+std::to_string(seh);return false;}
         if(!object){cause="Service census full UID no longer resolves";return false;}
-        return resolve_local_target_impl(world.selection,uintptr_t(object),target,cause,&world.origin);
+        return resolve_local_target_impl(world.selection,uintptr_t(object),target,cause,&world.origin,true,&found->second);
     };
-    return service_building_census::read(sources,resolve,out,error);
+    std::vector<LocalTarget> pending;
+    if(!service_building_census::read(sources,resolve,pending,error)||!batch.finish(error))return false;
+    out=std::move(pending);return true;
 }
 
+#include "building_identity_census.inc"
+
+bool is_modular_target(const LocalTarget& target,std::string& error){
+    host::opened::CurrentWorld opened;native::BuildingState value;uintptr_t object=0,ap=0;
+    if(target.snapshot_id!=net::current_snapshot_id()||!read_registered_building(target.uid,opened,value,object,ap,error,true,true))return false;
+    if(target.object!=object||target.type!=value.type||target.variant!=value.variant||target.world_epoch!=opened.world_epoch||target.world_generation!=opened.generation){error="Modular target full canonical World binding differs";return false;}error.clear();return true;
+}
 bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error) {
     out={};json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
     const auto found=registry.find(registry_id(snapshot,key));
@@ -777,4 +886,6 @@ bool retire(const json& args,json& out,std::string& error) {
 }
 #include "character_boss_retirement_runtime.inc"
 
+#include "scenery_scene_identity.inc"
+#include "building_scene_identity.inc"
 }

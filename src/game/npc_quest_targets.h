@@ -105,13 +105,13 @@ bool unchanged(Memory& memory, uintptr_t array, size_t budget, const Bounds& bef
         (before == after || fail(error, "quest target array changed during read"));
 }
 template<class Memory>
-bool content(Memory& memory, uintptr_t image, uintptr_t object, const Budget& budget, Content& out, std::string& error) {
+bool content(Memory& memory, uintptr_t image, uintptr_t object, const Budget& budget, Content& out, std::string& error, int32_t expected_type=1) {
     out = {};
     if (!typed(memory, image, object, 0x1745ce0, error) ||
         !at(memory, object, 0x24c, out.type, error) || !at(memory, object, 0x250, out.density, error) ||
         !at(memory, object, 0x360, out.level, error) || !at(memory, object, 0x560, out.monster_type, error) ||
         !at(memory, object, 0x56c, out.constructed_day, error)) return false;
-    if (out.type != 1) return fail(error, "quest target is not an original Monster zone");
+    if (expected_type<0||expected_type>3||out.type!=expected_type) return fail(error, expected_type==1?"quest target is not an original Monster zone":"Zone content actual type differs from its current owner");
     const auto shape = object + 0x2f0;
     const auto array = shape + 0x40;
     Bounds sections;

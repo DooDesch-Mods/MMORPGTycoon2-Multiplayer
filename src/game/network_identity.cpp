@@ -70,6 +70,8 @@ struct Shared {
     uint64_t next_ticket=1,completed_arrays=0,discarded=0,foreign_writers=0;
     size_t pending_nodes=0;
     Roots roots;
+    network_object_identity::Scope capture_origin;
+    uint64_t capture_origin_generation=0,capture_world_epoch=0;
     std::map<uint64_t,Pending> pending;
     std::map<int32_t,Binding> bindings,pipe_bindings;
     bool original_load=false;
@@ -280,6 +282,7 @@ void reset(Shared& s,const std::string& uuid,const std::string& sha,uint32_t exp
     s.uuid=uuid; s.sha=sha; s.expected=expected; s.role=role; s.error.clear(); s.keys_digest.clear(); s.invalidation_reason.clear(); s.discarded=0;
     ++client_generation; s.first_context_probe={}; s.last_context_probe={}; s.context_owners.clear(); s.observer_threads.clear(); s.client_load_mode=nullptr; s.first_observer_thread=s.last_observer_thread=0; s.obsolete_callbacks=s.typed_worker_callbacks=s.typed_main_callbacks=s.duplicate_callbacks=0;
     s.pending.clear(); s.pending_nodes=0; s.bindings.clear(); s.pipe_bindings.clear();s.original_load=false; s.shards.clear(); s.contexts.clear(); s.completed_arrays=0; s.roots={};
+    s.capture_origin={};s.capture_origin_generation=s.capture_world_epoch=0;
     s.filename=net::snapshot_world_path::capture(world_name,uuid); s.foreign_writers=0; s.foreign_reason.clear();
     selector_reads=0; non_node_callbacks=0;
 }
@@ -348,6 +351,9 @@ bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& e
     std::string cause; std::map<uint64_t,Binding> live;
     if(!roots_read(s.roots,cause)||!census(s.roots,live,cause)) return fail_locked(s,"host capture root baseline: "+cause,&error);
     if(live.size()!=expected) return fail_locked(s,"host native_root_nodes="+std::to_string(live.size())+" expected="+std::to_string(expected),&error);
+    const auto origin=building_mixed_identity::opened_file::status();
+    s.capture_origin_generation=origin.generation;s.capture_world_epoch=origin.world_epoch;
+    if(origin.current_origin_available&&!object_scope(s.roots,s.capture_origin,error))return fail_locked(s,error,&error);
     capture_active=true; error.clear(); return true;
 }
 uint64_t capture_before(const void* property,const void* manager,void* writer,void* context) noexcept {

@@ -7,10 +7,11 @@ constexpr std::array<size_t,8> string_offsets{0x48,0x68,0x88,0xa8,0xc8,0xf8,0x11
 constexpr npc_quest_list_ui_codes::Code ui_code{0x5714c0,3374,"c58e4309398a34ca2ee0e15494adc64f7590f76184654bddb2d9cbb280e2df2e",
     {0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa8,0,0,0,0x0f,0x11,0xb4,0x24,0x90,0,0,0,0x48,0x89,0xce,0x48,0x89,0xd1,0x48,0x8d,0x5c,0x24,0x50,0x48,0x89}};
 struct Sample {character_rename::Sample character;uintptr_t prototype=0,proxy=0;uint64_t uid=0;std::vector<std::array<uintptr_t,3>> local; a::AbilityEditState value;};
-struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;};
+struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;};
 struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false;uint32_t calls=0;std::string cause;};
 std::optional<Pending> pending;std::map<std::string,Operation> operations;
 bool entry(void*,void*);
+bool view_route(Memory&,std::string&);
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[AbilityEdit] {}",error);}return false;}
 json record_json(const a::AbilityRecord& v){json costs=json::array(),effects=json::array();
     for(size_t n=0;n<2;++n)for(const auto& row:n?v.effects:v.costs)(n?effects:costs).push_back({{"integers",row.integers},{"values",row.values},{"count",row.count}});
@@ -26,7 +27,7 @@ bool code(Memory& memory,std::string& error){
         std::memcpy(bytes.data(),receipt.pristine,32);if(!quest_list::verify_code(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;}
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Ability original outer UI transaction body differs":error);
     for(const auto& pin:ability_edit_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
-        if(hash!=pin.sha)return fail(error,"Ability original preparation/ownership helper body differs RVA="+std::to_string(pin.rva));}
+        if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Ability original preparation/ownership helper body differs RVA="+std::to_string(pin.rva)+" original="+error);}
     return true;
 }
 bool read_record(Memory& memory,uintptr_t object,a::AbilityRecord& value,std::string& error){
@@ -98,6 +99,7 @@ bool same_menu_identity(const Sample& before,const Sample& after){
     for(size_t i=0;i<before.local.size();++i)if(before.local[i][0]!=after.local[i][0]||before.local[i][1]!=after.local[i][1])return false;
     return true;
 }
+#include "ability_adjustment_runtime.inc"
 bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Ability original unavailable");}if(!net::session_wire::connected())return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
@@ -117,28 +119,38 @@ bool entry(void* receiver,void* record)try{
     if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Ability capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Ability capture non-standard exception");}
 }
-bool pending_ui(){return pending.has_value()||replaying;}
+bool capture_adjustment(void* receiver,void* record,bool& handled,std::string& error)try{
+    const bool accepted=capture_adjustment_impl(receiver,record,handled,error);if(!accepted)reject(error);return accepted;
+}catch(const std::exception& exception){fault=true;error=std::string("Ability adjustment capture boundary: ")+exception.what();reject(error);return false;}
+catch(...){fault=true;error="Ability adjustment capture non-standard exception";reject(error);return false;}
+bool pending_ui(){return pending.has_value()||replaying||view_tail.armed;}
 bool retire_lobby(std::string& e){
     if(!ready){e.clear();return true;}
     if(GetCurrentThreadId()!=state.thread)return fail(e,"Ability edit lobby retirement requires Mainthread");
     native::WorldStatus world;if(!native::read_world_status(world,e))return false;
     if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0)return fail(e,"Ability edit lobby retirement requires actual idle Title");
-    if(replaying)return fail(e,"Ability edit lobby retirement cannot interrupt original execution");
-    pending.reset();operations.clear();replay_receiver=0;original_calls=0;
+    if(replaying||view_tail.armed)return fail(e,"Ability edit lobby retirement cannot interrupt original execution");
+    pending.reset();operations.clear();adjustment_views.clear();view_tail={};replay_receiver=0;original_calls=0;
     fault=false;cause.clear();last_action.clear();e.clear();return true;
 }
 bool enable(std::string& error){
     if(!state.ready||GetCurrentThreadId()!=state.thread)return fail(error,"Ability edit requires bound Character Mainthread");
-    if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Ability edit retained unretired operation="+id);if(fault||pending_ui())return fail(error,"Ability edit retained unresolved capture");Memory memory;if(!code(memory,error))return false;operations.clear();return true;}
+    if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Ability edit retained unretired operation="+id);if(fault||pending_ui())return fail(error,"Ability edit retained unresolved capture");Memory memory;if(!code(memory,error)||!view_route(memory,error))return false;operations.clear();adjustment_views.clear();return true;}
     if(installed)return fail(error,"Ability edit earlier installation failed: "+cause);installed=true;Memory memory;if(!code(memory,error))return false;
     auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+ui_code.rva),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
     if(status!=MH_OK||!original)return fail(error,"Ability edit prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+ui_code.rva));if(status!=MH_OK)return fail(error,"Ability edit enable failed status="+std::to_string(status));
-    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+ui_code.rva,receipt,error))return false;generation=receipt.generation;if(!code(memory,error))return false;ready=true;return true;
+    MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+ui_code.rva,receipt,error))return false;generation=receipt.generation;
+    status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x689100),reinterpret_cast<void*>(&view_select_entry),reinterpret_cast<void**>(&original_view_select));
+    if(status!=MH_OK||!original_view_select)return fail(error,"Ability adjustment presentation prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
+    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x689100));
+    if(status!=MH_OK)return fail(error,"Ability adjustment presentation enable failed status="+std::to_string(status));
+    if(!quest_list::read_route(state.image+0x689100,receipt,error))return false;view_generation=receipt.generation;
+    if(!code(memory,error)||!view_route(memory,error))return false;ready=true;return true;
 }
 void tick(){if(!pending)return;const auto saved=*pending;pending.reset();std::string error;a::Binding binding;
     if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding){fault=true;reject(error.empty()?"Ability captured world changed":error);return;}
-    const auto id=action_runtime::uuid(error);if(id.empty()||!typed_action_runtime::submit_ability_edit(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
+    const auto id=action_runtime::uuid(error);if(!id.empty()&&saved.intent.adjustment)adjustment_views.emplace(id,saved.view);if(id.empty()||!typed_action_runtime::submit_ability_edit(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error)try{
     if(!ready||fault||GetCurrentThreadId()!=state.thread||request.action!=a::Action::EditCharacterAbility){error="Ability edit runtime unavailable";return a::Outcome::RejectedNoEffect;}
@@ -149,6 +161,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(prior_sha!=intent.before_sha256){error="Ability edit actual current record differs from captured prior";return a::Outcome::RejectedNoEffect;}
     if(!a::ability_edit_wire_fits(request,before.value,before.character.money,error))return a::Outcome::RejectedNoEffect;
     if(authority){auto portable=before.value;portable.owner.global_random=authority->ability_edit_before.owner.global_random;if(portable!=authority->ability_edit_before||before.character.money!=authority->before){error="Ability Client actual prior owner/census/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
+    if(intent.adjustment)return perform_adjustment(memory,binding,request,authority,before,error);
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
     const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;error=op.cause=why.empty()?"Ability edit failed without cause":why;return a::Outcome::Unknown;};
     uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error))return unknown(error);

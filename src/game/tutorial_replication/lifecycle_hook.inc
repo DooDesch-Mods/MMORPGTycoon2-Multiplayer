@@ -1,4 +1,16 @@
 namespace lifecycle_native {
+void observe_terminal_receipt(const std::string& cause){
+    auto& observed=terminal_receipt_observation;
+    if(cause.empty()){
+        if(!observed.cause.empty())LOG_INFO("[Tutorial] Host terminal receipt authority recovered previous_cause={} repeats={}",observed.cause,observed.repeats);
+        observed={};return;
+    }
+    if(observed.cause==cause){if(observed.repeats<UINT64_MAX)++observed.repeats;return;}
+    if(cause=="current snapshot session authority unavailable")
+        LOG_INFO("[Tutorial] Host terminal receipt waiting cause={} previous_cause={} previous_repeats={}",cause,observed.cause,observed.repeats);
+    else LOG_WARN("[Tutorial] Host terminal receipt unavailable cause={} previous_cause={} previous_repeats={}",cause,observed.cause,observed.repeats);
+    observed={cause,0};
+}
 bool host(World& w,action_session::Context& c,action_session::Binding& b,std::string& e){
     if(load.armed||!action_session::selected_session().current(c,e)||c.role!=action_session::Role::Host)return false;
     if(!native_open_runtime::read_current_world(w,e))return false;
@@ -12,8 +24,9 @@ void remember_terminal(uintptr_t sequence){
         uint8_t complete=0;std::string e;
         if(!at(sequence,0x54,complete,e)){block(e);return;}if(complete!=1)return;
         World w;action_session::Context c;action_session::Binding b;if(!host(w,c,b,e)){
-            if(!e.empty())LOG_WARN("[Tutorial] Host terminal receipt unavailable cause={}",e);return;
+            if(!e.empty())observe_terminal_receipt(e);return;
         }
+        observe_terminal_receipt({});
         for(size_t index=0;index<2;++index){Owners owner;NativeCursor n;bool found=false;
             if(!owners(w,lifecycle::name(index),owner,e)||!owned_cursor(owner,lifecycle::name(index),n,found,e)){block(e);return;}
             if(!found||n.sequence!=sequence)continue;
@@ -60,6 +73,7 @@ void scenario_start(void* log,void* scenario,void* parameters){
     if(load.armed){
         try{
             std::string e,id;if(!str(reinterpret_cast<uintptr_t>(scenario),0x18,id,e)){block(e);return;}
+            if(id=="intro_cutscene"){intro_native::start(log,scenario,parameters);return;}
             if(!supported(id)){original_scenario_start(log,scenario,parameters);return;}
             if(!creation&&!load.ready){
                 Owners owner;if(!bootstrap_owners(id,owner,e)||owner.log!=reinterpret_cast<uintptr_t>(log)||owner.asset!=reinterpret_cast<uintptr_t>(scenario)||parameters){block(e.empty()?"Client tutorial bootstrap Start Mode/library/log/parameters differs":e);return;}

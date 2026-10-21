@@ -1,6 +1,16 @@
 namespace mt2mp::game::building_npc_lifecycle {
 namespace saved=npc_saved_identity_runtime;
 namespace detail=saved::building_child_detail;
+bool retained_receipt(const std::string& parent,Receipt& out,bool& found,bool& retired,std::string& error){
+    out={};found=false;retired=false;std::lock_guard lock(saved::gate);saved::opened::CurrentWorld world;
+    if(!saved::current(world,error))return false;
+    const auto entry=saved::building_children.find(parent);if(entry==saved::building_children.end()){error.clear();return true;}
+    const auto& receipt=entry->second.receipt;
+    if(receipt.lease.snapshot!=saved::uuid||receipt.lease.epoch!=world.world_epoch||receipt.lease.generation!=world.generation)
+        return saved::q::fail(error,"Building child NPC retained receipt belongs to another native lifetime");
+    if(entry->second.history_detached)return saved::q::fail(error,"Building child NPC retained parent is detached by its own NPC history");
+    out=receipt;found=true;retired=entry->second.retired;error.clear();return true;
+}
 bool capture_birth(const Lease& lease,const Parent& parent,const OwnerResolver& resolver,Receipt& out,std::string& error){
     std::lock_guard lock(saved::gate);return detail::capture(lease,parent,resolver,true,out,error);
 }
@@ -30,8 +40,8 @@ bool confirm_retired(const Lease& lease,const Receipt& before,std::string& error
     if(before.present){
         if(before.inverse_child_uid!=before.child.row.local_uid||bound->receipt.inverse_child_uid!=before.inverse_child_uid)
             return saved::q::fail(error,"Building child NPC retirement lacks the validated original MakeNPC inverse");
-        detail::Lookup find;uintptr_t region=0;npc_census::State rows;
-        if(!find.initialize(error)||!detail::census(world,before.parent.saved_region,region,rows,error)||
+        detail::Lookup find;building_npc_owner::Scope scope;npc_census::State rows;
+        if(!find.initialize(error)||!detail::retirement_census(world,before,find,scope,rows,error)||
            !building_npc_owner::absent(find,rows,before.child.row,error))return false;
         std::vector<uintptr_t> quests;for(const auto& local:before.original_quests.local)quests.push_back(local.quest);
         npc_quest_retirement::State retired;
@@ -43,7 +53,7 @@ bool confirm_retired(const Lease& lease,const Receipt& before,std::string& error
 bool confirm_restored(const Lease& lease,const Receipt& before,const Parent& parent,const OwnerResolver& resolver,Receipt& out,std::string& error){
     out={};std::lock_guard lock(saved::gate);saved::opened::CurrentWorld world;saved::ChildBinding* bound=nullptr;
     if(!detail::lease(lease,world,error)||!detail::binding(lease,before,bound,error))return false;
-    if(!bound->retired||parent.key!=before.parent.key||parent.uid!=before.parent.uid||parent.saved_region!=before.parent.saved_region)
+    if(!bound->retired||parent.key!=before.parent.key||parent.uid!=before.parent.uid||parent.saved_region!=before.parent.saved_region||parent.scene!=before.parent.scene)
         return saved::q::fail(error,"Building child NPC restoration lacks its retired canonical parent/full UID receipt");
     npc_census::State rows;npc_census::Row row;bool present=false;detail::Lookup find;
     if(!detail::read(lease,parent,world,rows,row,present,find,error))return false;
@@ -60,9 +70,9 @@ bool confirm_restored(const Lease& lease,const Receipt& before,const Parent& par
     if(present){next.child={before.child.key,parent.saved_region,row};if(!detail::witness(world,resolver,next,error))return false;
         next.inverse_child_uid=before.inverse_child_uid;
         auto pool=saved::pools.find(parent.saved_region);
-        if(pool==saved::pools.end())return saved::q::fail(error,"Building child NPC restored Region has no retained snapshot pool");
+        if(parent.scene=="world"&&pool==saved::pools.end())return saved::q::fail(error,"Building child NPC restored Region has no retained snapshot pool");
         npc_saved_identity::Record* original=nullptr;
-        for(auto& record:pool->second.pool.records){const auto key=npc_saved_identity::key(saved::sha,parent.saved_region,record);
+        if(parent.scene=="world")for(auto& record:pool->second.pool.records){const auto key=npc_saved_identity::key(saved::sha,parent.saved_region,record);
             if(key==before.child.key){
                 if(original||record.pointer!=before.child.row.local_pointer||record.uid!=before.child.row.local_uid||record.type!=row.type)
                     return saved::q::fail(error,"Building child NPC saved identity restore source was replaced");original=&record;

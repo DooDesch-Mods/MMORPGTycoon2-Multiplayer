@@ -25,11 +25,11 @@ struct Harness {
 #include "remove_operation.inc"
 std::map<std::string,Operation> operations_;world_state::Table world_;action::Request fixture_request;
 #include "remove_retire.inc"
-Harness(){retire_calls=remember_calls=0;retire_ok=graph_ok=remember_ok=true;pending=removed;std::string e;
+Harness(bool scene=false){retire_calls=remember_calls=0;retire_ok=graph_ok=remember_ok=true;pending=removed;std::string e;
 action::BuildingState state;state.type="SmallInn";state.variant="base";state.alive=true;
 world_state::Origin origin{snap,std::string(64,'a'),1,2};const auto key=origin.sha256+":world:building:44";
-need(world_.bind_snapshot(origin,{{key,key,state}},1,e),e);fixture_request.action=action::Action::RemoveSnapshotBuilding;fixture_request.action_uuid=removed;fixture_request.snapshot_uuid=snap;fixture_request.canonical_record_key=key;
-Operation op;op.request=fixture_request;op.binding={1,2};op.local_uid=3176;op.object_before=state;op.before.record_present=1;op.before.cash=op.before.record_cash=94000;operations_[removed]=op;
+need(world_.bind_snapshot(origin,scene?std::vector<world_state::SnapshotObject>{}:std::vector<world_state::SnapshotObject>{{key,key,state}},1,e),e);fixture_request.action=action::Action::RemoveSnapshotBuilding;fixture_request.action_uuid=removed;fixture_request.snapshot_uuid=snap;fixture_request.canonical_record_key=key;
+Operation op;op.request=fixture_request;op.binding={1,2};op.local_uid=3176;op.object_before=state;op.scene_scenery=scene;op.normal_scenery=scene;op.before.record_present=1;op.before.cash=op.before.record_cash=94000;operations_[removed]=op;
 need(building_history_slice::cash_effect(op.before,400,native_ledger,e),e);}
 bool run(std::string& e){return retire_remove({1,2},fixture_request,e);}
 };
@@ -43,5 +43,9 @@ int main(){try{std::string e;
 {Harness h;native_ledger=h.operations_.at(removed).before;need(h.run(e)&&h.operations_.at(removed).refund==0,"zero refund should have no category6 cash event");}
 {Harness h;h.operations_.at(removed).binding.native_epoch++;need(!h.run(e)&&retire_calls==0,"foreign binding retired holders");}
 {Harness h;h.operations_.at(removed).normal_scenery=true;need(h.run(e)&&remember_calls==1&&h.operations_.at(removed).history_ready,"Scenery confirmed Remove graph did not become shared history");}
+{Harness h(true);need(h.run(e)&&h.world_.rows().empty()&&retire_calls==1&&remember_calls==1&&h.operations_.at(removed).history_ready&&h.operations_.at(removed).refund==400,
+    "Actual Scene Scenery original holder retirement retains full refund/graph without Root synthesis: "+e);}
+{Harness h(true);++native_ledger.line_counts[19];need(!h.run(e)&&h.world_.rows().empty()&&remember_calls==0&&!h.operations_.at(removed).history_ready,
+    "Scene Scenery original wrong-category refund cannot become confirmed history");}
 std::cout<<"PASS "<<checks<<" actual Remove retirement tail assertions; native retirement is controlled\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

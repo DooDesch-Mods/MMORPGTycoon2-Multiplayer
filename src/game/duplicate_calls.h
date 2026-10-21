@@ -2,7 +2,12 @@
 #include "duplicate_native.h"
 #include "move_kiss/move_kiss.h"
 #include <Windows.h>
+#include <cstring>
 namespace mt2mp::game::duplicate_calls {
+inline uint32_t restore_random(uintptr_t owner,const std::array<uint64_t,4>& saved){
+    __try{std::memcpy(reinterpret_cast<void*>(owner),saved.data(),sizeof saved);return 0;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
 struct Array {uintptr_t ap=0;const uintptr_t* data=nullptr;int32_t count=0,capacity=0;};
 inline uint32_t region(uintptr_t image,uintptr_t root,bool nearest,const std::array<uint32_t,3>& position,uintptr_t& out){
     __try{out=nearest?reinterpret_cast<uintptr_t(*)(void*,const void*)>(image+0x508a40)(reinterpret_cast<void*>(root),position.data()):

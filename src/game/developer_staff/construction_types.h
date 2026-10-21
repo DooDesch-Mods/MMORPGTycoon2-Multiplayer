@@ -12,9 +12,9 @@ struct ActorPose {
     std::array<float,3> scale{1,1,1};
     bool operator==(const ActorPose&)const=default;
 };
-// The key is the existing ordered PlaceBuilding action's Building key.
-// The local Job occurrence is recorded during that original creation, not
-// discovered later from a queue index or an untrusted native Job ID.
+// The canonical Building key comes from snapshot admission or ordered placement.
+// Its local Job occurrence is retained at that boundary, never discovered from
+// a later queue index or an untrusted native Job ID.
 struct JobState {
     std::string building_key;
     bool present=false,active=false;

@@ -39,7 +39,7 @@ bool subscribers(Memory& memory,uintptr_t image,Census& out,std::map<uintptr_t,i
     return (checked_manager==manager&&checked_data==data&&checked_count==count&&checked_capacity==capacity)||fail(error,"Intervention Subscriber complete current manager changed during census");
 }
 }
-bool census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){
+static bool census_impl(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error,bool include_props){
     live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     out={};Census next;if(!boss_current::read_with_characters(context,binding,next.bosses,next.definitions,next.users,error))return false;
     const auto& world=next.bosses.world;const auto image=uintptr_t(GetModuleHandleW(nullptr)),map=uintptr_t(world.map),root=map+0x1c0;Memory memory;
@@ -65,6 +65,10 @@ bool census(const action_session::Context& context,const action_session::Binding
         if(scene.instance&&!add(next,scene.instance,scene.key+"/instance-object",error))return false;
         for(size_t n=0;n<pool.managers.size();++n)if(!add(next,pool.managers[n],scene.key+"/manager/"+std::to_string(n),error))return false;
         for(const auto& gizmo:pool.local.members){std::string key;if(!dungeon_scene_identity_runtime::resolve(gizmo.object,gizmo.uid,key,error)||!add(next,gizmo.object,key,error))return false;}}
+    if(world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)
+        return fail(error,"Intervention current Actor native lifetime differs: native_epoch="+std::to_string(world.world_epoch)+" binding_epoch="+std::to_string(binding.native_epoch)+
+            " native_generation="+std::to_string(world.generation)+" binding_generation="+std::to_string(binding.native_generation));
+    if(include_props){
     nlohmann::json props;if(!([&]{live_host_state::apply_timing::PageReadScope original_read(live_host_state::apply_timing::PageBoundary::OriginalCall);return remove_diagnostics::identity_bindings(props,error);}()))return false;
     if(props.at("world_epoch").get<uint64_t>()!=binding.native_epoch||props.at("world_generation").get<uint64_t>()!=binding.native_generation||
        world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)
@@ -76,6 +80,7 @@ bool census(const action_session::Context& context,const action_session::Binding
             " alias_snapshot="+prop.at("snapshot_id").get<std::string>()+" unknown="+prop.at("unknown").dump()+" local_uid="+prop.at("local_uid").dump());
         uintptr_t found=0;const auto exception=lookup(image,prop.at("local_uid").get<uint64_t>(),found);if(exception||!found)return fail(error,"Intervention current external prop full UID lookup differs SEH="+std::to_string(exception));
         if(!add(next,found,prop.at("record_key").get<std::string>(),error))return false;}
+    }
     std::vector<npc_probe::action_runtime::StateOwner> npcs;if(!npc_probe::action_runtime::state_owners(context,binding,npcs,error))return false;
     std::map<uintptr_t,std::string> npc_keys;
     for(const auto& npc:npcs){if(!npc_keys.emplace(npc.npc,npc.key).second||!add(next,npc.npc,npc.key,error))return fail(error,error.empty()?"Intervention current NPC owner duplicated":error);
@@ -90,7 +95,7 @@ bool census(const action_session::Context& context,const action_session::Binding
             if(!([&]{live_host_state::apply_timing::PageReadScope original_read(live_host_state::apply_timing::PageBoundary::OriginalCall);return npc_quest_target_runtime::bind_current_destination(zone.value.pointer,key,dungeon,error);}())||!zone_pointers.insert(zone.value.pointer).second||!zone_keys.insert(key).second||!add(next,zone.value.pointer,key,error))return fail(error,error.empty()?"Intervention Monster Zone canonical current owner duplicated":error);
             if(dungeon!=(scope.scene!="world"))return fail(error,"Intervention Monster Zone canonical scene classification differs");
             local_zones.emplace(zone.value.pointer,key);next.zones.push_back({key,zone.value.pointer,zone.value.uid});}
-        const direct_monster_identity::Scope direct{world.uuid,world.world_epoch,world.generation,root,scope.region,monsters.monster_manager};
+        const direct_monster_identity::Scope direct{world.uuid,world.world_epoch,world.generation,root,scope.region,monsters.monster_manager,scope.scene};
         for(const auto& monster:monsters.monsters){std::string key;uintptr_t registered=0;const auto exception=lookup(image,monster.uid,registered);
             if(exception||registered!=monster.pointer||!monster_uids.insert(monster.uid).second)return fail(error,"Intervention Monster actual full UID lookup/unique census differs SEH="+std::to_string(exception));
             if(!monster.zone){if(!direct_monster_identity::registry.resolve(direct,monster.pointer,monster.uid,key,error))return false;}
@@ -109,8 +114,14 @@ bool census(const action_session::Context& context,const action_session::Binding
         default:return fail(error,"Intervention current Character concrete family invalid");}
         if(!valid(actor.target)||!actors.insert(user.object).second||!canonical.emplace(uint8_t(actor.target.family),actor.target.key).second)return fail(error,"Intervention complete current Actor canonical identity duplicated or invalid");next.actors.push_back(std::move(actor));}
     if(monster_keys.size()!=std::count_if(next.actors.begin(),next.actors.end(),[](const auto& value){return value.target.family==Family::Monster;})||boss_keys.size()!=std::count_if(next.actors.begin(),next.actors.end(),[](const auto& value){return value.target.family==Family::Boss;}))return fail(error,"Intervention complete Character user list omits a current physical Monster/Boss");
-    std::sort(next.actors.begin(),next.actors.end(),[](const auto& a,const auto& b){return std::pair{uint8_t(a.target.family),a.target.key}<std::pair{uint8_t(b.target.family),b.target.key};});std::sort(next.zones.begin(),next.zones.end(),[](const auto& a,const auto& b){return a.key<b.key;});
+    std::sort(next.actors.begin(),next.actors.end(),[](const auto& a,const auto& b){if(a.target.family!=b.target.family)return uint8_t(a.target.family)<uint8_t(b.target.family);return a.target.key<b.target.key;});std::sort(next.zones.begin(),next.zones.end(),[](const auto& a,const auto& b){return a.key<b.key;});
     building_mixed_identity::opened_file::CurrentWorld after;if(!native_open_runtime::read_current_world(after,error)||!same(world,after))return fail(error,error.empty()?"Intervention actual NativeOpen changed during complete canonical census":error);
     out=std::move(next);error.clear();return true;
+}
+bool census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){
+    return census_impl(context,binding,out,error,true);
+}
+bool actor_census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){
+    return census_impl(context,binding,out,error,false);
 }
 }

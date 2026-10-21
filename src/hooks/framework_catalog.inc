@@ -84,6 +84,8 @@
 
 {"mp.toon-time-normalization.3ea3a0",0x3ea3a0,false},
 
+{"mp.thought-d1-lifetime.3f0fc0",0x3f0fc0,false},
+
 {"mp.building-and-scenery-capture.40bb10",0x40bb10,false},
 
 {"mp.network-leaf-observer.42c8f0",0x42c8f0,false},
@@ -118,6 +120,10 @@
 
 {"mp.remove-ownership-observers.4d05c0",0x4d05c0,false},
 
+{"mp.tutorial-intro.4f1940",0x4f1940,false},
+
+{"mp.tutorial-intro.4f2330",0x4f2330,false},
+
 {"mp.tutorial-research-staff-starting-point-authority.4f3b00",0x4f3b00,false},
 
 {"mp.tutorial-research-staff-starting-point-authority.4f5900",0x4f5900,false},
@@ -147,6 +153,10 @@
 {"mp.remove-ownership-observers.5449a0",0x5449a0,false},
 
 {"objects.move",0x55ed80,true},
+
+{"mp.dungeon.build-cursor-selection.585270",0x585270,false},
+
+{"mp.dungeon.build-cursor-behaviour.5854e0",0x5854e0,false},
 
 {"mp.building-and-scenery-capture.593cc0",0x593cc0,false},
 
@@ -368,6 +378,10 @@
 {"mp.dungeon-tile-drag.59eb00",0x59eb00,false},
 {"mp.dungeon-tile-release.5a0db0",0x5a0db0,false},
 {"mp.dungeon-gizmo-create.153920",0x153920,false},
+{"mp.dungeon-input-purchase.147a20",0x147a20,false},
+{"mp.dungeon-input-monster-release.5a82e0",0x5a82e0,false},
+{"mp.dungeon-input-paint-stamp.5aa570",0x5aa570,false},
+{"mp.dungeon-input-paint-finish.5a9950",0x5a9950,false},
 {"mp.design-rules.8286c0",0x8286c0,false},
 {"mp.design-rules.783530",0x783530,false},
 {"mp.design-rules.6d61a0",0x6d61a0,false},
@@ -415,3 +429,26 @@
 {"mp.control.item-deactivate.2078a0",0x2078a0,false},
 {"mp.world-path-capture.5ec320",0x5ec320,false},
 {"mp.world-path-capture.5c97e0",0x5c97e0,false},
+{"mp.world.district-begin.417e20",0x417e20,false},
+{"mp.world.district-end.418a80",0x418a80,false},
+{"mp.world.district-cancel.417bf0",0x417bf0,false},
+{"mp.world.spinner-value.7c2c60",0x7c2c60,false},
+{"mp.world.color-value.839d30",0x839d30,false},
+{"mp.world.spinner-float.7c3840",0x7c3840,false},
+{"mp.world.spinner-drag-adjusted.7c3a00",0x7c3a00,false},
+{"mp.world.spinner-click-adjusted.7c3b90",0x7c3b90,false},
+{"mp.world.spinner-click.7c3d20",0x7c3d20,false},
+{"mp.world.spinner-drag.7c3eb0",0x7c3eb0,false},
+{"mp.world.district-paint.5aee80",0x5aee80,false},
+{"mp.world.district-erase.5ac460",0x5ac460,false},
+{"mp.world.district-add.5af370",0x5af370,false},
+{"mp.world.district-finish.5ae530",0x5ae530,false},
+
+{"mp.modular-b07.5bad60",0x5bad60,false},
+{"mp.modular-b07.5bc0c0",0x5bc0c0,false},
+{"mp.world.zone-command.82b740",0x82b740,false},
+{"mp.world.zone-press-right.5ef790",0x5ef790,false},
+
+{"mp.character.view-select.689100",0x689100,false},
+{"mp.character.import-image.689510",0x689510,false},
+{"mp.building-uptime-add.859e30",0x859e30,false},

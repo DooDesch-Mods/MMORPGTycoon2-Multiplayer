@@ -6,7 +6,8 @@ namespace q=npc_quest_targets;
 namespace identity=direct_monster_identity;
 using Release=void(*)(void*,void*,const float*);
 #include "monster_tool_read.inc"
-struct Pin {host::WorldState world;q::World region;host::LookupApi api;};
+struct Pin {host::WorldState world;q::World region;host::LookupApi api;a::Binding binding;std::string snapshot,scene="world";};
+bool direct_sample(Memory&,const Pin&,d::Sample&,std::string&);
 struct Pending {a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;};
 struct Operation {
     a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;
@@ -23,6 +24,7 @@ void release_entry(void*,void*,const float*);
 bool move_reset(std::string&);
 json move_status();
 bool remove_reset(std::string&);
+bool monster_history_reset(std::string&);
 json remove_status();
 json remove_quest_preflight_status();
 a::Ledger ledger(const native::SimulationState& m){return {m.cash,m.clock.flat_day,int32_t(m.record_present),
@@ -32,7 +34,7 @@ bool reject(const std::string& cause){
 }
 bool same_world(const host::WorldState& x,const host::WorldState& y){return action_runtime::same_world(x,y);}
 identity::Scope scope(const Pin& p,const d::Sample& s){return {p.world.origin.uuid,p.world.origin.world_epoch,
-    p.world.origin.generation,p.world.root,p.region.region,s.state.monster_manager};}
+    p.world.origin.generation,p.world.root,p.region.region,s.state.monster_manager,p.scene};}
 bool code(Memory& m,bool hooked,std::string& e){
     for(const auto& c:elite_probe_codes::values){
         if(c.rva==0x207820){bool owned=false;
@@ -65,6 +67,7 @@ bool pin(Memory& m,const a::Binding& binding,const std::string& snapshot,int32_t
     if(!host::resolve_lookup(m.process,state.image,exe_sha,p.api,e))return false;
     host::NativeOrigin origin;host::Reader reader(m.process,origin,state.image,state.thread,p.api);
     if(!reader.current(p.world,true,e)||!action_runtime::bound(p.world,binding,snapshot,e))return false;
+    p.binding=binding;p.snapshot=snapshot;p.scene="world";
     p.region.image=state.image;p.region.map=uintptr_t(p.world.origin.map);p.region.root=p.world.root;p.region.saved_region=region;
     const auto at=[&](uintptr_t address,size_t offset,auto& value,std::string& cause){return field(m,address,offset,value,cause);};
     uint8_t owned=0;uintptr_t dungeon=0;
@@ -82,12 +85,24 @@ bool full_uid(Memory& m,const Pin& p,const monster_zone_read::Monster& row,std::
 }
 bool effect(Memory& m,const Pin& p,d::Sample& sample,a::MonsterState& value,std::string& e,
             uint64_t actor_uid=0,const std::string& pending={}){
-    if(!d::sample(m,p.region,sample,e))return false;
-    npc_quest_target_runtime::CurrentTargets targets;
-    if(!npc_quest_target_runtime::read_current(p.region.saved_region,targets,e)||targets.monster_zone_keys.size()!=sample.state.zones.size())
-        return fail(e,e.empty()?"Monster canonical Zone pool count differs":e);
+    if(!direct_sample(m,p,sample,e))return false;
+    std::map<uint64_t,std::string> keys;
+    if(p.scene=="world"){
+        npc_quest_target_runtime::CurrentTargets targets;
+        if(!npc_quest_target_runtime::read_current(p.region.saved_region,targets,e)||targets.monster_zone_keys.size()!=sample.state.zones.size())
+            return fail(e,e.empty()?"Monster canonical Zone pool count differs":e);
+        for(size_t i=0;i<sample.state.zones.size();++i)keys.emplace(sample.state.zones[i].value.uid,targets.monster_zone_keys[i]);
+    }else{
+        std::vector<world_zone_runtime::Current> current;if(!world_zone_runtime::read_current(p.binding,p.snapshot,current,e))return false;
+        for(const auto& zone:sample.state.zones){const auto found=std::find_if(current.begin(),current.end(),[&](const auto& row){
+                return row.scene_key==p.scene&&row.object==zone.value.pointer&&row.uid==zone.value.uid&&row.type==1&&
+                    row.root==p.region.root&&row.region==p.region.region&&row.manager==sample.state.manager;});
+            if(found==current.end())return fail(e,"Monster target Dungeon Zone lacks exact canonical scene/full UID membership");
+            keys.emplace(zone.value.uid,found->key);}
+        const auto count=std::count_if(current.begin(),current.end(),[&](const auto& row){return row.scene_key==p.scene&&row.type==1;});
+        if(size_t(count)!=sample.state.zones.size())return fail(e,"Monster target Dungeon canonical Zone count differs");
+    }
     auto content=d::state_json(sample.state);for(const char* key:{"local_identity_scope","global_random","region_random","next_monster_tag","created_monsters"})content.erase(key);
-    std::map<uint64_t,std::string> keys;for(size_t i=0;i<sample.state.zones.size();++i)keys.emplace(sample.state.zones[i].value.uid,targets.monster_zone_keys[i]);
     const auto name_read=[&](uintptr_t object,std::string& name,std::string& cause){return npc_census::read_name(m,object,name,cause);};
     const auto verify=[&](const monster_zone_read::Monster& row,std::string& cause){return full_uid(m,p,row,cause);};
     if(!monster_canonical::normalize(sample.state,keys,scope(p,sample),content,name_read,verify,e,pending))return false;
@@ -96,7 +111,7 @@ bool effect(Memory& m,const Pin& p,d::Sample& sample,a::MonsterState& value,std:
     out.global_random=sample.state.global_random;out.region_random=sample.state.region_random;out.release_edits=sample.release_edits;
     if(!quest_bridge::sha256(content.dump(),out.content_sha256,e))return false;
     if(actor_uid){const auto found=std::find_if(sample.state.monsters.begin(),sample.state.monsters.end(),[&](const auto& row){return row.uid==actor_uid;});
-        if(found==sample.state.monsters.end()||found->zone)return fail(e,"Monster created full UID is absent/direct Zone differs");
+        if(found==sample.state.monsters.end())return fail(e,"Monster full UID is absent from its current reciprocal roster");
         const auto& row=*found;value.actor={row.tag,row.status,row.rank,row.slot,row.type,row.level,{},row.position,row.scale,row.rotation};
         if(!name_read(row.pointer,value.actor.name,e))return false;}
     return true;
@@ -245,7 +260,7 @@ bool enable(std::string& e){
     if(state.ready){
         if(GetCurrentThreadId()!=state.thread||state.pending||state.fault||!state.ui_token.empty())return fail(e,"Monster previous capture/Mainthread/Unknown unresolved");
         for(const auto& [id,op]:state.operations)if(!op.retired)return fail(e,"Monster previous action unretired="+id);
-        Memory m;if(!code(m,true,e)||!move_reset(e)||!remove_reset(e))return false;state.operations.clear();state.ui_jobs.clear();state.cause.clear();return true;
+        Memory m;if(!code(m,true,e)||!move_reset(e)||!remove_reset(e)||!monster_history_reset(e))return false;state.operations.clear();state.ui_jobs.clear();state.cause.clear();return true;
     }
     if(state.installed)return fail(e,"Monster capture previous installation failed: "+state.cause);
     state.installed=true;std::string sha;uint32_t thread=0;
@@ -456,6 +471,7 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
     a::Evidence actual;if(!observe(binding,request,actual,e))return false;auto& op=state.operations.at(request.action_uuid);
     if(op.retired)return fail(e,"Monster action receipt already retired");op.retired=true;return true;
 }
+#include "monster_target_runtime.inc"
 #include "monster_move_runtime.inc"
 #include "monster_info_ui.inc"
 #include "monster_move_ui.inc"
@@ -465,9 +481,11 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
 #include "npc_quest_authoring_runtime.inc"
 #include "npc_quest_list_runtime.inc"
 #include "quest_history_runtime.inc"
+#include "monster_history_runtime.inc"
 #include "character_membership_runtime.inc"
 #include "character_rename_runtime.inc"
 #include "ability_edit_runtime.inc"
+#include "character_import_runtime.inc"
 #include "ability_membership_runtime.inc"
 #include "costume_edit_runtime.inc"
 #include "dungeon_config_runtime.inc"
@@ -475,5 +493,6 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
 #include "dungeon_sound_runtime.inc"
 #include "dungeon_palette_runtime.inc"
 #include "dungeon_gizmo_runtime.inc"
+#include "dungeon_input_runtime.inc"
 #include "building_status_runtime.inc"
 }

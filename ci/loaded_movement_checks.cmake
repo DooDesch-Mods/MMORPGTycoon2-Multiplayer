@@ -4,6 +4,7 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extra
     --root "${MT2MP_SOURCE_ROOT}" --output "${_loaded_movement_generated}"
     COMMAND_ERROR_IS_FATAL ANY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/test/extract_loaded_movement.py"
     "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/construction_native.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp")
 add_executable(test_loaded_movement "${MT2MP_SOURCE_ROOT}/test/test_loaded_movement.cpp")

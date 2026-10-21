@@ -1,4 +1,6 @@
 #pragma once
+#include "monster_target_scope.h"
+#include "monster_move_key.h"
 #include "typed_action/action_session.h"
 #include "ui_remove/ui_capture.h"
 namespace mt2mp::move_kiss {struct Intent;}
@@ -20,6 +22,11 @@ bool authorize_remove_replay(const action_session::ui_capture::Replay&,std::stri
 action_session::Outcome remove_perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool remove_observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool remove_retire(const action_session::Binding&,const action_session::Request&,std::string&);
+namespace history {
+action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
+bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
+bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
+}
 live_host_state::MonsterPort& live_port();
 bool enable(std::string&);
 void tick();

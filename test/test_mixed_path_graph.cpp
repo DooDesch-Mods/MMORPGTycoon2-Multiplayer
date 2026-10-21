@@ -1,5 +1,6 @@
 #include "mixed_path_graph.h"
 #include "mixed_path_identity.h"
+#include "mixed_path_remove.h"
 #include <iostream>
 #include <stdexcept>
 using namespace mt2mp::game;
@@ -25,6 +26,43 @@ int main(){try{
     Snapshot source;need(build(census,keys,source,error),error);++cases;
     need(source.rows["paths"][1][3]==2&&source.rows["remote"].size()==1&&
          source.rows["paths"][1][4][1]=="action:p:node:0", "cross Region Pass reference lost");++cases;
+    auto remaining=census;
+    remaining.paths.erase(remaining.paths.begin()+1);remaining.nodes.erase(remaining.nodes.begin()+2);
+    remaining.nodes[1].edges.pop_back();remaining.remote.clear();
+    Snapshot removed;need(build(remaining,keys,removed,error),error);++cases;
+    std::set<std::string> retired;
+    need(mixed_path_remove::delta(source,removed,"action:p:pass:0",retired,error)&&
+         retired==std::set<std::string>{"action:p:pass:0","action:p:node:0"},error);++cases;
+    auto reject_remove=[&](Snapshot invalid_after,const char* why){
+        const auto previous=retired;
+        need(!mixed_path_remove::delta(source,invalid_after,"action:p:pass:0",retired,error)&&
+             !error.empty()&&retired==previous,why);++cases;
+    };
+    auto changed=removed;changed.paths[0].local_uid+=uint64_t(1)<<32;
+    reject_remove(changed,"partial full UID survivor accepted");
+    changed=removed;changed.rows["paths"][0][5][0][0]=std::bit_cast<uint32_t>(42.f);
+    reject_remove(changed,"unrelated Wall geometry changed");
+    changed=removed;changed.rows["nodes"][1][4].push_back("action:p:pass:0");
+    reject_remove(changed,"retired Path reciprocal edge retained");
+    changed=removed;changed.rows["remote"]=source.rows["remote"];
+    reject_remove(changed,"retired Path remote membership retained");
+    reject_remove(source,"target Path remains live");
+    auto shuffled=removed;std::swap(shuffled.nodes[0],shuffled.nodes[1]);
+    std::swap(shuffled.rows["nodes"][0],shuffled.rows["nodes"][1]);
+    need(mixed_path_remove::delta(source,shuffled,"action:p:pass:0",retired,error),error);++cases;
+    auto wall_only=remaining;wall_only.paths.clear();wall_only.nodes.clear();
+    Snapshot empty;need(build(wall_only,keys,empty,error),error);++cases;
+    need(mixed_path_remove::delta(removed,empty,"action:w:wall:0",retired,error)&&retired.size()==3,error);++cases;
+    for(int32_t type=1;type<6;++type){
+        auto typed=census;typed.nodes[2].member.ref.type=type;
+        Snapshot typed_before,typed_after;
+        need(build(typed,keys,typed_before,error),error);++cases;
+        typed.paths.pop_back();typed.remote.clear();typed.nodes[1].edges.pop_back();
+        if(type<=1)typed.nodes.pop_back();else typed.nodes[2].edges.clear();
+        need(build(typed,keys,typed_after,error),error);++cases;
+        need(mixed_path_remove::delta(typed_before,typed_after,"action:p:pass:0",retired,error)&&
+             retired.size()==size_t(type<=1?2:1),"original ShouldDestroyNow node-type rule differs: "+error);++cases;
+    }
     Json expected,actual;need(rebase(source,source,expected,error),error);++cases;
     auto reordered=source;
     std::swap(reordered.paths[0],reordered.paths[1]);
@@ -55,6 +93,18 @@ int main(){try{
          registry.keys().at(12)=="action:"+action+":path:5:0"&&
          registry.keys().at(23)=="action:"+action+":node:0:0",error);++cases;
     need(!registry.births(action,before,census,births,error),"duplicate action Birth accepted");++cases;
+    Snapshot history_source;need(build(census,registry.keys(),history_source,error),error);++cases;
+    auto restored=census;
+    std::swap(restored.nodes[0],restored.nodes[1]);
+    restored.nodes[0].member.ref.index=0;restored.nodes[1].member.ref.index=1;
+    need(registry.restore(history_source,restored,error),"original restored full UIDs rejected after bucket reorder: "+error);++cases;
+    auto changed_uid=restored;changed_uid.nodes[0].member.uid+=uint64_t(1)<<32;
+    const auto old_keys=registry.keys();
+    need(!registry.restore(history_source,changed_uid,error)&&registry.keys()==old_keys,
+         "history invented alias from same low UID or bucket slot");++cases;
+    auto wrong_owner=restored;wrong_owner.nodes[0].member.ref.region=2;
+    need(!registry.restore(history_source,wrong_owner,error)&&registry.keys()==old_keys,
+         "history retained key admitted a different Region");++cases;
     reordered.paths[0].key="foreign";actual={{"unchanged",true}};
     need(!rebase(reordered,source,actual,error)&&actual==Json({{"unchanged",true}}),"foreign history key accepted");++cases;
     std::cout<<cases<<" mixed Path/Intersection canonical topology cases passed\n";

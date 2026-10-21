@@ -12,5 +12,9 @@ bool invoke(const nlohmann::json&,nlohmann::json&,std::string&);
 bool read(const nlohmann::json&,nlohmann::json&,std::string&);
 bool prepare_buildings_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool read_buildings_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool prepare_network_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_network_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool prepare_scenery_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_scenery_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool unresolved() noexcept;
 }

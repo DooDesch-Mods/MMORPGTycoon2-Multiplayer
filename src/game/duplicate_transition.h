@@ -1,5 +1,6 @@
 #pragma once
 #include "typed_action/duplicate_action.h"
+#include "building_uptime.h"
 #include <algorithm>
 #include <bit>
 #include <cmath>
@@ -18,6 +19,7 @@ template<class Key>bool valid(const a::DuplicateIntent& v,Key&& key){
         if((!group&&!key(row.key))||(group&&(!row.key.starts_with("group:")||!key(row.key.substr(6))))||
            row.family<a::DuplicateFamily::Building||row.family>a::DuplicateFamily::Group||!sources.insert(row.key).second||
            row.region<0||row.cost<0||!sha(row.record_sha)||!pose(row.before)||!pose(row.after)||row.created_keys.empty())return false;
+        if(row.captured_uptime&&(row.family!=a::DuplicateFamily::Building||!building_uptime::valid(*row.captured_uptime)))return false;
         cost+=row.cost;if(cost>INT32_MAX)return false;
         if(group){if(row.members.empty()||row.members.size()!=row.created_keys.size())return false;
             for(const auto& m:row.members)if(!key(m)||!members.insert(m).second)return false;
@@ -53,7 +55,11 @@ inline bool effect(const a::DuplicateIntent& intent,const a::DuplicateState& bef
         return fail("Duplicate source records/order or unrelated complete census changed");
     size_t index=0;bool building=false,scenery=false;
     for(size_t i=0;i<intent.rows.size();++i){const auto& row=intent.rows[i];const auto& prior=before.sources[i];
-        if(prior.key!=row.key||prior.record_sha!=row.record_sha||prior.family!=row.family||prior.region!=row.region||prior.pose!=row.before||prior.members!=row.members)
+        // Native admission proves the full captured SHA with only its explicit
+        // uptime sequence restored. Evidence keeps the actual Host-before SHA,
+        // which must remain unchanged through Clone and match on the Client.
+        if(prior.key!=row.key||(!row.captured_uptime&&prior.record_sha!=row.record_sha)||
+           (row.captured_uptime&&(row.family!=a::DuplicateFamily::Building||!building_uptime::valid(*row.captured_uptime)))||prior.family!=row.family||prior.region!=row.region||prior.pose!=row.before||prior.members!=row.members)
             return fail("Duplicate requested original complete source differs index="+std::to_string(i));
         if(index>=after.created.size())return fail("Duplicate original result count too short");
         const auto& top=after.created[index++];const bool group=row.family==a::DuplicateFamily::Group;

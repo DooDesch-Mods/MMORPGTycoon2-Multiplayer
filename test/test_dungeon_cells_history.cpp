@@ -1,7 +1,9 @@
 #include "dungeon_cell_graph.h"
+#include "zone_edit_stored.h"
 #include "dungeon_gizmo_restore.h"
 #include "dungeon_gizmo_identity.h"
 #include "direct_monster_identity.h"
+#include "zone_quest_history.h"
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
@@ -28,22 +30,26 @@ void uid_set(Memory& memory,uintptr_t object,uintptr_t buffer,uint64_t uid){
     if(uid){const auto hash=uint32_t(uid);memory.put(values,uid);memory.put(table+size_t((hash*0x9e3779ffu)>>27)*24+0x10,node);
         memory.put(node,uid);memory.put(node+8,hash);memory.put(node+0x10,uintptr_t(0));}
 }
-Memory fixture(size_t third){Memory memory;std::vector<uintptr_t> nodes{0x10000,0x11000};if(third<cg::descriptors.size())nodes.push_back(0x12000);
+Memory fixture_kinds(const std::vector<size_t>& kinds){Memory memory;std::vector<uintptr_t> nodes;
+    for(size_t i=0;i<kinds.size();++i)nodes.push_back(0x10000+i*0x1000);
     array(memory,graph+0x18,0x16e2dc0,0x2000,nodes);auto sorted=nodes;std::reverse(sorted.begin(),sorted.end());array(memory,graph+0x30,0x1748aa0,0x3000,sorted);
-    for(size_t i=0;i<nodes.size();++i){const auto& descriptor=cg::descriptors[i<2?i:third];const auto node=nodes[i];memory.zero(node,0x200);
+    for(size_t i=0;i<nodes.size();++i){const auto& descriptor=cg::descriptors[kinds[i]];const auto node=nodes[i];memory.zero(node,0x200);
         memory.put(node,image+descriptor.ap);memory.put(image+descriptor.ap+0x10,image+descriptor.method);memory.put(node+0xb8,uint64_t(0x100000001+i));
         for(size_t set=0;set<3;++set)uid_set(memory,node+8+set*0x28,0x100000+0x5000*(i*3+set),set==0?0:uint64_t(0x200000001+set));
         array(memory,node+0xa0,0x1749040,0x7000+i*0x100,{fixture_region});
     }return memory;
 }
+Memory fixture(size_t third){std::vector<size_t> kinds{0,1};if(third<10)kinds.push_back(third);return fixture_kinds(kinds);}
+#include "zone_edit_graph_cases.inc"
+#include "zone_quest_history_cases.inc"
 int main()try{
     unsigned checks=0;const auto check=[&](bool ok,const std::string& error){++checks;if(!ok)throw std::runtime_error(error+" case="+std::to_string(checks));};std::string error;
-    const auto read=[&](Memory& memory,cg::Graph& out){auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& e){return memory.read(p+offset,&value,sizeof value,e);};
+    const auto read=[&](Memory& memory,cg::Graph& out,cg::Policy policy=cg::Policy{}){auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& e){return memory.read(p+offset,&value,sizeof value,e);};
         auto copy=[&](uintptr_t p,void* bytes,size_t count,std::string& e){return memory.read(p,bytes,count,e);};
         auto values=[](cg::Node& node,std::string&){node.values.push_back("complete-owned-value");return true;};
         auto owner=[](const cg::Node&,uintptr_t p,std::string& e){if(p!=fixture_region){e="foreign original Region";return false;}return true;};
-        return cg::read(memory,at,copy,values,owner,image,graph,out,error);};
-    for(size_t kind=2;kind<cg::descriptors.size();++kind){auto memory=fixture(kind);cg::Graph value;check(read(memory,value),error);
+        return cg::read(memory,at,copy,values,owner,image,graph,out,error,policy);};
+    for(size_t kind=2;kind<10;++kind){auto memory=fixture(kind);cg::Graph value;check(read(memory,value),error);
         check(value.nodes.size()==3&&value.nodes[2].kind==cg::descriptors[kind].kind&&value.execution==std::vector<uintptr_t>{0x12000,0x11000,0x10000},"Complete concrete original node or native sorted order lost");
         check(value.nodes[2].dependencies[1]==std::vector<uint64_t>{0x200000002}&&value.nodes[2].dependencies[2]==std::vector<uint64_t>{0x200000003}&&value.nodes[2].values.size()==1,"Full UID dependency or complete owned value omitted");}
     for(int mode=0;mode<10;++mode){auto memory=fixture(6);cg::Graph value;
@@ -58,6 +64,38 @@ int main()try{
         if(mode==8)memory.put(0x10000+8+0x28+0xc,int32_t(26));
         if(mode==9)memory.put(graph+0x18+0x10,int32_t(0));
         check(!read(memory,value)&&!error.empty(),"Invalid original complete graph accepted");}
+    const auto tool_fixture=[&](const std::vector<size_t>& kinds){auto memory=fixture_kinds(kinds);
+        for(size_t i=0;i<kinds.size();++i)if(cg::descriptors[kinds[i]].kind==cg::Kind::Cash){const auto node=uintptr_t(0x10000+i*0x1000);
+            memory.put(node+0xb8,int32_t(50));memory.put(node+0xbc,std::array<uint32_t,3>{});
+            for(size_t set=0;set<3;++set)uid_set(memory,node+8+set*0x28,0x100000+0x5000*(i*3+set),0);}
+        return memory;};
+    {auto memory=fixture_kinds({0,1,11});cg::Graph parsed;
+        check(!read(memory,parsed),"Existing Cells policy must not admit a new Gizmo Move node");}
+    for(const auto& [kinds,policy]:std::vector<std::pair<std::vector<size_t>,cg::Policy>>{
+        {{11,11},{cg::Shape::SceneMove,0,2}},{{2,6,10,10},{cg::Shape::SceneControls,2,2}},{{2,10},{cg::Shape::SceneControls,1,1}},{{8,8,10,10},{cg::Shape::SceneControls,2,2}},
+        {{11,11},{cg::Shape::GizmoMove,0,2}},{{10,10,8,8},{cg::Shape::Gizmos,2,2}},{{6,6,10,10},{cg::Shape::Gizmos,2,2}}}){
+        auto memory=tool_fixture(kinds);cg::Graph parsed;check(read(memory,parsed,policy),error);
+        auto wrong=policy;++wrong.targets;check(!read(memory,parsed,wrong),"Gizmo graph omitted a complete target");
+        wrong=policy;++wrong.cash;check(!read(memory,parsed,wrong),"Gizmo graph accepted a changed Cash count");
+        if(policy.shape==cg::Shape::GizmoMove){memory.put(0x10000,image+cg::descriptors[8].ap);check(!read(memory,parsed,policy),"Move admitted a Destroy instead of original Move node");}
+    }
+    for(const auto& [kinds,policy]:std::vector<std::pair<std::vector<size_t>,cg::Policy>>{
+        {{10,8},{cg::Shape::Door,1}},{{8},{cg::Shape::Key,0}},{{8,10},{cg::Shape::Key,1}},
+        {{8},{cg::Shape::Monster,0}},{{0},{cg::Shape::Paint,0}},{{10,7},{cg::Shape::Door,1}},{{10,6},{cg::Shape::Key,1}},{{3},{cg::Shape::Monster,0}}}){
+        auto memory=tool_fixture(kinds);cg::Graph value;check(read(memory,value,policy),error);
+        check(value.nodes.size()==kinds.size(),"Tool graph omitted an original operation");
+        for(const auto& node:value.nodes)if(node.kind==cg::Kind::Cash)check(!node.uid&&node.values==std::vector<std::string>{"50","0","0","0"},"Cash amount/position misread as a target UID");
+    }
+    for(const auto& [kinds,policy]:std::vector<std::pair<std::vector<size_t>,cg::Policy>>{
+        {{2,10},{cg::Shape::Gizmos,1,1}},{{0,6,10},{cg::Shape::SceneControls,1,2}},{{2},{cg::Shape::SceneMove,0,1}},
+        {{8},{cg::Shape::Door,1}},{{8,10},{cg::Shape::Monster,0}},{{8,10,10},{cg::Shape::Key,1}},
+        {{0,1},{cg::Shape::Paint,0}},{{0,1,10},{cg::Shape::Cells,0}},{{3},{cg::Shape::Key,0}},{{6},{cg::Shape::Monster,0}}}){
+        auto memory=tool_fixture(kinds);cg::Graph value;check(!read(memory,value,policy)&&!error.empty(),"Wrong original tool graph shape accepted");
+    }
+    {auto memory=tool_fixture({10,8});cg::Graph value;memory.put(0x10000+0xbc,uint32_t(0x7fc00000));
+        check(!read(memory,value,{cg::Shape::Door,1})&&error.find("Cash position")!=std::string::npos,"Nonfinite Cash position accepted");}
+    {auto memory=tool_fixture({10,8});cg::Graph value;memory.bytes.erase(0x10000+0xbc);
+        check(!read(memory,value,{cg::Shape::Door,1})&&error.find("fixture unmapped")!=std::string::npos,"Original Cash read cause lost");}
     restore::Receipts receipts;std::vector<restore::Created> made;uintptr_t node=0;
     check(receipts.prepare({{0x10000,0x70000},{0x11000,0x71000}},error),error);
     check(!receipts.complete(made,error),"Missing original return receipts accepted");
@@ -80,5 +118,7 @@ int main()try{
     check(!monsters.restore_retired(monster_id,original,wrong,error),"Monster restoration accepted only matching low32 UID");
     check(monsters.restore_retired(monster_id,original,returned,error),error);
     check(!monsters.restore_retired(monster_id,original,returned,error),"Monster original restoration replay accepted");
+    checks+=zone_edit_graph_cases();
+    checks+=zone_quest_history_cases();
     std::cout<<checks<<" complete Dungeon original graph, exact Make return and canonical actor restoration comparisons passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

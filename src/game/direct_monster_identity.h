@@ -6,13 +6,17 @@
 #include <utility>
 #include <set>
 #include "monster_target_key.h"
+#include "dungeon_gizmo_identity.h"
 namespace mt2mp::game::direct_monster_identity {
 struct Scope {
     std::string snapshot;
     uint64_t epoch=0,generation=0;
     uintptr_t root=0,region=0,manager=0;
+    std::string scene="world";
     bool operator==(const Scope&)const=default;
 };
+inline bool valid_scene(const Scope& scope){return scope.scene=="world"||dungeon_gizmo_identity::scene(scope.scene);}
+inline bool root_owned(const Scope& scope){return scope.scene=="world";}
 struct Entry {Scope scope;uintptr_t pointer=0;uint64_t uid=0;bool confirmed=false,retired=false;bool operator==(const Entry&)const=default;};
 class Registry {
     std::map<std::string,Entry> entries_;
@@ -35,7 +39,7 @@ public:
         const auto current=[&](const Scope& s){return s.snapshot==world.snapshot&&s.epoch==world.epoch&&s.generation==world.generation&&s.root==world.root;};
         for(const auto& [key,value]:rows){
             const auto id=monster_target_key::argument(key);
-            if(!monster_target_key::valid(key)||!current(value.scope)||!value.scope.region||!value.scope.manager||
+            if(!monster_target_key::valid(key)||!current(value.scope)||!valid_scene(value.scope)||!value.scope.region||!value.scope.manager||
                !value.pointer||!value.uid||!value.confirmed||value.retired||!pointers.insert(value.pointer).second||
                !uids.insert(value.uid).second||!ready.emplace(id,value).second){
                 error="Monster restored key/full UID/local owner duplicate or invalid";return false;}
@@ -55,7 +59,7 @@ public:
         bool uuid=action.size()==36;
         for(size_t i=0;uuid&&i<action.size();++i){const auto c=action[i];
             uuid=(i==8||i==13||i==18||i==23)?c=='-':((c>='0'&&c<='9')||(c>='a'&&c<='f'));}
-        if(!uuid||scope.snapshot.empty()||!scope.epoch||!scope.generation||!scope.root||!scope.region||!scope.manager||!pointer||!uid||
+        if(!uuid||!valid_scene(scope)||scope.snapshot.empty()||!scope.epoch||!scope.generation||!scope.root||!scope.region||!scope.manager||!pointer||!uid||
            entries_.size()>=4096||entries_.contains(action)){error="Monster action identity invalid, reused or exhausted";return false;}
         for(const auto& [id,v]:entries_)if(v.scope==scope&&((!v.retired&&v.pointer==pointer)||v.uid==uid)){
             error="Monster action identity reuses a current pointer/full UID";return false;}
@@ -86,6 +90,20 @@ public:
             error="Monster original restoration requires its exact retired full UID and scene owner";return false;}
         for(const auto& [key,row]:entries_)if(key!=action&&!row.retired&&(row.uid==actual.uid||row.pointer==actual.pointer)){
             error="Monster original restored full UID or pointer aliases another current binding";return false;}
+        found->second=actual;error.clear();return true;
+    }
+    bool restore_scene(const std::string& action,const Entry& expected,const Entry& actual,
+                       const std::string& exterior,std::string& error){
+        const auto found=entries_.find(action);const auto& old=expected.scope;const auto& fresh=actual.scope;
+        const bool belongs=old.scene==exterior+"/template"||old.scene.starts_with(exterior+"/instance/");
+        if(!dungeon_scene_key::building_key(exterior)||!belongs||found==entries_.end()||!found->second.retired||
+           !found->second.confirmed||found->second.scope!=old||found->second.pointer!=expected.pointer||found->second.uid!=expected.uid||
+           !valid_scene(fresh)||fresh.scene!=old.scene||fresh.snapshot!=old.snapshot||fresh.epoch!=old.epoch||
+           fresh.generation!=old.generation||fresh.root!=old.root||!fresh.region||!fresh.manager||!actual.pointer||
+           !actual.uid||!actual.confirmed||actual.retired){
+            error="Monster scene restoration requires exact retired identity and original exterior";return false;}
+        for(const auto& [key,row]:entries_)if(key!=action&&(row.uid==actual.uid||(!row.retired&&row.pointer==actual.pointer))){
+            error="Monster restored scene member aliases another native identity";return false;}
         found->second=actual;error.clear();return true;
     }
     bool tombstone(const std::string& action,const Entry& expected)const{

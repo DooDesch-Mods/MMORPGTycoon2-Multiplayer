@@ -1,4 +1,8 @@
 #include "npc_quest_target_runtime.h"
+#include "world_zone_runtime.h"
+#include "world_zone_edit.h"
+#include "zone_edit_identity.h"
+#include "world_zone_serialization.h"
 #include "scene_clone/quest_preview.h"
 #include "npc_zone_append.h"
 #include "npc_quest_building_key.h"
@@ -35,8 +39,8 @@ std::string uuid, sha, failure;
 uint64_t generation = 0, next_ticket = 0;
 uintptr_t bound_context = 0;
 opened::CurrentWorld origin;
-struct Save { q::SaveFrame frame; Owner owner; uint32_t thread = 0; };
-struct Load { q::LoadFrame frame; uintptr_t property = 0, manager = 0; uint32_t thread = 0; q::ChildHeader child; bool child_pending = false; };
+struct Save { world_zone_serialization::Pool all; q::SaveFrame frame; Owner owner; uint32_t thread = 0; };
+struct Load { world_zone_serialization::Load all; q::LoadFrame frame; uintptr_t property = 0, manager = 0; uint32_t thread = 0; q::ChildHeader child; bool child_pending = false; };
 std::map<Ticket, Save> saves;
 std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
@@ -46,6 +50,14 @@ struct ScenePool {dungeon_scene_roster::Scene scene;uintptr_t manager=0;q::Saved
 std::optional<std::vector<ScenePool>> staged_scenes;
 dungeon_scene_identity_runtime::World staged_scene_world;
 std::map<uintptr_t,ScenePool> scene_pools;
+struct WorldZonePool {
+    std::string scene;
+    uintptr_t root=0,region=0,manager=0;
+    std::map<uint64_t,world_zone_runtime::Current> rows;
+};
+std::map<uintptr_t,world_zone_serialization::Pool> world_zone_observed;
+std::map<uintptr_t,WorldZonePool> world_zone_pools;
+
 std::map<std::string, npc_zone_append::Receipt> zone_appends;
 #ifdef MT2MP_QUEST_TARGET_RUNTIME_TEST
 using TestRead = bool(*)(uintptr_t, void*, size_t, std::string&);
@@ -65,7 +77,7 @@ struct Memory {
 } memory;
 bool reject(std::string& error, const std::string& cause) {
     if (failure.empty()) { failure = cause; LOG_ERROR("[QuestTargets] snapshot={} cause={}; original serialization unchanged", uuid, cause); }
-    error = failure; pools.clear();scene_pools.clear(); return false;
+    error = failure; pools.clear();scene_pools.clear();world_zone_pools.clear(); return false;
 }
 void caught(const char* cause) noexcept {
     emergency = true; OutputDebugStringA("ERROR QuestTargets observer exception: ");
@@ -82,7 +94,7 @@ template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
 }
 void reset(const std::string& id, const std::string& digest) {
     uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
+    load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();world_zone_observed.clear();world_zone_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
     if (!actual || (bound_context && bound_context != actual)) return reject(error, "Zone property save/load context differs");
@@ -148,6 +160,7 @@ bool validate_scene(ScenePool& scene,std::string& error){
         if(exception||found!=row.pointer||actor_region!=owner||actor_shard!=shard)return q::fail(error,"Dungeon Quest Zone original full UID/scene owner differs exception="+std::to_string(exception));
     }return true;
 }
+#include "world_zone_snapshot.inc"
 bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& error) {
     if (!healthy(error) || !saves.empty() || !loads.empty() || !load_stack.empty() || !bound_context || observed.empty())
         return reject(error, failure.empty() ? "Zone snapshot lacks complete property returns/context" : failure);
@@ -188,6 +201,7 @@ bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& e
         }
     }
     if(ready.size()+ready_scenes.size()!=observed.size())return reject(error,"Quest Zone serialization contains an unclassified native scene array");
+    if(!world_zone_seal(world,ready,ready_scenes,error))return reject(error,error);
     origin = world; pools = std::move(ready);scene_pools=std::move(ready_scenes); observed.clear();staged_scenes.reset();staged_scene_world={};
     LOG_INFO("[QuestTargets] Native snapshot Monster pools bound uuid={} sha={} regions={}", uuid, sha, pools.size());
     error.clear(); return true;
@@ -238,10 +252,11 @@ bool bind_scene_destination(uintptr_t destination,std::string& key,std::string& 
     return q::fail(error,"Dungeon Quest Zone destination lacks a confirmed saved scene record");
 }
 namespace {
+#include "world_zone_cells.inc"
 bool cell_lease(const action_session::Binding& binding,const action_session::Request& request,std::string& error){
     const auto controller=typed_action_runtime::controller_status();opened::CurrentWorld actual;
-    const bool stroke=request.action==action_session::Action::SetDungeonPalette&&request.dungeon_palette.edit==action_session::DungeonPaletteEdit::Cells;
-    const bool history=(request.action==action_session::Action::UndoBuilding||request.action==action_session::Action::RedoBuilding)&&request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid;
+    const bool stroke=(request.action==action_session::Action::SetDungeonPalette&&request.dungeon_palette.edit==action_session::DungeonPaletteEdit::Cells)||request.action==action_session::Action::DungeonInput;
+    const bool history=(request.action==action_session::Action::UndoBuilding||request.action==action_session::Action::RedoBuilding)&&(request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid||request.canonical_record_key=="dungeon-input:"+request.target_action_uuid);
     if(!healthy(error)||GetCurrentThreadId()!=main_thread||host_active||client_active||request.snapshot_uuid!=uuid||
        (!stroke&&!history)||binding.native_epoch!=origin.world_epoch||binding.native_generation!=origin.generation||
        !controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid||
@@ -254,10 +269,11 @@ bool prepare_dungeon_cells(const action_session::Binding& binding,const action_s
     out={};std::lock_guard lock(gate);if(!cell_lease(binding,request,error))return false;
     DungeonCellCascade next;next.snapshot=request.snapshot_uuid;next.request=request.action_uuid;next.epoch=binding.native_epoch;next.generation=binding.native_generation;
     for(auto& [manager,scene]:scene_pools){if(!validate_scene(scene,error))return false;next.before.emplace(manager,scene.saved);}
+    if(!prepare_world_zone_cells(next,error))return false;
     out=std::move(next);error.clear();return true;
 }
 bool confirm_dungeon_cells(const action_session::Binding& binding,const action_session::Request& request,DungeonCellCascade& receipt,std::string& error){
-    if(request.action!=action_session::Action::SetDungeonPalette)return q::fail(error,"Dungeon cell forward Zone confirmation requires original stroke");
+    if(request.action!=action_session::Action::SetDungeonPalette&&request.action!=action_session::Action::DungeonInput)return q::fail(error,"Dungeon cell forward Zone confirmation requires original stroke/input");
     dungeon_scene_identity_runtime::Census current_scenes;if(!dungeon_scene_identity_runtime::read_current(current_scenes,error))return false;
     std::lock_guard lock(gate);if(!cell_lease(binding,request,error))return false;
     if(receipt.confirmed||receipt.snapshot!=request.snapshot_uuid||receipt.request!=request.action_uuid||receipt.epoch!=binding.native_epoch||
@@ -278,7 +294,9 @@ bool confirm_dungeon_cells(const action_session::Binding& binding,const action_s
         q::SavedPool changed;if(!dungeon_zone_cascade::reconcile(old,actual,find,changed,error))return false;scene.saved=std::move(changed);
         if(!validate_scene(scene,error))return false;
     }
-    scene_pools=std::move(next);receipt.confirmed=true;error.clear();return true;
+    std::map<uintptr_t,WorldZonePool> other;
+    if(!confirm_world_zone_cells(receipt,current_scenes,nullptr,nullptr,other,error))return false;
+    scene_pools=std::move(next);world_zone_pools=std::move(other);receipt.confirmed=true;error.clear();return true;
 }
 bool confirm_dungeon_cell_history(const action_session::Binding& binding,const action_session::Request& request,DungeonCellCascade& receipt,
                                  const DungeonCellCascade& original,const std::set<uint64_t>& restored_zones,std::string& error){
@@ -307,9 +325,9 @@ bool confirm_dungeon_cell_history(const action_session::Binding& binding,const a
         q::SavedPool changed;if(!dungeon_zone_cascade::reconcile_restored(scene.saved,source->second,actual,restored,find,changed,error))return false;
         scene.saved=std::move(changed);if(!validate_scene(scene,error))return false;
     }
-    // Other Zone types have no Quest identity pool. Their complete native
-    // census and graph target checks remain with the Dungeon history owner.
-    scene_pools=std::move(next);receipt.confirmed=true;error.clear();return true;
+    std::map<uintptr_t,WorldZonePool> other;
+    if(!confirm_world_zone_cells(receipt,scenes,&original,&restored_zones,other,error))return false;
+    scene_pools=std::move(next);world_zone_pools=std::move(other);receipt.confirmed=true;error.clear();return true;
 }
 bool bind_current_destination(uintptr_t destination,std::string& key,bool& in_dungeon,std::string& error){
     key.clear();in_dungeon=false;int32_t id=-1;
@@ -324,6 +342,11 @@ bool bind_current_destination(uintptr_t destination,std::string& key,bool& in_du
         if(!shard||!region||reverse!=shard)return q::fail(error,"Quest reference actual reciprocal Shard/Region differs");
         in_dungeon=shard!=uintptr_t(actual.map)+0x1c0;
         if(!in_dungeon&&!q::at(memory,region,0x834,id,error))return false;
+    }
+    if(in_dungeon){
+        bool held=false;
+        if(!typed_action_runtime::resolve_held_dungeon_destination(destination,key,held,error))return false;
+        if(held)return true;
     }
     return in_dungeon?bind_scene_destination(destination,key,error):bind_destination(id,destination,key,error);
 }
@@ -395,7 +418,7 @@ bool seal_client(std::string& error) {
         return reject(error, "Quest Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false; return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); }
+void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear();scene_pools.clear();world_zone_observed.clear();world_zone_pools.clear();staged_scenes.reset();staged_scene_world={}; zone_appends.clear(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
@@ -409,6 +432,7 @@ Ticket save_before(const void* property, void* manager, void* writer, void* ctx)
     Save value; value.owner = owner; value.thread = GetCurrentThreadId();
     if (!q::begin_save(memory, image, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), budget, links, value.frame, error)) { reject(error, error); return 0; }
+    if(!world_zone_serialization::read(memory,image,reinterpret_cast<uintptr_t>(manager),links,value.all,error)){reject(error,error);return 0;}
     if (saves.size() >= 256 || next_ticket == UINT64_MAX) { reject(error, "Quest save frame budget/sequence exceeded"); return 0; }
     const auto ticket = ++next_ticket; saves.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard save before exception"); return 0; }
@@ -427,6 +451,8 @@ void save_after(Ticket ticket, const void* property, void* manager, void* writer
     q::Array value;
     if (!q::finish_save(memory, image, saved.frame, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), result, budget, links, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
+    world_zone_serialization::Pool all;
+    if(!world_zone_serialization::read(memory,image,reinterpret_cast<uintptr_t>(manager),links,all,error)||all!=saved.all||!world_zone_retain(std::move(all),error)){reject(error,error.empty()?"World Zone identity/order/link changed during original save":error);return;}
     saves.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard save after exception"); }
 Ticket load_before(const void* property, void* manager, void* reader, void* ctx) noexcept try {
@@ -438,6 +464,7 @@ Ticket load_before(const void* property, void* manager, void* reader, void* ctx)
     Load value; value.property = reinterpret_cast<uintptr_t>(property); value.manager = reinterpret_cast<uintptr_t>(manager); value.thread = GetCurrentThreadId();
     if (load_stack.contains(value.thread) || loads.size() >= 256 || next_ticket == UINT64_MAX ||
         !q::begin_load(memory, image, value.property, value.manager, r, c, budget, value.frame, error)) { reject(error, "Quest load frame rejected: " + error); return 0; }
+    for(size_t type=0;type<4;++type){q::Bounds bounds;if(!q::typed(memory,image,value.manager+0x18+type*0x30,0x172e1e0,error)||!q::bounds(memory,value.manager+0x18+type*0x30,4096,bounds,error)||bounds.count){reject(error,error.empty()?"World Zone native load requires four initially empty arrays":error);return 0;}}
     const auto ticket = ++next_ticket; load_stack.emplace(value.thread, ticket); loads.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard load before exception"); return 0; }
 void children_before(uintptr_t caller, void* reader) noexcept try {
@@ -454,6 +481,7 @@ void children_after(uintptr_t caller, void* reader, int32_t count) noexcept try 
     auto* frame = top(error); if (!frame) return;
     if (!frame->child_pending || !live_reader(frame->frame.reader, frame->frame.context, error) ||
         !frame->frame.children(caller, reinterpret_cast<uintptr_t>(reader), frame->child.label, frame->child.count, count, error)) { reject(error, "Quest BeginChildren return rejected: " + error); return; }
+    if(!frame->all.children(frame->child.label,frame->child.count,count,error)){reject(error,error);return;}
     frame->child_pending = false;
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard children after exception"); }
 void registered(uintptr_t caller, void* ctx, int32_t id, void* object) noexcept try {
@@ -467,7 +495,9 @@ void registered(uintptr_t caller, void* ctx, int32_t id, void* object) noexcept 
         if (code || actual != reinterpret_cast<uintptr_t>(object)) { reject(error, "Quest registered ID lookup differs exception=" + std::to_string(code)); return; }
 #endif
     }
-    if (!q::registered(memory, image, frame->frame, caller, reinterpret_cast<uintptr_t>(ctx), id, reinterpret_cast<uintptr_t>(object), error)) reject(error, error);
+    if (!q::registered(memory, image, frame->frame, caller, reinterpret_cast<uintptr_t>(ctx), id, reinterpret_cast<uintptr_t>(object), error)){reject(error,error);return;}
+    int32_t type=-1;const bool linked=caller==q::load_link_return_rva;
+    if((linked?id<=0:id!=0)||!q::at(memory,reinterpret_cast<uintptr_t>(object),0x24c,type,error)||!frame->all.registered(type,reinterpret_cast<uintptr_t>(object),id,error))reject(error,error.empty()?"World Zone original registration caller/link differs":error);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard registered exception"); }
 void load_after(Ticket ticket, const void* property, void* manager, void* reader, void* ctx, bool result) noexcept try {
     if (!ticket) return;
@@ -480,6 +510,7 @@ void load_after(Ticket ticket, const void* property, void* manager, void* reader
         !live_reader(frame->frame.reader, frame->frame.context, error)) { reject(error, "Quest original LoadStream result/lifetime differs: " + error); return; }
     q::Array value;
     if (!frame->frame.finish(memory, image, budget, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
+    world_zone_serialization::Pool all;if(!frame->all.finish(memory,image,frame->manager,all,error)||!world_zone_retain(std::move(all),error)){reject(error,error);return;}
     load_stack.erase(frame->thread); loads.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard load after exception"); }
 void original_failed(Ticket ticket, const std::string& cause) noexcept try {
@@ -521,5 +552,24 @@ bool bind_destination(int32_t id, uintptr_t destination, std::string& key, std::
     if (!current(id, world, saved, error)) return false;
     auto binding = [&](uintptr_t pointer, std::string& result, std::string& cause) { return q::building_key(world, pointer, result, cause); };
     return q::destination(memory, world, *saved, budget, binding, destination, key, error);
+}
+#include "world_zone_current.inc"
+#include "world_zone_edit.inc"
+}
+namespace mt2mp::game::world_zone_runtime {
+bool prepare_edit(const action_session::Binding& binding,const std::string& snapshot,int32_t region,const std::string& operation,Edit& out,std::string& error){
+    return npc_quest_target_runtime::prepare_world_zone_edit(binding,snapshot,region,operation,out,error);
+}
+bool preview_edit(const Edit& edit,uintptr_t born,uint64_t born_uid,const std::map<uint64_t,Current>& restored,Preview& out,std::string& error){
+    return npc_quest_target_runtime::preview_world_zone_edit(edit,born,born_uid,restored,out,error);
+}
+bool publish_edit(Edit& edit,const Preview& preview,std::string& error){
+    return npc_quest_target_runtime::publish_world_zone_edit(edit,preview,error);
+}
+bool resolve_current(const action_session::Binding& binding,const std::string& snapshot,uintptr_t object,uint64_t full_uid,Current& out,std::string& error){
+    return npc_quest_target_runtime::resolve_world_zone(binding,snapshot,object,full_uid,out,error);
+}
+bool read_current(const action_session::Binding& binding,const std::string& snapshot,std::vector<Current>& out,std::string& error){
+    return npc_quest_target_runtime::read_world_zones(binding,snapshot,out,error);
 }
 }

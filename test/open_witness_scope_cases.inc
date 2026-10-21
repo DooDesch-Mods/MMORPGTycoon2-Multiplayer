@@ -34,6 +34,7 @@ DWORD copy(const void* from,void* to,size_t bytes){
     need((t::page_read_scope!=nullptr)==expect_scoped,"witness copy scope lifetime differs");
     if(expected_parent)need(t::page_read_scope==expected_parent,"existing parent scope was replaced");
     reads.push_back({from,bytes,{}});
+    if(reads.size()==15&&scenario==23)throw std::runtime_error("witness copy exception");
     if(reads.size()==15&&scenario==19){
         put(reinterpret_cast<void*>(image),0x13df8c0,static_cast<void*>(objects+0xe00));
         put(objects+0x900,0x158,static_cast<void*>(objects+0xe00));
@@ -128,7 +129,7 @@ Outcome run(bool candidate,int kind,size_t failure=0,bool parent=false){
     need(t::page_read_scope==nullptr,"witness fixture leaves scope active");
     return out;
 }
-void same(const Outcome& old,const Outcome& now){
+void same(const Outcome& old,const Outcome& now,uint64_t expected_resets=0){
     need(old.ok==now.ok&&old.error==now.error&&fields(old.result)==fields(now.result),
          "actual completed-world result or failure cause changed");
     need(old.sequence==now.sequence,"actual completed-world copy sequence or bytes changed");
@@ -137,7 +138,7 @@ void same(const Outcome& old,const Outcome& now){
          old.status.reader_confirmed==now.status.reader_confirmed&&
          old.status.current_origin_available==now.status.current_origin_available,
          "actual completed-world failure state or attempted-pass count changed");
-    need(now.resets==0,"conditional witness scope reset an existing reader");
+    need(now.resets==expected_resets,"conditional witness scope reset count differs");
 }
 }
 void open_witness_scope_cases(){
@@ -182,5 +183,70 @@ void open_witness_scope_cases(){
     t::totals={};CurrentWorld result;std::string error;
     need(open_witness_fixture::read_completed_world(37,result,error)&&reads.size()==28&&count(t::Part::MemoryVirtualQuery)==0&&
          t::page_read_scope==nullptr,"outside Take keeps full reader and no diagnostic events");
+
+    // A native callback boundary is not a reader whose metadata can be borrowed.
+    const auto callback_read=[&](bool candidate,int kind,size_t failure=0){
+        reset();scenario=kind;fail_copy=failure;expect_scoped=true;expected_parent=nullptr;
+        Outcome out;
+        if(kind==21){DWORD previous=0;need(VirtualProtect(objects,4096,PAGE_NOACCESS,&previous)!=0,
+            "callback fixture denies object page");}
+        {
+            t::Scope take(t::Part::Take);
+            t::PageReadScope parent;
+            MEMORY_BASIC_INFORMATION info{};int sentinel=7;
+            need(t::virtual_query(&sentinel,&info,sizeof info)==sizeof info,"prime outer callback metadata");
+            {
+                t::PageReadScope original(t::PageBoundary::OriginalCall);
+                auto* boundary=t::page_read_scope;
+                const auto queries=count(t::Part::MemoryVirtualQuery),resets=count(t::Part::ReaderNestedReset);
+                out.ok=candidate?open_witness_fixture::read_completed_world(37,out.result,out.error):
+                    historical_read_completed_world(37,out.result,out.error);
+                out.queries=count(t::Part::MemoryVirtualQuery)-queries;
+                out.resets=count(t::Part::ReaderNestedReset)-resets;
+                need(t::page_read_scope==boundary&&!t::PageReadScope::reader_active(),
+                     "witness restores the enclosing original boundary");
+            }
+            const auto queries=count(t::Part::MemoryVirtualQuery);
+            need(t::virtual_query(&sentinel,&info,sizeof info)==sizeof info&&
+                 count(t::Part::MemoryVirtualQuery)==queries+1,"callback return invalidates outer metadata");
+        }
+        out.status=current;out.sequence=reads;
+        need(t::page_read_scope==nullptr,"callback reader leaves no cached metadata");
+        return out;
+    };
+    for(int kind:{0,19,20,21,22}){
+        const auto old_callback=callback_read(false,kind),new_callback=callback_read(true,kind);
+        same(old_callback,new_callback,2);
+        if(kind==0)need(old_callback.queries==28&&new_callback.queries==2,
+            "actual callback witness keeps 28 copies and reduces metadata queries from 28 to 2");
+        else need(!new_callback.ok,"callback reader preserves witness/callback/protection failures");
+    }
+    for(size_t failure=1;failure<=28;++failure)
+        same(callback_read(false,0,failure),callback_read(true,0,failure),2);
+    reset();scenario=0;fail_copy=0;expect_scoped=true;expected_parent=nullptr;
+    {
+        t::Scope host(t::Part::HostCapture);
+        t::PageReadScope original(t::PageBoundary::OriginalCall);
+        auto* boundary=t::page_read_scope;
+        const auto before=count(t::Part::HostMemoryVirtualQuery);
+        SetLastError(123);
+        need(open_witness_fixture::read_completed_world(37,result,error)&&GetLastError()==123,
+             "Host callback reader preserves successful LastError");
+        const auto first=count(t::Part::HostMemoryVirtualQuery);
+        need(first==before+2&&reads.size()==28,"Host callback query count uses actual Host timing");
+        need(open_witness_fixture::read_completed_world(37,result,error)&&
+             count(t::Part::HostMemoryVirtualQuery)==first+2&&reads.size()==56,
+             "successive callback readers query afresh and repeat every live field");
+        put(objects+0x900,0x158,static_cast<void*>(objects+0xe00));
+        need(!open_witness_fixture::read_completed_world(37,result,error)&&
+             error=="completed_origin_GameState_World_Map_reciprocity_mismatch"&&
+             fields(result)==fields(CurrentWorld{}),"next callback reader observes changed world owner");
+        reset();scenario=23;bool caught=false;
+        try{open_witness_fixture::read_completed_world(37,result,error);}
+        catch(const std::runtime_error& problem){caught=std::string(problem.what())=="witness copy exception";}
+        need(caught&&t::page_read_scope==boundary&&!t::PageReadScope::reader_active(),
+             "reader exception propagates and restores the original callback boundary");
+    }
+    need(t::page_read_scope==nullptr,"Host callback scope cannot leak to the next capture");
     t::totals={};
 }

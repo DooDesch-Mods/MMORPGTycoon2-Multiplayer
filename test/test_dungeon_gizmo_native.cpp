@@ -40,6 +40,14 @@ int main()try{size_t comparisons=0;const auto check=[&](bool value,const std::st
         calls=0;check(!records::replay(fixture_window+8,kind,5,fixture_window,kind,5,nullptr,calls,execute,error)&&calls==0,"Foreign original Window accepted");
         check(!records::replay(fixture_window,kind,4,fixture_window,kind,5,nullptr,calls,execute,error)&&calls==0,"Foreign original argument accepted");
     }
+    for(bool door:{false,true})for(int32_t status_value:{0,1,2})for(bool triggered:{false,true}){
+        action::DungeonGizmoRecord observed;observed.state=status_value;observed.triggered=triggered;
+        const auto value=door?status_value+1:triggered?1:3;uint32_t calls=0;bool execute=true;
+        check(records::replay(fixture_window,action::DungeonGizmoEdit::State,value,fixture_window,action::DungeonGizmoEdit::State,1,&observed,calls,execute,error,door)&&!execute,
+            "Fresh equal original Door/trigger UI preparation must not replay gameplay");
+        check(!records::replay(fixture_window,action::DungeonGizmoEdit::State,value==1?3:1,fixture_window,action::DungeonGizmoEdit::State,1,&observed,calls,execute,error,door),
+            "Changed State UI preparation accepted");
+    }
     for(bool returned:{false,true}){bool attempted=false;unsigned calls=0;auto restore=[&](std::string& cause){++calls;if(!returned){cause="original native Window restore failure";return false;}return true;};
         check(records::restore_once(attempted,restore,error)==returned&&attempted&&calls==1,"Original local Window restore not attempted once");
         if(!returned)check(error=="original native Window restore failure","Original restoration failure lost");

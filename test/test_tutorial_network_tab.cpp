@@ -1,4 +1,5 @@
 #include "tutorial_network_tab_reader.h"
+#include "native_tool_prepare/network_tab.h"
 #include <map>
 #include <iostream>
 #include <stdexcept>
@@ -24,7 +25,38 @@ struct Calls {Memory m=baseline();bool reserved=false,press_ok=true,ledger_ok=tr
  bool selected(const t::Pin& p,std::string& e){return t::selected(m,p,e);}
  bool unchanged(std::string& e){if(!ledger_ok)e="ledger cause";return ledger_ok;}
 };
-int main(){try{std::string e;t::Pin p;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.network==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::selected(m,p,e),"owned selected request");
+
+namespace network_adapter_fixture {
+namespace n=mt2mp::game::network_tab;
+struct Calls {
+    Memory m=baseline();int presses=0,pins=0;bool reserved=false,pending=false,press_ok=true,ledger_ok=true;
+    bool mutate_owner=false,mutate_final=false,throw_press=false;
+    bool pin(n::Pin& p,std::string& e){++pins;if(mutate_owner&&pins==3)m.put(tab_address+0x280,bar+8);return n::inspect(m,image,world,p,e);}
+    bool reserve(const n::Pin&,std::string& e){if(reserved){e="consumed token";return false;}reserved=true;return true;}
+    bool press(const n::Pin&,std::string& e){++presses;if(throw_press)throw std::runtime_error("native boundary");if(!press_ok){e="original SEH";return false;}choose(m);if(pending)m.put(world+0x1f8,int32_t(0));return true;}
+    bool status(const n::Pin& p,n::Status& out,std::string& e){return n::status(m,p,out,e);}
+    bool unchanged(std::string& e){if(mutate_final)m.put(image+0x13df650,world+0x188);if(!ledger_ok)e="full20 ledger changed";return ledger_ok;}
+};
+void run(){
+    std::string e;n::Pin p;n::Status s;
+    {Calls c;n::Receipt r;check(n::prepare(c,r,e)&&r.attempted&&r.returned&&r.confirmed&&!r.unknown&&r.state.ready&&c.presses==1,"Network sibling original once");check(!n::prepare(c,r,e)&&!r.attempted&&c.presses==1,"Network selected no replay");}
+    {Calls c;c.pending=true;n::Receipt r;e.clear();check(n::prepare(c,r,e)&&r.confirmed&&r.returned&&!r.unknown&&!r.state.ready&&r.state.cause.find("view pending")!=std::string::npos&&c.presses==1,"Network asynchronous layout is pending");choose(c.m);check(n::inspect(c.m,image,world,p,e)&&n::status(c.m,p,s,e)&&s.ready&&c.presses==1,"Network layout settles by observation only");}
+    {auto m=baseline();choose(m);m.put(content_address+0x368,uintptr_t(0));e.clear();check(n::inspect(m,image,world,p,e)&&n::status(m,p,s,e)&&!s.ready&&s.cause=="Network original view request pending","Network request creation is pending");}
+    {auto m=baseline();choose(m);m.put(content_address+0x280,uintptr_t(0));e.clear();check(n::inspect(m,image,world,p,e)&&n::status(m,p,s,e)&&!s.ready&&s.cause=="Network content layout owner pending","Network null layout owner is pending");}
+    {auto m=baseline();choose(m);m.put(content_address+0x280,uintptr_t(77));e.clear();check(n::inspect(m,image,world,p,e)&&!n::status(m,p,s,e)&&e=="Network content foreign parent/window owner","Network foreign owner fails");}
+    {auto m=baseline();choose(m);m.put(request,int32_t(1));e.clear();check(n::inspect(m,image,world,p,e)&&!n::status(m,p,s,e)&&e=="Network original view request mode differs","Network foreign request mode fails");}
+    {auto m=baseline();choose(m);m.array(world+0x180+3*24,{request,request});e.clear();check(n::inspect(m,image,world,p,e)&&!n::status(m,p,s,e)&&e=="Network request not uniquely owned by WorldViewManager","Network duplicate request fails");}
+    {Calls c;c.reserved=true;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&!r.attempted&&c.presses==0&&e=="consumed token","Network token once before original");}
+    {Calls c;c.press_ok=false;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.attempted&&!r.returned&&r.unknown&&e=="original SEH"&&c.presses==1,"Network original failure retained");}
+    {Calls c;c.ledger_ok=false;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.unknown&&!r.confirmed&&e=="full20 ledger changed","Network ledger failure retained");}
+    {Calls c;c.mutate_owner=true;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1,"Network changed owner remains Unknown");}
+    {Calls c;c.mutate_final=true;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1&&e.find("WorldView owner")!=std::string::npos,"Network final owner revalidation");}
+    {Calls c;c.throw_press=true;n::Receipt r;try{n::prepare(c,r,e);check(false,"Network expected throw");}catch(const std::runtime_error&){check(r.attempted&&r.unknown&&!r.confirmed&&c.presses==1,"Network exception Unknown");}}
+    {Memory m;const auto& bytes=mt2mp::game::tutorial_network_tab::press_code;for(size_t i=0;i<bytes.size();++i)m.data[image+0x57c950+i]=bytes[i];e.clear();check(n::verify(m,image,e),"Network complete original Press body");m.data[image+0x57c950+bytes.size()-1]^=1;check(!n::verify(m,image,e)&&e=="Network original Tab::Press body differs","Network body tail mutation fails");}
+}
+}
+
+int main(){try{network_adapter_fixture::run();std::string e;t::Pin p;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.network==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::selected(m,p,e),"owned selected request");
  auto reject=[&](auto mutate,const char* label){auto x=baseline();mutate(x);e.clear();check(!t::inspect(x,image,world,p,e)&&!e.empty(),label);};
  reject([](Memory& x){x.put(image+0x13df650,world+0x188);},"foreign manager");
  reject([](Memory& x){x.str(image+0x1a36520+32,"Network");},"duplicate enum");

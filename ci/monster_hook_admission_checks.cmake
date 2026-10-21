@@ -7,10 +7,11 @@ if(WIN32 AND MT2_FRAMEWORK_SDK)
     endforeach()
     add_executable(test_monster_hook_admission
         "${MT2MP_SOURCE_ROOT}/test/test_monster_hook_admission.cpp"
-        "${MT2MP_SOURCE_ROOT}/src/hooks/framework_backend.cpp")
+        "${MT2MP_SOURCE_ROOT}/src/hooks/framework_backend.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/append_calls.cpp")
     target_include_directories(test_monster_hook_admission PRIVATE
         "${MT2MP_SOURCE_ROOT}/include" "${MT2MP_SOURCE_ROOT}/include/vendor/minhook/include"
-        "${MT2MP_SOURCE_ROOT}/src/hooks"
+        "${MT2MP_SOURCE_ROOT}/src/hooks" "${MT2MP_SOURCE_ROOT}/src/game"
         "${MT2_FRAMEWORK_SDK}/include" "${MT2_FRAMEWORK_SDK}/adapters/mt2/sdk")
     target_compile_features(test_monster_hook_admission PRIVATE cxx_std_20)
     target_compile_definitions(test_monster_hook_admission PRIVATE MT2MP_FRAMEWORK_PLUGIN NOMINMAX WIN32_LEAN_AND_MEAN)

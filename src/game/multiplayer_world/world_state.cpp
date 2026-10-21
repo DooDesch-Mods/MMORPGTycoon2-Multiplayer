@@ -1,5 +1,6 @@
 #include "world_state.h"
 #include "../snapshot_building_key.h"
+#include "../scenery_scene_key.h"
 #include <algorithm>
 #include <charconv>
 #include <cmath>
@@ -27,7 +28,7 @@ bool state_valid(const Building& value){
         std::all_of(value.scale.begin(),value.scale.end(),[](float v){return std::isfinite(v);});
 }
 bool record(const std::string& value){
-    return game::snapshot_building_key::valid(value);
+    return game::snapshot_building_key::valid(value)||game::scenery_scene_key::root_saved(value);
 }
 bool snapshot_rows(const Origin& origin,const std::vector<SnapshotObject>& objects,std::map<std::string,Row>& rows,std::string& error){
     std::set<std::string> record_keys;
@@ -40,7 +41,7 @@ bool snapshot_rows(const Origin& origin,const std::vector<SnapshotObject>& objec
     return true;
 }
 }
-bool valid_object_key(const std::string& value){return record(value)||(value.starts_with("action:")&&uuid(value.substr(7)));}
+bool valid_object_key(const std::string& value){return record(value)||game::scenery_scene_key::saved(value)||(value.starts_with("action:")&&uuid(value.substr(7)));}
 bool Table::bind_snapshot(const Origin& origin,const std::vector<SnapshotObject>& objects,uint64_t revision,std::string& error){
     if(origin_.world_epoch)return fail(error,"world_table_already_bound_use_snapshot_rebind");
     if(!origin_valid(origin))return fail(error,"world_snapshot_origin_invalid");
@@ -128,6 +129,52 @@ Admission Table::commit_creates(const Origin& origin,uint64_t revision,const std
     // Child UUIDs belong to the one validated request, not separate revisions.
     auto next=rows_;
     for(const auto& actual:observed)next.emplace(actual.object_key,Row{actual.state,{}});
+    rows_.swap(next);revision_=revision;last_.reset();error.clear();return Admission::New;
+}
+Admission Table::commit_dungeon_census(const Origin& origin,uint64_t revision,const std::string& action,
+    const std::string& target,const std::vector<LocalBinding>& before,const std::vector<LocalBinding>& after,std::string& error){
+    if(!origin_.world_epoch||origin!=origin_||!uuid(action)||revision<=revision_||!valid_object_key(target))
+        return reject(error,"world_dungeon_census_current_origin_action_revision_or_target_invalid");
+    std::map<std::string,const LocalBinding*> old,current;
+    auto collect=[&](const std::vector<LocalBinding>& values,auto& result){
+        std::set<uint64_t> uids;
+        for(const auto& value:values)
+            if(value.origin!=origin_||!valid_object_key(value.object_key)||!value.local_uid||
+               !uids.insert(value.local_uid).second||!value.state.alive||!state_valid(value.state)||
+               !result.emplace(value.object_key,&value).second)return false;
+        return true;
+    };
+    if(!collect(before,old)||!collect(after,current)||(!old.contains(target)&&!current.contains(target)))
+        return reject(error,"world_dungeon_census_complete_binding_or_target_missing");
+    for(const auto& [key,value]:old){
+        const auto known=rows_.find(key);
+        if(known!=rows_.end()&&known->second.state!=value->state)
+            return reject(error,"world_dungeon_census_before_full_state_differs key="+key);
+        const auto survivor=current.find(key);
+        if(survivor!=current.end()&&(survivor->second->local_uid!=value->local_uid||
+           (key!=target&&survivor->second->state!=value->state)))
+            return reject(error,"world_dungeon_census_surviving_identity_or_unrelated_state_differs key="+key);
+    }
+    for(const auto& [key,value]:current)if(!old.contains(key)){
+        const auto known=rows_.find(key);
+        if(known!=rows_.end()){
+            auto expected=known->second.state;expected.alive=true;
+            if(known->second.state.alive||expected!=value->state)
+                return reject(error,"world_dungeon_census_restored_tombstone_full_state_differs key="+key);
+        }else if(!key.starts_with("action:"))
+            return reject(error,"world_dungeon_census_birth_requires_original_action_alias key="+key);
+    }
+    // SceneClone has admitted the complete original scene before this one
+    // publication. Existing natural clone rows can first enter the table here.
+    auto next=rows_;
+    for(const auto& [key,value]:old){
+        next.try_emplace(key,Row{value->state,{}});
+        if(!current.contains(key))next.at(key).state.alive=false;
+    }
+    for(const auto& [key,value]:current){
+        auto [found,inserted]=next.try_emplace(key,Row{value->state,{}});
+        if(!inserted)found->second.state=value->state;
+    }
     rows_.swap(next);revision_=revision;last_.reset();error.clear();return Admission::New;
 }
 bool Table::refresh_current(const Origin& origin,const std::string& key,const LocalBinding& actual,std::string& error){

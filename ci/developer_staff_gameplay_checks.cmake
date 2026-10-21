@@ -1,5 +1,6 @@
 if(WIN32)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/test/action_phase_deadline_cases.inc")
     set(developer_source "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/action_native.cpp")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${developer_source}"
         "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/start_presentation.h"
@@ -25,6 +26,11 @@ if(WIN32)
     endforeach()
     target_sources(test_developer_controller PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp")
+    target_compile_definitions(test_developer_controller PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    if(MSVC)
+        # Match the supported game's PE stack reserve for the real Controller path.
+        target_link_options(test_developer_controller PRIVATE /STACK:2097152)
+    endif()
     target_link_libraries(test_developer_ui PRIVATE bcrypt)
     set(developer_frame_sources tutorial_replication/state.cpp tutorial_replication/startingpoint.cpp
         live_host_state/state.cpp live_host_state/network/node_state.cpp live_host_state/day_rollover/day.cpp

@@ -1,3 +1,6 @@
+#include "object_identity/remove_runtime/copy/world_prop_reader.h"
+#include "zone_edit_runtime.h"
+#include "district_stroke_runtime.h"
 #include "mt2mp/net/chat_runtime.h"
 #include "marketing_authority/native_port.h"
 #include "bug_authority/runtime.h"
@@ -6,6 +9,8 @@
 #include "typed_action_runtime.h"
 #include "intervention_actor_live.h"
 #include "scenery_stroke_runtime.h"
+#include "building_clearance_runtime.h"
+#include "modular_runtime.h"
 #include "toon_weapon_visual/authority.h"
 #include "toon_weapon_visual/probe.h"
 #include "toon_time_fence/native.h"
@@ -29,6 +34,7 @@
 #include "session_provider.h"
 #include "mt2mp/core/config.h"
 #include "remove_diagnostics.h"
+#include "scenery_scene_identity.h"
 #include "scenery_kiss/native_catalog.h"
 #include "scenery_kiss/lifecycle_contract.h"
 #include "native_open_runtime.h"
@@ -43,6 +49,7 @@
 #include "prop_text_runtime.h"
 #include "district_text_runtime.h"
 #include "district_title_runtime.h"
+#include "district_edit_runtime.h"
 #include "group_runtime.h"
 #include "group_object_runtime.h"
 #include "boss_placement_runtime.h"
@@ -76,10 +83,13 @@
 #include "ability_edit_runtime.h"
 #include "ability_membership_runtime.h"
 #include "costume_edit_runtime.h"
+#include "dungeon_building_runtime.h"
+#include "dungeon_building_graph.h"
 #include "dungeon_config_runtime.h"
 #include "dungeon_sound_runtime.h"
 #include "dungeon_scene_identity_runtime.h"
 #include "dungeon_palette_runtime.h"
+#include "dungeon_input_runtime.h"
 #include "dungeon_gizmo_runtime.h"
 #include "dungeon_light_runtime.h"
 #include "building_status_runtime.h"
@@ -105,12 +115,14 @@ bool read_ledger(action::Ledger& out,std::string& error) {
     return true;
 }
 class NativeEngine final:public action::Engine {
-    struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false,history_ready=false;int32_t refund=0;};
+    struct Operation {action::Request request;action::Binding binding;action::Ledger before;json removal,retirement;action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false,history_ready=false;int32_t refund=0;bool scene_scenery=false;};
     std::map<std::string,Operation> operations_;
-    struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;developer_staff::construction::LocalJob construction_job;bool construction_confirmed=false;};
+    struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;developer_staff::construction::LocalJob construction_job;bool construction_confirmed=false;
+        ui_move_runtime::building_clearance::Snapshot clearance_before,clearance_after;};
     std::map<std::string,BuildOperation> buildings_;
     struct HistoryOperation {action::Request request;action::Binding binding;action::Ledger before,after;
-        action::BuildingState object_before,object_after;uint64_t uid=0;bool confirmed=false,retired=false;};
+        action::BuildingState object_before,object_after;uint64_t uid=0;bool confirmed=false,retired=false;bool scene_scenery=false;
+        ui_move_runtime::building_clearance::Snapshot clearance_before,clearance_after;};
     std::map<std::string,HistoryOperation> history_;
     struct CommitOperation {action::Request request;action::Binding binding;action::Evidence evidence;bool confirmed=false;};
     std::map<std::string,CommitOperation> commits_;
@@ -275,22 +287,45 @@ class NativeEngine final:public action::Engine {
     std::optional<action::Message> live_result_;
     const action_session::ui_capture::Replay* active_ui_replay_=nullptr;
     const action::Evidence* active_host_evidence_=nullptr;
+    const action::Request* active_dungeon_building_=nullptr;
+    struct DungeonOperation {
+        action::Request request;action::Binding binding;
+        action::Ledger ledger_before,ledger_after;
+        npc_probe::dungeon_building::Snapshot before,after;
+        action::DungeonBuildingEffect effect;
+        npc_probe::dungeon_building::Snapshot inverse_sample;
+        action::BuildingState inverse_destination;
+        uintptr_t inverse_graph=0;
+        bool inverse_destroying=false,inverse_moving=false;
+        bool confirmed=false,retired=false,removal_finalized=false;
+    };
+    std::map<std::string,std::unique_ptr<DungeonOperation>> dungeon_buildings_;
+    bool dungeon_scope(const action::Request& request,std::string& error){
+        if(!request.dungeon_building)return true;
+        if(!active_dungeon_building_||*active_dungeon_building_!=request){
+            error="Dungeon Building original requires its exact prepared native scope";return false;
+        }
+        return true;
+    }
     action::Outcome perform_remove(const action::Binding& binding,const action::Request& request,
         action_session::ui_capture::ReplayPurpose purpose,const action::Evidence* authority,std::string& error) {
+        if(!dungeon_scope(request,error))return action::Outcome::RejectedNoEffect;
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(operations_.contains(request.action_uuid)){error="typed native action token already attempted; no replay";return action::Outcome::Unknown;}
         action::Ledger before;if(!read_ledger(before,error))return action::Outcome::RejectedNoEffect;
-        action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false;
+        action::BuildingState object_before;uint64_t local_uid=0;bool normal_scenery=false,scene_scenery=false;
         {
             remove_diagnostics::LocalTarget target;native::BuildingState actual;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
                !scenery_kiss::read_action_prop(target.uid,actual,error))return action::Outcome::RejectedNoEffect;
             object_before=world_state::building_state(actual);local_uid=target.uid;normal_scenery=target.normal_scenery;
+            scene_scenery=normal_scenery&&remove_diagnostics::scene_scenery::registered(request.snapshot_uuid,request.canonical_record_key,target.uid);
             world_state::LocalBinding settled;
+            if(request.dungeon_building&&!remove_diagnostics::is_dungeon_building_target(target,request.dungeon_scene,error))return action::Outcome::RejectedNoEffect;
             if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,settled,error)||
-               !world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error))return action::Outcome::RejectedNoEffect;
+               (!request.dungeon_building&&!scene_scenery&&!world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error)))return action::Outcome::RejectedNoEffect;
             const auto row=world_.rows().find(request.canonical_record_key);
-            if(row==world_.rows().end()||row->second.state!=object_before) {
+            if(!request.dungeon_building&&!scene_scenery&&(row==world_.rows().end()||row->second.state!=object_before)) {
                 error="shared removal object state differs";return action::Outcome::RejectedNoEffect;
             }
         }
@@ -305,7 +340,7 @@ class NativeEngine final:public action::Engine {
         if(captured&&!ui_remove_runtime::make_replay(request.snapshot_uuid,request.canonical_record_key,request.action_uuid,purpose,replay,error))
             return action::Outcome::RejectedNoEffect;
         auto& operation=operations_.emplace(request.action_uuid,Operation{request,binding,before,{},{},object_before,local_uid}).first->second;
-        operation.normal_scenery=normal_scenery;
+        operation.normal_scenery=normal_scenery;operation.scene_scenery=scene_scenery;
         const json args={{"token",request.action_uuid},{"snapshot_id",request.snapshot_uuid},{"record_key",request.canonical_record_key},
             {"expected_world_epoch",binding.native_epoch},{"expected_world_generation",binding.native_generation}};
         const auto native_call=[&](std::string& cause){return remove_diagnostics::remove(args,operation.removal,cause);};
@@ -321,6 +356,21 @@ class NativeEngine final:public action::Engine {
         return action::Outcome::Confirmed;
     }
 public:
+    bool dungeon_history_scene(const std::string& id,const std::string& key,std::string& scene,bool& matched,std::string& error){
+        scene.clear();matched=false;const action::Request* request=nullptr;
+        const auto placed=buildings_.find(id);const auto removed=operations_.find(id);
+        if(placed!=buildings_.end())request=&placed->second.request;
+        if(removed!=operations_.end()){
+            if(request){error="Dungeon Building history source is ambiguous";return false;}
+            request=&removed->second.request;
+        }
+        if(!request||!request->dungeon_building)return true;
+        matched=true;
+        if(request->canonical_record_key!=key||!action::valid_dungeon_building_scene(request->dungeon_scene)){
+            error="Dungeon Building history source key/scene differs";return false;
+        }
+        scene=request->dungeon_scene;error.clear();return true;
+    }
     bool bug_parent_alive(const action::Binding& binding,const std::string& snapshot,const std::string& key,
                           bool& known,bool& alive,std::string& error){
         known=alive=false;if(!current(binding,snapshot,error))return false;
@@ -330,22 +380,39 @@ public:
         if(row!=world_.rows().end()){known=true;alive=row->second.state.alive;}
         error.clear();return true;
     }
+    action::Binding loaded_construction_binding_{};
+    std::string loaded_construction_snapshot_;
+    std::vector<developer_staff::construction::LocalJob> loaded_construction_;
+    struct DuplicateConstruction {
+        action::Request request;action::Binding binding;
+        std::vector<developer_staff::construction::LocalJob> jobs;
+        bool confirmed=false,restored=false;
+    };
+    std::map<std::string,DuplicateConstruction> duplicate_construction_;
+    void retire_absent_construction(const developer_staff::construction::PlacementBefore& before){
+        const auto retire=[&](developer_staff::construction::LocalJob& job){
+            if(job.retired)return;
+            job.retired=std::none_of(before.queue.jobs.begin(),before.queue.jobs.end(),
+                [&](const auto& current_job){return current_job.pointer==job.job;});
+        };
+        for(auto& job:loaded_construction_)retire(job);
+        for(auto& [id,op]:buildings_){(void)id;if(op.construction_confirmed&&op.construction_job.job)retire(op.construction_job);}
+        for(auto& [id,op]:duplicate_construction_){(void)id;if(op.confirmed)for(auto& job:op.jobs)retire(job);}
+    }
     bool construction_jobs(const action::Binding& binding,const std::string& snapshot,
                            std::vector<developer_staff::construction::LocalJob>& out,std::string& error){
         out.clear();if(!current(binding,snapshot,error))return false;
         std::vector<developer_staff::construction::LocalJob> result;
-        for(const auto& [id,op]:buildings_){
-            if(!op.construction_job.job)continue;
-            if(op.binding!=binding||op.request.snapshot_uuid!=snapshot||op.request.action!=action::Action::PlaceBuilding||
-               op.request.action_uuid!=id||op.request.canonical_record_key!=op.construction_job.building_key||!op.construction_confirmed){
-                error="Construction local Job does not belong to confirmed current PlaceBuilding";return false;}
-            const auto row=world_.rows().find(op.construction_job.building_key);
+        std::set<std::string> keys;
+        const auto append=[&](developer_staff::construction::LocalJob job,const std::string& id,bool duplicate_restored=false){
+            if(!keys.insert(job.building_key).second){error="Construction canonical Building occurrence is duplicated";return false;}
+            const auto row=world_.rows().find(job.building_key);
             if(row==world_.rows().end()){error="Construction local Job has no current ordered Building row";return false;}
-            auto job=op.construction_job;job.target_alive=row->second.state.alive;
-            job.target_restored=false;
+            job.target_alive=row->second.state.alive;
+            job.target_restored=job.target_alive&&duplicate_restored;
             if(job.target_alive)for(const auto& [history_id,history]:history_){
                 const auto removed=operations_.find(history.request.target_action_uuid);
-                const bool original_place=history.request.action==action::Action::RedoBuilding&&history.request.target_action_uuid==id;
+                const bool original_place=!id.empty()&&history.request.action==action::Action::RedoBuilding&&history.request.target_action_uuid==id;
                 const bool original_remove=history.request.action==action::Action::UndoBuilding&&removed!=operations_.end()&&
                     removed->second.history_ready&&removed->second.request.action_uuid==history.request.target_action_uuid&&
                     removed->second.binding==binding&&removed->second.local_uid==job.building_uid&&
@@ -358,12 +425,32 @@ public:
                     job.target_restored=true;break;
                 }
             }
-            result.push_back(std::move(job));
+            result.push_back(std::move(job));return true;
+        };
+        if(!loaded_construction_.empty()){
+            if(loaded_construction_binding_!=binding||loaded_construction_snapshot_!=snapshot){
+                error="Loaded construction occurrences belong to another snapshot/native binding";return false;}
+            for(const auto& job:loaded_construction_)if(!append(job,{}))return false;
+        }
+        for(const auto& [id,op]:buildings_){
+            if(!op.construction_job.job)continue;
+            if(op.binding!=binding||op.request.snapshot_uuid!=snapshot||op.request.action!=action::Action::PlaceBuilding||
+               op.request.action_uuid!=id||op.request.canonical_record_key!=op.construction_job.building_key||!op.construction_confirmed){
+                error="Construction local Job does not belong to confirmed current PlaceBuilding";return false;}
+            if(!append(op.construction_job,id))return false;
+        }
+        for(const auto& [id,op]:duplicate_construction_){
+            if(op.jobs.empty())continue;
+            if(!op.confirmed||op.binding!=binding||op.request.snapshot_uuid!=snapshot||
+               op.request.action!=action::Action::DuplicateSelection||op.request.action_uuid!=id){
+                error="Construction local Job does not belong to confirmed current DuplicateSelection";return false;}
+            for(const auto& job:op.jobs)if(!append(job,{},op.restored))return false;
         }
         out=std::move(result);error.clear();return true;
     }
     action::Outcome perform_place(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& error) {
+        if(!dungeon_scope(request,error))return action::Outcome::RejectedNoEffect;
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(buildings_.contains(request.action_uuid)){error="native building action already attempted";return action::Outcome::Unknown;}
         const auto controller=typed_action_runtime::status();
@@ -374,22 +461,27 @@ public:
         if(authority&&before!=authority->before){error="native building client ledger differs from Host";return action::Outcome::RejectedNoEffect;}
         world_state::Change change{world_state::Kind::Create,controller.at("host_revision").get<uint64_t>(),
             request.action_uuid,request.canonical_record_key,{},request.building};
-        if(world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
+        if(!request.dungeon_building&&world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
         developer_staff::construction::PlacementBefore construction_before;
         if(!developer_staff::construction::capture_placement(construction_before,error))return action::Outcome::RejectedNoEffect;
-        for(auto& [prior_id,prior]:buildings_){
-            (void)prior_id;
-            if(!prior.construction_confirmed||!prior.construction_job.job||prior.construction_job.retired)continue;
-            bool present=false;for(const auto& job:construction_before.queue.jobs)if(job.pointer==prior.construction_job.job){present=true;break;}
-            if(!present)prior.construction_job.retired=true;
-        }
+        retire_absent_construction(construction_before);
+        ui_move_runtime::building_clearance::Snapshot clearance_before;
+        if(!request.dungeon_building&&!ui_move_runtime::building_clearance::capture(binding,request,clearance_before,error,authority))return action::Outcome::RejectedNoEffect;
+        if(clearance_before.local){std::vector<world_state::LocalBinding> current_scenery;
+            if(!ui_move_runtime::building_clearance::current_bindings(clearance_before,world_.origin(),current_scenery,error))return action::Outcome::RejectedNoEffect;
+            for(const auto& row:current_scenery)if(!world_.refresh_current(world_.origin(),row.object_key,row,error))return action::Outcome::RejectedNoEffect;}
         auto& operation=buildings_.emplace(request.action_uuid,BuildOperation{request,binding,before,{},{}}).first->second;
+        operation.clearance_before=std::move(clearance_before);
         if(!ui_build_runtime::place(request,operation.state,operation.receipt,error))
             return operation.receipt.value("attempted",false)?action::Outcome::Unknown:action::Outcome::RejectedNoEffect;
         if(!building_history_slice::remember_place(request.action_uuid,
                 operation.receipt.at("local_undo_graph").get<uint64_t>(),error))return action::Outcome::Unknown;
         const auto uid=operation.receipt.at("native_uid").get<uint64_t>();
-        if(!remove_diagnostics::admit_created_building(request.snapshot_uuid,request.canonical_record_key,uid,error))return action::Outcome::Unknown;
+        if(operation.clearance_before.local&&!ui_move_runtime::building_clearance::settle(binding,request,operation.clearance_before,nullptr,uid,
+            operation.receipt.at("local_undo_graph").get<uint64_t>(),operation.clearance_after,error))return action::Outcome::Unknown;
+        if(!(request.dungeon_building?
+            remove_diagnostics::admit_created_dungeon_building(request.snapshot_uuid,request.canonical_record_key,uid,request.dungeon_scene,error):
+            remove_diagnostics::admit_created_building(request.snapshot_uuid,request.canonical_record_key,uid,error)))return action::Outcome::Unknown;
         remove_diagnostics::LocalTarget target;native::BuildingState actual;
         if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
            !scenery_kiss::read_action_prop(uid,actual,error))return action::Outcome::Unknown;
@@ -401,12 +493,19 @@ public:
         if(observed.state!=operation.state){error="native building state changed before ID binding";return action::Outcome::Unknown;}
         if(authority&&operation.state!=authority->object_after){error="native client building differs from Host result";return action::Outcome::Unknown;}
         change.after=operation.state;
-        if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        if(operation.clearance_after.local){
+            std::vector<std::string> retired;std::vector<world_state::LocalBinding> created;
+            if(!ui_move_runtime::building_clearance::finish(binding,request,operation.clearance_before,operation.clearance_after,authority,error)||
+               !ui_move_runtime::building_clearance::publication(operation.clearance_after,world_.origin(),retired,created,error))return action::Outcome::Unknown;
+            created.push_back(observed);
+            if(world_.commit_scenery_stroke(world_.origin(),change.revision,request.action_uuid,retired,created,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        }else if(!request.dungeon_building&&world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
         operation.construction_confirmed=true;
         return action::Outcome::Confirmed;
     }
     action::Outcome perform_move(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& error) {
+        if(!dungeon_scope(request,error))return action::Outcome::RejectedNoEffect;
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(buildings_.contains(request.action_uuid)){error="native Move action already attempted; no replay";return action::Outcome::Unknown;}
         uint64_t revision=0;
@@ -417,7 +516,7 @@ public:
            !scenery_kiss::read_action_prop(target.uid,actual,error))return action::Outcome::RejectedNoEffect;
         world_state::LocalBinding observed;
         if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error)||
-           !world_.refresh_current(world_.origin(),request.canonical_record_key,observed,error))return action::Outcome::RejectedNoEffect;
+           (!request.dungeon_building&&!world_.refresh_current(world_.origin(),request.canonical_record_key,observed,error)))return action::Outcome::RejectedNoEffect;
         const auto object_before=observed.state;
         if(authority&&(before!=authority->before||object_before!=authority->object_before)) {
             error="native Move Client before ledger/object differs from Host";return action::Outcome::RejectedNoEffect;
@@ -425,7 +524,7 @@ public:
         auto native_request=request;
         if(authority)native_request.building=authority->object_after;
         world_state::Change change{world_state::Kind::Move,revision,request.action_uuid,request.canonical_record_key,object_before,native_request.building};
-        if(world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
+        if(!request.dungeon_building&&world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
         auto& operation=buildings_.emplace(request.action_uuid,BuildOperation{request,binding,before,{},{},false,object_before}).first->second;
         if(!ui_move_runtime::move(native_request,operation.state,operation.receipt,error))
             return operation.receipt.value("attempted",false)?action::Outcome::Unknown:action::Outcome::RejectedNoEffect;
@@ -441,15 +540,16 @@ public:
         if(!scenery_kiss::read_action_prop(uid,actual,error)||world_state::building_state(actual)!=operation.state) {
             if(error.empty())error="native Move readback changed before registry refresh";return action::Outcome::Unknown;
         }
-        if(!remove_diagnostics::refresh_moved_building(request.snapshot_uuid,request.canonical_record_key,uid,error)||
+        if(!remove_diagnostics::refresh_moved_building(request.snapshot_uuid,request.canonical_record_key,uid,error,request.dungeon_building?request.dungeon_scene:std::string{})||
            !remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
            !world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error))return action::Outcome::Unknown;
         change.after=operation.state;
-        if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        if(!request.dungeon_building&&world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
         return action::Outcome::Confirmed;
     }
     action::Outcome perform_move_history(const action::Binding& binding,const action::Request& request,
                                          const action::Evidence* authority,std::string& error) {
+        if(!dungeon_scope(request,error))return action::Outcome::RejectedNoEffect;
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
         if(history_.contains(request.action_uuid)){
             error="shared Move history action already attempted; no replay";return action::Outcome::Unknown;
@@ -482,14 +582,15 @@ public:
            !remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
            !scenery_kiss::read_action_prop(uid,actual,error))return action::Outcome::RejectedNoEffect;
         if(target.uid!=uid||target.normal_scenery!=source.normal_scenery||
-           (!target.normal_building&&!target.normal_scenery)||world_state::building_state(actual)!=before_state){
+           (request.dungeon_building?!remove_diagnostics::is_dungeon_building_target(target,request.dungeon_scene,error):
+              (!target.normal_building&&!target.normal_scenery))||world_state::building_state(actual)!=before_state){
             error="shared Move history current native UID, family or transform differs";return action::Outcome::RejectedNoEffect;
         }
         if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error)||
-           !world_.refresh_current(world_.origin(),request.canonical_record_key,observed,error))return action::Outcome::RejectedNoEffect;
+           (!request.dungeon_building&&!world_.refresh_current(world_.origin(),request.canonical_record_key,observed,error)))return action::Outcome::RejectedNoEffect;
         world_state::Change change{world_state::Kind::Move,revision,request.action_uuid,
             request.canonical_record_key,before_state,after_state};
-        if(world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
+        if(!request.dungeon_building&&world_.prepare(world_.origin(),change,error)!=world_state::Admission::New)return action::Outcome::RejectedNoEffect;
         if(authority&&(authority->before!=before||authority->after!=before||
                        authority->object_before!=before_state||authority->object_after!=after_state)){
             error="shared Move history Client full before/effect differs from Host";return action::Outcome::RejectedNoEffect;
@@ -502,11 +603,11 @@ public:
         if(operation.after!=before||world_state::building_state(actual)!=after_state){
             error="shared Move history actual transform or full Ledger differs";return action::Outcome::Unknown;
         }
-        if(!remove_diagnostics::refresh_moved_building(request.snapshot_uuid,request.canonical_record_key,uid,error)||
+        if(!remove_diagnostics::refresh_moved_building(request.snapshot_uuid,request.canonical_record_key,uid,error,request.dungeon_building?request.dungeon_scene:std::string{})||
            !remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
            target.uid!=uid||target.normal_scenery!=source.normal_scenery||
            !world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error))return action::Outcome::Unknown;
-        if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        if(!request.dungeon_building&&world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return action::Outcome::Unknown;
         operation.confirmed=true;error.clear();return action::Outcome::Confirmed;
     }
 
@@ -641,24 +742,47 @@ public:
         if(revision<=world_.revision()){error="Duplicate shared revision must advance before native creation";return action::Outcome::RejectedNoEffect;}
         for(const auto& row:request.duplicate.rows)for(const auto& key:row.created_keys)
             if(world_.rows().contains(key)){error="Duplicate new shared key already exists key="+key;return action::Outcome::RejectedNoEffect;}
+        const bool building=std::any_of(request.duplicate.rows.begin(),request.duplicate.rows.end(),
+            [](const auto& row){return row.family==action::DuplicateFamily::Building;});
+        developer_staff::construction::PlacementBefore construction_before;
+        if(building){
+            if(duplicate_construction_.contains(request.action_uuid)){error="Duplicate construction already attempted; no replay";return action::Outcome::Unknown;}
+            if(!developer_staff::construction::capture_placement(construction_before,error))return action::Outcome::RejectedNoEffect;
+            retire_absent_construction(construction_before);
+            duplicate_construction_.emplace(request.action_uuid,DuplicateConstruction{request,binding});
+        }
         const auto result=ui_move_runtime::duplicate_edit::perform(binding,request,authority,error);
         if(result!=action::Outcome::Confirmed)return result;
-        std::vector<world_state::LocalBinding> created;
+        std::vector<world_state::LocalBinding> created;std::map<uint64_t,std::string> construction_targets;
         for(const auto& row:request.duplicate.rows)for(const auto& key:row.created_keys){
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,key,target,error)||
                !scenery_kiss::read_action_prop(target.uid,actual,error)||
                !world_state::bind_root_readback(world_.origin(),key,target,actual,observed,error))return action::Outcome::Unknown;
+            if(row.family==action::DuplicateFamily::Building){
+                if(!target.normal_building||target.normal_scenery||!construction_targets.emplace(target.uid,key).second){
+                    error="Duplicate construction created Building family/full UID differs or is duplicated";return action::Outcome::Unknown;}}
             created.push_back(std::move(observed));
         }
-        return world_.commit_creates(world_.origin(),revision,request.action_uuid,created,error)==world_state::Admission::New?
-            action::Outcome::Confirmed:action::Outcome::Unknown;
+        if(building&&!developer_staff::construction::finish_duplicate(construction_before,request.snapshot_uuid,
+            construction_targets,duplicate_construction_.at(request.action_uuid).jobs,error))return action::Outcome::Unknown;
+        if(world_.commit_creates(world_.origin(),revision,request.action_uuid,created,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        if(building)duplicate_construction_.at(request.action_uuid).confirmed=true;
+        return action::Outcome::Confirmed;
     }
     action::Outcome perform_duplicate_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& error){
         uint64_t revision=0;std::map<uint64_t,std::string> targets;
         if(!current(binding,request.snapshot_uuid,error)||!ui_move_runtime::contract::pending(typed_action_runtime::status(),request,revision,error)||
            !ui_move_runtime::duplicate_edit::history_targets(binding,request,targets,error))return action::Outcome::RejectedNoEffect;
         if(revision<=world_.revision()){error="Duplicate history shared revision must advance once for complete graph";return action::Outcome::RejectedNoEffect;}
+        const auto construction=duplicate_construction_.find(request.target_action_uuid);
+        if(construction!=duplicate_construction_.end()){
+            const auto& source=construction->second;
+            if(!source.confirmed||source.binding!=binding||source.request.snapshot_uuid!=request.snapshot_uuid||
+               source.request.action_uuid!=request.target_action_uuid){error="Duplicate history construction source is not current confirmed original";return action::Outcome::RejectedNoEffect;}
+            for(const auto& job:source.jobs){const auto target=targets.find(job.building_uid);
+                if(target==targets.end()||target->second!=job.building_key){error="Duplicate history construction original Building key/full UID differs";return action::Outcome::RejectedNoEffect;}}
+        }
         const bool undo=request.action==action::Action::UndoBuilding;std::vector<std::string> removed;
         for(const auto& [uid,key]:targets){const auto row=world_.rows().find(key);
             if(row==world_.rows().end()||row->second.state.alive!=undo){error="Duplicate history shared target live/tombstone direction differs key="+key;return action::Outcome::RejectedNoEffect;}
@@ -671,14 +795,37 @@ public:
         }
         const auto result=ui_move_runtime::duplicate_edit::perform_history(binding,request,authority,error);
         if(result!=action::Outcome::Confirmed)return result;
-        if(undo)return world_.retire_native_effects(world_.origin(),revision,request.action_uuid,removed,error)?action::Outcome::Confirmed:action::Outcome::Unknown;
+        if(undo){
+            if(!world_.retire_native_effects(world_.origin(),revision,request.action_uuid,removed,error))return action::Outcome::Unknown;
+            if(construction!=duplicate_construction_.end())construction->second.restored=false;
+            return action::Outcome::Confirmed;
+        }
         std::vector<world_state::LocalBinding> restored;
         for(const auto& [uid,key]:targets){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,key,target,error)||target.uid!=uid||
                !scenery_kiss::read_action_prop(uid,actual,error)||!world_state::bind_root_readback(world_.origin(),key,target,actual,observed,error))return action::Outcome::Unknown;
             restored.push_back(std::move(observed));
         }
-        return world_.restore_native_buildings(world_.origin(),revision,request.action_uuid,restored,error)?action::Outcome::Confirmed:action::Outcome::Unknown;
+        if(!world_.restore_native_buildings(world_.origin(),revision,request.action_uuid,restored,error))return action::Outcome::Unknown;
+        if(construction!=duplicate_construction_.end())construction->second.restored=true;
+        return action::Outcome::Confirmed;
+    }
+    action::Outcome perform_modular(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& error){
+        uint64_t revision=0;std::vector<std::string> targets;
+        if(!current(binding,request.snapshot_uuid,error)||!ui_move_runtime::contract::pending(typed_action_runtime::status(),request,revision,error)||!ui_move_runtime::modular::targets(binding,request,targets,error))return action::Outcome::RejectedNoEffect;
+        if(revision<=world_.revision()){error="Modular shared revision must advance once for the complete original graph";return action::Outcome::RejectedNoEffect;}
+        for(const auto& key:targets){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
+            if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,key,target,error)||(!target.normal_building&&!target.normal_scenery&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),key,target,actual,observed,error)||!world_.refresh_current(world_.origin(),key,observed,error))return action::Outcome::RejectedNoEffect;}
+        const auto result=ui_move_runtime::modular::perform(binding,request,authority,error);if(result!=action::Outcome::Confirmed)return result;
+        action::ModularEffect effect;if(!ui_move_runtime::modular::publication(binding,request,effect,error))return action::Outcome::Unknown;
+        std::vector<std::string> removed;for(const auto& row:effect.removed)removed.push_back(row.key);std::vector<world_state::LocalBinding> created;
+        for(const auto& row:effect.created){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
+            if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,row.key,target,error)||(!target.normal_building&&!target.normal_scenery&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),row.key,target,actual,observed,error))return action::Outcome::Unknown;created.push_back(std::move(observed));}
+        if(!removed.empty()||!created.empty()){const bool history=request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding;const auto admitted=history?world_.commit_scenery_history(world_.origin(),revision,request.action_uuid,removed,created,error):world_.commit_scenery_stroke(world_.origin(),revision,request.action_uuid,removed,created,error);return admitted==world_state::Admission::New?action::Outcome::Confirmed:action::Outcome::Unknown;}
+        for(const auto& pair:effect.changed)if(pair[1].family==action::DuplicateFamily::Building){remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;const auto prior=world_.rows().find(pair[1].key);
+            if(prior==world_.rows().end()||!remove_diagnostics::resolve_record_target(request.snapshot_uuid,pair[1].key,target,error)||(!target.normal_building&&!remove_diagnostics::is_modular_target(target,error))||!scenery_kiss::read_action_prop(target.uid,actual,error)||!world_state::bind_root_readback(world_.origin(),pair[1].key,target,actual,observed,error))return action::Outcome::Unknown;
+            if(prior->second.state!=observed.state){const world_state::Change change{world_state::Kind::Move,revision,request.action_uuid,pair[1].key,prior->second.state,observed.state};return world_.commit(world_.origin(),change,observed,error)==world_state::Admission::New?action::Outcome::Confirmed:action::Outcome::Unknown;}}
+        return world_.retire_native_effects(world_.origin(),revision,request.action_uuid,{},error)?action::Outcome::Confirmed:action::Outcome::Unknown;
     }
     action::Outcome perform_terrain_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& error){
         const auto result=ui_terrain_runtime::perform_history(binding,request,authority,error);if(result!=action::Outcome::Confirmed)return result;
@@ -693,7 +840,12 @@ public:
     }
     action::Outcome perform_building_history(const action::Binding& binding,const action::Request& request,
                                              const action::Evidence* authority,std::string& error) {
+        if(!dungeon_scope(request,error))return action::Outcome::RejectedNoEffect;
         if(!current(binding,request.snapshot_uuid,error))return action::Outcome::RejectedNoEffect;
+        if(request.canonical_record_key=="modular:"+request.target_action_uuid)return perform_modular(binding,request,authority,error);
+        if(request.canonical_record_key=="district-edit:"+request.target_action_uuid)return ui_move_runtime::district_edit::perform_history(binding,request,authority,error);
+        if(request.canonical_record_key=="district-stroke:"+request.target_action_uuid)return ui_move_runtime::district_stroke::perform_history(binding,request,authority,error);
+        if(request.canonical_record_key=="zone-edit:"+request.target_action_uuid)return npc_probe::zone_edit_runtime::perform_history(binding,request,authority,error);
         if(request.canonical_record_key=="group-object:"+request.target_action_uuid)return perform_group_object(binding,request,authority,error);
         if(request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid){
             uint64_t revision=0;std::map<uint64_t,std::string> targets;
@@ -721,6 +873,9 @@ public:
         if(request.canonical_record_key=="selection:"+request.target_action_uuid)
             return perform_selection_history(binding,request,authority,error);
         if(request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid)return npc_probe::monster_action_runtime::dungeon_cells::perform_history(binding,request,authority,error);
+        if(action::npc_history(request))return npc_probe::action_runtime::history::perform(binding,request,authority,error);
+        if(action::monster_history(request))return npc_probe::monster_action_runtime::history::perform(binding,request,authority,error);
+        if(request.canonical_record_key=="dungeon-input:"+request.target_action_uuid)return npc_probe::monster_action_runtime::dungeon_input::perform_history(binding,request,authority,error);
         if(action::network_history(request))return network_history_runtime::perform(binding,request,authority,error);
         if(request.canonical_record_key=="path:"+request.target_action_uuid)return ui_path_runtime::perform_history(binding,request,authority,error);
         if(request.canonical_record_key=="terrain:"+request.target_action_uuid)return perform_terrain_history(binding,request,authority,error);
@@ -733,7 +888,7 @@ public:
         if(history_.contains(request.action_uuid)) {
             error="building history action already attempted; no replay";return action::Outcome::Unknown;
         }
-        action::BuildingState* source_state=nullptr;uint64_t uid=0;int32_t amount=0;bool source_remove=false,source_scenery=false;
+        action::BuildingState* source_state=nullptr;uint64_t uid=0;int32_t amount=0;bool source_remove=false,source_scenery=false,source_scene_scenery=false;
         const auto placed=buildings_.find(request.target_action_uuid);
         const auto removed=operations_.find(request.target_action_uuid);
         if(placed!=buildings_.end()&&removed!=operations_.end()) {
@@ -755,15 +910,16 @@ public:
                !source.retirement.value("confirmed",false)) {
                 error="prop history target has no confirmed retired normal removal";return action::Outcome::RejectedNoEffect;
             }
-            source_remove=true;source_state=&source.object_before;uid=source.local_uid;amount=source.refund;source_scenery=source.normal_scenery;
+            source_remove=true;source_scene_scenery=source.scene_scenery;source_state=&source.object_before;uid=source.local_uid;amount=source.refund;source_scenery=source.normal_scenery;
         } else {
             error="building history target confirmed mutation missing";return action::Outcome::RejectedNoEffect;
         }
         if(!uid||amount<0||!source_state->alive){error="building history original UID/amount/state invalid";return action::Outcome::RejectedNoEffect;}
+        const bool clearance=placed!=buildings_.end()&&bool(placed->second.clearance_after.local);
         const bool destroying=(request.action==action::Action::UndoBuilding)!=source_remove;
         auto alive=*source_state;auto dead=alive;dead.alive=false;
         const auto row=world_.rows().find(request.canonical_record_key);
-        if(row==world_.rows().end()||row->second.state!=(destroying?alive:dead)) {
+        if(!source_scene_scenery&&(row==world_.rows().end()||row->second.state!=(destroying?alive:dead))) {
             error="building history target full shared state differs";return action::Outcome::RejectedNoEffect;
         }
         const auto controller=typed_action_runtime::status();
@@ -778,9 +934,10 @@ public:
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding settled;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
                !scenery_kiss::read_action_prop(uid,actual,error))return action::Outcome::RejectedNoEffect;
-            if(target.uid!=uid||target.normal_scenery!=source_scenery||target.normal_building==source_scenery){error="prop history destructive target UID/family differs";return action::Outcome::RejectedNoEffect;}
+            if(target.uid!=uid||target.normal_scenery!=source_scenery||
+               (request.dungeon_building?!remove_diagnostics::is_dungeon_building_target(target,request.dungeon_scene,error):target.normal_building==source_scenery)){error="prop history destructive target UID/family differs";return action::Outcome::RejectedNoEffect;}
             if(!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,settled,error)||
-               !world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error))return action::Outcome::RejectedNoEffect;
+               (!source_scene_scenery&&!world_.refresh_current(world_.origin(),request.canonical_record_key,settled,error)))return action::Outcome::RejectedNoEffect;
             alive=settled.state;dead=alive;dead.alive=false;*source_state=alive;
         } else if(!remove_diagnostics::history_target_absent(request.snapshot_uuid,request.canonical_record_key,uid,error))
             return action::Outcome::RejectedNoEffect;
@@ -790,28 +947,55 @@ public:
                        authority->object_after!=(destroying?dead:alive)||authority->after!=expected)) {
             error="building history Client before/effect/full Ledger differs from Host";return action::Outcome::RejectedNoEffect;
         }
+        ui_move_runtime::building_clearance::Snapshot clearance_before;
+        if(clearance&&!ui_move_runtime::building_clearance::prepare_history(binding,request,placed->second.clearance_after,clearance_before,error,authority))return action::Outcome::RejectedNoEffect;
+        if(clearance){std::vector<world_state::LocalBinding> current_scenery;
+            if(!ui_move_runtime::building_clearance::current_bindings(clearance_before,world_.origin(),current_scenery,error))return action::Outcome::RejectedNoEffect;
+            for(const auto& scenery_binding:current_scenery)if(!world_.refresh_current(world_.origin(),scenery_binding.object_key,scenery_binding,error))return action::Outcome::RejectedNoEffect;}
         auto& operation=history_.emplace(request.action_uuid,HistoryOperation{request,binding,before,{},
-            destroying?alive:dead,destroying?dead:alive,uid,false}).first->second;
+            destroying?alive:dead,destroying?dead:alive,uid,false}).first->second;operation.scene_scenery=source_scene_scenery;operation.clearance_before=std::move(clearance_before);
         const auto outcome=building_history_slice::perform(request.action,request.target_action_uuid,error);
         if(outcome!=action::Outcome::Confirmed)return outcome;
         if(!read_ledger(operation.after,error))return action::Outcome::Unknown;
         if(operation.after!=expected){error="building history actual full Ledger differs from original cash inverse";return action::Outcome::Unknown;}
+        if(clearance){
+            uintptr_t inverse=0;
+            const auto opposite=request.action==action::Action::UndoBuilding?action::Action::RedoBuilding:action::Action::UndoBuilding;
+            if(!building_history_slice::graph_for(opposite,request.target_action_uuid,inverse,error)||
+               !ui_move_runtime::building_clearance::settle(binding,request,operation.clearance_before,&placed->second.clearance_after,uid,inverse,operation.clearance_after,error))return action::Outcome::Unknown;
+        }
         if(destroying) {
             if(!remove_diagnostics::retire_undone_building(request.snapshot_uuid,request.canonical_record_key,uid,error)||
-               !world_.retire_native_effects(world_.origin(),revision,request.action_uuid,{request.canonical_record_key},error))return action::Outcome::Unknown;
+               (!clearance&&!request.dungeon_building&&!source_scene_scenery&&!world_.retire_native_effects(world_.origin(),revision,request.action_uuid,{request.canonical_record_key},error)))return action::Outcome::Unknown;
         } else {
-            if(!remove_diagnostics::restore_redone_building(request.snapshot_uuid,request.canonical_record_key,uid,error))return action::Outcome::Unknown;
+            if(!(request.dungeon_building?
+                remove_diagnostics::restore_redone_dungeon_building(request.snapshot_uuid,request.canonical_record_key,uid,request.dungeon_scene,error):
+                remove_diagnostics::restore_redone_building(request.snapshot_uuid,request.canonical_record_key,uid,error)))return action::Outcome::Unknown;
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
             if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
-                target.uid!=uid||target.normal_scenery!=source_scenery||target.normal_building==source_scenery||!scenery_kiss::read_action_prop(uid,actual,error)||
+                target.uid!=uid||target.normal_scenery!=source_scenery||
+               (request.dungeon_building?!remove_diagnostics::is_dungeon_building_target(target,request.dungeon_scene,error):target.normal_building==source_scenery)||
+               !scenery_kiss::read_action_prop(uid,actual,error)||
                world_state::building_state(actual)!=alive||
                !world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error)||
-               !world_.restore_native_building_key(world_.origin(),revision,request.action_uuid,request.canonical_record_key,observed,error)) {
+               (!clearance&&!request.dungeon_building&&!source_scene_scenery&&!world_.restore_native_building_key(world_.origin(),revision,request.action_uuid,request.canonical_record_key,observed,error))) {
                 if(error.empty())error="building history restored native UID/family/full state differs";return action::Outcome::Unknown;
             }
         }
+        if(clearance){
+            std::vector<std::string> retired;std::vector<world_state::LocalBinding> restored;
+            if(!ui_move_runtime::building_clearance::finish(binding,request,operation.clearance_before,operation.clearance_after,authority,error)||
+               !ui_move_runtime::building_clearance::publication(operation.clearance_after,world_.origin(),retired,restored,error))return action::Outcome::Unknown;
+            if(destroying)retired.push_back(request.canonical_record_key);
+            else{remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
+                if(!remove_diagnostics::resolve_record_target(request.snapshot_uuid,request.canonical_record_key,target,error)||
+                   !scenery_kiss::read_action_prop(uid,actual,error)||!world_state::bind_root_readback(world_.origin(),request.canonical_record_key,target,actual,observed,error))return action::Outcome::Unknown;
+                restored.push_back(std::move(observed));}
+            if(world_.commit_scenery_history(world_.origin(),revision,request.action_uuid,retired,restored,error)!=world_state::Admission::New)return action::Outcome::Unknown;
+        }
         operation.confirmed=true;error.clear();return action::Outcome::Confirmed;
     }
+    #include "dungeon_building_engine.inc"
     bool authorize_ui_replay(const action_session::ui_capture::Replay& replay,const action::Context& context,
         const action::Status& controller,std::string& error) {
         if(!active_ui_replay_||replay.purpose!=active_ui_replay_->purpose||replay.intent.action_uuid!=active_ui_replay_->intent.action_uuid||
@@ -837,10 +1021,12 @@ public:
         return true;
     }
     bool bind(const std::string& snapshot,action::Binding& out,std::string& error)override {
+        {
+        mt2mp::build_actions::private_native::host::RootSceneryReadBatch batch;
         building_mixed_identity::opened_file::CurrentWorld before,opened;
-        if(!native_open_runtime::read_current_world(before,error))return false;
+        if(!mt2mp::build_actions::private_native::host::RootSceneryReadBatch::read_current(before,error))return false;
         json sources;if(!remove_diagnostics::bindings(sources,error))return false;
-        if(!native_open_runtime::read_current_world(opened,error))return false;
+        if(!mt2mp::build_actions::private_native::host::RootSceneryReadBatch::read_current(opened,error))return false;
         if(before.game!=opened.game||before.mode!=opened.mode||before.state!=opened.state||
            before.world!=opened.world||before.map!=opened.map||before.uuid!=opened.uuid||
            before.sha256!=opened.sha256||before.world_epoch!=opened.world_epoch||
@@ -864,12 +1050,22 @@ public:
         for(const auto& entry:sources.at("bindings")) {
             if(entry.at("snapshot_id")!=snapshot||entry.value("revoked",false))continue;
             const auto key=entry.at("record_key").get<std::string>();
+            if(remove_diagnostics::scene_scenery::registered(snapshot,key,entry.at("local_uid").get<uint64_t>()))continue;
             native::BuildingState native_state;
             if(!scenery_kiss::read_action_prop(entry.at("local_uid").get<uint64_t>(),native_state,error))return false;
-            origin.sha256=key.substr(0,64);
-            objects.push_back({key,key,world_state::building_state(native_state)});
+            const auto record=entry.value("native_record_key",key);
+            origin.sha256=record.substr(0,64);
+            objects.push_back({key,record,world_state::building_state(native_state)});
         }
-        return world_.bind_snapshot(origin,objects,0,error);
+        if(!batch.finish(error))return false;
+        if(!world_.bind_snapshot(origin,objects,0,error))return false;
+        }
+        std::vector<developer_staff::construction::LocalJob> loaded;
+        if(!developer_staff::construction::capture_loaded(snapshot,out,loaded,error))return false;
+        for(const auto& job:loaded){const auto row=world_.rows().find(job.building_key);
+            if(row==world_.rows().end()||!row->second.state.alive){error="Loaded construction lacks an admitted alive snapshot Building row";return false;}}
+        loaded_construction_binding_=out;loaded_construction_snapshot_=snapshot;loaded_construction_=std::move(loaded);
+        return true;
     }
     bool current(const action::Binding& binding,const std::string&,std::string& error)override {
         if(!thread_||GetCurrentThreadId()!=thread_){error="typed native action requires bound Mainthread";return false;}
@@ -896,6 +1092,7 @@ public:
         return outcome;
     }
     action::Outcome execute_action_native(const action::Binding& binding,const action::Request& request,std::string& error) {
+        if(request.dungeon_building)return perform_dungeon_building(binding,request,nullptr,error);
         if(request.action==action::Action::ReleaseEdit||request.action==action::Action::ReleaseCycle)return release_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::GeneralProject)return general_project_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetLogo)return logo_runtime::perform(binding,request,nullptr,error);
@@ -907,6 +1104,7 @@ public:
         if(request.action==action::Action::SetDungeonLighting)return npc_probe::monster_action_runtime::dungeon_light::perform(binding,request,nullptr,error);
         if(request.action==action::Action::EditDungeonGizmo)return npc_probe::monster_action_runtime::dungeon_gizmo::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetDungeonPalette)return npc_probe::monster_action_runtime::dungeon_palette::perform(binding,request,nullptr,error);
+        if(request.action==action::Action::DungeonInput)return npc_probe::monster_action_runtime::dungeon_input::perform(binding,request,nullptr,error);
         if(request.action==action::Action::SetDungeonAtmosphere)return npc_probe::monster_action_runtime::dungeon_sound::perform(binding,request,nullptr,error);
         if(request.action==action::Action::ConfigureDungeonInstances)return npc_probe::monster_action_runtime::dungeon_config::perform(binding,request,nullptr,error);
         if(request.action==action::Action::EditCharacterCostume)return npc_probe::monster_action_runtime::costume_edit::perform(binding,request,nullptr,error);
@@ -932,7 +1130,7 @@ public:
         if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)
             return perform_building_history(binding,request,nullptr,error);
         if((request.action==action::Action::PlaceNetworkNode||request.action==action::Action::PlaceNetworkPipe))return ui_network_runtime::perform(binding,request,nullptr,error);
-        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass))return ui_path_runtime::perform(binding,request,nullptr,error);
+        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath))return ui_path_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::TerrainStroke)return ui_terrain_runtime::perform(binding,request,nullptr,error);
         if((request.action==action::Action::SetRegionPreset||request.action==action::Action::SetRegionStyles||request.action==action::Action::EditRegionProperty))return ui_region_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::PlaceBuilding)return perform_place(binding,request,nullptr,error);
@@ -944,6 +1142,10 @@ public:
         if(request.action==action::Action::EditServiceMembership)return ui_move_runtime::service_membership::perform(binding,request,nullptr,error);
         if(request.action==action::Action::ReorderBossPhase)return ui_move_runtime::boss_phase::perform(binding,request,nullptr,error);
         if(request.action==action::Action::EditGroup)return ui_move_runtime::group_edit::perform(binding,request,nullptr,error);
+        if(request.action==action::Action::EditModularBuilding)return perform_modular(binding,request,nullptr,error);
+        if(request.action==action::Action::EditDistrict)return ui_move_runtime::district_edit::perform(binding,request,nullptr,error);
+        if(request.action==action::Action::DistrictStroke)return ui_move_runtime::district_stroke::perform(binding,request,nullptr,error);
+        if(request.action==action::Action::EditZone)return npc_probe::zone_edit_runtime::perform(binding,request,nullptr,error);
         if(request.action==action::Action::MoveDistrictTitle)return ui_move_runtime::district_title::perform(binding,request,nullptr,error);
         if(request.action==action::Action::EditDistrictText)return ui_move_runtime::district_text::perform(binding,request,nullptr,error);
         if(request.action==action::Action::EditPropText)return ui_move_runtime::prop_text::perform(binding,request,nullptr,error);
@@ -951,6 +1153,7 @@ public:
         return action::Engine::execute_action(binding,request,error);
     }
     action::Outcome apply_action_native(const action::Binding& binding,const action::Request& request,const action::Evidence& host,std::string& error) {
+        if(request.dungeon_building)return perform_dungeon_building(binding,request,&host,error);
         if(request.action==action::Action::ReleaseEdit||request.action==action::Action::ReleaseCycle)return release_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::GeneralProject)return general_project_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::SetLogo)return logo_runtime::perform(binding,request,&host,error);
@@ -962,6 +1165,7 @@ public:
         if(request.action==action::Action::SetDungeonLighting)return npc_probe::monster_action_runtime::dungeon_light::perform(binding,request,&host,error);
         if(request.action==action::Action::EditDungeonGizmo)return npc_probe::monster_action_runtime::dungeon_gizmo::perform(binding,request,&host,error);
         if(request.action==action::Action::SetDungeonPalette)return npc_probe::monster_action_runtime::dungeon_palette::perform(binding,request,&host,error);
+        if(request.action==action::Action::DungeonInput)return npc_probe::monster_action_runtime::dungeon_input::perform(binding,request,&host,error);
         if(request.action==action::Action::SetDungeonAtmosphere)return npc_probe::monster_action_runtime::dungeon_sound::perform(binding,request,&host,error);
         if(request.action==action::Action::ConfigureDungeonInstances)return npc_probe::monster_action_runtime::dungeon_config::perform(binding,request,&host,error);
         if(request.action==action::Action::EditCharacterCostume)return npc_probe::monster_action_runtime::costume_edit::perform(binding,request,&host,error);
@@ -987,7 +1191,7 @@ public:
         if(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)
             return perform_building_history(binding,request,&host,error);
         if((request.action==action::Action::PlaceNetworkNode||request.action==action::Action::PlaceNetworkPipe))return ui_network_runtime::perform(binding,request,&host,error);
-        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass))return ui_path_runtime::perform(binding,request,&host,error);
+        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath))return ui_path_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::TerrainStroke)return ui_terrain_runtime::perform(binding,request,&host,error);
         if((request.action==action::Action::SetRegionPreset||request.action==action::Action::SetRegionStyles||request.action==action::Action::EditRegionProperty))return ui_region_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::MoveSelection)return perform_selection_move(binding,request,&host,error);
@@ -998,6 +1202,10 @@ public:
         if(request.action==action::Action::EditServiceMembership)return ui_move_runtime::service_membership::perform(binding,request,&host,error);
         if(request.action==action::Action::ReorderBossPhase)return ui_move_runtime::boss_phase::perform(binding,request,&host,error);
         if(request.action==action::Action::EditGroup)return ui_move_runtime::group_edit::perform(binding,request,&host,error);
+        if(request.action==action::Action::EditModularBuilding)return perform_modular(binding,request,&host,error);
+        if(request.action==action::Action::EditDistrict)return ui_move_runtime::district_edit::perform(binding,request,&host,error);
+        if(request.action==action::Action::DistrictStroke)return ui_move_runtime::district_stroke::perform(binding,request,&host,error);
+        if(request.action==action::Action::EditZone)return npc_probe::zone_edit_runtime::perform(binding,request,&host,error);
         if(request.action==action::Action::MoveDistrictTitle)return ui_move_runtime::district_title::perform(binding,request,&host,error);
         if(request.action==action::Action::EditDistrictText)return ui_move_runtime::district_text::perform(binding,request,&host,error);
         if(request.action==action::Action::EditPropText)return ui_move_runtime::prop_text::perform(binding,request,&host,error);
@@ -1068,11 +1276,20 @@ public:
         error=original;return outcome;
     }
     bool observe_action(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error)override {
+        return request.dungeon_building?observe_dungeon_building(binding,request,out,error):observe_action_base(binding,request,out,error);
+    }
+    bool observe_action_base(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error) {
         if(request.action==action::Action::ReleaseEdit||request.action==action::Action::ReleaseCycle)return release_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::GeneralProject)return general_project_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::SetLogo)return logo_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::RemoveNetworkObject)return network_remove_runtime::observe(binding,request,out,error);
         if((request.action==action::Action::ManagementCommand||request.action==action::Action::GmPolicy||request.action==action::Action::GameRules||request.action==action::Action::Intervention))return management_runtime::observe(binding,request,out,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="district-edit:"+request.target_action_uuid)
+            return ui_move_runtime::district_edit::observe_history(binding,request,out,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="district-stroke:"+request.target_action_uuid)
+            return ui_move_runtime::district_stroke::observe_history(binding,request,out,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="zone-edit:"+request.target_action_uuid)
+            return npc_probe::zone_edit_runtime::observe_history(binding,request,out,error);
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="group-object:"+request.target_action_uuid)
             return ui_move_runtime::group_object::observe_history(binding,request,out,error);
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid)
@@ -1086,6 +1303,7 @@ public:
         if(request.action==action::Action::SetDungeonLighting)return npc_probe::monster_action_runtime::dungeon_light::observe(binding,request,out,error);
         if(request.action==action::Action::EditDungeonGizmo)return npc_probe::monster_action_runtime::dungeon_gizmo::observe(binding,request,out,error);
         if(request.action==action::Action::SetDungeonPalette)return npc_probe::monster_action_runtime::dungeon_palette::observe(binding,request,out,error);
+        if(request.action==action::Action::DungeonInput)return npc_probe::monster_action_runtime::dungeon_input::observe(binding,request,out,error);
         if(request.action==action::Action::SetDungeonAtmosphere)return npc_probe::monster_action_runtime::dungeon_sound::observe(binding,request,out,error);
         if(request.action==action::Action::ConfigureDungeonInstances)return npc_probe::monster_action_runtime::dungeon_config::observe(binding,request,out,error);
         if(request.action==action::Action::EditCharacterCostume)return npc_probe::monster_action_runtime::costume_edit::observe(binding,request,out,error);
@@ -1111,6 +1329,9 @@ public:
                 return current(binding,request.snapshot_uuid,error)&&ui_move_runtime::selection_move::observe_history(binding,request,out,error);
             if(!current(binding,request.snapshot_uuid,error))return false;
             if(request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid)return npc_probe::monster_action_runtime::dungeon_cells::observe_history(binding,request,out,error);
+            if(action::npc_history(request))return npc_probe::action_runtime::history::observe(binding,request,out,error);
+            if(action::monster_history(request))return npc_probe::monster_action_runtime::history::observe(binding,request,out,error);
+            if(request.canonical_record_key=="dungeon-input:"+request.target_action_uuid)return npc_probe::monster_action_runtime::dungeon_input::observe_history(binding,request,out,error);
             if(action::network_history(request))return network_history_runtime::observe(binding,request,out,error);
             if(request.canonical_record_key=="path:"+request.target_action_uuid)return ui_path_runtime::observe_history(binding,request,out,error);
             if(request.canonical_record_key=="terrain:"+request.target_action_uuid)return ui_terrain_runtime::observe_history(binding,request,out,error);
@@ -1125,7 +1346,7 @@ public:
                 if(error.empty())error="building history actual ledger changed";return false;
             }
             const auto row=world_.rows().find(request.canonical_record_key);
-            if(row==world_.rows().end()||row->second.state!=operation.object_after) {
+            if(!operation.scene_scenery&&(row==world_.rows().end()||row->second.state!=operation.object_after)) {
                 error="building history shared object state changed";return false;
             }
             if(operation.object_after.alive) {
@@ -1137,12 +1358,15 @@ public:
             out={};out.before=operation.before;out.after=operation.after;
             out.object_before=operation.object_before;out.object_after=operation.object_after;
             if(!operation.object_after.alive&&!remove_diagnostics::history_target_absent(request.snapshot_uuid,request.canonical_record_key,operation.uid,error))return false;
+            if(operation.clearance_after.local){action::SceneryStrokeEffect effect;
+                if(!ui_move_runtime::building_clearance::observe(binding,request,operation.clearance_after,effect,error))return false;
+                out.building_clearance=std::move(effect);}
             out.undo_confirmed=true;out.target_retired=!operation.object_after.alive;
             out.retirement_confirmed=operation.retired;return true;
         }
 
         if((request.action==action::Action::PlaceNetworkNode||request.action==action::Action::PlaceNetworkPipe))return ui_network_runtime::observe(binding,request,out,error);
-        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass))return ui_path_runtime::observe(binding,request,out,error);
+        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath))return ui_path_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::TerrainStroke)return ui_terrain_runtime::observe(binding,request,out,error);
         if((request.action==action::Action::SetRegionPreset||request.action==action::Action::SetRegionStyles||request.action==action::Action::EditRegionProperty))return ui_region_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::MoveSelection)return ui_move_runtime::selection_move::observe(binding,request,out,error);
@@ -1153,6 +1377,10 @@ public:
         if(request.action==action::Action::PlaceBoss)return ui_move_runtime::boss_placement::observe(binding,request,out,error);
         if(request.action==action::Action::ReorderBossPhase)return ui_move_runtime::boss_phase::observe(binding,request,out,error);
         if(request.action==action::Action::EditGroup)return ui_move_runtime::group_edit::observe(binding,request,out,error);
+        if(request.action==action::Action::EditModularBuilding||((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="modular:"+request.target_action_uuid))return ui_move_runtime::modular::observe(binding,request,out,error);
+        if(request.action==action::Action::EditDistrict)return ui_move_runtime::district_edit::observe(binding,request,out,error);
+        if(request.action==action::Action::DistrictStroke)return ui_move_runtime::district_stroke::observe(binding,request,out,error);
+        if(request.action==action::Action::EditZone)return npc_probe::zone_edit_runtime::observe(binding,request,out,error);
         if(request.action==action::Action::MoveDistrictTitle)return ui_move_runtime::district_title::observe(binding,request,out,error);
         if(request.action==action::Action::EditDistrictText)return ui_move_runtime::district_text::observe(binding,request,out,error);
         if(request.action==action::Action::EditPropText)return ui_move_runtime::prop_text::observe(binding,request,out,error);
@@ -1170,6 +1398,9 @@ public:
         }
         out={};out.before=operation.before;if(!read_ledger(out.after,error))return false;
         out.object_before=operation.object_before;out.object_after=operation.state;out.undo_confirmed=operation.receipt.value("undo_confirmed",false);
+        if(operation.clearance_after.local){action::SceneryStrokeEffect effect;
+            if(!ui_move_runtime::building_clearance::observe(binding,request,operation.clearance_after,effect,error))return false;
+            out.building_clearance=std::move(effect);}
         if(request.action==action::Action::MoveBuilding) {
             if(target.uid!=operation.receipt.at("native_uid").get<uint64_t>()){error="native Move observation local UID changed";return false;}
             out.selection_confirmed=operation.receipt.value("selection_confirmed",false);
@@ -1205,6 +1436,9 @@ public:
         return true;
     }
     bool retire(const action::Binding& binding,const action::Request& request,std::string& error)override {
+        return request.dungeon_building?retire_dungeon_building(binding,request,error):retire_base(binding,request,error);
+    }
+    bool retire_base(const action::Binding& binding,const action::Request& request,std::string& error) {
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="terrain:"+request.target_action_uuid)
             return current(binding,request.snapshot_uuid,error)&&ui_terrain_runtime::retire_history(binding,request,error);
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="dungeon-tiles:"+request.target_action_uuid){
@@ -1214,6 +1448,30 @@ public:
             if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Dungeon tile history retirement lacks exact Controller request";return false;}
             if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
             return npc_probe::monster_action_runtime::dungeon_cells::retire_history(binding,request,error);
+        }
+        if(action::npc_history(request)){
+            if(!current(binding,request.snapshot_uuid,error))return false;
+            action::Evidence actual;if(!npc_probe::action_runtime::history::observe(binding,request,actual,error))return false;
+            const auto controller=typed_action_runtime::status();
+            if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="NPC history retirement lacks exact Controller request";return false;}
+            if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
+            return npc_probe::action_runtime::history::retire(binding,request,error);
+        }
+        if(action::monster_history(request)){
+            if(!current(binding,request.snapshot_uuid,error))return false;
+            action::Evidence actual;if(!npc_probe::monster_action_runtime::history::observe(binding,request,actual,error))return false;
+            const auto controller=typed_action_runtime::status();
+            if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Monster history retirement lacks exact Controller request";return false;}
+            if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
+            return npc_probe::monster_action_runtime::history::retire(binding,request,error);
+        }
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="dungeon-input:"+request.target_action_uuid){
+            if(!current(binding,request.snapshot_uuid,error))return false;
+            action::Evidence actual;if(!npc_probe::monster_action_runtime::dungeon_input::observe_history(binding,request,actual,error))return false;
+            const auto controller=typed_action_runtime::status();
+            if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Dungeon input history retirement lacks exact Controller request";return false;}
+            if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
+            return npc_probe::monster_action_runtime::dungeon_input::retire_history(binding,request,error);
         }
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="quests:"+request.target_action_uuid){
             if(!current(binding,request.snapshot_uuid,error))return false;
@@ -1250,6 +1508,12 @@ public:
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
            request.canonical_record_key=="selection:"+request.target_action_uuid)
             return current(binding,request.snapshot_uuid,error)&&ui_move_runtime::selection_move::retire_history(binding,request,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="district-edit:"+request.target_action_uuid)
+            return ui_move_runtime::district_edit::retire_history(binding,request,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="district-stroke:"+request.target_action_uuid)
+            return ui_move_runtime::district_stroke::retire_history(binding,request,error);
+        if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="zone-edit:"+request.target_action_uuid)
+            return npc_probe::zone_edit_runtime::retire_history(binding,request,error);
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="group-object:"+request.target_action_uuid)
             return ui_move_runtime::group_object::retire_history(binding,request,error);
         if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid)
@@ -1266,6 +1530,10 @@ public:
         if(request.action==action::Action::PlaceBoss)return ui_move_runtime::boss_placement::retire(binding,request,error);
         if(request.action==action::Action::ReorderBossPhase)return ui_move_runtime::boss_phase::retire(binding,request,error);
         if(request.action==action::Action::EditGroup)return ui_move_runtime::group_edit::retire(binding,request,error);
+        if(request.action==action::Action::EditModularBuilding||((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&request.canonical_record_key=="modular:"+request.target_action_uuid))return ui_move_runtime::modular::retire(binding,request,error);
+        if(request.action==action::Action::EditDistrict)return ui_move_runtime::district_edit::retire(binding,request,error);
+        if(request.action==action::Action::DistrictStroke)return ui_move_runtime::district_stroke::retire(binding,request,error);
+        if(request.action==action::Action::EditZone)return npc_probe::zone_edit_runtime::retire(binding,request,error);
         if(request.action==action::Action::MoveDistrictTitle)return ui_move_runtime::district_title::retire(binding,request,error);
         if(request.action==action::Action::EditDistrictText)return ui_move_runtime::district_text::retire(binding,request,error);
         if(request.action==action::Action::EditPropText)return ui_move_runtime::prop_text::retire(binding,request,error);
@@ -1283,7 +1551,7 @@ public:
             if(!world_.retire_native_effects(world_.origin(),status.at("host_revision").get<uint64_t>(),request.action_uuid,keys,error))return false;
             return npc_probe::monster_action_runtime::character_membership::retire(binding,request,error);
         }
-        if(request.action==action::Action::SetBuildingStatus||request.action==action::Action::SetDungeonAtmosphere||request.action==action::Action::EditDungeonGizmo||request.action==action::Action::SetDungeonPalette||request.action==action::Action::SetDungeonLighting||request.action==action::Action::ConfigureDungeonInstances||request.action==action::Action::EditCharacterCostume||request.action==action::Action::EditCharacterAbility||request.action==action::Action::EditAbilityMembership||(request.action>=action::Action::RenameCharacter&&request.action<=action::Action::SetCharacterSpeed)||request.action==action::Action::PlaceMonsterZone||request.action==action::Action::PlaceMonster||request.action==action::Action::MoveMonster||request.action==action::Action::RemoveMonster||request.action==action::Action::SetNpcQuestDestination||(request.action==action::Action::SetNpcQuestList||request.action==action::Action::EditNpcQuest)){
+        if(request.action==action::Action::DungeonInput||request.action==action::Action::SetBuildingStatus||request.action==action::Action::SetDungeonAtmosphere||request.action==action::Action::EditDungeonGizmo||request.action==action::Action::SetDungeonPalette||request.action==action::Action::SetDungeonLighting||request.action==action::Action::ConfigureDungeonInstances||request.action==action::Action::EditCharacterCostume||request.action==action::Action::EditCharacterAbility||request.action==action::Action::EditAbilityMembership||(request.action>=action::Action::RenameCharacter&&request.action<=action::Action::SetCharacterSpeed)||request.action==action::Action::PlaceMonsterZone||request.action==action::Action::PlaceMonster||request.action==action::Action::MoveMonster||request.action==action::Action::RemoveMonster||request.action==action::Action::SetNpcQuestDestination||(request.action==action::Action::SetNpcQuestList||request.action==action::Action::EditNpcQuest)){
             if(!current(binding,request.snapshot_uuid,error))return false;
             const auto status=typed_action_runtime::controller_status();
             if(!status.value("pending",false)||status.value("action_uuid",std::string{})!=request.action_uuid){error="Zone retirement lacks exact Controller request";return false;}
@@ -1292,6 +1560,7 @@ public:
             if(request.action==action::Action::SetDungeonLighting)return npc_probe::monster_action_runtime::dungeon_light::retire(binding,request,error);
             if(request.action==action::Action::EditDungeonGizmo)return npc_probe::monster_action_runtime::dungeon_gizmo::retire(binding,request,error);
             if(request.action==action::Action::SetDungeonPalette)return npc_probe::monster_action_runtime::dungeon_palette::retire(binding,request,error);
+            if(request.action==action::Action::DungeonInput)return npc_probe::monster_action_runtime::dungeon_input::retire(binding,request,error);
             if(request.action==action::Action::SetDungeonAtmosphere)return npc_probe::monster_action_runtime::dungeon_sound::retire(binding,request,error);
             if(request.action==action::Action::ConfigureDungeonInstances)return npc_probe::monster_action_runtime::dungeon_config::retire(binding,request,error);
             if(request.action==action::Action::EditCharacterCostume)return npc_probe::monster_action_runtime::costume_edit::retire(binding,request,error);
@@ -1357,7 +1626,7 @@ public:
             if(!world_.retire_native_effects(world_.origin(),controller.at("host_revision").get<uint64_t>(),request.action_uuid,{},error))return false;
             return ui_network_runtime::retire(binding,request,error);
         }
-        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass)) {
+        if((request.action==action::Action::PlacePath||request.action==action::Action::RemovePath||request.action==action::Action::PlaceWall||request.action==action::Action::PlacePass||request.action==action::Action::RemoveWorldPath)) {
             if(!current(binding,request.snapshot_uuid,error))return false;
             const auto controller=typed_action_runtime::status();
             if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="path retirement lacks exact Controller request";return false;}
@@ -1417,7 +1686,7 @@ public:
             world_state::Change change{world_state::Kind::Remove,controller.at("host_revision").get<uint64_t>(),
                 request.action_uuid,request.canonical_record_key,found->second.object_before,after};
             world_state::LocalBinding observed{world_.origin(),request.canonical_record_key,found->second.local_uid,after};
-            if(world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return false;
+            if(!request.dungeon_building&&!found->second.scene_scenery&&world_.commit(world_.origin(),change,observed,error)!=world_state::Admission::New)return false;
             {
                 action::Ledger after_ledger,expected;if(!read_ledger(after_ledger,error))return false;
                 const int64_t refund=int64_t(after_ledger.cash)-found->second.before.cash;
@@ -1471,7 +1740,7 @@ struct Runtime {
         if(std::string_view(level)=="error")LOG_ERROR("[Action] {}: {}",operation,cause);
         else if(std::string_view(level)=="warn")LOG_WARN("[Action] {}: {}",operation,cause);
         else LOG_INFO("[Action] {}: {}",operation,cause);
-    }){}
+    },60000,[]{return GetTickCount64();}){}
 };
 std::atomic<Runtime*> published_runtime{nullptr};
 }
@@ -1513,7 +1782,7 @@ bool start(std::string& error) {
     if(!toon_time_initialize(error))return false;
     if(!vip_initialize(error))return false;
     if(!vip_alert_initialize(error))return false;
-    if(!release_runtime::enable(error)||!general_project_runtime::enable(error)||!logo_runtime::enable(error)||!management_runtime::enable(error)||!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error)||!npc_probe::monster_action_runtime::enable(error)||!npc_probe::monster_action_runtime::quest_authoring::enable(error)||!npc_probe::monster_action_runtime::quest_list::enable(error)||!npc_probe::monster_action_runtime::character_membership::enable(error)||!npc_probe::monster_action_runtime::character_rename::enable(error)||!npc_probe::monster_action_runtime::ability_membership::enable(error)||!npc_probe::monster_action_runtime::ability_edit::enable(error)||!npc_probe::monster_action_runtime::costume_edit::enable(error)||!npc_probe::monster_action_runtime::dungeon_config::enable(error)||!npc_probe::monster_action_runtime::dungeon_sound::enable(error)||!npc_probe::monster_action_runtime::dungeon_gizmo::enable(error)||!npc_probe::monster_action_runtime::dungeon_palette::enable(error)||!npc_probe::monster_action_runtime::dungeon_light::enable(error)||!npc_probe::monster_action_runtime::building_status::enable(error)||!bug_authority::manual_action::enable(error))return false;
+    if(!release_runtime::enable(error)||!general_project_runtime::enable(error)||!logo_runtime::enable(error)||!management_runtime::enable(error)||!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error)||!npc_probe::zone_edit_runtime::enable(error)||!npc_probe::monster_action_runtime::enable(error)||!npc_probe::monster_action_runtime::quest_authoring::enable(error)||!npc_probe::monster_action_runtime::quest_list::enable(error)||!npc_probe::monster_action_runtime::character_membership::enable(error)||!npc_probe::monster_action_runtime::character_rename::enable(error)||!npc_probe::monster_action_runtime::ability_membership::enable(error)||!npc_probe::monster_action_runtime::ability_edit::enable(error)||!npc_probe::monster_action_runtime::costume_edit::enable(error)||!npc_probe::monster_action_runtime::dungeon_config::enable(error)||!npc_probe::monster_action_runtime::dungeon_sound::enable(error)||!npc_probe::monster_action_runtime::dungeon_gizmo::enable(error)||!npc_probe::monster_action_runtime::dungeon_palette::enable(error)||!npc_probe::monster_action_runtime::dungeon_input::enable(error)||!npc_probe::monster_action_runtime::dungeon_light::enable(error)||!npc_probe::monster_action_runtime::building_status::enable(error)||!bug_authority::manual_action::enable(error))return false;
     return runtime->controller.start(GetTickCount64(),error);
 }
 bool enable_live_state(std::string& error) {
@@ -1674,8 +1943,6 @@ void tick() {
         }
     }
     if(runtime->live_failure_terminal){
-        std::string stopped;
-        {live_host_state::apply_timing::Scope measured_inner_TypedController(live_host_state::apply_timing::Part::TypedController);if(!runtime->controller.tick(GetTickCount64(),stopped)&&stopped.empty())LOG_ERROR("[Action] Terminal session observation failed without cause");}
         return;
     }
     if(runtime->live_state&&!runtime->controller.status().locked) {
@@ -1692,8 +1959,6 @@ void tick() {
                 std::string notice;
                 if(!net::fail_host_world(context.snapshot_uuid,cause,notice))LOG_ERROR("[LiveState] Host failure notification not confirmed: {}; retained_failure={}",notice,cause);
             }
-            std::string stopped;
-            {live_host_state::apply_timing::Scope measured_inner_TypedController(live_host_state::apply_timing::Part::TypedController);if(!runtime->controller.tick(GetTickCount64(),stopped)&&stopped.empty())LOG_ERROR("[Action] Failed session observation lacks cause");}
             return;
         }
     }
@@ -1716,7 +1981,7 @@ void tick() {
     {live_host_state::apply_timing::Scope measured_inner_TypedUiDeveloper(live_host_state::apply_timing::Part::TypedUiDeveloper);developer_staff::action_runtime::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiBug(live_host_state::apply_timing::Part::TypedUiBug);bug_authority::manual_action::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiNpc(live_host_state::apply_timing::Part::TypedUiNpc);npc_probe::action_runtime::tick();}
-    {live_host_state::apply_timing::Scope measured_inner_TypedUiMonsterZone(live_host_state::apply_timing::Part::TypedUiMonsterZone);npc_probe::zone_action_runtime::tick();}
+    {live_host_state::apply_timing::Scope measured_inner_TypedUiMonsterZone(live_host_state::apply_timing::Part::TypedUiMonsterZone);npc_probe::zone_action_runtime::tick();npc_probe::zone_edit_runtime::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiMonster(live_host_state::apply_timing::Part::TypedUiMonster);npc_probe::monster_action_runtime::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiQuestAuthoring(live_host_state::apply_timing::Part::TypedUiQuestAuthoring);npc_probe::monster_action_runtime::quest_authoring::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiQuestList(live_host_state::apply_timing::Part::TypedUiQuestList);npc_probe::monster_action_runtime::quest_list::tick();}
@@ -1729,13 +1994,29 @@ void tick() {
     {live_host_state::apply_timing::Scope measured_inner_TypedUiDungeonSound(live_host_state::apply_timing::Part::TypedUiDungeonSound);npc_probe::monster_action_runtime::dungeon_sound::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiDungeonGizmo(live_host_state::apply_timing::Part::TypedUiDungeonGizmo);npc_probe::monster_action_runtime::dungeon_gizmo::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiDungeonPalette(live_host_state::apply_timing::Part::TypedUiDungeonPalette);npc_probe::monster_action_runtime::dungeon_palette::tick();}
+    npc_probe::monster_action_runtime::dungeon_input::tick();
     {live_host_state::apply_timing::Scope measured_inner_TypedUiDungeonLight(live_host_state::apply_timing::Part::TypedUiDungeonLight);npc_probe::monster_action_runtime::dungeon_light::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiBuildingStatus(live_host_state::apply_timing::Part::TypedUiBuildingStatus);npc_probe::monster_action_runtime::building_status::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiTerrain(live_host_state::apply_timing::Part::TypedUiTerrain);ui_terrain_runtime::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiPath(live_host_state::apply_timing::Part::TypedUiPath);ui_path_runtime::tick();}
     {live_host_state::apply_timing::Scope measured_inner_TypedUiNetwork(live_host_state::apply_timing::Part::TypedUiNetwork);ui_network_runtime::tick();}
+}
+void tick_after_transport() {
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->lobby_retiring||!runtime->controller.status().started)return;
     std::string error;
-    {live_host_state::apply_timing::Scope measured_inner_TypedController(live_host_state::apply_timing::Part::TypedController);if(!runtime->controller.tick(GetTickCount64(),error)&&error.empty())LOG_ERROR("[Action] Tick failed without cause");}
+    live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::TypedController);
+    if(!runtime->controller.tick(GetTickCount64(),error)&&error.empty())LOG_ERROR("[Action] Tick failed without cause");
+}
+bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& matched,std::string& error,std::string* scene){
+    if(scene)scene->clear();
+    key.clear();matched=false;
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||!runtime->live_state){error.clear();return true;}
+    if(runtime->thread!=GetCurrentThreadId()){
+        error="Held Dungeon destination requires the bound Mainthread";return false;
+    }
+    return runtime->live_state->resolve_held_dungeon_destination(pointer,key,matched,error,scene);
 }
 json controller_status() {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1758,7 +2039,7 @@ json status() {
         live_host_state::day::economy::State actual;std::vector<uint8_t> encoded;
         if(runtime->economy_state->read_current(*runtime->live_state->last(),actual,economy_read_error)&&live_host_state::day::economy::encode(actual,encoded,economy_read_error))native_economy=nlohmann::json::parse(encoded);
     }
-    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"bug_manual",bug_authority::manual_action::status()},{"ui_price",ui_price_runtime::status()},{"ui_release",release_runtime::status()},{"general_project",general_project_runtime::status()},{"ui_logo",logo_runtime::status()},{"ui_management",management_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"ui_monster",npc_probe::monster_action_runtime::status()},{"ui_npc_quest",npc_probe::monster_action_runtime::quest_authoring::status()},{"ui_npc_quest_list",npc_probe::monster_action_runtime::quest_list::status()},{"ui_character_membership",npc_probe::monster_action_runtime::character_membership::status()},{"ui_character_rename",npc_probe::monster_action_runtime::character_rename::status()},{"ui_ability_membership",npc_probe::monster_action_runtime::ability_membership::status()},{"ui_ability_edit",npc_probe::monster_action_runtime::ability_edit::status()},{"ui_costume_edit",npc_probe::monster_action_runtime::costume_edit::status()},{"ui_dungeon_sound",npc_probe::monster_action_runtime::dungeon_sound::status()},{"ui_dungeon_gizmo",npc_probe::monster_action_runtime::dungeon_gizmo::status()},{"ui_dungeon_palette",npc_probe::monster_action_runtime::dungeon_palette::status()},{"ui_dungeon_light",npc_probe::monster_action_runtime::dungeon_light::status()},{"ui_dungeon_config",npc_probe::monster_action_runtime::dungeon_config::status()},{"ui_building_status",npc_probe::monster_action_runtime::building_status::status()},{"lobby_retiring",runtime->lobby_retiring},{"live_failure_terminal",runtime->live_failure_terminal},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
+    return {{"initialized",true},{"weapon_visual",weapon_status(*runtime)},{"bug_manual",bug_authority::manual_action::status()},{"ui_price",ui_price_runtime::status()},{"ui_release",release_runtime::status()},{"general_project",general_project_runtime::status()},{"ui_logo",logo_runtime::status()},{"ui_management",management_runtime::status()},{"developer_staff",developer_staff::action_runtime::status()},{"ui_npc",npc_probe::action_runtime::status()},{"ui_monster_zone",npc_probe::zone_action_runtime::status()},{"ui_zone_edit",npc_probe::zone_edit_runtime::status()},{"ui_monster",npc_probe::monster_action_runtime::status()},{"ui_npc_quest",npc_probe::monster_action_runtime::quest_authoring::status()},{"ui_npc_quest_list",npc_probe::monster_action_runtime::quest_list::status()},{"ui_character_membership",npc_probe::monster_action_runtime::character_membership::status()},{"ui_character_rename",npc_probe::monster_action_runtime::character_rename::status()},{"ui_ability_membership",npc_probe::monster_action_runtime::ability_membership::status()},{"ui_ability_edit",npc_probe::monster_action_runtime::ability_edit::status()},{"ui_costume_edit",npc_probe::monster_action_runtime::costume_edit::status()},{"ui_dungeon_sound",npc_probe::monster_action_runtime::dungeon_sound::status()},{"ui_dungeon_gizmo",npc_probe::monster_action_runtime::dungeon_gizmo::status()},{"ui_dungeon_palette",npc_probe::monster_action_runtime::dungeon_palette::status()},{"ui_dungeon_input",npc_probe::monster_action_runtime::dungeon_input::status()},{"ui_dungeon_light",npc_probe::monster_action_runtime::dungeon_light::status()},{"ui_dungeon_config",npc_probe::monster_action_runtime::dungeon_config::status()},{"ui_building_status",npc_probe::monster_action_runtime::building_status::status()},{"lobby_retiring",runtime->lobby_retiring},{"live_failure_terminal",runtime->live_failure_terminal},{"started",s.started},{"locked",s.locked},{"pending",s.pending||runtime->lobby_retiring},
         {"host_revision",s.host_revision},{"attempted",s.attempted},{"confirmed",s.confirmed},{"failed",s.failed},
         {"duplicates",s.duplicates},{"suppressed_errors",s.suppressed_errors},{"required_mask",s.required_mask},{"ack_mask",s.ack_mask},
         {"outcome",int(s.outcome)},{"action_uuid",s.action_uuid},{"cause",s.cause},{"last_packet_accepted",s.last_packet_accepted},
@@ -1795,8 +2076,21 @@ bool request_remove(const json& args,json& out,std::string& error) {
     }
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="typed action session unavailable on bound Mainthread";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; action not attempted";return false;}
-    const bool accepted=runtime->controller.submit_remove(args.at("action_uuid").get<std::string>(),args.at("record_key").get<std::string>(),GetTickCount64(),error);
+    const auto id=args.at("action_uuid").get<std::string>(),key=args.at("record_key").get<std::string>();
+    remove_diagnostics::LocalTarget target;std::string scene;bool dungeon=false;
+    if(!remove_diagnostics::resolve_record_target(net::current_snapshot_id(),key,target,error)||
+       !remove_diagnostics::dungeon_building_scene(target,scene,dungeon,error))return false;
+    const bool accepted=dungeon?
+        runtime->controller.submit_dungeon_building(id,action::Action::RemoveSnapshotBuilding,key,scene,{}, {},GetTickCount64(),error):
+        runtime->controller.submit_remove(id,key,GetTickCount64(),error);
     out=status();return accepted;
+}
+bool submit_dungeon_building(const std::string& id,action::Action kind,const std::string& key,
+    const std::string& scene,const action::BuildingState& value,const std::string& target_action,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Dungeon Building requires the bound game-thread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Dungeon Building not attempted";return false;}
+    return runtime->controller.submit_dungeon_building(id,kind,key,scene,value,target_action,GetTickCount64(),error);
 }
 bool submit_place(const std::string& id,const action::BuildingState& state,std::string& error) {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1808,14 +2102,21 @@ bool submit_move(const std::string& id,const std::string& key,const action::Buil
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Move requires started game-thread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; action not attempted";return false;}
-    return runtime->controller.submit_move(id,key,state,GetTickCount64(),error);
+    remove_diagnostics::LocalTarget target;std::string scene;bool dungeon=false;
+    if(!remove_diagnostics::resolve_record_target(net::current_snapshot_id(),key,target,error)||
+       !remove_diagnostics::dungeon_building_scene(target,scene,dungeon,error))return false;
+    return dungeon?runtime->controller.submit_dungeon_building(id,action::Action::MoveBuilding,key,scene,state,{},GetTickCount64(),error):
+        runtime->controller.submit_move(id,key,state,GetTickCount64(),error);
 }
 bool submit_building_history(action::Action action,const std::string& id,const std::string& target,std::string& error) {return submit_building_history(action,id,target,"action:"+target,error);}
 bool submit_building_history(action::Action action,const std::string& id,const std::string& target,const std::string& key,std::string& error) {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="building history requires started game-thread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; building history not attempted";return false;}
-    return runtime->controller.submit_building_history(action,id,target,key,GetTickCount64(),error);
+    std::string scene;bool dungeon=false;
+    if(!runtime->engine.dungeon_history_scene(target,key,scene,dungeon,error))return false;
+    return dungeon?runtime->controller.submit_dungeon_building(id,action,key,scene,{},target,GetTickCount64(),error):
+        runtime->controller.submit_building_history(action,id,target,key,GetTickCount64(),error);
 }
 bool submit_network_pipe(const std::string& id,const action::NetworkPipeIntent& intent,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -1864,6 +2165,12 @@ bool submit_dungeon_gizmo(const std::string& id,const action::DungeonGizmoIntent
     if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Gizmo edit requires started Mainthread Controller";return false;}
     if(runtime->lobby_retiring){error="native lobby owner retiring; Gizmo edit not attempted";return false;}
     return runtime->controller.submit_dungeon_gizmo(id,intent,GetTickCount64(),error);
+}
+bool submit_dungeon_input(const std::string& id,const action::DungeonInputIntent& intent,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||runtime->thread!=GetCurrentThreadId()){error="Dungeon input requires started Mainthread Controller";return false;}
+    if(runtime->lobby_retiring){error="native lobby owner retiring; Dungeon input not attempted";return false;}
+    return runtime->controller.submit_dungeon_input(id,intent,GetTickCount64(),error);
 }
 bool submit_dungeon_palette(const std::string& id,const action::DungeonPaletteIntent& intent,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -2078,6 +2385,8 @@ bool submit_group_object(bool moving,const std::string& id,const action::GroupOb
     if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="Group action requires an active Mainthread Controller";return false;}
     return runtime->controller.submit_group_object(moving,id,intent,GetTickCount64(),error);
 }
+bool submit_modular(const std::string& id,const action::ModularIntent& intent,std::string& error){auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="Modular action requires the active Mainthread Controller";return false;}return runtime->controller.submit_modular(id,intent,GetTickCount64(),error);}
 bool submit_scenery_stroke(const std::string& id,const action::SceneryStrokeIntent& intent,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="Scenery stroke requires an active Mainthread Controller";return false;}
@@ -2102,6 +2411,21 @@ bool submit_group(const std::string& id,const action::GroupIntent& intent,std::s
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="Group requires active Mainthread Controller";return false;}
     return runtime->controller.submit_group(id,intent,GetTickCount64(),error);
+}
+bool submit_zone_edit(const std::string& id,const action::ZoneEditIntent& intent,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="Zone edit requires active Mainthread Controller";return false;}
+    return runtime->controller.submit_zone_edit(id,intent,GetTickCount64(),error);
+}
+bool submit_district_stroke(const std::string& id,const action::DistrictStrokeIntent& intent,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="District stroke requires active Mainthread Controller";return false;}
+    return runtime->controller.submit_district_stroke(id,intent,GetTickCount64(),error);
+}
+bool submit_district_property(const std::string& id,const std::string& key,const game::district_property::Value& intent,std::string& error){
+    auto* runtime=published_runtime.load(std::memory_order_acquire);
+    if(!runtime||GetCurrentThreadId()!=runtime->thread||runtime->lobby_retiring){error="District title requires active Mainthread Controller";return false;}
+    return runtime->controller.submit_district_property(id,key,intent,GetTickCount64(),error);
 }
 bool submit_district_title(const std::string& id,const std::string& key,const action::DistrictTitleIntent& intent,std::string& error){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -2193,7 +2517,7 @@ namespace mt2mp::game::typed_action_runtime {
 static bool begin_retirement(bool leave_lobby,std::string& e){
     const auto current=status();
     const auto build=ui_build_runtime::status(),remove=ui_remove_runtime::status(),move=ui_move_runtime::status(),region=ui_region_runtime::status(),price=ui_price_runtime::status();
-    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||ui_path_runtime::world_path_pending()||release_runtime::pending_ui()||general_project_runtime::pending_ui()||logo_runtime::pending_ui()||management_runtime::pending_ui()||npc_probe::action_runtime::pending_ui()||developer_staff::action_runtime::pending_ui()||npc_probe::zone_action_runtime::pending_ui()||npc_probe::monster_action_runtime::pending_ui()||npc_probe::monster_action_runtime::quest_authoring::pending_ui()||npc_probe::monster_action_runtime::quest_list::pending_ui()||npc_probe::monster_action_runtime::character_membership::pending_ui()||npc_probe::monster_action_runtime::character_rename::pending_ui()||npc_probe::monster_action_runtime::ability_membership::pending_ui()||npc_probe::monster_action_runtime::ability_edit::pending_ui()||npc_probe::monster_action_runtime::costume_edit::pending_ui()||npc_probe::monster_action_runtime::dungeon_config::pending_ui()||npc_probe::monster_action_runtime::dungeon_sound::pending_ui()||npc_probe::monster_action_runtime::dungeon_gizmo::pending_ui()||npc_probe::monster_action_runtime::dungeon_palette::pending_ui()||npc_probe::monster_action_runtime::dungeon_light::pending_ui()||npc_probe::monster_action_runtime::building_status::pending_ui()||bug_authority::manual_action::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
+    if(build.value("deferred_build_capture",false)||remove.value("replay_active",false)||remove.value("inflight",uint64_t{})||move.value("pending_ui",false)||region.value("pending_ui",false)||price.value("pending_ui",false)||ui_path_runtime::world_path_pending()||release_runtime::pending_ui()||general_project_runtime::pending_ui()||logo_runtime::pending_ui()||management_runtime::pending_ui()||npc_probe::action_runtime::pending_ui()||developer_staff::action_runtime::pending_ui()||npc_probe::zone_action_runtime::pending_ui()||npc_probe::zone_edit_runtime::pending()||npc_probe::monster_action_runtime::pending_ui()||npc_probe::monster_action_runtime::quest_authoring::pending_ui()||npc_probe::monster_action_runtime::quest_list::pending_ui()||npc_probe::monster_action_runtime::character_membership::pending_ui()||npc_probe::monster_action_runtime::character_rename::pending_ui()||npc_probe::monster_action_runtime::ability_membership::pending_ui()||npc_probe::monster_action_runtime::ability_edit::pending_ui()||npc_probe::monster_action_runtime::costume_edit::pending_ui()||npc_probe::monster_action_runtime::dungeon_config::pending_ui()||npc_probe::monster_action_runtime::dungeon_sound::pending_ui()||npc_probe::monster_action_runtime::dungeon_gizmo::pending_ui()||npc_probe::monster_action_runtime::dungeon_palette::pending_ui()||npc_probe::monster_action_runtime::dungeon_input::pending_ui()||npc_probe::monster_action_runtime::dungeon_light::pending_ui()||npc_probe::monster_action_runtime::building_status::pending_ui()||bug_authority::manual_action::pending_ui()){e="native lobby Leave blocked by retained active/pending UI capture intent";return false;}
     if(current.value("snapshot_handoff",false)||!current.value("snapshot_error",std::string{}).empty()){e="native lobby Leave blocked by current snapshot handoff: "+current.value("snapshot_error",std::string{});return false;}
     auto* r=published_runtime.load(std::memory_order_acquire);
     if(r){const auto s=r->controller.status();if(r->thread!=GetCurrentThreadId()||!r->controller.can_retire_lobby()||r->lobby_retiring){e="lobby Leave requires idle actual Controller; pending/Unknown/retiring cause="+s.cause;return false;}
@@ -2231,7 +2555,7 @@ static bool finish_retirement(bool leave_lobby,bool& ready,std::string& e){
     }else if(!net::session_wire::retire_world(e))return false;
     tutorial_replication::retire("confirmed native Title after lobby Leave");
     if(!release_runtime::retire_lobby(e)||!general_project_runtime::retire_lobby(e)||!logo_runtime::retire_lobby(e)||!management_runtime::retire_lobby(e))return false;
-    if(!developer_staff::action_runtime::retire_lobby(e)||!bug_authority::manual_action::retire_lobby(e))return false;
+    if(!developer_staff::action_runtime::retire_lobby(e)||!bug_authority::manual_action::retire_lobby(e)||!npc_probe::zone_edit_runtime::retire_session(e))return false;
     if(!npc_probe::monster_action_runtime::quest_list::retire_lobby(e)||
        !npc_probe::monster_action_runtime::character_membership::retire_lobby(e)||
        !npc_probe::monster_action_runtime::character_rename::retire_lobby(e)||
@@ -2243,6 +2567,7 @@ static bool finish_retirement(bool leave_lobby,bool& ready,std::string& e){
        !npc_probe::monster_action_runtime::dungeon_light::retire_lobby(e)||
        !npc_probe::monster_action_runtime::dungeon_sound::retire_lobby(e)||
        !npc_probe::monster_action_runtime::dungeon_palette::retire_lobby(e)||
+       !npc_probe::monster_action_runtime::dungeon_input::retire_lobby(e)||
        !npc_probe::monster_action_runtime::dungeon_gizmo::retire_lobby(e))return false;
     dungeon_scene_identity_runtime::invalidate();
     ui_path_runtime::retire_world();

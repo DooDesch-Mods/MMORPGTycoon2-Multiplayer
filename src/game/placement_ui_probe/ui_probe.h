@@ -31,6 +31,7 @@ public:
     virtual bool read_actual_admission(const Request&,Receipt&,std::string&)=0;
     virtual void record_receipt(const Request&,const Receipt&) noexcept=0;
 };
+Receipt complete_build_input_at_update(const Request&,const Binding&,Receipt,RootServices&);
 class Probe {
 public:
     bool initialize(const Context&,std::string&);

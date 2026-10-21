@@ -22,6 +22,8 @@ struct Operation {
     std::vector<uintptr_t> remove_quest_pointers;
     std::vector<int32_t> remove_quest_sequence_ids;
     json quest_retirement=json::object();
+    monster_quest_retirement::Witness npc_remove_quests_before,npc_remove_quests_after;
+    json npc_remove_refs_before=json::array(),npc_remove_refs_after=json::array();
     std::string cause;
 };
 struct Runtime {
@@ -198,6 +200,7 @@ bool enable(std::string& error) {
     if(!state.install_attempted)state.thread=GetCurrentThreadId();
     if(state.thread!=GetCurrentThreadId())return fail(error,"NPC Release hook requires bound Mainthread");
     if(state.ready){
+        if(!history::reset(error))return false;
         if(!state.release||state.pending)return fail(error,"NPC ready Release trampoline/pending state invalid");
         for(const auto& [id,op]:state.operations)if(!op.retired)
             return fail(error,"NPC previous session has unretired action="+id);
@@ -612,16 +615,17 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     out=op.evidence;out.retirement_confirmed=op.retired;error.clear();return true;
 }
 bool retire(const action::Binding& binding,const action::Request& request,std::string& error) {
-    if(request.action==action::Action::RemoveNPC)return remove_retire(binding,request,error);
-    if(request.action==action::Action::MoveNPC)return move_retire(binding,request,error);
+    if(request.action==action::Action::RemoveNPC)return remove_retire(binding,request,error)&&history::remember(binding,request,error);
+    if(request.action==action::Action::MoveNPC)return move_retire(binding,request,error)&&history::remember(binding,request,error);
     action::Evidence observed;if(!observe(binding,request,observed,error))return false;
     auto& op=state.operations.at(request.action_uuid);
     if(op.retired)return fail(error,"NPC action already retired");
-    op.retired=true;error.clear();return true;
+    op.retired=true;error.clear();return history::remember(binding,request,error);
 }
 #include "npc_remove_runtime.inc"
 #include "npc_move_runtime.inc"
 #include "npc_property_runtime.inc"
+#include "npc_history_runtime.inc"
 bool confirm_character_membership_retirements(const action::Binding& binding,const action::Request& request,
     const std::vector<CharacterNpcRetirement>& removed,std::string& error){
     const auto controller=typed_action_runtime::controller_status();

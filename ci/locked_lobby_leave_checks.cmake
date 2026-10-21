@@ -3,7 +3,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.h"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/economic_fence.h"
-    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/economic_fence.cpp")
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/economic_fence.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/cash_contract.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/state.cpp")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_locked_lobby_leave.py"
     --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/locked_lobby_leave_extracted"
     COMMAND_ERROR_IS_FATAL ANY)

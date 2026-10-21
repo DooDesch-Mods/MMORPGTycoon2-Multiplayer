@@ -6,10 +6,14 @@ def body(anchor):
  start=text.index(anchor);end=text.index('{',start)+1;depth=1
  while depth:depth+=(text[end]=='{')-(text[end]=='}');end+=1
  return text[start:end]
-# These original action-before entrypoints must survive changes to adjacent send().
+# Idle deferral ends before action capture; all other action-before bytes stay exact.
 original_action_before_hashes={'capture_before': 'f990e7d28358f7c4f8d3f85f6f0e990558b0918f62dc19c1955a20417f5273f2', 'publish_before': 'cd37b4bbdf703e1100fb172c8384c3f2bb30f3e5d166e2f964287c1a36c40318'}
 for name,expected in original_action_before_hashes.items():
     actual=body('bool Bridge::'+name+'(')
+    if name=='capture_before':
+        start=actual.index('{')+1;reset='paused_idle_equal_=false;'
+        assert actual.count(reset)==1 and actual[start:].startswith(reset), 'Host action-before must clear paused idle eligibility first'
+        actual=actual[:start]+actual[start+len(reset):]
     assert hashlib.sha256(actual.encode('utf-8')).hexdigest()==expected, 'Original Host action-before body changed: '+name
 send=body('bool Bridge::send(');route=body('bool Bridge::route_receive(')
 assert send.index('fragments::encode(')<send.index('for(uint64_t peer=1;')<send.index('for(const auto& packet:packets)')<send.index('transport_.send(peer,packet,e)')<send.index('host_revision_=')

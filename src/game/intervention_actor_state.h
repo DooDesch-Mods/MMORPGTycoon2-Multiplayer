@@ -1,5 +1,6 @@
 #pragma once
 #include "intervention_state.h"
+#include "dungeon_gizmo_identity.h"
 #include "subscriber_motion.h"
 #include <bit>
 #include <cmath>
@@ -41,6 +42,7 @@ struct Item {
 };
 struct Row {
     Target target;
+    std::string dungeon_scene;
     int32_t slot=-1,type=-1,level=0;
     subscriber_motion::Pose pose;
     std::array<uint32_t,3> values{},recovery{},maxima{};
@@ -59,6 +61,9 @@ inline bool ability_key(std::string_view key){
     key.remove_prefix(kind+1);const auto split=key.find("/ability/");if(split==std::string_view::npos||!snapshot_building_key::number(key.substr(0,split),INT32_MAX,false))return false;
     return snapshot_building_key::number(key.substr(split+9),9999,false);
 }
+inline bool direct_dungeon_monster(const Target& target,const std::string& scene){
+    return target.family==Family::Monster&&monster_target_key::valid(target.key)&&dungeon_gizmo_identity::scene(scene);
+}
 inline bool valid(const State& state,std::string& error){
     if(state.size()>max_rows){error="Actor Frame complete row budget exceeded";return false;}
     std::string previous;
@@ -66,6 +71,9 @@ inline bool valid(const State& state,std::string& error){
         if(!interventions::valid(row.target)||(!previous.empty()&&row.target.key<=previous)||row.slot<0||row.type<0||row.level<0||row.action<-1||row.action>=int32_t(animation_slots)){
             error="Actor Frame canonical sorted identity or Character fields invalid";return false;}
         previous=row.target.key;
+        if(!row.dungeon_scene.empty()&&!direct_dungeon_monster(row.target,row.dungeon_scene)){
+            error="Actor Frame explicit Dungeon scene requires a direct canonical Monster";return false;}
+
         if(!subscriber_motion::valid(row.pose,error))return false;
         for(const auto& values:{row.values,row.recovery,row.maxima})for(auto value:values)if(!finite(value)){error="Actor Frame attribute is not finite";return false;}
         for(const auto& clip:row.clips){
@@ -78,8 +86,8 @@ inline bool valid(const State& state,std::string& error){
         bool matching=false;
         if(const auto* npc=std::get_if<Npc>(&row.lifecycle))matching=row.target.family==Family::Npc&&finite(npc->respawn)&&finite(npc->move_delay)&&finite(npc->interact_timer)&&spawn_valid(npc->spawn);
         if(const auto* boss=std::get_if<Boss>(&row.lifecycle))matching=row.target.family==Family::Boss&&finite(boss->respawn)&&spawn_valid(boss->spawn);
-        if(const auto* monster=std::get_if<ZoneMonster>(&row.lifecycle))matching=row.target.family==Family::Monster&&zone_monster_key(row.target.key)&&finite(monster->respawn)&&spawn_valid(monster->spawn);
-        if(!matching){error="Actor Frame family lifecycle differs or includes an already-owned Toon/direct Monster";return false;}
+        if(const auto* monster=std::get_if<ZoneMonster>(&row.lifecycle))matching=row.target.family==Family::Monster&&(zone_monster_key(row.target.key)||direct_dungeon_monster(row.target,row.dungeon_scene))&&finite(monster->respawn)&&spawn_valid(monster->spawn);
+        if(!matching){error="Actor Frame family lifecycle differs or includes an already-owned Toon/root direct Monster";return false;}
     }
     error.clear();return true;
 }
@@ -96,6 +104,7 @@ inline nlohmann::json encode(const State& state){
             {"region",row.pose.region},{"position",row.pose.position},{"rotation",row.pose.orientation},{"scale",row.pose.scale},
             {"values",row.values},{"recovery",row.recovery},{"maxima",row.maxima},
             {"dead",row.dead},{"on_map",row.on_map},{"action",row.action},{"clips",clips},{"lifecycle",life},{"status_effects",effects},{"abilities",abilities}});
+        if(!row.dungeon_scene.empty())out.back()["dungeon_scene"]=row.dungeon_scene;
     }return out;
 }
 namespace codec {
@@ -107,7 +116,10 @@ inline float real(const Json& j){if(!j.is_number())throw std::runtime_error("Act
 template<class T,size_t N,class Read>void array(const Json& j,std::array<T,N>& out,Read&& read){if(!j.is_array()||j.size()!=N)throw std::runtime_error("Actor Frame exact array extent differs");for(size_t i=0;i<N;++i)out[i]=read(j[i]);}
 inline State state(const Json& j){
     if(!j.is_array()||j.size()>max_rows)throw std::runtime_error("Actor Frame complete rows required");State out;
-    for(const auto& v:j){interventions::codec::exact(v,{"target","character","region","position","rotation","scale","values","recovery","maxima","dead","on_map","action","clips","lifecycle","status_effects","abilities"});Row row;
+    for(const auto& v:j){
+        if(v.contains("dungeon_scene"))interventions::codec::exact(v,{"target","dungeon_scene","character","region","position","rotation","scale","values","recovery","maxima","dead","on_map","action","clips","lifecycle","status_effects","abilities"});
+        else interventions::codec::exact(v,{"target","character","region","position","rotation","scale","values","recovery","maxima","dead","on_map","action","clips","lifecycle","status_effects","abilities"});Row row;
+        if(v.contains("dungeon_scene")){row.dungeon_scene=interventions::codec::text(v.at("dungeon_scene"),4096);if(row.dungeon_scene.empty())throw std::runtime_error("Actor Frame explicit Dungeon scene is empty");}
         row.target=interventions::codec::target(v.at("target"));std::array<int32_t,3> character{};array(v.at("character"),character,integer);row.slot=character[0];row.type=character[1];row.level=character[2];
         row.pose.region=integer(v.at("region"));array(v.at("position"),row.pose.position,real);array(v.at("rotation"),row.pose.orientation,real);array(v.at("scale"),row.pose.scale,real);
         array(v.at("values"),row.values,bits);array(v.at("recovery"),row.recovery,bits);array(v.at("maxima"),row.maxima,bits);row.dead=boolean(v.at("dead"));row.on_map=boolean(v.at("on_map"));row.action=integer(v.at("action"));
@@ -131,7 +143,7 @@ inline bool preflight(const State& local,const State& target,std::string& error)
     if(!valid(local,error)||!valid(target,error))return false;
     if(local.size()!=target.size()){error="Actor Frame complete canonical census differs";return false;}
     for(size_t i=0;i<local.size();++i){const auto& a=local[i];const auto& b=target[i];
-        if(a.target!=b.target||a.slot!=b.slot||a.type!=b.type||a.level!=b.level||a.pose.region!=b.pose.region||(a.status_effects==b.status_effects&&a.maxima!=b.maxima)||a.lifecycle.index()!=b.lifecycle.index()){
+        if(a.target!=b.target||a.dungeon_scene!=b.dungeon_scene||a.slot!=b.slot||a.type!=b.type||a.level!=b.level||a.pose.region!=b.pose.region||(a.status_effects==b.status_effects&&a.maxima!=b.maxima)||a.lifecycle.index()!=b.lifecycle.index()){
             error="Actor Frame current identity, family, Region or native maxima differs key="+b.target.key;return false;}
         for(size_t c=0;c<animation_slots;++c)if(a.clips[c].length!=b.clips[c].length){error="Actor Frame local semantic asset differs key="+b.target.key;return false;}
         if(a.abilities.size()!=b.abilities.size()){error="Actor Frame AbilitySet membership requires its ordered original transaction";return false;}

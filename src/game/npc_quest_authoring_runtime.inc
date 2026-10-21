@@ -202,6 +202,9 @@ bool direct_destination(uintptr_t pointer,std::string& key,std::string& e){
     uintptr_t actor_shard=0;
     if(!field(m,pointer,0x170,actor_shard,e))return false;
     if(actor_shard!=p.world.root){
+        bool held=false;
+        if(!typed_action_runtime::resolve_held_dungeon_destination(pointer,key,held,e))return false;
+        if(held)return true;
         dungeon_scene_identity_runtime::Census scenes;
         if(!dungeon_scene_identity_runtime::read_current(scenes,e))return false;
         if(scenes.world.uuid!=p.world.origin.uuid||scenes.world.world_epoch!=p.world.origin.world_epoch||
@@ -209,7 +212,7 @@ bool direct_destination(uintptr_t pointer,std::string& key,std::string& e){
             return fail(e,"Quest Dungeon direct Monster current world lifetime differs");
         const auto pool=std::find_if(scenes.pools.begin(),scenes.pools.end(),[&](const auto& row){return row.scene.owner.shard==actor_shard&&row.scene.owner.region==region;});
         if(pool==scenes.pools.end())return fail(e,"Quest Dungeon direct Monster scene is absent from the current exterior/template/Instance roster");
-        const identity::Scope actual_scope{p.world.origin.uuid,p.world.origin.world_epoch,p.world.origin.generation,p.world.root,region,pool->managers[2]};
+        const identity::Scope actual_scope{p.world.origin.uuid,p.world.origin.world_epoch,p.world.origin.generation,p.world.root,region,pool->managers[2],pool->scene.owner.key};
         auto at=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return field(m,object,offset,value,cause);};
         auto find=[&](uint64_t full_uid,uintptr_t& found,std::string& cause){const auto exception=lookup(p.api.find,full_uid,found);
             return !exception||fail(cause,"Quest Dungeon Monster full UID lookup SEH="+std::to_string(exception));};

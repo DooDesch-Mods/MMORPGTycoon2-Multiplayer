@@ -5,12 +5,34 @@
 #include <string>
 #include <iostream>
 #include <stdexcept>
+#include <map>
+#include <set>
+#include <cstring>
+#include <atomic>
+#include "analytics_state.h"
+#include "subscriber_demand_state.h"
+#include "toon_thought_lifetime.h"
+#include "toon_thought_state.h"
+#include "live_host_state/state.h"
 namespace {
 struct Local {struct {uintptr_t business=0;}pin;uintptr_t release=0,software=0,current_release=0,lounge=0;std::vector<uintptr_t> gm_rows;};
 #include "management_scalar_body.inc"
 int assertions=0;void need(bool ok,const char* cause){++assertions;if(!ok)throw std::runtime_error(cause);}
 }
-int main(){try{
+#include "analytics_projection_cases.inc"
+#include "subscriber_demand_cases.inc"
+#include "toon_thought_lifetime_cases.inc"
+#include "toon_thought_destroy_cases.inc"
+#include "toon_thought_frame_cases.inc"
+#include "gizmo_live_adopt_cases.inc"
+#include "building_uptime_fence_cases.inc"
+int main(){try{uptime_fence_cases();
+    analytics_projection_fixture::run();
+    demand_projection_fixture::run();
+    thought_lifetime_fixture::run();
+    thought_destroy_fixture::run();
+    thought_frame_fixture::run();
+    gizmo_live_adopt_fixture::run();
     Local local;local.pin.business=0x10000;local.release=0x20000;local.software=0x30000;local.current_release=0x40000;local.lounge=0x50000;local.gm_rows={0x60000,0x70000};
     need(scalar_address(local,0)==0x10050,"business owner");need(scalar_address(local,1)==0x200b8,"budget owner");
     need(scalar_address(local,24)==0x30344&&scalar_address(local,33)==0x3034d,"byte flag extent");

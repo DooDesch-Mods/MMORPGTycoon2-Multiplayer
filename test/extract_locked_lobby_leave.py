@@ -16,16 +16,29 @@ def extract(root,output):
         'fence_suspend.inc':part(fence,'bool EconomicFence::suspend_snapshot(','bool EconomicFence::rebind_snapshot('),
         'fence_retire.inc':part(fence,'bool EconomicFence::retire_lobby(','bool retire_lobby_fence('),
     }
-    def body(anchor):
-        begin=bridge.index(anchor);end=bridge.index('{',begin)+1;depth=1
+    def body(anchor,text=bridge):
+        begin=text.index(anchor);end=text.index('{',begin)+1;depth=1
         while depth:
-            depth+=(bridge[end]=='{')-(bridge[end]=='}');end+=1
-        return bridge[begin:end]
+            depth+=(text[end]=='{')-(text[end]=='}');end+=1
+        return text[begin:end]
+    cash=(folder/'cash_contract.cpp').read_text(encoding='utf-8-sig')
+    bodies['fence_cash.inc']='\n'.join([
+        body('bool brush_cash_shape(',cash),
+        body('bool brush_cash_prefix(',cash),
+        body('bool brush_cash_progress(',cash),
+        body('bool brush_cash_complete(',cash),
+        body('bool EconomicFence::allow(',fence),
+        body('bool EconomicFence::end_action(',fence),
+        body('void EconomicFence::original_failed(',fence),
+        body('bool predicted_cash(',(folder/'cash_contract.cpp').read_text(encoding='utf-8-sig')),
+        body('action_session::Ledger ledger(',(folder/'state.cpp').read_text(encoding='utf-8-sig')),
+    ])+'\n'
     bodies['bridge_leave.inc']+='\n'+body('bool Bridge::suspend_vips(')+'\n'+body('bool Bridge::reset_vips(')+'\n'
     for name,classname in [('bridge.h','Bridge'),('economic_fence.h','EconomicFence')]:
         text=(folder/name).read_text(encoding='utf-8-sig')
         if text.count('class '+classname)!=1:raise SystemExit('locked Leave test header boundary changed: '+name)
         bodies[name]=text.replace('class '+classname,'struct '+classname,1)
+    assert 'action_cash_ledger_=result.evidence.before;' in body('bool EconomicFence::begin_action(',fence)
     output.mkdir(parents=True,exist_ok=True)
     for name,body in bodies.items():(output/name).write_bytes(body.encode('utf-8'))
 

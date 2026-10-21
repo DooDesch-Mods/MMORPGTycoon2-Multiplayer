@@ -20,8 +20,9 @@ bool LocalSession::current(Context& out,std::string& cause) {
     if(!config.local_test){cause="local action adapter requires local_test; Steam action transport not implemented";return false;}
     if(!net::local_session_connected()||!transport.connected()||!transport.ready()){cause="local action session disconnected: "+transport.failure_reason();return false;}
     const auto snapshot=net::current_snapshot_id();const auto epoch=net::current_world_epoch();const auto mask=net::local_session_peer_mask();
-    if(snapshot.empty()||!epoch||!mask){cause="current snapshot session authority unavailable";return false;}
-    out={config.session_id,config.peer_id,1,mask,config.is_host?Role::Host:Role::Client,snapshot};
+    const auto session=net::session_wire::session_id();
+    if(snapshot.empty()||!epoch||!mask||!session){cause="current snapshot session authority unavailable";return false;}
+    out={session,config.peer_id,1,mask,config.is_host?Role::Host:Role::Client,snapshot};
     cause.clear();return true;
 }
 }

@@ -1,4 +1,5 @@
 #include "native_tool_prepare/buildings_tab.h"
+#include "native_tool_prepare/scenery_tab.h"
 #include <map>
 #include <iostream>
 #include <stdexcept>
@@ -24,7 +25,51 @@ struct Calls {Memory m=baseline();bool reserved=false,press_ok=true,ledger_ok=tr
  bool status(const t::Pin& p,t::Status& out,std::string& e){return t::status(m,p,out,e);}
  bool unchanged(std::string& e){if(changed_after_sample)m.put(image+0x13df650,world+0x188);if(!ledger_ok)e="ledger cause";return ledger_ok;}
 };
-int main(){try{std::string e;t::Pin p;t::Status status;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.edit==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::status(m,p,status,e)&&status.ready,"owned selected request");
+
+namespace scenery_adapter_fixture {
+namespace st=mt2mp::game::scenery_tab;
+Memory scenery_baseline(){
+    auto m=baseline();m.str(tab_address+0x2c8,"Scenery");
+    m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Scenery\"");
+    m.str(content_address+0x1b0,"Scenery");m.put(content_address+0x34c,int32_t(7));return m;
+}
+void scenery_choose(Memory& m){choose(m);m.put(world+0x1fc,int32_t(7));}
+struct Calls {
+    Memory m=scenery_baseline();int presses=0,pins=0;bool reserved=false,pending=false,press_ok=true,ledger_ok=true;
+    bool mutate_owner=false,mutate_final=false,throw_press=false;
+    bool pin(st::Pin& p,std::string& e){++pins;if(mutate_owner&&pins==3)m.put(tab_address+0x280,bar+8);return st::inspect(m,image,world,p,e);}
+    bool reserve(const st::Pin&,std::string& e){if(reserved){e="consumed token";return false;}reserved=true;return true;}
+    bool press(const st::Pin&,std::string& e){++presses;if(throw_press)throw std::runtime_error("native boundary");if(!press_ok){e="original SEH";return false;}scenery_choose(m);if(pending)m.put(world+0x1fc,int32_t(5));return true;}
+    bool status(const st::Pin& p,st::Status& out,std::string& e){return st::status(m,p,out,e);}
+    bool unchanged(std::string& e){if(mutate_final)m.put(image+0x13df650,world+0x188);if(!ledger_ok)e="full20 ledger changed";return ledger_ok;}
+};
+void run(){
+    std::string e;st::Pin p;st::Status s;
+    {auto m=scenery_baseline();check(st::inspect(m,image,world,p,e)&&p.edit==3&&p.edit_kind==7,"Scenery reads actual Edit mode and own subtype");scenery_choose(m);check(st::inspect(m,image,world,p,e)&&st::status(m,p,s,e)&&s.ready,"Scenery exact current native content");}
+    {Calls c;st::Receipt r;check(st::prepare(c,r,e)&&r.attempted&&r.returned&&r.confirmed&&!r.unknown&&r.state.ready&&c.presses==1,"Scenery original once");check(!st::prepare(c,r,e)&&!r.attempted&&c.presses==1,"Scenery selected no replay");}
+    {Calls c;c.pending=true;st::Receipt r;e.clear();check(st::prepare(c,r,e)&&r.confirmed&&r.returned&&!r.unknown&&!r.state.ready&&r.state.cause.find("edit subtype pending")!=std::string::npos&&c.presses==1,"Scenery asynchronous subtype is pending");scenery_choose(c.m);check(st::inspect(c.m,image,world,p,e)&&st::status(c.m,p,s,e)&&s.ready&&c.presses==1,"Scenery layout settles without another Press");}
+    {auto m=scenery_baseline();m.str(tab_address+0x2c8,"Buildings");e.clear();check(!st::inspect(m,image,world,p,e)&&e=="Scenery tab absent from actual ActionBar","Scenery missing tab rejected");}
+    {auto m=scenery_baseline();m.put(tab_address+0x69,uint8_t(0));e.clear();check(!st::inspect(m,image,world,p,e),"Scenery hidden tab rejected");}
+    {auto m=scenery_baseline();m.put(tab_address+0x174,uint8_t(0));e.clear();check(!st::inspect(m,image,world,p,e),"Scenery disabled tab rejected");}
+    {auto m=scenery_baseline();m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Buildings\"");e.clear();check(!st::inspect(m,image,world,p,e)&&e=="Scenery tab authored command differs","Scenery cannot reuse Buildings command");}
+    {auto m=scenery_baseline();m.put(content_address+0x348,int32_t(1));e.clear();check(!st::inspect(m,image,world,p,e),"Scenery does not accept Network view");}
+    {auto m=scenery_baseline();m.array(bar+0x518,{tab_address,tab_address});e.clear();check(!st::inspect(m,image,world,p,e),"Scenery duplicate tab rejected");}
+    {auto m=scenery_baseline();scenery_choose(m);m.put(content_address+0x368,uintptr_t(0));e.clear();check(st::inspect(m,image,world,p,e)&&st::status(m,p,s,e)&&!s.ready&&s.cause=="Scenery original view request pending","Scenery request creation pending");}
+    {auto m=scenery_baseline();scenery_choose(m);m.put(content_address+0x280,uintptr_t(0));e.clear();check(st::inspect(m,image,world,p,e)&&st::status(m,p,s,e)&&!s.ready&&s.cause=="Scenery content layout owner pending","Scenery null layout pending");}
+    {auto m=scenery_baseline();scenery_choose(m);m.put(content_address+0x280,uintptr_t(77));e.clear();check(st::inspect(m,image,world,p,e)&&!st::status(m,p,s,e)&&e=="Scenery content foreign parent/window owner","Scenery foreign owner fails");}
+    {auto m=scenery_baseline();scenery_choose(m);m.put(request,int32_t(1));e.clear();check(st::inspect(m,image,world,p,e)&&!st::status(m,p,s,e)&&e=="Scenery original view request mode differs","Scenery foreign view request fails");}
+    {auto m=scenery_baseline();scenery_choose(m);m.array(world+0x180+3*24,{request,request});e.clear();check(st::inspect(m,image,world,p,e)&&!st::status(m,p,s,e),"Scenery duplicate request fails");}
+    {Calls c;c.reserved=true;st::Receipt r;e.clear();check(!st::prepare(c,r,e)&&!r.attempted&&c.presses==0&&e=="consumed token","Scenery token once before original");}
+    {Calls c;c.press_ok=false;st::Receipt r;e.clear();check(!st::prepare(c,r,e)&&r.attempted&&!r.returned&&r.unknown&&e=="original SEH"&&c.presses==1,"Scenery original failure retained");}
+    {Calls c;c.ledger_ok=false;st::Receipt r;e.clear();check(!st::prepare(c,r,e)&&r.unknown&&!r.confirmed&&e=="full20 ledger changed","Scenery full ledger failure retained");}
+    {Calls c;c.mutate_owner=true;st::Receipt r;e.clear();check(!st::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1,"Scenery changed owner Unknown");}
+    {Calls c;c.mutate_final=true;st::Receipt r;e.clear();check(!st::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1&&e.find("WorldView owner")!=std::string::npos,"Scenery final owner revalidation");}
+    {Calls c;c.throw_press=true;st::Receipt r;try{st::prepare(c,r,e);check(false,"Scenery expected throw");}catch(const std::runtime_error&){check(r.attempted&&r.unknown&&!r.confirmed,"Scenery exception Unknown");}}
+    {Memory m;const auto& bytes=mt2mp::game::tutorial_network_tab::press_code;for(size_t i=0;i<bytes.size();++i)m.data[image+0x57c950+i]=bytes[i];e.clear();check(st::verify(m,image,e),"Scenery complete original Press pin");m.data[image+0x57c950+bytes.size()-1]^=1;check(!st::verify(m,image,e)&&e=="Scenery original Tab::Press body differs","Scenery body tail mutation fails");}
+}
+}
+
+int main(){try{scenery_adapter_fixture::run();std::string e;t::Pin p;t::Status status;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.edit==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::status(m,p,status,e)&&status.ready,"owned selected request");
  auto reject=[&](auto mutate,const char* label){auto x=baseline();mutate(x);e.clear();check(!t::inspect(x,image,world,p,e)&&!e.empty(),label);};
  reject([](Memory& x){x.put(image+0x13df650,world+0x188);},"foreign manager");
  reject([](Memory& x){x.str(image+0x1a36520+32,"Edit");},"duplicate enum");

@@ -8,7 +8,7 @@ int main()try{
     const std::string member_key="action:member",free_key="action:free",group_key="group:"+member_key;
     f::gr::Local current;current.handles={{member_key,{f::scenery,11}},{free_key,{f::free_prop,22}}};
     const mt2mp::action_session::GroupRow known_row{group_key,67,f::pose(),{{member_key,f::pose()},{free_key,f::pose()}}};
-    std::map<uint64_t,gh::Known> known{{f::group_uid,{f::group_uid,known_row,"Group"}}};
+    std::map<uint64_t,gh::Known> known{{f::group_uid,{f::group_uid,known_row,"Backing property","Group"}}};
     auto find=[&](uint64_t uid,uintptr_t& out,std::string&){out=uid==11?f::scenery:uid==22?f::free_prop:(uid==f::group_uid&&present?f::group:0);return true;};
     auto region=[](int32_t id,uintptr_t& out,std::string&){out=id==67?f::region:0;return out!=0;};
     auto text=[&](uintptr_t p,std::string& out,std::string& why){if(p!=node+0xd0){why="foreign saved string receiver";return false;}out=saved_name;return true;};
@@ -35,6 +35,20 @@ int main()try{
         if(add){bad([&](auto& v){v.put(node+0xc0,f::root+1);});bad([&](auto& v){v.put(node+0xc8,f::region+1);});
             bad([&](auto& v){v.put(node+0xf0,uint32_t(0x7fc00000));});m=fixture(add);saved_name="Other";f::need(!read(),"saved original Group name drift accepted");}
         else{m=fixture(add);present=false;f::need(!read(),"original Remove missing Group admitted");}
+    }
+    {
+        f::Memory names;const std::array<uint8_t,8> getter{0x48,0x8d,0x05,0x79,0xbf,0x56,0x01,0xc3};
+        names.put(f::image+0x1749de0+0xa8,f::image+0x4cc4e0);names.put(f::image+0x4cc4e0,getter);
+        unsigned reads=0;bool fail_text=false;std::string actual_name;
+        auto native_text=[&](uintptr_t address,std::string& value,std::string& why){++reads;
+            if(address!=f::image+0x1a38460||fail_text){why="native name read failure";return false;}value="Native display label";return true;};
+        f::need(gh::restore_name(names,f::image,native_text,actual_name,e)&&actual_name=="Native display label"&&reads==1,e);
+        names.put(f::image+0x1749de0+0xa8,f::image+0x4cc4e1);
+        f::need(!gh::restore_name(names,f::image,native_text,actual_name,e)&&reads==1,"foreign GetName vslot read native name");
+        names.put(f::image+0x1749de0+0xa8,f::image+0x4cc4e0);names.put(f::image+0x4cc4e0,uint8_t(0));
+        f::need(!gh::restore_name(names,f::image,native_text,actual_name,e)&&reads==1,"changed GetName body read native name");
+        names.put(f::image+0x4cc4e0,getter);fail_text=true;
+        f::need(!gh::restore_name(names,f::image,native_text,actual_name,e)&&e=="native name read failure"&&reads==2,"native name failure hidden");
     }
     f::Memory codes;const std::array<uint8_t,16> first{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x58};
     for(auto [rva,stack]:std::vector<std::pair<uintptr_t,uint8_t>>{{0x546700,uint8_t(0x58)},{0x545830,uint8_t(0xb8)},{0x4ce730,uint8_t(0x48)},{0x4cd3f0,uint8_t(0x98)}}){auto prefix=first;prefix[13]=(rva==0x545830||rva==0x4cd3f0)?0x81:0x83;prefix[15]=stack;codes.put(f::image+rva,prefix);}

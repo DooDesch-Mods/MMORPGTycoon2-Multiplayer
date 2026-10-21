@@ -654,7 +654,7 @@ bool read_completed_world(uint64_t generation,CurrentWorld& result,std::string& 
     WorldWitness first,second;
     {
         mt2mp::game::live_host_state::apply_timing::PageReadScope pages(
-            mt2mp::game::live_host_state::apply_timing::page_read_scope==nullptr);
+            !mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
         ++current.world_checks;
         if(!world_witness(first,error))return false;
         ++current.world_checks;

@@ -297,6 +297,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/monster_zone_action_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/direct_monster_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/management_simulation_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/character_calendar_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/dungeon_input_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/dungeon_input_action_checks.cmake")
 
 
 
@@ -450,6 +453,11 @@ include("${CMAKE_CURRENT_LIST_DIR}/vip_frame_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/vip_runtime_checks.cmake")
 
+include("${CMAKE_CURRENT_LIST_DIR}/monster_edit_history_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/npc_history_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/character_import_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/dungeon_building_codec_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/dungeon_building_sample_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
 
 
@@ -551,3 +559,19 @@ include("${CMAKE_CURRENT_LIST_DIR}/pending_binding_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/time_item_forwarding_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/object_ui_probe_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/placement_input_order_checks.cmake")
+add_executable(mt2mp_test_move_selection_refresh "${MT2MP_SOURCE_ROOT}/test/test_move_selection_refresh.cpp")
+target_include_directories(mt2mp_test_move_selection_refresh PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+target_compile_features(mt2mp_test_move_selection_refresh PRIVATE cxx_std_20)
+add_test(NAME move_selection_refresh COMMAND mt2mp_test_move_selection_refresh)
+add_executable(mt2mp_test_move_widget_refresh "${MT2MP_SOURCE_ROOT}/test/test_move_widget_refresh.cpp")
+target_include_directories(mt2mp_test_move_widget_refresh PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+target_compile_features(mt2mp_test_move_widget_refresh PRIVATE cxx_std_20)
+add_test(NAME move_widget_refresh COMMAND mt2mp_test_move_widget_refresh)
+
+
+# Check normal-session hook admission using only the local source tree.
+add_test(NAME startup_hook_catalog_consumer
+    COMMAND "${Python3_EXECUTABLE}" -B -X utf8
+    "${MT2MP_SOURCE_ROOT}/test/test_startup_hook_catalog_consumer.py"
+    --source-root "${MT2MP_SOURCE_ROOT}")

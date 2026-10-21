@@ -37,7 +37,23 @@ restored = inner.replace('if(!m.copy(state.image+code.rva,bytes.data(),bytes.siz
 restored = restored.replace('        if(code.rva==0x6a1780&&!checkbox_original(state.image+code.rva,bytes,e))return false;\n        if(!quest_bridge::sha256(bytes,sha,e))return false;\n', '')
 assert restored == old_quest[original_start:original_end]
 added = 'if(pin.rva==0x6a1780&&!quest_list::checkbox_original(state.image+pin.rva,bytes,error))return false;'
-assert palette.replace(added, '').replace('if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;if(!quest_bridge::sha256(bytes,hash,error))', 'if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))') == old_palette
+# The additional District color route changes only authentication of the same
+# complete helper extent. Retain the original guard and compare every other byte.
+district_guard = 'if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Dungeon palette original explicit-owner helper body differs RVA="+std::to_string(pin.rva)+": "+error);'
+prior_guard = 'if(!quest_bridge::sha256(bytes,hash,error))return false;if(hash!=pin.sha)return fail(error,"Dungeon palette original explicit-owner helper body differs RVA="+std::to_string(pin.rva));'
+assert palette.count(district_guard) == 1, "District palette full-body guard missing"
+palette_comparison = palette.replace(district_guard, prior_guard, 1)
+# The D01 sample is an adjacent shared-reader include only.
+building_join = '#include "dungeon_authored_sample.inc"\n#include "dungeon_building_sample.inc"\n'
+assert palette_comparison.count(building_join) == 1, 'Dungeon Building sample include seam differs'
+palette_comparison = palette_comparison.replace(building_join, '#include "dungeon_authored_sample.inc"\n', 1)
+# The authored Cells reader is shared with Action66 at this fixed include seam.
+# Normalize only that include; retain the full historical palette comparison.
+authored_join = '#include "dungeon_cells_graph.inc"\n#include "dungeon_authored_sample.inc"\n#include "dungeon_cells_port.inc"'
+previous_join = '#include "dungeon_cells_graph.inc"\n#include "dungeon_cells_port.inc"'
+assert palette_comparison.count(authored_join) == 1, "Dungeon authored reader include seam differs"
+palette_comparison = palette_comparison.replace(authored_join, previous_join, 1)
+assert palette_comparison.replace(added, '').replace('if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;if(!quest_bridge::sha256(bytes,hash,error))', 'if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))') == old_palette
 dependencies = args.source
 base = args.source / "src/game"
 if not (base / "gm_policy_route_pins.inc").exists():

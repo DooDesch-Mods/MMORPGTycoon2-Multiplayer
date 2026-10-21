@@ -2,6 +2,14 @@ if(WIN32)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set(construction_source "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${construction_source}"
+        "${MT2MP_SOURCE_ROOT}/src/game/ui_build_runtime.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/duplicate_codec.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/duplicate_budget.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/placement_kiss/placement_adapter.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/scenery_kiss/ui_contract.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/scenery_kiss/scenery_state.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/undo_witness.cpp"
         "${MT2MP_SOURCE_ROOT}/test/extract_developer_construction.py")
     execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_developer_construction.py"
         --source "${construction_source}" --output "${CMAKE_CURRENT_BINARY_DIR}/construction_extracted"

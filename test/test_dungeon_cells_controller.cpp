@@ -1,5 +1,6 @@
 #include "test_dungeon_palette_fixture.h"
 #include <iostream>
+#include <memory>
 inline constexpr const char* original_id="44444444-4444-4444-8444-444444444444";
 DungeonPaletteState cell_state(){auto value=before();value.defaults=false;value.stroke={std::string(64,'a'),std::string(64,'b'),std::string(64,'c'),{{0,value.cells[0]},{1,value.cells[1]}}};value.cells.clear();return value;}
 DungeonPaletteIntent cell_intent(){auto value=intent();value.edit=DungeonPaletteEdit::Cells;value.defaults=false;value.colors={};value.packed={};value.stroke.mode=DungeonCellMode::Close;value.stroke.cells={0,1};return value;}
@@ -32,8 +33,8 @@ struct Packet {uint64_t sender,target;std::vector<uint8_t> bytes;};
 struct Wire:Transport {uint64_t peer;std::deque<Packet>& packets;Wire(uint64_t p,std::deque<Packet>& rows):peer(p),packets(rows){}
  bool claim(Handler,std::string&)override{return true;}
  bool send(uint64_t target,const std::vector<uint8_t>& bytes,std::string&)override{packets.push_back({peer,target,bytes});return true;}};
-void flow(Action action,bool host_origin,int mode){SessionPort hs(1),cs(2);EnginePort he,ce;he.mode=mode==1||mode==3?mode:0;ce.mode=mode==2?2:0;
- std::deque<Packet> packets;Wire hw(1,packets),cw(2,packets);Controller host(hs,he,hw,{}),client(cs,ce,cw,{});std::string error;
+void flow(Action action,bool host_origin,int mode){SessionPort hs(1),cs(2);auto he_storage=std::make_unique<EnginePort>();auto ce_storage=std::make_unique<EnginePort>();auto& he=*he_storage;auto& ce=*ce_storage;he.mode=mode==1||mode==3?mode:0;ce.mode=mode==2?2:0;
+ std::deque<Packet> packets;Wire hw(1,packets),cw(2,packets);auto host_storage=std::unique_ptr<Controller>(new Controller(hs,he,hw,{}));auto client_storage=std::unique_ptr<Controller>(new Controller(cs,ce,cw,{}));auto& host=*host_storage;auto& client=*client_storage;std::string error;
  need(host.start(0,error)&&client.start(0,error),error);auto& sender=host_origin?host:client;
  const bool submitted=action==Action::SetDungeonPalette?sender.submit_dungeon_palette(action_id,cell_intent(),0,error):
   sender.submit_building_history(action,action_id,original_id,std::string("dungeon-tiles:")+original_id,0,error);
@@ -42,7 +43,7 @@ void flow(Action action,bool host_origin,int mode){SessionPort hs(1),cs(2);Engin
  std::optional<Packet> original_request,original_result;size_t delivered=0;
  while(!packets.empty()){
   need(++delivered<=8,"Unbounded Dungeon action packet exchange");auto packet=packets.front();packets.pop_front();
-  Message message;need(decode(packet.bytes.data(),packet.bytes.size(),message,error),error);
+  auto message_storage=std::make_unique<Message>();auto& message=*message_storage;need(decode(packet.bytes.data(),packet.bytes.size(),message,error),error);
   if(message.kind==Kind::Request)original_request=packet;if(message.kind==Kind::HostResult)original_result=packet;
   const bool accepted=(packet.target==1?host:client).receive(packet.sender,packet.bytes.data(),packet.bytes.size(),1,error);
   if(!accepted)need((mode==2&&client.status().locked)||(mode==3&&host.status().locked),"Unexpected Controller delivery failure: "+error);

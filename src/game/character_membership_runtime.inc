@@ -11,6 +11,7 @@ struct Operation {a::Binding binding;a::Request request;Sample before,after;a::E
     uint32_t calls=0;int32_t ordinal=-1;uintptr_t initiating_view=0;std::string cause;};
 std::optional<Pending> pending;std::map<std::string,Operation> operations;std::map<std::string,uintptr_t> local_views;
 void confirm_entry(void*);
+a::Outcome perform_import(Memory&,const a::Binding&,const a::Request&,const a::Evidence*,const Sample&,std::string&);
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[CharacterMembership] {}",error);}return false;}
 bool code(Memory& memory,std::string& error){
     for(const auto& pin:character_membership_codes::helpers){std::vector<unsigned char> bytes(pin.bytes);
@@ -165,13 +166,13 @@ bool pending_ui(){return pending.has_value()||executing;}
 bool enable(std::string& error){
     if(!state.ready||GetCurrentThreadId()!=state.thread)return fail(error,"Character membership requires current installed Monster Mainthread");
     if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Character membership retained unretired original operation="+id);
-        if(fault||pending_ui())return fail(error,"Character membership retained unresolved capture");Memory memory;if(!code(memory,error))return false;operations.clear();local_views.clear();return true;}
+        if(fault||pending_ui())return fail(error,"Character membership retained unresolved capture");Memory memory;if(!code(memory,error)||!enable_import(error))return false;operations.clear();local_views.clear();return true;}
     if(installed)return fail(error,"Character membership previous installation failed: "+cause);installed=true;Memory memory;if(!code(memory,error))return false;
     auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x684250),reinterpret_cast<void*>(&confirm_entry),reinterpret_cast<void**>(&original));
     if(status!=MH_OK||!original)return fail(error,"Character confirmed-delete prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+0x684250,receipt,error))return false;generation=receipt.generation;
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x684250));if(status!=MH_OK)return fail(error,"Character confirmed-delete enable failed status="+std::to_string(status));
-    if(!code(memory,error))return false;ready=true;return true;
+    if(!code(memory,error)||!enable_import(error))return false;ready=true;return true;
 }
 bool retire_lobby(std::string& error){
     if(!ready){error.clear();return true;}native::WorldStatus world;
@@ -198,6 +199,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
         if(before.value.selected.parent>=0||!next_name(before.manager,before.value.selected.name,expected,error)||expected!=intent.name){if(error.empty())error="Character original next unused variant name differs";return a::Outcome::RejectedNoEffect;}}
     if(authority){auto portable=before.value;portable.global_random=authority->character_membership_before.global_random;
         if(portable!=authority->character_membership_before||before.money!=authority->before){error="Character membership Client current complete prior state differs from Host";return a::Outcome::RejectedNoEffect;}}
+    if(intent.command==a::CharacterMembershipCommand::Import)return perform_import(memory,binding,request,authority,before,error);
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
     const auto unknown=[&](const std::string& why){executing=false;error=op.cause=why.empty()?"Character membership original failed without cause":why;return a::Outcome::Unknown;};
     op.seed_attempted=true;const auto desired=authority?authority->character_membership_before.global_random:before.value.global_random;
@@ -249,6 +251,6 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& err
 json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},
     {"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"npc_completion",{{"attempted",op.npc_completion.attempted},
         {"calls",op.npc_completion.calls},{"returned",op.npc_completion.returned},{"confirmed",op.npc_completion.confirmed},{"cause",op.npc_completion.cause}}}};
-    return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};
+    return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows},{"import_input",import_status()}};
 }
 }

@@ -3,16 +3,36 @@
 #include <string>
 #include <vector>
 #include "district_saved_identity.h"
+#include "district_lifecycle.h"
 
 namespace mt2mp::game::district_saved_identity_runtime {
-// Current saved Districts only. Missing members are omitted without dereferencing
-// their retained addresses. The active snapshot and completed world are checked.
+// Current Districts retain their saved or confirmed original-action identity.
+// Every member is checked against the current manager and full UID registry.
 using Current = district_saved_identity::Current;
 bool current_snapshot_sha(std::string& out, std::string& error);
 // Only the enclosing pure District owner reader opts into its metadata lifetime.
 bool read_current(std::vector<Current>&, std::string& error, bool share_metadata=false);
 bool resolve(const std::string& key, Current&, std::string& error);
 bool bind_local(uintptr_t object, uint64_t uid, std::string& key, std::string& error);
+
+struct Edit {
+    uint64_t token=0;
+    std::string operation,snapshot;
+    std::map<int32_t,district_lifecycle::Roster> before;
+    bool operator==(const Edit&)const=default;
+};
+struct Preview {
+    Edit edit;
+    std::map<int32_t,district_lifecycle::Change> changes;
+    bool operator==(const Preview&)const=default;
+};
+// Original mutation runs between prepare and preview, outside the registry lock.
+// Publication repeats the complete raw census after the caller proves its effect.
+bool prepare_edit(const std::string& operation,Edit&,std::string& error);
+bool preview_edit(const Edit&,const std::map<int32_t,std::map<uint64_t,std::string>>& restored,Preview&,std::string& error);
+bool publish_edit(const Preview&,std::string& error);
+bool cancel_edit(const Edit&,std::string& error);
+
 
 using PropertyCall = bool(*)(const void*, void*, void*, void*);
 using Ticket = uint64_t;

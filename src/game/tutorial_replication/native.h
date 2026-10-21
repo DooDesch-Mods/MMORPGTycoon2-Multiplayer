@@ -1,5 +1,6 @@
 #pragma once
 #include "state.h"
+#include "../scenario_intro_state.h"
 #include "bug_authority/state.h"
 #include "typed_action/action_session.h"
 namespace mt2mp::game::tutorial_replication {
@@ -10,6 +11,8 @@ bool set_research_workers(const action_session::Context&,const action_session::B
 bool commit_research(const action_session::Context&,const action_session::Binding&,const research::Row&,bool&,std::string&);
 bool apply_research_commit(const action_session::Context&,const action_session::Binding&,const research::Row&,const research::Row&,bool&,bool&,std::string&);
 bool retain_research_commit_effect(const action_session::Context&,const action_session::Binding&,const std::string&,const bug_authority::State*,const bug_authority::State*,std::string&);
+bool capture_intro(const action_session::Context&,const action_session::Binding&,scenario_intro::State&,std::string&);
+bool apply_intro(const action_session::Context&,const action_session::Binding&,const scenario_intro::State&,bool&,std::string&);
 bool initialize(uintptr_t image,std::string&);
 bool hooks_enabled(std::string&);
 bool verify_sequence_entry(uintptr_t address,std::string&);

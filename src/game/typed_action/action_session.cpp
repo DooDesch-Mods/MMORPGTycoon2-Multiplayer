@@ -1,7 +1,9 @@
 #include "../monster_target_key.h"
+#include "../monster_move_key.h"
 #include "../tutorial_replication/start_ledger.h"
 #include "../tutorial_replication/staff_action.h"
 #include "action_session.h"
+#include "zone_edit_codec.h"
 #include "../region_history_key.h"
 #include <memory>
 #ifdef MT2MP_FRAMEWORK_PLUGIN
@@ -12,13 +14,17 @@
 #include "../snapshot_zone_key.h"
 #include "../snapshot_npc_key.h"
 #include "../snapshot_district_key.h"
+#include "../district_lifecycle.h"
+#include "../district_stroke_state.h"
 #include "../group_transition.h"
 #include "../group_history.h"
 #include "../duplicate_transition.h"
 #include "../scenery_stroke_transition.h"
 #include "../group_object_transition.h"
+#include "../modular_transition.h"
 #include "../boss_placement_state.h"
 #include "../duplicate_history.h"
+#include "../building_history_slice/cash_effect.h"
 #include "../dungeon_gizmo_portable.h"
 #include "../npc_target_key.h"
 #include <algorithm>
@@ -42,7 +48,7 @@ bool uuid(const std::string& s) {
 }
 bool key(const std::string& s) {
     if(s.starts_with("action:"))return uuid(s.substr(7));
-    return game::snapshot_building_key::valid(s);
+    return game::snapshot_building_key::valid(s)||game::scenery_scene_key::saved(s);
 }
 void exact(const json& j,std::initializer_list<const char*> keys) {
     if(!j.is_object()||j.size()!=keys.size())throw std::runtime_error("schema requires exact object fields");
@@ -219,6 +225,9 @@ BuildingState building_read(const json&,bool);
 #include "prop_text_codec.inc"
 #include "district_codec.inc"
 #include "district_title_codec.inc"
+#include "district_property_codec.inc"
+#include "district_stroke_codec.inc"
+#include "zone_edit_codec.inc"
 #include "group_codec.inc"
 #include "duplicate_codec.inc"
 #include "scenery_stroke_codec.inc"
@@ -236,6 +245,9 @@ BuildingState building_read(const json&,bool);
 #include "character_rename_codec.inc"
 #include "character_membership_codec.inc"
 #include "ability_edit_codec.inc"
+#include "npc_quest_removal_codec.inc"
+#include "monster_edit_codec.inc"
+#include "npc_history_codec.inc"
 #include "ability_membership_codec.inc"
 #include "costume_edit_codec.inc"
 #include "dungeon_config_codec.inc"
@@ -243,6 +255,7 @@ BuildingState building_read(const json&,bool);
 #include "dungeon_sound_codec.inc"
 #include "dungeon_palette_codec.inc"
 #include "dungeon_gizmo_codec.inc"
+#include "dungeon_input_codec.inc"
 #include "building_status_codec.inc"
 bool valid_npc_target(const Request& r) {
     if(r.target_action_uuid.empty())return game::snapshot_npc_key::valid(r.canonical_record_key)||game::building_npc_key::valid(r.canonical_record_key);
@@ -261,6 +274,8 @@ bool path_history(const Request& r){
 bool terrain_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&uuid(r.target_action_uuid)&&r.canonical_record_key=="terrain:"+r.target_action_uuid;}
 bool quest_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
     uuid(r.target_action_uuid)&&r.canonical_record_key=="quests:"+r.target_action_uuid;}
+bool dungeon_input_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
+    uuid(r.target_action_uuid)&&r.canonical_record_key=="dungeon-input:"+r.target_action_uuid;}
 bool dungeon_tiles_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
     uuid(r.target_action_uuid)&&r.canonical_record_key=="dungeon-tiles:"+r.target_action_uuid;}
 bool region_history(const Request& r){
@@ -268,17 +283,58 @@ bool region_history(const Request& r){
 }
 #include "duplicate_history_codec.inc"
 #include "scenery_stroke_history_codec.inc"
+#include "modular_codec.inc"
 bool group_history(const Request& r){return (r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)&&
     uuid(r.target_action_uuid)&&r.canonical_record_key=="groups:"+r.target_action_uuid;}
 bool group_history_effect(const Request& r,const Evidence& e){return group_history(r)&&e.group_before&&e.group_after&&
     group_state_valid(*e.group_before)&&group_state_valid(*e.group_after)&&e.before==e.after&&e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&
     e.object_before==BuildingState{}&&e.object_after==BuildingState{}&&game::group_history::structural_effect(*e.group_before,*e.group_after);}
+bool dungeon_building_request(const Request&);
+bool dungeon_building_execution(const Request&,const Evidence&);
 bool valid_request(const Request& r) {
+    if(r.dungeon_building){auto base=std::make_unique<Request>(r);base->dungeon_building=false;base->dungeon_scene.clear();
+        return dungeon_building_request(r)&&valid_request(*base);}
+    if(!r.dungeon_scene.empty())return false;
+    if(r.action==Action::EditZone){
+        auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;
+        base->canonical_record_key="tech:startingpoint";base->zone_edit={};
+        return r.canonical_record_key=="zone-edit:"+r.action_uuid&&r.target_action_uuid.empty()&&
+            valid_zone_edit_intent(r.zone_edit)&&valid_request(*base);
+    }
+    if(r.zone_edit!=ZoneEditIntent{})return false;
+    if(r.action==Action::DistrictStroke){
+        auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;
+        base->canonical_record_key="tech:startingpoint";base->district_stroke={};
+        return r.canonical_record_key=="district-stroke:"+r.action_uuid&&r.target_action_uuid.empty()&&
+            game::district_stroke_state::intent(r.district_stroke)&&valid_request(*base);
+    }
+    if(r.district_stroke!=DistrictStrokeIntent{})return false;
+    if(modular_action(r)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.target_action_uuid.clear();base.modular={};
+        return (r.action==Action::EditModularBuilding?(r.canonical_record_key=="modular:"+r.action_uuid&&r.target_action_uuid.empty()&&modular_valid(r.modular)):r.modular==ModularIntent{})&&valid_request(base);}
+    if(r.modular!=ModularIntent{})return false;
+    if(r.action==Action::DungeonInput){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.dungeon_input={};
+        return r.canonical_record_key==r.dungeon_input.key&&r.target_action_uuid.empty()&&valid_dungeon_input(r.dungeon_input)&&valid_request(base);}
+    if(r.dungeon_input!=DungeonInputIntent{})return false;
+    if(npc_history(r)){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->target_action_uuid.clear();
+        return uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&valid_request(*base);}
+    if(monster_history(r)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.target_action_uuid.clear();
+        return r.action_uuid!=r.target_action_uuid&&valid_request(base);}
+    if(dungeon_input_history(r)){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.target_action_uuid.clear();
+        return r.action_uuid!=r.target_action_uuid&&valid_request(base);}
+
+    if(r.action==Action::EditDistrict){
+        auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;
+        base->canonical_record_key="tech:startingpoint";base->district_property={};
+        return game::district_lifecycle::valid_key(r.canonical_record_key)&&r.target_action_uuid.empty()&&
+            game::district_property::valid(r.district_property)&&valid_request(*base);
+    }
+    if(r.district_property!=game::district_property::Value{})return false;
     if(world_path_action(r.action)){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.world_path={};
         return r.canonical_record_key=="action:"+r.action_uuid&&r.target_action_uuid.empty()&&
             world_path_valid(r.world_path)&&
-            (r.action==Action::PlaceWall)==(r.world_path.kind==WorldPathKind::Wall)&&valid_request(base);
+            (r.action==Action::PlaceWall)==(r.world_path.kind==WorldPathKind::Wall)&&
+            (r.action==Action::RemoveWorldPath)==(r.world_path.kind==WorldPathKind::Remove)&&valid_request(base);
     }
     if(r.world_path!=WorldPathIntent{})return false;
     if(r.action==Action::PlaceBoss){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.boss_placement={};
@@ -298,10 +354,10 @@ bool valid_request(const Request& r) {
         return r.canonical_record_key=="groups:"+r.action_uuid&&r.target_action_uuid.empty()&&group_intent_valid(r.group)&&valid_request(base);}
     if(r.group!=GroupIntent{})return false;
     if(r.action==Action::MoveDistrictTitle){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.district_title={};
-        return game::snapshot_district_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_title_valid(r.district_title)&&valid_request(base);}
+        return game::district_lifecycle::valid_key(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_title_valid(r.district_title)&&valid_request(base);}
     if(r.district_title!=DistrictTitleIntent{})return false;
     if(r.action==Action::EditDistrictText){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.district_text={};
-        return game::snapshot_district_key::valid(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_intent_valid(r.district_text)&&valid_request(base);}
+        return game::district_lifecycle::valid_key(r.canonical_record_key)&&r.target_action_uuid.empty()&&district_intent_valid(r.district_text)&&valid_request(base);}
     if(r.district_text!=DistrictTextIntent{})return false;
     if(r.action==Action::MoveSelection){auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.selection_move={};
         return r.canonical_record_key=="selection:"+r.action_uuid&&r.target_action_uuid.empty()&&selection_move_intent_valid(r.selection_move)&&valid_request(base);}
@@ -316,7 +372,7 @@ bool valid_request(const Request& r) {
     if(r.boss_phase!=BossPhaseIntent{})return false;
     if(r.action==Action::EditPropText){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";base.prop_text={};
-        return key(r.canonical_record_key)&&r.target_action_uuid.empty()&&prop_text_intent_valid(r.prop_text)&&valid_request(base);
+        return (r.prop_text.gizmo_scene.empty()?key(r.canonical_record_key):game::dungeon_gizmo_identity::key(r.canonical_record_key))&&r.target_action_uuid.empty()&&prop_text_intent_valid(r.prop_text)&&valid_request(base);
     }
     if(r.prop_text!=PropTextIntent{})return false;
     if(r.action==Action::EditNpcProperty){
@@ -410,7 +466,7 @@ bool valid_request(const Request& r) {
     if(r.action==Action::MoveMonster){
         auto base=r;base.action=Action::StartStartingpoint;base.canonical_record_key="tech:startingpoint";
         base.target_action_uuid.clear();base.monster_move={};
-        return game::monster_target_key::request(r.canonical_record_key,r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&valid_monster_move(r.monster_move)&&valid_request(base);
+        return game::monster_move_key::request(r.canonical_record_key,r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&valid_monster_move(r.monster_move)&&valid_request(base);
     }
     if(r.monster_move!=MonsterMoveIntent{})return false;
     if(r.action==Action::PlaceMonster)return uuid(r.action_uuid)&&r.target_action_uuid.empty()&&
@@ -481,7 +537,7 @@ bool valid_request(const Request& r) {
             r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(r.action==Action::UndoBuilding||r.action==Action::RedoBuilding)
         return uuid(r.action_uuid)&&uuid(r.target_action_uuid)&&r.action_uuid!=r.target_action_uuid&&
-            (key(r.canonical_record_key)||selection_history(r)||region_history(r)||path_history(r)||terrain_history(r)||quest_history(r)||network_history(r)||group_history(r)||duplicate_history(r)||scenery_stroke_history(r)||group_object_history(r)||dungeon_tiles_history(r))&&r.building==BuildingState{}&&
+            (key(r.canonical_record_key)||selection_history(r)||region_history(r)||path_history(r)||terrain_history(r)||quest_history(r)||network_history(r)||group_history(r)||duplicate_history(r)||scenery_stroke_history(r)||group_object_history(r)||district_property_history(r)||district_stroke_history(r)||zone_edit_history(r)||dungeon_tiles_history(r))&&r.building==BuildingState{}&&
             r.region==RegionIntent{}&&r.terrain==TerrainIntent{}&&r.path==PathIntent{}&&
             r.network==NetworkIntent{}&&r.network_pipe==NetworkPipeIntent{};
     if(!r.target_action_uuid.empty())return false;
@@ -504,6 +560,9 @@ bool valid_request(const Request& r) {
     return r.action!=Action::PlaceBuilding||r.canonical_record_key=="action:"+r.action_uuid;
 }
 bool object_effect(const Request& r,const Evidence& e) {
+    if(npc_history(r))return valid_npc_history_effect(r,e);
+    if(monster_history(r))return monster_history_effect(r,e);
+    if(modular_action(r))return modular_effect(r,e);
     if(group_object_history(r))return group_object_effect(r,e);
     if(scenery_stroke_history(r))return scenery_stroke_history_effect(r,e);
     if(duplicate_history(r))return duplicate_history_effect(r,e);
@@ -530,6 +589,15 @@ bool object_effect(const Request& r,const Evidence& e) {
 #include "terrain_history_codec.inc"
 
 bool execution(const Request& r,const Evidence& e) {
+    if(r.dungeon_building){auto base=std::make_unique<Request>(r);base->dungeon_building=false;base->dungeon_scene.clear();
+        auto proof=std::make_unique<Evidence>(e);proof->dungeon_building_effect.reset();
+        return dungeon_building_execution(r,e)&&execution(*base,*proof);}
+    if(e.dungeon_building_effect)return false;
+    if(r.action==Action::EditZone||zone_edit_history(r))return zone_edit_effect(r,e);
+    if(npc_history(r))return npc_history_effect(r,e);
+    if(monster_history(r))return monster_history_effect(r,e);
+    if(r.action==Action::DistrictStroke||district_stroke_history(r))return district_stroke_effect(r,e);
+    if(district_property_history(r))return district_property_history_effect(r,e);
     if(r.action==Action::PlaceBoss)return boss_placement_effect(r,e);
     if(terrain_history(r))return terrain_history_effect(r,e);
     if(quest_history(r))return quest_history_effect(r,e);
@@ -575,6 +643,13 @@ bool execution(const Request& r,const Evidence& e) {
         !e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     if(dungeon_tiles_history(r))return e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.before==e.after&&
         e.object_before==BuildingState{}&&e.object_after==BuildingState{}&&dungeon_cells_history_transition(r.action==Action::UndoBuilding,e.dungeon_palette_before,e.dungeon_palette_after);
+    if(r.action==Action::DungeonInput||dungeon_input_history(r)){
+        const bool history=dungeon_input_history(r);const auto* intent=history?(e.dungeon_input_origin?&*e.dungeon_input_origin:nullptr):&r.dungeon_input;
+        if(!intent||!e.undo_confirmed||e.selection_confirmed||e.target_retired||e.object_before!=BuildingState{}||e.object_after!=BuildingState{})return false;
+        return history?(dungeon_input_history_transition(r.target_action_uuid,r.action==Action::UndoBuilding,*intent,e.dungeon_input_before,e.dungeon_input_after)&&
+            dungeon_input_history_cash(r.action==Action::UndoBuilding,*intent,e.before,e.after)):
+            (dungeon_input_transition(r.action_uuid,*intent,e.dungeon_input_before,e.dungeon_input_after)&&dungeon_input_purchase(*intent,e.before,e.after));
+    }
     if(r.action==Action::SetDungeonPalette)return dungeon_palette_transition(r.dungeon_palette,e.dungeon_palette_before,e.dungeon_palette_after)&&e.before==e.after&&
         e.undo_confirmed==(r.dungeon_palette.edit==DungeonPaletteEdit::Cells)&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     if(r.action==Action::SetDungeonAtmosphere)return dungeon_sound_transition(r.dungeon_sound,e.dungeon_sound_before,e.dungeon_sound_after)&&e.before==e.after&&
@@ -595,6 +670,7 @@ bool execution(const Request& r,const Evidence& e) {
     if((r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest))return npc_quest_list_transition(r.npc_quest_list,e.quest_list_before,e.quest_list_after)&&
         e.before==e.after&&e.undo_confirmed&&!e.target_retired&&!e.selection_confirmed&&
         e.object_before==BuildingState{}&&e.object_after==BuildingState{};
+    if(modular_action(r))return modular_effect(r,e);
     if(group_object_history(r))return group_object_effect(r,e);
     if(scenery_stroke_history(r))return scenery_stroke_history_effect(r,e);
     if(duplicate_history(r))return duplicate_history_effect(r,e);
@@ -656,12 +732,14 @@ bool execution(const Request& r,const Evidence& e) {
             e.object_before==BuildingState{}&&e.object_after==BuildingState{};
     }
     if(r.action==Action::ReorderBossPhase)return boss_effect(r,e);
+    if(modular_action(r))return modular_effect(r,e);
     if(group_object_action(r.action))return group_object_effect(r,e);
     if(scenery_stroke_action(r.action))return scenery_stroke_effect(r,e);
     if(r.action==Action::DuplicateSelection)return duplicate_effect(r,e);
     if(r.action==Action::EditGroup)return group_effect(r,e);
     if(r.action==Action::MoveDistrictTitle)return district_title_effect(r,e);
     if(r.action==Action::EditDistrictText)return district_effect(r,e);
+    if(r.action==Action::EditDistrict)return district_property_effect(r,e);
     if(r.action==Action::MoveSelection)return selection_move_effect(r,e);
     if(r.action==Action::EditServiceMembership)return service_effect(r,e);
     if(r.action==Action::EditPropText)return prop_text_effect(r,e);
@@ -764,6 +842,11 @@ bool execution(const Request& r,const Evidence& e) {
         !e.target_retired&&e.undo_confirmed;
 }
 bool authority_evidence(const Request& request,const Evidence& local,const Evidence& host){
+    if(monster_history(request)){
+        if(!monster_history_effect(request,local)||!monster_history_effect(request,host)||
+           !monster_shared_state(local.monster_before,host.monster_before)||!monster_shared_state(local.monster_after,host.monster_after))return false;
+        auto left=local,right=host;left.monster_before={};left.monster_after={};right.monster_before={};right.monster_after={};return left==right;
+    }
     if(research_action(request.action)){
         namespace research=game::tutorial_replication::research;
         if(!execution(request,local)||!execution(request,host)||
@@ -837,7 +920,41 @@ bool valid_ledger(const Ledger& v) {return v.record_present>=0&&v.record_present
 bool same_action(const Message& a,const Message& b) {return a.session==b.session&&a.request==b.request;}
 uint8_t bit(uint64_t p) {return uint8_t(1u<<(p-1));}
 std::string identity(const Request& r) {return std::to_string(r.peer)+":"+r.action_uuid;}
+#include "dungeon_building_codec.inc"
 bool valid_message(const Message& m,std::string& error) {
+    if(m.evidence.building_clearance){
+        const auto& request=m.request;const auto& proof=*m.evidence.building_clearance;
+        const bool history=request.action==Action::UndoBuilding||request.action==Action::RedoBuilding;
+        if(request.dungeon_building||!(request.action==Action::PlaceBuilding||history)||
+           request.canonical_record_key!="action:"+(history?request.target_action_uuid:request.action_uuid)||
+           m.kind==Kind::Request||m.kind==Kind::RequestRejected||m.outcome==Outcome::RejectedNoEffect){
+            error="Building clearance proof is outside its exact original placement/history owner";return false;}
+        auto forward=proof;
+        if(history&&!m.evidence.object_after.alive){
+            std::swap(forward.removed,forward.created);
+            for(auto& change:forward.changed)std::swap(change.before,change.after);
+        }
+        if(!forward.created.empty()||!scenery_stroke_result_valid(forward,true)){
+            error="Building clearance canonical original Scenery effect is invalid";return false;}
+        auto base=std::make_unique<Message>(m);base->evidence.building_clearance.reset();
+        return valid_message(*base,error);
+    }
+    if(m.request.dungeon_building){
+        if(!dungeon_building_request(m.request)||(m.evidence.dungeon_building_effect&&!dungeon_building_execution(m.request,m.evidence))){
+            error="Dungeon Building request/effect Scene, mapping or original authored state differs";return false;}
+        if((m.kind==Kind::Request||m.kind==Kind::RequestRejected||m.outcome==Outcome::RejectedNoEffect)&&m.evidence.dungeon_building_effect){
+            error="Dungeon Building no-effect/request packet carries an original mutation proof";return false;}
+        if(m.outcome==Outcome::Confirmed&&!m.evidence.dungeon_building_effect){error="Dungeon Building confirmed result omitted original Scene proof";return false;}
+        auto base=std::make_unique<Message>(m);base->request.dungeon_building=false;base->request.dungeon_scene.clear();base->evidence.dungeon_building_effect.reset();
+        return valid_message(*base,error);
+    }
+    if(!m.request.dungeon_scene.empty()||m.evidence.dungeon_building_effect){error="Dungeon Building state outside its exact request owner";return false;}
+    if(m.evidence.npc_quest_removal&&(m.request.action!=Action::RemoveNPC||
+       !npc_quest_removal_valid(*m.evidence.npc_quest_removal,m.request.canonical_record_key))){
+        error="NPC Quest retirement evidence target or complete records invalid";return false;}
+    if((!modular_action(m.request)&&(m.evidence.modular_before||m.evidence.modular_after||m.evidence.modular_result))||bool(m.evidence.modular_before)!=bool(m.evidence.modular_after)||bool(m.evidence.modular_before)!=bool(m.evidence.modular_result)||
+       (m.evidence.modular_before&&(!scenery_stroke_state_valid(*m.evidence.modular_before)||!scenery_stroke_state_valid(*m.evidence.modular_after)))){error="Modular evidence owner/pair/state differs";return false;}
+    if(m.evidence.modular_result){std::string cause;if(!game::modular_transition::valid(*m.evidence.modular_result,[](const auto& value){return key(value);},cause)){error=cause;return false;}}
     if((!world_path_action(m.request.action)&&!world_path_history(m.request)&&
         (m.evidence.world_path_before||m.evidence.world_path_after))||
        bool(m.evidence.world_path_before)!=bool(m.evidence.world_path_after)||
@@ -870,7 +987,10 @@ bool valid_message(const Message& m,std::string& error) {
        bool(m.evidence.boss_phase_before)!=bool(m.evidence.boss_phase_after)||
        (m.evidence.boss_phase_before&&!boss_state_valid(*m.evidence.boss_phase_before))||
        (m.evidence.boss_phase_after&&!boss_state_valid(*m.evidence.boss_phase_after))){error="Boss phase evidence owner/pair/state invalid";return false;}
-    if((m.request.action!=Action::EditDistrictText&&m.request.action!=Action::MoveDistrictTitle&&(m.evidence.district_before||m.evidence.district_after))||
+    if(m.request.action!=Action::EditZone&&!zone_edit_history(m.request)&&m.evidence.zone_edit){error="Foreign Zone edit evidence";return false;}
+    if(m.request.action!=Action::DistrictStroke&&!district_stroke_history(m.request)&&m.evidence.district_stroke){error="Foreign District stroke evidence";return false;}
+    if(m.request.action!=Action::EditDistrict&&m.evidence.district_continent_height){error="Foreign District property continent witness";return false;}
+    if((!district_property_history(m.request)&&m.request.action!=Action::EditDistrict&&m.request.action!=Action::EditDistrictText&&m.request.action!=Action::MoveDistrictTitle&&(m.evidence.district_before||m.evidence.district_after))||
        bool(m.evidence.district_before)!=bool(m.evidence.district_after)||
        (m.evidence.district_before&&!district_state_valid(*m.evidence.district_before))||
        (m.evidence.district_after&&!district_state_valid(*m.evidence.district_after))){error="District evidence pair/owner/state invalid";return false;}
@@ -924,6 +1044,14 @@ bool valid_message(const Message& m,std::string& error) {
     if((m.request.action!=Action::EditDungeonGizmo&&(m.evidence.dungeon_gizmo_before!=DungeonGizmoState{}||m.evidence.dungeon_gizmo_after!=DungeonGizmoState{}))||
        !valid_dungeon_gizmo_state(m.evidence.dungeon_gizmo_before)||!valid_dungeon_gizmo_state(m.evidence.dungeon_gizmo_after)||
        ((m.evidence.dungeon_gizmo_before==DungeonGizmoState{})!=(m.evidence.dungeon_gizmo_after==DungeonGizmoState{}))){error="Gizmo edit evidence outside action domain";return false;}
+    if((m.request.action!=Action::DungeonInput&&!dungeon_input_history(m.request)&&
+            (m.evidence.dungeon_input_before!=DungeonInputState{}||m.evidence.dungeon_input_after!=DungeonInputState{}||m.evidence.dungeon_input_origin))||
+       !valid_dungeon_input_state(m.evidence.dungeon_input_before)||!valid_dungeon_input_state(m.evidence.dungeon_input_after)||
+       !valid_dungeon_sound_state(m.evidence.dungeon_input_before.protected_state)||!valid_dungeon_sound_state(m.evidence.dungeon_input_after.protected_state)||
+       ((m.evidence.dungeon_input_before==DungeonInputState{})!=(m.evidence.dungeon_input_after==DungeonInputState{}))||
+       (m.evidence.dungeon_input_origin&&(!dungeon_input_history(m.request)||!valid_dungeon_input(*m.evidence.dungeon_input_origin)))||
+       (dungeon_input_history(m.request)&&((m.evidence.dungeon_input_before!=DungeonInputState{})!=m.evidence.dungeon_input_origin.has_value()))){
+        error="Dungeon input evidence outside its exact tool/history owner or complete pair";return false;}
     if((m.request.action!=Action::SetDungeonPalette&&!dungeon_tiles_history(m.request)&&(m.evidence.dungeon_palette_before!=DungeonPaletteState{}||m.evidence.dungeon_palette_after!=DungeonPaletteState{}))||
        !valid_dungeon_palette_state(m.evidence.dungeon_palette_before)||!valid_dungeon_palette_state(m.evidence.dungeon_palette_after)||
        ((m.evidence.dungeon_palette_before==DungeonPaletteState{})!=(m.evidence.dungeon_palette_after==DungeonPaletteState{}))){error="Dungeon palette edit evidence outside action domain";return false;}
@@ -956,12 +1084,14 @@ bool valid_message(const Message& m,std::string& error) {
        !valid_npc_quest_state(m.evidence.quest_before)||!valid_npc_quest_state(m.evidence.quest_after)||
        ((m.evidence.quest_before==NpcQuestState{})!=(m.evidence.quest_after==NpcQuestState{}))){
         error="NPC Quest edit evidence outside action domain";return false;}
+    if(m.evidence.npc_history_proof&&(!npc_history(m.request)||!valid_npc_history(*m.evidence.npc_history_proof))){error="NPC history proof outside its exact action domain";return false;}
+    if((m.evidence.monster_history_proof&&!monster_history(m.request))||(m.evidence.monster_history_proof&&!valid_monster_history(*m.evidence.monster_history_proof))){error="Monster history proof outside its exact action domain";return false;}
     if(m.request.action!=Action::RemoveMonster&&m.evidence.monster_quests!=MonsterQuestRetirement{}){
         error="Monster Quest retirement evidence requires RemoveMonster";return false;}
     if(m.request.action==Action::RemoveMonster&&!valid_monster_quests(m.evidence.monster_quests,m.request.canonical_record_key,
         m.evidence.monster_before!=MonsterState{})){
         error="Monster Quest retirement evidence differs";return false;}
-    if((m.request.action!=Action::PlaceMonster&&m.request.action!=Action::MoveMonster&&m.request.action!=Action::RemoveMonster&&(m.evidence.monster_before!=MonsterState{}||m.evidence.monster_after!=MonsterState{}))||
+    if((m.request.action!=Action::PlaceMonster&&m.request.action!=Action::MoveMonster&&m.request.action!=Action::RemoveMonster&&!monster_history(m.request)&&(m.evidence.monster_before!=MonsterState{}||m.evidence.monster_after!=MonsterState{}))||
        !valid_monster_state(m.evidence.monster_before)||!valid_monster_state(m.evidence.monster_after)){
         error="Monster evidence outside action domain";return false;}
 
@@ -1016,7 +1146,7 @@ bool valid_message(const Message& m,std::string& error) {
        (m.evidence.price_before!=PriceState{}||m.evidence.price_after!=PriceState{})) {
         error="price evidence outside action domain";return false;
     }
-    if((m.request.action!=Action::PlaceNPC&&m.request.action!=Action::RemoveNPC&&m.request.action!=Action::MoveNPC&&
+    if((m.request.action!=Action::PlaceNPC&&m.request.action!=Action::RemoveNPC&&m.request.action!=Action::MoveNPC&&!npc_history(m.request)&&
         (m.evidence.npc_before!=NpcState{}||m.evidence.npc_after!=NpcState{}))||
        !valid_npc_state(m.evidence.npc_before)||!valid_npc_state(m.evidence.npc_after)){
         error="NPC evidence outside action domain";return false;
@@ -1060,7 +1190,11 @@ bool dungeon_gizmo_wire_fits(const Request& request,const DungeonGizmoState& bef
     Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
     auto& e=probe.evidence;e.before=e.after=money;e.retirement_confirmed=true;e.dungeon_gizmo_before=before;
     if(!dungeon_gizmo_project(request.dungeon_gizmo,before,e.dungeon_gizmo_after)){error="Gizmo original edit has no exact current native target/value";return false;}
-    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Gizmo full receipt exceeds existing action packet budget before effect";return false;}return true;
+    size_t reserve=256;
+    if(before.live){for(const auto& scene:*before.live)reserve+=scene.rows.size()*160;}
+    if(before.network){const auto& graph=*before.network;reserve+=graph.nodes.size()*128+graph.connections.size()*200;
+        if(graph.managers)reserve+=graph.managers->size()*20;for(const auto& pipe:graph.pipes)reserve+=(pipe.current.size()+pipe.smoothing.size())*24;}
+    std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;if(reserve>max_payload||bytes.size()>max_payload-reserve){error="Gizmo full receipt exceeds existing action packet budget before effect";return false;}return true;
 }
 bool ability_membership_wire_fits(const Request& request,const AbilityMembershipState& before,const Ledger& money,std::string& error){
     if(request.action!=Action::EditAbilityMembership||!valid_ability_membership_intent(request.ability_membership)||
@@ -1095,11 +1229,101 @@ bool character_membership_wire_fits(const Request& request,const CharacterMember
     if(request.character_membership.command==CharacterMembershipCommand::CreateVariant){const auto kind=size_t(before.selected.kind);
         const auto id=before.first_deleted[kind]<0?after.counts[kind]++:before.first_deleted[kind];after.first_deleted[kind]=-1;
         after.selected.variants.push_back(id);after.created=CharacterMembershipRow{before.selected.kind,id,before.selected.id,false,request.character_membership.name,{}};
+    }else if(request.character_membership.command==CharacterMembershipCommand::Import){
+        after.selected.name=std::string(1024,'"');after.import_art_sha=after.import_release_sha=std::string(64,'f');
     }else {after.selected.deleted=true;after.selected.variants.clear();after.retired_definitions=before.selected.variants;after.retired_definitions.push_back(before.selected.id);
         std::sort(after.retired_definitions.begin(),after.retired_definitions.end());after.undo_count=20;}
     std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
     if(bytes.size()>max_payload-4096){error="Character membership complete family receipt exceeds existing action packet budget before native mutation";return false;}
     return true;
+}
+bool dungeon_input_wire_fits(const Request& request,const DungeonInputState& before,const Ledger& money,std::string& error,const DungeonInputIntent* origin,const DungeonInputBirth* restored,const std::vector<std::string>* control_names){
+    try{
+        if(!valid_request(request)||!valid_dungeon_input_state(before)||before==DungeonInputState{}||
+           (dungeon_input_history(request)!=bool(origin))||(origin&&!valid_dungeon_input(*origin))){error="Dungeon input wire preflight owner/state/source differs";return false;}
+        const auto& intent=origin?*origin:request.dungeon_input;
+        const bool undo=request.action==Action::UndoBuilding;
+        const bool redo=request.action==Action::RedoBuilding;
+        if((restored&&(!redo||intent.tool==DungeonInputTool::Paint||intent.tool==DungeonInputTool::Gizmos))||
+           (redo&&intent.tool!=DungeonInputTool::Paint&&intent.tool!=DungeonInputTool::Gizmos&&!restored)){
+            error="Dungeon input Redo wire preflight requires its retained original birth";return false;
+        }
+        if(control_names&&(!intent.controls||intent.controls->command!=game::dungeon_gizmo_control::Command::Duplicate||undo||control_names->size()!=intent.controls->rows.size())){
+            error="Gizmo Duplicate wire name bounds require the exact current output count";return false;}
+        auto probe=std::make_unique<Message>();
+        probe->kind=Kind::ApplyAck;probe->session=probe->revision=UINT64_MAX;probe->ack_peer=4;probe->required_mask=15;
+        probe->outcome=Outcome::Confirmed;probe->request=request;
+        probe->request.sequence=probe->request.host_revision=UINT64_MAX;
+        auto& evidence=probe->evidence;evidence.before=evidence.after=money;
+        evidence.dungeon_input_before=evidence.dungeon_input_after=before;
+        if(origin)evidence.dungeon_input_origin=*origin;
+        if(intent.controls){
+            auto& rows=evidence.dungeon_input_after.edits;rows.emplace();
+            if(game::dungeon_gizmo_control::mixed(*intent.controls)){
+                evidence.dungeon_input_after.scenery_edits.emplace();evidence.dungeon_input_after.scenery_release=before.scenery_release;}
+            using Command=game::dungeon_gizmo_control::Command;const auto command=intent.controls->command;
+            const bool deleted=(undo&&command==Command::Duplicate)||(!undo&&command==Command::Destroy);
+            if(!deleted||command==Command::Duplicate){
+                for(size_t i=0;i<intent.controls->rows.size();++i){const auto& source=intent.controls->rows[i];
+                    if(source.scenery){game::dungeon_gizmo_control::SceneryRow row{source.key,*source.scenery};
+                        if(!undo){row.value.pose=source.after;if(command==Command::Duplicate)row.key=game::dungeon_gizmo_control::birth(source,redo?request.target_action_uuid:request.action_uuid,uint32_t(i));}
+                        row.value.height=0xff7fffffu;evidence.dungeon_input_after.scenery_edits->push_back(std::move(row));continue;}
+                    DungeonGizmoRow row{source.key,source.before};
+                    if(!undo){game::dungeon_gizmo_control::pose(row.value,source.after);
+                        if(command==Command::Duplicate){row.key=game::dungeon_gizmo_identity::birth(redo?request.target_action_uuid:request.action_uuid,uint32_t(i));
+                            row.value.parent.clear();row.value.name=control_names?control_names->at(i):std::string(8192,'\1');
+                            if(row.value.name.find('\0')!=std::string::npos){error="Gizmo Duplicate wire name bound contains NUL";return false;}}}
+                    rows->push_back(std::move(row));}
+            }
+        }else if(undo)evidence.dungeon_input_after.birth.reset();
+        else if(intent.tool!=DungeonInputTool::Paint){
+            DungeonInputBirth born;
+            if(restored){
+                auto restored_state=before;restored_state.birth=*restored;
+                if(!valid_dungeon_input_state(restored_state)||restored->tool!=intent.tool||restored->scene!=intent.scene){
+                    error="Dungeon input retained Redo birth is outside its original scene/tool";return false;
+                }
+                born=*restored;
+            }else{
+                born.scene=intent.scene;born.tool=intent.tool;
+                if(intent.tool==DungeonInputTool::Monster){
+                    born.key="action:"+request.action_uuid;born.monster={0,3,intent.rank,1,intent.character_type,intent.level,
+                        std::string(256,'\1'),intent.position,{1,1,1},intent.rotation};
+                }else{
+                    born.key=game::dungeon_gizmo_identity::birth(request.action_uuid,0);
+                    born.gizmo.name=std::string(8192,'\1');born.gizmo.type=intent.type;born.gizmo.variant=intent.variant;
+                    born.gizmo.position=intent.position;born.gizmo.rotation=intent.rotation;born.gizmo.scale=intent.scale;
+                }
+            }
+            evidence.dungeon_input_after.birth=std::move(born);
+        }
+        // Serialize the same full envelope as the sender. Only counters and
+        // original-call outputs that are not known yet need a width bound.
+        evidence.dungeon_input_before.protected_state.dungeon.global_random.fill(UINT64_MAX);
+        evidence.dungeon_input_after.protected_state.dungeon.global_random.fill(UINT64_MAX);
+        evidence.dungeon_input_after.protected_state.dungeon.undo_count=20;
+        auto document=dungeon_input_message_json(*probe);
+        auto& ledger=document["evidence"]["after"];
+        for(auto& entry:ledger.items()){
+            if(entry.value().is_array())for(auto& number:entry.value())number=INT32_MIN;
+            else if(entry.key()!="record_present")entry.value()=INT32_MIN;
+        }
+        auto& birth=document["evidence"]["dungeon_input_after"]["birth"];
+        if(!birth.is_null()&&intent.tool!=DungeonInputTool::Monster){
+            for(const auto* field:{"state","gold","loot","vendor_trash","keys","boss_keys","lock_id","edge_a","edge_b"})
+                birth["value"][field]=INT32_MIN;
+            birth["value"]["triggered"]=false;
+        }
+        if(intent.controls){auto& after=document["evidence"]["dungeon_input_after"];
+            if(after.contains("scenery_release"))for(auto& counter:after["scenery_release"])counter=INT32_MIN;
+            if(after.contains("edits"))for(auto& row:after["edits"]){
+                for(const auto* field:{"state","gold","loot","vendor_trash","keys","boss_keys","lock_id","edge_a","edge_b"})row[field]=INT32_MIN;}
+        }
+        const auto required=document.dump().size();
+        if(required>max_payload){error="Dungeon input full original proof requires "+std::to_string(required)+
+            " bytes; action packet limit is "+std::to_string(max_payload)+" bytes before mutation";return false;}
+        error.clear();return true;
+    }catch(const std::exception& ex){error=std::string("Dungeon input wire preflight: ")+ex.what();return false;}
 }
 bool dungeon_palette_wire_fits(const Request& request,const DungeonPaletteState& before,const Ledger& money,std::string& error){
     Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
@@ -1142,8 +1366,11 @@ bool costume_edit_wire_fits(const Request& request,const CostumeEditState& befor
     probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
     auto& evidence=probe.evidence;evidence.before=evidence.after=money;evidence.retirement_confirmed=true;
     evidence.costume_edit_before=before;evidence.costume_edit_after=before;evidence.costume_edit_after.record=request.costume_edit.record;
+    if(request.costume_edit.weapon_category){if(!costume_weapon_after(before.weapon_categories,*request.costume_edit.weapon_category,evidence.costume_edit_after.weapon_categories)){error="Costume weapon checkbox is unchanged";return false;}}
+    else{
     evidence.costume_edit_after.owner.edited=true;evidence.costume_edit_after.owner.rename_day=before.owner.day;
     if(!before.owner.edited){if(before.owner.release_edits[7]==INT32_MAX){error="Costume native release edit counter exhausted before original effect";return false;}++evidence.costume_edit_after.owner.release_edits[7];}
+    }
     evidence.costume_edit_after.all_sha256=std::string(64,before.all_sha256==std::string(64,'a')?'b':'a');
     std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
     // The original keeps authored names and scalar sets; only bounded release
@@ -1179,6 +1406,8 @@ bool boss_placement_wire_fits(const Request& request,const Evidence& evidence,st
     message.request=request;message.evidence=evidence;message.evidence.retirement_confirmed=true;message.outcome=Outcome::Confirmed;
     std::vector<uint8_t> payload;return encode(message,payload,error);
 }
+bool valid_modular(const ModularIntent& v){return modular_valid(v);}
+bool valid_modular_effect(const Request& r,const Evidence& e){return modular_effect(r,e);}
 bool valid_group_object(bool moving,const GroupObjectIntent& value){return group_object_intent_valid(moving,value);}
 bool valid_group_object_effect(const Request& r,const Evidence& e){return group_object_effect(r,e);}
 bool group_object_wire_fits(const Request& r,const Evidence& e,std::string& error){
@@ -1207,6 +1436,50 @@ bool district_title_wire_fits(const Request& r,const DistrictState& before,const
     m.evidence.district_before=before;m.evidence.district_after=district_title_after(before,r.district_title);
     std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
     if(bytes.size()>max_payload-256){error="District title complete result exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_zone_edit_evidence(const Request& r,const Evidence& e){return zone_edit_effect(r,e);}
+bool zone_edit_wire_fits(const Request& request,const Ledger& money,const ZoneEditState& before,std::string& error){
+    auto message=std::make_unique<Message>();auto& m=*message;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;
+    m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=request;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.retirement_confirmed=true;
+    m.evidence.before=m.evidence.after=money;
+    const bool history=request.action!=Action::EditZone||request.zone_edit.kind!=ZoneEditKind::Respawn;
+    m.evidence.undo_confirmed=history;
+    // Size preflight only. The actual original supplies all published values.
+    auto after=before;after.counts.fill(UINT32_MAX);after.monsters=UINT32_MAX;
+    after.global_random.fill(UINT64_MAX);after.region_random.fill(UINT64_MAX);
+    after.next_tag=after.created_monsters=INT32_MAX;after.release_edits.fill(INT32_MIN);
+    m.evidence.zone_edit=ZoneEditEffect{before,after,history?before.values_sha:std::string{},history?100000u:0u};
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="Zone edit complete proof exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_district_stroke_effect(const Request& r,const Evidence& e){return district_stroke_effect(r,e);}
+bool district_stroke_wire_fits(const Request& r,const Ledger& money,const DistrictStrokeState& before,std::string& error){
+    auto storage=std::make_unique<Message>();auto& m=*storage;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.retirement_confirmed=true;
+    m.evidence.before=m.evidence.after=money;m.evidence.undo_confirmed=true;
+    // This is only a size preflight. The original operation supplies the real
+    // after-state and inverse digest before any result is published.
+    m.evidence.district_stroke=DistrictStrokeEffect{before,before,before.values_sha,100000};
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="District complete stroke exceeds transport budget before mutation";return false;}return true;
+}
+bool valid_district_property_effect(const Request& r,const Evidence& e){return district_property_history(r)?district_property_history_effect(r,e):district_property_effect(r,e);}
+bool district_history_wire_fits(const Request& r,const Evidence& e,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;m.evidence=e;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.retirement_confirmed=true;
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="District original history proof exceeds transport budget before mutation";return false;}return true;
+}
+bool district_property_wire_fits(const Request& r,const DistrictState& before,const Ledger& money,uint32_t continent,std::string& error){
+    Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
+    m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.retirement_confirmed=true;
+    m.evidence.before=m.evidence.after=money;m.evidence.district_before=before;
+    DistrictState after;if(!game::district_property::expected(before,r.district_property,continent,after,error))return false;
+    m.evidence.district_after=std::move(after);m.evidence.district_continent_height=continent;
+    m.evidence.undo_confirmed=game::district_property::field(r.district_property.kind)->original_history;
+    std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="District property complete result exceeds transport budget before mutation";return false;}return true;
 }
 bool valid_district_text(const DistrictTextIntent& v){return district_intent_valid(v);}
 bool valid_district_effect(const Request& r,const Evidence& e){return district_effect(r,e);}
@@ -1244,22 +1517,57 @@ bool valid_prop_text_effect(const Request& r,const Evidence& e){return prop_text
 bool valid_npc_property(const NpcPropertyIntent& v){return npc_property_intent_valid(v);}
 bool valid_npc_property_effect(const Request& r,const Evidence& e){return npc_property_effect(r,e);}
 bool valid_npc(const NpcIntent& value) {return valid_npc_intent(value);}
+bool valid_npc_history_effect(const Request& request,const Evidence& evidence) {return npc_history_effect(request,evidence);}
 bool valid_npc_effect(const Request& request,const Evidence& evidence) {
     return (request.action==Action::PlaceNPC&&npc_effect(request,evidence))||
-        (request.action==Action::RemoveNPC&&npc_remove_effect(evidence))||
+        (request.action==Action::RemoveNPC&&npc_remove_effect(evidence)&&
+         (!evidence.npc_quest_removal||npc_quest_removal_valid(*evidence.npc_quest_removal,request.canonical_record_key)))||
         (request.action==Action::MoveNPC&&npc_move_effect(request,evidence));
+}
+bool valid_npc_quest_removal(const NpcQuestRemovalProof& proof,const std::string& target){return npc_quest_removal_valid(proof,target);}
+bool npc_quest_removal_wire_fits(const Request& request,const NpcState& before,const Ledger& money,
+                               const NpcQuestRemovalProof& proof,std::string& error){
+    if(request.action!=Action::RemoveNPC||before.count==0||before.undo_count>=100000){error="NPC removal packet preflight requires a current actor and Undo capacity";return false;}
+    auto probe=std::make_unique<Message>();probe->session=UINT64_MAX;probe->revision=UINT64_MAX;
+    probe->kind=Kind::ApplyAck;probe->ack_peer=4;probe->required_mask=15;probe->outcome=Outcome::Confirmed;
+    probe->request=request;probe->request.host_revision=UINT64_MAX;probe->request.sequence=UINT64_MAX;
+    auto& e=probe->evidence;e.before=e.after=money;e.npc_before=e.npc_after=before;
+    --e.npc_after.count;++e.npc_after.undo_count;e.npc_after.created={};
+    e.npc_after.roster_sha256=std::string(64,before.roster_sha256==std::string(64,'a')?'b':'a');
+    e.npc_quest_removal=proof;auto& predicted=e.npc_quest_removal->quests;
+    if(predicted.removed.size()>predicted.before_count){error="NPC removal preflight retired Quest count exceeds its global pool";return false;}
+    predicted.after_count=predicted.before_count-uint32_t(predicted.removed.size());predicted.completed_after=predicted.completed_before;
+    for(const auto& row:predicted.removed)if(row.record.completed.total>0)--predicted.completed_after;
+    predicted.after_sha256=predicted.removed.empty()?predicted.before_sha256:std::string(64,predicted.before_sha256==std::string(64,'a')?'b':'a');
+    e.npc_quest_removal->references_after=std::string(64,'a');
+    e.target_retired=e.undo_confirmed=e.selection_confirmed=e.retirement_confirmed=true;
+    std::vector<uint8_t> bytes;if(!encode(*probe,bytes,error))return false;
+    if(bytes.size()>max_payload-256){error="NPC complete Quest retirement receipt exceeds packet budget before original effect";return false;}
+    return true;
 }
 bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
-        const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m);
-        json j={{"schema",uint64_t((world_path_action(r.action)||r.action==Action::PlaceBoss)?35:(group_object_action(r.action)||group_object_history(r))?35:(scenery_stroke_action(r.action)||scenery_stroke_history(r))?35:dungeon_tiles_history(r)?35:terrain_history(r)?35:quest_history(r)?35:network_history(r)?35:duplicate_history(r)?35:group_history(r)?35:r.action==Action::DuplicateSelection?35:r.action==Action::Intervention?35:r.action==Action::GameRules?35:r.action==Action::GmPolicy?35:r.action==Action::ReleaseCycle?35:r.action==Action::ReleaseEdit?35:r.action==Action::EditGroup?35:path_history(r)?35:r.action==Action::EditDungeonGizmo?35:r.action==Action::SetDungeonPalette?35:r.action==Action::GeneralProject?35:region_history(r)?35:r.action==Action::MoveDistrictTitle?35:r.action==Action::EditDistrictText?35:r.action==Action::SetDungeonAtmosphere?35:selection_history(r)?35:r.action==Action::SetDungeonLighting?35:r.action==Action::MoveSelection?35:r.action==Action::ConfigureDungeonInstances?35:r.action==Action::SetLogo?35:r.action==Action::EditAbilityMembership?35:r.action==Action::EditCharacterMembership?35:r.action==Action::EditCharacterCostume?35:r.action==Action::RemoveNetworkObject?35:r.action==Action::SetBuildingStatus||r.action==Action::EditCharacterAbility||(r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)||r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest?35:r.action==Action::ManagementCommand?35:r.action==Action::EditServiceMembership||r.action==Action::ReorderBossPhase||r.action==Action::EditPropText||r.action==Action::EditNpcProperty?35:r.action==Action::SetNpcQuestDestination?34:r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?((appearance_kind(r.region_property.kind)||r.region_property.kind==RegionPropertyKind::Sale)?35:r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m)||e.npc_quest_removal.has_value();
+        json j={{"schema",uint64_t(npc_history(r)?36:(r.action==Action::EditZone||zone_edit_history(r))?36:(r.action==Action::MoveMonster||r.action==Action::RemoveMonster||monster_history(r))?36:modular_action(r)?36:(r.action==Action::DungeonInput||dungeon_input_history(r))?36:(world_path_action(r.action)||r.action==Action::PlaceBoss)?35:(group_object_action(r.action)||group_object_history(r))?35:(scenery_stroke_action(r.action)||scenery_stroke_history(r))?35:dungeon_tiles_history(r)?35:terrain_history(r)?35:quest_history(r)?35:network_history(r)?35:duplicate_history(r)?35:group_history(r)?35:r.action==Action::DuplicateSelection?35:r.action==Action::Intervention?35:r.action==Action::GameRules?35:r.action==Action::GmPolicy?35:r.action==Action::ReleaseCycle?35:r.action==Action::ReleaseEdit?35:r.action==Action::EditGroup?35:path_history(r)?35:r.action==Action::EditDungeonGizmo?(r.dungeon_gizmo.edit==DungeonGizmoEdit::State?36:35):r.action==Action::SetDungeonPalette?35:r.action==Action::GeneralProject?35:region_history(r)?35:(r.action==Action::EditDistrict||district_property_history(r)||r.action==Action::DistrictStroke||district_stroke_history(r))?36:r.action==Action::MoveDistrictTitle?35:r.action==Action::EditDistrictText?35:r.action==Action::SetDungeonAtmosphere?35:selection_history(r)?35:r.action==Action::SetDungeonLighting?35:r.action==Action::MoveSelection?35:r.action==Action::ConfigureDungeonInstances?35:r.action==Action::SetLogo?35:r.action==Action::EditAbilityMembership?35:r.action==Action::EditCharacterMembership?(r.character_membership.command==CharacterMembershipCommand::Import?37:35):r.action==Action::EditCharacterCostume||r.action==Action::EditCharacterAbility?36:r.action==Action::RemoveNetworkObject?35:r.action==Action::SetBuildingStatus||(r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)||r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest?35:r.action==Action::ManagementCommand?35:r.action==Action::EditPropText?(!r.prop_text.gizmo_scene.empty()?36:35):r.action==Action::EditServiceMembership||r.action==Action::ReorderBossPhase||r.action==Action::EditNpcProperty?35:r.action==Action::SetNpcQuestDestination?34:r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?((appearance_kind(r.region_property.kind)||r.region_property.kind==RegionPropertyKind::Sale)?35:r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
             {"evidence",{{"before",ledger_json(e.before)},{"after",ledger_json(e.after)},{"target_retired",e.target_retired},
                 {"undo_confirmed",e.undo_confirmed},{"selection_confirmed",e.selection_confirmed},{"retirement_confirmed",e.retirement_confirmed}}}};
-        if(world_path_action(r.action)||(world_path_history(r)&&e.world_path_before)){
+        if(e.npc_quest_removal)j["schema"]=uint64_t(36);
+        if(r.dungeon_building){j=dungeon_building_message_json(m);
+        }else if(npc_history(r)){
+            j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["npc_before"]=npc_state_json(e.npc_before,true);j["evidence"]["npc_after"]=npc_state_json(e.npc_after,true);
+            j["evidence"]["npc_history"]=e.npc_history_proof?npc_history_json(*e.npc_history_proof):json(nullptr);
+        }else if(monster_history(r)){
+            j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["monster_before"]=monster_state_json(e.monster_before);j["evidence"]["monster_after"]=monster_state_json(e.monster_after);
+            j["evidence"]["monster_history"]=e.monster_history_proof?monster_history_json(*e.monster_history_proof):json(nullptr);
+        }else if(r.action==Action::DungeonInput||dungeon_input_history(r)){
+            j=dungeon_input_message_json(m);
+        }else if(world_path_action(r.action)||(world_path_history(r)&&e.world_path_before)){
             if(world_path_action(r.action))j["request"]["world_path"]=world_path_json(r.world_path);
             else j["request"]["target_action_uuid"]=r.target_action_uuid;
             j["evidence"]["world_path_before"]=world_path_state_json(e.world_path_before);
@@ -1268,6 +1576,8 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["request"]["boss_placement"]=boss_placement_json(r.boss_placement);
             j["evidence"]["boss_placement_before"]=boss_placement_state_json(e.boss_placement_before);
             j["evidence"]["boss_placement_after"]=boss_placement_state_json(e.boss_placement_after);
+        }else if(modular_action(r)){if(r.action==Action::EditModularBuilding)j["request"]["modular"]=modular_json(r.modular);else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["modular_before"]=scenery_stroke_state_json(e.modular_before);j["evidence"]["modular_after"]=scenery_stroke_state_json(e.modular_after);j["evidence"]["modular_result"]=modular_result_json(e.modular_result);
         }else if(group_object_action(r.action)||group_object_history(r)){
             if(group_object_action(r.action))j["request"]["group_object"]=group_object_json(r.group_object);else j["request"]["target_action_uuid"]=r.target_action_uuid;
             j["evidence"]["group_object_before"]=group_object_state_json(e.group_object_before);j["evidence"]["group_object_after"]=group_object_state_json(e.group_object_after);
@@ -1315,6 +1625,17 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["request"]["general_project"]=game::general_project::encode(r.general_project);
             j["evidence"]["general_project_before"]=e.general_project_before?game::general_project::encode(*e.general_project_before):json(nullptr);
             j["evidence"]["general_project_after"]=e.general_project_after?game::general_project::encode(*e.general_project_after):json(nullptr);
+        }else if(r.action==Action::EditZone||zone_edit_history(r)){
+            if(r.action==Action::EditZone)j["request"]["zone_edit"]=zone_edit_codec::intent_json(r.zone_edit);
+            else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["zone_edit"]=zone_edit_optional(e.zone_edit);
+        }else if(r.action==Action::DistrictStroke||district_stroke_history(r)){
+            if(r.action==Action::DistrictStroke)j["request"]["district_stroke"]=district_stroke_intent_json(r.district_stroke);
+            else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["district_stroke"]=district_stroke_effect_json(e.district_stroke);
+        }else if(r.action==Action::EditDistrict||district_property_history(r)){if(r.action==Action::EditDistrict)j["request"]["district_property"]=district_property_json(r.district_property);else j["request"]["target_action_uuid"]=r.target_action_uuid;
+            j["evidence"]["district_before"]=district_state_json(e.district_before);j["evidence"]["district_after"]=district_state_json(e.district_after);
+            j["evidence"]["district_continent_height"]=e.district_continent_height;
         }else if(r.action==Action::MoveDistrictTitle){j["request"]["district_title"]=r.district_title.position;
             j["evidence"]["district_before"]=district_state_json(e.district_before);j["evidence"]["district_after"]=district_state_json(e.district_after);
         }else if(r.action==Action::EditDistrictText){j["request"]["district_text"]=district_intent_json(r.district_text);
@@ -1439,6 +1760,7 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             if(r.action==Action::MoveNPC)j["request"]["building"]=building_json(r.building);
             j["evidence"]["npc_before"]=npc_state_json(e.npc_before,quests);
             j["evidence"]["npc_after"]=npc_state_json(e.npc_after,quests);
+            if(e.npc_quest_removal)j["evidence"]["npc_quest_removal"]=npc_quest_removal_json(*e.npc_quest_removal);
         } else if(r.action==Action::SetPrices) {
             j["request"]["price"]={{"fields",r.price.fields},{"purchase",r.price.purchase},{"subscription",r.price.subscription}};
             j["evidence"]["price_before"]={{"purchase",e.price_before.purchase},{"subscription",e.price_before.subscription}};
@@ -1474,6 +1796,7 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["request"]["building"]=building_json(r.building);
             j["evidence"]["object_before"]=building_json(e.object_before);j["evidence"]["object_after"]=building_json(e.object_after);
         }
+        if(e.building_clearance){j["schema"]=uint64_t(38);j["evidence"]["building_clearance"]=scenery_stroke_result_json(e.building_clearance);}
         const auto bytes=j.dump();if(bytes.size()>max_payload) {error="action payload exceeds "+std::to_string(max_payload)+" bytes";return false;}
         out.assign(bytes.begin(),bytes.end());error.clear();return true;
     }catch(const std::exception& e){error=std::string("action serialization: ")+e.what();return false;}
@@ -1482,7 +1805,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
     if(!data||!length||length>max_payload) {error="action payload length requires 1.."+std::to_string(max_payload);return false;}
     try {
         std::vector<std::set<std::string>> fields;int deepest=0;
-        const auto j=json::parse(data,data+length,[&](int depth,json::parse_event_t event,json& value) {
+        auto j=json::parse(data,data+length,[&](int depth,json::parse_event_t event,json& value) {
             if(depth>10)throw std::runtime_error("action JSON nesting depth exceeds 10");
             deepest=std::max(deepest,depth);
             if(event==json::parse_event_t::object_start)fields.emplace_back();
@@ -1491,15 +1814,31 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
-        const auto schema=u64(j.at("schema"));if(schema<1||schema>35||schema==32)throw std::runtime_error("unsupported action schema");
-        if(schema!=35&&deepest>8)throw std::runtime_error("old action JSON nesting depth exceeds 8");
-        if(schema!=19&&schema!=33&&schema!=34&&schema!=35&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
+        const bool clearance_packet=u64(j.at("schema"))==38;
+        json clearance=nullptr;
+        if(clearance_packet){
+            const auto action=u64(j.at("request").at("action"));
+            if((action!=2&&action!=10&&action!=11)||!j.at("evidence").contains("building_clearance")||
+               j.at("evidence").at("building_clearance").is_null())
+                throw std::runtime_error("Building clearance schema38 requires its exact placement/history proof");
+            clearance=j["evidence"]["building_clearance"];j["evidence"].erase("building_clearance");
+            j["schema"]=uint64_t(action==2?2:10);
+        }
+        const auto schema=u64(j.at("schema"));
+        if(dungeon_building_packet(j)){if(schema!=37||deepest>10)throw std::runtime_error("Dungeon Building requires exact schema37/depth10");
+            auto fresh=std::make_unique<Message>();if(!dungeon_building_message_read(j,*fresh,error)||!valid_message(*fresh,error))return false;
+            out=std::move(*fresh);error.clear();return true;}
+        if(npc_history_packet(j)){if(schema!=36||deepest>12)throw std::runtime_error("NPC history schema or nesting depth differs");auto fresh=std::make_unique<Message>();if(!npc_history_message_read(j,*fresh,error)||!valid_message(*fresh,error))return false;out=std::move(*fresh);error.clear();return true;}if(schema==36&&npc_quest_removal_packet(j)){Message fresh;if(!npc_quest_removal_message_read(j,fresh,error)||!valid_message(fresh,error))return false;out=std::move(fresh);error.clear();return true;}if(schema==36&&monster_edit_packet(j)){Message fresh;if(!monster_edit_message_read(j,fresh,error)||!valid_message(fresh,error))return false;out=std::move(fresh);error.clear();return true;}if(schema==36&&dungeon_input_packet(j)){Message fresh;if(!dungeon_input_message_read(j,fresh,error)||!valid_message(fresh,error))return false;out=std::move(fresh);error.clear();return true;}if(schema<1||schema>37||schema==32)throw std::runtime_error("unsupported action schema");
+        if(!clearance_packet&&schema!=35&&schema!=36&&schema!=37&&deepest>8)throw std::runtime_error("old action JSON nesting depth exceeds 8");
+        if(!clearance_packet&&schema!=19&&schema!=33&&schema!=34&&schema!=35&&schema!=36&&schema!=37&&deepest>7)throw std::runtime_error("action JSON nesting depth exceeds 7");
         Message m;const auto k=u64(j.at("kind")),o=u64(j.at("outcome"));
         if(k<1||k>5||o>3)throw std::runtime_error("unknown message enum");
         m.kind=Kind(k);m.outcome=Outcome(o);m.session=u64(j.at("session"));m.revision=u64(j.at("revision"));
         m.ack_peer=u64(j.at("ack_peer"));m.required_mask=u64(j.at("required_mask"));m.cause=j.at("cause").get<std::string>();
         const auto& r=j.at("request");
-        if(schema==35&&(u64(r.at("action"))==54||u64(r.at("action"))==55))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","world_path"});
+        if(schema==36&&u64(r.at("action"))==58)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","zone_edit"});
+        else if(schema==36&&u64(r.at("action"))==59)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","modular"});
+        else if(schema==35&&(u64(r.at("action"))==54||u64(r.at("action"))==55||u64(r.at("action"))==56))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","world_path"});
         else if(schema==35&&u64(r.at("action"))==53)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","boss_placement"});
         else if(schema==35&&(u64(r.at("action"))==51||u64(r.at("action"))==52))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","group_object"});
         else if(schema==35&&(u64(r.at("action"))==49||u64(r.at("action"))==50))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","scenery_stroke"});
@@ -1511,6 +1850,9 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==35&&u64(r.at("action"))==134)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","release_edit"});
         else if(schema==35&&u64(r.at("action"))==47)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","group"});
         else if(schema==35&&u64(r.at("action"))==133)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","general_project"});
+        else if(schema==36&&u64(r.at("action"))==60)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_stroke"});
+        else if(schema==36&&u64(r.at("action"))==57)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_property"});
+        else if(schema==36&&(u64(r.at("action"))==10||u64(r.at("action"))==11))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
         else if(schema==35&&u64(r.at("action"))==46)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_title"});
         else if(schema==35&&u64(r.at("action"))==45)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_text"});
         else if(schema==35&&(u64(r.at("action"))==10||u64(r.at("action"))==11))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid"});
@@ -1518,21 +1860,21 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==35&&u64(r.at("action"))==129)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network_remove"});
         else if(schema==35&&u64(r.at("action"))==100)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","building_status"});
         else if(schema==35&&u64(r.at("action"))==102)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_light"});
-        else if(schema==35&&u64(r.at("action"))==105)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_gizmo"});
+        else if((schema==35||schema==36)&&u64(r.at("action"))==105)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_gizmo"});
         else if(schema==35&&u64(r.at("action"))==104)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_palette"});
         else if(schema==35&&u64(r.at("action"))==103)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_sound"});
         else if(schema==35&&u64(r.at("action"))==101)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","dungeon_config"});
         else if(schema==35&&u64(r.at("action"))==88)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","ability_membership"});
-        else if(schema==35&&u64(r.at("action"))==87)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","character_membership"});
-        else if(schema==35&&u64(r.at("action"))==86)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","costume_edit"});
-        else if(schema==35&&u64(r.at("action"))==85)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","ability_edit"});
+        else if((schema==35||schema==37)&&u64(r.at("action"))==87)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","character_membership"});
+        else if((schema==35||schema==36)&&u64(r.at("action"))==86)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","costume_edit"});
+        else if((schema==35||schema==36)&&u64(r.at("action"))==85)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","ability_edit"});
         else if(schema==35&&(u64(r.at("action"))>=80&&u64(r.at("action"))<=84))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","character_rename"});
         else if(schema==35&&(u64(r.at("action"))==32||u64(r.at("action"))==33))exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_quest_list"});
         else if(schema==35&&u64(r.at("action"))==128)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","management"});
         else if(schema==35&&u64(r.at("action"))==44)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","selection_move"});
         else if(schema==35&&u64(r.at("action"))==43)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","service_membership"});
         else if(schema==35&&u64(r.at("action"))==42)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","boss_phase"});
-        else if(schema==35&&u64(r.at("action"))==41)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","prop_text"});
+        else if((schema==35||schema==36)&&u64(r.at("action"))==41)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","prop_text"});
         else if(schema==35&&u64(r.at("action"))==40)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_property"});
         else if(schema==34)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","npc_quest"});
         else if(schema==33)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","target_action_uuid","monster_remove"});
@@ -1560,15 +1902,24 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==8)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","network"});
         else if(schema==6||schema==7)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","path"});
         else exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","terrain"});
-        const auto action=u64(r.at("action"));const int action_depth=schema==35&&(action==86||action==88||action==54||action==55)?10:schema==35&&(action==40||action==42)?9:8;if(deepest>action_depth)throw std::runtime_error("action JSON nesting depth exceeds its action bound");if(action<1||(action>33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88))||((action==32||action==33||action==40||action==41||action==42||action==43||action==44||action==45||action==46||action==47||action==48||action==49||action==50||action==51||action==52||action==53||action==54||action==55||action==128||action==129||action==130||action==133||action==134||action==135||action==136||action==137||action==138||action==100||action==101||action==103||action==104||action==105||action==102||(action>=80&&action<=88))&&schema!=35)||(schema==34)!=(action==31)||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15||(schema==35&&action!=10&&action!=11&&action!=32&&action!=33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88)))&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))throw std::runtime_error("unsupported typed action");
+        const auto action=u64(r.at("action"));const bool modular_form=schema==36&&(action==59||((action==10||action==11)&&r.at("canonical_record_key").get<std::string>()=="modular:"+r.at("target_action_uuid").get<std::string>()));
+        const bool gizmo_text_new=schema==36&&action==41;const bool gizmo_new=schema==36&&action==105;const bool costume_new=schema==36&&action==86;const bool ability_new=schema==36&&action==85;const bool character_import_new=schema==37&&action==87;
+        const int action_depth=(gizmo_new||gizmo_text_new)?9:modular_form||costume_new?10:schema==35&&(action==86||action==88||action==54||action==55||action==56)?10:schema==35&&(action==40||action==42)?9:8;if(!clearance_packet&&deepest>action_depth)throw std::runtime_error("action JSON nesting depth exceeds its action bound");const bool district_new=schema==36&&(action==57||action==58||action==60||((action==10||action==11)&&
+            (r.at("canonical_record_key").get<std::string>()=="district-edit:"+r.at("target_action_uuid").get<std::string>()||r.at("canonical_record_key").get<std::string>()=="district-stroke:"+r.at("target_action_uuid").get<std::string>()||r.at("canonical_record_key").get<std::string>()=="zone-edit:"+r.at("target_action_uuid").get<std::string>())));
+        if((schema==37&&!character_import_new)||(schema==36&&!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new)||((action==57||action==58||action==59||action==60)&&schema!=36)||(!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new&&!character_import_new&&(action<1||(action>33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88))||((action==32||action==33||action==40||action==41||action==42||action==43||action==44||action==45||action==46||action==47||action==48||action==49||action==50||action==51||action==52||action==53||action==54||action==55||action==56||action==57||action==128||action==129||action==130||action==133||action==134||action==135||action==136||action==137||action==138||action==100||action==101||action==103||action==104||action==105||action==102||(action>=80&&action<=88))&&schema!=35)||(schema==34)!=(action==31)||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15||(schema==35&&action!=10&&action!=11&&action!=32&&action!=33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88)))&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
         m.request.canonical_record_key=r.at("canonical_record_key").get<std::string>();
-        if(schema==33||schema==31||schema==10||(schema==35&&(action==10||action==11))||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
+        if(schema==33||schema==31||schema==10||((schema==35||schema==36)&&(action==10||action==11))||schema==17||schema==18||(schema==19&&action!=15))m.request.target_action_uuid=r.at("target_action_uuid").get<std::string>();
         if((action==10||action==11)&&((schema==35)!=(selection_history(m.request)||region_history(m.request)||path_history(m.request)||terrain_history(m.request)||quest_history(m.request)||network_history(m.request)||group_history(m.request)||duplicate_history(m.request)||scenery_stroke_history(m.request)||group_object_history(m.request)||dungeon_tiles_history(m.request))))throw std::runtime_error("history schema and canonical family differ");
         const auto& e=j.at("evidence");
-        if(schema==35&&(action==54||action==55)){
+        if(zone_edit_history(m.request)&&schema!=36)throw std::runtime_error("Zone edit history requires schema36");
+        if(district_stroke_history(m.request)&&schema!=36)throw std::runtime_error("District stroke history requires schema36");
+        if(district_property_history(m.request)&&schema!=36)throw std::runtime_error("District history requires schema36");
+        if(modular_form){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","modular_before","modular_after","modular_result"});
+            if(action==59)m.request.modular=modular_read(r.at("modular"));m.evidence.modular_before=scenery_stroke_state_read(e.at("modular_before"));m.evidence.modular_after=scenery_stroke_state_read(e.at("modular_after"));m.evidence.modular_result=modular_result_read(e.at("modular_result"));
+        }else if(schema==35&&(action==54||action==55||action==56)){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","world_path_before","world_path_after"});
             m.request.world_path=world_path_read(r.at("world_path"));
             m.evidence.world_path_before=world_path_state_read(e.at("world_path_before"));
@@ -1633,6 +1984,18 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.general_project=game::general_project::codec::intent(r.at("general_project"));
             if(!e.at("general_project_before").is_null())m.evidence.general_project_before=game::general_project::codec::proof(e.at("general_project_before"));
             if(!e.at("general_project_after").is_null())m.evidence.general_project_after=game::general_project::codec::proof(e.at("general_project_after"));
+        }else if(schema==36&&(action==58||zone_edit_history(m.request))){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","zone_edit"});
+            if(action==58)m.request.zone_edit=zone_edit_codec::intent_read(r.at("zone_edit"));
+            m.evidence.zone_edit=zone_edit_optional_read(e.at("zone_edit"));
+        }else if(schema==36&&(action==60||district_stroke_history(m.request))){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_stroke"});
+            if(action==60)m.request.district_stroke=district_stroke_intent_read(r.at("district_stroke"));
+            m.evidence.district_stroke=district_stroke_effect_read(e.at("district_stroke"));
+        }else if(schema==36&&(action==57||district_property_history(m.request))){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_before","district_after","district_continent_height"});
+            if(action==57)m.request.district_property=district_property_read(r.at("district_property"));
+            m.evidence.district_before=district_state_read(e.at("district_before"));m.evidence.district_after=district_state_read(e.at("district_after"));
+            m.evidence.district_continent_height=district_property_u32(e.at("district_continent_height"));
         }else if(schema==35&&action==46){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_before","district_after"});
             m.request.district_title=district_title_read(r.at("district_title"));m.evidence.district_before=district_state_read(e.at("district_before"));m.evidence.district_after=district_state_read(e.at("district_after"));
         }else if(schema==35&&action==45){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","district_before","district_after"});
@@ -1678,8 +2041,8 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.building_status=building_status_intent_read(r.at("building_status"));m.evidence.building_status_before=building_status_state_read(e.at("building_status_before"));m.evidence.building_status_after=building_status_state_read(e.at("building_status_after"));
         }else if(schema==35&&action==102){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_light_before","dungeon_light_after"});
             m.request.dungeon_light=dungeon_light_intent_read(r.at("dungeon_light"));m.evidence.dungeon_light_before=dungeon_light_state_read(e.at("dungeon_light_before"));m.evidence.dungeon_light_after=dungeon_light_state_read(e.at("dungeon_light_after"));
-        }else if(schema==35&&action==105){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_gizmo_before","dungeon_gizmo_after"});
-            m.request.dungeon_gizmo=dungeon_gizmo_intent_read(r.at("dungeon_gizmo"));m.evidence.dungeon_gizmo_before=dungeon_gizmo_state_read(e.at("dungeon_gizmo_before"));m.evidence.dungeon_gizmo_after=dungeon_gizmo_state_read(e.at("dungeon_gizmo_after"));
+        }else if((schema==35||schema==36)&&action==105){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_gizmo_before","dungeon_gizmo_after"});
+            m.request.dungeon_gizmo=dungeon_gizmo_intent_read(r.at("dungeon_gizmo"));if((schema==36)!=(m.request.dungeon_gizmo.edit==DungeonGizmoEdit::State))throw std::runtime_error("Gizmo command/schema domain differs");m.evidence.dungeon_gizmo_before=dungeon_gizmo_state_read(e.at("dungeon_gizmo_before"));m.evidence.dungeon_gizmo_after=dungeon_gizmo_state_read(e.at("dungeon_gizmo_after"));
         }else if(schema==35&&action==104){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_palette_before","dungeon_palette_after"});
             m.request.dungeon_palette=dungeon_palette_intent_read(r.at("dungeon_palette"));m.evidence.dungeon_palette_before=dungeon_palette_state_read(e.at("dungeon_palette_before"));m.evidence.dungeon_palette_after=dungeon_palette_state_read(e.at("dungeon_palette_after"));
         }else if(schema==35&&action==103){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","dungeon_sound_before","dungeon_sound_after"});
@@ -1688,12 +2051,12 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.dungeon_config=dungeon_config_intent_read(r.at("dungeon_config"));m.evidence.dungeon_config_before=dungeon_config_state_read(e.at("dungeon_config_before"));m.evidence.dungeon_config_after=dungeon_config_state_read(e.at("dungeon_config_after"));
         }else if(schema==35&&action==88){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","ability_membership_before","ability_membership_after"});
             m.request.ability_membership=ability_membership_intent_read(r.at("ability_membership"));m.evidence.ability_membership_before=ability_membership_state_read(e.at("ability_membership_before"));m.evidence.ability_membership_after=ability_membership_state_read(e.at("ability_membership_after"));
-        }else if(schema==35&&action==87){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","character_membership_before","character_membership_after"});
-            m.request.character_membership=character_membership_intent_read(r.at("character_membership"));m.evidence.character_membership_before=character_membership_state_read(e.at("character_membership_before"));m.evidence.character_membership_after=character_membership_state_read(e.at("character_membership_after"));
-        }else if(schema==35&&action==86){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","costume_edit_before","costume_edit_after"});
-            m.request.costume_edit=costume_edit_intent_read(r.at("costume_edit"));m.evidence.costume_edit_before=costume_edit_state_read(e.at("costume_edit_before"));m.evidence.costume_edit_after=costume_edit_state_read(e.at("costume_edit_after"));
-        }else if(schema==35&&action==85){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","ability_edit_before","ability_edit_after"});
-            m.request.ability_edit=ability_edit_intent_read(r.at("ability_edit"));m.evidence.ability_edit_before=ability_edit_state_read(e.at("ability_edit_before"));m.evidence.ability_edit_after=ability_edit_state_read(e.at("ability_edit_after"));
+        }else if((schema==35||schema==37)&&action==87){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","character_membership_before","character_membership_after"});
+            m.request.character_membership=character_membership_intent_read(r.at("character_membership"),schema==37);m.evidence.character_membership_before=character_membership_state_read(e.at("character_membership_before"),schema==37);m.evidence.character_membership_after=character_membership_state_read(e.at("character_membership_after"),schema==37);
+        }else if((schema==35||schema==36)&&action==86){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","costume_edit_before","costume_edit_after"});
+            m.request.costume_edit=costume_edit_intent_read(r.at("costume_edit"),schema==36);m.evidence.costume_edit_before=costume_edit_state_read(e.at("costume_edit_before"),schema==36);m.evidence.costume_edit_after=costume_edit_state_read(e.at("costume_edit_after"),schema==36);
+        }else if((schema==35||schema==36)&&action==85){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","ability_edit_before","ability_edit_after"});
+            m.request.ability_edit=ability_edit_intent_read(r.at("ability_edit"),schema==36);m.evidence.ability_edit_before=ability_edit_state_read(e.at("ability_edit_before"));m.evidence.ability_edit_after=ability_edit_state_read(e.at("ability_edit_after"));
         }else if(schema==35&&action>=80&&action<=84){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","character_rename_before","character_rename_after"});
             m.request.character_rename=character_rename_intent_read(r.at("character_rename"));m.evidence.character_rename_before=character_rename_state_read(e.at("character_rename_before"));m.evidence.character_rename_after=character_rename_state_read(e.at("character_rename_after"));
         }else if(schema==35&&(action==32||action==33)){
@@ -1718,11 +2081,11 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.boss_phase=boss_intent_read(r.at("boss_phase"));
             m.evidence.boss_phase_before=boss_state_read(e.at("boss_phase_before"));
             m.evidence.boss_phase_after=boss_state_read(e.at("boss_phase_after"));
-        }else if(schema==35&&action==41){
+        }else if((schema==35||schema==36)&&action==41){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","prop_text_before","prop_text_after"});
-            m.request.prop_text=prop_text_intent_read(r.at("prop_text"));
-            m.evidence.prop_text_before=prop_text_state_read(e.at("prop_text_before"));
-            m.evidence.prop_text_after=prop_text_state_read(e.at("prop_text_after"));
+            m.request.prop_text=prop_text_intent_read(r.at("prop_text"),schema==36);
+            m.evidence.prop_text_before=prop_text_state_read(e.at("prop_text_before"),schema==36);
+            m.evidence.prop_text_after=prop_text_state_read(e.at("prop_text_after"),schema==36);
         }else if(schema==35&&action==40){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","npc_property_before","npc_property_after"});
             m.request.npc_property=npc_property_intent_read(r.at("npc_property"));
@@ -1733,11 +2096,13 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.request.npc_quest=npc_quest_intent_read(r.at("npc_quest"));
             m.evidence.quest_before=npc_quest_state_read(e.at("quest_before"));m.evidence.quest_after=npc_quest_state_read(e.at("quest_after"));
         }else if(schema==33){
+            if(!game::monster_target_key::request(m.request.canonical_record_key,m.request.target_action_uuid))throw std::runtime_error("Legacy Monster Remove key differs");
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","monster_before","monster_after","monster_quests"});
             const auto& remove=r.at("monster_remove");exact(remove,{"region"});m.request.monster_remove.region=i32(remove.at("region"));
             m.evidence.monster_before=monster_state_read(e.at("monster_before"));m.evidence.monster_after=monster_state_read(e.at("monster_after"));
             m.evidence.monster_quests=monster_quests_read(e.at("monster_quests"));
         }else if(schema==31){
+            if(!game::monster_target_key::request(m.request.canonical_record_key,m.request.target_action_uuid))throw std::runtime_error("Legacy Monster Move key differs");
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","monster_before","monster_after"});
             m.request.monster_move=monster_move_read(r.at("monster_move"));m.evidence.monster_before=monster_state_read(e.at("monster_before"));m.evidence.monster_after=monster_state_read(e.at("monster_after"));
         }else if(schema==30){
@@ -1840,6 +2205,19 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         m.evidence.selection_confirmed=e.at("selection_confirmed").get<bool>();m.evidence.retirement_confirmed=e.at("retirement_confirmed").get<bool>();
         if((schema==19)!=npc_quest_schema(m))throw std::runtime_error("Quest NPC schema mismatch");
         if(schema==1&&extended(m))throw std::runtime_error("shared object identity requires action schema2");
+        if((schema==31||schema==33)&&((m.evidence.monster_before.actor!=MonsterActor{}&&m.evidence.monster_before.actor.rank<=0)||(m.evidence.monster_after.actor!=MonsterActor{}&&m.evidence.monster_after.actor.rank<=0)))throw std::runtime_error("Legacy Monster edit requires positive rank");
+        if(clearance_packet){
+            auto forward=clearance;
+            const bool restoring=m.request.action!=Action::PlaceBuilding&&!m.evidence.object_after.alive;
+            if(restoring){
+                if(!forward.is_array()||forward.size()!=4||!forward[2].is_array())throw std::runtime_error("Building clearance effect width differs");
+                std::swap(forward[0],forward[1]);
+                for(auto& change:forward[2]){if(!change.is_array()||change.size()!=2)throw std::runtime_error("Building clearance Group pair width differs");std::swap(change[0],change[1]);}
+            }
+            m.evidence.building_clearance=scenery_stroke_result_read(forward,true);
+            if(restoring){std::swap(m.evidence.building_clearance->removed,m.evidence.building_clearance->created);
+                for(auto& change:m.evidence.building_clearance->changed)std::swap(change.before,change.after);}
+        }
         if(!valid_message(m,error))return false;out=std::move(m);error.clear();return true;
     }catch(const std::exception& e){error=std::string("action decode: ")+e.what();return false;}
 }
@@ -1847,7 +2225,20 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
 #include "network_effect.inc"
 #include "network_pipe_effect.inc"
 #include "network_history_effect.inc"
-Controller::Controller(Session& s,Engine& e,Transport& t,Logger l,uint64_t timeout):session_(s),engine_(e),transport_(t),logger_(std::move(l)),timeout_(timeout) {}
+Controller::Controller(Session& s,Engine& e,Transport& t,Logger l,uint64_t timeout,Clock clock):session_(s),engine_(e),transport_(t),logger_(std::move(l)),clock_(std::move(clock)),timeout_(timeout) {}
+bool Controller::update_time(uint64_t fallback,std::string& error) {
+    uint64_t actual=fallback;
+    if(clock_){
+        if(!invoke([&]{actual=clock_();return true;},error))return fail("action monotonic clock: "+error,error,true);
+        if(actual<now_)return fail("action monotonic clock regressed",error,true);
+    }
+    now_=actual;return true;
+}
+bool Controller::arm_deadline(uint64_t& deadline,std::string& error) {
+    if(!update_time(now_,error))return false;
+    if(now_>UINT64_MAX-timeout_)return fail("ACK deadline timestamp exhausted",error,true);
+    deadline=now_+timeout_;return true;
+}
 bool Controller::invoke(const std::function<bool()>& fn,std::string& cause) {
     const bool was_locked=status_.locked;busy_=true;
     const bool accepted=callback(fn,cause);busy_=false;
@@ -1887,7 +2278,7 @@ bool Controller::guard(std::string& error) {
 }
 bool Controller::start(uint64_t now,std::string& error) {
     if(status_.started||thread_!=std::thread::id{})return fail("action controller cannot restart or clear replay history",error);
-    thread_=std::this_thread::get_id();now_=now;
+    thread_=std::this_thread::get_id();if(!update_time(now,error))return false;
     if(!timeout_)return fail("ACK timeout must be positive",error);
     if(!invoke([&]{return session_.current(context_,error);},error))return fail("session binding: "+error,error);
     if(!context_.session||!uuid(context_.snapshot_uuid)||(context_.role!=Role::Host&&context_.role!=Role::Client)||context_.local_peer<1||context_.local_peer>4||context_.host_peer!=1||
@@ -2020,6 +2411,9 @@ bool Controller::submit_dungeon_light(const std::string& id,const DungeonLightIn
 bool Controller::submit_dungeon_gizmo(const std::string& id,const DungeonGizmoIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::EditDungeonGizmo;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_gizmo=intent;return submit(std::move(r),now,error);
 }
+bool Controller::submit_dungeon_input(const std::string& id,const DungeonInputIntent& intent,uint64_t now,std::string& error){
+    Request r;r.action=Action::DungeonInput;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_input=intent;return submit(std::move(r),now,error);
+}
 bool Controller::submit_dungeon_palette(const std::string& id,const DungeonPaletteIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::SetDungeonPalette;r.action_uuid=id;r.canonical_record_key=intent.key;r.dungeon_palette=intent;return submit(std::move(r),now,error);
 }
@@ -2037,6 +2431,12 @@ bool Controller::submit_ability_membership(const std::string& id,const AbilityMe
 }
 bool Controller::submit_ability_edit(const std::string& id,const AbilityEditIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::EditCharacterAbility;r.action_uuid=id;r.canonical_record_key=ability_key(intent);r.ability_edit=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_dungeon_building(const std::string& id,Action action,const std::string& key,const std::string& scene,
+    const BuildingState& building,const std::string& target_action,uint64_t now,std::string& error){
+    Request request;request.action=action;request.action_uuid=id;request.canonical_record_key=key;request.building=building;
+    request.target_action_uuid=target_action;request.dungeon_building=true;request.dungeon_scene=scene;
+    return submit(std::move(request),now,error);
 }
 bool Controller::submit_character_membership(const std::string& id,const CharacterMembershipIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::EditCharacterMembership;r.action_uuid=id;r.canonical_record_key=character_membership_key(intent);r.character_membership=intent;return submit(std::move(r),now,error);
@@ -2060,7 +2460,7 @@ bool Controller::submit_remove_monster(const std::string& id,const std::string& 
 bool Controller::submit_move_monster(const std::string& id,const std::string& target,const MonsterMoveIntent& intent,uint64_t now,std::string& error){
     Request request;request.action=Action::MoveMonster;request.action_uuid=id;
     if(game::monster_target_key::uuid(target))request.target_action_uuid=target;
-    request.canonical_record_key=game::monster_target_key::canonical(target);request.monster_move=intent;return submit(std::move(request),now,error);
+    request.canonical_record_key=game::monster_move_key::canonical(target);request.monster_move=intent;return submit(std::move(request),now,error);
 }
 bool Controller::submit_monster(const std::string& id,const MonsterIntent& intent,uint64_t now,std::string& error){
     Request request;request.action=Action::PlaceMonster;request.action_uuid=id;request.canonical_record_key="action:"+id;request.monster=intent;
@@ -2075,13 +2475,14 @@ bool Controller::submit_boss_placement(const std::string& id,const BossPlacement
     return submit(std::move(request),now,error);
 }
 bool Controller::submit_world_path(const std::string& id,const WorldPathIntent& intent,uint64_t now,std::string& error){
-    Request request;request.action=intent.kind==WorldPathKind::Wall?Action::PlaceWall:Action::PlacePass;
+    Request request;request.action=intent.kind==WorldPathKind::Remove?Action::RemoveWorldPath:intent.kind==WorldPathKind::Wall?Action::PlaceWall:Action::PlacePass;
     request.action_uuid=id;request.canonical_record_key="action:"+id;request.world_path=intent;
     return submit(std::move(request),now,error);
 }
 bool Controller::submit_group_object(bool moving,const std::string& id,const GroupObjectIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=moving?Action::MoveGroup:Action::RemoveGroup;r.action_uuid=id;r.canonical_record_key=intent.key;r.group_object=intent;return submit(std::move(r),now,error);
 }
+bool Controller::submit_modular(const std::string& id,const ModularIntent& intent,uint64_t now,std::string& e){Request r;r.action=Action::EditModularBuilding;r.action_uuid=id;r.canonical_record_key="modular:"+id;r.modular=intent;return submit(std::move(r),now,e);}
 bool Controller::submit_scenery_stroke(const std::string& id,const SceneryStrokeIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=intent.kind==SceneryStrokeKind::Paint?Action::SceneryBrushStroke:Action::SceneryEraseStroke;r.action_uuid=id;
     r.canonical_record_key="scenery-stroke:"+id;r.scenery_stroke=intent;return submit(std::move(r),now,error);
@@ -2094,6 +2495,16 @@ bool Controller::submit_group(const std::string& id,const GroupIntent& intent,ui
 }
 bool Controller::submit_district_title(const std::string& id,const std::string& key,const DistrictTitleIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::MoveDistrictTitle;r.action_uuid=id;r.canonical_record_key=key;r.district_title=intent;return submit(std::move(r),now,error);
+}
+bool Controller::submit_zone_edit(const std::string& id,const ZoneEditIntent& value,uint64_t now,std::string& error){
+    Request request;request.action=Action::EditZone;request.action_uuid=id;request.canonical_record_key="zone-edit:"+id;request.zone_edit=value;
+    return submit(std::move(request),now,error);
+}
+bool Controller::submit_district_stroke(const std::string& id,const DistrictStrokeIntent& value,uint64_t now,std::string& error){
+    Request r;r.action=Action::DistrictStroke;r.action_uuid=id;r.canonical_record_key="district-stroke:"+id;r.district_stroke=value;return submit(std::move(r),now,error);
+}
+bool Controller::submit_district_property(const std::string& id,const std::string& key,const game::district_property::Value& value,uint64_t now,std::string& error){
+    Request r;r.action=Action::EditDistrict;r.action_uuid=id;r.canonical_record_key=key;r.district_property=value;return submit(std::move(r),now,error);
 }
 bool Controller::submit_district_text(const std::string& id,const std::string& key,const DistrictTextIntent& intent,uint64_t now,std::string& error){
     Request r;r.action=Action::EditDistrictText;r.action_uuid=id;r.canonical_record_key=key;r.district_text=intent;return submit(std::move(r),now,error);
@@ -2166,17 +2577,19 @@ bool Controller::submit_start_startingpoint(const std::string& id,uint64_t now,s
     request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
 }
 bool Controller::submit(Request request,uint64_t now,std::string& error) {
-    if(!guard(error))return false;now_=now;
+    if(!guard(error)||!update_time(now,error))return false;
     if(pending_||local_request_)return fail("one action already pending; no queue",error);
     if(!valid_request(request))return fail("typed action UUID, object key or building payload invalid",error);
     for(const auto& [other,entry]:history_)if(entry.request.request.action_uuid==request.action_uuid)return fail("action UUID already used; no resubmission",error);
     if(local_sequence_==UINT64_MAX)return fail("request sequence exhausted",error,true);
-    if(now>UINT64_MAX-timeout_)return fail("ACK deadline timestamp exhausted",error,true);
+    if(now_>UINT64_MAX-timeout_)return fail("ACK deadline timestamp exhausted",error,true);
     request.peer=context_.local_peer;request.sequence=++local_sequence_;request.host_revision=status_.host_revision;request.snapshot_uuid=context_.snapshot_uuid;
     Message m;m.session=context_.session;m.request=std::move(request);
-    pending_=m;deadline_=now+timeout_;status_.pending=true;status_.action_uuid=m.request.action_uuid;status_.outcome=Outcome::Pending;
+    pending_=m;deadline_=now_+timeout_;status_.pending=true;status_.action_uuid=m.request.action_uuid;status_.outcome=Outcome::Pending;
     if(context_.role==Role::Host)return this->request(m,context_.local_peer,error);
-    local_request_=m;local_deadline_=deadline_;remember(identity(m.request),m);return send(context_.host_peer,m,error);
+    local_request_=m;remember(identity(m.request),m);
+    if(!send(context_.host_peer,m,error)||!arm_deadline(local_deadline_,error))return false;
+    deadline_=local_deadline_;return true;
 }
 bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidence,std::string& error) {
     if(!invoke([&]{return engine_.observe_action(binding_,r,evidence,error);},error))return fail("native execution observation: "+error,error,true);
@@ -2184,43 +2597,15 @@ bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidenc
     if(!execution(r,evidence)||evidence.before!=before||!invoke([&]{return engine_.ledger(binding_,actual,error);},error)||actual!=evidence.after)
         return fail("native execution receipt/ledger differs: "+error,error,true);
     if(!invoke([&]{return engine_.retire(binding_,r,error);},error))return fail("native receipt retirement: "+error,error,true);
-    Evidence retired;
-    if(!invoke([&]{return engine_.observe_action(binding_,r,retired,error);},error)||!complete(r,retired)||retired.before!=evidence.before||retired.after!=evidence.after||
-       retired.intervention_before!=evidence.intervention_before||retired.intervention_after!=evidence.intervention_after||
-       retired.game_rules_before!=evidence.game_rules_before||retired.game_rules_after!=evidence.game_rules_after||
-       retired.gm_policy_before!=evidence.gm_policy_before||retired.gm_policy_after!=evidence.gm_policy_after||
-       retired.release_cycle_before!=evidence.release_cycle_before||retired.release_cycle_after!=evidence.release_cycle_after||retired.release_cycle_value!=evidence.release_cycle_value||
-       retired.release_edit_before!=evidence.release_edit_before||retired.release_edit_after!=evidence.release_edit_after||
-       retired.general_project_before!=evidence.general_project_before||retired.general_project_after!=evidence.general_project_after||
-       retired.logo_before!=evidence.logo_before||retired.logo_after!=evidence.logo_after||
-       retired.network_removal_before!=evidence.network_removal_before||retired.network_removal_after!=evidence.network_removal_after||retired.network_history!=evidence.network_history||
-       retired.management_before!=evidence.management_before||retired.management_after!=evidence.management_after||
-       retired.zone_before!=evidence.zone_before||retired.zone_after!=evidence.zone_after||
-       retired.monster_before!=evidence.monster_before||retired.monster_after!=evidence.monster_after||
-       retired.monster_quests!=evidence.monster_quests||retired.quest_before!=evidence.quest_before||retired.quest_after!=evidence.quest_after||
-       retired.quest_list_before!=evidence.quest_list_before||retired.quest_list_after!=evidence.quest_list_after||
-       retired.building_status_before!=evidence.building_status_before||retired.building_status_after!=evidence.building_status_after||
-       retired.dungeon_light_before!=evidence.dungeon_light_before||retired.dungeon_light_after!=evidence.dungeon_light_after||
-       retired.dungeon_gizmo_before!=evidence.dungeon_gizmo_before||retired.dungeon_gizmo_after!=evidence.dungeon_gizmo_after||
-       retired.dungeon_palette_before!=evidence.dungeon_palette_before||retired.dungeon_palette_after!=evidence.dungeon_palette_after||
-       retired.dungeon_sound_before!=evidence.dungeon_sound_before||retired.dungeon_sound_after!=evidence.dungeon_sound_after||
-       retired.dungeon_config_before!=evidence.dungeon_config_before||retired.dungeon_config_after!=evidence.dungeon_config_after||
-       retired.costume_edit_before!=evidence.costume_edit_before||retired.costume_edit_after!=evidence.costume_edit_after||
-       retired.ability_edit_before!=evidence.ability_edit_before||retired.ability_edit_after!=evidence.ability_edit_after||
-       retired.ability_membership_before!=evidence.ability_membership_before||retired.ability_membership_after!=evidence.ability_membership_after||
-       retired.character_rename_before!=evidence.character_rename_before||retired.character_rename_after!=evidence.character_rename_after||
-       retired.character_membership_before!=evidence.character_membership_before||retired.character_membership_after!=evidence.character_membership_after||
-       retired.object_before!=evidence.object_before||retired.object_after!=evidence.object_after||
-       retired.region_before!=evidence.region_before||retired.region_after!=evidence.region_after||
-       retired.property_before!=evidence.property_before||retired.property_after!=evidence.property_after||
-       retired.region_retired_sha256!=evidence.region_retired_sha256||retired.terrain_before!=evidence.terrain_before||retired.terrain_after!=evidence.terrain_after||
-       retired.npc_before!=evidence.npc_before||retired.npc_after!=evidence.npc_after||
-       retired.research_before!=evidence.research_before||retired.research_after!=evidence.research_after||
-       retired.startingpoint_before!=evidence.startingpoint_before||retired.startingpoint_after!=evidence.startingpoint_after||
-       retired.developers_before!=evidence.developers_before||retired.developers_after!=evidence.developers_after||
-       retired.bug_before!=evidence.bug_before||retired.bug_after!=evidence.bug_after)
-        return fail("native retirement acknowledgment: "+error,error,true);
-    evidence=retired;return true;
+    auto expected=std::make_unique<Evidence>(evidence);
+    expected->retirement_confirmed=true;
+    auto retired=std::make_unique<Evidence>();
+    if(!invoke([&]{return engine_.observe_action(binding_,r,*retired,error);},error))
+        return fail("native retirement observation: "+error,error,true);
+    if(!complete(r,*retired))return fail("native retirement acknowledgment lacks complete execution evidence",error,true);
+    // Retirement acknowledges the receipt; it must not change any action family.
+    if(*retired!=*expected)return fail("native retirement receipt changed after retirement",error,true);
+    evidence=std::move(*retired);return true;
 }
 bool Controller::request(const Message& m,uint64_t sender,std::string& error) {
     if(context_.role!=Role::Host||sender!=m.request.peer)return fail("action request role/sender mismatch",error);
@@ -2262,7 +2647,7 @@ bool Controller::request(const Message& m,uint64_t sender,std::string& error) {
     auto& cached=history_.at(id);cached.result=result;cached.has_result=true;status_.ack_mask=bit(context_.local_peer);
     for(uint64_t peer=1;peer<=4;++peer)if(peer!=context_.local_peer&&(context_.peer_mask&bit(peer)))if(!send(peer,result,error))return finish(Outcome::Unknown,error,error);
     if(status_.ack_mask==status_.required_mask)return finish(Outcome::Confirmed,"",error);
-    return true;
+    return arm_deadline(deadline_,error);
 }
 bool Controller::result(const Message& m,std::string& error) {
     if(context_.role!=Role::Client)return fail("host result delivered to Host",error);
@@ -2278,18 +2663,24 @@ bool Controller::result(const Message& m,std::string& error) {
     if(pending_&&m.request.peer==context_.local_peer&&!same_action(*pending_,m))return fail("host result differs from submitted action",error,true);
     if(old!=history_.end()&&!same_action(old->second.request,m))return fail("host result conflicts with cached request",error,true);
     if(authority_waiting_&&*authority_waiting_!=m)return fail("different HostResult while exact Time authority is pending",error,true);
+    if(!authority_waiting_){
+        // A matching HostResult supersedes the request wait, even when its
+        // BEFORE authority needs a separate finite wait before native apply.
+        if(!arm_deadline(deadline_,error))return false;
+        if(local_request_&&same_action(*local_request_,m))local_deadline_=0;
+    }
     AuthorityReadiness ready=AuthorityReadiness::Rejected;
     if(!invoke([&]{ready=engine_.client_authority_before_ready(m,m.revision-1,error);return true;},error))return fail("client authority readiness: "+error,error,true);
     if(ready==AuthorityReadiness::Rejected)return fail("client authority before rejected: "+error,error,true);
     if(ready==AuthorityReadiness::Wait) {
-        if(!authority_waiting_) {authority_waiting_=m;if(!pending_)deadline_=now_+timeout_;pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;status_.required_mask=context_.peer_mask;}
+        if(!authority_waiting_) {authority_waiting_=m;pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;status_.required_mask=context_.peer_mask;}
         if(status_.cause!=error&&logger_)logger_("info","ActionSession",error);status_.cause=error;return true;
     }
     authority_waiting_.reset();status_.cause.clear();
     Message original=m;original.kind=Kind::Request;original.revision=0;original.required_mask=0;original.outcome=Outcome::Pending;original.evidence={};
     auto& cached=remember(id,original);cached.result=m;cached.has_result=true;
     last_result_revision_=m.revision;status_.host_revision=m.revision;status_.required_mask=context_.peer_mask;
-    pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;deadline_=now_+timeout_;
+    pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;
     Message ack=m;ack.kind=Kind::ApplyAck;ack.ack_peer=context_.local_peer;
     Ledger before;
     if(!invoke([&]{return engine_.apply_client_authority_before(binding_,m,m.revision-1,error);},error)){ack.outcome=Outcome::Unknown;ack.cause="client authority before apply: "+error;}
@@ -2311,7 +2702,8 @@ bool Controller::result(const Message& m,std::string& error) {
     history_.at(id).ack=ack;history_.at(id).has_ack=true;
     const bool sent=send(context_.host_peer,ack,error);
     if(ack.outcome!=Outcome::Confirmed)return fail(ack.cause,error,true);
-    return sent;
+    if(!sent)return false;
+    return arm_deadline(deadline_,error);
 }
 bool Controller::ack(const Message& m,uint64_t sender,std::string& error) {
     if(context_.role!=Role::Host||m.ack_peer!=sender)return fail("native ACK role/sender mismatch",error);
@@ -2413,7 +2805,7 @@ bool Controller::rejection(const Message& rejected,std::string& error) {
     error.clear();return true;
 }
 bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64_t now,std::string& error) {
-    if(!guard(error))return false;now_=now;
+    if(!guard(error)||!update_time(now,error))return false;
     if(sender<1||sender>4||sender==context_.local_peer||!(context_.peer_mask&bit(sender)))return fail("untrusted transport sender",error);
     bool state_handled=false;if(!invoke([&]{return engine_.receive_authority_state(sender,bytes,size,state_handled,error);},error))return fail("authority state receive: "+error,error);
     if(state_handled)return true;
@@ -2437,11 +2829,12 @@ bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64
     return fail("unsupported action packet",error);
 }
 bool Controller::tick(uint64_t now,std::string& error) {
-    if(!guard(error))return false;now_=now;
-    if(authority_waiting_&&now<deadline_) {const auto waiting=*authority_waiting_;if(!result(waiting,error))return false;}
-    if((pending_&&now>=deadline_)||(local_request_&&now>=local_deadline_)) {
-        const auto expired_deadline=local_request_?std::min(deadline_,local_deadline_):deadline_;
-        const auto cause="native apply ACK observation timeout now_ms="+std::to_string(now)+" deadline_ms="+std::to_string(expired_deadline)+
+    if(!guard(error)||!update_time(now,error))return false;
+    if(authority_waiting_&&now_<deadline_) {const auto waiting=*authority_waiting_;if(!result(waiting,error))return false;}
+    if(!update_time(now_,error))return false;
+    if((pending_&&now_>=deadline_)||(local_request_&&local_deadline_&&now_>=local_deadline_)) {
+        const auto expired_deadline=local_request_&&local_deadline_?std::min(deadline_,local_deadline_):deadline_;
+        const auto cause="native apply ACK observation timeout now_ms="+std::to_string(now_)+" deadline_ms="+std::to_string(expired_deadline)+
             " actual_mask="+std::to_string(status_.ack_mask)+" required_mask="+std::to_string(status_.required_mask)+"; no native retry";
         if(context_.role==Role::Host)return finish(Outcome::Unknown,cause,error);
         return fail(cause,error,true);

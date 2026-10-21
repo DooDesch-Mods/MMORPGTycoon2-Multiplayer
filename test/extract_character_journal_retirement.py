@@ -28,6 +28,8 @@ WorldStatus observed;bool readable=true;
 bool read_world_status(WorldStatus& out,std::string& e){if(!readable){e="world read failed";return false;}out=observed;return true;}
 }
 bool fail(std::string& e,const char* why){e=why;return false;}
+namespace quest_history {std::map<std::string,int> journal{{"retained",1}};void clear(){journal.clear();}}
+namespace dungeon_cells {bool available=true;unsigned calls=0;bool retire_lobby(std::string& e){++calls;if(!available){e="Dungeon cell retirement failed";return false;}return true;}}
 int comparisons=0;
 void check(bool ok){++comparisons;if(!ok){std::cerr<<"cleanup assertion "<<comparisons<<" failed\\n";std::exit(1);}}
 '''
@@ -41,6 +43,7 @@ bool ready=true,installed=true,fault=true,replaying=false,callback_failed=true;c
 uintptr_t replay_receiver=77,original=0x1234;uint64_t generation=42,captures=3,submitted=2,rejected=1;
 unsigned original_calls=1;std::string cause="previous fault",last_action="old action",ui_token="old token";
 bool replay_remove=true;a::QuestListEdit replay_edit=a::QuestListEdit::Title;unsigned replay_property=4;int replay_state=2;int replay_atmosphere=3;bool preparing=true;
+struct ViewTail {bool armed=false;};ViewTail view_tail;std::map<std::string,uintptr_t> adjustment_views;
 std::optional<int> pending=5;std::map<std::string,int> operations{{"old action",1}},jobs{{"old token",1}};
 '''
         source += text[start:end]
@@ -59,9 +62,10 @@ std::optional<int> pending=5;std::map<std::string,int> operations{{"old action",
 '''
         if palette:
             checks = checks.replace('&&replay_receiver==0&&original_calls==0', '')
+            checks = checks.replace('    actual_thread=18;', '    dungeon_cells::available=false;check(!retire_lobby(e)&&e=="Dungeon cell retirement failed");check(retained());dungeon_cells::available=true;\n    actual_thread=18;')
         source += checks
         if family == 'npc_quest_list':
-            source += '    check(ui_token.empty()&&jobs.empty()&&!replay_remove&&replay_edit==a::QuestListEdit::List);\n'
+            source += '    check(ui_token.empty()&&jobs.empty()&&!replay_remove&&replay_edit==a::QuestListEdit::List&&quest_history::journal.empty());\n'
         elif family == 'character_rename':
             source += '    check(replay_property==0);\n'
         elif family == 'dungeon_gizmo':

@@ -7,11 +7,25 @@ struct Sample {
     host::WorldState world;duplicate_reader::Census census;group_reader::Local groups;
     std::map<std::string,Handle> handles;
     std::map<std::string,action::DuplicateObject> objects;
+    json selected_records=json::object();
+    std::map<std::string,duplicate_records::UptimeWitness> uptime;
+    std::map<uintptr_t,action::DuplicateObject> untouched_scenery;
     std::map<std::string,action::BuildingState> props;
     std::map<uintptr_t,std::string> external_owners;
     action::DuplicateState state;action::Ledger money;witness::UndoWitness undo;
     uintptr_t business=0,release=0,random=0;
 };
+void append_untouched_scenery(const Sample& value,json& untouched){
+    // Unselected generated Scenery has no shared action identity. Keep its
+    // complete original content and multiplicity without exporting local UIDs.
+    if(!value.untouched_scenery.empty()){
+        std::vector<std::string> rows;rows.reserve(value.untouched_scenery.size());
+        for(const auto& [pointer,row]:value.untouched_scenery){(void)pointer;
+            rows.push_back(json::array({row.region,row.pose,row.record_sha}).dump());}
+        std::sort(rows.begin(),rows.end());
+        untouched=json::array({std::move(untouched),json{{"untouched_scenery",rows}}});
+    }
+}
 bool external_owner(Runtime& r,const Sample& sample,uintptr_t pointer,std::string& key,std::string& e){
     if(pointer==sample.world.root){key="root_shard";return true;}
     for(const auto region:sample.census.regions)if(pointer==region){int32_t id=-1;
@@ -59,8 +73,8 @@ bool inspect_record(void* user,const void* record,const void* context,std::strin
     auto& v=*static_cast<RecordCapture*>(user);
     return subscriber_lifecycle::read_graph(v.memory,uintptr_t(record),uintptr_t(context),{100000,1000000,32*1024*1024,100000},v.graph,e);
 }
-bool record(Runtime& r,const Sample& sample,const std::string& key,action::DuplicateObject& row,std::string& e){
-    namespace capture=subscriber_lifecycle;const auto handle=sample.handles.at(key);
+bool record_object(Runtime& r,const Sample& sample,const Handle& handle,action::DuplicateObject& row,std::string& e,json* diagnostic=nullptr,duplicate_records::UptimeWitness* uptime=nullptr){
+    namespace capture=subscriber_lifecycle;
     uintptr_t prepare=0,save=0;
     if(row.family==Family::Building){prepare=0xe570d0;save=0xe57130;}
     else if(row.family==Family::Scenery){prepare=0xe4fc90;save=0xe4fcf0;}
@@ -73,19 +87,23 @@ bool record(Runtime& r,const Sample& sample,const std::string& key,action::Dupli
     auto owner=[&](uintptr_t p,std::string& canonical,std::string& why){
         return external_owner(r,sample,p,canonical,why);
     };
-    duplicate_records::Witness witness;if(!duplicate_records::summarize(value.graph,handle.object,owner,witness,e))return false;
+    duplicate_records::Witness witness;if(!duplicate_records::summarize_source(value.graph,handle.object,owner,witness,e,diagnostic,uptime))return false;
     row.record_sha=witness.sha;return true;
+}
+bool record(Runtime& r,const Sample& sample,const std::string& key,action::DuplicateObject& row,std::string& e,json* diagnostic=nullptr,duplicate_records::UptimeWitness* uptime=nullptr){
+    return record_object(r,sample,sample.handles.at(key),row,e,diagnostic,uptime);
 }
 bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,
             const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,
-            const std::function<bool(Sample&,std::string&)>& prepare_records={}){
+            const std::function<bool(Sample&,std::string&)>& prepare_records={},bool untouched_scenery_scope=false,bool duplicate_scope=false){
     out={};if(!world(r,out.world,e)||out.world.origin.world_epoch!=binding.native_epoch||out.world.origin.generation!=binding.native_generation)
         return q::fail(e,e.empty()?"Duplicate current complete World binding differs":e);
     auto find=[&](uint64_t uid,uintptr_t& p,std::string& why){return group_edit::find(r,uid,p,why);};
     if(!duplicate_reader::census(r.memory,r.image,uintptr_t(out.world.origin.map),out.world.root,find,out.census,e))return false;
-    json bindings;if(!remove_diagnostics::bindings(bindings,e))return false;std::map<uint64_t,std::string> keys;
+    // This census consumes canonical aliases; full prop and original Record reads follow.
+    json bindings;if(!remove_diagnostics::identity_bindings(bindings,e))return false;std::map<uint64_t,std::string> keys;std::set<uint64_t> retired;
     for(const auto& row:bindings.at("bindings")){
-        if(row.at("revoked").get<bool>())continue;
+        if(row.at("revoked").get<bool>()){retired.insert(row.at("local_uid").get<uint64_t>());continue;}
         if(row.at("unknown").get<bool>()||row.at("snapshot_id")!=net::current_snapshot_id())return q::fail(e,"Duplicate complete shared registry is unknown or foreign");
         if(!keys.emplace(row.at("local_uid").get<uint64_t>(),row.at("record_key").get<std::string>()).second)return q::fail(e,"Duplicate complete shared registry full UID repeats");
     }
@@ -94,9 +112,20 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
         auto at=[&](uintptr_t p,size_t off,auto& v,std::string& error){return q::at(r.memory,p,off,v,error);};
         return region_saved_identity::resolve(r.image,uintptr_t(out.world.origin.map),out.world.root,id,region,actual,at,why);};
     auto bind=[&](uintptr_t p,uint64_t uid,std::string& key,int32_t& id,std::string& why){const auto found=out.census.objects.find(p);const auto k=keys.find(uid);
-        if(found==out.census.objects.end()||found->second.handle.uid!=uid||found->second.family!=Family::Scenery||k==keys.end())return q::fail(why,"Duplicate Group member lacks exact current Scenery binding");
+        if(found==out.census.objects.end())return q::fail(why,"Duplicate Group member is absent from current native census");
+        if(found->second.handle.uid!=uid)return q::fail(why,"Duplicate Group member current full UID differs");
+        if(found->second.family!=Family::Scenery)return q::fail(why,"Duplicate Group member current family is not Scenery");
+        if(k==keys.end())return q::fail(why,"Duplicate Group member lacks current canonical Scenery key");
         key=k->second;id=found->second.region_id;return true;};
-    std::vector<uintptr_t> scenery;for(const auto& [p,row]:out.census.objects)if(row.family==Family::Scenery)scenery.push_back(p);
+    std::vector<uintptr_t> scenery;
+    for(const auto& [p,row]:out.census.objects){
+        if(untouched_scenery_scope&&!keys.contains(row.handle.uid)&&row.family==Family::Scenery){
+            if(row.parent)return q::fail(e,"Duplicate unbound Scenery has a Group parent");
+            if(retired.contains(row.handle.uid))return q::fail(e,"Duplicate unbound Scenery has a live retired binding");
+            action::DuplicateObject value;value.family=row.family;value.region=row.region_id;value.pose=row.pose;
+            out.untouched_scenery.emplace(p,std::move(value));
+        }else if(row.family==Family::Scenery)scenery.push_back(p);
+    }
     auto bind_group=[&](uintptr_t,uint64_t uid,const std::string& derived,std::string& key,std::string& why){
         return group_edit::canonical_group(binding,out.world,uid,derived,key,why);};
     if(!group_reader::read(r.memory,r.image,out.world.root,out.world.selection,scenery,bind,owner,find,bind_group,out.groups,e))return false;
@@ -104,7 +133,7 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
     for(const auto& group:out.groups.state.groups){const auto handle=out.groups.handles.at(group.key);group_keys.emplace(handle.object,group.key);
         out.handles.emplace(group.key,Handle{handle.object,handle.uid});action::DuplicateObject row;row.key=group.key;row.family=Family::Group;row.region=group.region;row.pose=group.pose;
         for(const auto& member:group.members)row.members.push_back(member.key);out.objects.emplace(row.key,std::move(row));}
-    for(const auto& [p,local]:out.census.objects){const auto key=keys.find(local.handle.uid);
+    for(const auto& [p,local]:out.census.objects){if(out.untouched_scenery.contains(p))continue;const auto key=keys.find(local.handle.uid);
         if(key==keys.end())return q::fail(e,"Duplicate complete native census contains unbound prop full_uid="+std::to_string(local.handle.uid));
         action::DuplicateObject row;row.key=key->second;row.family=local.family;row.region=local.region_id;row.pose=local.pose;
         if(local.parent){const auto parent=group_keys.find(local.parent);if(parent==group_keys.end())return q::fail(e,"Duplicate native prop has unbound Group parent");row.parent=parent->second;}
@@ -115,11 +144,32 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
     std::vector<npc_saved_identity_runtime::Current> npc_owners;
     if(!npc_saved_identity_runtime::read_current(npc_owners,e))return false;
     std::set<std::string> npc_keys;
-    for(const auto& owner:npc_owners){if(owner.key.empty()||!owner.row.local_pointer||!owner.row.local_uid||
-           !npc_keys.insert(owner.key).second||!out.external_owners.emplace(owner.row.local_pointer,owner.key).second)
+    for(const auto& npc_owner:npc_owners){if(npc_owner.key.empty()||!npc_owner.row.local_pointer||!npc_owner.row.local_uid||
+           !npc_keys.insert(npc_owner.key).second||!out.external_owners.emplace(npc_owner.row.local_pointer,npc_owner.key).second)
             return q::fail(e,"Duplicate current NPC canonical owner census repeats or is incomplete");}
     if(prepare_records&&!prepare_records(out,e))return false;
-    for(auto& [key,row]:out.objects)if(!record(r,out,key,row,e))return false;
+    std::set<std::string> diagnostic_keys;
+    if(intent&&Config::instance().diagnostic_mailbox_enabled)for(const auto& target:intent->rows){
+        if(diagnostic_keys.size()==duplicate_records::diagnostic_sources)break;
+        diagnostic_keys.insert(target.key);
+        // Reuse this capture's original Record for created targets as well.
+        // Pair the first source/result before spending the remaining budget.
+        if(!created.empty()){
+            if(target.family==Family::Group&&!target.created_keys.empty()&&diagnostic_keys.size()<duplicate_records::diagnostic_sources)
+                diagnostic_keys.insert("group:"+target.created_keys.front());
+            for(const auto& key:target.created_keys){
+                if(diagnostic_keys.size()==duplicate_records::diagnostic_sources)break;diagnostic_keys.insert(key);}
+        }
+    }
+    for(auto& [key,row]:out.objects){json* diagnostic=diagnostic_keys.contains(key)?&out.selected_records[key]:nullptr;
+        duplicate_records::UptimeWitness* uptime=nullptr;
+        if(duplicate_scope&&row.family==Family::Building){
+            if(!intent)uptime=&out.uptime[key];
+            else for(const auto& target:intent->rows)if(target.key==key&&target.captured_uptime){
+                uptime=&out.uptime[key];uptime->captured=target.captured_uptime;}}
+        if(!record(r,out,key,row,e,diagnostic,uptime))return false;}
+    for(auto& [pointer,row]:out.untouched_scenery)
+        if(!record_object(r,out,out.census.objects.at(pointer).handle,row,e))return false;
     std::set<std::string> excluded;
     if(intent){for(const auto& target:intent->rows){const auto source=out.objects.find(target.key);if(source==out.objects.end())return q::fail(e,"Duplicate requested source absent key="+target.key);
             out.state.sources.push_back(source->second);excluded.insert(target.key);
@@ -132,6 +182,7 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
             }
         }}
     json untouched=json::array();for(const auto& [key,row]:out.objects)if(!excluded.contains(key))untouched.push_back(json::array({key,row.record_sha}));
+    append_untouched_scenery(out,untouched);
     const auto text=untouched.dump();out.state.untouched_sha=mt2mp::sha256(std::vector<unsigned char>(text.begin(),text.end()));
     uintptr_t release_manager=0;
     if(!q::at(r.memory,r.image,0x164b250,out.random,e)||!q::at(r.memory,out.random,0,out.state.random,e)||
@@ -139,9 +190,24 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
        !q::at(r.memory,release_manager,0x38,out.release,e)||!q::typed(r.memory,r.image,out.release,0x16c12b0,e)||
        !q::at(r.memory,out.release,0x120,out.state.release,e)||!q::at(r.memory,r.image,0x13df220,out.business,e)||
        !ledger(out.money,e)||!witness::read_undo(r.memory.process,r.image,out.undo,e))return false;
+    if(!out.untouched_scenery.empty()){
+        duplicate_reader::Census checked;
+        if(!duplicate_reader::census(r.memory,r.image,uintptr_t(out.world.origin.map),out.world.root,find,checked,e))return false;
+        if(checked!=out.census)return q::fail(e,"Duplicate untouched native census changed during original records");
+    }
     host::WorldState after;if(!world(r,after,e)||!host::same_world(out.world.origin,after.origin)||out.undo.active_graph)
         return q::fail(e,e.empty()?"Duplicate complete read World/idle graph changed":e);
     return true;
+}
+bool sample_untouched_scenery(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,
+                      const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,
+                      const std::function<bool(Sample&,std::string&)>& prepare_records={}){
+    return sample(r,binding,intent,created,out,e,prepare_records,true);
+}
+bool sample_duplicate(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,
+                      const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,
+                      const std::function<bool(Sample&,std::string&)>& prepare_records={}){
+    return sample(r,binding,intent,created,out,e,prepare_records,true,true);
 }
 }
 }

@@ -23,6 +23,7 @@ bool graph_ready(Memory& memory,const BoundGraph& graph,host::LookupApi& api,std
             if(seh||!object||!field(memory,object,0x18,actual,error)||actual!=uid)
                 return fail(error,error.empty()?"Dungeon original history dependency does not resolve its complete current UID SEH="+std::to_string(seh):error);
         }
+        if(node.kind==cg::Kind::Cash)continue;
         const bool make=node.kind==cg::Kind::Scenery||node.kind==cg::Kind::Monster||node.kind==cg::Kind::Zone||node.kind==cg::Kind::Gizmo||node.kind==cg::Kind::Door;
         uintptr_t object=0;const auto seh=lookup(api.find,node.uid,object);
         if(seh||(make?bool(object):!object))return fail(error,"Dungeon original history target lifetime differs before mutation UID="+std::to_string(node.uid)+" SEH="+std::to_string(seh));
@@ -51,15 +52,25 @@ bool reconcile_history(Memory& memory,const a::Binding& binding,const a::Request
     std::vector<dungeon_scene_identity_runtime::GizmoRestore> restored;
     std::vector<std::pair<std::string,dungeon_gizmo_identity::Member>> retired;
     auto monsters=identity::registry;std::set<uint64_t> restored_zones;
+    std::vector<remove_diagnostics::scene_buildings::Row> scenery_retired;
+    std::vector<remove_diagnostics::scene_buildings::Restore> scenery_restored;
+    const auto scenery_row=[](const Actor& actor,uintptr_t object){return remove_diagnostics::scene_buildings::Row{
+        actor.key,actor.scene,object,actor.shard,actor.region,actor.manager,actor.uid,true};};
     for(const auto& node:graph.value.nodes){
-        if(node.kind==cg::Kind::Paint||node.kind==cg::Kind::Layout||node.kind==cg::Kind::Quests)continue;
+        if(node.kind==cg::Kind::Paint||node.kind==cg::Kind::Layout||node.kind==cg::Kind::Quests||node.kind==cg::Kind::Cash)continue;
         const auto found=graph.actors.find(node.uid);if(found==graph.actors.end())return fail(error,"Dungeon original history completed an actor absent from its captured graph");
         const auto& actor=found->second;uintptr_t object=0;uint64_t uid=0;uintptr_t shard=0,region=0;
         const auto seh=lookup(api.find,node.uid,object);if(seh)return fail(error,"Dungeon original history target readback SEH="+std::to_string(seh));
         if(node.kind==cg::Kind::Destroy){
             if(object)return fail(error,"Dungeon original history queued actor deletion remains registered UID="+std::to_string(node.uid));
-            if(actor.kind==cg::Kind::Gizmo)retired.emplace_back(actor.key,actor.gizmo());
+            if(actor.kind==cg::Kind::Scenery)scenery_retired.push_back(scenery_row(actor,actor.object));
+            else if(actor.kind==cg::Kind::Gizmo)retired.emplace_back(actor.key,actor.gizmo());
             else if(actor.kind==cg::Kind::Monster&&!monsters.retire(actor.key,actor.monster,error))return false;
+            continue;
+        }
+        if(node.kind==cg::Kind::Move){
+            if(object!=actor.object)return fail(error,"Scene Move history replaced its original canonical lifetime");
+            if(actor.kind==cg::Kind::Scenery&&!remove_diagnostics::refresh_moved_building(request.snapshot_uuid,actor.key,actor.uid,error))return false;
             continue;
         }
         if(node.kind==cg::Kind::Gizmo||node.kind==cg::Kind::Door){
@@ -75,6 +86,7 @@ bool reconcile_history(Memory& memory,const a::Binding& binding,const a::Request
         if(actor.kind==cg::Kind::Gizmo){
             auto actual=actor.gizmo();actual.object=object;actual.uid=uid;restored.push_back({actor.key,actor.gizmo(),actual});
         }else if(uid!=node.uid)return fail(error,"Dungeon original UID-preserving Make changed its saved full UID");
+        else if(actor.kind==cg::Kind::Scenery)scenery_restored.push_back({scenery_row(actor,actor.object),scenery_row(actor,object)});
         else if(actor.kind==cg::Kind::Monster){auto actual=actor.monster;actual.pointer=object;actual.retired=false;
             if(!monsters.restore_retired(actor.key,actor.monster,actual,error))return false;
         }else if(actor.kind==cg::Kind::Zone)restored_zones.insert(uid);
@@ -82,6 +94,9 @@ bool reconcile_history(Memory& memory,const a::Binding& binding,const a::Request
     dungeon_scene_identity_runtime::Census actual;
     if(!dungeon_scene_identity_runtime::confirm_cell_restoration(binding,request,before.scenes,restored,retired,actual,error)||
        !npc_quest_target_runtime::confirm_dungeon_cell_history(binding,request,zones,original_zones,restored_zones,error))return false;
+    remove_diagnostics::scene_buildings::Preview scenery_preview;
+    if(!remove_diagnostics::scene_buildings::preview(before.scenes.world,{},scenery_retired,scenery_restored,scenery_preview,error)||
+       !remove_diagnostics::scene_buildings::publish(scenery_preview,error))return false;
     std::vector<std::pair<std::string,identity::Entry>> actual_monsters;
     if(!monster_members(memory,actual,actual_monsters,false,error,&monsters))return false;
     // Publish only after the complete current native Monster roster accepts the

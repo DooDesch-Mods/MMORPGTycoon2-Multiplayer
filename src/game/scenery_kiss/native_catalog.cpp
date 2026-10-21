@@ -1,7 +1,9 @@
 #include "native_catalog.h"
+#include "../scenery_scene_identity.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "scenery_codeguards.h"
 #include "catalog_sample.h"
+#include "live_host_state/memory_query_timing.h"
 #include <Windows.h>
 #include <cstring>
 
@@ -43,31 +45,47 @@ bool manager(host::ProcessMemory& memory,uintptr_t image,uintptr_t& out,std::str
     if(!memory.copy(image+0x13df730,&out,sizeof out,e))return false;
     if(!out){e="scenery_catalog_actual_manager_missing";return false;}return true;
 }
+bool require_registry(uint64_t uid,uintptr_t object,uint32_t seh,const char* stage,std::string& e){
+    if(seh||!object){e="scenery_action_prop_registry_failed SEH="+std::to_string(seh)+" uid="+std::to_string(uid)+" stage="+stage;return false;}
+    return true;
+}
 struct ActualRoot final:Root {
     host::ProcessMemory& memory;uintptr_t image;uint32_t thread;host::LookupApi api;
     ActualRoot(host::ProcessMemory& m,uintptr_t i,uint32_t t,host::LookupApi a):memory(m),image(i),thread(t),api(a){}
     bool bind(uint64_t uid,Binding& b,std::string& e)override{
         b={};if(GetCurrentThreadId()!=thread){e="scenery_action_prop_wrong_thread";return false;}
         host::NativeOrigin origin;host::Reader reader(memory,origin,image,thread,api);host::WorldState world;prop_lease::Prop prop;
-        uintptr_t object=0;const auto seh=find(api.find,uid,object);if(seh||!object){e="scenery_action_prop_registry_failed SEH="+std::to_string(seh);return false;}
-        if(!reader.current(world,true,e)||!reader.prop(reinterpret_cast<void*>(object),uid,prop,e))return false;
+        uintptr_t object=0;const auto seh=find(api.find,uid,object);if(!require_registry(uid,object,seh,"ActualRoot.bind",e))return false;
+        if(!reader.current(world,true,e))return false;
         uintptr_t shard=0,region=0;
         if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;
-        if(shard!=world.root){e="scenery_action_prop_requires_root_world";return false;}
+        if(shard==world.root){int32_t saved_id=-1;
+            if(!memory.copy(region+0x834,&saved_id,sizeof saved_id,e)||!reader.saved_root_scenery(reinterpret_cast<void*>(object),uid,saved_id,region,prop,e))return false;
+        }else{
+            if(!reader.prop(reinterpret_cast<void*>(object),uid,prop,e))return false;game::remove_diagnostics::scene_scenery::Row member;game::dungeon_scene_identity_runtime::World scene_world;
+            if(!game::remove_diagnostics::scene_scenery::owner(object,uid,member,scene_world,e))return false;
+            if(member.shard!=shard||member.region!=region||scene_world.world_epoch!=world.origin.world_epoch||scene_world.generation!=world.origin.generation||
+               scene_world.world!=world.origin.world||scene_world.map!=world.origin.map){e="scenery_action_prop_current_scene_world_differs";return false;}
+        }
         b={object,uid,world.origin.world_epoch,world.origin.generation,uintptr_t(world.origin.world),shard,region};return true;
     }
 };
 }
 bool NativeCatalog::identify(int32_t category,int32_t variant,std::string& directory_text,std::string& filename_text,std::string& e){
     directory_text.clear();filename_text.clear();if(GetCurrentThreadId()!=thread_||category<0||category>=47){e="scenery_catalog_actual_thread_or_category_invalid";return false;}
-    if(!code(memory_,image_,e))return false;
     uintptr_t actual_manager=0,after_manager=0,directory=0,filename=0;uint64_t roundtrip=0;
-    if(!manager(memory_,image_,actual_manager,e))return false;
+    {
+        mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+        if(!code(memory_,image_,e)||!manager(memory_,image_,actual_manager,e))return false;
+    }
     const auto seh=lookup(image_,actual_manager,category,variant,directory,filename,roundtrip);
     if(seh){e="scenery_catalog_native_lookup_failed SEH="+std::to_string(seh);return false;}
     const uint64_t expected=uint64_t(uint32_t(category))|(uint64_t(uint32_t(variant))<<32);
     if(roundtrip!=expected){e="scenery_catalog_native_roundtrip_differs";return false;}
-    if(!text(memory_,directory,directory_text,e)||!text(memory_,filename,filename_text,e)||!manager(memory_,image_,after_manager,e))return false;
+    {
+        mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+        if(!text(memory_,directory,directory_text,e)||!text(memory_,filename,filename_text,e)||!manager(memory_,image_,after_manager,e))return false;
+    }
     if(actual_manager!=after_manager){e="scenery_catalog_actual_manager_changed";return false;}return true;
 }
 bool NativeCatalog::classify_directory(const std::string& type,bool& scenery,std::string& e){
@@ -128,7 +146,7 @@ bool read_action_prop(uint64_t uid,game::native::BuildingState& out,std::string&
     if(hash!=exe||thread!=GetCurrentThreadId()){e="scenery_action_prop_exe_or_thread_differs";return false;}
     host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,hash,api,e))return false;
     uintptr_t object=0,ap=0;const auto seh=find(api.find,uid,object);
-    if(seh||!object){e="scenery_action_prop_registry_failed SEH="+std::to_string(seh);return false;}
+    if(!require_registry(uid,object,seh,"read_action_prop",e))return false;
     if(!memory.copy(object,&ap,sizeof ap,e))return false;
     if(ap!=image+0x16c1390)return game::native::read_building(uid,out,e);
     ActualRoot root(memory,image,thread,api);NativeCatalog catalog(memory,image,thread);State state;

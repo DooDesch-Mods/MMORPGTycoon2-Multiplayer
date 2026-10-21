@@ -1,6 +1,38 @@
 #include "npc_remove_selection.h"
 #include "npc_remove_replay_binding.h"
 namespace {
+namespace npc_qr=monster_quest_retirement;
+bool npc_remove_quest_digest(const npc_qr::Witness& witness,std::string& out,std::string& error){
+    json rows=json::array();
+    for(const auto& row:witness.rows)rows.push_back({{"owner_key",row.owner_key},{"record",quest_bridge::record_json(row.record)}});
+    return quest_bridge::sha256(rows.dump(),out,error);
+}
+bool npc_remove_quest_before(const npc_qr::Witness& witness,const json& references,
+                             action::NpcQuestRemovalProof& out,std::string& error){
+    out={};auto& proof=out.quests;proof.before_count=uint32_t(witness.quests.size());proof.completed_before=witness.completed;
+    if(!npc_remove_quest_digest(witness,proof.before_sha256,error)||
+       !quest_bridge::sha256(references.dump(),out.references_before,error))return false;
+    for(const auto pointer:witness.removed){
+        const auto found=std::find(witness.quests.begin(),witness.quests.end(),pointer);
+        if(found==witness.quests.end())return fail(error,"NPC retired Quest lacks a complete before record");
+        proof.removed.push_back(witness.rows[size_t(found-witness.quests.begin())]);
+    }
+    error.clear();return true;
+}
+bool npc_remove_quest_after(Memory& memory,const action::Binding& binding,const action::Request& request,
+                            Operation& op,action::NpcQuestRemovalProof& proof,std::string& error){
+    const auto seed=npc_quest_cascade::survivor_seed(op.npc_remove_quests_before,request.canonical_record_key);
+    if(!world_quest_history::read(binding,request.snapshot_uuid,op.npc_remove_quests_after,error,&seed)||
+       !world_quest_history::references(binding,request.snapshot_uuid,op.npc_remove_quests_after,op.npc_remove_refs_after,error)||
+       !npc_quest_cascade::survivors(op.npc_remove_quests_before,op.npc_remove_quests_after,request.canonical_record_key,error)||
+       !npc_quest_cascade::references(op.npc_remove_quests_before,op.npc_remove_refs_before,op.npc_remove_refs_after,request.canonical_record_key,error)||
+       !npc_qr::absent(memory,state.image,op.npc_remove_quests_before,error)||
+       !npc_remove_quest_digest(op.npc_remove_quests_after,proof.quests.after_sha256,error)||
+       !quest_bridge::sha256(op.npc_remove_refs_after.dump(),proof.references_after,error))return false;
+    proof.quests.after_count=uint32_t(op.npc_remove_quests_after.quests.size());
+    proof.quests.completed_after=op.npc_remove_quests_after.completed;
+    return action::valid_npc_quest_removal(proof,request.canonical_record_key)||fail(error,"NPC complete Quest retirement receipt invalid");
+}
 bool selection_absent(Memory& memory,uintptr_t image,uintptr_t manager,uintptr_t target,
                       std::string& error) {
     uintptr_t ap=0,focused=0;
@@ -39,8 +71,8 @@ bool target_binding(const std::string& target,const action::Binding& binding,
     out={};region=0;
     if(!npc_target_key::input(target))return fail(error,"NPC target key invalid");
     uint64_t uid=0;uintptr_t pointer=0;int32_t saved_region=-1,type=-1;
+    npc_saved_identity_runtime::Current saved;
     if((snapshot_npc_key::valid(target)||building_npc_key::valid(target))){
-        npc_saved_identity_runtime::Current saved;
         if(!npc_saved_identity_runtime::resolve(target,saved,error))return false;
         uid=saved.row.local_uid;pointer=saved.row.local_pointer;saved_region=saved.saved_region;type=saved.row.type;
     }else{
@@ -52,10 +84,12 @@ bool target_binding(const std::string& target,const action::Binding& binding,
     host::NativeOrigin origin;host::Reader reader(memory.process,origin,state.image,state.thread,api);
     host::WorldState world;uintptr_t selection=0,ap=0,registered=0;
     const auto read_field=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};
-    if(!reader.current(world,true,error)||!bound(world,binding,snapshot,error)||
-       !region_saved_identity::resolve(state.image,uintptr_t(world.origin.map),world.root,
-           saved_region,0,region,read_field,error)||
-       !field(memory,state.image,0x13df630,selection,error)||!selection||
+    if(!reader.current(world,true,error)||!bound(world,binding,snapshot,error))return false;
+    if(saved.scene!="world"){
+        if(!building_npc_owner::binding_scope(read_field,state.image,world.root,saved,region,error))return false;
+    }else if(!region_saved_identity::resolve(state.image,uintptr_t(world.origin.map),world.root,
+           saved_region,0,region,read_field,error))return false;
+    if(!field(memory,state.image,0x13df630,selection,error)||!selection||
        !field(memory,selection,0,ap,error)||!npc_census::read(memory,state.image,region,census,error))return false;
     const auto seh=lookup(api.find,uid,registered);
     if(seh||ap!=state.image+0x17205d0||registered!=pointer)
@@ -444,6 +478,20 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
         before.quest_targets_sha256!=authority->npc_before.quest_targets_sha256||money!=authority->before)){
         error="NPC Remove Client before actor/roster/Undo/Ledger differs from Host";
         return action::Outcome::RejectedNoEffect;}
+    npc_qr::Witness quests_before;json refs_before;action::NpcQuestRemovalProof quest_proof;
+    if(!world_quest_history::read(binding,request.snapshot_uuid,quests_before,error)||
+       !npc_quest_cascade::select(quests_before,local.object,local.uid,request.canonical_record_key,error)||
+       !world_quest_history::references(binding,request.snapshot_uuid,quests_before,refs_before,error)||
+       !npc_remove_quest_before(quests_before,refs_before,quest_proof,error)||
+       !action::npc_quest_removal_wire_fits(request,before,money,quest_proof,error))return action::Outcome::RejectedNoEffect;
+    if(authority&&(!authority->npc_quest_removal||
+       !action::valid_npc_quest_removal(*authority->npc_quest_removal,request.canonical_record_key)||
+       quest_proof.quests.before_sha256!=authority->npc_quest_removal->quests.before_sha256||
+       quest_proof.quests.before_count!=authority->npc_quest_removal->quests.before_count||
+       quest_proof.quests.completed_before!=authority->npc_quest_removal->quests.completed_before||
+       quest_proof.quests.removed!=authority->npc_quest_removal->quests.removed||
+       quest_proof.references_before!=authority->npc_quest_removal->references_before)){
+        error="NPC Remove Client complete Quest records or active references differ from Host";return action::Outcome::RejectedNoEffect;}
     auto& op=state.operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
     op.target_action_uuid=request.target_action_uuid;op.local_uid=local.uid;op.local_pointer=local.object;
     op.target_type=target_type;
@@ -456,6 +504,7 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
            before!=authority->npc_before||money!=authority->before)
             return unknown(error.empty()?"NPC Remove Client Host before RNG/actor differs":error);}
     op.evidence.before=money;op.evidence.npc_before=before;op.quest_tasks_before=before_tasks;
+    op.npc_remove_quests_before=std::move(quests_before);op.npc_remove_refs_before=std::move(refs_before);
     action::ui_diagnostic::Api api;
     if(!action::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);
     action::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,
@@ -484,6 +533,12 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
             op.remove_quest_sequence_ids.push_back(original_quests.records[index].sequence_id);
         }
     }
+    npc_qr::Witness selected_quests;json selected_refs;
+    if(!world_quest_history::read(binding,request.snapshot_uuid,selected_quests,error,&op.npc_remove_quests_before)||
+       !npc_quest_cascade::select(selected_quests,local.object,local.uid,request.canonical_record_key,error)||
+       !world_quest_history::references(binding,request.snapshot_uuid,selected_quests,selected_refs,error)||
+       !npc_qr::unchanged(op.npc_remove_quests_before,selected_quests,error)||selected_refs!=op.npc_remove_refs_before)
+        return unknown(error.empty()?"NPC original Select changed complete Quest records or active references":error);
     ui::Replay replay{authority?ui::ReplayPurpose::ConfirmedHostApplication:ui::ReplayPurpose::HostExecution,
                       {request.action_uuid,request.snapshot_uuid,request.canonical_record_key},local};
     const auto old_replays=ui_remove_runtime::status().value("replay_originals",uint64_t{});
@@ -505,9 +560,20 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
     action::NpcState after;action::Ledger after_money;undo::UndoWitness undo_after;
     npc_census::State after_census;
     if(!read_effect(memory,state.image,region,0,after,after_money,undo_after,after_census,error,
-                    quest_target,&op.quest_tasks_after)||
-       !remove_effect::removed_one(selected_census,after_census,local.uid,error))
+                     quest_target,&op.quest_tasks_after))
         return unknown(error.empty()?"NPC original DestroyProps Manager readback failed":error);
+    host::LookupApi lookup_api;uintptr_t registered=0;
+    if(!host::resolve_lookup(memory.process,state.image,exe_sha,lookup_api,error))return unknown(error);
+    const auto lookup_seh=lookup(lookup_api.find,local.uid,registered);
+    if(lookup_seh||registered||std::any_of(after_census.rows.begin(),after_census.rows.end(),[&](const auto& row){return row.local_uid==local.uid;}))
+        return unknown("NPC original DestroyProps full UID remains registered or Manager member, SEH="+std::to_string(lookup_seh));
+    op.target_absent=true;
+    // Current owner enumeration must no longer follow the retired Place pointer.
+    if(!request.target_action_uuid.empty())state.operations.at(request.target_action_uuid).target_absent=true;
+    if(!npc_remove_quest_after(memory,binding,request,op,quest_proof,error))return unknown(error);
+    std::map<uint64_t,int32_t> quest_counts;
+    for(const auto& [pointer,owner]:op.npc_remove_quests_after.owners){(void)pointer;quest_counts.emplace(owner.uid,int32_t(owner.state.records.size()));}
+    if(!remove_effect::removed_one(selected_census,after_census,local.uid,error,&quest_counts))return unknown(error);
     if(quest_target&&
        !quest_bridge::removed_quests(memory,state.image,op.remove_quest_pointers,
                                     op.remove_quest_sequence_ids,op.quest_retirement,error))
@@ -522,11 +588,13 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
         return unknown(error.empty()?"NPC original DestroyProps Undo graph invalid":error);
     op.undo_confirmed=true;
     op.evidence.after=after_money;op.evidence.npc_after=after;
+    op.evidence.npc_quest_removal=std::move(quest_proof);
     op.evidence.undo_confirmed=true;op.evidence.target_retired=true;op.evidence.selection_confirmed=true;
     if(op.attempted!=op.returned||after_money!=money||
        !action::valid_npc_effect(request,op.evidence)||
        (authority&&(op.evidence.before!=authority->before||op.evidence.after!=authority->after||
-                    op.evidence.npc_before!=authority->npc_before||op.evidence.npc_after!=authority->npc_after)))
+                     op.evidence.npc_before!=authority->npc_before||op.evidence.npc_after!=authority->npc_after||
+                     op.evidence.npc_quest_removal!=authority->npc_quest_removal)))
         return unknown("NPC original Remove actor, Host state or full Ledger differs");
     if(!request.target_action_uuid.empty())state.operations.at(request.target_action_uuid).target_absent=true;op.confirmed=true;error.clear();return action::Outcome::Confirmed;
 }
@@ -568,6 +636,14 @@ bool remove_observe(const action::Binding& binding,const action::Request& reques
                                         op.remove_quest_sequence_ids,retirement,error)||
            retirement!=op.quest_retirement)
             return fail(error,error.empty()?"NPC Remove Quest retirement readback differs":error);}
+    uintptr_t registered=0;const auto lookup_seh=lookup(api.find,op.local_uid,registered);
+    if(lookup_seh||registered)return fail(error,"NPC Remove observation full UID remains registered or lookup failed, SEH="+std::to_string(lookup_seh));
+    npc_qr::Witness quests;json refs;
+    if(!world_quest_history::read(binding,request.snapshot_uuid,quests,error,&op.npc_remove_quests_after)||
+       !world_quest_history::references(binding,request.snapshot_uuid,quests,refs,error)||
+       !npc_qr::unchanged(op.npc_remove_quests_after,quests,error)||
+       !npc_qr::absent(memory,state.image,op.npc_remove_quests_before,error)||refs!=op.npc_remove_refs_after)
+        return fail(error,error.empty()?"NPC Remove observation complete Quest records or active references changed":error);
     out=op.evidence;out.retirement_confirmed=op.retired;error.clear();return true;
 }
 bool remove_retire(const action::Binding& binding,const action::Request& request,std::string& error) {

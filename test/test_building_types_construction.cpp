@@ -4,6 +4,7 @@
 #include "mt2mp/game/native_engine.h"
 #include "live_host_state/memory_query_timing.h"
 #include <cstring>
+#include <algorithm>
 #include <iostream>
 #include <map>
 #include <set>
@@ -67,6 +68,12 @@ bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget& out,std::string& e){
     if(fixture::local_scenery)out.normal_scenery=true;
     return true;
 }
+bool resolve_identity_destination(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& e){
+    LocalTarget expected;
+    if(!resolve_record_target(snapshot,key,expected,e)||!resolve_local_target(expected.manager,expected.object,out,e))return false;
+    if(expected.type!=out.type||expected.variant!=out.variant){e="actual target metadata differs";return false;}
+    return true;
+}
 }
 namespace mt2mp::game::developer_staff::job_census {
 bool read(const Read&,const Capture&,Census& out,std::string& e){
@@ -89,8 +96,8 @@ struct Actor{ActorPose pose;};
 bool actor(const Capture&,size_t slot,Actor& out,std::string& e,bool=false){
     if(!fixture::actor_ok){e="actual actor failed";return false;}out.pose.id=static_cast<int32_t>(slot);return true;
 }
-#include "building_type_binding.inc"
 #include "building_type_jobs.inc"
+#include "building_type_binding.inc"
 #include "building_type_graph.inc"
 }
 
@@ -117,7 +124,24 @@ void reset(const std::string& type="SmallInn",const std::string& variant="base",
 bool graph(construction::State& out,std::string& e){job_census::Census jobs;std::vector<construction::Actor> actors;
     return construction::graph(fixture::capture,{fixture::link},out,jobs,actors,e);}
 
-int main(){try{using namespace fixture;std::string e;construction::State out;
+
+namespace registry_failure_fixture {
+#include "scenery_registry_guard.inc"
+void run(){
+    for(const char* stage:{"ActualRoot.bind","read_action_prop"}){
+        std::string error;
+        fixture::need(!require_registry(9478,0,0,stage,error)&&error==std::string("scenery_action_prop_registry_failed SEH=0 uid=9478 stage=")+stage,
+            "actual absent registry failure preserves original cause and exact queried UID/stage");
+        fixture::need(!require_registry(10864,0,0xc0000005u,stage,error)&&error==std::string("scenery_action_prop_registry_failed SEH=3221225477 uid=10864 stage=")+stage,
+            "actual registry exception remains distinct from absent UID and retains the native SEH");
+        error="earlier upstream cause";
+        fixture::need(require_registry(10864,0x123456,0,stage,error)&&error=="earlier upstream cause",
+            "existing successful registry condition and upstream cause are unchanged");
+    }
+}
+}
+#include "duplicate_construction_native_cases.inc"
+int main(){try{duplicate_construction_native_fixture::run();registry_failure_fixture::run();using namespace fixture;std::string e;construction::State out;
     for(const auto& [type,variant]:std::vector<std::pair<std::string,std::string>>{
         {"SmallInn","base"},{"Inn","boat"},{"Blacksmith","elf"},{"Tavern","base"},{"PotionShop","base"},
         {"Shop","base"},{"Landmark","lighthouse"},{"Respawn","base"},{"StartingPoint","base"}}){
@@ -126,6 +150,11 @@ int main(){try{using namespace fixture;std::string e;construction::State out;
         need(bound&&out.jobs.size()==1&&out.jobs[0].building_key==binding.record_key&&
             out.jobs[0].present&&!out.jobs[0].active&&out.jobs[0].developer_id==-1,
             type+" original normal Job binding rejected: "+e);
+        put(object+0x7a8,int32_t(0));
+        const bool pending_bound=graph(out,e);
+        need(pending_bound&&out.jobs.size()==1&&out.jobs[0].present&&!out.jobs[0].active,
+            type+" original queued constructor state rejected: "+e);
+        put(object+0x7a8,int32_t(2));
         put(object+0x7e1,uint8_t(1));queue.jobs.clear();
         need(graph(out,e)&&!out.jobs[0].present&&out.jobs[0].active,type+" completed activation readback rejected: "+e);
         put(object+0x7e1,uint8_t(0));
@@ -149,7 +178,7 @@ int main(){try{using namespace fixture;std::string e;construction::State out;
     for(int wrong=0;wrong<11;++wrong){reset("Inn","boat");
         if(wrong==0)binding.uid++;if(wrong==1)binding.record_key+="x";if(wrong==2)binding.snapshot_id+="x";
         if(wrong==3)binding.world_epoch++;if(wrong==4)binding.world_generation++;if(wrong==5)binding.manager++;
-        if(wrong==6)put(object+0x170,map+0x1c1);if(wrong==7)put(object+0x7a8,int32_t(0));
+        if(wrong==6)put(object+0x170,map+0x1c1);if(wrong==7)put(object+0x7a8,int32_t(3));
         if(wrong==8)put(object+0x7e1,uint8_t(2));if(wrong==9)local_variant="elf";if(wrong==10)local_scenery=true;
         need(!graph(out,e)&&!e.empty(),"wrong Building identity/variant/lifecycle entered construction");
     }
@@ -168,6 +197,46 @@ int main(){try{using namespace fixture;std::string e;construction::State out;
         if(wrong==2)put(proxy,uintptr_t(0));if(wrong==3){queue.jobs[0].developer=0xa0000000;queue.jobs[0].reciprocal=false;}
         need(!graph(out,e)&&!e.empty(),"foreign occurrence or broken native weak/backlink admitted");
     }
+    for(unsigned fault=0;fault<24;++fault){
+        reset();put(object+0x7a8,int32_t(0));e.clear();
+        if(fault==0)queue.jobs.clear();
+        if(fault==1)++queue.jobs[0].pointer;
+        if(fault==2)link.retired=true;
+        if(fault==3)link.target_alive=false;
+        if(fault==4)link.target_restored=true;
+        if(fault==5)put(proxy,uintptr_t(0));
+        if(fault==6)put(proxy,object+0x28);
+        if(fault==7)++queue.jobs[0].building;
+        if(fault==8)++queue.jobs[0].building_proxy;
+        if(fault==9)++queue.jobs[0].region;
+        if(fault==10)++binding.uid;
+        if(fault==11)put(object+0x170,map+0x1c1);
+        if(fault==12)put(object+0x7e1,uint8_t(1));
+        if(fault==13)put(object+0x7e1,uint8_t(2));
+        if(fault==14)queue.jobs[0].valid=0;
+        if(fault==15)queue.jobs[0].type=2;
+        if(fault==16){queue.jobs[0].building=0;queue.jobs[0].building_proxy=0;}
+        if(fault==17){queue.jobs[0].developer=0xa0000000;queue.jobs[0].reciprocal=false;}
+        if(fault==18)queue.jobs.push_back(queue.jobs[0]);
+        if(fault==19)++binding.manager;
+        if(fault==20)++binding.world_generation;
+        if(fault==21)++link.region;
+        if(fault==22)++binding.world_epoch;
+        if(fault==23)binding.snapshot_id+="foreign";
+        construction::Target pending_target;
+        const bool accepted=construction::building(capture,link,pending_target,e);
+        need(!accepted&&!e.empty(),"pending constructor state admitted a stale/foreign occurrence; fault="+std::to_string(fault));
+        if(fault==11)need(e=="Construction target root-shard owner differs","root owner failure became a lifecycle failure");
+        if(fault==12)need(e=="Construction target state=0 active=1 requires state 1 or 2, or state 0/active 0 with retained live original Job",
+            "invalid lifecycle failure lost actual and required values");
+        if(fault==13)need(e=="Construction target active=2 requires Boolean 0 or 1","non-Boolean failure lost its value");
+    }
+    reset();put(object+0x7a8,int32_t(0));census_ok=false;e.clear();construction::Target pending_target;
+    need(!construction::building(capture,link,pending_target,e)&&e=="actual census failed",
+         "pending constructor admission replaced original queue read failure");
+    reset();put(object+0x7a8,int32_t(0));rejected_read=proxy;e.clear();
+    need(!construction::building(capture,link,pending_target,e)&&e=="actual field read failed",
+         "pending constructor admission replaced original weak read failure");
     reset("Blacksmith","base");put(object+0x7a8,int32_t(1));
     need(graph(out,e)&&out.jobs.size()==1&&out.jobs[0].present,
         "original maintenance Building lost its retained construction occurrence: "+e);

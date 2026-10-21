@@ -1,7 +1,8 @@
 bool duplicate_intent_valid(const DuplicateIntent& v){return v.rows.size()<=max_payload&&game::duplicate_transition::valid(v,[](const auto& s){return key(s);});}
 bool duplicate_state_valid(const DuplicateState& v){return v.sources.size()<=max_payload&&v.created.size()<=max_payload&&game::duplicate_transition::valid(v,[](const auto& s){return key(s);});}
-json duplicate_intent_json(const DuplicateIntent& v){json rows=json::array();for(const auto& r:v.rows)
-    rows.push_back(json::array({r.key,r.record_sha,uint8_t(r.family),r.region,r.cost,r.before,r.after,r.members,r.created_keys}));
+json duplicate_intent_json(const DuplicateIntent& v){json rows=json::array();for(const auto& r:v.rows){
+    auto row=json::array({r.key,r.record_sha,uint8_t(r.family),r.region,r.cost,r.before,r.after,r.members,r.created_keys});
+    if(r.captured_uptime)row.push_back(*r.captured_uptime);rows.push_back(std::move(row));}
     return json::array({std::move(rows),v.cash_position});}
 template<size_t N>std::array<uint32_t,N> duplicate_bits(const json& j){
     if(!j.is_array()||j.size()!=N)throw std::runtime_error("Duplicate native bit array width differs");std::array<uint32_t,N> out{};
@@ -11,9 +12,11 @@ DuplicateFamily duplicate_family(const json& j){const auto n=u64(j);if(n<1||n>3)
 DuplicateIntent duplicate_intent_read(const json& j){
     if(!j.is_array()||j.size()!=2||!j[0].is_array()||j[0].size()>max_payload)throw std::runtime_error("Duplicate intent width/count differs");
     DuplicateIntent v;v.cash_position=duplicate_bits<3>(j[1]);
-    for(const auto& r:j[0]){if(!r.is_array()||r.size()!=9||!r[7].is_array()||!r[8].is_array()||r[7].size()>max_payload||r[8].size()>max_payload)
+    for(const auto& r:j[0]){if(!r.is_array()||(r.size()!=9&&r.size()!=10)||!r[7].is_array()||!r[8].is_array()||r[7].size()>max_payload||r[8].size()>max_payload)
             throw std::runtime_error("Duplicate complete target width/count differs");
-        v.rows.push_back({r[0].get<std::string>(),r[1].get<std::string>(),duplicate_family(r[2]),i32(r[3]),i32(r[4]),duplicate_bits<10>(r[5]),duplicate_bits<10>(r[6]),r[7].get<std::vector<std::string>>(),r[8].get<std::vector<std::string>>()});}
+        v.rows.push_back({r[0].get<std::string>(),r[1].get<std::string>(),duplicate_family(r[2]),i32(r[3]),i32(r[4]),duplicate_bits<10>(r[5]),duplicate_bits<10>(r[6]),r[7].get<std::vector<std::string>>(),r[8].get<std::vector<std::string>>()});
+        if(r.size()==10){if(!r[9].is_array()||r[9].size()>10)throw std::runtime_error("Duplicate captured Building uptime width/count differs");
+            std::vector<int32_t> values;for(const auto& value:r[9])values.push_back(i32(value));v.rows.back().captured_uptime=std::move(values);}}
     if(!duplicate_intent_valid(v))throw std::runtime_error("Duplicate intent canonical identity/pose/cost invalid");return v;
 }
 json duplicate_objects(const std::vector<DuplicateObject>& rows){json out=json::array();for(const auto& r:rows)

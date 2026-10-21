@@ -3,6 +3,7 @@
 #include "vendor/nlohmann/json.hpp"
 #include <string>
 #include <vector>
+#include <map>
 #include <cstdint>
 
 namespace mt2mp::game::remove_diagnostics {
@@ -20,10 +21,22 @@ bool resolve_record_target(const std::string& snapshot,const std::string& key,Lo
 nlohmann::json status();
 bool bindings(nlohmann::json&,std::string&);
 bool identity_bindings(nlohmann::json&,std::string&);
+bool party_identity_bindings(nlohmann::json&,std::string&);
+bool party_identity_current(const std::string&,const std::string&,uint64_t,uintptr_t,uintptr_t,std::string&);
 bool identity_targets(std::vector<LocalTarget>&,std::string&);
+bool identity_building_targets(std::vector<LocalTarget>&,std::string&,std::map<uintptr_t,std::string>* destinations=nullptr);
+bool resolve_identity_destination(uintptr_t,LocalTarget&,std::string&);
+bool resolve_identity_destination(const std::string&,const std::string&,LocalTarget&,std::string&);
 bool retire_region_scenery(const std::string& snapshot,const std::string& action_uuid,const std::vector<uint64_t>& removed_uids,std::vector<std::string>& retired_keys,std::string&);
+bool admit_created_modular(const std::string&,const std::string&,uint64_t,std::string&);
+bool admit_created_dungeon_building(const std::string&,const std::string&,uint64_t,const std::string& scene,std::string&);
+bool restore_redone_modular(const std::string&,const std::string&,uint64_t,std::string&);
+bool restore_redone_dungeon_building(const std::string&,const std::string&,uint64_t,const std::string& scene,std::string&);
+bool is_modular_target(const LocalTarget&,std::string&);
+bool dungeon_building_scene(const LocalTarget&,std::string& scene,bool& matched,std::string&);
+bool is_dungeon_building_target(const LocalTarget&,const std::string& scene,std::string&);
 bool admit_created_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
-bool refresh_moved_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
+bool refresh_moved_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&,const std::string& dungeon_scene={});
 bool retire_undone_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
 bool restore_redone_building(const std::string& snapshot,const std::string& shared_id,uint64_t local_uid,std::string&);
 bool history_target_absent(const std::string& snapshot,const std::string& key,uint64_t local_uid,std::string&);

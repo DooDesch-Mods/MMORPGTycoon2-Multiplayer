@@ -54,6 +54,9 @@ public:
     Admission commit_moves(const Origin&,const std::vector<Change>&,const std::vector<LocalBinding>&,std::string&);
     Admission commit_creates(const Origin&,uint64_t revision,const std::string& action_uuid,
                              const std::vector<LocalBinding>&,std::string&);
+    Admission commit_dungeon_census(const Origin&,uint64_t revision,const std::string& action_uuid,
+        const std::string& target,const std::vector<LocalBinding>& before,
+        const std::vector<LocalBinding>& after,std::string&);
     Admission commit_scenery_stroke(const Origin&,uint64_t revision,const std::string& action_uuid,
                                     const std::vector<std::string>& removed_keys,const std::vector<LocalBinding>& created,std::string&);
     Admission commit_scenery_history(const Origin&,uint64_t revision,const std::string& action_uuid,

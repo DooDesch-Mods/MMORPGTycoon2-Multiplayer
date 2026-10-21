@@ -4,7 +4,8 @@ using Command=a::ui_diagnostic::UiCommand;
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;
 bool installed=false,ready=false,fault=false,replaying=false,callback_failed=false;std::string cause,last_action;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;a::DungeonGizmoEdit replay_edit=a::DungeonGizmoEdit::Gold;int32_t replay_value=0;
-const a::DungeonGizmoRecord* preparation=nullptr;
+const a::DungeonGizmoRecord* preparation=nullptr;bool preparation_door=false;
+dungeon_gizmo_identity::Member state_callback_target;
 constexpr npc_quest_list_ui_codes::Code ui_code{0x6f4930,2071,"06943e49c74a354ab951ca86dd1939140ee6677cbb436b660a524954cd557e08",
     {0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x10,0x02,0x00,0x00,0x48,0x89,0xcb,0x48,0x8b,0x89,0xf8,0x04,0x00,0x00,0x48,0x89,0xd6,0x48,0x85,0xc9,0x0f,0x84,0x9d}};
 struct Sample {dungeon_palette::Sample dungeon;dungeon_scene_identity_runtime::Census census;a::DungeonGizmoState value;dungeon_gizmo_identity::Member target;};
@@ -23,7 +24,10 @@ bool code(Memory& memory,std::string& error){
         std::memcpy(bytes.data(),receipt.pristine,32);if(!quest_list::verify_code(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;}
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Gizmo original outer UI body differs":error);
     for(const auto& pin:dungeon_gizmo_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
-        if(hash!=pin.sha)return fail(error,"Gizmo original UI/weak/feature/token helper differs RVA="+std::to_string(pin.rva));}return true;
+        if(hash!=pin.sha)return fail(error,"Gizmo original UI/weak/feature/token helper differs RVA="+std::to_string(pin.rva));}
+    for(const auto& pin:dungeon_gizmo_live_codes::values){bytes.assign(pin.bytes,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||
+        !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Gizmo original State/animation helper differs RVA="+std::to_string(pin.rva)+" original="+error);}
+    return true;
 }
 bool protected_digest(const a::DungeonPaletteState& value,std::string& hash,std::string& error){
     json cells=json::array();for(const auto& cell:value.cells)cells.push_back({{"theme",cell.theme},{"colors",cell.colors},{"open",cell.open}});
@@ -31,7 +35,10 @@ bool protected_digest(const a::DungeonPaletteState& value,std::string& hash,std:
     return quest_bridge::sha256(json{{"desired",d.desired},{"price",d.price},{"sandbox",d.sandbox},{"instances",instances},{"undo_count",d.undo_count},
         {"light",value.protected_state.light},{"atmosphere",value.protected_state.atmosphere},{"cells",cells},{"palette",value.palette},{"defaults",value.defaults}}.dump(),hash,error);
 }
-bool digest(const a::DungeonGizmoState& value,std::string& hash,std::string& error){return quest_bridge::sha256(dungeon_gizmo_portable::state(value,false).dump(),hash,error);}
+bool digest(const a::DungeonGizmoState& value,std::string& hash,std::string& error){
+    auto authored=value;if(authored.live){authored.live.reset();authored.network.reset();for(auto& scene:authored.scenes)for(auto& row:scene.rows){row.value.triggered=false;row.value.state=0;}}
+    return quest_bridge::sha256(dungeon_gizmo_portable::state(authored,false).dump(),hash,error);
+}
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::DungeonGizmoIntent& intent,Sample& out,std::string& error){
     out={};if(!dungeon_scene_identity_runtime::read_current(out.census,error)||!dungeon_scene_identity_runtime::lookup(intent.key,out.target,error))return false;
     if(out.target.scene!=intent.scene)return fail(error,"Gizmo exact canonical scene owner differs");
@@ -44,7 +51,12 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     if(!found||slot!=out.census.keys.size())return fail(error,"Gizmo target scene/current key roster differs");
     a::DungeonPaletteIntent owner;owner.key=exterior;
     if(!dungeon_palette::sample(memory,binding,snapshot,owner,out.dungeon,error)||!protected_digest(out.dungeon.value,out.value.protected_sha256,error))return false;
-    out.value.global_random=out.dungeon.value.protected_state.dungeon.global_random;return true;
+    out.value.global_random=out.dungeon.value.protected_state.dungeon.global_random;
+    if(intent.edit==a::DungeonGizmoEdit::State){a::Context context;dungeon_gizmo_live::State live;
+        if(!a::selected_session().current(context,error)||!capture_live(context,binding,live,error))return false;out.value.live=std::move(live);
+        live_host_state::NativePort port(context,binding,nullptr);live_host_state::Pin pin;live_host_state::network::State network;
+        if(!port.read(pin,error)||!live_host_state::network::read_action105_effect(pin,network,error)||!port.current_owners(pin,error))return false;out.value.network=std::move(network);}
+    return true;
 }
 bool same_local(const Sample& before,const Sample& after){
     const auto& xworld=before.census.world;const auto& yworld=after.census.world;
@@ -58,6 +70,7 @@ const a::DungeonGizmoRecord* selected(const a::DungeonGizmoState& value,const st
 uint32_t find_window(uintptr_t& out)noexcept{__try{const quest_list::QuestTitleView name{"info_gizmo",10};out=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t set_window(uintptr_t window,uintptr_t target)noexcept{__try{if(target)reinterpret_cast<void(*)(void*,void*)>(state.image+0x6f53f0)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(target));else reinterpret_cast<void(*)(void*)>(state.image+0x6f35f0)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t refresh_window(uintptr_t window)noexcept{__try{reinterpret_cast<void(*)(void*)>(state.image+0x6f3800)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t is_door(uintptr_t target,bool& door)noexcept{__try{door=reinterpret_cast<bool(*)(uintptr_t)>(state.image+0x145990)(target);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t feature(uintptr_t target,bool& container)noexcept{__try{container=reinterpret_cast<bool(*)(const void*,int32_t)>(state.image+0x145560)(reinterpret_cast<const void*>(target),0);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,dungeon_gizmo_record::Window& out,std::string& error){
     uintptr_t object=0;const auto seh=find_window(object);if(seh||!object)return fail(error,"Gizmo actual named Window unavailable SEH="+std::to_string(seh));host::LookupApi api;
@@ -80,17 +93,61 @@ bool entry(void* receiver,void* record)try{
     Memory memory;std::string error;a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
     int edit=-1;for(size_t i=0;i<dungeon_gizmo_record::labels.size();++i){bool match=false;const auto seh=quest_list::label(api.label_equals,record,dungeon_gizmo_record::labels[i],match);
         if(seh){fault=true;return reject("Gizmo native command label SEH="+std::to_string(seh));}if(match){edit=int(i);break;}}
-    if(edit<0)return original(receiver,record);int32_t value=0;if(!record_value(memory,record,value,error)){if(replaying){callback_failed=true;fault=true;}return reject(error);}
-    if(replaying){bool execute=false;if(!dungeon_gizmo_record::replay(uintptr_t(receiver),a::DungeonGizmoEdit(edit),value,replay_receiver,replay_edit,replay_value,preparation,original_calls,execute,error)){callback_failed=true;fault=true;return reject(error);}return execute?original(receiver,record):true;}
+    if(edit<0){bool destroy=false;
+        const auto seh=quest_list::label(api.label_equals,record,"DestroyGizmo",destroy);
+        if(seh)return reject("Gizmo Destroy label read SEH="+std::to_string(seh));
+        if(!destroy)return original(receiver,record);
+        dungeon_gizmo_record::Window owner;
+        if(!window(memory,owner,error)||owner.object!=uintptr_t(receiver)||!owner.target)return reject(error.empty()?"Gizmo Destroy current Window target differs":error);
+        return dungeon_input::capture_gizmo_destroy(owner.target,owner.uid,error)||reject(error);
+    }
+    int32_t value=0;if(!record_value(memory,record,value,error)){if(replaying){callback_failed=true;fault=true;}return reject(error);}
+    if(dungeon_input::preparing_gizmo_ui()){
+        dungeon_gizmo_record::Window owner;
+        if(!window(memory,owner,error)||owner.object!=uintptr_t(receiver)){
+            dungeon_input::reject_gizmo_ui();return reject(error.empty()?"Gizmo control UI Window changed":error);}
+        if(!owner.target)return original(receiver,record);
+        if(!dungeon_input::gizmo_ui_owner(owner.target,owner.uid)){
+            dungeon_input::reject_gizmo_ui();return reject(error.empty()?"Gizmo control UI preparation owner differs":error);}
+        int32_t current=0;
+        if(edit==5){uint8_t trigger=2;bool door=false;
+            if(!field(memory,owner.target,0x250,trigger,error)||!field(memory,owner.target,0x254,current,error)){
+                dungeon_input::reject_gizmo_ui();return reject(error);}
+            const auto seh=is_door(owner.target,door);
+            if(trigger>1||seh){dungeon_input::reject_gizmo_ui();return reject("Gizmo control UI trigger/IsDoor invalid SEH="+std::to_string(seh));}
+            current=door?current+1:trigger?1:3;
+        }else{constexpr std::array<size_t,5> offsets{0x260,0x264,0x268,0x26c,0x270};
+            if(!field(memory,owner.target,offsets[size_t(edit)],current,error)){dungeon_input::reject_gizmo_ui();return reject(error);}}
+        if(current!=value){dungeon_input::reject_gizmo_ui();return reject("Gizmo control UI preparation changed a native value");}
+        return true;
+    }
+    if(replaying&&!preparation&&replay_edit==a::DungeonGizmoEdit::State&&original_calls==1){
+        dungeon_gizmo_record::Window current;
+        if(!window(memory,current,error)||current.object!=replay_receiver){callback_failed=true;return reject(error.empty()?"Gizmo State callback Window differs":error);}
+        if(!current.target)return original(receiver,record);
+        if(current.target!=state_callback_target.object||current.uid!=state_callback_target.uid){callback_failed=true;return reject("Gizmo State callback changed its complete target lifetime");}
+        a::DungeonGizmoRecord observed;bool door=false;
+        const auto seh=is_door(current.target,door);
+        if(seh||!field(memory,current.target,0x250,observed.triggered,error)||!field(memory,current.target,0x254,observed.state,error)||
+           !field(memory,current.target,0x260,observed.gold,error)||!field(memory,current.target,0x264,observed.loot,error)||
+           !field(memory,current.target,0x268,observed.vendor_trash,error)||!field(memory,current.target,0x26c,observed.keys,error)||!field(memory,current.target,0x270,observed.boss_keys,error)){
+            callback_failed=true;return reject(seh?"Gizmo State callback IsDoor SEH="+std::to_string(seh):error);}
+        uint32_t preparation_calls=0;bool execute=false;
+        if(!dungeon_gizmo_record::replay(uintptr_t(receiver),a::DungeonGizmoEdit(edit),value,replay_receiver,replay_edit,replay_value,&observed,preparation_calls,execute,error,door)){
+            callback_failed=true;return reject(error);}
+        return true;
+    }
+    if(replaying){bool execute=false;if(!dungeon_gizmo_record::replay(uintptr_t(receiver),a::DungeonGizmoEdit(edit),value,replay_receiver,replay_edit,replay_value,preparation,original_calls,execute,error,preparation_door)){callback_failed=true;fault=true;return reject(error);}return execute?original(receiver,record):true;}
     const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending||building_status::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_light::pending_ui()||dungeon_sound::pending_ui()||dungeon_palette::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))return reject(error.empty()?"Gizmo capture requires idle bound Mainthread Controller":error);
     dungeon_gizmo_record::Window owner;a::DungeonGizmoIntent intent;intent.edit=a::DungeonGizmoEdit(edit);intent.value=value;
-    if(!window(memory,owner,error)||owner.object!=uintptr_t(receiver)||!container(memory,owner,error)||!dungeon_scene_identity_runtime::resolve(owner.target,owner.uid,intent.key,error))return reject(error.empty()?"Gizmo captured actual native Window/owner differs":error);
+    if(!window(memory,owner,error)||owner.object!=uintptr_t(receiver)||(intent.edit!=a::DungeonGizmoEdit::State&&!container(memory,owner,error))||!dungeon_scene_identity_runtime::resolve(owner.target,owner.uid,intent.key,error))return reject(error.empty()?"Gizmo captured actual native Window/owner differs":error);
     dungeon_gizmo_identity::Member member;if(!dungeon_scene_identity_runtime::lookup(intent.key,member,error))return reject(error);intent.scene=member.scene;
+    if(intent.edit==a::DungeonGizmoEdit::State){const auto seh=is_door(owner.target,intent.door);if(seh||intent.value<1||intent.value>3||(!intent.door&&intent.value==2))return reject("Gizmo State requires its actual Door/trigger command domain SEH="+std::to_string(seh));}
     Sample before;if(!sample(memory,binding,snapshot,intent,before,error)||before.target.object!=owner.target||before.target.uid!=owner.uid||!digest(before.value,intent.before_sha256,error))return reject(error.empty()?"Gizmo captured full native identity differs":error);
     pending=Pending{binding,snapshot,intent};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Gizmo capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Gizmo capture non-standard exception");}
-void reset_replay(){replaying=false;preparation=nullptr;replay_receiver=0;original_calls=0;callback_failed=false;}
+void reset_replay(){replaying=false;preparation=nullptr;replay_receiver=0;original_calls=0;callback_failed=false;state_callback_target={};}
 }
 bool pending_ui(){return pending.has_value()||replaying;}
 bool retire_lobby(std::string& e){
@@ -114,22 +171,23 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     const auto controller=typed_action_runtime::controller_status();if(!controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Gizmo requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
     Memory memory;Sample before;std::string prior;const auto& intent=request.dungeon_gizmo;
     if(!code(memory,error)||!sample(memory,binding,request.snapshot_uuid,intent,before,error)||!digest(before.value,prior,error))return a::Outcome::RejectedNoEffect;
+    bool actual_door=false;if(is_door(before.target.object,actual_door)||(intent.edit==a::DungeonGizmoEdit::State&&actual_door!=intent.door)){error="Gizmo actual native Door feature changed";return a::Outcome::RejectedNoEffect;}
     if(prior!=intent.before_sha256){error="Gizmo captured prior scene/roster/protected state differs";return a::Outcome::RejectedNoEffect;}
     if(!a::dungeon_gizmo_wire_fits(request,before.value,before.dungeon.dungeon.dungeon.dungeon.money,error))return a::Outcome::RejectedNoEffect;
     if(authority){auto portable=before.value;portable.global_random=authority->dungeon_gizmo_before.global_random;if(portable!=authority->dungeon_gizmo_before||before.dungeon.dungeon.dungeon.dungeon.money!=authority->before){error="Gizmo Client actual prior roster/owner/config/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
     dungeon_gizmo_record::Window saved;if(!window(memory,saved,error))return a::Outcome::RejectedNoEffect;
-    a::DungeonGizmoRecord restore_values;
-    if(saved.target&&(!field(memory,saved.target,0x260,restore_values.gold,error)||!field(memory,saved.target,0x264,restore_values.loot,error)||!field(memory,saved.target,0x268,restore_values.vendor_trash,error)||!field(memory,saved.target,0x26c,restore_values.keys,error)||!field(memory,saved.target,0x270,restore_values.boss_keys,error)))return a::Outcome::RejectedNoEffect;
+    a::DungeonGizmoRecord restore_values;bool restore_door=false;
+    if(saved.target&&(is_door(saved.target,restore_door)||!field(memory,saved.target,0x250,restore_values.triggered,error)||!field(memory,saved.target,0x254,restore_values.state,error)||!field(memory,saved.target,0x260,restore_values.gold,error)||!field(memory,saved.target,0x264,restore_values.loot,error)||!field(memory,saved.target,0x268,restore_values.vendor_trash,error)||!field(memory,saved.target,0x26c,restore_values.keys,error)||!field(memory,saved.target,0x270,restore_values.boss_keys,error)))return a::Outcome::RejectedNoEffect;
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;bool rebound=false,restore_attempted=false;
-    const auto restore=[&](std::string& e){if(!rebound)return true;return dungeon_gizmo_record::restore_once(restore_attempted,[&](std::string& restore_cause){replaying=true;replay_receiver=saved.object;preparation=&restore_values;original_calls=0;
+    const auto restore=[&](std::string& e){if(!rebound)return true;return dungeon_gizmo_record::restore_once(restore_attempted,[&](std::string& restore_cause){replaying=true;replay_receiver=saved.object;preparation=&restore_values;preparation_door=restore_door;original_calls=0;
         const auto seh=set_window(saved.object,saved.target);const auto failed=callback_failed;reset_replay();if(seh||failed)return fail(restore_cause,seh?"Gizmo original local Window restore SEH="+std::to_string(seh):cause);dungeon_gizmo_record::Window current;
         if(!window(memory,current,restore_cause))return false;if(current.object!=saved.object||current.target!=saved.target||current.uid!=saved.uid)return fail(restore_cause,"Gizmo original local Window restore full UID differs");rebound=false;op.restored=true;return true;},e);};
     const auto unknown=[&](const std::string& why){reset_replay();std::string restore_error;if(!restore(restore_error)){error=op.cause=why+"; "+restore_error;return a::Outcome::Unknown;}
         error=op.cause=why.empty()?"Gizmo original operation failed without cause":why;return a::Outcome::Unknown;};
     const auto* prior_record=selected(before.value,intent.key);if(!prior_record)return unknown("Gizmo target absent from actual prior authored roster");
-    rebound=true;replaying=true;replay_receiver=saved.object;preparation=prior_record;original_calls=0;const auto setup=set_window(saved.object,before.target.object);reset_replay();
+    rebound=true;replaying=true;replay_receiver=saved.object;preparation=prior_record;preparation_door=actual_door;original_calls=0;const auto setup=set_window(saved.object,before.target.object);reset_replay();
     if(setup||fault)return unknown(setup?"Gizmo original Window preparation SEH="+std::to_string(setup):cause);
-    dungeon_gizmo_record::Window prepared_window;if(!window(memory,prepared_window,error)||!container(memory,prepared_window,error)||prepared_window.object!=saved.object||prepared_window.target!=before.target.object||prepared_window.uid!=before.target.uid)return unknown(error.empty()?"Gizmo original prepared owner differs":error);
+    dungeon_gizmo_record::Window prepared_window;if(!window(memory,prepared_window,error)||(intent.edit!=a::DungeonGizmoEdit::State&&!container(memory,prepared_window,error))||prepared_window.object!=saved.object||prepared_window.target!=before.target.object||prepared_window.uid!=before.target.uid)return unknown(error.empty()?"Gizmo original prepared owner differs":error);
     Sample prepared;if(!sample(memory,binding,request.snapshot_uuid,intent,prepared,error))return unknown(error);auto portable=prepared.value;portable.global_random=before.value.global_random;
     if(!same_local(before,prepared)||portable!=before.value||prepared.dungeon.dungeon.dungeon.dungeon.money!=before.dungeon.dungeon.dungeon.dungeon.money)return unknown("Gizmo original Window preparation changed gameplay");
     const auto desired_rng=authority?authority->dungeon_gizmo_before.global_random:before.value.global_random;op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Gizmo Host RNG adoption SEH="+std::to_string(seed));
@@ -137,15 +195,16 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     op.evidence.before=op.before.dungeon.dungeon.dungeon.dungeon.money;op.evidence.dungeon_gizmo_before=op.before.value;
     a::ui_diagnostic::Api api;a::ui_diagnostic::Window command_window;command_window.window=saved.object;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);
     const auto command=std::string(dungeon_gizmo_record::labels[size_t(intent.edit)])+" "+std::to_string(intent.value);api.command=reinterpret_cast<Command>(state.image+ui_code.rva);api.destroy_label=command.c_str();api.label_equals=&replay_record_equals;
-    a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=saved.object;replay_edit=intent.edit;replay_value=intent.value;original_calls=0;
-    const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;reset_replay();
-    if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed||fault)return unknown(error.empty()?(cause.empty()?"Gizmo original transaction lacks exact once/record cleanup":cause):error);
-    auto refreshed_values=*prior_record;auto* refreshed_field=a::dungeon_gizmo_value(refreshed_values,intent.edit);if(!refreshed_field)return unknown("Gizmo original result edit missing");*refreshed_field=intent.value;
+    a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=saved.object;replay_edit=intent.edit;replay_value=intent.value;original_calls=0;state_callback_target=op.before.target;
+    const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;const bool ui_callback_failed=callback_failed;reset_replay();
+    if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed||ui_callback_failed||fault)return unknown(error.empty()?(cause.empty()?"Gizmo original transaction lacks exact once/record cleanup":cause):error);
+    a::DungeonGizmoState projected;if(!a::dungeon_gizmo_project(intent,op.before.value,projected))return unknown("Gizmo original result projection missing");
+    const auto* refreshed=selected(projected,intent.key);if(!refreshed)return unknown("Gizmo original result target missing");auto refreshed_values=*refreshed;
     // Set returns early for an already selected actor. Refresh the original Grid
     // explicitly so a remote command has the same visible values as local input.
-    replaying=true;replay_receiver=saved.object;preparation=&refreshed_values;original_calls=0;const auto refresh=refresh_window(saved.object);const auto refresh_failed=callback_failed;reset_replay();
+    replaying=true;replay_receiver=saved.object;preparation=&refreshed_values;preparation_door=actual_door;original_calls=0;const auto refresh=refresh_window(saved.object);const auto refresh_failed=callback_failed;reset_replay();
     if(refresh||refresh_failed)return unknown(refresh?"Gizmo original content refresh SEH="+std::to_string(refresh):cause);op.refreshed=true;
-    if(saved.target==before.target.object){auto* value=a::dungeon_gizmo_value(restore_values,intent.edit);if(!value)return unknown("Gizmo original result edit missing");*value=intent.value;}
+    if(saved.target==before.target.object){restore_values=refreshed_values;restore_door=actual_door;}
     if(!restore(error))return unknown(error);
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::dungeon_gizmo_transition(intent,op.before.value,op.after.value)||op.before.dungeon.dungeon.dungeon.dungeon.money!=op.after.dungeon.dungeon.dungeon.dungeon.money)return unknown(error.empty()?"Gizmo original result/scene/owner/config/ledger/Undo differs":error);
     op.evidence.after=op.after.dungeon.dungeon.dungeon.dungeon.money;op.evidence.dungeon_gizmo_after=op.after.value;
@@ -156,3 +215,6 @@ bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& re
 bool retire(const a::Binding& binding,const a::Request& request,std::string& error){a::Evidence ignored;if(!observe(binding,request,ignored,error))return false;auto& op=operations.at(request.action_uuid);if(op.retired)return fail(error,"Gizmo receipt already retired");op.retired=true;return true;}
 json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},{"calls",op.calls},{"refreshed",op.refreshed},{"restored",op.restored},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"cause",op.cause}};return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
 }
+
+#include "dungeon_gizmo_live_native.inc"
+#include "dungeon_gizmo_rename.inc"

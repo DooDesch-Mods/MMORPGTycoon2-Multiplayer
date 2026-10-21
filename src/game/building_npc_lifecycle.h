@@ -16,6 +16,7 @@ struct Parent {
     int32_t saved_region=-1;
     MakeForm make_form=MakeForm::Unknown;
     uint64_t stored_child_uid=0;
+    std::string scene="world";
 };
 struct Receipt {
     Lease lease;Parent parent;npc_saved_identity::Current child;
@@ -60,4 +61,7 @@ bool resolve(const std::string& key,uint64_t uid,npc_saved_identity::Current&,st
 // Copy validated current child aliases before entering a private Record capture.
 // Its owner callback can then use this local census without nested reader locks.
 bool current_aliases(std::vector<npc_saved_identity::Current>&,std::string&);
+// Retain the existing local lifecycle anchor across later ordered requests.
+// This lookup never dereferences a retired native receiver.
+bool retained_receipt(const std::string& parent,Receipt&,bool& found,bool& retired,std::string&);
 }

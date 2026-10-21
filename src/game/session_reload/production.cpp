@@ -250,7 +250,7 @@ void tick()try{
     }
     if(phase==Phase::Handshake){
         if(!net::session_wire::connected())return;
-        if(!Config::instance().local_test&&net::session_wire::session_id()==old_session)return;
+        if(net::session_wire::session_id()==old_session)return;
         if(was_host&&had_world){
             if(!lobby_prepare::prepare_snapshot(saved_snapshot,error)||!lobby_prepare::start(error)){fail(error);return;}
             enter(Phase::Prepare);

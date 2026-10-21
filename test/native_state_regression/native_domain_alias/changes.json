@@ -7,6 +7,11 @@
         "old": "    for(const auto& prop:props.at(\"bindings\")){if(prop.at(\"revoked\").get<bool>())continue;if(prop.at(\"unknown\").get<bool>()||prop.at(\"snapshot_id\")!=world.uuid)return fail(error,\"Intervention current external prop alias is unknown or foreign\");",
         "new": "    if(props.at(\"world_epoch\").get<uint64_t>()!=binding.native_epoch||props.at(\"world_generation\").get<uint64_t>()!=binding.native_generation||\n       world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)\n        return fail(error,\"Intervention current external prop native lifetime differs: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" prop_epoch=\"+props.at(\"world_epoch\").dump()+\" native_epoch=\"+std::to_string(world.world_epoch)+\" binding_epoch=\"+std::to_string(binding.native_epoch)+\n            \" prop_generation=\"+props.at(\"world_generation\").dump()+\" native_generation=\"+std::to_string(world.generation)+\" binding_generation=\"+std::to_string(binding.native_generation));\n    for(const auto& prop:props.at(\"bindings\")){if(prop.at(\"revoked\").get<bool>())continue;if(prop.at(\"unknown\").get<bool>()||prop.at(\"snapshot_id\")!=context.snapshot_uuid)\n        return fail(error,\"Intervention current external prop alias is unknown or foreign: session_snapshot=\"+context.snapshot_uuid+\" native_snapshot=\"+world.uuid+\n            \" alias_snapshot=\"+prop.at(\"snapshot_id\").get<std::string>()+\" unknown=\"+prop.at(\"unknown\").dump()+\" local_uid=\"+prop.at(\"local_uid\").dump());",
         "count": 1
+      },
+      {
+        "old": "[](const auto& a,const auto& b){return std::pair{uint8_t(a.target.family),a.target.key}<std::pair{uint8_t(b.target.family),b.target.key};}",
+        "new": "[](const auto& a,const auto& b){if(a.target.family!=b.target.family)return uint8_t(a.target.family)<uint8_t(b.target.family);return a.target.key<b.target.key;}",
+        "count": 1
       }
     ]
   },

@@ -7,8 +7,11 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/boss_phase_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/district_text_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/district_title_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/district_edit_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/duplicate_history_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/duplicate_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/duplicate_sample.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/group_object_sample.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/group_history_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/group_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/move_kiss/move_kiss.cpp"
@@ -26,6 +29,18 @@ execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/te
 if(NOT WORLD_EDIT_EXTRACT_RESULT EQUAL 0)
     message(FATAL_ERROR "World edit actual body extraction failed: ${WORLD_EDIT_EXTRACT_STDOUT}${WORLD_EDIT_EXTRACT_STDERR}")
 endif()
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/test/extract_root_scenery_admission.py"
+    "${MT2MP_SOURCE_ROOT}/test/saved_root_batch_cases.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/saved_scenery_batch.h"
+    "${MT2MP_SOURCE_ROOT}/test/saved_scenery_batch_source_boundary.py"
+    "${MT2MP_SOURCE_ROOT}/src/game/scenery_scene_identity.inc")
+execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_root_scenery_admission.py"
+    --source "${MT2MP_SOURCE_ROOT}" --output "${WORLD_EDIT_GENERATED}"
+    RESULT_VARIABLE ROOT_SCENERY_EXTRACT_RESULT OUTPUT_VARIABLE ROOT_SCENERY_EXTRACT_STDOUT ERROR_VARIABLE ROOT_SCENERY_EXTRACT_STDERR)
+if(NOT ROOT_SCENERY_EXTRACT_RESULT EQUAL 0)
+    message(FATAL_ERROR "Root Scenery actual admission extraction failed: ${ROOT_SCENERY_EXTRACT_STDOUT}${ROOT_SCENERY_EXTRACT_STDERR}")
+endif()
 add_library(world_edit_session_checks STATIC
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
@@ -34,6 +49,7 @@ target_include_directories(world_edit_session_checks PRIVATE "${MT2MP_SOURCE_ROO
 target_compile_features(world_edit_session_checks PRIVATE cxx_std_20)
 target_compile_definitions(world_edit_session_checks PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_compile_options(world_edit_session_checks PRIVATE /W4 /WX /utf-8 /EHsc)
+target_link_libraries(world_edit_session_checks PRIVATE source_check_codecs_windows bcrypt)
 foreach(target
     test_world_path_protocol
     test_mixed_path_graph
@@ -69,6 +85,9 @@ foreach(target
     test_path_history_runtime
     test_region_history_runtime
     test_district_saved_identity
+    test_district_lifecycle
+    test_district_stroke_graph
+    test_district_stroke_protocol
     test_district_protocol
     test_district_native
     test_district_property_wrappers
@@ -83,6 +102,7 @@ foreach(target
     test_duplicate_records
     test_duplicate_native
     test_duplicate_reader
+    test_duplicate_sample
     test_duplicate_binding
     test_duplicate_runtime
     test_group_history_protocol
@@ -112,6 +132,12 @@ foreach(target
     test_boss_placement_protocol
  )
     add_executable(${target} "${MT2MP_SOURCE_ROOT}/test/${target}.cpp")
+    if(target STREQUAL "test_scenery_alias_order")
+        target_sources(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/scenery_witness.cpp")
+    endif()
+    if(target STREQUAL "test_duplicate_sample")
+        target_link_libraries(${target} PRIVATE bcrypt)
+    endif()
     if(target STREQUAL "test_group_object_capture")
         target_sources(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/ui_remove/ui_capture.cpp")
     endif()

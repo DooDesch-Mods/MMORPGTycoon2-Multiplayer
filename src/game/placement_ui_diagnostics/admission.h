@@ -15,6 +15,9 @@ struct Job {
     bool reserved{};
     uint64_t armed_at{};
     uint64_t capture_frame{};
+    bool confirmation_observed=false;
+    uint64_t confirmation_observed_at=0;
+    std::string recovered_timeout_cause,recovery_cause;
     nlohmann::json fresh_pose;
     nlohmann::json arm_observation,first_frame,last_frame,first_build_entry,last_build_entry;
     uint64_t armed_completed_frame=0,frames_observed=0,build_entries_observed=0,observation_failures=0;
@@ -25,5 +28,8 @@ bool parse_token(const nlohmann::json&,std::string&,std::string&);
 bool bind_release(Job&,uintptr_t,const placement_ui_probe::NativePose&,std::string&);
 bool bind_capture(Job&,uintptr_t,const std::string&,const action_session::BuildingState&,std::string&);
 bool observe_confirmation(Job&,const nlohmann::json& controller,const nlohmann::json& native_receipts,std::string&,bool aggregate_host_acks=true);
+std::string observation_timeout(const Job&,uint64_t now);
+bool can_reconcile_timeout(const Job&) noexcept;
+bool publish_reconciliation(Job&,const Job&,std::string&);
 bool may_read_fresh_pose(const Job&,uint64_t completed) noexcept;
 }

@@ -1,4 +1,5 @@
 #include "live_host_state/frame_apply_acks.h"
+#include "live_host_state/party_port.h"
 namespace channel9_fixture {
 using namespace mt2mp::game::live_host_state;
 namespace action_session=mt2mp::action_session;
@@ -23,6 +24,7 @@ struct Bridge {
     struct UnusedMarketing {bool acknowledge(uint64_t,uint64_t,std::string&){throw std::runtime_error("unexpected Marketing ACK in Economy fixture");}};
     UnusedMarketing* marketing_port_=nullptr;
     UnusedMarketing* management_port_=nullptr;
+    PartyPort* party_port_=nullptr;
     std::vector<uint8_t> received_bytes;std::string receive_failure;
     explicit Bridge(const Frame& f):context_(context(f)),binding_{1,f.source_generation},
         common_epoch_(f.epoch),source_generation_(f.source_generation),host_revision_(f.revision){}
@@ -43,7 +45,24 @@ void populated_frame_routes(){
     building.metadata=std::string(64,'a');
     mt2mp::game::service_live::Row service;
     for(auto& count:service.counts){count.history={1,2,3};count.today=1;count.total=7;}
-    building.rows.push_back(service);management.services.push_back(building);frame.management=management;
+    building.rows.push_back(service);management.services.push_back(building);
+    mt2mp::game::analytics_state::State analytics;analytics.counters={1,2,3,4,5,6,7};analytics.today.day=12;
+    analytics.today.reasons={{2,{{0x3f800000,0x40000000,0x40400000},{0x40800000,0x40a00000,0x40c00000}}}};
+    for(int32_t day=2;day<12;++day)analytics.history.push_back({day,{{day%10,{{0,0,0x3f800000}}}}});management.analytics=analytics;
+    mt2mp::game::character_calendar::State calendar;mt2mp::game::character_calendar::Definition definition;
+    definition.kind=definition.id=0;definition.statistics=mt2mp::game::character_calendar::Statistics{};
+    definition.demands[0]=mt2mp::game::character_calendar::Demand{"Buff",{}};definition.demands[1]=mt2mp::game::character_calendar::Demand{"Nerf",{}};
+    calendar.definitions.push_back(definition);calendar.demand_order={"character:0:0/demand/buff","character:0:0/demand/nerf"};
+    management.intro=mt2mp::game::scenario_intro::State{true,false,true,7,23};
+    mt2mp::game::toon_thought::State thoughts;mt2mp::game::toon_thought::Row thought;thought.type=12;thought.time={4,3,2,1};thought.position={0x3f800000,0x40000000,0x40400000};thought.targets[1]="zone:fixture";thought.registered=true;thoughts.toons.push_back({"toon:63",{thought}});thoughts.links.push_back({1,"zone:fixture",{"toon:63/thought/0"}});management.thoughts=thoughts;
+    mt2mp::game::dungeon_gizmo_live::Row gizmo;
+    gizmo.key="action:44444444-4444-4444-8444-444444444444:dungeon:gizmo:0";gizmo.triggered=true;gizmo.state=2;gizmo.immediate=1;
+    gizmo.transition=true;gizmo.from=1;gizmo.to=2;gizmo.animation=0;gizmo.on_map=true;
+    for(auto& clip:gizmo.clips)clip={uint32_t(0x40000000),uint32_t(0x3f000000),true,uint32_t(0xbf800000)};
+    management.gizmos=mt2mp::game::dungeon_gizmo_live::State{{"action:33333333-3333-4333-8333-333333333333/template",0x80000001,{gizmo}}};
+    if(!frame.network)frame.network=mt2mp::game::live_host_state::network::State{std::string(64,'a')};
+    frame.network->managers=std::vector<mt2mp::game::live_host_state::network::ManagerRow>{{0,{uint32_t(0x3f800000),uint32_t(0x40000000)}}};
+    management.character_calendar=calendar;management.subscriber_demands=mt2mp::game::subscriber_demand::State{};frame.management=management;
     std::string e;std::vector<uint8_t> bytes;
     const auto depth=[](const std::vector<uint8_t>& wire){int result=0;
         const auto parsed=Json::parse(wire,[&](int level,Json::parse_event_t,Json&){result=std::max(result,level);return true;});
@@ -66,7 +85,12 @@ void populated_frame_routes(){
     for(size_t index=0;index<packets.size();++index){const auto& packet=packets[index];
         need(stream.route_receive(1,packet.data(),packet.size(),handled,e)&&handled,"populated fragment Channel9 route: "+e);
         need(stream.received==(index+1==packets.size()?1u:0u),"populated fragment exposed partial state");}
-    need(stream.received_bytes==bytes&&economy::decode(bytes.data(),bytes.size(),decoded,e)&&decoded==value,"populated fragmented full roundtrip: "+e);
+    need(stream.received_bytes==bytes&&economy::decode(stream.received_bytes.data(),stream.received_bytes.size(),decoded,e)&&decoded==value,"populated fragmented full roundtrip: "+e);
+    need(decoded.day.frame.management->analytics==management.analytics&&decoded.day.frame.management->character_calendar==management.character_calendar&&decoded.day.frame.management->intro==management.intro&&decoded.day.frame.management->thoughts==management.thoughts,"fragment route lost populated Statistics/Character/Intro/Thought state");
+    stream.queued_economy_=decoded;need(stream.acknowledge_frame(decoded.day.frame,e)&&stream.transport_.packets.size()==1,"populated complete frame actual Apply ACK send: "+e);
+    Bridge host(frame);host.context_.role=mt2mp::action_session::Role::Host;host.context_.local_peer=1;host.economy_=&provider;
+    host.apply_acks_.sent(frame.revision,2,std::chrono::steady_clock::now());const auto& ack=stream.transport_.packets.back();
+    need(host.route_receive(2,ack.data(),ack.size(),handled,e)&&handled&&host.apply_acks_.pending()==0,"populated complete frame actual Host ACK receipt: "+e);
     Json nested=0;for(int level=0;level<=live::max_economy_json_depth;++level)nested=Json::array({nested});
     const auto excessive=Json{{"kind","host_state_economy"},{"nested",nested}}.dump();
     Bridge rejected(frame);rejected.economy_=&provider;

@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include "../world_path_key.h"
 #include <bit>
 #include <cmath>
 #include <cstdint>
@@ -7,7 +8,7 @@
 #include <vector>
 
 namespace mt2mp::action_session {
-enum class WorldPathKind:uint8_t {Wall=1,Pass=2};
+enum class WorldPathKind:uint8_t {Wall=1,Pass=2,Remove=3};
 using WorldPathBits=std::array<uint32_t,3>;
 using WorldPathSpline=std::array<uint32_t,12>;
 struct WorldPathIntent {
@@ -20,6 +21,7 @@ struct WorldPathIntent {
     std::vector<WorldPathBits> preview;
     bool preview_valid=false;
     std::string graph_before_sha256;
+    std::string target_path;
     bool operator==(const WorldPathIntent&)const=default;
 };
 struct WorldPathState {
@@ -37,6 +39,14 @@ inline bool world_path_valid(const WorldPathIntent& value){
         return key.size()<=128&&key.find('\0')==std::string::npos&&
                (key.empty()||(split&&key=="preview")||key.rfind("snapshot:",0)==0||key.rfind("action:",0)==0);
     };
+    if(value.kind==WorldPathKind::Remove)
+        return value.start_region>=0&&value.end_region>=0&&value.type>=0&&value.type<11&&
+            value.node_type==-1&&value.name.empty()&&value.start_node.empty()&&value.end_node.empty()&&
+            value.start_split.empty()&&value.end_split.empty()&&value.start==WorldPathBits{}&&
+            value.end==WorldPathBits{}&&!value.quoted_length&&value.segments.empty()&&
+            value.preview.empty()&&!value.preview_valid&&!value.target_path.empty()&&
+            game::world_path_key::valid(value.target_path)&&world_path_digest(value.graph_before_sha256);
+    if(!value.target_path.empty())return false;
     auto finite=[](const WorldPathBits& point){for(uint32_t bits:point)if(!std::isfinite(std::bit_cast<float>(bits)))return false;return true;};
     for(const auto& point:value.preview)if(!finite(point))return false;
     for(const auto& segment:value.segments)for(uint32_t bits:segment)

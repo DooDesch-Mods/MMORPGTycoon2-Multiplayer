@@ -23,7 +23,7 @@ bool read(Read& at,Find& find,Resolve& resolve,uintptr_t image,
           uintptr_t manager,uintptr_t selected,Witness& out,std::string& error){
     out={};Witness next;next.scope=scope;next.scene=scene.owner.key;next.object=selected;next.shard=scene.owner.shard;
     uintptr_t ap=0,owner=0,shard=0,actual_manager=0;
-    if(scope.snapshot.empty()||!scope.epoch||!scope.generation||!scope.root||scope.region!=scene.owner.region||scope.manager!=manager||
+    if(scope.snapshot.empty()||!scope.epoch||!scope.generation||!scope.root||scope.region!=scene.owner.region||scope.manager!=manager||scope.scene!=scene.owner.key||
        !selected||!manager||scene.owner.type<1||scene.owner.type>2||scene.owner.shard==scope.root||next.scene.empty())
         return fail(error,"Dungeon direct Monster requires an explicit current template/Instance scope");
     if(!at(manager,0,ap,error)||!at(manager,0x80,owner,error)||!at(scene.owner.region,0x70,shard,error)||

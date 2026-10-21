@@ -1,9 +1,13 @@
+#include "../world_zone_key.h"
+#include "../snapshot_zone_key.h"
+#include "../district_lifecycle.h"
 #include "../monster_target_key.h"
 #include "../network_object_identity.h"
 #include "../snapshot_building_key.h"
 #include "../npc_target_key.h"
 #include "../group_object_key.h"
 #include "ui_capture.h"
+#include "../world_path_key.h"
 #include <regex>
 #include <stdexcept>
 
@@ -12,11 +16,15 @@ namespace {
 bool group_key(const std::string& value){return game::group_object_key::valid(value);}
 bool valid(const Intent& i) {
     static const std::regex uuid("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
-    return std::regex_match(i.action_uuid,uuid)&&std::regex_match(i.snapshot_uuid,uuid)&&(group_key(i.canonical_record_key)||game::network_object_identity::key(i.canonical_record_key)||game::monster_target_key::valid(i.canonical_record_key)||game::npc_target_key::valid(i.canonical_record_key)||game::snapshot_building_key::valid(i.canonical_record_key));
+    return std::regex_match(i.action_uuid,uuid)&&std::regex_match(i.snapshot_uuid,uuid)&&(game::world_zone_key::valid(i.canonical_record_key)||game::snapshot_zone_key::valid(i.canonical_record_key)||game::district_lifecycle::valid_key(i.canonical_record_key)||game::world_path_key::valid(i.canonical_record_key)||group_key(i.canonical_record_key)||game::network_object_identity::key(i.canonical_record_key)||game::monster_target_key::valid(i.canonical_record_key)||game::npc_target_key::valid(i.canonical_record_key)||game::snapshot_building_key::valid(i.canonical_record_key));
 }
 bool local(const LocalBinding& b) {return b.manager&&b.object&&b.uid&&b.native_epoch&&b.native_generation&&
+    (!b.supported_zone||game::world_zone_key::valid(b.canonical_record_key)||game::snapshot_zone_key::valid(b.canonical_record_key))&&
+    (!b.supported_dungeon_building||game::snapshot_building_key::valid(b.canonical_record_key))&&
+    b.supported_district==game::district_lifecycle::valid_key(b.canonical_record_key)&&
     b.supported_group==group_key(b.canonical_record_key)&&
-    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)+unsigned(b.supported_monster)+unsigned(b.supported_network)+unsigned(b.supported_group)==1);}
+    b.supported_path==game::world_path_key::valid(b.canonical_record_key)&&
+    (unsigned(b.supported_normal_building)+unsigned(b.supported_normal_scenery)+unsigned(b.supported_npc)+unsigned(b.supported_monster)+unsigned(b.supported_network)+unsigned(b.supported_group)+unsigned(b.supported_path)+unsigned(b.supported_district)+unsigned(b.supported_zone)+unsigned(b.supported_dungeon_building)==1);}
 template<class Function>bool read(Function f,std::string& cause) {
     try {const bool okay=f();if(!okay&&cause.empty())cause="native UI adapter failed without original cause";return okay;}
     catch(const std::exception& e){cause=e.what();return false;}
@@ -108,6 +116,11 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
     ArrayObservation view;
     if(!read([&]{return services_.array(array,view,cause);},cause))return reject("UI Remove array: "+cause);
     if(view.count==0&&view.capacity>=0)return forward(Disposition::EmptyOriginal,manager,array);
+    bool scene_collection=false;
+    if((origin==Origin::DestroyCursor||origin==Origin::SelectionWindow)&&
+       !read([&]{return services_.scene_collection(uintptr_t(manager),array,scene_collection,cause);},cause))return reject("UI Remove Scene collection: "+cause);
+    if(scene_collection){++status_.captured;Report out;out.disposition=Disposition::IntentCaptured;
+        services_.log("info","UI Remove Scene capture","complete Scene collection captured; native effects await Host authority");return out;}
     if(view.count!=1||view.capacity<view.count||!view.data||!view.object)return reject("UI Remove supports one shared prop");
     LocalBinding target;
     if(!read([&]{return services_.resolve(uintptr_t(manager),view.object,target,cause);},cause))return reject("UI Remove target: "+cause);
@@ -119,12 +132,20 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
         return reject("Network Remove requires original Network Command/InfoWindow, DestroyCursor or SelectionWindow caller");
     if(target.supported_group&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
         return reject("Group Remove requires original DestroyCursor or SelectionWindow caller");
+    if(target.supported_path&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Path Remove requires original DestroyCursor or SelectionWindow caller");
+    if(target.supported_district&&origin!=Origin::DistrictWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("District Remove requires original District InfoWindow, DestroyCursor or SelectionWindow caller");
+    if(target.supported_zone&&origin!=Origin::ZoneWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Zone Remove requires original Zone InfoWindow, DestroyCursor or SelectionWindow caller");
+    if(target.supported_dungeon_building&&origin!=Origin::BuildingWindow&&origin!=Origin::DestroyCursor&&origin!=Origin::SelectionWindow)
+        return reject("Dungeon Building Remove requires original Building InfoWindow, DestroyCursor or SelectionWindow caller");
     Intent intent;intent.snapshot_uuid=target.snapshot_uuid;intent.canonical_record_key=target.canonical_record_key;
     if(!read([&]{return services_.fresh_action_uuid(intent.action_uuid,cause);},cause))return reject("UI Remove action identity: "+cause);
     if(!valid(intent))return reject("UI Remove action identity: invalid action UUID, snapshot UUID or canonical key");
-    if(!read([&]{return target.supported_group?services_.submit_group(intent,cause):target.supported_network?services_.submit_network(intent,cause):target.supported_monster?services_.submit_monster(intent,cause):target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
+    if(!read([&]{return target.supported_zone?services_.submit_zone(intent,cause):target.supported_district?services_.submit_district(intent,cause):target.supported_path?services_.submit_path(intent,cause):target.supported_group?services_.submit_group(intent,cause):target.supported_network?services_.submit_network(intent,cause):target.supported_monster?services_.submit_monster(intent,cause):target.supported_npc?services_.submit_npc(intent,cause):services_.submit(intent,cause);},cause))return reject("UI Remove request: "+cause);
     ++status_.captured;Report out;out.disposition=Disposition::IntentCaptured;
-    services_.log("info","UI Remove capture",target.supported_group?"typed Group Destroy intent submitted; native effects await Host authority":target.supported_network?"typed RemoveNetworkObject intent submitted; native effects await Host authority":target.supported_monster?
+    services_.log("info","UI Remove capture",target.supported_zone?"typed Zone Destroy intent submitted; native effects await Host authority":target.supported_district?"typed District Destroy intent submitted; native effects await Host authority":target.supported_path?"typed mixed Path Destroy intent submitted; native effects await Host authority":target.supported_group?"typed Group Destroy intent submitted; native effects await Host authority":target.supported_network?"typed RemoveNetworkObject intent submitted; native effects await Host authority":target.supported_monster?
         "typed RemoveMonster intent submitted; native effects await Host authority":target.supported_npc?
         "typed RemoveNPC intent submitted; native effects await Host authority":
         "typed RemoveSnapshotBuilding intent submitted; native effects await Host authority");return out;

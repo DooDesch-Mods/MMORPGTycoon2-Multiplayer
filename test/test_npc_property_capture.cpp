@@ -103,6 +103,16 @@ int main(){try{unsigned count=0;std::string error;action::NpcPropertyIntent inte
         ++after.rows[0].level;need(!property_census(before,after,77,intent,error),"synthetic actor level change accepted");++count;
     }
     memory.set(0x16c0,uint8_t{1});memory.set(0x1890,int32_t{11});
-    need(!property_fields(memory,0x1000,value,error)&&error.find("level=11 min=1 max=10")!=std::string::npos,"actual level bounds not diagnosed");++count;
+    need(property_fields(memory,0x1000,value,error)&&value.command_level==11,error);++count;
+    memory.set(0x1890,int32_t{-1});
+    need(!property_fields(memory,0x1000,value,error)&&error.find("level=-1 min=1 max=10")!=std::string::npos,"negative command level not diagnosed");++count;
+    for(auto kind:{action::NpcPropertyKind::RaiseLevel,action::NpcPropertyKind::LowerLevel}){
+        for(int32_t prior:{0,12}){
+            reset();old_state.command_level=prior;old_state.region_min=1;old_state.region_max=10;
+            action::NpcPropertyIntent clamped;clamped.kind=kind;
+            need(property_capture(0x1000,clamped,error),error);++count;
+            need(action::npc_property_level(old_state,kind)==(prior==0?1:10),"native level clamp after Region edit differs");++count;
+        }
+    }
     std::cout<<count<<" actual NPC property capture/read/census cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -121,6 +121,17 @@ public:
             return fail(e,"Dungeon Gizmo restored native return aliases another confirmed identity");
         found->second=actual;retired_.erase(id);e.clear();return true;
     }
+    bool restore_scene(const Scope& s,const std::string& id,const Member& old,const Member& actual,
+                       const std::string& exterior,std::string& e){
+        if(!current(s,e))return false;const auto found=rows_.find(id);
+        const auto belongs=[&](const std::string& value){return value==exterior+"/template"||value.starts_with(exterior+"/instance/");};
+        if(!dungeon_scene_key::building_key(exterior)||found==rows_.end()||!retired_.contains(id)||found->second!=old||
+           !valid(actual)||actual.scene!=old.scene||!belongs(old.scene))
+            return fail(e,"Dungeon Gizmo scene restoration requires exact retired member and original exterior");
+        for(const auto& [key,row]:rows_)if(key!=id&&(row.uid==actual.uid||(!retired_.contains(key)&&row.object==actual.object)))
+            return fail(e,"Dungeon Gizmo restored scene member aliases another native identity");
+        found->second=actual;retired_.erase(id);e.clear();return true;
+    }
     bool tombstones(const Scope& s,std::set<std::string>& out,std::string& e)const{out.clear();if(!current(s,e))return false;out=retired_;e.clear();return true;}
     void invalidate(){scope_={};sealed_=false;rows_.clear();retired_.clear();}
 };

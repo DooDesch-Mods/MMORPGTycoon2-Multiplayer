@@ -13,6 +13,7 @@ namespace mt2mp::game::live_host_state::apply_timing {
 class PageReadScope;
 inline thread_local PageReadScope* page_read_scope=nullptr;
 enum class PageBoundary {Reader,OriginalCall};
+inline thread_local uint64_t original_call_revision=0;
 namespace detail {
 template<auto Query,class Clock=std::chrono::steady_clock>
 inline SIZE_T query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T length,Part category=Part::QueryOther){
@@ -58,6 +59,7 @@ class PageReadScope {
 public:
     explicit PageReadScope(bool enabled=true,PageBoundary boundary=PageBoundary::Reader):enabled_(enabled),boundary_(boundary){
         if(!enabled_)return;
+        if(boundary_==PageBoundary::OriginalCall&&original_call_revision!=UINT64_MAX)++original_call_revision;
         previous_=page_read_scope;
         clear_parent();
         page_read_scope=this;

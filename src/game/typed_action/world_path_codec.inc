@@ -1,18 +1,22 @@
-bool world_path_action(Action action){return action==Action::PlaceWall||action==Action::PlacePass;}
+bool world_path_action(Action action){return action==Action::PlaceWall||action==Action::PlacePass||action==Action::RemoveWorldPath;}
 bool world_path_history(const Request& request){
     return (request.action==Action::UndoBuilding||request.action==Action::RedoBuilding)&&
            request.canonical_record_key=="path:"+request.target_action_uuid;
 }
 json world_path_json(const WorldPathIntent& value){
-    return json::array({uint8_t(value.kind),value.start_region,value.end_region,value.type,value.node_type,
+    auto result=json::array({uint8_t(value.kind),value.start_region,value.end_region,value.type,value.node_type,
         value.name,value.start_node,value.end_node,value.start_split,value.end_split,value.start,value.end,
         value.quoted_length,value.segments,value.preview,value.preview_valid,value.graph_before_sha256});
+    if(value.kind==WorldPathKind::Remove)result.push_back(value.target_path);
+    return result;
 }
 WorldPathIntent world_path_read(const json& value){
-    if(!value.is_array()||value.size()!=17)throw std::runtime_error("Wall/Pass semantic intent width differs");
+    if(!value.is_array()||(value.size()!=17&&value.size()!=18))throw std::runtime_error("Wall/Pass semantic intent width differs");
     WorldPathIntent out;
-    const auto kind=u64(value.at(0));if(kind<1||kind>2)throw std::runtime_error("Wall/Pass kind differs");
+    const auto kind=u64(value.at(0));if(kind<1||kind>3)throw std::runtime_error("Wall/Pass kind differs");
     out.kind=WorldPathKind(kind);
+    if(value.size()!=(kind==3?18u:17u))throw std::runtime_error("mixed Path kind/intent width differs");
+    if(kind==3)out.target_path=value.at(17).get<std::string>();
     out.start_region=i32(value.at(1));out.end_region=i32(value.at(2));
     out.type=i32(value.at(3));out.node_type=i32(value.at(4));
     out.name=value.at(5).get<std::string>();out.start_node=value.at(6).get<std::string>();
@@ -48,13 +52,18 @@ bool world_path_effect(const Request& request,const Evidence& evidence){
     if(!evidence.world_path_before||!evidence.world_path_after||
        !world_path_state_valid(*evidence.world_path_before)||!world_path_state_valid(*evidence.world_path_after)||
        !evidence.undo_confirmed||evidence.object_before!=BuildingState{}||evidence.object_after!=BuildingState{}||
-       evidence.target_retired||evidence.selection_confirmed)return false;
+       evidence.target_retired!=(request.action==Action::RemoveWorldPath)||
+        evidence.selection_confirmed!=(request.action==Action::RemoveWorldPath))return false;
     const auto& before=*evidence.world_path_before;const auto& after=*evidence.world_path_after;
     if(before.complete_sha256==after.complete_sha256||before.paths==after.paths&&before.nodes==after.nodes)return false;
     if(world_path_action(request.action)){
         if(!world_path_valid(request.world_path)||before.complete_sha256!=request.world_path.graph_before_sha256||
-           (request.action==Action::PlaceWall)!=(request.world_path.kind==WorldPathKind::Wall)||
-           after.paths<=before.paths||after.nodes<before.nodes)return false;
+            (request.action==Action::PlaceWall)!=(request.world_path.kind==WorldPathKind::Wall)||
+            (request.action==Action::RemoveWorldPath)!=(request.world_path.kind==WorldPathKind::Remove))return false;
+        if(request.action==Action::RemoveWorldPath){
+             if(after.paths+1!=before.paths||after.nodes>before.nodes||before.nodes-after.nodes>2||
+                after.world_effect_sha256!=before.world_effect_sha256)return false;
+        }else if(after.paths<=before.paths||after.nodes<before.nodes)return false;
     }else if(!world_path_history(request))return false;
     return true;
 }

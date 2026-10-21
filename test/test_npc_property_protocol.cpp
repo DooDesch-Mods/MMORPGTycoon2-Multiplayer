@@ -78,6 +78,15 @@ int main(){try{unsigned count=0;std::string error;std::vector<uint8_t> bytes;Mes
         need(!encode(level,bytes,error),"clamped no-op accepted");++count;
         level=sample(kind);level.request.npc_property.name="Raise Level";
         need(!encode(level,bytes,error),"level intent accepted unrelated name payload");++count;
+        for(int32_t prior:{0,12}){
+            level=sample(kind);auto& before=*level.evidence.npc_property_before;
+            before.command_level=prior;level.evidence.npc_property_after=before;
+            level.evidence.npc_property_after->command_level=prior==0?1:10;
+            need(encode(level,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);
+            need(decoded==level,"Region-edited command-level clamp roundtrip differs");++count;
+            level.evidence.npc_property_after->command_level=prior==0?2:9;
+            need(!encode(level,bytes,error),"non-native post-Region level effect accepted");++count;
+        }
     }
     std::cout<<count<<" actual NPC property codec cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -1,5 +1,6 @@
 #include "live_host_state/day_rollover/economy/codec.h"
 #include "live_host_state/day_rollover/economy/state_difference.h"
+#include "live_host_state/apply_timing.h"
 #include <chrono>
 #include <iostream>
 #include <stdexcept>
@@ -40,6 +41,7 @@ public:
  Gates fragments_,apply_acks_;FakePort port_;FakeDay day_value_;FakeDay* day_=&day_value_;bool economy_value_=true;bool* economy_=&economy_value_;
  std::function<bool(uint64_t&,std::string&)> time_=[](uint64_t& out,std::string&){out=1;return true;};
  std::optional<Frame> last_,queued_;std::optional<econ::State> captured_economy_,last_economy_,queued_economy_;std::optional<int> queued_day_;
+ std::function<std::chrono::steady_clock::time_point()> capture_clock_;
  std::optional<std::chrono::steady_clock::time_point> last_capture_;econ::State source;unsigned sends=0,takes=0,captures=0;
  bool capture(uint64_t action,Frame& frame,std::string&){++captures;frame=source.day.frame;frame.base_action_revision=action;frame.time_revision=1;captured_economy_=source;return true;}
  bool send(const Frame& frame,std::string&){++sends;last_=frame;last_economy_=captured_economy_;return true;}

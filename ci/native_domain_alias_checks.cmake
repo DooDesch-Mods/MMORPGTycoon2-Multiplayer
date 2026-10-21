@@ -4,7 +4,8 @@ if(WIN32 AND MSVC AND CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(domain_alias_generated "${CMAKE_CURRENT_BINARY_DIR}/native_state_regression/native_domain_alias")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${domain_alias_root}/check.py" "${domain_alias_root}/changes.json"
-        "${MT2MP_SOURCE_ROOT}/test/test_dungeon_quest_destination.cpp")
+        "${MT2MP_SOURCE_ROOT}/test/test_dungeon_quest_destination.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_runtime.cpp")
     foreach(unit intervention_census.cpp boss_current.cpp dungeon_instance_runtime.cpp release_reference_runtime.inc
             character_membership_sample.inc dungeon_scene_identity_runtime.cpp npc_quest_target_runtime.cpp
             scene_clone/quest_preview.inc dungeon_cells_graph.inc ui_build_runtime.cpp)

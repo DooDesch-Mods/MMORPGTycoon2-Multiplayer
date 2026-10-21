@@ -1,4 +1,7 @@
 #include "scenery_state.h"
+#ifdef _WIN32
+#include "live_host_state/memory_query_timing.h"
+#endif
 #include <cmath>
 #include <exception>
 #include <limits>
@@ -11,6 +14,9 @@ template<class T>bool at(native::Memory& m,uintptr_t p,size_t offset,T& out,std:
     if(!m.copy(p+offset,&out,sizeof out,e)){if(e.empty())e="scenery_state_read_failed_without_cause";return false;}return true;
 }
 bool pose(native::Memory& m,uintptr_t p,State& out,std::string& e){
+#ifdef _WIN32
+    mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+#endif
     if(!at(m,p,0x100,out.rotation,e)||!at(m,p,0x110,out.x,e)||!at(m,p,0x114,out.y,e)||!at(m,p,0x118,out.z,e)||!at(m,p,0x11c,out.scale,e))return false;
     if(!std::isfinite(out.x)||!std::isfinite(out.y)||!std::isfinite(out.z))return fail(e,"scenery_state_position_nonfinite");
     for(float v:out.rotation)if(!std::isfinite(v))return fail(e,"scenery_state_rotation_nonfinite");
@@ -41,7 +47,12 @@ bool read_state(native::Memory& memory,Catalog& catalog,Root& root,uintptr_t ima
             const auto& b=v.binding;
             if(b.uid!=uid||!b.object||!b.epoch||!b.generation||!b.world||!b.shard||!b.region)return fail(e,"scenery_state_root_binding_incomplete");
             uintptr_t ap=0,shard=0,region=0;uint64_t actual_uid=0;
+            {
+#ifdef _WIN32
+    mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+#endif
             if(!at(memory,b.object,0,ap,e)||!at(memory,b.object,0x18,actual_uid,e)||!at(memory,b.object,0x170,shard,e)||!at(memory,b.object,0x178,region,e)||!at(memory,b.object,0x268,v.category,e)||!at(memory,b.object,0x26c,v.variant,e))return false;
+            }
             if(ap!=image+0x16c1390||actual_uid!=uid||shard!=b.shard||region!=b.region)return fail(e,"scenery_state_native_binding_differs");
             return identify(catalog,v.category,v.variant,v.state,e)&&pose(memory,b.object,v.state,e);
         };

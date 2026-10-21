@@ -38,8 +38,24 @@ target_include_directories(test_empty_world_bind PRIVATE "${MT2MP_SOURCE_ROOT}/s
 # The same target exercises the full identity collector and target resolvers.
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/../test/saved_scenery_batch_source_boundary.py"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/object_identity/remove_runtime/copy/native_origin.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/root_scenery_snapshot.inc"
     "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"
-    "${MT2MP_SOURCE_ROOT}/test/identity_refund_split_cases.inc")
+    "${MT2MP_SOURCE_ROOT}/src/game/root_scenery_metadata.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/service_building_census.h"
+    "${MT2MP_SOURCE_ROOT}/test/identity_refund_split_cases.inc"
+    "${MT2MP_SOURCE_ROOT}/test/building_identity_cases.inc"
+    "${MT2MP_SOURCE_ROOT}/test/party_owner_cases.inc"
+    "${MT2MP_SOURCE_ROOT}/test/construction_target_cases.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/construction_native.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/party_frame_native.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/building_identity_census.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/service_live_native.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_frame.inc")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"
     --root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}"
     COMMAND_ERROR_IS_FATAL ANY)
+
+# The actual NativeEngine bind join also publishes into the real World table.
+target_sources(test_empty_world_bind PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/multiplayer_world/world_state.cpp")

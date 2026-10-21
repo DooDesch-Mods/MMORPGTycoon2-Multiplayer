@@ -26,6 +26,8 @@ void set_pose(const action::BuildingState& state){
 }
 bool read_ledger(action::Ledger& out,std::string& error){out=money;error.clear();return true;}
 struct Harness {
+    const action::Request* active_dungeon_building_=nullptr;
+#include "dungeon_original_scope.inc"
     struct BuildOperation {action::Request request;action::Binding binding;action::Ledger before;action::BuildingState state;json receipt;bool retired=false;action::BuildingState object_before;bool normal_scenery=false;};
     struct HistoryOperation {action::Request request;action::Binding binding;action::Ledger before,after;action::BuildingState object_before,object_after;uint64_t uid=0;bool confirmed=false,retired=false;};
     std::map<std::string,BuildOperation> buildings_;std::map<std::string,HistoryOperation> history_;world_state::Table world_;
@@ -53,8 +55,14 @@ struct Harness {
 }
 namespace mt2mp::game::typed_action_runtime {json status(){return {{"pending",true},{"action_uuid",pending},{"host_revision",fixture_revision}};}}
 namespace mt2mp::game::remove_diagnostics {
+bool is_dungeon_building_target(const LocalTarget&,const std::string&,std::string&){
+    throw std::runtime_error("Ordinary history fixture entered Dungeon target validation");
+}
+bool restore_redone_dungeon_building(const std::string&,const std::string&,uint64_t,const std::string&,std::string&){
+    throw std::runtime_error("Ordinary history fixture entered Dungeon restoration");
+}
 bool resolve_record_target(const std::string&,const std::string&,LocalTarget& out,std::string& error){out=local;error.clear();return true;}
-bool refresh_moved_building(const std::string&,const std::string&,uint64_t,std::string& error){++refreshes;if(bad_uid)++local.uid;error.clear();return true;}
+bool refresh_moved_building(const std::string&,const std::string&,uint64_t,std::string& error,const std::string& scene){if(!scene.empty())throw std::runtime_error("Ordinary history fixture entered Dungeon refresh");++refreshes;if(bad_uid)++local.uid;error.clear();return true;}
 }
 namespace mt2mp::scenery_kiss {bool read_action_prop(uint64_t,game::native::BuildingState& out,std::string& error){out=fixture_actual;error.clear();return true;}}
 namespace mt2mp::game::building_history_slice {
@@ -64,6 +72,9 @@ action::Outcome perform(action::Action direction,const std::string&,std::string&
     error.clear();return action::Outcome::Confirmed;
 }}
 int main()try{
+    {Harness harness;auto dungeon=harness.request();dungeon.dungeon_building=true;std::string cause;
+     need(harness.perform_move_history({2,1},dungeon,nullptr,cause)==action::Outcome::RejectedNoEffect&&effects==0&&
+          cause=="Dungeon Building original requires its exact prepared native scope","Dungeon original bypassed prepared full scene scope");}
     std::string error;
     for(bool scenery:{false,true})for(bool baseline:{false,true}){
         Harness h(scenery,baseline);const auto expected_money=money;auto e=h.authority();

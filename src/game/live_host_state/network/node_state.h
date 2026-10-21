@@ -25,22 +25,25 @@ struct ConnectionRow {
     std::array<float,7> values{}; // Pending, RGBA, reconnect timer, activity timer.
     bool operator==(const ConnectionRow&)const=default;
 };
+struct ManagerRow {int32_t region=-1;std::array<uint32_t,2> values{};bool operator==(const ManagerRow&)const=default;};
 struct State {
     std::string other_graph_sha256;
     std::vector<Row> nodes;
     std::vector<PipeRow> pipes;
     std::vector<ConnectionRow> connections;
+    std::optional<std::vector<ManagerRow>> managers;
     bool operator==(const State&)const=default;
 };
 inline bool exact_bits(const State& a,const State& b){
-    if(a.other_graph_sha256!=b.other_graph_sha256||a.nodes.size()!=b.nodes.size()||a.pipes.size()!=b.pipes.size()||a.connections.size()!=b.connections.size())return false;
+    if(a.managers!=b.managers||a.other_graph_sha256!=b.other_graph_sha256||a.nodes.size()!=b.nodes.size()||a.pipes.size()!=b.pipes.size()||a.connections.size()!=b.connections.size())return false;
     auto floats=[](const auto& left,const auto& right){if(left.size()!=right.size())return false;for(size_t i=0;i<left.size();++i)if(std::bit_cast<uint32_t>(left[i])!=std::bit_cast<uint32_t>(right[i]))return false;return true;};
     for(size_t i=0;i<a.nodes.size();++i)if(a.nodes[i].region!=b.nodes[i].region||a.nodes[i].index!=b.nodes[i].index||a.nodes[i].flags!=b.nodes[i].flags||!floats(a.nodes[i].values,b.nodes[i].values))return false;
     for(size_t i=0;i<a.pipes.size();++i)if(a.pipes[i].region!=b.pipes[i].region||a.pipes[i].index!=b.pipes[i].index||!floats(a.pipes[i].current,b.pipes[i].current)||!floats(a.pipes[i].smoothing,b.pipes[i].smoothing))return false;
     for(size_t i=0;i<a.connections.size();++i)if(a.connections[i].key!=b.connections[i].key||!floats(a.connections[i].values,b.connections[i].values))return false;
     return true;
 }
-inline bool valid(const State& state,std::string& e){
+inline bool valid_values(const State& state,bool finished,std::string& e){
+    if(state.managers){int32_t prior=-1;for(const auto& manager:*state.managers){if(manager.region<=prior){e="network Manager RegionID order differs";return false;}prior=manager.region;for(auto bits:manager.values)if(!std::isfinite(std::bit_cast<float>(bits))){e="network Manager finite float32 required";return false;}}}
     if(state.other_graph_sha256.size()!=64){e="network state exact graph SHA required";return false;}
     for(char c:state.other_graph_sha256)if(!((c>='0'&&c<='9')||(c>='a'&&c<='f'))){e="network state lowercase graph SHA required";return false;}
     int32_t region=-1,index=-1;
@@ -49,7 +52,7 @@ inline bool valid(const State& state,std::string& e){
             e="network state requires actual sorted region-local node order";return false;}
         for(float value:row.values)if(!std::isfinite(value)){e="network state finite float32 required";return false;}
         for(auto flag:row.flags)if(flag>1){e="network state bool byte required";return false;}
-        if(row.values[0]!=row.values[1]){e="network state Host sample precedes completed native Finish";return false;}
+        if(finished&&row.values[0]!=row.values[1]){e="network state Host sample precedes completed native Finish";return false;}
         region=row.region;index=row.index;
     }
     region=-1;index=-1;
@@ -72,6 +75,8 @@ inline bool valid(const State& state,std::string& e){
     }
     e.clear();return true;
 }
+inline bool valid(const State& s,std::string& e){return valid_values(s,true,e);}
+inline bool valid_action105_effect(const State& s,std::string& e){return valid_values(s,false,e);}
 inline nlohmann::json encode(const State& s){
     auto rows=nlohmann::json::array();
     for(const auto& r:s.nodes)rows.push_back(nlohmann::json::array({r.region,r.index,r.values,r.flags}));
@@ -79,13 +84,16 @@ inline nlohmann::json encode(const State& s){
     for(const auto& p:s.pipes)pipes.push_back(nlohmann::json::array({p.region,p.index,p.current,p.smoothing}));
     auto connections=nlohmann::json::array();
     for(const auto& c:s.connections)connections.push_back(nlohmann::json::array({c.key,c.values}));
-    return {{"other_graph_sha256",s.other_graph_sha256},{"nodes",rows},{"pipes",pipes},{"connections",connections}};
+    nlohmann::json out={{"other_graph_sha256",s.other_graph_sha256},{"nodes",rows},{"pipes",pipes},{"connections",connections}};if(s.managers){auto managers=nlohmann::json::array();for(const auto& manager:*s.managers)managers.push_back({manager.region,manager.values});out["managers"]=std::move(managers);}return out;
 }
-inline bool decode(const nlohmann::json& j,State& out,std::string& e){
+inline bool decode(const nlohmann::json& j,State& out,std::string& e,bool action105_effect=false){
     out={};try{
-        if(!j.is_object()||j.size()!=4||!j.contains("other_graph_sha256")||!j.contains("nodes")||!j.contains("pipes")||!j.contains("connections")||!j.at("other_graph_sha256").is_string()||!j.at("nodes").is_array()||!j.at("pipes").is_array()||!j.at("connections").is_array())throw std::runtime_error("network exact state fields required");
+        if(!j.is_object()||j.size()!=4+size_t(j.contains("managers"))||!j.contains("other_graph_sha256")||!j.contains("nodes")||!j.contains("pipes")||!j.contains("connections")||!j.at("other_graph_sha256").is_string()||!j.at("nodes").is_array()||!j.at("pipes").is_array()||!j.at("connections").is_array())throw std::runtime_error("network exact state fields required");
         State result;result.other_graph_sha256=j.at("other_graph_sha256").get<std::string>();
         auto id=[](const auto& v){if(!v.is_number_integer()||(v.is_number_unsigned()?v.template get<uint64_t>()>INT32_MAX:v.template get<int64_t>()<0||v.template get<int64_t>()>INT32_MAX))throw std::runtime_error("network nonnegative int32 key required");return v.template get<int32_t>();};
+        if(j.contains("managers")){const auto& managers=j.at("managers");if(!managers.is_array())throw std::runtime_error("network complete Manager array required");result.managers.emplace();
+            for(const auto& item:managers){if(!item.is_array()||item.size()!=2||!item[1].is_array()||item[1].size()!=2)throw std::runtime_error("network exact Manager row required");ManagerRow manager;manager.region=id(item[0]);
+                for(size_t n=0;n<2;++n){const auto& word=item[1][n];if(!word.is_number_integer()||(word.is_number_integer()&&!word.is_number_unsigned()&&word.get<int64_t>()<0)||word.get<uint64_t>()>UINT32_MAX)throw std::runtime_error("network Manager float bits require uint32");manager.values[n]=word.get<uint32_t>();}result.managers->push_back(manager);}}
         for(const auto& row:j.at("nodes")){
             if(!row.is_array()||row.size()!=4||!row[2].is_array()||row[2].size()!=4||!row[3].is_array()||row[3].size()!=3)throw std::runtime_error("network exact row fields required");
             Row r;r.region=id(row[0]);r.index=id(row[1]);
@@ -108,7 +116,7 @@ inline bool decode(const nlohmann::json& j,State& out,std::string& e){
             for(size_t i=0;i<7;++i){if(!row[1][i].is_number())throw std::runtime_error("network connection float required");c.values[i]=row[1][i].get<float>();}
             result.connections.push_back(c);
         }
-        if(!valid(result,e))return false;out=std::move(result);return true;
+        if(!(action105_effect?valid_action105_effect(result,e):valid(result,e)))return false;out=std::move(result);return true;
     }catch(const std::exception& x){e=std::string("network decode original=")+x.what();return false;}
 }
 struct ActivationReceipt {int32_t region=-1,index=-1;activation::Receipt event;};
@@ -155,6 +163,7 @@ struct Port {
     virtual bool store(size_t node,size_t scalar,uint32_t expected,uint32_t target,std::string&)=0;
     virtual bool store_pipe(size_t,const PipeRow&,const PipeRow&,PipeEffect&,std::string& e){e="native pipe service absent";return false;}
     virtual bool store_connection(size_t,size_t,uint32_t,uint32_t,std::string& e){e="native connection service absent";return false;}
+    virtual bool store_manager(size_t,size_t,uint32_t,uint32_t,std::string& e){e="native Manager scalar service absent";return false;}
     virtual bool notify_supply(size_t node,std::string&)=0;
 };
 Receipt apply(Port&,const State& target);

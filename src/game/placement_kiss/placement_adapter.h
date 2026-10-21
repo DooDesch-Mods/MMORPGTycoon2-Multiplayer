@@ -7,7 +7,7 @@
 
 namespace placement_kiss {
 struct Pose { std::array<float,3> position{}; std::array<float,4> quaternion{0,0,0,1}; std::array<float,3> scale{1,1,1}; bool operator==(const Pose&) const = default; };
-struct Request { std::string action_uuid, type, variant; Pose pose; std::uint64_t world{}, epoch{}, generation{}, sequence{}; bool operator==(const Request&) const = default; };
+struct Request { std::string action_uuid, type, variant; Pose pose; std::uint64_t world{}, epoch{}, generation{}, sequence{}; bool dungeon_family=false; bool operator==(const Request&) const = default; };
 enum class Phase { RejectedNoEffect, Prepared, Attempted, Confirmed, Unknown };
 struct Receipt {
     std::uint64_t world{}, epoch{}, generation{}, sequence{}, native_uid{};

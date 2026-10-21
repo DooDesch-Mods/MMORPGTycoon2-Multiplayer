@@ -10,6 +10,7 @@ class EconomicFence final:public EconomicBoundary {
     uint32_t frame_depth_=0;
     std::optional<action_session::Message> action_;
     uint32_t action_cash_calls_=0;
+    action_session::Ledger action_cash_ledger_{};
     std::function<void(const char*,const std::string&)> logger_;
     std::array<uint64_t,9> suppressed_{};
     std::string cause_,retired_cause_;
@@ -45,6 +46,10 @@ public:
 };
 EconomicFence& economic_fence();
 bool predicted_cash(const action_session::Ledger&,bool subtract,int32_t amount,int32_t category,action_session::Ledger&,std::string&);
+bool brush_cash_progress(const action_session::Ledger& before,const action_session::Ledger& after,
+    const action_session::Ledger& current,bool subtract,int32_t amount,int32_t category,action_session::Ledger& out,std::string&);
+bool brush_cash_complete(const action_session::Ledger& before,const action_session::Ledger& after,
+    const action_session::Ledger& current,uint32_t calls,std::string&);
 }
 
 namespace mt2mp::game::live_host_state { bool retire_lobby_fence(std::string&); }

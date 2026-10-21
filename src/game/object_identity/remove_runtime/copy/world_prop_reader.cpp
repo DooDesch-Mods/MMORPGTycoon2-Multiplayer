@@ -1,4 +1,6 @@
 #include "world_prop_reader.h"
+#include "saved_scenery_reader.h"
+#include "saved_scenery_batch.h"
 #include "live_host_state/memory_query_timing.h"
 #include <algorithm>
 #include <limits>
@@ -87,6 +89,10 @@ bool Reader::current(WorldState& out,bool idle,std::string& e){
     if(!thread_||GetCurrentThreadId()!=thread_)return fail(e,"remove_world_wrong_thread");
     if(!image_||!api_.find||!api_.cast)return fail(e,"remove_world_resolver_missing");
     if(!origin_.current(out.origin,e))return false;
+    bool reused=false;
+    if(!RootSceneryReadBatch::reuse_world(out,idle,image_,thread_,api_,reused,e))return false;
+    if(reused)return true;
+    mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
     const auto& o=out.origin;
     if(!o.world_epoch||!o.generation||!o.bytes||o.uuid.empty()||o.sha256.size()!=64)return fail(e,"remove_world_origin_incomplete");
     const auto mode=reinterpret_cast<uintptr_t>(o.mode),game=reinterpret_cast<uintptr_t>(o.game),map=reinterpret_cast<uintptr_t>(o.map);
@@ -190,4 +196,54 @@ bool Reader::prop(void* receiver,uint64_t expected,mt2mp::prop_lease::Prop& out,
     }catch(const std::exception& x){e=std::string("remove_prop_exception: ")+x.what();return false;}
     catch(...){return fail(e,"remove_prop_unknown_exception");}
 }
+#include "saved_scenery_batch_runtime.inc"
+
+bool Reader::saved_root_scenery(void* receiver,uint64_t uid,int32_t region_id,uintptr_t region,mt2mp::prop_lease::Prop& out,std::string& e){
+    out={};e.clear();if(busy_)return fail(e,"remove_prop_reader_reentrant");Busy busy(busy_);
+    try{
+        WorldState before,after;if(!current(before,true,e))return false;
+        auto* batch=RootSceneryReadBatch::current_?RootSceneryReadBatch::current_->state_.get():nullptr;
+        if(batch&&!batch->admit(before,image_,thread_,api_,e))return false;
+        uintptr_t manager=0;if(!at(memory_,region,0x960,manager,e))return false;
+        struct SavedHost final:place::SceneryHost {
+            Reader& reader;WorldState expected;uintptr_t region,manager,image;LookupApi api;
+            SavedHost(Reader& r,const WorldState& w,uintptr_t p,uintptr_t m,uintptr_t i,LookupApi a):reader(r),expected(w),region(p),manager(m),image(i),api(a){}
+            bool current(place::SceneryContext& context,std::string& error)override{
+                WorldState world;if(!reader.current(world,true,error))return false;
+                if(!same_world(expected.origin,world.origin)||expected.root!=world.root)return fail(error,"saved_scenery_current_world_changed");
+                context={world.origin.world_epoch,region,world.root,manager,true,true,true};return true;
+            }
+            bool registry_object(uint64_t id,uintptr_t& actual,std::string& error)override{
+                uintptr_t casted=0;const auto exception=lookup(api,image,id,0x1673900,0x164e5c0,0,actual,casted);
+                if(exception){error="saved_scenery_lookup_SEH_"+std::to_string(exception);return false;}
+                return actual==casted||fail(error,"saved_scenery_typed_registry_differs");
+            }
+        } owner(*this,before,region,manager,image_,api_);
+        auto exact=[&](uintptr_t object,uint64_t full,std::string& cause){return typed(object,full,0x164e5c0,cause);};
+        auto scan_index=[](uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& index,auto& read,std::string& cause){
+            // Share only page metadata during this complete memory-only scan.
+            // Original UID/RTTI calls and the Scenery census run after it closes.
+            mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
+            return mt2mp::game::region_saved_identity::capture(image,map,root,index,read,cause);
+        };
+        auto capture_index=[&](uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& index,auto& read,std::string& cause){
+            return batch?batch->proof.index(image,map,root,index,read,cause,scan_index):scan_index(image,map,root,index,read,cause);
+        };
+        auto capture_member=[&](Memory& memory,place::SceneryHost& current_owner,uintptr_t image,uintptr_t current_region,uintptr_t root,uintptr_t current_manager,uintptr_t object,uint64_t full,std::string& cause){
+            return batch?batch->proof.member(memory,current_owner,image,current_region,root,current_manager,object,full,cause):
+                SavedSceneryMemberCapture{}(memory,current_owner,image,current_region,root,current_manager,object,full,cause);
+        };
+        mt2mp::prop_lease::Prop value;
+        if(!([&]{
+            mt2mp::game::live_host_state::apply_timing::PageReadScope fields(batch&&!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+            return read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member);
+        }()))return false;
+        if(!current(after,true,e))return false;
+        if(!same_world(before.origin,after.origin)||before.root!=after.root)return fail(e,"saved_scenery_world_changed_after_read");
+        if(batch)batch->world_ready=true;
+        out=std::move(value);return true;
+    }catch(const std::exception& exception){e=std::string("saved_scenery_read_exception: ")+exception.what();return false;}
+    catch(...){return fail(e,"saved_scenery_read_unknown_exception");}
+}
+
 }

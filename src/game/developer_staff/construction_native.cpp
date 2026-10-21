@@ -1,5 +1,6 @@
 #include "live_host_state/memory_query_timing.h"
 #include "construction_native.h"
+#include "object_identity/native_free_runtime/native_free_runtime.h"
 #include "bug_authority/work_runtime.h"
 #include "bug_authority/job_calls.h"
 #include "construction_calls.h"
@@ -85,22 +86,38 @@ bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
     uintptr_t selection=0,ap=0;
     if(!at(c.image,0x13df630,selection,e)||!at(selection,0,ap,e))return false;
     if(ap!=c.image+0x17205d0)return fail(e,"Construction SelectionManager class differs");
-    // Resolve by key first, then resolve that actual local receiver again.
-    remove_diagnostics::LocalTarget by_key;
+    // The retained job names one exact target; unrelated props are not inputs.
     action_session::Context context;if(!action_session::selected_session().current(context,e))return false;
-    if(!remove_diagnostics::resolve_record_target(context.snapshot_uuid,link.building_key,by_key,e)||
-       !remove_diagnostics::resolve_local_target(selection,by_key.object,out.binding,e))return false;
+    if(!remove_diagnostics::resolve_identity_destination(context.snapshot_uuid,link.building_key,out.binding,e))return false;
     const auto& b=out.binding;
     if(!b.normal_building||b.normal_scenery)return fail(e,b.kind_cause.empty()?
         "Construction target is not a supported native Building":b.kind_cause);
-    if(b.manager!=selection||b.object!=by_key.object||b.uid!=link.building_uid||
-       b.type!=by_key.type||b.variant!=by_key.variant||b.record_key!=link.building_key||
+    if(b.manager!=selection||b.uid!=link.building_uid||b.record_key!=link.building_key||
        b.snapshot_id!=context.snapshot_uuid||b.world_epoch!=c.pin.origin.world_epoch||
        b.world_generation!=c.pin.origin.generation)return fail(e,"Construction existing Building binding/UID/type/variant/native Origin differs");
     if(!at(b.object,0x178,out.region,e)||!at(b.object,0x170,out.shard,e)||!at(b.object,0x7e1,out.active,e)||!at(b.object,0x7a8,out.state,e))return false;
-    if(out.shard!=reinterpret_cast<uintptr_t>(c.pin.origin.map)+0x1c0||(out.state!=2&&out.state!=1)||out.active>1)
-        return fail(e,"Construction target requires actual online root-shard Building and Boolean active field");
-    return true;
+    if(out.shard!=reinterpret_cast<uintptr_t>(c.pin.origin.map)+0x1c0)
+        return fail(e,"Construction target root-shard owner differs");
+    if(out.active>1)
+        return fail(e,"Construction target active="+std::to_string(out.active)+" requires Boolean 0 or 1");
+    if(out.state==2||out.state==1)return true;
+    if(out.state!=0||out.active!=0)
+        return fail(e,"Construction target state="+std::to_string(out.state)+" active="+std::to_string(out.active)+
+            " requires state 1 or 2, or state 0/active 0 with retained live original Job");
+    // AddBuilding leaves a root Building inactive in state 0 while its original
+    // place Job is queued. Admit only that same live occurrence, never a restored
+    // target or a state value alone. Re-read here after any earlier native calls.
+    if(!link.target_alive||link.target_restored||link.retired||!link.job||
+       !link.building||!link.building_proxy||!link.region)
+        return fail(e,"Construction pending Building requires its retained live original Job");
+    job_census::Census pending;if(!read_jobs(c,pending,e))return false;
+    const job_census::Job* selected=nullptr;
+    for(const auto& candidate:pending.jobs)if(candidate.pointer==link.job){
+        if(selected)return fail(e,"Construction pending original Job is duplicated in current queue");
+        selected=&candidate;
+    }
+    if(!selected)return fail(e,"Construction pending original Job is absent from current queue");
+    return occurrence(link,*selected,b.object,out.region,copy,e);
 }
 bool graph(const Capture& c,const std::vector<LocalJob>& links,State& out,job_census::Census& jobs,std::vector<Actor>& actors,std::string& e){
     out={};actors.clear();if(!read_jobs(c,jobs,e))return false;
@@ -293,6 +310,7 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
 }
 }
 #include "loaded_movement.inc"
+#include "loaded_construction.inc"
 bool capture_placement(PlacementBefore& out,std::string& e){
     out={};if(!read_process(out.capture,e)||!read_jobs(out.capture,out.queue,e))return false;
     Capture after;if(!read_process(after,e)||!owners(out.capture,after,e))return false;
@@ -322,6 +340,7 @@ bool finish_placement(const PlacementBefore& before,const std::string& snapshot,
     if(!occurrence(out,job,target.object,region,copy,e))return false;
     return true;
 }
+#include "construction_duplicate.inc"
 bool capture(const Capture& c,const std::vector<LocalJob>& links,State& out,std::string& e){
     job_census::Census jobs;std::vector<Actor> actors;
     if(!graph(c,links,out,jobs,actors,e))return false;

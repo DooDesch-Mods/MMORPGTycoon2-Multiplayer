@@ -26,7 +26,8 @@ bool move_code(Memory& m,std::string& e){
 }
 bool target_region(Memory& m,const a::Binding& binding,const std::string& snapshot,
                    const std::string& target,int32_t& saved,std::string& e){
-    saved=-1;if(!monster_target_key::input(target))return fail(e,"Monster canonical target syntax invalid");
+    saved=-1;if(!monster_move_key::input(target))return fail(e,"Monster canonical target syntax invalid");
+    if(interventions::zone_monster_key(target)){Pin owner;if(!generated_pin(m,binding,snapshot,target,-1,owner,e))return false;saved=owner.region.saved_region;return true;}
     host::LookupApi api;if(!host::resolve_lookup(m.process,state.image,exe_sha,api,e))return false;
     host::NativeOrigin origin;host::WorldState world;host::Reader reader(m.process,origin,state.image,state.thread,api);
     if(!reader.current(world,true,e)||!action_runtime::bound(world,binding,snapshot,e))return false;
@@ -40,10 +41,12 @@ bool target_region(Memory& m,const a::Binding& binding,const std::string& snapsh
 }
 bool move_target(Memory& m,const a::Binding& binding,const std::string& snapshot,int32_t region,
                  const std::string& birth,Pin& p,d::Sample& sample,monster_zone_read::Monster& row,std::string& e){
-    if(!pin(m,binding,snapshot,region,p,e)||!d::sample(m,p.region,sample,e))return false;
-    identity::Entry entry;if(!identity::registry.lookup(birth,scope(p,sample),entry,e))return false;
+    if(!(interventions::zone_monster_key(birth)?generated_pin(m,binding,snapshot,birth,region,p,e):direct_target_pin(m,binding,snapshot,birth,region,p,e))||!direct_sample(m,p,sample,e))return false;
+    identity::Entry entry;
+    if(interventions::zone_monster_key(birth)){interventions::Actor member;if(!generated_member(binding,snapshot,birth,member,e))return false;entry={scope(p,sample),member.object,member.uid,true,false};}
+    else if(!identity::registry.lookup(birth,scope(p,sample),entry,e))return false;
     const auto found=std::find_if(sample.state.monsters.begin(),sample.state.monsters.end(),[&](const auto& v){return v.uid==entry.uid&&v.pointer==entry.pointer;});
-    if(found==sample.state.monsters.end()||found->zone)return fail(e,"Monster Move confirmed birth is absent from direct current-manager roster");
+    if(found==sample.state.monsters.end()||bool(found->zone)!=interventions::zone_monster_key(birth))return fail(e,"Monster Move confirmed canonical member is absent from its reciprocal current-manager roster");
     row=*found;return full_uid(m,p,row,e);
 }
 bool move_actor(Memory& m,uintptr_t object,mr::Actor& out,std::string& e){
@@ -108,16 +111,15 @@ bool move_capture_binding(const std::string& snapshot,uint64_t epoch,uint64_t ge
     Memory m;uintptr_t ap=0,region=0;uint64_t actual=0;int32_t saved=-1;
     if(!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||!field(m,object,0x18,actual,e)||actual!=uid||
        !field(m,object,0x178,region,e)||!field(m,region,0x834,saved,e))return fail(e,e.empty()?"Monster Move capture class/full UID/Region differs":e);
-    Pin p;d::Sample sample;if(!pin(m,binding,snapshot,saved,p,e)||!d::sample(m,p.region,sample,e))return false;
-    if(p.region.region!=region)return fail(e,"Monster Move capture Region owner differs");
-    if(!identity::registry.resolve(scope(p,sample),object,uid,key,e))return false;
+    Pin p;d::Sample sample;if(!move_receiver(m,binding,snapshot,object,uid,key,e))return false;
     monster_zone_read::Monster row;
     if(!move_target(m,binding,snapshot,saved,monster_target_key::argument(key),p,sample,row,e))return false;
+    if(p.region.region!=region)return fail(e,"Monster Move capture Region owner differs");
     if(row.pointer!=object||row.uid!=uid)return fail(e,"Monster Move capture birth pointer/full UID differs");
     before=move_pose(row);return true;
 }
 bool submit_restored_move(const move_kiss::Intent& intent,const std::string& id,std::string& e)try{
-    if(intent.family!=move_kiss::Family::DirectMonster||!monster_target_key::valid(intent.object_key))return fail(e,"Monster Move requires explicit direct family and birth key");
+    if(intent.family!=move_kiss::Family::DirectMonster||!monster_move_key::valid(intent.object_key))return fail(e,"Monster Move requires explicit direct family and birth key");
     a::BuildingState before;std::string key;
     if(!move_capture_binding(intent.origin.snapshot_uuid,intent.origin.world_epoch,intent.origin.generation,intent.target,intent.local_uid,before,key,e)||
        before!=intent.before||key!=intent.object_key)return fail(e,e.empty()?"Monster Move restored target/old pose differs":e);
@@ -125,14 +127,14 @@ bool submit_restored_move(const move_kiss::Intent& intent,const std::string& id,
     a::Binding binding;uintptr_t region=0;int32_t saved=-1;Pin p;d::Sample prior,current;
     if(!typed_action_runtime::network_binding(intent.origin.snapshot_uuid,binding,e)||
        !field(m,intent.target,0x178,region,e)||!field(m,region,0x834,saved,e)||
-       !pin(m,binding,intent.origin.snapshot_uuid,saved,p,e)||!d::sample(m,p.region,prior,e))return false;
+       !move_owner_pin(m,binding,intent.origin.snapshot_uuid,monster_target_key::argument(key),saved,p,e)||!direct_sample(m,p,prior,e))return false;
     if(prior.undo.active_graph)return fail(e,"Monster Move visibility restore has an active Undo graph");
     const auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return field(m,base,offset,value,cause);};
     const auto original=[&](uintptr_t object,std::string& cause){const auto seh=move_set_on_map(object);return !seh||fail(cause,"Monster Move SetOnMap SEH="+std::to_string(seh));};
     if(!mr::restore(state.image,intent.target,at,original,hidden,visible,calls,e)){if(calls)move_fault=true;return false;}
     if(!move_capture_binding(intent.origin.snapshot_uuid,intent.origin.world_epoch,intent.origin.generation,intent.target,intent.local_uid,before,key,e)||
        before!=intent.before||key!=intent.object_key){move_fault=true;return fail(e,e.empty()?"Monster Move target changed after visibility restore":e);}
-    if(!d::sample(m,p.region,current,e)||d::sample_json(prior)!=d::sample_json(current)||prior.state!=current.state){
+    if(!direct_sample(m,p,current,e)||d::sample_json(prior)!=d::sample_json(current)||prior.state!=current.state){
         move_fault=true;return fail(e,e.empty()?"Monster Move visibility restore changed roster/RNG/Undo/ledger":e);}
     a::MonsterMoveIntent desired{saved,{intent.after.x,intent.after.y,intent.after.z},intent.after.scale,intent.after.rotation};
     if(!typed_action_runtime::submit_move_monster(id,monster_target_key::argument(key),desired,e))return false;
@@ -142,7 +144,7 @@ bool submit_restored_move(const move_kiss::Intent& intent,const std::string& id,
 
 a::Outcome move_perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e)try{
     if(request.action!=a::Action::MoveMonster||!a::valid_monster_move(request.monster_move)||
-       !monster_target_key::request(request.canonical_record_key,request.target_action_uuid)||!state.ready||GetCurrentThreadId()!=state.thread||move_fault){
+       !monster_move_key::request(request.canonical_record_key,request.target_action_uuid)||!state.ready||GetCurrentThreadId()!=state.thread||move_fault){
         e="Monster Move runtime/Mainthread/intent unavailable";return a::Outcome::RejectedNoEffect;}
     if(moves.contains(request.action_uuid)){e="Monster Move already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
@@ -152,8 +154,7 @@ a::Outcome move_perform(const a::Binding& binding,const a::Request& request,cons
        !move_target(m,binding,request.snapshot_uuid,request.monster_move.region,monster_target_key::argument(request.canonical_record_key),p,before,row,e))
         return a::Outcome::RejectedNoEffect;
     if(before.undo.active_graph){e="Monster Move requires no active Undo graph";return a::Outcome::RejectedNoEffect;}
-    uintptr_t destination=0;const auto region_seh=shard_region(state.image,p.world.root,request.monster_move.position,destination);
-    if(region_seh||destination!=p.region.region){e="Monster Move original same-Region constraint differs SEH="+std::to_string(region_seh);return a::Outcome::RejectedNoEffect;}
+    if(!move_destination(m,p,row.pointer,request.monster_move.position,e))return a::Outcome::RejectedNoEffect;
     a::MonsterState value;mr::Actor actor;
     move_preflight={{"action_uuid",request.action_uuid},{"target_action_uuid",request.target_action_uuid},
         {"local_uid",row.uid},{"local_pointer",row.pointer},{"phase","effect"},{"actor_read",false}};
@@ -197,6 +198,7 @@ a::Outcome move_perform(const a::Binding& binding,const a::Request& request,cons
     if(!a::monster_move_transition(request.monster_move,value,final)||op.evidence.before!=op.evidence.after||
        (authority&&(!a::monster_shared_state(final,authority->monster_after)||op.evidence.after!=authority->after)))
         return unknown("Monster Move pose/identity/counters/Release/RNG/Undo/ledger differs from Host");
+    if(!building_history_slice::remember_monster(request.action_uuid,op.receipt.graph,e))return unknown(e);
     op.confirmed=true;e.clear();return a::Outcome::Confirmed;
 }catch(const std::exception& x){e=std::string("Monster Move perform boundary: ")+x.what();const auto found=moves.find(request.action_uuid);if(found!=moves.end())found->second.cause=e;return a::Outcome::Unknown;}
  catch(...){e="Monster Move perform non-standard exception";return a::Outcome::Unknown;}

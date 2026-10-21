@@ -11,14 +11,18 @@
 #include <cstdint>
 namespace mt2mp::action_session::ui_capture {struct Replay;}
 namespace mt2mp::action_session {struct SceneryStrokeIntent;}
+namespace mt2mp::action_session {struct DistrictStrokeIntent;struct ZoneEditIntent;}
+namespace mt2mp::action_session {struct DungeonInputIntent;}
 namespace mt2mp::action_session {struct GroupObjectIntent;struct BossPlacementIntent;struct WorldPathIntent;}
-namespace mt2mp::action_session {struct BuildingState;struct PriceIntent;struct ManagementIntent;struct NetworkRemoveIntent;struct LogoIntent;struct BugFixIntent;struct ZoneIntent;struct MonsterIntent;struct MonsterMoveIntent;struct MonsterRemoveIntent;struct NpcIntent;struct NpcPropertyIntent;struct PropTextIntent;struct BossPhaseIntent;struct ServiceMembershipIntent;struct SelectionMoveIntent;struct DistrictTextIntent;struct DistrictTitleIntent;struct GroupIntent;struct DuplicateIntent;struct NpcQuestIntent;struct NpcQuestListIntent;struct CharacterRenameIntent;struct CharacterMembershipIntent;struct Request;struct AbilityEditIntent;struct AbilityMembershipIntent;struct CostumeEditIntent;struct DungeonConfigIntent;struct DungeonSoundIntent;struct DungeonPaletteIntent;struct DungeonGizmoIntent;struct DungeonLightIntent;struct BuildingStatusIntent;struct Binding;struct Context;enum class Action:uint8_t;}
+namespace mt2mp::action_session {struct ModularIntent;struct BuildingState;struct PriceIntent;struct ManagementIntent;struct NetworkRemoveIntent;struct LogoIntent;struct BugFixIntent;struct ZoneIntent;struct MonsterIntent;struct MonsterMoveIntent;struct MonsterRemoveIntent;struct NpcIntent;struct NpcPropertyIntent;struct PropTextIntent;struct BossPhaseIntent;struct ServiceMembershipIntent;struct SelectionMoveIntent;struct DistrictTextIntent;struct DistrictTitleIntent;struct GroupIntent;struct DuplicateIntent;struct NpcQuestIntent;struct NpcQuestListIntent;struct CharacterRenameIntent;struct CharacterMembershipIntent;struct Request;struct AbilityEditIntent;struct AbilityMembershipIntent;struct CostumeEditIntent;struct DungeonConfigIntent;struct DungeonSoundIntent;struct DungeonPaletteIntent;struct DungeonGizmoIntent;struct DungeonLightIntent;struct BuildingStatusIntent;struct Binding;struct Context;enum class Action:uint8_t;}
 
 namespace mt2mp::game::developer_staff::construction {struct LocalJob;}
+namespace mt2mp::game::district_property {struct Value;}
 namespace mt2mp::game::typed_action_runtime {
 bool start(std::string&);
 bool read_subscriber_weapon(int32_t serialized_id,nlohmann::json& out,std::string& error);
 void tick();
+void tick_after_transport();
 bool enable_live_state(std::string&);
 bool live_state_active();
 bool read_character_membership_actors(const action_session::Binding&,const action_session::Request&,
@@ -53,6 +57,7 @@ bool submit_building_status(const std::string&,const action_session::BuildingSta
 bool submit_dungeon_light(const std::string&,const action_session::DungeonLightIntent&,std::string&);
 bool submit_dungeon_gizmo(const std::string&,const action_session::DungeonGizmoIntent&,std::string&);
 bool submit_dungeon_palette(const std::string&,const action_session::DungeonPaletteIntent&,std::string&);
+bool submit_dungeon_input(const std::string&,const action_session::DungeonInputIntent&,std::string&);
 bool submit_dungeon_sound(const std::string&,const action_session::DungeonSoundIntent&,std::string&);
 bool submit_dungeon_config(const std::string&,const action_session::DungeonConfigIntent&,std::string&);
 bool submit_costume_edit(const std::string&,const action_session::CostumeEditIntent&,std::string&);
@@ -71,7 +76,11 @@ bool submit_boss_placement(const std::string&,const action_session::BossPlacemen
 bool submit_world_path(const std::string&,const action_session::WorldPathIntent&,std::string&);
 bool submit_group_object(bool,const std::string&,const action_session::GroupObjectIntent&,std::string&);
 bool submit_duplicate(const std::string&,const action_session::DuplicateIntent&,std::string&);
+bool submit_modular(const std::string&,const action_session::ModularIntent&,std::string&);
 bool submit_scenery_stroke(const std::string&,const action_session::SceneryStrokeIntent&,std::string&);
+bool submit_zone_edit(const std::string&,const action_session::ZoneEditIntent&,std::string&);
+bool submit_district_stroke(const std::string&,const action_session::DistrictStrokeIntent&,std::string&);
+bool submit_district_property(const std::string&,const std::string&,const game::district_property::Value&,std::string&);
 bool submit_district_title(const std::string&,const std::string&,const action_session::DistrictTitleIntent&,std::string&);
 bool submit_district_text(const std::string&,const std::string&,const action_session::DistrictTextIntent&,std::string&);
 bool submit_selection_move(const std::string&,const action_session::SelectionMoveIntent&,std::string&);
@@ -97,6 +106,11 @@ bool construction_jobs(const action_session::Context&,const action_session::Bind
 bool request_place(const nlohmann::json&,nlohmann::json&,std::string&);
 bool request_move(const nlohmann::json&,nlohmann::json&,std::string&);
 nlohmann::json controller_status();
+// A matched retained destination must validate its original graph-owned scene.
+// An unmatched pointer continues through the existing current-owner resolver.
+bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& matched,std::string& error,std::string* scene=nullptr);
+bool submit_dungeon_building(const std::string& id,action_session::Action,const std::string& key,
+    const std::string& scene,const action_session::BuildingState&,const std::string& target_action,std::string& error);
 nlohmann::json status();
 bool authorize_ui_replay(const action_session::ui_capture::Replay&,std::string&);
 }

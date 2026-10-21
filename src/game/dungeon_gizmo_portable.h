@@ -9,6 +9,6 @@ inline nlohmann::json row(const action_session::DungeonGizmoRow& v){const auto& 
 }
 inline nlohmann::json state(const action_session::DungeonGizmoState& v,bool random=true){
     auto scenes=nlohmann::json::array();for(const auto& s:v.scenes){auto rows=nlohmann::json::array();for(const auto& r:s.rows)rows.push_back(row(r));scenes.push_back({{"key",s.key},{"rows",rows}});}
-    return {{"protected_sha256",v.protected_sha256},{"global_random",random?v.global_random:std::array<uint64_t,4>{}},{"scenes",scenes}};
+    nlohmann::json result={{"protected_sha256",v.protected_sha256},{"global_random",random?v.global_random:std::array<uint64_t,4>{}},{"scenes",scenes}};if(v.live)result["live"]=dungeon_gizmo_live::encode(*v.live);if(v.network)result["network"]=live_host_state::network::encode(*v.network);return result;
 }
 }

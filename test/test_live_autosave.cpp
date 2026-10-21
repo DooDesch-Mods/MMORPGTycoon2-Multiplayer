@@ -1,3 +1,4 @@
+#include <functional>
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -6,7 +7,9 @@
 #include <string>
 #include <utility>
 #include "../src/game/live_host_state/frame_apply_acks.h"
+#include "../src/game/live_host_state/apply_timing.h"
 #include "../src/game/tutorial_replication/state.h"
+namespace apply_timing=mt2mp::game::live_host_state::apply_timing;
 namespace tutorial_replication=mt2mp::game::tutorial_replication;
 #include "autosave_tutorial_publication.inc"
 using mt2mp::game::live_host_state::FrameApplyAcks;
@@ -77,34 +80,46 @@ void scalar_owner_cases(){
 
 
 enum class Admission {Wait,Rejected,New,Duplicate};
-struct Frame {int management=0,monsters=0,marketing=0,vips=0,bugs=0,developers=0,network=0,values=0,selected=0,pause=0;std::optional<tutorial_replication::State> tutorial;uint64_t base_action_revision=0,time_revision=1;};
+struct Frame {int management=0,monsters=0,marketing=0,vips=0,bugs=0,developers=0,network=0,values=0,selected=0,pause=0;std::optional<tutorial_replication::State> tutorial;uint64_t base_action_revision=0,time_revision=1;std::string for_action;};
 struct Economy {int subscribers=0,loans=0,offers=0,npcs=0,additions=0;};
-struct Day {uint64_t sequence(){return 1;}};
+struct Day {uint64_t current=1;uint64_t sequence(){return current;}};
 struct Time {bool okay=true;uint64_t revision=1;explicit operator bool()const{return true;}bool operator()(uint64_t& n,std::string& e){n=revision;return okay?true:fail(e,"original time failure");}};
 struct Fragment {bool okay=true;bool timely(std::chrono::steady_clock::time_point,std::string& e){return okay?true:fail(e,"original fragment failure");}};
 Admission admission_result=Admission::New;
 Admission admit(int,const Context&,uint64_t,uint64_t,const Frame*,const Frame&,uint64_t,uint64_t,bool,std::string& e){if(admission_result==Admission::Rejected)e="original admission failure";return admission_result;}
 struct BridgeContext:Context {int host_peer=1;};
-struct Port {NativePort native;int probes=0;bool publication_ready(uint64_t epoch,bool& w,std::string& e){++probes;return native.publication_ready(epoch,w,e);}};
+struct Port {
+    NativePort native;Pin sample;int probes=0,reads=0;bool read_ok=true;
+    Port(){sample.common_epoch=9;}
+    bool publication_ready(uint64_t epoch,bool& w,std::string& e){++probes;return native.publication_ready(epoch,w,e);}
+    bool read(Pin& out,std::string& e){++reads;if(!read_ok)return fail(e,"original paused Pin read failed");out=sample;e.clear();return true;}
+};
 struct Bridge {
     std::string publication_wait_;bool suspended_=false,locked_=false;
     std::string publication_first_wait_,publication_last_wait_;
     uint64_t publication_wait_count_=0,publication_recovery_count_=0;
     bool publication_was_waiting_=false;
     FrameApplyAcks apply_acks_;
-    Fragment fragments_;BridgeContext context_;Port port_;Time time_;
+    Fragment fragments_;BridgeContext context_;Binding binding_;Port port_;Time time_;
     std::optional<Frame> last_,queued_;
     Frame captured_frame;
     std::optional<Economy> captured_economy_,last_economy_;
     std::optional<int> queued_day_,queued_economy_;
     std::optional<std::chrono::steady_clock::time_point> last_capture_;
+    bool paused_idle_equal_=false;
+    std::function<std::chrono::steady_clock::time_point()> capture_clock_;
+    std::chrono::steady_clock::time_point capture_now{};
+    std::chrono::milliseconds capture_elapsed{0};
     Day* day_=nullptr;bool economy_=false;uint64_t last_day_sequence_=0,common_epoch_=9,source_generation_=8;
     uint8_t ack_mask=0;uint64_t sent_revision=0;std::chrono::steady_clock::time_point fake_send_time{};
     int captures=0,sends=0,takes=0;bool capture_ok=true,send_ok=true,take_ok=true;
-    bool capture(uint64_t a,Frame& out,std::string& e){++captures;if(!capture_ok)return fail(e,"original capture failure");out=captured_frame;out.base_action_revision=a;out.time_revision=time_.revision;if(economy_)captured_economy_=Economy{};return true;}
-    bool send(const Frame& out,std::string& e){++sends;if(!send_ok)return fail(e,"original send failure");last_=out;if(economy_)last_economy_=captured_economy_;if(ack_mask)apply_acks_.sent(++sent_revision,ack_mask,fake_send_time);return true;}
+    bool capture(uint64_t a,Frame& out,std::string& e){++captures;capture_now+=capture_elapsed;if(!capture_ok)return fail(e,"original capture failure");out=captured_frame;out.base_action_revision=a;out.time_revision=time_.revision;if(economy_)captured_economy_=Economy{};return true;}
+    bool send(const Frame& out,std::string& e){++sends;if(!send_ok)return fail(e,"original send failure");last_=out;if(day_)last_day_sequence_=day_->sequence();if(economy_)last_economy_=captured_economy_;if(ack_mask)apply_acks_.sent(++sent_revision,ack_mask,fake_send_time);return true;}
     bool take(const Frame&,std::string& e){++takes;return take_ok?true:fail(e,"original take failure");}
-    bool tick(uint64_t,bool,std::string&,std::chrono::steady_clock::time_point);
+    bool tick_actual(uint64_t,bool,std::string&,std::chrono::steady_clock::time_point);
+    bool tick(uint64_t action,bool pending,std::string& error,std::chrono::steady_clock::time_point now){
+        capture_now=now;capture_clock_=[this]{return capture_now;};return tick_actual(action,pending,error,now);
+    }
 };
 #include "autosave_tick.inc"
 
@@ -118,6 +133,7 @@ void publication_payload_cases(std::chrono::steady_clock::time_point now){
         check(bridge.tick(0,false,e,now+std::chrono::milliseconds(500))&&bridge.sends==2,"identical compared payload suppresses duplicate publication");
     }
     Bridge tutorial;
+    tutorial.captured_frame.selected=tutorial.captured_frame.pause=1;
     tutorial.captured_frame.tutorial=tutorial_replication::State{};
     tutorial.captured_frame.tutorial->research=tutorial_replication::research::Row{};
     tutorial.captured_frame.tutorial->research->key="bridges";
@@ -138,6 +154,88 @@ void publication_payload_cases(std::chrono::steady_clock::time_point now){
 }
 
 #include "frame_apply_ack_cases.inc"
+void paused_idle_cases(std::chrono::steady_clock::time_point now){
+    using namespace std::chrono;std::string e;
+    auto prime=[&](Bridge& b){
+        world_fixture={};
+        check(b.tick(0,false,e,now)&&b.captures==1&&!b.paused_idle_equal_,"initial paused frame has no longer interval");
+        check(b.tick(0,false,e,now+milliseconds(250))&&b.captures==2&&b.paused_idle_equal_,"complete equal paused capture earns finite interval");
+    };
+    {Bridge b;prime(b);const auto completed=b.last_capture_;
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==2&&b.port_.reads==1,"equal paused frame uses fresh Pin after ordinary interval");
+        check(b.tick(0,false,e,now+milliseconds(1249))&&b.captures==2&&b.port_.reads==2&&b.last_capture_==completed,"cheap reads cannot restart1000ms deadline");
+        check(b.tick(0,false,e,now+milliseconds(1250))&&b.captures==3&&b.last_capture_==now+milliseconds(1250),"full paused capture resumes at exact1000ms completion boundary");
+    }
+    for(auto pair:{std::pair{0,1},std::pair{3,0}}){Bridge b;b.captured_frame.selected=pair.first;b.captured_frame.pause=pair.second;
+        b.port_.sample.selected=float(pair.first);b.port_.sample.pause=float(pair.second);prime(b);
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==2,"either actual zero scale factor permits bounded paused interval");
+    }
+    {world_fixture={};Bridge b;b.captured_frame.selected=b.captured_frame.pause=1;
+        for(int ms:{0,250,500})check(b.tick(0,false,e,now+milliseconds(ms)),"running capture succeeds");
+        check(b.captures==3&&!b.paused_idle_equal_&&b.port_.reads==0,"unpaused250ms cadence has no extra Pin reads");
+    }
+    for(int changed=0;changed<3;++changed){Bridge b;prime(b);
+        if(changed==0){b.port_.sample.selected=b.port_.sample.pause=1;b.captured_frame.selected=b.captured_frame.pause=1;}
+        if(changed==1){b.port_.sample.pause=1;b.captured_frame.pause=1;}
+        if(changed==2){b.port_.sample.values=1;b.captured_frame.values=1;}
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==3&&b.sends==2&&!b.paused_idle_equal_,"fresh clock pair or scalar/calendar delta cancels longer interval with cached Time unchanged");
+    }
+    {Bridge b;Day day;b.day_=&day;prime(b);++day.current;
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==3&&b.sends==2&&b.port_.reads==0,"Day sequence change forces full capture without paused deferral");
+    }
+    for(bool time:{false,true}){Bridge b;prime(b);if(time)++b.time_.revision;
+        check(b.tick(time?0:1,false,e,now+milliseconds(251))&&b.captures==3&&b.sends==2&&b.port_.reads==0&&!b.paused_idle_equal_,"action or Time revision bypasses both intervals");
+    }
+    {Bridge b;prime(b);
+        check(b.tick(0,true,e,now+milliseconds(500))&&b.captures==2&&b.port_.reads==0,"pending action cannot start paused polling or full capture");
+    }
+    for(int bad=0;bad<4;++bad){Bridge b;prime(b);
+        if(bad==0)b.port_.read_ok=false;
+        if(bad==1)++b.port_.sample.context.id;
+        if(bad==2)++b.port_.sample.binding.native_generation;
+        if(bad==3)++b.port_.sample.common_epoch;
+        check(!b.tick(0,false,e,now+milliseconds(500))&&b.captures==2&&!e.empty(),"failed or foreign current Pin cannot become successful idle skip");
+        if(bad==0)check(e=="original paused Pin read failed","paused polling retains original read cause");
+    }
+    {Bridge b;prime(b);world_fixture.saves=1;
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==2&&b.port_.reads==0&&!b.paused_idle_equal_,"native save remains tolerated wait before strict paused Pin read");
+        world_fixture.saves=0;
+        check(b.tick(0,false,e,now+milliseconds(501))&&b.captures==3&&b.publication_recovery_count_==1,"save recovery does not wait for paused idle deadline");
+    }
+    {Bridge b;prime(b);b.capture_ok=false;const auto completed=b.last_capture_;
+        check(!b.tick(0,false,e,now+milliseconds(1250))&&!b.paused_idle_equal_&&b.last_capture_==completed&&e=="original capture failure","failed full poll clears idle proof without advancing completion");
+    }
+    {Bridge b;prime(b);world_fixture.edits=1;
+        check(!b.tick(0,false,e,now+milliseconds(500))&&b.port_.reads==0&&e.find("save/edit scope differs")!=std::string::npos,"armed paused interval cannot hide native edit failure");
+    }
+    {Bridge b;prime(b);b.time_.okay=false;
+        check(!b.tick(0,false,e,now+milliseconds(500))&&b.port_.reads==0&&e=="original time failure","armed paused interval cannot hide Time authority failure");
+    }
+    {Bridge b;prime(b);b.last_->for_action="before-action";
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==3&&b.port_.reads==0&&!b.paused_idle_equal_,"retained action-before frame cannot use or earn ordinary paused interval");
+    }
+    {Bridge b;prime(b);b.captured_frame.tutorial=tutorial_replication::State{};b.captured_frame.tutorial->initial_complete=true;
+        check(b.tick(0,false,e,now+milliseconds(500))&&b.captures==2&&b.sends==1,"non-action tutorial change can wait within finite paused interval");
+        check(b.tick(0,false,e,now+milliseconds(1250))&&b.captures==3&&b.sends==2&&b.last_->tutorial->initial_complete&&!b.paused_idle_equal_,"finite poll publishes current tutorial change without action revision");
+    }
+    {world_fixture={};Bridge b;b.capture_elapsed=milliseconds(650);
+        check(b.tick(0,false,e,now)&&b.last_capture_==now+milliseconds(650),"first slow paused capture records completion");
+        check(b.tick(0,false,e,now+milliseconds(900))&&b.paused_idle_equal_&&b.last_capture_==now+milliseconds(1550),"slow equal capture arms from actual completion");
+        check(b.tick(0,false,e,now+milliseconds(2549))&&b.captures==2,"slow paused capture waits999ms after completion");
+        check(b.tick(0,false,e,now+milliseconds(2550))&&b.captures==3&&b.last_capture_==now+milliseconds(3200),"slow paused capture starts at finite completion deadline");
+    }
+    {world_fixture={};Bridge b;b.economy_=true;b.ack_mask=2;b.fake_send_time=now;
+        check(b.tick(0,false,e,now),"paused full frame queues before ACK test");
+        b.apply_acks_.acknowledge(2,1,"[]",now);
+        check(b.tick(0,false,e,now+milliseconds(250))&&b.paused_idle_equal_,"equal ACKed ordinary capture earns interval");
+        b.fake_send_time=now+milliseconds(251);
+        check(b.tick(1,false,e,b.fake_send_time)&&b.sends==2&&!b.paused_idle_equal_,"new action publication clears idle eligibility");
+        b.apply_acks_.acknowledge(2,2,"[]",now+milliseconds(300));
+        check(b.tick(1,false,e,now+milliseconds(549))&&b.captures==3,"existing full ACK cooldown remains250ms");
+        check(b.tick(1,false,e,now+milliseconds(550))&&b.captures==4,"required next capture after ACK gets no longer paused wait");
+    }
+    world_fixture={};
+}
 int main(){try{
     std::string e;bool waiting=false;NativePort p;
     for(int saves:{1,2,INT32_MAX}){world_fixture={};world_fixture.saves=saves;e.clear();check(p.publication_ready(waiting,e)&&waiting,"positive native save defers");check(e.find("waits for native save")!=std::string::npos,"wait has measured cause");check(!native_activity(saves,0,0,e),"strict read/store guard remains fatal");}
@@ -154,6 +252,20 @@ int main(){try{
     cadence.time_.revision=2;check(cadence.tick(1,false,e,now+std::chrono::milliseconds(252))&&cadence.captures==4&&cadence.last_->time_revision==2,"time revision bypasses ordinary wait");
     check(cadence.tick(1,false,e,now+std::chrono::milliseconds(501))&&cadence.captures==4,"authority capture starts next ordinary interval");
     check(cadence.tick(1,false,e,now+std::chrono::milliseconds(502))&&cadence.captures==5,"ordinary capture resumes after authority interval");
+    for(const int paused:{0,1}){
+        world_fixture={};Bridge slow;slow.captured_frame.pause=paused;slow.capture_elapsed=std::chrono::milliseconds(650);
+        check(slow.tick(0,false,e,now)&&slow.last_capture_==now+std::chrono::milliseconds(650),"slow capture timestamps actual completion");
+        check(slow.tick(0,false,e,now+std::chrono::milliseconds(650))&&slow.captures==1,"slow capture does not immediately recapture on next GameUpdate");
+        ++slow.captured_frame.management;
+        check(slow.tick(0,false,e,now+std::chrono::milliseconds(899))&&slow.captures==1,"paused or running ordinary payload waits249ms from completion");
+        check(slow.tick(0,false,e,now+std::chrono::milliseconds(900))&&slow.captures==2&&slow.sends==2,"changed native payload is captured250ms after completion");
+        check(slow.tick(1,false,e,now+std::chrono::milliseconds(1551))&&slow.captures==3,"ordered action revision bypasses completion cooldown");
+        slow.time_.revision=2;
+        check(slow.tick(1,false,e,now+std::chrono::milliseconds(2202))&&slow.captures==4,"Time revision bypasses completion cooldown");
+        check(slow.tick(1,true,e,now+std::chrono::milliseconds(2853))&&slow.captures==4,"pending action still prevents ordinary capture");
+    }
+    world_fixture={};Bridge slow_failure;slow_failure.capture_elapsed=std::chrono::milliseconds(650);slow_failure.capture_ok=false;
+    check(!slow_failure.tick(0,false,e,now)&&!slow_failure.last_capture_&&e=="original capture failure","failed slow capture does not establish successful cadence");
     world_fixture={};world_fixture.saves=1;Bridge b;check(b.tick(0,false,e,now),"Host ordinary save is successful wait");check(b.port_.probes==1&&b.captures==0&&b.sends==0&&!b.last_&&!b.last_capture_,"save performs no capture/send/revision advance");check(!b.publication_wait_.empty()&&!b.locked_,"wait distinct from failure");
     check(b.tick(0,false,e,now+std::chrono::seconds(1))&&b.captures==0,"persistent save waits without capture");
     const auto first_wait=b.publication_first_wait_;
@@ -169,5 +281,6 @@ int main(){try{
     publication_payload_cases(now);
     scalar_owner_cases();
     frame_ack_cases(now);
+    paused_idle_cases(now);
     std::cout<<assertions<<" actual autosave publication checks passed\n";return 0;
 }catch(const std::exception& x){std::cerr<<"failure after "<<assertions<<" checks: "<<x.what()<<'\n';return 1;}}

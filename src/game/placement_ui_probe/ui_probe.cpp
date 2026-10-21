@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "ui_probe.h"
 #include "../control_input/control_runtime.h"
 #include "mt2mp/core/hash.h"
@@ -41,6 +42,7 @@ bool call_seh(unsigned step,const Binding& b,const Request& r,std::uintptr_t lis
         case 3:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5cf440:0x593810))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
         case 4:reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(b.context.image+(b.family==Family::Scenery?0x5d0600:0x5912e0))(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),r.position.data());break;
         case 5:reinterpret_cast<void(__fastcall*)(void*)>(b.context.image+0x73ffe0)(reinterpret_cast<void*>(list));break;
+        case 7:if(!reinterpret_cast<bool(__fastcall*)(void*,const float*)>(b.context.image+0x5863e0)(reinterpret_cast<void*>(b.cursor),r.position.data()))return fail(receipt.cause,"error: original cursor world projection failed");break;
         case 6:reinterpret_cast<void(__fastcall*)(void*,float)>(b.context.image+0x5d4620)(reinterpret_cast<void*>(b.behaviour),0.0f);break;
         default:return false;
         }
@@ -55,7 +57,7 @@ bool Probe::initialize(const Context& c,std::string& e){if(context_.image)return
         if(!mt2mp::control_input::runtime::verify_item_activate(c.image,g.size,sha,owned,e))return false;
         if(owned)continue;
     }
-    std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
+    std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(g.rva==0x5854e0){if(!mt2mp::hooks::framework::verify_original_bytes(c.image+g.rva,actual.data(),g.bytes,g.size,e)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva)+" original="+e;return false;}}else if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: placement UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scenery_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery UI original body differs at RVA="+std::to_string(g.rva);return false;}}for(const auto& g:scene_mode_guards){std::vector<unsigned char> actual(g.size);if(!memory.copy(c.image+g.rva,actual.data(),actual.size(),e))return false;if(std::memcmp(actual.data(),g.bytes,g.size)){e="error: Scenery mode selector original body differs";return false;}}context_=c;return true;}
 Receipt Probe::arm(const Request& r,RootServices& services){Receipt receipt;receipt.token=r.token;Binding binding;ProcessMemory memory;
     try{
         Context c;if(!context_.image||!scalar_request(r,receipt.cause)||!services.actual_context(c,receipt.cause)||!context_actual(c,receipt.cause)||c!=context_){if(receipt.cause.empty())receipt.cause="error: placement UI probe context changed";services.record_receipt(r,receipt);return receipt;}
@@ -73,6 +75,14 @@ Receipt Probe::arm(const Request& r,RootServices& services){Receipt receipt;rece
         std::int32_t index=-1;std::uintptr_t list=0;
         if(ok)ok=read_palette_index(memory,binding,r,index,list,receipt.cause);
         if(ok&&list)ok=step(1,list,index);
+        if(ok&&binding.family==Family::Building){
+            // Cursor.Update processes hover before Build.Update. Release belongs after
+            // that hover so the native preview does not replace a pending placement.
+            ok=step(7,0,0);
+            receipt.phase=ok?Phase::ArmedAwaitingGameUpdate:Phase::Unknown;
+            if(!ok&&receipt.cause.empty())receipt.cause="error: original cursor warp failed; job cannot replay";
+            services.record_receipt(r,receipt);return receipt;
+        }
         if(ok)ok=step(2,0,0);
         if(ok)ok=read_live_pose_and_pending(memory,binding,r,false,receipt.cause);
         if(ok)ok=step(3,0,0);
@@ -92,6 +102,38 @@ Receipt Probe::arm(const Request& r,RootServices& services){Receipt receipt;rece
         else{receipt.phase=Phase::Unknown;if(receipt.cause.empty())receipt.cause="error: native UI callbacks failed, exception="+std::to_string(receipt.exception);receipt.cause+="; job cannot replay";}
     }catch(const std::exception& e){receipt.phase=receipt.attempted_mask?Phase::Unknown:Phase::Rejected;receipt.cause=std::string("error: placement UI probe exception: ")+e.what();}
     catch(...){receipt.phase=receipt.attempted_mask?Phase::Unknown:Phase::Rejected;receipt.cause="error: placement UI probe unknown exception";}
+    services.record_receipt(r,receipt);return receipt;
+}
+Receipt complete_build_input_at_update(const Request& r,const Binding& b,Receipt receipt,RootServices& services){
+    constexpr std::uint32_t input_mask=(1u<<2)|(1u<<3)|(1u<<4);
+    if(b.family!=Family::Building||receipt.token!=r.token||receipt.phase!=Phase::ArmedAwaitingGameUpdate||
+       receipt.capture_count||receipt.host_confirmed_count||receipt.exception||
+       !(receipt.returned_mask&(1u<<7))||(receipt.attempted_mask&input_mask)){
+        receipt.phase=Phase::Unknown;receipt.cause="error: building input boundary is not an unconsumed armed job";
+        services.record_receipt(r,receipt);return receipt;
+    }
+    // Publish consumption before any callback. A callback failure cannot replay input.
+    receipt.phase=Phase::Attempted;services.record_receipt(r,receipt);
+    try{
+        ProcessMemory memory;
+        auto step=[&](unsigned s){
+            Context current;
+            if(!services.actual_context(current,receipt.cause)||current!=b.context||!context_actual(current,receipt.cause)){
+                if(receipt.cause.empty())receipt.cause="error: placement UI world changed at normal Build.Update";
+                return false;
+            }
+            if(!services.actual_input_routes(b,receipt.cause))return false;
+            return call_seh(s,b,r,0,0,receipt);
+        };
+        bool ok=step(2);
+        if(ok)ok=read_live_pose_and_pending(memory,b,r,false,receipt.cause);
+        if(ok)ok=step(3);
+        if(ok)ok=step(4);
+        if(ok)ok=read_live_pose_and_pending(memory,b,r,true,receipt.cause);
+        receipt.phase=ok?Phase::ArmedAwaitingGameUpdate:Phase::Unknown;
+        if(!ok&&receipt.cause.empty())receipt.cause="error: original building input failed at normal Update; no replay";
+    }catch(const std::exception& cause){receipt.phase=Phase::Unknown;receipt.cause=std::string("error: building input boundary exception: ")+cause.what();}
+    catch(...){receipt.phase=Phase::Unknown;receipt.cause="error: building input boundary nonstandard exception";}
     services.record_receipt(r,receipt);return receipt;
 }
 bool merge_release_admission(const Request& r,const Receipt& admission,Receipt& out,std::string& e){

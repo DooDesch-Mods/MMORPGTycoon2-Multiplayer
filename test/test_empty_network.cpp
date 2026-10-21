@@ -10,11 +10,15 @@
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+#include <thread>
 
 namespace {
 uintptr_t image=0;
 bool active=true;
 bool original_completion=false;
+bool origin_available=true,origin_read_failure=false;
+uint64_t origin_generation=9,origin_epoch=7;
+unsigned origin_reads=0;
 int32_t map_capacity=0;
 mt2mp::game::normal_load_identity::Status loaded;
 void* current_map=nullptr;
@@ -50,9 +54,15 @@ bool read_world_status(WorldStatus& out,std::string& error) {
 namespace mt2mp::game::normal_load_identity {
 Status status() { if(original_completion)throw std::runtime_error("Original load completion re-entered the locked public identity status");return loaded; }
 }
+namespace mt2mp::game::building_mixed_identity::opened_file {
+Status status(){Status out;out.current_origin_available=origin_available;out.generation=origin_generation;out.world_epoch=origin_epoch;return out;}
+}
 namespace mt2mp::game::native_open_runtime {
 bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string& e){
-    out={};out.map=current_map;out.uuid=origin_uuid;out.sha256=std::string(64,'a');out.world_epoch=7;out.generation=9;e.clear();return current_map!=nullptr;
+    ++origin_reads;out={};
+    if(!origin_available){e="current_world_read_wrong_thread";return false;}
+    if(origin_read_failure){e="current_world_read_witness_changed";return false;}
+    out.map=current_map;out.uuid=origin_uuid;out.sha256=std::string(64,'a');out.world_epoch=origin_epoch;out.generation=origin_generation;e.clear();return current_map!=nullptr;
 }
 }
 namespace mt2mp::game::typed_action_runtime {
@@ -92,6 +102,51 @@ int main() {
         std::string error;
         require(network_identity::initialize(error),"identity initialize: "+error);
         const std::string uuid="01234567-89ab-cdef-0123-456789abcdef",sha(64,'a');
+        layout(0,0,nullptr);
+        origin_available=false;origin_generation=0;origin_reads=0;
+        require(network_identity::begin_host_capture(uuid,0,error),"first local capture begin: "+error);
+        require(network_identity::seal_host_capture(uuid,sha,error),"first local capture seal: "+error);
+        network_snapshot_alias::Manifest first_aliases;
+        require(network_identity::snapshot_aliases(uuid,sha,first_aliases,error)&&first_aliases.present&&first_aliases.rows.empty(),"first original save aliases absent: "+error);
+        require(origin_reads==0,"first capture attempted a completed NativeOpen read");
+        require(network_identity::prepare_aliases(uuid,sha,first_aliases,error),"first alias client preparation: "+error);
+        loaded.snapshot_uuid=uuid;loaded.snapshot_sha256=sha;
+        require(network_identity::begin_client_load(uuid,sha,0,error),"client without completed origin begin: "+error);
+        require(!network_identity::finalize_client_load(error)&&error=="current_world_read_wrong_thread"&&origin_reads==1,
+                "client publication bypassed its completed NativeOpen guard");
+        require(network_identity::begin_host_capture(uuid,0,error),"fresh capture begin before wrong-thread seal: "+error);
+        bool worker_sealed=true;std::string worker_error;
+        std::thread worker([&]{worker_sealed=network_identity::seal_host_capture(uuid,sha,worker_error);});worker.join();
+        require(!worker_sealed&&worker_error=="native game thread identity changed"&&origin_reads==1,
+                "save worker reached live publication or lost the actual thread failure");
+        require(network_identity::begin_host_capture(uuid,0,error),"fresh capture begin before origin transition: "+error);
+        origin_available=true;origin_generation=9;
+        require(!network_identity::seal_host_capture(uuid,sha,error)&&error.find("availability/generation/world epoch")!=std::string::npos,
+                "NativeOpen transition during first capture accepted");
+        origin_read_failure=true;
+        require(!network_identity::begin_host_capture(uuid,0,error)&&error=="current_world_read_witness_changed",
+                "available but invalid completed origin fell back to first capture");
+        origin_read_failure=false;
+        require(network_identity::begin_host_capture(uuid,0,error),"loaded capture begin: "+error);
+        ++origin_generation;
+        require(!network_identity::seal_host_capture(uuid,sha,error)&&error.find("availability/generation/world epoch")!=std::string::npos,
+                "loaded generation changed during capture");
+        origin_generation=9;
+        require(network_identity::begin_host_capture(uuid,0,error),"loaded capture begin before epoch change: "+error);
+        ++origin_epoch;
+        require(!network_identity::seal_host_capture(uuid,sha,error)&&error.find("availability/generation/world epoch")!=std::string::npos,
+                "world epoch changed during capture");
+        origin_epoch=7;
+        require(network_identity::begin_host_capture(uuid,0,error),"loaded capture begin before lost origin: "+error);
+        origin_available=false;
+        require(!network_identity::seal_host_capture(uuid,sha,error)&&error.find("availability/generation/world epoch")!=std::string::npos,
+                "lost completed origin downgraded to first capture");
+        origin_available=true;
+        require(network_identity::begin_host_capture(uuid,0,error),"loaded capture begin before readback failure: "+error);
+        origin_read_failure=true;
+        require(!network_identity::seal_host_capture(uuid,sha,error)&&error=="current_world_read_witness_changed",
+                "loaded final readback failure was suppressed");
+        origin_read_failure=false;
         for(const int32_t allocated:{0,4}) {
             layout(0,allocated,allocated?regions.data():nullptr);
             native_network::State state;

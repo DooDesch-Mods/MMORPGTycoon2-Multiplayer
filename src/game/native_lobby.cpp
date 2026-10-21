@@ -705,9 +705,10 @@ bool adopt_current_host_world(void* game,bool ingame_active,bool title_active,co
     return start_host_world(error);
 }
 bool admit_local(bool host){
-    const auto peer=net::session_wire::local_peer();const auto mask=net::session_wire::peer_mask();
-    if(!net::session_wire::connected()||peer<1||peer>4||(mask&3)!=3||!(mask&(1u<<(peer-1))))return fail("local lobby admission awaits confirmed launcher peer membership");
+    const auto peer=net::session_wire::local_peer();
+    if(!net::session_wire::connected()||peer<1||peer>4)return fail("local lobby admission awaits confirmed launcher peer membership");
     if(host!=(peer==1))return fail("local lobby action differs from launcher-owned Host/Client role");
+    std::string error;if(!net::join_local_lobby(error))return fail(error);
     net::chat::Runtime::instance().set_lobby_admitted(true);chat_error.clear();chat_last_sequence=0;chat_draft_clear_failed=false;
     local_admitted=true;Config::instance().is_host=peer==1;host_world_pick_requested=host&&selected_world.empty()&&!current_host_world;++generation;cause.clear();ui_status="Lokale Lobby offen";return true;
 }

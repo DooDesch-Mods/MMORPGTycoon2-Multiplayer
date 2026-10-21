@@ -120,6 +120,12 @@ int main()try{
         mapping.scenes.push_back({mapped.instances[0].scene,1,0,0});
         const auto key=mt2mp::game::scene_clone::birth_key(mapping.operation,mt2mp::game::scene_clone::Family::Gizmo,0);
         mapping.members.push_back({mapping.scenes[0].scene,key,mt2mp::game::scene_clone::Family::Gizmo,0,0,mapping.operation});
+        mapping.scenes[0].buildings=1;
+        const auto building_key=mt2mp::game::scene_clone::birth_key(mapping.operation,mt2mp::game::scene_clone::Family::Building,1);
+        mapping.members.push_back({mapping.scenes[0].scene,building_key,mt2mp::game::scene_clone::Family::Building,0,1,mapping.operation});
+        mapping.scenes[0].scenery=1;
+        const auto scenery_key=mt2mp::game::scene_clone::birth_key(mapping.operation,mt2mp::game::scene_clone::Family::Scenery,2);
+        mapping.members.push_back({mapping.scenes[0].scene,scenery_key,mt2mp::game::scene_clone::Family::Scenery,0,2,mapping.operation});
         mapped.scenes=mapping;
         require(frame::valid(mapped,error),"complete native scene mapping admitted with Party state");
         require(frame::decode(frame::encode(mapped),decoded,error)&&decoded==mapped,"full clone birth provenance survives Party wire round trip");

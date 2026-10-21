@@ -1,3 +1,5 @@
+#include "mt2mp/hooks/original_body.h"
+namespace hooks=mt2mp::hooks;
 #include "mt2mp/core/hash.h"
 #include "npc_quest_list_ui_codes.h"
 #include "framework_backend.cpp"

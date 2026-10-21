@@ -92,7 +92,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     auto& source=remembered->second;const auto& birth=original->second;const bool undo=request.action==action::Action::UndoBuilding;
     const bool building=std::any_of(source.known.begin(),source.known.end(),[](const auto& value){return value.second.row.family==Family::Building;});
     Sample before;uintptr_t graph=0;
-    if(!duplicate_code::check(r->memory,r->image,e)||!sample(*r,binding,&birth.request.duplicate,undo?birth.created:std::map<uint64_t,std::string>{},before,e)||
+    if(!duplicate_code::check(r->memory,r->image,e)||!sample_duplicate(*r,binding,&birth.request.duplicate,undo?birth.created:std::map<uint64_t,std::string>{},before,e)||
        !same_binding(birth.after,before)||!building_history_slice::graph_for(request.action,request.target_action_uuid,graph,e))return action::Outcome::RejectedNoEffect;
     if(undo&&!history_known(*r,before,source,e))return action::Outcome::RejectedNoEffect;
     HistoryBuildingPlan plan;HistoryServices before_services;monster_quest_retirement::Witness before_quests;
@@ -144,7 +144,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
             op.children.emplace(uid,std::move(restored));
         }return true;
     };
-    if(!sample(*r,binding,&birth.request.duplicate,undo?std::map<uint64_t,std::string>{}:birth.created,op.after,e,restore_children))return fail(e);
+    if(!sample_duplicate(*r,binding,&birth.request.duplicate,undo?std::map<uint64_t,std::string>{}:birth.created,op.after,e,restore_children))return fail(e);
     if(building){
         std::set<uintptr_t> retired;std::vector<duplicate_quest_history::OwnerRebind> restored;
         std::set<std::string> changed_keys,retired_keys,restored_keys;
@@ -195,7 +195,7 @@ bool observe_history(const action::Binding& binding,const action::Request& reque
                !child_alias(value,actual,why))return false;child=std::move(actual);}
         return true;
     };
-    if(!sample(*r,binding,&birth.request.duplicate,op.undo?std::map<uint64_t,std::string>{}:birth.created,current,e,capture_children))return false;
+    if(!sample_duplicate(*r,binding,&birth.request.duplicate,op.undo?std::map<uint64_t,std::string>{}:birth.created,current,e,capture_children))return false;
     if(op.building){HistoryServices services;monster_quest_retirement::Witness quests;
         if(!history_service_world(*r,current,services,e)||
            !npc_probe::world_quest_history::read(binding,request.snapshot_uuid,quests,e,&op.quests)||

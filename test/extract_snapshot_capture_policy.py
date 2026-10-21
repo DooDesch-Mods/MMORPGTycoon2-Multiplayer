@@ -37,5 +37,39 @@ text = 'bool routing(bool distribute) { return ' + matches[0] + '; }\n'
 for name, block in zip(('arm', 'seal', 'cancel'), blocks):
     text += ('void' if name == 'cancel' else 'bool') + ' actual_' + name + '() {\n' + block
     text += '\n}\n' if name == 'cancel' else '\nreturn true;\n}\n'
+def guarded(text, anchor):
+    if text.count(anchor) != 1:
+        raise RuntimeError('Expected one actual scoped observer boundary: ' + anchor)
+    begin = text.index(anchor)
+    cursor = text.index('(', begin)
+    depth, end = 1, cursor + 1
+    while depth:
+        depth += (text[end] == '(') - (text[end] == ')')
+        end += 1
+    while text[end].isspace():
+        end += 1
+    if text[end] == '{':
+        depth, end = 1, end + 1
+        while depth:
+            depth += (text[end] == '{') - (text[end] == '}')
+            end += 1
+    else:
+        end = text.index(';', end) + 1
+    return text[begin:end]
+
+for suffix, functions in [('arm', ['monster', 'boss', 'district', 'party']), ('seal', ['party', 'boss', 'monster', 'district'])]:
+    chunks = [guarded(source, 'if(capture_snapshot_identities&&!' + family + '_saved_identity_runtime::' + suffix + '_host(') for family in functions]
+    text += 'bool actual_other_' + suffix + '() {\n' + '\n'.join(chunks) + '\nreturn true;\n}\n'
+text += 'void actual_other_cancel() {\n' + guarded(source, 'if(capture_snapshot_identities){') + '\n}\n'
+stages = ['dungeon_scene_identity_runtime::classify_capture', 'party_saved_identity_runtime::stage_scenes',
+          'boss_saved_identity_runtime::stage_scenes', 'monster_saved_identity_runtime::stage_scenes']
+text += 'bool actual_stage() {\n' + '\n'.join(guarded(source, 'if(capture_snapshot_identities&&!' + name + '(') for name in stages) + '\nreturn true;\n}\n'
+text += 'void actual_network_arm(bool bind_snapshot_identities) {\n' + guarded(core, 'if(bind_snapshot_identities){') + '\n}\n'
+text += 'void actual_network_seal(bool publish_snapshot_identities) {\n' + guarded(core, 'if(publish_snapshot_identities){') + '\n}\n'
+text += 'void actual_network_cancel(bool bind_snapshot_identities) {\n' + guarded(core, 'if(bind_snapshot_identities)game::network_identity::cancel_pending(error);') + '\n}\n'
+for marker in ['{"bind_snapshot_identities",bind_snapshot_identities}', 'pending_snapshot.at("bind_snapshot_identities").get<bool>()',
+               '{"snapshot_identities_published",publish_snapshot_identities}', 'if(distribute&&!net::distribute_snapshot(']:
+    if marker not in core:
+        raise RuntimeError('Snapshot capture/publication/cancel policy join missing: ' + marker)
 args.output.parent.mkdir(parents=True, exist_ok=True)
 args.output.write_text(text)

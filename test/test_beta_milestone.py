@@ -177,7 +177,7 @@ class MilestoneTests(unittest.TestCase):
         self.assertNotIn(fixtures.COMMIT, posts[0]['body'])
         self.assertNotIn('Accepted milestone:', posts[0]['body'])
         title = heading.removeprefix('# ')
-        self.assertEqual(posts[0]['name'], fixtures.TAG + ' - ' + title)
+        self.assertEqual(posts[0]['name'], title)
         self.assertFalse(api.release['draft'])
         self.assertTrue(api.release['prerelease'])
 

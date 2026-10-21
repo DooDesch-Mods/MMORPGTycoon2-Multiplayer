@@ -28,6 +28,8 @@ f::Memory setup(history::Saved& saved){
     dependency(memory,inverse_node+8,scenery_uid);dependency(memory,inverse_node+0x30,0);dependency(memory,inverse_node+0x58,0);return memory;
 }
 }
+#include "modular_graph_cases.inc"
+#include "building_clearance_graph_cases.inc"
 int main()try{
     history::Saved saved;auto memory=setup(saved);std::string e;f::need(history::make(memory,f::image,inverse_node,saved,e),e);
     auto bad=[&](auto change){memory=setup(saved);change(memory);f::need(!history::make(memory,f::image,inverse_node,saved,e),"invalid original MakeScenery accepted");};
@@ -53,5 +55,7 @@ int main()try{
     history::Saved live;f::need(!history::live(memory,f::image,scenery_object,scenery_uid,f::root,f::region,find,live,e),"stale full UID live Scenery accepted");
     memory=setup(saved);memory.put(scenery_object+0x275,uint8_t(2));
     f::need(!history::live(memory,f::image,scenery_object,scenery_uid,f::root,f::region,find,live,e),"unknown native automatic flag accepted");
+    (void)modular_graph_cases();
+    (void)building_clearance_cases::run();
     std::cout<<f::checks<<" complete MakeScenery stored-payload/dependency cases passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

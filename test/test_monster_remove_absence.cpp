@@ -3,6 +3,7 @@
 #include "direct_monster_identity.h"
 #include <cstring>
 #include <iostream>
+namespace remove_absence_fixture {
 namespace a=mt2mp::action_session;
 namespace npc_quest_records=mt2mp::npc_quest_records;
 namespace npc_census=mt2mp::npc_census;
@@ -20,7 +21,7 @@ struct Memory:mt2mp::npc_census::Memory {
   auto b=static_cast<unsigned char*>(out);for(size_t i=0;i<n;++i){auto f=data.find(p+i);if(f==data.end()){e="fixture unreadable";return false;}b[i]=f->second;}return true;}
 };
 template<class T>bool field(Memory& m,uintptr_t base,size_t off,T& v,std::string& e){return m.copy(base+off,&v,sizeof v,e);}
-struct Pin{struct{uintptr_t root=10,selection=40;}world;struct{uintptr_t region=0x80000;}region;struct{uintptr_t find=1;}api;};
+struct Pin{struct{uintptr_t root=10,selection=40;}world;struct{uintptr_t region=0x80000,root=10;}region;struct{uintptr_t find=1;}api;};
 namespace d{struct Sample{mz::State state;struct Undo{std::vector<uintptr_t> undo;bool active_graph=false;}undo;};}
 struct RemoveOperation{a::Binding binding;identity::Entry birth;d::Sample before;qr::Witness quests;mt2mp::action_session::Request request;a::Evidence evidence;uint64_t character_id=7;std::map<uint64_t,std::string> names_before;};
 struct {uintptr_t image=0x100000000;}state;
@@ -60,7 +61,8 @@ void setup(Memory& m,Pin& p,RemoveOperation& op,d::Sample& after){
  m.set(inverse+0xe0,p.world.root);m.set(inverse+0xe8,p.region.region);m.set(inverse+0xf0,actor.rank);m.set(inverse+0xf8,uint64_t{0});
  m.set(inverse+0x100,actor.rotation);m.set(inverse+0x110,actor.position);m.set(inverse+0x11c,actor.scale);m.set(inverse+0x16c,actor.level);m.set(inverse+0x170,op.character_id);
 }
-int main(){try{std::string e;unsigned n=0;
+}
+int main(){try{using namespace remove_absence_fixture;std::string e;unsigned n=0;
  for(unsigned mode=0;mode<11;++mode){Memory m;Pin p;RemoveOperation op;d::Sample after;setup(m,p,op,after);
   if(mode==1)lookup_result=op.birth.pointer;if(mode==2)lookup_error=5;if(mode==3)monster_spatial=true;if(mode==4)character_spatial=true;if(mode==5)selection=false;
   if(mode==6){m.set(0x10078,int32_t{1});m.set(0x11000,op.birth.pointer);}if(mode==7)m.set(0x10078,int32_t{-1});

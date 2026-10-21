@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "shared_owner_fixture.inc"
 #include "placement_ui_probe/ui_probe.h"
 #include "placement_ui_probe/codeguards.h"

@@ -76,7 +76,10 @@ bool emit(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target,std
 
 }
 bool prepare(std::string& error) {
-    if(local()){error.clear();return SidecarClient::instance().connected()&&SidecarClient::instance().ready();}
+    if(local()){
+        if(!connected()){error="info: awaiting local physical handshake";return false;}
+        return prepare_local_membership(error);
+    }
     try {
         if(!binding(error,true)||!initialize_api(error))return false;
         if(!hello_sent) {
@@ -124,7 +127,7 @@ bool connected(){return local()?SidecarClient::instance().connected()&&SidecarCl
 size_t peers(){return local()?local_session_peers():connected()?size_t(std::count_if(ids.begin()+1,ids.end(),[](auto id){return id!=0;}))-1:0;}
 uint8_t peer_mask(){return local()?local_session_peer_mask():connected()?mask:0;}
 uint64_t local_peer(){return local()?Config::instance().peer_id:own;}
-uint64_t session_id(){return local()?Config::instance().session_id:current_session;}
+uint64_t session_id(){return local()?local_membership_generation():current_session;}
 bool send(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target) {
     if(local()){if(channel==9&&actions_suspended)return false;return SidecarClient::instance().send(channel,bytes,size,target);}
     std::string error;
@@ -178,7 +181,8 @@ void suspend_actions(){
 bool retire_lobby(std::string& error){
     if(local()){
         if(!publish_local_host_leave(error))return false;
-        return SidecarClient::instance().retire_action_handler(error);
+        if(!SidecarClient::instance().retire_action_handler(error))return false;
+        return leave_local_lobby(error);
     }
     if(SteamMatchmaking::instance().in_lobby()){error="wire retirement requires confirmed lobby absence";return false;}
     handlers.erase(9);ids={};lobby=own=current_session=pending_session=last_refresh_session=0;mask=hello_ack=0;bound=hello_sent=ended=actions_suspended=false;

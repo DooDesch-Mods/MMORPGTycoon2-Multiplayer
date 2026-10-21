@@ -1,28 +1,30 @@
-# Build together from the game desktop
+# MMORPG Tycoon 2 Multiplayer - Early Beta 17
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Build your world together. Host a Steam lobby and invite a friend to join you in MMORPG Tycoon 2.
+Build together with more of the game's familiar scenery tools. Copy buildings, arrange scenery in groups, clear space with the eraser and undo shared edits.
 
-## New in Beta 15
+### Added
 
-- Place, move and remove individual Elite monsters together while the world is paused, using the game's original tools.
-- Keep monster selection and the active tool consistent after a shared edit.
+- Copy supported buildings and individual scenery objects.
+- Group scenery, copy the group and ungroup either version.
+- Use the scenery eraser with shared removals and refunds.
+- Undo and redo shared building and scenery edits.
 
-## Install
+### Fixed
 
-Requires Windows x64, the supported Steam game build, the matching [MT2 Mod Framework Runtime](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) listed with this release. Both players need matching Multiplayer and dependency versions.
+- Fix a desync when copying a building after placement and undo/redo.
+- Restore cleared scenery correctly when undoing a building placement.
+- Preserve group names and selection when ungrouping scenery.
 
-1. Close the game and install the required Framework Runtime and Vortex Extension.
-2. Install the Multiplayer ZIP through Vortex for MMORPG Tycoon 2.
-3. Enable Multiplayer, deploy and start the game through Steam.
-4. Open the Multiplayer desktop icon, or choose **Mods... > Multiplayer > Open**.
-5. Host a lobby and create or load a small world, or join your friend's lobby. Wait until both players are ready before building.
+### Install
 
-This download contains the native Multiplayer plugin. Install the Framework Runtime separately. Remove an older standalone Multiplayer loader before switching to this plugin. Close the game before updating or removing native plugins.
+Both players need this version, [MT2 Mod Framework Runtime 0.2.5](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Close the game before updating, deploy through Vortex and launch through Steam.
 
-## Early Beta
+Open the **Multiplayer** desktop icon, or choose **Mods... > Multiplayer > Open**.
 
-This mod is in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
+### Early Beta
 
-Problem reports stay private for 30 days. They do not include saves, chat, screenshots or Steam account IDs. Please keep passwords and personal information out of the optional description.
+Start with a small world and keep backups. Shared edits can take several seconds or longer, and the game can occasionally crash during startup. Gameplay support is still incomplete.
+
+Use **Report a problem** in the Multiplayer window to send technical details privately.

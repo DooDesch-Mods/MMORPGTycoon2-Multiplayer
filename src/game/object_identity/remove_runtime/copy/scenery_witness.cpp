@@ -66,7 +66,7 @@ bool read_scenery(Memory& m,SceneryHost& host,uintptr_t image,SceneryWitness& ou
             const auto& c=w.context;
             if(!c.main_thread)return fail(e,"scenery_wrong_thread");
             if(!c.exact_build)return fail(e,"scenery_build_guard");
-            if(!c.owned_world_valid||!c.epoch||!c.region||!c.shard||!c.manager)return fail(e,"scenery_world_guard");
+            if(!c.owned_world_valid||(!c.epoch&&!c.snapshot_observation)||!c.region||!c.shard||!c.manager)return fail(e,"scenery_world_guard");
             uintptr_t own_manager=0,ap=0,region=0,shard=0;
             if(!at(m,c.region,0x960,own_manager,e)||!at(m,c.manager,0,ap,e)||!at(m,c.manager,0x900,region,e)||!at(m,c.manager,0x908,shard,e))return false;
             if(own_manager!=c.manager)return fail(e,"scenery_region_manager_mismatch");
@@ -110,7 +110,7 @@ OverlapResult overlaps(const GeometryApi& api,const SceneryWitness& source,const
     OverlapResult result;
     try {
         if(!api.construct||!api.intersects){result.error="scenery_geometry_api_missing";return result;}
-        if(!source.context.main_thread||!source.context.exact_build||!source.context.owned_world_valid||!source.context.epoch){result.error="scenery_geometry_context_guard";return result;}
+        if(!source.context.main_thread||!source.context.exact_build||!source.context.owned_world_valid||!source.context.epoch||source.context.snapshot_observation){result.error="scenery_geometry_context_guard";return result;}
         if(!valid_geometry(box,transform,result.error))return result;
         result.member_indices.reserve(source.members.size());
         for(size_t i=0;i<source.members.size();++i){

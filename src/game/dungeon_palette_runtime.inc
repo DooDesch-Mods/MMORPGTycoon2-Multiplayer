@@ -20,7 +20,7 @@ bool code(Memory& memory,std::string& error){
         if(!std::equal(ui_code.prefix.begin(),ui_code.prefix.begin()+5,trampoline.begin())||!std::equal(continuation.begin(),continuation.end(),trampoline.begin()+5)||resume!=state.image+ui_code.rva+5)return fail(error,"Dungeon palette exact original five-byte instruction boundary differs");
         std::memcpy(bytes.data(),receipt.pristine,32);if(!quest_list::verify_code(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;}
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Dungeon palette original outer command body differs":error);
-    for(const auto& pin:dungeon_palette_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;if(pin.rva==0x6a1780&&!quest_list::checkbox_original(state.image+pin.rva,bytes,error))return false;if(!quest_bridge::sha256(bytes,hash,error))return false;if(hash!=pin.sha)return fail(error,"Dungeon palette original explicit-owner helper body differs RVA="+std::to_string(pin.rva));}
+    for(const auto& pin:dungeon_palette_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;if(pin.rva==0x6a1780&&!quest_list::checkbox_original(state.image+pin.rva,bytes,error))return false;if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Dungeon palette original explicit-owner helper body differs RVA="+std::to_string(pin.rva)+": "+error);}
     uint32_t factor=0;if(!field(memory,state.image,0x159509c,factor,error))return false;if(factor!=0x437f0000)return fail(error,"Dungeon palette original packed-color factor differs");return true;
 }
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::DungeonPaletteIntent& intent,Sample& out,std::string& error){
@@ -125,6 +125,8 @@ json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[i
 
 #include "dungeon_cells_sample.inc"
 #include "dungeon_cells_graph.inc"
+#include "dungeon_authored_sample.inc"
+#include "dungeon_building_sample.inc"
 #include "dungeon_cells_port.inc"
 #include "dungeon_cells_runtime.inc"
 #include "dungeon_cells_history.inc"

@@ -24,6 +24,15 @@ init = "        initialize_instance_hooks();"
 tick = next(line for line in after.splitlines() if "game::typed_action_runtime::tick();" in line)
 positions = [after.index(line) for line in (bind, thread, owned, init, tick)]
 assert positions == sorted(positions)
+transport=next(line for line in after.splitlines() if 'if(Config::instance().local_test)net::tick_local_session();' in line)
+deadline=next(line for line in after.splitlines() if 'game::typed_action_runtime::tick_after_transport();' in line)
+assert after.index(tick)<after.index(transport)<after.index(deadline)<after.index('if(time_initialized)')<after.index('frame.live.close();')
+runtime=(args.source/'src/game/typed_action_runtime.cpp').read_text(encoding='utf-8')
+start_tick=runtime[runtime.index('void tick() {'):runtime.index('void tick_after_transport() {')]
+after_tick=runtime[runtime.index('void tick_after_transport() {'):runtime.index('bool resolve_held_dungeon_destination(')]
+assert 'controller.tick(' not in start_tick and after_tick.count('controller.tick(GetTickCount64(),error)')==1
+assert 'runtime->lobby_retiring' in after_tick and 'runtime->controller.status().started' in after_tick
+
 assert "REQUIRED_ENGINE_ROUTES_READY" not in loader
 assert "REQUIRED_ENGINE_ROUTES_READY" in helper
 assert 'result["dungeon_instance_hooks"]=' in text
@@ -52,7 +61,13 @@ bool initialize(uintptr_t image,std::string& error){
     if(mode==3)throw 19;
     error.clear();return true;
 }}
-namespace game::typed_action_runtime {void tick(){++typed_calls;}}
+unsigned transport_calls=0,deadline_calls=0;bool transport_drained=false;
+struct Config {bool local_test=true;static Config& instance(){static Config value;return value;}};
+namespace net {void tick_local_session(){++transport_calls;transport_drained=true;}}
+namespace game::typed_action_runtime {
+void tick(){++typed_calls;transport_drained=false;}
+void tick_after_transport(){require(transport_drained,"action deadline ran before inbound transport drain");++deadline_calls;}
+}
 enum class FrameTimingPart {Typed};
 namespace game_update_pair {enum class Section {Typed};}
 struct FrameTimingScope {explicit FrameTimingScope(FrameTimingPart){}};
@@ -61,11 +76,11 @@ struct GameUpdateWorkScope {explicit GameUpdateWorkScope(game_update_pair::Secti
 fixture += helper
 # The exact affected call statements are extracted from Core. Unchanged lobby,
 # time and transport work remains outside this focused callback slice.
-fixture += "static void affected_game_update() {\n" + "\n".join((bind, thread, owned, init, tick)) + "\n    }\n}\n"
+fixture += "static void affected_game_update() {\n" + "\n".join((bind, thread, owned, init, tick, transport, deadline)) + "\n    }\n}\n"
 fixture += r'''
 void reset(int failure=0){
     mode=failure;bound=false;allow_bind=true;owned_native_profile=true;engine_thread=0;
-    initialize_calls=typed_calls=errors=infos=0;
+    initialize_calls=typed_calls=errors=infos=transport_calls=deadline_calls=0;transport_drained=false;
     instance_initialization_attempted=instance_hooks_ready=false;instance_initialization_error.clear();
 }
 int main()try{
@@ -74,6 +89,7 @@ int main()try{
     allow_bind=true;owned_native_profile=false;affected_game_update();require(initialize_calls==0&&typed_calls==0,"non-owned profile preserves existing callback scope");
     owned_native_profile=true;affected_game_update();require(initialize_calls==1&&typed_calls==1&&instance_hooks_ready,"successful required initialization precedes first typed tick");
     affected_game_update();require(initialize_calls==1&&typed_calls==2&&errors==0,"later updates reuse confirmed initialization exactly once");
+    require(transport_calls==2&&deadline_calls==2,"queued transport is drained once before each deadline observation");
     require(infos==2,"required readiness is emitted once only after initialization success");
     for(int failure:{1,2,3}){
         reset(failure);std::string cause;

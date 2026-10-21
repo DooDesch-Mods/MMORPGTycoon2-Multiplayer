@@ -38,7 +38,7 @@ bool read_bound(const Local& owner,Row& row,Local& local,std::string& error){
     return read_row(at,copy,maximum,clip,image,owner,row,local,error)&&read_saved(at,copy,find,image,owner,row,local,error);
 }
 bool read_current(const action_session::Context& context,const action_session::Binding& binding,State& out,Locals& locals,std::string& error){
-    out.clear();locals.clear();Census before;if(!interventions::census(context,binding,before,error))return false;
+    out.clear();locals.clear();Census before;if(!interventions::actor_census(context,binding,before,error))return false;
     State values;Locals native_rows;Read at;const auto image=uintptr_t(GetModuleHandleW(nullptr));if(!code(image,error))return false;
     auto links=std::make_shared<Links>();
     for(const auto& actor:before.actors){if(!links->actors.emplace(actor.object,ActorLink{actor.target,actor.object,actor.uid}).second||!links->actor_keys.emplace(std::pair{uint8_t(actor.target.family),actor.target.key},actor.object).second)return fail(error,"Actor current complete canonical user links repeat");}
@@ -48,12 +48,17 @@ bool read_current(const action_session::Context& context,const action_session::B
     auto maximum=[&](uintptr_t object,int32_t index,float& value,std::string& cause){const auto code=native::maximum(image,object,index,value);return !code||fail(cause,"Actor Frame original attribute maximum SEH="+std::to_string(code));};
     auto clip=[&](const native::Render& render,int32_t index,Clip& value,std::string& cause){const auto code=native::clip(image,render,index,value);return !code||fail(cause,"Actor Frame original semantic clip read SEH="+std::to_string(code));};
     auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){const auto code=native::registered(image,uid,pointer);return !code||fail(cause,"Actor Frame original saved link/item full UID lookup SEH="+std::to_string(code));};
-    for(const auto& actor:before.actors){if(actor.target.family==Family::Toon||(actor.target.family==Family::Monster&&!zone_monster_key(actor.target.key)))continue;
+    for(const auto& actor:before.actors){if(actor.target.family==Family::Toon)continue;
         uintptr_t region=0;if(!at(actor.object,0x178,region,error))return false;
         const auto pool=std::find_if(before.bosses.pools.begin(),before.bosses.pools.end(),[&](const auto& value){return value.scope.region==region;});
         if(pool==before.bosses.pools.end())return fail(error,"Actor Frame canonical actor Region absent from current Root/Dungeon scene census");
+        if(actor.target.family==Family::Monster&&!zone_monster_key(actor.target.key)){
+            if(pool->scope.scene=="world")continue;
+            if(!direct_dungeon_scope(actor.target,pool->scope))
+                return fail(error,"Actor Frame direct Monster lacks a confirmed current Dungeon scene");
+        }
         Local owner;owner.target=actor.target;owner.object=actor.object;owner.uid=actor.uid;owner.scope=pool->scope;owner.links=links;
-        if(actor.target.family==Family::Monster){if(!at(actor.object,0x8d0,owner.zone,error))return false;const auto zone=std::find_if(before.zones.begin(),before.zones.end(),[&](const auto& value){return value.object==owner.zone;});
+        if(actor.target.family==Family::Monster&&zone_monster_key(actor.target.key)){if(!at(actor.object,0x8d0,owner.zone,error))return false;const auto zone=std::find_if(before.zones.begin(),before.zones.end(),[&](const auto& value){return value.object==owner.zone;});
             if(zone==before.zones.end())return fail(error,"Actor Frame natural Monster canonical Zone absent from complete current census");owner.zone_uid=zone->uid;
             const auto separator=actor.target.key.rfind(":monster:");const auto index=std::string_view(actor.target.key).substr(separator+9);uint32_t ordinal=0;for(const char digit:index)ordinal=ordinal*10+uint32_t(digit-'0');owner.zone_index=int32_t(ordinal);}
         Row first,second;Local first_local,second_local;
@@ -61,7 +66,7 @@ bool read_current(const action_session::Context& context,const action_session::B
         if(first!=second||first_local!=second_local)return fail(error,"Actor Frame complete current row changed during native read key="+actor.target.key);
         if(!native_rows.emplace(actor.target.key,std::move(second_local)).second)return fail(error,"Actor Frame complete canonical identity repeats");values.push_back(std::move(second));
     }
-    Census after;if(!interventions::census(context,binding,after,error)||!same(before,after))return fail(error,error.empty()?"Actor Frame complete canonical owner census changed during read":error);
+    Census after;if(!interventions::actor_census(context,binding,after,error)||!same(before,after))return fail(error,error.empty()?"Actor Frame complete canonical owner census changed during read":error);
     std::sort(values.begin(),values.end(),[](const auto& a,const auto& b){return a.target.key<b.target.key;});if(!valid(values,error))return false;
     out=std::move(values);locals=std::move(native_rows);error.clear();return true;
 }

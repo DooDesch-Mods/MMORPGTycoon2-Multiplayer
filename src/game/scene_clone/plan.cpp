@@ -1,37 +1,64 @@
 #include "raw.h"
 namespace mt2mp::game::scene_clone {
 bool same_world(const dungeon_scene_identity_runtime::World& a,const dungeon_scene_identity_runtime::World& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.uuid==b.uuid&&a.sha256==b.sha256;}
-bool same_owner(const Pool& a,const Pool& b){const auto& x=a.scene;const auto& y=b.scene;return x.owner.key==y.owner.key&&x.owner.exterior_key==y.owner.exterior_key&&x.owner.type==y.owner.type&&x.owner.instance_index==y.owner.instance_index&&x.owner.shard==y.owner.shard&&x.owner.region==y.owner.region&&x.owner.dungeon==y.owner.dungeon&&x.owner.instance==y.owner.instance&&x.owner.exterior==y.owner.exterior&&x.owner.exterior_uid==y.owner.exterior_uid&&x.dungeon_uid==y.dungeon_uid&&x.exterior_region==y.exterior_region&&x.exterior_slot==y.exterior_slot&&a.managers==b.managers;}
+bool same_owner(const Pool& a,const Pool& b){const auto& x=a.scene;const auto& y=b.scene;return x.owner.key==y.owner.key&&x.owner.exterior_key==y.owner.exterior_key&&x.owner.type==y.owner.type&&x.owner.instance_index==y.owner.instance_index&&x.owner.shard==y.owner.shard&&x.owner.region==y.owner.region&&x.owner.dungeon==y.owner.dungeon&&x.owner.instance==y.owner.instance&&x.owner.exterior==y.owner.exterior&&x.owner.exterior_uid==y.owner.exterior_uid&&x.dungeon_uid==y.dungeon_uid&&a.managers==b.managers&&a.building_manager==b.building_manager;}
 
-bool retirements_ready(const Raw& before,const Mapping& mapping,const std::function<bool(uint64_t,uintptr_t&,std::string&)>& find,std::string& e){
+bool retirements_ready(const Raw& before,const Mapping& mapping,const std::function<bool(uint64_t,uintptr_t&,std::string&)>& find,std::string& e,const Raw* held){
     for(const auto& row:mapping.retired){const auto pool=std::find_if(before.pools.begin(),before.pools.end(),[&](const auto& value){return value.scene.owner.key==row.scene;});
         if(pool==before.pools.end()){e="Scene clone retirement scene absent from confirmed baseline";return false;}
         const auto member=std::find_if(pool->members.begin(),pool->members.end(),[&](const auto& value){return value.family==row.family&&value.child==row.child&&value.key==row.key;});
         if(member==pool->members.end()||!member->uid||!member->object){e="Scene clone retirement lacks exact original full UID/key";return false;}
         uintptr_t registered{};if(!find(member->uid,registered,e))return false;
-        if(registered){e="Scene clone original member deletion is incomplete full_uid="+std::to_string(member->uid);return false;}
+        const bool retained=held_member(held,row.scene,member->object,member->uid);
+        if(retained&&registered!=member->object){e="Scene clone retained template member full UID changed";return false;}
+        if(!retained&&registered){e="Scene clone original member deletion is incomplete full_uid="+std::to_string(member->uid);return false;}
     }e.clear();return true;
 }
-bool plan(const Raw& before,const Raw& after,const std::string& operation,const Mapping& previous,const Mapping* authority,Mapping& out,Changes& changes,std::string& e){
+bool plan(const Raw& before,const Raw& after,const std::string& operation,const Mapping& previous,const Mapping* authority,Mapping& out,Changes& changes,std::string& e,const std::string& template_exterior,const Raw* restoration){
     out={};changes={};const auto fail=[&](const char* cause){e=cause;return false;};
     if(!same_world(before.world,after.world))return fail("Scene clone raw baseline world lifetime changed");
+    if(!template_exterior.empty()&&!dungeon_scene_key::building_key(template_exterior))return fail("Scene clone template action exterior key invalid");
     if(authority&&(!valid(*authority,e)||authority->operation!=operation))return fail("Scene clone Host mapping operation/shape differs");
+    if(restoration&&(template_exterior.empty()||!same_world(before.world,restoration->world)))return fail("Scene clone restoration requires the retained exact template world");
+    const auto restored_scene=[&](const std::string& key)->const Pool*{
+        if(!restoration)return nullptr;
+        const auto found=std::find_if(restoration->pools.begin(),restoration->pools.end(),[&](const auto& p){return p.scene.owner.key==key&&p.scene.owner.exterior_key==template_exterior;});
+        return found==restoration->pools.end()?nullptr:&*found;
+    };
     Mapping next;next.operation=operation;next.retired=authority?authority->retired:previous.retired;
-    for(const auto& retired:previous.retired)if(std::find(next.retired.begin(),next.retired.end(),retired)==next.retired.end())return fail("Scene clone Host mapping forgot a confirmed retirement");
+    if(!authority&&restoration)std::erase_if(next.retired,[&](const auto& row){return restored_scene(row.scene)!=nullptr;});
+    for(const auto& retired:previous.retired)if(!restored_scene(retired.scene)&&std::find(next.retired.begin(),next.retired.end(),retired)==next.retired.end())return fail("Scene clone Host mapping forgot a confirmed retirement");
     uint32_t ordinal=0;size_t index=0;std::set<std::string> old_scenes,new_scenes;std::set<uint64_t> uids;std::set<uintptr_t> pointers;
     for(const auto& p:before.pools)if(!old_scenes.insert(p.scene.owner.key).second)return fail("Scene clone baseline scene duplicated");
     for(const auto& pool:after.pools){if(!new_scenes.insert(pool.scene.owner.key).second)return fail("Scene clone current scene duplicated");
         SceneCount counts;counts.scene=pool.scene.owner.key;
-        for(const auto& m:pool.members){if(m.family==Family::Gizmo)++counts.gizmos;else if(m.family==Family::MonsterZone)++counts.zones;else if(m.family==Family::DirectMonster)++counts.monsters;else return fail("Scene clone raw family invalid");}next.scenes.push_back(counts);
+        for(const auto& m:pool.members){if(m.family==Family::Gizmo)++counts.gizmos;else if(m.family==Family::MonsterZone)++counts.zones;else if(m.family==Family::DirectMonster)++counts.monsters;else if(zone_type(m.family)>=0)++counts.other_zones[size_t(uint8_t(m.family)-3)];else if(m.family==Family::Building)++counts.buildings;else if(m.family==Family::Scenery)++counts.scenery;else return fail("Scene clone raw family invalid");}next.scenes.push_back(counts);
         if(counts.zones!=pool.zones.zones.size())return fail("Scene clone raw Zone family roster incomplete");
         const auto old=std::find_if(before.pools.begin(),before.pools.end(),[&](const auto& p){return p.scene.owner.key==pool.scene.owner.key;});
         const bool born=old==before.pools.end();
-        if(born&&pool.scene.owner.type!=2)return fail("Scene clone birth is not an original Instance scene");
+        if(born&&pool.scene.owner.type!=2&&(template_exterior.empty()||pool.scene.owner.type!=1||pool.scene.owner.exterior_key!=template_exterior))return fail("Scene clone birth is not an original Instance or exact pending template scene");
         if(!born&&!same_owner(*old,pool))return fail("Scene clone surviving scene owner replaced without retirement");
+        const auto* restored=born?restored_scene(pool.scene.owner.key):nullptr;
+        if(restored&&(restored->scene.owner.type!=pool.scene.owner.type||restored->scene.owner.instance_index!=pool.scene.owner.instance_index||
+            restored->scene.owner.exterior_uid!=pool.scene.owner.exterior_uid||
+            restored->scene.owner.shard!=pool.scene.owner.shard||restored->scene.owner.region!=pool.scene.owner.region||
+            restored->scene.owner.dungeon!=pool.scene.owner.dungeon||restored->scene.owner.instance!=pool.scene.owner.instance||
+            restored->scene.dungeon_uid!=pool.scene.dungeon_uid||restored->managers!=pool.managers||
+            restored->building_manager!=pool.building_manager||restored->members.size()!=pool.members.size()))
+            return fail("Scene clone restored scene differs from retained original exterior/type/member count");
+        if(born&&restoration&&pool.scene.owner.exterior_key==template_exterior&&!restored)return fail("Scene clone history created a scene absent from the consumed original");
         for(const auto& m:pool.members){
             if(!m.object||!m.uid||!uids.insert(m.uid).second||!pointers.insert(m.object).second)return fail("Scene clone raw member full UID/pointer missing or duplicated");
             Assignment row{pool.scene.owner.key,m.key,m.family,m.child,m.ordinal,m.origin};
-            if(born){
+            if(restored){
+                const auto expected=std::find_if(restored->members.begin(),restored->members.end(),[&](const auto& value){return value.family==m.family&&value.child==m.child;});
+                if(expected==restored->members.end()||expected->key.empty()||expected->object!=m.object||expected->uid!=m.uid)
+                    return fail("Scene clone restored original ordered member full UID differs");
+                row={pool.scene.owner.key,expected->key,m.family,m.child,expected->ordinal,expected->origin};
+                if(std::find(previous.retired.begin(),previous.retired.end(),row)==previous.retired.end())return fail("Scene clone original restoration lacks exact retained retirement");
+                if(authority&&(index>=authority->members.size()||authority->members[index]!=row))return fail("Scene clone Host restored alias differs from consumed original");
+                changes.restored.push_back(row);
+            }else if(born){
                 if(ordinal>=12288)return fail("Scene clone complete ordered birth batch exceeds budget");
                 row.ordinal=ordinal++;row.origin=operation;row.key=birth_key(operation,m.family,row.ordinal);
                 if(authority){if(index>=authority->members.size())return fail("Scene clone Host mapping omitted birth");row=authority->members[index];
@@ -47,7 +74,7 @@ bool plan(const Raw& before,const Raw& after,const std::string& operation,const 
         }
     }
     for(const auto& pool:before.pools)if(!new_scenes.contains(pool.scene.owner.key)){
-        if(pool.scene.owner.type!=2)return fail("Scene clone retirement removed a template scene");
+        if(pool.scene.owner.type!=2&&(template_exterior.empty()||pool.scene.owner.type!=1||pool.scene.owner.exterior_key!=template_exterior))return fail("Scene clone retirement removed a template outside the exact pending action");
         for(const auto& m:pool.members){if(!m.uid||!m.object||m.key.empty())return fail("Scene clone retirement lacks confirmed canonical/full UID baseline");
             Assignment row{pool.scene.owner.key,m.key,m.family,m.child,m.ordinal,m.origin};changes.retired.push_back(row);
             const auto found=std::find(next.retired.begin(),next.retired.end(),row);
@@ -55,6 +82,8 @@ bool plan(const Raw& before,const Raw& after,const std::string& operation,const 
             if(!authority&&found==next.retired.end())next.retired.push_back(std::move(row));
         }
     }
+    if(restoration)for(const auto& pool:restoration->pools)if(pool.scene.owner.exterior_key==template_exterior&&!new_scenes.contains(pool.scene.owner.key))
+        return fail("Scene clone history omitted a retained original restored scene");
     if(!valid(next,e))return false;
     if(authority&&next!=*authority)return fail("Scene clone Host complete ordered current roster differs");
     out=std::move(next);e.clear();return true;

@@ -1,11 +1,27 @@
 #include "developer_staff/construction_native.h"
 #include "multiplayer_world/world_state.h"
+#include "building_clearance_runtime.h"
 #include "bug_authority/codec.h"
 namespace bug_authority=mt2mp::game::bug_authority;
 #include <atomic>
+#include <bit>
+#include <regex>
+#include "duplicate_transition.h"
+#include "scenery_scene_key.h"
+namespace mt2mp::action_session {
+#include "construction_duplicate_valid.inc"
+}
 #include <iostream>
 #include <map>
+#include <set>
 #include <stdexcept>
+#include <algorithm>
+#include <cmath>
+#include <cstring>
+#include <limits>
+#include <memory>
+#include "placement_kiss/placement_adapter.h"
+#include "object_identity/remove_runtime/copy/undo_witness.h"
 namespace action=mt2mp::action_session;
 namespace developer_staff=mt2mp::game::developer_staff;
 namespace world_state=mt2mp::world_state;
@@ -13,37 +29,67 @@ using json=nlohmann::json;
 namespace fixture {
 unsigned checks=0,places=0,finishes=0,captures=0,currents=0;bool capture_ok=true,finish_ok=true,commit_ok=true,current_ok=true,no_job=false;
 bool* expected_retired_before_place=nullptr;
+bool actual_scenery=false;
 std::vector<std::string> calls;
 void need(bool b,const std::string& e){++checks;if(!b)throw std::runtime_error(e);}
 action::Request request;action::Context context;action::Binding binding{7,9};action::BuildingState building;
 }
-namespace native {using BuildingState=action::BuildingState;}
+namespace native {
+struct BuildingState:action::BuildingState {
+    struct Prop {uint64_t uid=0;float x=0,y=0,z=0;} prop;
+    BuildingState& operator=(const action::BuildingState& in){static_cast<action::BuildingState&>(*this)=in;prop={500,in.x,in.y,in.z};return *this;}
+};
+struct SimulationState {int64_t cash=0;};
+bool read_simulation_state(SimulationState&,std::string&);
+}
 namespace remove_diagnostics {
-struct LocalTarget {bool normal_scenery=false;};
+struct LocalTarget {bool normal_scenery=false,normal_building=true;uint64_t uid=500;};
+bool admit_created_dungeon_building(const std::string&,const std::string&,uint64_t,const std::string&,std::string&){
+    throw std::runtime_error("Ordinary construction fixture entered Dungeon admission");
+}
 bool admit_created_building(const std::string&,const std::string&,uint64_t,std::string&){fixture::calls.push_back("admit");return true;}
-bool resolve_record_target(const std::string&,const std::string&,LocalTarget&,std::string&){fixture::calls.push_back("resolve");return true;}
+bool resolve_record_target(const std::string&,const std::string&,LocalTarget& out,std::string&){fixture::calls.push_back("resolve");out.normal_scenery=fixture::actual_scenery;out.normal_building=!out.normal_scenery;return true;}
 }
 namespace mt2mp::world_state {
-bool bind_root_readback(const Origin&,const std::string&,const remove_diagnostics::LocalTarget&,const native::BuildingState& in,LocalBinding& out,std::string&){out.state=in;return true;}
+bool bind_root_readback(const Origin&,const std::string& key,const remove_diagnostics::LocalTarget&,const native::BuildingState& in,LocalBinding& out,std::string&){out.state=in;out.object_key=key;out.local_uid=500;return true;}
 }
 namespace scenery_kiss {bool read_action_prop(uint64_t,native::BuildingState& out,std::string&){out=fixture::building;return true;}}
-namespace building_history_slice {bool remember_place(const std::string&,uint64_t,std::string&){fixture::calls.push_back("remember");return true;}}
+#include "scenery_placement_receipt_ports.inc"
+namespace building_history_slice {
+bool remember_place(const std::string&,uint64_t graph,std::string& error){
+    fixture::calls.push_back("remember");
+    if(!fixture::actual_scenery)return true;
+    ++scenery_receipt_fixture::remembered;
+    fixture::need(graph==scenery_receipt_fixture::graph,"consumer did not receive the exact original Scenery Undo graph");
+    fixture::need(scenery_receipt_fixture::graph_reads==1&&scenery_receipt_fixture::cleanup_returns==1,
+        "history registered before actual producer graph validation/cleanup");
+    if(!scenery_receipt_fixture::history_ok){error="actual history registration failure";return false;}
+    return true;
+}
+}
 namespace ui_build_runtime {
-bool place(const action::Request&,action::BuildingState& out,json& receipt,std::string&){if(fixture::expected_retired_before_place)fixture::need(*fixture::expected_retired_before_place,"absent original Job was not retired before allocator reuse");++fixture::places;fixture::calls.push_back("place");out=fixture::building;receipt={{"confirmed",true},{"attempted",true},{"native_uid",uint64_t(500)},{"local_undo_graph",uint64_t(600)}};return true;}
+bool place(const action::Request& request,action::BuildingState& out,json& receipt,std::string& error){if(fixture::expected_retired_before_place)fixture::need(*fixture::expected_retired_before_place,"absent original Job was not retired before allocator reuse");++fixture::places;fixture::calls.push_back("place");
+if(fixture::actual_scenery)return place_scenery(scenery_receipt_fixture::producer,request,out,receipt,error);
+out=fixture::building;receipt={{"confirmed",true},{"attempted",true},{"native_uid",uint64_t(500)},{"local_undo_graph",uint64_t(600)}};return true;}
 }
 namespace mt2mp::game::developer_staff::construction {
 bool capture_placement(PlacementBefore&,std::string& e){++fixture::captures;fixture::calls.push_back("capture");if(!fixture::capture_ok)e="actual before Job census failure";return fixture::capture_ok;}
 bool finish_placement(const PlacementBefore&,const std::string&,const std::string& key,uint64_t uid,LocalJob& out,std::string& e){++fixture::finishes;fixture::calls.push_back("finish");if(!fixture::finish_ok){e="actual after Job census failure";return false;}if(!fixture::no_job)out={key,0x1234,uid};return true;}
 }
+#include "construction_clearance_ports.inc"
+#include "duplicate_construction_engine_ports.inc"
 namespace typed_action_runtime {json status(){return {{"pending",true},{"action_uuid",fixture::request.action_uuid},{"host_revision",uint64_t(1)}};}}
 struct World {
 std::map<std::string,world_state::Row> rows_;
+#include "duplicate_construction_world_ports.inc"
 const auto& rows()const{return rows_;}
 world_state::Origin origin(){return {};}
 world_state::Admission prepare(const world_state::Origin&,const world_state::Change&,std::string&){return world_state::Admission::New;}
 world_state::Admission commit(const world_state::Origin&,const world_state::Change& change,const world_state::LocalBinding& observed,std::string& e){fixture::calls.push_back("commit");if(!fixture::commit_ok){e="actual world commit failure";return world_state::Admission::Rejected;}rows_[change.object_key].state=observed.state;return world_state::Admission::New;}
 };
 struct NativeEngine {
+    const action::Request* active_dungeon_building_=nullptr;
+#include "dungeon_original_scope.inc"
 #include "construction_build_operation.inc"
 #include "construction_operation.inc"
 std::map<std::string,Operation> operations_;
@@ -52,9 +98,17 @@ std::map<std::string,HistoryOperation> history_;
 std::map<std::string,BuildOperation> buildings_;World world_;
 bool current(const action::Binding&,const std::string&,std::string& e){++fixture::currents;if(!fixture::current_ok)e="actual current Origin failure";return fixture::current_ok;}
 bool read_ledger(action::Ledger& out,std::string&){out={};return true;}
+action::Binding loaded_construction_binding_{};
+std::string loaded_construction_snapshot_;
+std::vector<developer_staff::construction::LocalJob> loaded_construction_;
+#include "construction_duplicate_type.inc"
+std::map<std::string,DuplicateConstruction> duplicate_construction_;
+#include "construction_retire_absent.inc"
 #include "construction_engine_jobs.inc"
 #include "construction_engine_bug_parent.inc"
 #include "construction_perform_place.inc"
+#include "construction_perform_duplicate.inc"
+#include "construction_perform_duplicate_history.inc"
 };
 uint32_t GetCurrentThreadId(){return 1;}
 struct Session {bool good=true;bool current(action::Context& out,std::string& e){if(!good){e="actual Session unavailable";return false;}out=fixture::context;return true;}};
@@ -63,8 +117,15 @@ struct Runtime {uint32_t thread=1;bool lobby_retiring=false;Session session;Cont
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "construction_runtime_jobs.inc"
 #include "construction_runtime_bug_parent.inc"
-void reset(Runtime& r){using namespace fixture;places=finishes=captures=currents=0;capture_ok=finish_ok=commit_ok=current_ok=true;no_job=false;calls.clear();request={};request.action=action::Action::PlaceBuilding;request.action_uuid="11111111-1111-4111-8111-111111111111";request.snapshot_uuid="22222222-2222-4222-8222-222222222222";request.canonical_record_key="action:"+request.action_uuid;context={};context.snapshot_uuid=request.snapshot_uuid;context.session=3;context.role=action::Role::Client;r={};r.controller.context=context;r.controller.binding=binding;published_runtime=&r;}
+void reset(Runtime& r){clearance_placement_fixture::clear();using namespace fixture;places=finishes=captures=currents=0;capture_ok=finish_ok=commit_ok=current_ok=true;no_job=false;calls.clear();request={};request.action=action::Action::PlaceBuilding;request.action_uuid="11111111-1111-4111-8111-111111111111";request.snapshot_uuid="22222222-2222-4222-8222-222222222222";request.canonical_record_key="action:"+request.action_uuid;context={};context.snapshot_uuid=request.snapshot_uuid;context.session=3;context.role=action::Role::Client;r={};r.controller.context=context;r.controller.binding=binding;published_runtime=&r;}
+#include "scenery_placement_receipt_cases.inc"
+#include "loaded_construction_engine_cases.inc"
+#include "duplicate_construction_engine_cases.inc"
+#include "construction_clearance_cases.inc"
 int main(){try{using namespace fixture;Runtime runtime;std::string e;std::vector<developer_staff::construction::LocalJob> jobs;
+loaded_engine_cases();
+duplicate_engine_cases(runtime);
+clearance_placement_cases(runtime);
 reset(runtime);bool known=true,alive=true;
 need(bug_parent_alive(context,binding,request.canonical_record_key,known,alive,e)&&!known&&!alive,"missing Building row became a tombstone");
 runtime.engine.world_.rows_[request.canonical_record_key].state.alive=true;
@@ -114,4 +175,5 @@ runtime.engine.operations_[removed.request.action_uuid]=changed;
 need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"foreign/unconfirmed Remove history projected restoration");}
 runtime.engine.operations_[removed.request.action_uuid]=removed;restore.object_before.alive=true;runtime.engine.history_[restore.request.action_uuid]=restore;
 need(construction_jobs(context,binding,jobs,e)&&!jobs[0].target_restored,"destructive inverse was called a restored lifetime");
+scenery_receipt_cases(runtime,e);
 std::cout<<"PASS "<<checks<<" actual placement/accessor checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

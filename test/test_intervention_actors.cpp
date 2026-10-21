@@ -17,7 +17,7 @@ struct Memory {
     template<class T>bool at(uintptr_t fixture_object,size_t offset,T& value,std::string& error){return copy(fixture_object+offset,&value,sizeof value,error);}
 };
 constexpr uintptr_t image=0x1000000,fixture_object=0x3000000,fixture_character=0x4000,actor=0x5000,skeleton=0x6000;
-constexpr uintptr_t fixture_item=0xb000,prototype=0xc000,proxy=0xd000,item_data=0xe000;
+constexpr uintptr_t fixture_item=0xb000,prototype=0xc000,fixture_proxy=0xd000,item_data=0xe000;
 struct Fixture {
     Memory memory;a::Local owner;
     Fixture(i::Family family){owner.target={family,family==i::Family::Boss?sha+":world:boss:1":family==i::Family::Npc?"action:"+uuid:sha+":world:zone:1:monster:0"};owner.object=fixture_object;owner.uid=0x100000001;owner.scope={uuid,"world",2,3,0x1000,0x1000,0x2000,0x3000};
@@ -34,7 +34,7 @@ struct Fixture {
         const std::string ability="character:1:2/ability/0";links->abilities.emplace(prototype,a::AbilityLink{ability,prototype,0x300000001});links->ability_keys.emplace(ability,prototype);owner.links=links;
         for(size_t n=0;n<4;++n){const auto address=fixture_object+0x4e8+n*0x40;memory.put(address,image+uintptr_t(0x1720600));memory.put(address+0x18,int32_t(n));memory.put(address+0x1c,int32_t(10+n));memory.put(address+0x20,float(1+n));memory.put(address+0x24,float(2+n));memory.put(address+0x28,float(3+n));memory.put(address+0x30,n==0?fixture_object:uintptr_t(0));memory.put(address+0x38,n==0?prototype:uintptr_t(0));}
         memory.put(fixture_object+0x7a8,image+uintptr_t(0x16e3c30));memory.put(fixture_object+0x7b0,item_data);memory.put(fixture_object+0x7b8,int32_t(1));memory.put(fixture_object+0x7bc,int32_t(2));memory.put(fixture_object+0x7d8,fixture_object);memory.put(item_data,fixture_item);
-        memory.put(fixture_item,image+uintptr_t(0x17437f0));memory.put(fixture_item+0x18,uint64_t(0x400000001));memory.put(fixture_item+0x30,prototype);memory.put(fixture_item+0x38,int32_t(2));memory.put(fixture_item+0x3c,3.5f);memory.put(fixture_item+0x40,image+uintptr_t(0x17117b0));memory.put(fixture_item+0x68,prototype);memory.put(fixture_item+0x70,proxy);memory.put(fixture_item+0x80,fixture_object);memory.put(proxy,prototype+0x38);memory.put(proxy+8,int32_t(1));memory.put(prototype,image+uintptr_t(0x171c930));memory.put(prototype+0x18,uint64_t(0x300000001));
+        memory.put(fixture_item,image+uintptr_t(0x17437f0));memory.put(fixture_item+0x18,uint64_t(0x400000001));memory.put(fixture_item+0x30,prototype);memory.put(fixture_item+0x38,int32_t(2));memory.put(fixture_item+0x3c,3.5f);memory.put(fixture_item+0x40,image+uintptr_t(0x17117b0));memory.put(fixture_item+0x68,prototype);memory.put(fixture_item+0x70,fixture_proxy);memory.put(fixture_item+0x80,fixture_object);memory.put(fixture_proxy,prototype+0x38);memory.put(fixture_proxy+8,int32_t(1));memory.put(prototype,image+uintptr_t(0x171c930));memory.put(prototype+0x18,uint64_t(0x300000001));
         if(family==i::Family::Npc){memory.put(fixture_object+0x80c,int32_t(1));memory.put(fixture_object+0x838,int32_t(2));memory.put(fixture_object+0x834,int32_t(2));memory.put(fixture_object+0x828,std::bit_cast<uint32_t>(60.0f));memory.put(fixture_object+0x818,std::array<float,3>{4,5,6});memory.put(fixture_object+0x824,2.0f);memory.put(fixture_object+0x82c,3.0f);memory.put(fixture_object+0x830,int32_t(4));memory.put(fixture_object+0x85c,12.0f);}
         if(family==i::Family::Boss){memory.put(fixture_object+0x968,int32_t(3));memory.put(fixture_object+0x96c,int32_t(3));memory.put(fixture_object+0x9ac,std::bit_cast<uint32_t>(600.0f));memory.put(fixture_object+0x970,std::array<float,3>{4,5,6});}
         if(family==i::Family::Monster){memory.put(fixture_object+0x824,int32_t(2));memory.put(fixture_object+0x828,int32_t(3));memory.put(fixture_object+0x910,std::bit_cast<uint32_t>(60.0f));memory.put(fixture_object+0x82c,std::array<float,3>{4,5,6});memory.put(owner.scope.region+0x988,uintptr_t(0x7000));memory.put(0x7000,image+uintptr_t(0x1714100));memory.put(0x7080,owner.scope.region);memory.put(0x7070,uintptr_t(0x8000));memory.put(0x7078,int32_t(1));memory.put(0x707c,int32_t(1));memory.put(0x8000,fixture_object);
@@ -77,6 +77,36 @@ void codec(){std::string error;Fixture npc(i::Family::Npc),boss(i::Family::Boss)
     changed=state;changed[0].target={i::Family::Toon,"subscriber:1"};need(!a::valid(changed,error),"Economy Toon was duplicated in Actor24 state");
     changed=state;const auto natural=std::find_if(changed.begin(),changed.end(),[](const auto& row){return row.target.family==i::Family::Monster;});natural->target.key="action:"+uuid;need(!a::valid(changed,error),"existing direct Monster was duplicated in Actor24 state");
 }
+void dungeon_direct(){
+    Fixture f(i::Family::Monster);const auto target=i::Target{i::Family::Monster,"action:"+uuid};
+    f.owner.target=target;f.owner.scope.scene="action:"+uuid+"/template";f.owner.scope.shard=0x1800;
+    f.owner.zone=0;f.owner.zone_uid=0;f.owner.zone_index=-1;
+    f.memory.put(fixture_object+0x170,f.owner.scope.shard);f.memory.put(fixture_object+0x8d0,uintptr_t(0));f.memory.put(fixture_object+0x8d8,uintptr_t(0));
+    auto links=std::make_shared<a::Links>(*f.owner.links);links->actors.at(fixture_object).target=target;
+    links->actor_keys.clear();links->actor_keys.emplace(std::pair{uint8_t(i::Family::Monster),target.key},fixture_object);f.owner.links=links;
+    a::Row row;a::Local local;std::string error;const auto before=f.memory.bytes;
+    need(f.read(row,local,error),error);need(row.dungeon_scene==f.owner.scope.scene&&row.target==target,"direct Dungeon Monster lost actual current scene/canonical key");
+    need(f.memory.bytes==before,"direct Dungeon Monster reader wrote native state");
+    need(std::get<a::ZoneMonster>(row.lifecycle).ready,"direct Dungeon Monster ready membership omitted");
+    const auto wire=a::encode(a::State{row});need(a::codec::state(wire)==a::State{row},"direct Dungeon populated Actor Frame changed native state");
+    auto moving=row;moving.pose.position={6,7,8};moving.pose.orientation={0,1,0,0};
+    need(a::preflight(a::State{row},a::State{moving},error),"direct Dungeon motion was treated as stale identity");
+    need(a::codec::state(a::encode(a::State{moving}))[0].pose==moving.pose,"fresh Dungeon motion was removed from authoritative publication");
+    auto changed=moving;changed.dungeon_scene="action:"+uuid+"/instance/0";
+    need(!a::preflight(a::State{row},a::State{changed},error),"direct Dungeon motion crossed current scene owner");
+    const auto original=f.owner;
+    f.owner.scope.scene="world";need(!f.read(row,local,error),"root direct Monster duplicated Actor24/MonsterLive ownership");f.owner=original;
+    f.owner.scope.shard=f.owner.scope.root;need(!a::direct_dungeon_scope(f.owner.target,f.owner.scope),"Dungeon key admitted root physical Shard");f.owner=original;
+    f.owner.scope.scene="pointer:1234";need(!a::direct_dungeon_scope(f.owner.target,f.owner.scope),"unconfirmed scene alias admitted");f.owner=original;
+    f.memory.put(fixture_object+0x8d8,uintptr_t(1));error.clear();need(!f.read(row,local,error)&&error.find("weak proxy")!=std::string::npos,"direct Dungeon stale Zone proxy admitted");f.memory.bytes=before;
+    f.memory.put(fixture_object+0x8d0,uintptr_t(1));need(!f.read(row,local,error),"direct Dungeon foreign Zone receiver admitted");f.memory.bytes=before;
+    f.owner.zone_index=0;need(!f.read(row,local,error),"direct Dungeon actor guessed a generated Zone ordinal");f.owner=original;
+    f.memory.bytes.erase(fixture_object+0x8d8);error.clear();need(!f.read(row,local,error)&&error.find("fixture unmapped native byte")!=std::string::npos,"Dungeon direct reader erased native ReadMemory cause");
+    auto malformed=wire;malformed[0].erase("dungeon_scene");bool rejected=false;try{(void)a::codec::state(malformed);}catch(const std::exception&){rejected=true;}
+    need(rejected,"direct Monster wire row omitted current Dungeon scope");
+    malformed=wire;malformed[0]["dungeon_scene"]="world";rejected=false;try{(void)a::codec::state(malformed);}catch(const std::exception&){rejected=true;}
+    need(rejected,"root direct Monster bypassed its existing live owner through wire scene");
+}
 void saved_native_guards(){Fixture f(i::Family::Boss);a::Row row;a::Local local;std::string error;const auto before=f.memory.bytes;
     const auto rejected=[&](auto mutate,const char* cause){f.memory.bytes=before;error.clear();mutate();need(!f.read(row,local,error),cause);need(!error.empty(),"Actor saved native guard lost original cause");};
     rejected([&]{f.memory.put(fixture_object+0x4e8,image+uintptr_t(0x1720608));},"Actor effect foreign native class accepted");
@@ -87,8 +117,8 @@ void saved_native_guards(){Fixture f(i::Family::Boss);a::Row row;a::Local local;
     rejected([&]{f.memory.put(fixture_item+0x18,uint64_t(1));},"Item stale full UID accepted");
     rejected([&]{f.memory.put(fixture_item+0x80,uintptr_t(1));},"Item foreign Actor owner accepted");
     rejected([&]{f.memory.put(fixture_item+0x30,uintptr_t(1));},"Item foreign prototype cast accepted");
-    rejected([&]{f.memory.put(proxy,prototype+0x30);},"Item proxy names another lifetime accepted");
-    rejected([&]{f.memory.put(proxy+8,int32_t(0));},"Item expired weak proxy accepted");
+    rejected([&]{f.memory.put(fixture_proxy,prototype+0x30);},"Item proxy names another lifetime accepted");
+    rejected([&]{f.memory.put(fixture_proxy+8,int32_t(0));},"Item expired weak proxy accepted");
     rejected([&]{f.memory.put(prototype+0x18,uint64_t(1));},"Item stale prototype full UID accepted");
     f.memory.bytes=before;need(f.read(row,local,error),error);need(f.memory.bytes==before,"Actor saved reader changed original physical bytes");
 }
@@ -105,4 +135,4 @@ void saved_adoption_order(){Fixture f(i::Family::Boss);a::Row row;a::Local local
 void births(){namespace b=mt2mp::game::boss_identity;namespace r=mt2mp::game::character_boss_retirement_read;const r::Pool before{1,2,3,{{4,0x100000001}}};auto after=before;after.members.push_back({5,0x200000001});b::Member created;std::string error;
     need(b::born(before,after,5,created,error)&&created==after.members.back(),error);need(!b::born(before,after,4,created,error),"Boss returned an existing object but birth confirmed");auto wrong=after;wrong.members[0].uid=1;need(!b::born(before,wrong,5,created,error),"Boss birth changed prior full UID");wrong=after;wrong.members.push_back({6,3});need(!b::born(before,wrong,5,created,error),"Boss multiple native births accepted as one");wrong=after;wrong.manager=8;need(!b::born(before,wrong,5,created,error),"Boss birth changed actual owning manager");wrong=after;wrong.members.back().uid=before.members.front().uid;need(!b::born(before,wrong,5,created,error),"Boss birth reused existing full UID");}
 }
-int main()try{read_native();codec();saved_native_guards();saved_adoption_order();births();std::cout<<checks<<" Actor24 original native reader, saved effects/items, independent lifecycle, strict codec and Boss birth assertions passed\n";return 0;}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
+int main()try{read_native();codec();dungeon_direct();saved_native_guards();saved_adoption_order();births();std::cout<<checks<<" Actor24 original native reader, saved effects/items, independent lifecycle, strict codec and Boss birth assertions passed\n";return 0;}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

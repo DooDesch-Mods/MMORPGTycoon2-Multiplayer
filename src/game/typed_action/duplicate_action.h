@@ -18,6 +18,9 @@ struct DuplicateTarget {
     // Group children retain their complete native member order. Their stable
     // output UUIDs are supplied once in the intent, never allocated per peer.
     std::vector<std::string> members,created_keys;
+    // Captured by the original Building Save. Other families and older
+    // intents retain the strict complete-current-record precondition.
+    std::optional<std::vector<int32_t>> captured_uptime;
     bool operator==(const DuplicateTarget&)const=default;
 };
 struct DuplicateIntent {

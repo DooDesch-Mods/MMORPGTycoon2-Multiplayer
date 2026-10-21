@@ -10,6 +10,7 @@ parser.add_argument('--overlay', type=Path)
 parser.add_argument('--output', type=Path, required=True)
 parser.add_argument('--verify-delta', action='store_true')
 args = parser.parse_args()
+args.output.mkdir(parents=True, exist_ok=True)
 root = Path(__file__).resolve().parent
 changes = json.loads((root / 'changes.json').read_text())
 texts = {}
@@ -41,6 +42,27 @@ def change(name, index=0):
     return next(row for row in changes if row['path'] == 'src/game/' + name)['changes'][index]['new']
 
 prop = between('intervention_census.cpp', '    if(props.at("world_epoch")', '    std::vector<npc_probe::action_runtime::StateOwner> npcs;')
+assert prop.endswith('    }\n'), 'Actor-only prop scope closing boundary differs'
+prop=prop[:-6]
+actor_source=texts['intervention_census.cpp']
+actor_start=actor_source.index('    if(world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)')
+actor_end=actor_source.index('    std::vector<npc_probe::action_runtime::StateOwner> npcs;',actor_start)
+actor_scope=actor_source[actor_start:actor_end]
+actor_old=actor_scope[actor_scope.index('    nlohmann::json props;'):-6]
+restored=actor_source[:actor_start]+actor_old+actor_source[actor_end:]
+wrappers='bool census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){\n    return census_impl(context,binding,out,error,true);\n}\nbool actor_census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){\n    return census_impl(context,binding,out,error,false);\n}\n'
+assert restored.count(wrappers)==1
+restored=restored.replace(wrappers,'',1).replace('static bool census_impl(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error,bool include_props){','bool census(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){',1)
+actor_order = next(change for row in changes if row['path']=='src/game/intervention_census.cpp' for change in row['changes'] if 'std::pair{uint8_t(a.target.family)' in change['old'])
+assert actor_source.count(actor_order['new'])==1, 'Actual actor comparator absent or ambiguous'
+restored=restored.replace(actor_order['new'],actor_order['old'],1)
+(args.output/'actor_order_comparators.inc').write_text('inline constexpr auto previous_actor_less='+actor_order['old']+';\ninline constexpr auto actual_actor_less='+actor_order['new']+';\n',encoding='utf-8')
+assert hashlib.sha256(restored.encode()).hexdigest()=='c57f27a03719083f8aa271162bb6243fa1e375fcd655405bab6dbbe5a40faaaf', 'Actor-only census changed another roster, native read, failure or final publication guard'
+actor_runtime=(args.source/'src/game/intervention_actor_runtime.cpp').read_text(encoding='utf-8')
+assert actor_runtime.count('interventions::actor_census(')==2
+assert hashlib.sha256(actor_runtime.replace('interventions::actor_census(','interventions::census(').encode()).hexdigest()=='d00723cf3b6ffdff06fd9513d1efa044a5dfe8a0070bf86d78a56a7e4d91685b', 'Actor reader changed beyond its two census entrypoints'
+actor_body='namespace cases::actor_only {\nbool add(Census& out,uintptr_t pointer,const std::string& key,std::string& error){return ::fixture_add(out,pointer,key,error); }\nbool props(bool include_props,const typed::Context& context,const typed::Binding& binding,const World& world,Census& next,std::string& error){const uintptr_t image=0;\n'+actor_scope+'    return true;\n}\n}\n'
+(args.output/'actor_census_scope.inc').write_text(actor_body,encoding='utf-8')
 release = between('release_reference_runtime.inc', '    for(const auto& prop:props){', '    std::vector<npc_probe::action_runtime::StateOwner> npcs;')
 character = between('character_membership_sample.inc', '    if(scenes.world.map!=out.world.origin.map', '    for(const auto& pool:scenes.pools)')
 clone = between('scene_clone/quest_preview.inc', 'bool clone_current(', 'bool clone_same(')
@@ -157,7 +179,6 @@ bool purchase(const Raw& fresh,std::string& error){
 }
 }
 '''
-args.output.mkdir(parents=True, exist_ok=True)
 (args.output / 'domain_bodies.inc').write_text(generated, encoding='utf-8')
 (args.output / 'source-check.json').write_text(json.dumps({'status': 'PASS', 'production_files': 10, 'selected_files': len(changes), 'verify_delta': args.verify_delta}, indent=2) + '\n')
 print('PASS: 9 domain deltas, composed Boss Character admission, existing destination fixture and preserved owner/failure paths; sealed delta=' + str(args.verify_delta))

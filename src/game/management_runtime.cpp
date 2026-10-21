@@ -1,5 +1,10 @@
+#include "district_edit_runtime.h"
 #include "management_runtime.h"
 #include "management_live_port.h"
+#include "dungeon_gizmo_runtime.h"
+#include "world_zone_runtime.h"
+#include "toon_thought_lifetime.h"
+#include "character_calendar_native.h"
 #include "service_live_reader.h"
 #include "general_project_runtime.h"
 #include "subscriber_lifecycle/save_scope.h"
@@ -12,6 +17,7 @@
 #include "intervention_records.h"
 #include "intervention_native.h"
 #include "intervention_actor_live.h"
+#include "intervention_actor_native.h"
 #include "control_input/control_runtime.h"
 #include "tutorial_replication/native.h"
 #include <algorithm>
@@ -51,7 +57,7 @@ using Ui=bool(*)(void*,void*);
 using GmUpdate=void(*)(void*,float);
 struct GmRoute {uintptr_t rva;size_t bytes,stolen;const char* sha;GmUpdate original=nullptr;release_ui_owner::Owner owner;};
 using ServicePrice=void(*)(void*,const void*);using ServiceSync=void(*)(void*,bool);
-struct ServiceOwner {std::string key;uintptr_t object=0;uint64_t uid=0;service_membership_reader::Local local;a::ServiceMembershipState sampled;bool operator==(const ServiceOwner&)const=default;};
+struct ServiceOwner {std::string key;uintptr_t object=0;uint64_t uid=0;service_membership_reader::Local local;a::ServiceMembershipState sampled;building_uptime::Native uptime;bool operator==(const ServiceOwner&)const=default;};
 struct Local {std::vector<ServiceOwner> services;std::map<uintptr_t,std::string> service_destinations;live::Pin pin;uintptr_t software=0,release=0,current_release=0,lounge=0,marketing=0,service_building=0,service_object=0;uint64_t service_uid=0;std::vector<uintptr_t> service_rows,gm_rows;std::vector<uint64_t> gm_uids;int32_t lounge_count=0;};
 struct Pending {a::Context context;a::Binding binding;a::ManagementIntent intent;std::string id;};
 struct Receipt {a::Binding binding;a::Request request;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false;std::string cause;};
@@ -126,6 +132,9 @@ bool read_slots(Runtime& r,uintptr_t software,std::array<int32_t,3>& out,std::st
 uint32_t uid_lookup(uintptr_t image,uint64_t uid,uintptr_t& result)noexcept{
     __try{result=uintptr_t(reinterpret_cast<void*(*)(uint64_t)>(image+0x47ce20)(uid));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+
+#include "toon_thought_lifetime.inc"
+#include "building_uptime_native.inc"
 bool read_services(Runtime&,const a::Context&,const a::Binding&,const a::ManagementIntent&,Local&,a::ManagementState&,std::string&);
 bool read_employment(Runtime& r,Local& local,int32_t& count,std::vector<std::array<uint8_t,2>>& flags,std::string& e){
     uintptr_t data=0;int32_t size=0,capacity=0;flags.clear();
@@ -295,7 +304,7 @@ bool enable(std::string& e){
     for(const auto& h:hooks){std::vector<unsigned char> body(h.size);if(!r->memory.copy(r->image+h.rva,body.data(),body.size(),e)||mt2mp::sha256(body)!=h.sha)return fail(e,e.empty()?"Management original body differs RVA="+std::to_string(h.rva):e);}
     for(const auto& h:hooks){const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(created!=MH_OK||!*h.original)return fail(e,"Management hook create failed RVA="+std::to_string(h.rva)+" status="+std::to_string(created)+" original="+hook_cause());
         const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(enabled!=MH_OK)return fail(e,"Management hook enable failed RVA="+std::to_string(h.rva)+" status="+std::to_string(enabled)+" original="+hook_cause());}
-    if(!gm_enable(*r,e)||!policy_enable(*r,e)||!rules_enable(*r,e)||!intervention_enable(*r,e)||!interventions::actors::live::enable(e)||!control_input::runtime::enable(e))return false;r->ready=true;e.clear();return true;
+    if(!gm_enable(*r,e)||!policy_enable(*r,e)||!rules_enable(*r,e)||!intervention_enable(*r,e)||!interventions::actors::live::enable(e)||!control_input::runtime::enable(e)||!thought_native::enable(*r,e)||!uptime_native::enable(*r,e))return false;r->ready=true;e.clear();return true;
 }
 bool pending_ui(){auto* r=published.load(std::memory_order_acquire);return r&&(r->pending.has_value()||policy_pending()||rules_pending()||intervention_pending()||control_input::runtime::pending()||r->replay);}
 bool retire_lobby(std::string& e){
@@ -354,7 +363,7 @@ nlohmann::json status(){auto* r=published.load(std::memory_order_acquire);if(!r)
     {"before",v.evidence.management_before?a::management_state_observation(*v.evidence.management_before):nlohmann::json(nullptr)},
     {"after",v.evidence.management_after?a::management_state_observation(*v.evidence.management_after):nlohmann::json(nullptr)},
     {"ledger_before",a::management_ledger_observation(v.evidence.before)},{"ledger_after",a::management_ledger_observation(v.evidence.after)}};
-    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",operations},{"interventions",intervention_status()}};}
+    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",operations},{"interventions",intervention_status()},{"building_uptime",{{"suppressed",uptime_native::suppressed},{"forwarded",uptime_native::forwarded},{"failed",uptime_native::failed},{"cause",uptime_native::fault}}}};}
 #include "management_live_port.inc"
 #include "gm_policy_runtime.inc"
 #include "game_rules_runtime.inc"

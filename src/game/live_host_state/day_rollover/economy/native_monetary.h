@@ -59,6 +59,8 @@ public:
     bool store_need(const Owners&,size_t,size_t,uint32_t,uint32_t,std::string&)override;
     bool store_next_id(const Owners&,int32_t,std::string&)override;
     bool store_subscriber(const Owners&,size_t,size_t,int32_t,int32_t,std::string&)override;
+    bool retire_loan(const Owners&,size_t,Receipt&,std::string&)override;
+    bool refresh_loan_offers(const Owners&,Receipt&,std::string&)override;
     bool store_loan(const Owners&,size_t,size_t,int32_t,int32_t,std::string&)override;
 };
 }

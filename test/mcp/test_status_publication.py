@@ -275,6 +275,28 @@ class StatusPublicationTests(unittest.TestCase):
         published.assert_not_called()
         self.assertTrue((self.diagnostics/'request.lock').exists())
 
+    def test_large_binding_response_observes_without_replay(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='read_remove_bindings'))
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{'bindings':[]}}
+        payload=self.sized_json(response,2074565)
+        (self.diagnostics/'response.json').write_bytes(payload)
+        with patch('runtime.atomic_json') as published:
+            self.assertEqual(self.runtime.observe_pending(),{'pending':False,'response':json.loads(payload)})
+        published.assert_not_called()
+        self.assertFalse((self.diagnostics/'request.lock').exists())
+
+    def test_binding_above_ceiling_retains_error_and_lock(self):
+        request_id=str(uuid.uuid4())
+        atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='read_remove_bindings'))
+        response={'schema_version':1,'id':request_id,'run_id':self.manifest['run_id'],'ok':True,'result':{}}
+        (self.diagnostics/'response.json').write_bytes(self.sized_json(response,MAX_STATUS_JSON+1))
+        with patch('runtime.atomic_json') as published:
+            with self.assertRaises(RuntimeErrorDetail) as caught:self.runtime.observe_pending()
+        self.assertEqual(caught.exception.code,'oversize_json')
+        published.assert_not_called()
+        self.assertTrue((self.diagnostics/'request.lock').exists())
+
     def test_large_pending_camera_response_observes_without_replay(self):
         request_id=str(uuid.uuid4())
         atomic_json(self.diagnostics/'request.lock',dict(self.manifest,id=request_id,op='focus_test_camera'))

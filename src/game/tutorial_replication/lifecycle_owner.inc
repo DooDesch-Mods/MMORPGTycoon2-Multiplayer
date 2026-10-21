@@ -1,9 +1,11 @@
 namespace lifecycle_native {
 struct Cache {World world;action_session::Context context;State proof;uint32_t serial=0;};
 std::optional<Cache> cache;
+struct TerminalReceiptObservation {std::string cause;uint64_t repeats=0;};
+TerminalReceiptObservation terminal_receipt_observation;
 struct Creation {World world;action_session::Context context;action_session::Binding binding;uintptr_t log=0,asset=0,sequence=0;std::string id;bool entered=false;};
 thread_local Creation* creation=nullptr;
-void clear(){cache.reset();}
+void clear(){cache.reset();terminal_receipt_observation={};}
 bool bind_cache(const World& w,const action_session::Context& c,std::string& e){
     if(cache&&(!same_world(cache->world,w)||cache->context!=c))return fail(e,"tutorial lifecycle cache has different full Origin/Context");
     if(!cache)cache=Cache{w,c,{},0};return true;
@@ -23,7 +25,7 @@ bool log_owners(uintptr_t state,const std::string& id,Owners& out,std::string& e
 }
 bool owners(uintptr_t state,uintptr_t mode,const std::string& id,Owners& out,std::string& e){
     out={};uintptr_t singleton=0,data=0;int32_t count=0;
-    if(!supported(id))return fail(e,"tutorial lifecycle scenario is not fixed Initial/LevelTwo");
+    if(!supported(id)&&id!="intro_cutscene")return fail(e,"tutorial lifecycle scenario is not a fixed Tutorial/Intro");
     if(!at(state,0x1e8,out.log,e)||!type(out.log,0x16fd7b0,e)||
        !at(mode,0x48,out.library,e)||!type(out.library,0x171bd80,e)||
        !at(image,0x13df560,singleton,e))return false;
@@ -32,10 +34,10 @@ bool owners(uintptr_t state,uintptr_t mode,const std::string& id,Owners& out,std
     size_t found=0;
     for(int32_t i=0;i<count;++i){uintptr_t asset=0;std::string actual;if(!at(data,size_t(i)*8,asset,e)||!str(asset,0x18,actual,e))return false;
         if(actual!=id)continue;++found;out.asset=asset;}
-    if(found!=1||!type(out.asset,0x1720510,e))return fail(e,e.empty()?"tutorial scenario is not uniquely owned by Mode library":e);
+    if(found!=1||!type(out.asset,id=="intro_cutscene"?0x1708d60:0x1720510,e))return fail(e,e.empty()?"tutorial scenario is not uniquely owned by Mode library":e);
     std::string filename;uint8_t repeatable=0;
-    if(!str(out.asset,0x60,filename,e)||!at(out.asset,0x58,repeatable,e))return false;
-    if(filename!="scenarios/"+id||repeatable)return fail(e,"tutorial scenario filename/nonrepeatable contract differs");
+    if(!at(out.asset,0x58,repeatable,e)||(id!="intro_cutscene"&&!str(out.asset,0x60,filename,e)))return false;
+    if((id!="intro_cutscene"&&filename!="scenarios/"+id)||repeatable)return fail(e,"tutorial scenario filename/nonrepeatable contract differs");
     return log_owners(state,id,out,e);
 }
 bool log_owners(const World& w,const std::string& id,Owners& out,std::string& e){return log_owners(reinterpret_cast<uintptr_t>(w.state),id,out,e);}

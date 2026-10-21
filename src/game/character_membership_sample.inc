@@ -178,6 +178,18 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     std::string manager,quest_rows;if(!complete_record(memory,out.manager,0x107fa10,0x107fa70,out.owners,manager,error)||
        !quest_digest(out.quests,quest_rows,error))return false;
     out.value.manager_sha=manager;
+    if(intent.command==a::CharacterMembershipCommand::Import){uintptr_t store=0,ap=0;
+        ValueMemory guarded(memory);if(!character_import_native::verify(state.image,guarded,error))return false;
+        if(!field(memory,state.image,0x13df210,store,error)||!field(memory,store,0,ap,error)||ap!=state.image+0x16d9300)
+            return fail(error,error.empty()?"Character import current original ArtStore singleton differs":error);
+        a::Context current;std::map<uintptr_t,std::string> refs;
+        if(!a::selected_session().current(current,error)||!general_project_runtime::release_reference_keys(current,binding,refs,error))return false;
+        for(const auto& [pointer,key]:refs){const auto found=out.owners.find(pointer);
+            if(found!=out.owners.end()&&found->second!=key)return fail(error,"Character import ArtStore canonical owner aliases another current object");
+            out.owners[pointer]=key;}
+        out.owners[store]="art-store";
+        if(!complete_record(memory,store,0xe56320,0xe56380,out.owners,out.value.import_art_sha,error))return false;
+    }
     if(!quest_bridge::sha256(family_rows.dump(),out.value.family_sha,error)||!quest_bridge::sha256(other_rows.dump(),out.value.others_sha,error)||
        !quest_bridge::sha256(user_rows.dump(),out.value.users_sha,error)||!quest_bridge::sha256(boss_rows.dump(),out.value.bosses_sha,error)||
        !quest_bridge::sha256(json{{"global",quest_rows},{"completed",out.quests.completed},{"active",out.references.rows}}.dump(),out.value.quests_sha,error))return false;
@@ -193,6 +205,8 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     if(!at(release_manager,0x38,release,error)||!at(release,0,ap,error))return false;
     if(ap!=state.image+0x16c12b0)return fail(error,"Character membership actual current Release class differs");
     if(!at(release,0x120,out.value.release_edits,error))return false;
+    if(intent.command==a::CharacterMembershipCommand::Import){out.owners[release]="current-release";
+        if(!complete_record(memory,release,0xe4f460,0xe4f4c0,out.owners,out.value.import_release_sha,error))return false;}
     out.money=ledger(money);out.value.undo_count=out.undo.undo.size();
     definitions::Census final_definitions;member::Users final_users;host::WorldState final_world;
     if(!definitions::read(at,state.image,uintptr_t(out.world.origin.state),out.manager,final_definitions,error)||

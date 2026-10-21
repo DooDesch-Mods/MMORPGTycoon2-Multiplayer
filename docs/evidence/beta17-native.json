@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.17",
+  "game_build": "24993678",
+  "framework_version": "0.2.5",
+  "players": 2,
+  "accepted_scope": [
+    "Shared building placement with scenery clearance",
+    "Client undo and Host redo with scenery restoration",
+    "Building copy after placement and undo/redo",
+    "Scenery copy, group, group copy and both ungroup paths",
+    "Group undo and redo",
+    "Shared pause and game speed",
+    "One-click scenery eraser with matching removal and refund"
+  ],
+  "shared_state_acknowledged": true,
+  "scope": "Building and scenery milestone for Early Beta; broader feature coverage is described in docs/ROADMAP.md."
+}

@@ -61,7 +61,15 @@ bool definition(void* value,std::uintptr_t image,const Request& request,void*& v
     if(type=="Scenery")return fail(cause,"error: actual BuildingDefinition is the Scenery definition");
     if(!at(value,0x16c,flags,exception))return fail(cause,"error: actual BuildingDefinition feature flags unreadable");
     if(flags&(1u<<13))return fail(cause,"error: actual BuildingDefinition is Scenery");
-    if(flags&((1u<<16)|(1u<<17)))return fail(cause,"error: actual BuildingDefinition uses a dungeon branch");
+    const auto dungeon_flags=flags&((1u<<16)|(1u<<17));
+    if(dungeon_flags){
+        if(!request.dungeon_family)return fail(cause,"error: actual BuildingDefinition uses a dungeon branch");
+        if((type=="DungeonExterior"&&dungeon_flags!=(1u<<16))||
+           (type=="DungeonPortal"&&dungeon_flags!=(1u<<17))||
+           (type!="DungeonExterior"&&type!="DungeonPortal"))
+            return fail(cause,"error: actual Dungeon Building type/feature differs");
+    }else if(type=="DungeonExterior"||type=="DungeonPortal")
+        return fail(cause,"error: actual Dungeon Building definition lacks its native feature");
     if(((flags&(1u<<2))!=0)!=(type=="StartingPoint"))return fail(cause,"error: actual StartingPoint definition type/feature differs");
     if(!at(value,0x178,variants,exception)||!at(value,0x180,count,exception)||!at(value,0x184,capacity,exception)||!variants||count<=0||capacity<count)return fail(cause,"error: actual BuildingDefinition variant array invalid");
     std::set<std::string> names;bool found=false;

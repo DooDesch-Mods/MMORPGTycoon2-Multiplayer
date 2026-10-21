@@ -29,6 +29,9 @@ void LobbyOverlay::set_visible(bool value) {
     visible_ = value; overlay_called = true;
 }
 }
+namespace mt2mp::net {
+std::string current_snapshot_id(){return {};}
+}
 static void require(bool valid, const char* reason) { if (!valid) throw std::runtime_error(reason); }
 template<class Predicate> static void wait_for(Predicate predicate, int milliseconds, const char* reason) {
     auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(milliseconds);
@@ -47,13 +50,32 @@ int main(int argc, char** argv) {
         config.session_token = std::string(32, 'a'); config.sidecar_control_port = static_cast<uint16_t>(std::stoi(argv[1]));
         std::atomic<int> snapshot_calls{0}, action_calls{0};
         std::atomic<bool> wrong_thread{false};
+        bool roster_notice=false;
         transport.register_handler(4, [&](uint64_t, const uint8_t*, uint32_t) { if (GetCurrentThreadId() != main_thread) wrong_thread = true; ++snapshot_calls; });
         transport.register_handler(6, [&](uint64_t, const uint8_t*, uint32_t) { if (GetCurrentThreadId() != main_thread) wrong_thread = true; ++action_calls; });
+        transport.register_handler(14, [&](uint64_t sender,const uint8_t* bytes,uint32_t size) {
+            require(GetCurrentThreadId()==main_thread&&sender==1&&std::string(reinterpret_cast<const char*>(bytes),size)=="roster-queued",
+                    "roster ordering probe sender/thread/body differs");
+            roster_notice=true;
+        });
         require(mt2mp::net::start_local_session(), "session startup failed");
         wait_for([] { return mt2mp::net::local_session_connected(); }, 5000, "worker handshake unavailable without a mainthread tick");
+        std::string membership_error;
+        require(mt2mp::net::prepare_local_membership(membership_error)&&mt2mp::net::local_session_peer_mask()==3,
+                "physical Host roster not adopted before shared world preparation");
         const std::string mode = argv[2];
         std::cout << "checkpoint: session-connected" << std::endl;
-        if (mode == "stall") {
+        if(mode=="roster"){
+            require(mt2mp::net::local_membership_generation()==1,"initial bound generation differs");
+            wait_for([&]{mt2mp::net::tick_local_session();return roster_notice;},5000,"new Host roster not observed by production worker");
+            require(mt2mp::net::local_membership_generation()==1&&mt2mp::net::local_session_peer_mask()==3,
+                    "pending Host roster replaced the current world binding");
+            mt2mp::net::retire_local_membership();
+            wait_for([]{return mt2mp::net::local_membership_generation()==2;},3000,"retired Client did not adopt confirmed next Host generation");
+            require(mt2mp::net::local_session_peer_mask()==7&&config.session_id==42,
+                    "new logical session lost full membership or changed relay identity");
+            std::cout<<"checkpoint: roster-generation1-to2-after-retirement"<<std::endl;
+        } else if (mode == "stall") {
             std::this_thread::sleep_for(12000ms);
             require(mt2mp::net::local_session_connected(), "live host session ended during 12s mainthread pause");
             require(mt2mp::net::local_session_peers() == 1, "live host disappeared during mainthread pause");

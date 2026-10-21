@@ -2,8 +2,24 @@ namespace {uint32_t scalar_cas(uintptr_t,bool,int32_t,int32_t,bool&)noexcept;}
 #include "service_live_native.inc"
 namespace {
 namespace management=management_simulation;
+#include "analytics_native.inc"
+#include "subscriber_demand_native.inc"
+#include "toon_thought_frame.inc"
+bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& binding,const live::Pin& pin,management::LiveState& out,std::string& e){
+    character_calendar::State calendar;subscriber_demand::State demands;
+    {std::optional<live::apply_timing::Scope> measured_calendar;if(live::apply_timing::host_capture_depth)measured_calendar.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishCalendar:live::apply_timing::Part::HostManagementCalendar);
+        live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);
+        if(!character_calendar::capture_demands(context,binding,pin,calendar,demands,e))return false;}
+    scenario_intro::State intro;if(!tutorial_replication::capture_intro(context,binding,intro,e))return false;out.intro=intro;
+    thought_frame_native::Snapshot thoughts;{std::optional<live::apply_timing::Scope> measured_thought;if(live::apply_timing::host_capture_depth)measured_thought.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishThought:live::apply_timing::Part::HostManagementThought);
+        if(!thought_frame_native::sample(r,context,binding,thoughts,e)||thoughts.bound.pin!=pin)return fail(e,e.empty()?"Management Thought complete Clock/Ledger origin differs":e);out.thoughts=std::move(thoughts.value);}
+    dungeon_gizmo_live::State gizmos;
+    if(!npc_probe::monster_action_runtime::dungeon_gizmo::capture_live(context,binding,gizmos,e))return false;out.gizmos=std::move(gizmos);
+    out.character_calendar=std::move(calendar);out.subscriber_demands=std::move(demands);return true;
+}
+
 bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,std::string& e){
-    local={};out={};a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Management live Session/Mainthread differs":e);
+    local={};out={};if(!thought_native::fault.empty())return fail(e,thought_native::fault);a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Management live Session/Mainthread differs":e);
     live::NativePort port(context,binding,nullptr);if(!port.read(local.pin,e)||local.pin.image!=r.image)return false;
     if(!at(r,r.image,0x13df500,local.software,e)||!ap(r,local.software,0x1715450,e)||!at(r,r.image,0x13df4f0,local.release,e)||!ap(r,local.release,0x1714ed0,e)||
        !at(r,local.pin.business,0x50,out.game_masters,e)||!at(r,local.release,0xb8,out.release_funds,e)||
@@ -13,9 +29,14 @@ bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding
     out.release_present=local.current_release!=0;
     if(out.release_present&&(!ap(r,local.current_release,0x16c12b0,e)||!at(r,local.current_release,0x50,out.planned_version,e)||!at(r,local.current_release,0x60,out.release_type,e)))return false;
     if(!read_slots(r,local.software,out.character_slots,e)||!read_employment(r,local,out.lounge_employed,out.gm_employment,e))return false;
+    analytics_state::State analytics;analytics_state::Owners analytics_owners;live::Pin analytics_pin;
+    if(!analytics_native::sample(r,context,binding,analytics_owners,analytics,analytics_pin,e)||analytics_pin!=local.pin)return fail(e,e.empty()?"Management Analytics complete Clock/Ledger origin differs":e);
+    out.analytics=std::move(analytics);
+    if(!calendar_sample(r,context,binding,local.pin,out,e))return false;
     return services_read(r,context,binding,local,out.services,e)&&general_project_runtime::capture_progress(context,binding,out.project,e)&&management::valid(out,e);
 }
 bool primary_read(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,std::string& e){
+    std::optional<live::apply_timing::Scope> measured_primary;if(live::apply_timing::host_capture_depth)measured_primary.emplace(live::apply_timing::Part::HostManagementPrimaryRead);
     Local first;management::LiveState before;if(!primary_once(r,context,binding,first,before,e)||!primary_once(r,context,binding,local,out,e))return false;
     if(first.pin!=local.pin||first.software!=local.software||first.release!=local.release||first.current_release!=local.current_release||first.lounge!=local.lounge||first.gm_rows!=local.gm_rows||first.gm_uids!=local.gm_uids||first.services!=local.services||first.service_destinations!=local.service_destinations||before!=out)return fail(e,"Management live roots/scalars changed during double read");return true;
 }
@@ -53,7 +74,8 @@ uint32_t slots_once(uintptr_t image,uintptr_t collection,int32_t type,int32_t de
 }
 bool LivePort::bind(const a::Context& context,const a::Binding& binding,uint64_t epoch,std::string& e){
     auto* r=published.load(std::memory_order_acquire);Local local;management::LiveState state;
-    if(!r||!r->ready||!epoch||locked_||!primary_read(*r,context,binding,local,state,e))return fail(e,e.empty()?"Management live bind requires current native owner":e);
+    if(!r||!r->ready||!epoch||locked_)return fail(e,"Management live bind requires current native owner");
+    uint64_t thought_removals=0;if(!thought_native::reconcile(*r,context,binding,thought_removals,e)||!primary_read(*r,context,binding,local,state,e))return false;
     std::vector<unsigned char> code(224);if(!r->memory.copy(r->image+0x9af00,code.data(),code.size(),e)||mt2mp::sha256(code)!="7ba261b1a85d1de5ab024d27a87eef5533238a344ac196c94d9ede3a0f937dcc")return fail(e,e.empty()?"Management original SetMaxSlotCount body differs":e);
     code.resize(32);if(!r->memory.copy(r->image+0x3abb30,code.data(),code.size(),e)||mt2mp::sha256(code)!="689331e018209973cd1f61946fbff9b7da29fc36c8407be2c5122ad3b6fc01d0")return fail(e,e.empty()?"Management original employment scalar body differs":e);
     if(bound_&&(context.session!=context_.session||context.role!=context_.role||context.local_peer!=context_.local_peer||context.peer_mask!=context_.peer_mask))return fail(e,"Management live immutable Session changed");
@@ -64,7 +86,7 @@ bool LivePort::bind(const a::Context& context,const a::Binding& binding,uint64_t
 }
 bool LivePort::suspend(std::string& e){if(locked_)return fail(e,cause_);if(!control_input::runtime::suspend(e))return false;suspended_=true;if(auto* r=published.load(std::memory_order_acquire))r->gm_suspended=true;return interventions::actors::live::suspend(e);}
 bool LivePort::capture(const a::Context& context,const a::Binding& binding,management::LiveState& out,std::string& e){
-    auto* r=published.load(std::memory_order_acquire);if(!r||!bound_||suspended_||locked_||context!=context_||binding!=binding_)return fail(e,"Management live capture exact saved context/binding unavailable");Local local;if(!primary_read(*r,context,binding,local,out,e))return false;
+    auto* r=published.load(std::memory_order_acquire);if(!r||!bound_||suspended_||locked_||context!=context_||binding!=binding_)return fail(e,"Management live capture exact saved context/binding unavailable");Local local;if(thought_native::pending){uint64_t removed=0;if(!thought_native::reconcile(*r,context,binding,removed,e))return false;}if(!primary_read(*r,context,binding,local,out,e))return false;
     gm_ticket::Publication values;if(!gm_capture(*r,context,binding,local,values,e))return false;out.gm=std::move(values);gm_policy::State policies;uintptr_t queue=0;if(!policy_values(*r,policies,queue,e))return false;out.policies=policies;game_rules::State rules;game_rules::Pin owners;if(!rules_values(*r,rules,owners,e)||owners.software!=local.software)return fail(e,e.empty()?"Management Design current Software owner differs":e);out.rules=rules;subscriber_intervention::State subscribers;subscriber_intervention::Owners subscriber_owners;if(!intervention_subscribers(*r,subscribers,subscriber_owners,e))return false;out.subscriber_interventions=std::move(subscribers);
     interventions::actors::State actors;interventions::actors::lifecycle::Batch journal;if(!interventions::actors::live::capture(context,binding,actors,journal,e))return false;out.intervention_actors=std::move(actors);out.actor_lifecycle=std::move(journal);return management::valid(out,e);
 }
@@ -79,12 +101,14 @@ bool LivePort::finish_capture(const a::Context& context,const a::Binding& bindin
     if(!interventions::actors::live::capture(context,binding,actors,journal,error))return false;
     frame.management->intervention_actors=std::move(actors);frame.management->actor_lifecycle=std::move(journal);
     control_input::ReplicaState control;if(!control_input::runtime::capture(context,binding,control,error))return false;frame.control=std::move(control);
+    if(!calendar_sample(*r,context,binding,pin,*frame.management,error))return false;
     return management::valid(*frame.management,error)&&port.current_owners(pin,error);
 }
 bool LivePort::apply(const a::Context& context,const a::Binding& binding,const live::Frame& frame,live::ManagementReceipt& receipt,std::string& e){
     receipt={};auto* r=published.load(std::memory_order_acquire);
     if(!r||!bound_||suspended_||locked_||context!=context_||binding!=binding_||context.role!=a::Role::Client||frame.session!=context.session||frame.snapshot!=context.snapshot_uuid||frame.epoch!=epoch_||!frame.management)return fail(e,"Management live Apply saved Context/Binding/Frame unavailable");
     if(!management::valid(*frame.management,e))return false;
+    if(!frame.management->gizmos||!frame.management->thoughts||!frame.management->intro||!frame.management->analytics||!frame.management->character_calendar||!frame.management->subscriber_demands)return fail(e,"Management complete authoritative Gizmo/Thought/Intro/Analytics/Character calendar/Subscriber Demand component is absent");
     Local local;management::LiveState before;if(!primary_read(*r,context,binding,local,before,e)||local.pin.selected!=0)return fail(e,e.empty()?"Management Client actual Clock must be0":e);
     auto failed=[&](const std::string& cause){const auto original=cause;e=cause_.empty()?original:cause_;cause_=e;receipt.cause=e;receipt.unknown=receipt.attempted;locked_=receipt.unknown;last_={{"revision",frame.revision},{"confirmed",false},{"unknown",receipt.unknown},{"cause",e}};const auto services=services_difference(local,before.services,frame.management->services);if(!services.is_null())last_["service_difference"]=services;return false;};
     if(!gm_prepare_pool(*r,context,binding,local,before,*frame.management,receipt,e))return failed(e);
@@ -122,6 +146,15 @@ bool LivePort::apply(const a::Context& context,const a::Binding& binding,const l
     }
     if(!frame.control)return failed("Control authoritative Frame state is absent");
     bool control_attempted=false;const bool control_okay=control_input::runtime::apply(context,binding,*frame.control,control_attempted,e);receipt.attempted|=control_attempted;if(!control_okay)return failed(e);
+    character_calendar::Receipt calendar_receipt;bool calendar_okay=false;
+    {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);calendar_okay=character_calendar::apply(context,binding,*frame.management->character_calendar,calendar_receipt,e);}
+    receipt.attempted|=calendar_receipt.attempted;receipt.attempted_stores+=calendar_receipt.attempted_stores;receipt.stores+=calendar_receipt.stores;if(!calendar_okay)return failed(e);
+    if(!subscriber_demand_native::apply(*r,context,binding,*frame.management->subscriber_demands,*frame.management->character_calendar,receipt,e))return failed(e);
+    bool intro_attempted=false;const auto intro_okay=tutorial_replication::apply_intro(context,binding,*frame.management->intro,intro_attempted,e);receipt.attempted|=intro_attempted;if(!intro_okay)return failed(e);
+    if(!thought_frame_native::adopt(*r,context,binding,*frame.management->thoughts,receipt,e))return failed(e);
+    if(!analytics_native::adopt(*r,context,binding,*frame.management->analytics,receipt,e))return failed(e);
+    dungeon_gizmo_live::Receipt gizmos;const auto gizmo_okay=npc_probe::monster_action_runtime::dungeon_gizmo::apply_live(context,binding,*frame.management->gizmos,gizmos,e);
+    receipt.attempted|=gizmos.attempted;receipt.attempted_stores+=gizmos.attempted_stores;receipt.stores+=gizmos.stores;if(!gizmo_okay)return failed(e);
     Local final;management::LiveState actual;if(!primary_read(*r,context,binding,final,actual,e))return failed(e);
     if(frame.management->gm){gm_ticket::Publication values;if(!gm_capture(*r,context,binding,final,values,e))return failed(e);actual.gm=std::move(values);}
     if(frame.management->policies){gm_policy::State values;uintptr_t queue=0;if(!policy_values(*r,values,queue,e))return failed(e);actual.policies=values;}
@@ -135,4 +168,4 @@ bool LivePort::apply(const a::Context& context,const a::Binding& binding,const l
 bool LivePort::sent(const live::Frame& frame,std::string& error){return interventions::actors::live::sent(frame,error);}
 bool LivePort::acknowledge(uint64_t peer,uint64_t revision,std::string& error){return interventions::actors::live::acknowledge(peer,revision,error);}
 bool LivePort::admit(const live::Frame& frame,const live::Frame* prior,std::string& error){if(!frame.control)return fail(error,"Control authoritative Frame state is absent");return control_input::valid(*frame.control,error)&&interventions::actors::live::admit(frame,prior,error);}
-nlohmann::json LivePort::status()const{return {{"bound",bound_},{"suspended",suspended_},{"locked",locked_},{"cause",cause_},{"last",last_},{"actors",interventions::actors::live::status()},{"control",control_input::runtime::status()}};}
+nlohmann::json LivePort::status()const{return {{"bound",bound_},{"suspended",suspended_},{"locked",locked_},{"cause",cause_},{"last",last_},{"actors",interventions::actors::live::status()},{"control",control_input::runtime::status()},{"thoughts",thought_frame_native::last},{"analytics",analytics_native::last},{"subscriber_demands",subscriber_demand_native::last},{"thought_lifetime",{{"corrected",thought_native::corrected},{"stale_removed",thought_native::stale_removed},{"deferred",thought_native::deferred},{"pending",thought_native::pending},{"pending_cause",thought_native::pending_cause},{"failed",thought_native::failed},{"fault",thought_native::fault},{"last",thought_native::last}}}};}

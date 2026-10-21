@@ -14,7 +14,18 @@ int checks=0;void need(bool v,const std::string& e){++checks;if(!v)throw std::ru
 const char* id="20000000-0000-0000-0000-000000000002";const char* snapshot="10000000-0000-0000-0000-000000000001";
 p::State initial(){p::State s;p::Catalogue row;row.source={0,10,"Tech",""};row.valid=row.visible=row.choose=row.afford=true;s.catalogue.push_back(row);s.techs.push_back({"Tech",{}});s.random={1,2,3,4};return s;}
 std::string hash(const std::string& text){uint64_t n=1469598103934665603;for(auto c:text)n=(n^uint8_t(c))*1099511628211;std::ostringstream out;out<<std::hex<<std::setw(16)<<std::setfill('0')<<n;return out.str()+out.str()+out.str()+out.str();}
-p::Proof proof(const p::State& s){p::Proof v;std::string e;need(p::proof(s.catalogue[0].source,s,hash,v,e),e);return v;}
+p::Proof proof(const p::State& s){p::Proof v;std::string e;need(p::proof(s.catalogue[0].source,s,std::string(64,'c'),hash,v,e),e);return v;}
+void character_catalogue_effect(){
+    auto state=initial();state.progress.current=state.catalogue[0].source;auto before=proof(state),after=before;std::string e;
+    p::Intent intent{p::Command::Workers,state.catalogue[0].source,4};after.progress.workers=4;
+    need(p::effect(intent,before,after,e),"complete same Character catalogue worker effect: "+e);
+    after.character_catalogue_sha256=std::string(64,'d');need(!p::effect(intent,before,after,e),"worker effect hid Character membership change");
+    auto wire=p::encode(before);need(p::codec::proof(wire).character_catalogue_sha256==before.character_catalogue_sha256,"complete Character digest absent from wire");
+    wire.erase("character_catalogue_sha256");bool rejected=false;try{p::codec::proof(wire);}catch(const std::runtime_error&){rejected=true;}need(rejected,"missing Character digest decoded");
+    p::Proof invalid;need(!p::proof(state.catalogue[0].source,state,"",hash,invalid,e),"uncaptured Character catalogue accepted");
+    intent.command=p::Command::Commit;intent.workers=0;after=before;after.progress={};after.selected.owned=true;after.selected.tech_flags[1]=1;after.character_catalogue_sha256=std::string(64,'d');
+    need(p::effect(intent,before,after,e),"original Commit Character catalogue birth rejected: "+e);
+}
 void policies(){std::string e;auto before=initial(),after=before;p::Intent i{p::Command::Start,before.catalogue[0].source,0};after.progress.current=i.source;after.catalogue[0].tech_flags[0]=1;after.techs[0].flags[0]=1;
     need(p::transition(i,before,after,e)&&p::effect(i,proof(before),proof(after),e),e);auto bad=after;bad.progress.lines=1;need(!p::transition(i,before,bad,e),"Start accepted non-reset original counter");
     before.progress.current=i.source;before.progress.lines=9;before.progress.work=std::bit_cast<uint32_t>(2.f);after=before;need(p::transition(i,before,after,e),"same source resume reset");
@@ -76,4 +87,4 @@ void controller(bool partial){Session hs(1),cs(2);Engine he,ce;ce.partial=partia
     need(host.receive(request.from,request.bytes.data(),request.bytes.size(),2,e)&&client.receive(result.from,result.bytes.data(),result.bytes.size(),2,e),e);need(he.executions==1&&ce.executions==1,"duplicate ordered delivery replayed original");need(!client.submit_general_project(id,i,3,e),"consumed original UUID replayed");
 }
 }
-int main(){try{policies();effects();codec_frame();bugs();controller(false);controller(true);std::cout<<checks<<" General project actual state/codec/effect checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{character_catalogue_effect();policies();effects();codec_frame();bugs();controller(false);controller(true);std::cout<<checks<<" General project actual state/codec/effect checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

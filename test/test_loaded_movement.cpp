@@ -1,6 +1,9 @@
 #include "developer_staff/construction_native.h"
 #include "developer_staff/construction_calls.h"
 #include <cstring>
+#include <algorithm>
+#include <set>
+#include "developer_staff/construction_occurrence.h"
 #include <iostream>
 #include <stdexcept>
 namespace mt2mp {
@@ -68,7 +71,9 @@ uint32_t fixture_stop_loaded_movement(uintptr_t image,uintptr_t receiver,Call* r
 #undef read_process
 }
 namespace {size_t checks=0;void need(bool ok,const std::string& why){++checks;if(!ok)throw std::runtime_error(why);}}
+#include "loaded_construction_cases.inc"
 int main(){try{
+    loaded_construction_cases();
     using namespace fixture;action_session::Context context;context.role=action_session::Role::Client;action_session::Binding binding;std::string e;bool attempted=false;
     const auto run=[&](){return settle_loaded_client(context,binding,attempted,e);};
     reset();const auto before=fixture_capture;need(run()&&attempted&&calls==1&&body_reads==3&&fixture_capture.state==before.state,"loaded single waypoint did not settle: "+e);

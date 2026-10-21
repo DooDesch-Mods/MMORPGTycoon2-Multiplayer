@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.0-beta.17
+
+### Added
+
+- Copy supported buildings and scenery together.
+- Group scenery, copy a group and ungroup the original or its copy.
+- Clear scenery with the game's eraser and share the removal and refund.
+- Undo and redo shared building and scenery edits.
+
+### Fixed
+
+- Keep both players in sync when copying a building after placement and undo/redo.
+- Restore scenery correctly when undoing a building placement that cleared it.
+- Keep group names and selection consistent when ungrouping scenery.
+
+### Known issues
+
+- Shared edits can take several seconds or longer to finish.
+- The game can occasionally crash during startup.
+- This is an Early Beta for two players in small worlds. Gameplay support is still incomplete. Keep backups of your saves.
+
+### Requirements
+
+Both players need Multiplayer Early Beta 17 and MT2 Mod Framework Runtime 0.2.5. Close the game before updating.
+
 ## 0.1.0-beta.16
 
 ### Added

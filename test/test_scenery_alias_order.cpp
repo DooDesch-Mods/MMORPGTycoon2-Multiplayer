@@ -1,4 +1,8 @@
 #include "scenery_alias_order.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "scenery_scene_snapshot_alias.h"
+#include <optional>
+#include <tuple>
 #include <iostream>
 #include <stdexcept>
 namespace alias=mt2mp::game::scenery_alias_order;
@@ -25,7 +29,12 @@ struct World {
     }
 };
 }
+#include "root_scenery_saved_ports.inc"
+#include "root_scenery_saved_cases.inc"
+#include "saved_root_scenery_reader_cases.inc"
+#include "saved_root_batch_cases.inc"
 int main()try{
+    root_saved_fixture::run(need);saved_root_reader_fixture::run(need);saved_root_batch_fixture::run(need);
     World world;std::string e;alias::Receipt receipt;
     need(!world.capture(e)&&e=="live alias full UID no longer resolves","original stale-live-alias failure was not reproduced");
     auto run=[&](bool history){return alias::capture({{1,"old-a"},{2,"old-b"}},world.alive,history?std::map<uint64_t,std::string>{{3,"old-c"}}:std::map<uint64_t,std::string>{},

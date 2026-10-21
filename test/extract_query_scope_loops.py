@@ -11,7 +11,7 @@ def body(text,anchor):
 
 # Extract the production extent declaration, not a test-only approximation.
 census_extents=[
-    ('src/game/intervention_census.cpp','bool census(const action_session::Context&'),
+    ('src/game/intervention_census.cpp','static bool census_impl(const action_session::Context&'),
     ('src/game/boss_current.cpp','bool pools(const World&'),
     ('src/game/character_actor_records_runtime.inc','bool read_current(const action_session::Context&'),
     ('src/game/dungeon_scene_identity_runtime.cpp','static bool read_census('),
@@ -67,6 +67,9 @@ expected='5089327e297507c4045d417a88a4b75163365e667564f768e8bef637f2d759f7'
 assert hashlib.sha256(original.encode()).hexdigest()==expected, 'Quest/NPC diagnostic wrappers changed original Apply body'
 
 def prior_child_reader(value):
+    scene_edge='    if (!building_child_detail::append_scenes(world, lookup, result, error)) return false;\n'
+    assert value.count(scene_edge)==1, 'Building child NPC exact Scene append boundary changed'
+    value=value.replace(scene_edge,'',1)
     guard='if (saved.pool.records.empty() && !building_child_detail::has_region(id)) continue;'
     edge='        if (!building_child_detail::append(id, region, census, lookup, rows, error)) return false;\n'
     assert value.count(guard)==1 and value.count(edge)==1, 'Building child NPC saved-reader boundary changed'
@@ -99,10 +102,11 @@ calls=[item['new'] for item in find_scope_guards]
 # The local scope changes only metadata lifetime across the two immediate reads.
 witness=(a.root/'src/game/native_open_witness.cpp').read_text(encoding='utf-8')
 scope_old='    ++current.world_checks;\n    if(!world_witness(first,error))return false;\n    ++current.world_checks;\n    if(!world_witness(second,error))return false;'
-scope_new='    {\n        mt2mp::game::live_host_state::apply_timing::PageReadScope pages(\n            mt2mp::game::live_host_state::apply_timing::page_read_scope==nullptr);\n        ++current.world_checks;\n        if(!world_witness(first,error))return false;\n        ++current.world_checks;\n        if(!world_witness(second,error))return false;\n    }'
+scope_new='    {\n        mt2mp::game::live_host_state::apply_timing::PageReadScope pages(\n            !mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n        ++current.world_checks;\n        if(!world_witness(first,error))return false;\n        ++current.world_checks;\n        if(!world_witness(second,error))return false;\n    }'
 actual=body(witness,'bool read_completed_world(')
 assert actual.count(scope_new)==1, 'Completed-world metadata scope changed'
 original=actual.replace(scope_new,scope_old,1)
+historical=actual.replace('!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active()','mt2mp::game::live_host_state::apply_timing::page_read_scope==nullptr',1)
 assert hashlib.sha256(original.encode()).hexdigest()=='955b2a06603fb04df9c8acdd99c2a63c7900c3d78b353c568dc5aa3041b64cea', 'Completed-world reader changed outside its local metadata scope'
 guards=[('bool fail(', '9b5031ed1e70c8b8bd00a2d3a94a745a573285902e33b775c3766a3110d1b526'), ('bool readable(', '54306171b323a8b0ed4b67e0d497ee58ec66fbc71a83b33e8f31be4bb494e87d'), ('DWORD copy(', '7018793e6633a9b9816aedf58895f8d1bac6ac2a8394d76e5b9e0bbc5fca8851'), ('template<class T> bool read(', '1faa597938d8e881a43d513e0ca6f3cd36fee9200d81a99e1105a461df913b16'), ('bool vt(', '495b6c9b9c75f5820292664cd1f94249973ed484c3b5c312c6a41a485575f158'), ('bool mode_singleton(', 'a0a3dac38434ae325ea430452d7d908aa05bf751c3ac763f092700024ff04a11'), ('bool world_witness(', 'aebe4a78c97de856e13d2eb2799236b4a82221e666f4bba6b35d34366db9b128')]
 pieces=[]
@@ -124,7 +128,7 @@ for anchor,digest in guards:
 world_type='struct WorldWitness {void* game=nullptr;void* mode=nullptr;void* state=nullptr;void* world=nullptr;void* map=nullptr;bool operator==(const WorldWitness&)const=default;};'
 assert witness.count(world_type)==1
 (a.output/'open_witness_type.inc').write_text(world_type+'\n',encoding='utf-8')
-(a.output/'open_witness_bodies.inc').write_text('\n'.join(pieces)+'\n'+original.replace('bool read_completed_world(', 'bool baseline_read_completed_world(',1)+'\n'+actual+'\n',encoding='utf-8')
+(a.output/'open_witness_bodies.inc').write_text('\n'.join(pieces)+'\n'+original.replace('bool read_completed_world(', 'bool baseline_read_completed_world(',1)+'\n'+historical.replace('bool read_completed_world(', 'bool historical_read_completed_world(',1)+'\n'+actual+'\n',encoding='utf-8')
 
 # Extract the complete saved reader and preserve the old independent boundary.
 saved_reader=body(saved,'bool read_current(std::vector<Current>& out, std::string& error, bool share_metadata)')
@@ -147,12 +151,84 @@ assert 'bool read_current(std::vector<Current>&, std::string& error, bool share_
 
 # The four diagnostic scopes leave the complete original reader unchanged.
 world_prop=(a.root/'src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp').read_text(encoding='utf-8')
+from saved_scenery_batch_source_boundary import normalize as batch_normalize, verify as batch_verify
+batch_verify(a.root)
+batch_header=(a.root/'src/game/object_identity/remove_runtime/copy/world_prop_reader.h').read_text(encoding='utf-8')
+batch_runtime=(a.root/'src/game/object_identity/remove_runtime/copy/saved_scenery_batch_runtime.inc').read_text(encoding='utf-8')
+(a.output/'saved_root_batch_lifetime_type.inc').write_text(body(batch_header,'class RootSceneryReadBatch {')+';\n',encoding='utf-8')
+batch_tls='thread_local RootSceneryReadBatch* RootSceneryReadBatch::current_=nullptr;'
+assert batch_runtime.count(batch_tls)==1
+batch_lifetime=[batch_tls]+[body(batch_runtime,anchor) for anchor in ['RootSceneryReadBatch::RootSceneryReadBatch(', 'RootSceneryReadBatch::~RootSceneryReadBatch(', 'bool RootSceneryReadBatch::finish(']]
+(a.output/'saved_root_batch_lifetime_body.inc').write_text('\n'.join(batch_lifetime)+'\n',encoding='utf-8')
+
+origin_source=(a.root/'src/game/object_identity/remove_runtime/copy/native_origin.cpp').read_text(encoding='utf-8')
+origin_type=(a.root/'src/game/native_open_witness.h').read_text(encoding='utf-8')
+(a.output/'saved_root_origin_type.inc').write_text(body(origin_type,'struct CurrentWorld {')+';\n',encoding='utf-8')
+origin_helpers=[body(batch_runtime,anchor) for anchor in ['bool RootSceneryReadBatch::reuse_current(', 'bool RootSceneryReadBatch::remember_current(', 'bool RootSceneryReadBatch::reject_current(']]
+origin_route=body(origin_source,'bool RootSceneryReadBatch::read_current(')
+raw_call='mt2mp::game::native_open_runtime::read_current_world(out,error)'
+assert origin_route.count(raw_call)==1
+# The only substituted dependency is the original native World-read port.
+origin_route=origin_route.replace(raw_call,'raw_current(out,error)',1)
+(a.output/'saved_root_origin_route.inc').write_text('\n'.join(origin_helpers+[origin_route,body(origin_source,'bool NativeOrigin::current(')])+'\n',encoding='utf-8')
+(a.output/'saved_root_origin_state.inc').write_text(body(batch_runtime,'bool verify_origin(')+'\n'+body(batch_runtime,'bool finish(std::string& error)')+'\n',encoding='utf-8')
+reader_source=(a.root/'src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp').read_text(encoding='utf-8')
+(a.output/'saved_root_origin_same.inc').write_text(body(reader_source,'bool same_world(')+'\n',encoding='utf-8')
+assert body(batch_runtime,'bool finish_body(').count('if(!proof.active())return true;')==1
+# Both real direct wrappers must enter the same currently owned traversal.
+for relative,route in [('src/game/remove_diagnostics.cpp','host::RootSceneryReadBatch::read_current(world,error)'),('src/game/root_scenery_snapshot.inc','host::RootSceneryReadBatch::read_current(opened,error)')]:
+    assert (a.root/relative).read_text(encoding='utf-8').count(route)==1, 'Saved Root Origin wrapper route differs: '+relative
+
+
+actual_world_prop=world_prop
+world_prop=batch_normalize('src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp',world_prop)
 
 # Reverse only the bounded array read; all historical whole-source guards remain.
 array_slot_loop = '    // Read each physical slot before growing storage; a corrupt count cannot reserve gigabytes.\n    for(int32_t i=0;i<count;++i){uintptr_t value=0;if(!m.copy(data+static_cast<size_t>(i)*sizeof(value),&value,sizeof(value),e))return false;\n        if(!value||!unique.insert(value).second)return fail(e,"remove_reader_array_null_or_duplicate");out.push_back(value);}'
 array_chunk_loop = '    // Bound temporary storage independently of the native count; every slot is still validated.\n    uintptr_t values[64]{};\n    for(size_t first=0;first<static_cast<size_t>(count);){\n        const auto slots=std::min(size_t(64),static_cast<size_t>(count)-first);\n        std::string chunk_error;\n        const bool copied=m.copy(data+first*sizeof(uintptr_t),values,slots*sizeof(uintptr_t),chunk_error);\n        for(size_t i=0;i<slots;++i){\n            // A later unreadable slot must not hide an earlier null or duplicate.\n            if(!copied&&!m.copy(data+(first+i)*sizeof(uintptr_t),&values[i],sizeof(uintptr_t),e))return false;\n            const auto value=values[i];\n            if(!value||!unique.insert(value).second)return fail(e,"remove_reader_array_null_or_duplicate");\n            out.push_back(value);\n        }\n        if(!copied){if(e.empty())e=chunk_error;return false;}\n        first+=slots;\n    }'
 assert world_prop.count(array_chunk_loop)==1, 'WorldProp bounded array loop changed'
-untimed=world_prop.replace(array_chunk_loop,array_slot_loop,1)
+# Admit only the exact additive saved Root Scenery metadata reader. The
+# existing four-scope proof below still covers every original reader byte.
+saved_include='#include "world_prop_reader.h"\n#include "saved_scenery_reader.h"\n'
+assert world_prop.count(saved_include)==1, 'Saved Scenery include placement differs'
+saved_reader=body(world_prop,'bool Reader::saved_root_scenery(')
+# Admit only a pure scan callback. Reverse its complete exact addition before
+# checking the original owner, typed lookup, census and publication body.
+index_capture="""auto capture_index=[](uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& index,auto& read,std::string& cause){
+            // Share only page metadata during this complete memory-only scan.
+            // Original UID/RTTI calls and the Scenery census run after it closes.
+            mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
+            return mt2mp::game::region_saved_identity::capture(image,map,root,index,read,cause);
+        }"""
+assert body(saved_reader,'auto capture_index=')==index_capture, 'Saved Scenery pure scan extent differs'
+index_addition='        '+index_capture+';\n'
+scoped_call='uid,exact,value,e,capture_index))return false;'
+assert saved_reader.count(index_addition)==1 and saved_reader.count(scoped_call)==1, 'Saved Scenery scan callback wiring differs'
+original_saved_reader=saved_reader.replace(index_addition,'',1).replace(scoped_call,'uid,exact,value,e))return false;',1)
+assert hashlib.sha256(original_saved_reader.encode()).hexdigest()=='39b57711d7640fa4166b9d189f9a096dfeb4c4474376acba6ffb836d08e6083a', 'Saved Scenery reader changed outside pure scan callback'
+actual_index_capture=body(actual_world_prop,'auto scan_index=').replace('auto scan_index=', 'auto capture_index=',1)
+assert actual_index_capture==index_capture, 'Actual batch scan must retain exact pure Region extent'
+(a.output/'saved_root_index_capture.inc').write_text(actual_index_capture+';\n',encoding='utf-8')
+saved_header=(a.root/'src/game/object_identity/remove_runtime/copy/saved_scenery_reader.h').read_text(encoding='utf-8')
+saved_header=batch_normalize('src/game/object_identity/remove_runtime/copy/saved_scenery_reader.h',saved_header)
+index_policy="""struct SavedSceneryIndexCapture {
+    template<class Read>
+    bool operator()(uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& out,Read&& read,std::string& error)const{
+        return mt2mp::game::region_saved_identity::capture(image,map,root,out,read,error);
+    }
+};
+"""
+assert saved_header.count(index_policy)==1, 'Saved Scenery default scan policy differs'
+assert saved_header.count('template<class Typed,class CaptureIndex=SavedSceneryIndexCapture>')==1
+assert saved_header.count('std::string& error,CaptureIndex capture_index={}){')==1
+assert saved_header.count('capture_index(image,map,root,before,at,error)')==1
+assert saved_header.count('capture_index(image,map,root,after,at,error)')==1
+original_saved_header=saved_header.replace(index_policy,'',1).replace('template<class Typed,class CaptureIndex=SavedSceneryIndexCapture>','template<class Typed>',1).replace('std::string& error,CaptureIndex capture_index={}){','std::string& error){',1).replace('capture_index(image,map,root,before,at,error)','mt2mp::game::region_saved_identity::capture(image,map,root,before,at,error)',1).replace('capture_index(image,map,root,after,at,error)','mt2mp::game::region_saved_identity::capture(image,map,root,after,at,error)',1)
+assert hashlib.sha256(original_saved_header.encode()).hexdigest()=='d8feb2559d26e446cea13be455ebf350be912c80c148cf35803eeec0ecb3f088', 'Saved Scenery member proof changed outside scan policy'
+saved_addition='\n'+saved_reader+'\n'
+assert world_prop.count(saved_addition)==1 and world_prop.endswith(saved_addition+'\n}\n'), 'Saved Scenery additive reader boundary differs'
+original_world_prop=world_prop.replace(saved_include,'#include "world_prop_reader.h"\n',1).replace(saved_addition,'',1)
+untimed=original_world_prop.replace(array_chunk_loop,array_slot_loop,1)
 for part,indent in [('WorldPropCurrent','    '),('WorldPropRootRegion','        '),('WorldPropMainMember','    ')]:
     line=indent+'mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::'+part+');\n'
     assert untimed.count(line)==1, 'WorldProp diagnostic boundary changed: '+part
@@ -163,7 +239,8 @@ assert untimed.count(typed_timed)==1, 'WorldProp native lookup timing boundary c
 untimed=untimed.replace(typed_timed,typed_original,1)
 assert hashlib.sha256(untimed.encode()).hexdigest()=='d09b0b06cd8d4216cfad80828aa26cdcd3ddd362a72790c97fb5b0b593128fb3', 'WorldProp reader changed beyond four diagnostic scopes'
 helpers=[body(world_prop,anchor)+(';' if anchor=='struct Busy ' else '') for anchor in ('bool fail(', 'struct Busy ', 'template<class T>bool at(', 'bool vt(', 'bool array(', 'bool list(', 'uint32_t lookup(')]
-functions=[body(world_prop,anchor) for anchor in ('bool Reader::current(', 'bool Reader::typed(', 'bool Reader::main_member(')]
+functions=[body(actual_world_prop,anchor) for anchor in ('bool Reader::current(', 'bool Reader::typed(', 'bool Reader::main_member(')]
+functions.append(body(world_prop,'bool Reader::current(').replace('bool Reader::current(', 'bool Reader::baseline_current(',1))
 (a.output/'world_prop_attribution_bodies.inc').write_text('\n'.join(helpers+functions)+'\n',encoding='utf-8')
 (a.output/'world_prop_attribution_root.inc').write_text(body(world_prop,'auto root_region=')+';\n',encoding='utf-8')
 
@@ -204,7 +281,7 @@ assert current.index(find_call)<current.index(users_call)<current.index('!reader
 (a.output/'pure_users_call.inc').write_text('return '+users_call+';\n',encoding='utf-8')
 for relative,digest in [
     ('src/game/character_membership_reader.h','762605d894cf728dbe2f869bc3f0128d66e05be53ef137a63ff9e75e43643cac'),
-    ('src/game/subscriber_intervention.h','c5f4dc49e734e3bb589b93f6a88ab7f63e8665d4e96551659ac2619929fc2cc7'),
+    ('src/game/subscriber_intervention.h','33ec7264580c592c105776a3b6b292e5f954a80eafafee61205a535b756f3fcf'),
     ('src/game/release_reference_reader.h','07d5be40cd7f81fe0133674bbebb3e5b89471ad39f4b46c63470abd78980f80a')]:
     assert hashlib.sha256((a.root/relative).read_bytes()).hexdigest()==digest, 'Reader callbacks changed; recheck bounded metadata extent: '+relative
 
@@ -224,7 +301,22 @@ assert dungeon.count('([&]{live_host_state::apply_timing::PageReadScope roster_p
 assert dungeon.count('([&]{live_host_state::apply_timing::PageReadScope roster_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return dungeon_scene_roster::read(at,typed,find,identify,image,uintptr_t(world.map),root,after,error);}())')==1
 assert dungeon.count('([&]{live_host_state::apply_timing::PageReadScope roster_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return dungeon_scene_roster::read(at,typed,find,identify,image,map,map+0x1c0,ready,error);}())')==1
 assert hashlib.sha256((a.root/'src/game/dungeon_scene_roster.h').read_bytes()).hexdigest()=='de5cc6413dc56dd13069aa7f591aa01fbf3022b27fdd588df6ece9f3cdfab85d'
-assert hashlib.sha256((a.root/'src/game/dungeon_scene_key.h').read_bytes()).hexdigest()=='74927c702581393555223b03acf9587748dcec2a33ef48303f051ab2b1fbb940'
+# The owner-only reader retains the complete original RTTI/full-UID guards.
+# Admit only its exact extraction and the extra final owner revalidation.
+dungeon_key=(a.root/'src/game/dungeon_scene_key.h').read_text(encoding='utf-8')
+dungeon_key_change='template<class Read,class Typed>\nbool read_owner(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Scene& out,std::string& e){\n'
+assert dungeon_key.count(dungeon_key_change)==1, 'Dungeon owner extraction differs from admitted original guard-preserving block'
+dungeon_key=dungeon_key.replace(dungeon_key_change,'template<class Read,class Typed,class Identify>\nbool read(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Identify&& identify,Scene& out,std::string& e){\n')
+dungeon_key_change='    uintptr_t final_owner=0;uint64_t final_uid=0;\n    if(!at(result.exterior,0x18,final_uid,e)||final_uid!=result.exterior_uid||!at(result.exterior,0xa38,final_owner,e)||final_owner!=result.dungeon||\n       !at(current,type==1?0x18:0x20,final_owner,e)||final_owner!=(type==1?result.dungeon:result.instance))\n        return fail(e,e.empty()?"Dungeon scene identity changed during canonical lookup":e.c_str());\n    out=std::move(result);return true;\n}\ntemplate<class Read,class Typed,class Identify>\nbool read(uintptr_t image,uintptr_t root,uintptr_t current,Read&& at,Typed&& typed,Identify&& identify,Scene& out,std::string& e){\n    out={};Scene result;\n    if(!read_owner(image,root,current,at,typed,result,e))return false;\n    if(current==root){out=std::move(result);return true;}\n'
+assert dungeon_key.count(dungeon_key_change)==1, 'Dungeon owner extraction differs from admitted original guard-preserving block'
+dungeon_key=dungeon_key.replace(dungeon_key_change,'')
+dungeon_key_change='       !at(current,result.type==1?0x18:0x20,final_owner,e)||final_owner!=(result.type==1?result.dungeon:result.instance))\n'
+assert dungeon_key.count(dungeon_key_change)==1, 'Dungeon owner extraction differs from admitted original guard-preserving block'
+dungeon_key=dungeon_key.replace(dungeon_key_change,'       !at(current,type==1?0x18:0x20,final_owner,e)||final_owner!=(type==1?result.dungeon:result.instance))\n')
+dungeon_key_change='    result.key=result.exterior_key+(result.type==1?"/template":"/instance/"+std::to_string(result.instance_index));\n'
+assert dungeon_key.count(dungeon_key_change)==1, 'Dungeon owner extraction differs from admitted original guard-preserving block'
+dungeon_key=dungeon_key.replace(dungeon_key_change,'    result.key=result.exterior_key+(type==1?"/template":"/instance/"+std::to_string(result.instance_index));\n')
+assert hashlib.sha256(dungeon_key.encode('utf-8')).hexdigest()=='74927c702581393555223b03acf9587748dcec2a33ef48303f051ab2b1fbb940'
 exterior_loop='    {live_host_state::apply_timing::PageReadScope exterior_pages(!live_host_state::apply_timing::PageReadScope::reader_active());\n    dungeon_scene_roster::Array regions;const auto map=uintptr_t(world.map);\n    if(!dungeon_scene_roster::array(at,map+0x230,regions,error))return false;\n    for(const auto region:regions.members){uintptr_t manager=0;if(!at(region,0x950,manager,error))return false;\n        dungeon_scene_roster::Array buildings;if(!dungeon_scene_roster::array(at,manager+0x408,buildings,error))return false;\n        for(const auto building:buildings.members){uintptr_t dungeon=0;uint64_t uid=0;if(!at(building,0xa38,dungeon,error))return false;\n            if(!dungeon)continue;Exterior row;if(!at(building,0x18,uid,error)||!([&]{live_host_state::apply_timing::PageReadScope original_key(live_host_state::apply_timing::PageBoundary::OriginalCall);return remove_diagnostics::resolve_current_building_key(snapshot,building,uid,row.record,error);}()))return false;\n            row.uid=uid;exteriors.push_back(std::move(row));}\n        if(!dungeon_scene_roster::unchanged(at,manager+0x408,buildings,error))return false;\n    }\n    if(!dungeon_scene_roster::unchanged(at,map+0x230,regions,error))return false;\n    }\n'
 assert dungeon.count(exterior_loop)==1
 (a.output/'dungeon_exterior_loop.inc').write_text(exterior_loop,encoding='utf-8')
@@ -281,3 +373,82 @@ intervention=(a.root/'src/game/intervention_census.cpp').read_text(encoding='utf
 edge='out={};Census next;if(!boss_current::read_with_characters(context,binding,next.bosses,next.definitions,next.users,error))return false;'
 assert intervention.count(edge)==1, 'Intervention must consume the actual first Boss Character census'
 (a.output/'composed_character_edge.inc').write_text('bool actual_intervention_edge(const action_session::Context& context,const action_session::Binding& binding,Census& out,std::string& error){'+edge+'out=std::move(next);return true;}\n',encoding='utf-8')
+
+# These concrete adapters have already admitted Origin; generic callbacks stay unchanged.
+assert actual_world_prop.index('if(batch&&!batch->admit(before,image_,thread_,api_,e))return false;')<actual_world_prop.index('PageReadScope fields(batch&&')
+assert actual_world_prop.count('PageReadScope fields(batch&&')==1
+saved_call=body(actual_world_prop,'if(!([&]{')
+# body() begins at the lambda, so take only its exact lambda expression.
+saved_call=saved_call[saved_call.index('[&]{'):]
+assert saved_call.endswith('}')
+saved_dependency='read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member)'
+assert saved_call.count(saved_dependency)==1
+(a.output/'saved_root_field_scope.inc').write_text(saved_call.replace(saved_dependency,'port()',1)+'()\n',encoding='utf-8')
+region_start=batch_runtime.index('            mt2mp::game::live_host_state::apply_timing::PageReadScope fields(')
+region_end=batch_runtime.index('            return place::read_scenery(memory,owner,image,out,cause);',region_start)
+region_scope=batch_runtime[region_start:region_end]
+assert region_scope.count('PageReadScope fields(')==1 and batch_runtime.count(region_scope)==1
+(a.output/'saved_root_final_field_scope.inc').write_text(region_scope+'return port();\n',encoding='utf-8')
+# Both uncached global Origin proofs remain outside the concrete final Region adapter.
+assert 'if(!verify_origin(error)||!finish_body(error)||!verify_origin(error))return proof.reject(error);' in batch_runtime
+catalog_source=(a.root/'src/game/scenery_kiss/native_catalog.cpp').read_text(encoding='utf-8')
+method=body(catalog_source,'bool NativeCatalog::identify(')
+(a.output/'catalog_field_scope_body.inc').write_text(method+'\n',encoding='utf-8')
+
+
+# Actual Scenery values: every scope ends before either external Root or Catalog callback.
+state_source=(a.root/'src/game/scenery_kiss/scenery_state.cpp').read_text(encoding='utf-8')
+state_scope='#ifdef _WIN32\n    mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n#endif\n'
+assert state_source.count(state_scope)==2, 'Scenery pure field scope count differs'
+state_baseline=state_source.replace('#ifdef _WIN32\n#include "live_host_state/memory_query_timing.h"\n#endif\n','',1).replace(state_scope,'')
+raw_fields='            if(!at(memory,b.object,0,ap,e)||!at(memory,b.object,0x18,actual_uid,e)||!at(memory,b.object,0x170,shard,e)||!at(memory,b.object,0x178,region,e)||!at(memory,b.object,0x268,v.category,e)||!at(memory,b.object,0x26c,v.variant,e))return false;'
+assert state_baseline.count('            {\n'+raw_fields+'\n            }')==1
+state_baseline=state_baseline.replace('            {\n'+raw_fields+'\n            }',raw_fields,1)
+assert hashlib.sha256(state_baseline.encode()).hexdigest()=='f8383ba1b54fcc9f4716871cd60fd4fb46756933c703497b620dde2b47d7496c', 'Scenery state changed outside exact pure field scopes'
+state_header=(a.root/'src/game/scenery_kiss/scenery_state.h').read_text(encoding='utf-8')
+action_header=(a.root/'src/game/typed_action/action_session.h').read_text(encoding='utf-8')
+types=[body(action_header,'struct BuildingState {')+';', 'using State=BuildingState;']
+types += [body(state_header,anchor)+';' for anchor in ['struct Catalog {','struct Binding {','struct Root {']]
+(a.output/'scenery_state_field_types.inc').write_text('\n'.join(types)+'\n',encoding='utf-8')
+helpers=[body(state_source,anchor) for anchor in ['bool fail(', 'template<class T>bool at(', 'bool pose(', 'bool identify(']]
+helpers.append(body(state_source,'struct View {')+';')
+helpers.append(body(state_source,'bool read_state('))
+helpers.append(body(state_baseline,'bool pose(').replace('bool pose(', 'bool baseline_pose(',1))
+helpers.append(body(state_baseline,'bool read_state(').replace('bool read_state(', 'bool baseline_read_state(',1).replace('&&pose(', '&&baseline_pose(',1))
+(a.output/'scenery_state_field_bodies.inc').write_text('\n'.join(helpers)+'\n',encoding='utf-8')
+
+# Complete local World context is admitted only after the full successful saved member proof.
+ready='        if(batch)batch->world_ready=true;'
+actual_saved=body(actual_world_prop,'bool Reader::saved_root_scenery(')
+assert actual_saved.count(ready)==1
+assert actual_saved.index('if(!current(after,true,e))return false;')<actual_saved.index(ready)<actual_saved.index('out=std::move(value);return true;')
+(a.output/'saved_root_world_ready.inc').write_text(ready+'\n',encoding='utf-8')
+(a.output/'saved_root_world_reuse.inc').write_text(body(batch_runtime,'bool RootSceneryReadBatch::reuse_world(')+'\n',encoding='utf-8')
+(a.output/'saved_root_world_admit.inc').write_text(body(batch_runtime,'bool same(const WorldState&')+'\n'+body(batch_runtime,'bool admit(const WorldState&')+'\n',encoding='utf-8')
+fresh=body(batch_runtime,'struct FreshWorld ')
+assert batch_runtime.count(fresh+' fresh(fresh_world);')==1
+(a.output/'saved_root_world_fresh.inc').write_text(fresh+' fresh(fresh_world);\n',encoding='utf-8')
+
+# Retain the complete production World Zone manager body and original-call
+# boundary. The comparison removes metadata scopes only, never field reads.
+world_zone=(a.root/'src/game/world_zone_current.inc').read_text()
+zone_reader='#ifdef _WIN32\n        mt2mp::game::live_host_state::apply_timing::PageReadScope zone_pages(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n#endif\n'
+zone_original='#ifdef _WIN32\n        mt2mp::game::live_host_state::apply_timing::PageReadScope original_lookup(mt2mp::game::live_host_state::apply_timing::PageBoundary::OriginalCall);\n#endif\n'
+zone_find=body(world_zone,'    auto find=[&](uint64_t uid,uintptr_t& value,std::string& cause)')+';\n'
+zone_add=body(world_zone,'    const auto add=[&](uintptr_t manager,uintptr_t root,uintptr_t region,const std::string& scene,const q::SavedPool& monsters)')+';\n'
+assert zone_find.count(zone_original)==1 and zone_add.count(zone_reader)==1
+assert 'dungeon_zone_roster::read(at,find,image,manager,root,region,actual,error)' in zone_add
+assert 'monster_count!=monsters.array.zones.size()' in zone_add
+assert 'World Zone current roster omitted a confirmed live member' in zone_add
+(a.output/'world_zone_manager_scoped.inc').write_text(zone_find+zone_add,encoding='utf-8')
+(a.output/'world_zone_manager_baseline.inc').write_text(zone_find.replace(zone_original,'')+zone_add.replace(zone_reader,''),encoding='utf-8')
+
+# The initial and final World Zone Region scans are separate pure extents.
+zone_region_scope='#ifdef _WIN32\n        mt2mp::game::live_host_state::apply_timing::PageReadScope region_pages;\n#endif\n'
+zone_regions=body(world_zone,'    const auto capture_regions=[&]()')+';\n'+body(world_zone,'    const auto verify_regions=[&]()')+';\n'
+assert zone_regions.count(zone_region_scope)==2
+assert zone_regions.count('region_saved_identity::capture(image,map,root,region_index,at,error)')==1
+assert zone_regions.count('region_saved_identity::verify(image,map,root,region_index,at,error)')==1
+assert 'exact_uid' not in zone_regions and 'native_open_runtime' not in zone_regions
+(a.output/'world_zone_regions_scoped.inc').write_text(zone_regions,encoding='utf-8')
+(a.output/'world_zone_regions_baseline.inc').write_text(zone_regions.replace(zone_region_scope,''),encoding='utf-8')

@@ -2,30 +2,26 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Build an MMO world with a friend. Host a Steam lobby, invite a friend and build side by side.
+Build together in one Host world. This is an early beta in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of saves you care about.
 
-**Early Beta:** Expect bugs, desyncs and unfinished features. Start with two players and a small world. Back up your saves before playing.
+This package contains the native Multiplayer plugin for the supported Windows x64 Steam game build 24993678. Both players need the same Multiplayer version.
 
 ## Install with Vortex
 
-Both players need Windows x64, the supported Steam game build 24993678 and the same Multiplayer version. Install [MT2 Mod Framework Runtime 0.2.2](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) first. The Framework is a separate download.
+Use the MMORPG Tycoon 2 Vortex extension and the MT2 Mod Framework Runtime 0.2.5 listed with this tester release. Install these dependencies through Vortex once. The runtime is a separate package; it is not included here.
 
-1. Close the game and import this Multiplayer ZIP into Vortex for MMORPG Tycoon 2.
+1. Close the game and import this ZIP into Vortex for MMORPG Tycoon 2.
 2. Enable Multiplayer and deploy.
-3. Start the game through Steam.
-4. Open Multiplayer from its in-game desktop icon, or choose **Mods... > Multiplayer > Open**.
-5. Host a lobby and create or load a small world, or join your friend's lobby. Wait until both players are ready before building.
+3. Start the game normally through Steam.
+4. Double-click Multiplayer on the game desktop, or choose Mods... > Multiplayer > Open while in a world.
+5. Host a lobby and create or load a small world, or join your friend's lobby.
 
-Vortex manages the files and profile. No manual profile path or configuration edit is required. Close the game before updating, disabling or removing the mod. Keep your saves and profile data.
+Vortex selects the profile and manages the files. No manual profile path, starter or configuration edit is required. Use Vortex to update, disable or remove this plugin with the game closed. Keep your saves and profile data.
 
-Upgrading from an older standalone Multiplayer version? Remove its loader before installing this plugin.
+## Troubleshooting
 
-## Report a problem
+Both players need Multiplayer Early Beta 17 and the matching Framework. Remove an older standalone Multiplayer loader before switching to this plugin. Open Report a problem in the Multiplayer window to send technical details privately.
 
-Open **Report a problem** in the Multiplayer window. Add an optional note about what happened, then choose **Send report privately**. Keep the report number and include it when contacting support.
+Shared edits can take several seconds or longer. The game can occasionally crash during startup. Modular building and other gameplay systems remain incomplete.
 
-Technical reports stay private and are kept for 30 days. They do not include your save, chat, screenshots or Steam account ID. Automatic reports are optional and off by default. Keep passwords and personal information out of your description.
-
-## Credits and permissions
-
-Created by DooDesch. Source access and personal changes are allowed under the included Multiplayer license. Public redistribution and modified public releases require permission. Dependencies retain their own notices. MT2 Mod Framework is MIT-licensed. MMORPG Tycoon 2 and its game artwork are by VectorStorm.
+The archive contains no game files, Steam DLL, Framework runtime, Profiler, sidecar, Python or legacy UI files. The Multiplayer license and third-party notices are included. MT2 Mod Framework and MMORPG Tycoon 2 retain their respective licenses and rights.

@@ -1,7 +1,10 @@
+#include "zone_edit_runtime.h"
+#include "district_stroke_runtime.h"
 #include "npc_target_key.h"
 #include "snapshot_building_key.h"
 #include "ui_remove_runtime.h"
 #include "network_remove_runtime.h"
+#include "ui_path_runtime.h"
 #include "group_object_runtime.h"
 #include "ui_remove/native_entry_windows.h"
 #include "ui_remove/native_contract_bytes.h"
@@ -12,6 +15,7 @@
 #include "remove_diagnostics.h"
 #include "npc_probe.h"
 #include "monster_action_runtime.h"
+#include "dungeon_input_runtime.h"
 #include "object_identity/native_free_runtime/native_free_runtime.h"
 #include "object_identity/remove_runtime/remove_runtime.h"
 #include "mt2mp/core/config.h"
@@ -97,9 +101,15 @@ public:
     bool array(ui::NativePropArray* actual,ui::ArrayObservation& out,std::string& error)override {
         return ui::read_native_array(memory,image,actual,out,error);
     }
+    bool scene_collection(uintptr_t manager,ui::NativePropArray* array,bool& handled,std::string& error)override {
+        return npc_probe::monster_action_runtime::dungeon_input::capture_scene_remove(manager,uintptr_t(array),handled,error);
+    }
     bool resolve(uintptr_t manager,uintptr_t object,ui::LocalBinding& out,std::string& error)override {
         uintptr_t ap=0;
         if(!memory.copy(object,&ap,sizeof ap,error))return false;
+        if(ap==image+0x1745ce0)return npc_probe::zone_edit_runtime::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x16da000)return ui_move_runtime::district_stroke::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x1743f10)return ui_path_runtime::remove_local_binding(manager,object,out,error);
         if(ap==image+0x1749de0)return ui_move_runtime::group_object::remove_local_binding(manager,object,out,error);
         if(ap==image+0x16fc700||ap==image+0x16fca60)return network_remove_runtime::local_binding(manager,object,out,error);
         if(ap==image+0x1742980)
@@ -108,8 +118,10 @@ public:
             return npc_probe::monster_action_runtime::remove_local_binding(manager,object,out,error);
         remove_diagnostics::LocalTarget actual;
         if(!remove_diagnostics::resolve_local_target(manager,object,actual,error))return false;
-        if(!actual.normal_building&&!actual.normal_scenery){error=actual.kind_cause.empty()?"UI Remove target is not an actual normal Building":actual.kind_cause;return false;}
-        out=local_binding(actual);return true;
+        std::string scene;bool dungeon=false;
+        if(!remove_diagnostics::dungeon_building_scene(actual,scene,dungeon,error))return false;
+        if(!actual.normal_building&&!actual.normal_scenery&&!dungeon){error=actual.kind_cause.empty()?"UI Remove target is not a supported current Building":actual.kind_cause;return false;}
+        out=local_binding(actual);out.supported_dungeon_building=dungeon;return true;
     }
     bool fresh_action_uuid(std::string& out,std::string& error)override {
         unsigned char bytes[16];const auto result=BCryptGenRandom(nullptr,bytes,sizeof bytes,BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -138,7 +150,19 @@ public:
     }
     bool submit_network(const ui::Intent& intent,std::string& error)override {if(!network_remove_runtime::submit(intent,error))return false;last_intent=intent;return true;}
     bool submit_group(const ui::Intent& intent,std::string& error)override {if(!ui_move_runtime::group_object::submit_remove(intent,error))return false;last_intent=intent;return true;}
+    bool submit_path(const ui::Intent& intent,std::string& error)override {
+        if(!ui_path_runtime::submit_remove(intent,error))return false;
+        last_intent=intent;return true;
+    }
+    bool submit_district(const ui::Intent& intent,std::string& error)override {
+        if(!ui_move_runtime::district_stroke::submit_remove(intent,error))return false;last_intent=intent;return true;
+    }
+    bool submit_zone(const ui::Intent& intent,std::string& error)override {
+        if(!npc_probe::zone_edit_runtime::submit_remove(intent,error))return false;last_intent=intent;return true;
+    }
     bool authorize_replay(const ui::Replay& replay,std::string& error)override {
+        if(replay.binding.supported_zone)return npc_probe::zone_edit_runtime::authorize_remove_replay(replay,error);
+        if(replay.binding.supported_district)return ui_move_runtime::district_stroke::authorize_remove_replay(replay,error);
         if(replay.binding.supported_group)return ui_move_runtime::group_object::authorize_remove_replay(replay,error);
         if(replay.binding.supported_network)return network_remove_runtime::authorize(replay,error);
         if(replay.binding.supported_monster)return npc_probe::monster_action_runtime::authorize_remove_replay(replay,error);
@@ -339,8 +363,10 @@ bool make_replay(const std::string& snapshot,const std::string& key,const std::s
 #endif
     remove_diagnostics::LocalTarget target;
     if(!remove_diagnostics::resolve_record_target(snapshot,key,target,error))return false;
-    if(!target.normal_building&&!target.normal_scenery){error=target.kind_cause.empty()?"UI Remove replay target is not an actual normal Building":target.kind_cause;return false;}
-    out={purpose,{action,snapshot,key},local_binding(target)};return true;
+    std::string scene;bool dungeon=false;
+    if(!remove_diagnostics::dungeon_building_scene(target,scene,dungeon,error))return false;
+    if(!target.normal_building&&!target.normal_scenery&&!dungeon){error=target.kind_cause.empty()?"UI Remove replay target is not a supported current Building":target.kind_cause;return false;}
+    out={purpose,{action,snapshot,key},local_binding(target)};out.binding.supported_dungeon_building=dungeon;return true;
 }
 bool with_replay(const ui::Replay& replay,const std::function<bool(std::string&)>& callback,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);

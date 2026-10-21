@@ -1,9 +1,11 @@
 #include "typed_action/action_session.h"
-#include "monster_target_key.h"
+#include "monster_move_key.h"
 namespace monster_target_key=mt2mp::game::monster_target_key;
+namespace monster_move_key=mt2mp::game::monster_move_key;
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include <cstring>
 #include <iostream>
+namespace monster_info_fixture {
 namespace a=mt2mp::action_session;
 using json=nlohmann::json;
 void need(bool v,const std::string& e){if(!v)throw std::runtime_error(e);}
@@ -16,7 +18,7 @@ struct Pin{struct{uintptr_t selection=manager;}world;};
 namespace d{struct Sample{};}
 namespace monster_zone_read{struct Monster{uintptr_t pointer=fixture_object;uint64_t uid=0x100000001ull;};}
 struct Operation{bool confirmed=true,retired=true;struct{std::string snapshot_uuid="snapshot";struct{int region=63;}monster;}request;uintptr_t pointer=fixture_object;uint64_t uid=0x100000001ull;};
-struct Runtime{uintptr_t image=::image;unsigned thread=1;bool ready=true;std::map<std::string,Operation> operations{{birth_id,{}}};}state;
+struct Runtime{uintptr_t image=::monster_info_fixture::image;unsigned thread=1;bool ready=true;std::map<std::string,Operation> operations{{birth_id,{}}};}state;
 unsigned GetCurrentThreadId(){return 1;}
 namespace net{std::string current_snapshot_id(){return "snapshot";}}
 namespace typed_action_runtime{bool network_binding(const std::string&,a::Binding& out,std::string& e){out={3,4};return mode!=15||fail(e,"world binding changed");}}
@@ -35,7 +37,8 @@ template<class T>bool field(Memory&,uintptr_t base,size_t off,T& out,std::string
 }
 #include "monster_info_window_body.inc"
 #include "monster_info_target_body.inc"
-int main(){try{unsigned n=0;std::string e;
+}
+int main(){try{using namespace monster_info_fixture;unsigned n=0;std::string e;
  for(unsigned current=0;current<=10;++current){mode=current;Memory m;a::ui_capture::LocalBinding local{manager,fixture_object,0x100000001ull,3,4,"snapshot",std::string("action:")+birth_id};a::ui_diagnostic::Window out;json receipt;
   need(info_window(m,local,out,receipt,e)==(current==0),"actual Monster fixture_window ownership guard missed mode="+std::to_string(current));++n;}
  for(unsigned current=11;current<=19;++current){mode=current;state=Runtime{};

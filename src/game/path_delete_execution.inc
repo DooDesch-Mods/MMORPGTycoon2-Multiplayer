@@ -20,6 +20,9 @@ bool delete_binding(const Graph& g,const action::PathDeleteIntent& p,std::string
     return action::valid_path_delete(p)&&g.state.graph_sha256==p.graph_before_sha256&&size_t(p.path_index)<g.paths.size()||fail(e,"path delete target/index/graph changed");
 }
 bool delete_capture(region::Runtime& r,uintptr_t window,std::string& e){
+    bool mixed=false;
+    if(!world_path_runtime::capture_remove(r,window,mixed,e))return false;
+    if(mixed)return true;
     const auto controller=typed_action_runtime::status();
     if(!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||path.pending||path.captured||path.delete_pending||path.ui_receiver)return fail(e,"path delete UI requires idle bound Controller");
     uintptr_t road=0,proxy=0,live=0,owner=0;int32_t id=-1;

@@ -6,7 +6,7 @@ bool npc_property_intent_valid(const NpcPropertyIntent& v){
 bool npc_property_state_valid(const NpcPropertyState& v){
     if(!valid_npc_state(v.actor)||v.actor.created==NpcActor{}||v.online<0||v.online>2||
        v.force_tint!=(v.online!=2)||v.region_min<0||v.region_max<v.region_min||
-       v.command_level<v.region_min||v.command_level>v.region_max)return false;
+       v.command_level<0)return false;
     for(float f:v.tint)if(!std::isfinite(f))return false;
     return true;
 }
@@ -50,7 +50,7 @@ bool npc_property_effect(const Request& r,const Evidence& e){
         if(expected.force_tint)expected.tint=b.tint;
     }else{
         if(npc_property_unchanged(a,r.npc_property))return false;
-        expected.command_level+=r.npc_property.kind==NpcPropertyKind::RaiseLevel?1:-1;
+        expected.command_level=npc_property_level(a,r.npc_property.kind);
     }
     return b==expected;
 }

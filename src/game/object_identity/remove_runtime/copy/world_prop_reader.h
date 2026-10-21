@@ -2,6 +2,7 @@
 #include "scenery_witness.h"
 #include "prop_lease.h"
 #include "native_open_witness.h"
+#include <memory>
 
 namespace mt2mp::build_actions::private_native::host {
 namespace opened=mt2mp::game::building_mixed_identity::opened_file;
@@ -21,12 +22,31 @@ struct WorldState {
     uintptr_t root=0,selection=0,active_graph=0;
     int32_t saves=-1,edits=-1;
 };
+class RootSceneryReadBatch {
+    struct State;
+    std::shared_ptr<State> state_;
+    RootSceneryReadBatch* previous_=nullptr;
+    static thread_local RootSceneryReadBatch* current_;
+    static bool reuse_current(opened::CurrentWorld&,bool&,std::string&);
+    static bool remember_current(const opened::CurrentWorld&,std::string&);
+    static bool reject_current(std::string&);
+    static bool reuse_world(WorldState&,bool,uintptr_t,uint32_t,LookupApi,bool&,std::string&);
+    friend class Reader;
+public:
+    RootSceneryReadBatch();
+    ~RootSceneryReadBatch();
+    RootSceneryReadBatch(const RootSceneryReadBatch&)=delete;
+    RootSceneryReadBatch& operator=(const RootSceneryReadBatch&)=delete;
+    bool finish(std::string&);
+    static bool read_current(opened::CurrentWorld&,std::string&);
+};
 class Reader {
 public:
     Reader(Memory& memory,Origin& origin,uintptr_t image,uint32_t thread,LookupApi api)
         :memory_(memory),origin_(origin),image_(image),thread_(thread),api_(api){}
     bool current(WorldState&,bool require_idle,std::string&);
     bool prop(void*,uint64_t expected_uid,mt2mp::prop_lease::Prop&,std::string&);
+    bool saved_root_scenery(void*,uint64_t expected_uid,int32_t saved_region_id,uintptr_t saved_region,mt2mp::prop_lease::Prop&,std::string&);
     uint32_t thread()const noexcept{return thread_;}
 private:
     Memory& memory_;Origin& origin_;uintptr_t image_;uint32_t thread_;LookupApi api_;

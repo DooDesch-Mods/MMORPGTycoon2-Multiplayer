@@ -10,12 +10,14 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 **Early Beta:** Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
 
+Shared edits can take several seconds or longer to finish. The game can occasionally crash during startup. This update focuses on two-player building and scenery tools; modular building and other gameplay systems remain incomplete.
+
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Coverage in [Early Beta 16](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.16). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Coverage in [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
@@ -27,12 +29,12 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 <details>
 <summary>Feature details - what is included</summary>
 
-| Feature | Early Beta 16 | What is covered |
+| Feature | Early Beta 17 | What is covered |
 | --- | --- | --- |
 | Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
 | A shared world | ✅ Available | The Host creates or loads a world; the joining player receives it. |
 | Session chat | ◐ Partial | Basic session messages in the Multiplayer window. |
-| Buildings and scenery | ◐ Partial | Place, move and remove supported buildings and individual scenery objects. |
+| Buildings and scenery | ◐ Partial | Place, move and remove supported buildings and scenery. Copy buildings or scenery, group and ungroup scenery, use the single-click scenery eraser, and undo or redo supported shared edits. |
 | Terrain and roads | ◐ Partial | Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned. |
 | Regions | ✅ Available | Share region purchases, biome styles and region levels. |
 | Pause and game speed | ✅ Available | Keep the same pause state and simulation speed. |
@@ -59,7 +61,7 @@ Percentages count the listed areas equally. They describe feature coverage, not 
 
 ## Start playing
 
-You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.2](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
+You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.5](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

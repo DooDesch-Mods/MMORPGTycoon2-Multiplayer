@@ -1,0 +1,51 @@
+#pragma once
+#include "mt2mp/hooks/original_body.h"
+#include <vector>
+namespace mt2mp::game::dungeon_input_codes {
+struct Pin {uintptr_t rva;size_t bytes;const char* sha;};
+inline constexpr Pin values[]{
+    {0x9ff370,64,"177129c348811abd9b0d6e9cef580ef6c4aa044ce3afc4fafa5bc1935213387f"},
+    {0x147a20,464,"b53b97655553a8b2a00471960b4fa62c69d5eeaecf211ba411d0e5353a807c16"},
+    {0x146af0,128,"ba4f9eb30fdef9ee5bdd5a811d51548c1b8535dc502a2dd30dc0957a34dc4a92"},
+    {0x153920,816,"316f8d8607b62c708a8569690b23ec14cf4d6d392d7fd05fdddd04067dd4db3c"},
+    {0xa4f10,2320,"56e83d376878406ab6370417e8dd95f3c52b0b0ba7aea8ec46789fd278fb11a6"},
+    {0x145950,16,"cc67f581cbf8fafc8d8fe6a2f12b22b4b9c7cf84e63fd22f33f0f994f6e3c25b"},
+    {0x293520,976,"8b61921c479b6e67309966e9fa225b1e4e0c2701b2bd0c68f763bdecf1c8c43f"},
+    {0xd96100,352,"7864a8e86fef01d9730d0b5dceafddd84e610e5e8a91dbce7cc78848d84d4e98"},
+    {0xce7af0,256,"9e5b3a489e54615bf140abac86430ab1a0adfdf2557e959527eab136ab1e4658"},
+    {0x89e940,224,"c3dc4f40d9604953e71e4faf6d70671f6813bc45ba74ec7d8996b357712dc6f0"},
+    {0x89e480,256,"d95b690b624d4f2e5b1050ebe0fd0ddc7ea6f8a52f31ac6f60d00372a162cae5"},
+    {0x1591d0,1952,"92fc63ec7e365cfa9aaa704071e4368843897e849968cb273af0c5a682a383d7"},
+    {0x157f70,32,"4c25c6b76503acba600a07cd0748400fba7d062d1d836a62d115c3d3c4118915"},
+    {0x9667c0,192,"68771f9cbea589ec9823a8ff2b6b4c4078bee5b03e88a737980e800613e76563"},
+    {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
+    {0x89e580,112,"96faae970c836689a97e898aa2712d320bf8d28cbaf0e653b82fc50000000bc4"},
+    {0x89e5f0,160,"82cce97344c21ec8e981d9f9abeb820e37608b7eec2a3e52e89bf7e35156fc16"},
+    {0x10ee6f0,96,"a8c414410c6bd65ce45286a481167fda5b0b5c3f413891ab3a0ae52aa4b7fdc7"},
+    {0x10ee750,416,"41d12c45b22e7dd306aeaf6f2232c3d1df20f0e0ea49068724dbf8931f483287"},
+    {0xf1810,240,"16b29df7d1c55e5ec9e9b181b4b378afad249b79985ca77d4a7b1e1d891fb59c"},
+    {0xf7ed0,704,"b476752a255a39394cf9f337b991d53bc7436e2affa7a9af09d08c4da83a8049"},
+    {0xf3b60,6416,"31b4b8490106479f632a3a2b0118d7f48be8ee7fb949839aa3c08dddd23a82e6"},
+    {0xf15a0,240,"f01747370d8bf6cf0011a40d0b6e07b961a62b78301b880bf3dc82142908956f"},
+    {0xf8c30,160,"f02f9ab436886dc5c26296499fe5b3e67f99a28cd3b640e52e97acc98ee56f88"},
+    {0xf1230,384,"7cf16c34fccd55293fcdcd6365f35cf806662f151cbde3b249e6053346302011"},
+    {0x157720,720,"a993e4aca09eefba8f849af083fb20d9089ff0901a63e05b7b620f7fe67b05de"},
+    {0x157680,160,"9f2db25d9f15f2516179a813a5ba8ebda28882e0289f9fdd84606d40dcdc1b82"},
+    {0x15d610,320,"bdbf9170402dd8e43f0f25783a49bd0460adced88b90e333d74d2d0ec5693145"},
+    {0x15d440,176,"2f79938ebdbb5206b7f9fd7cd6226f43ff90455956307a71122d05e9ef52374e"},
+    {0x15d140,128,"f3b4da4d30ac79a8082deec66af195a6ce0554dde60763f3448274a4bd3baecf"},
+    {0x15d250,128,"682695f4002a944db6ea2c96ec37f08c9e8c81817fc79dec950a226b9b7ef1b3"},
+    {0x1563c0,544,"3760bb16eee8cebb19ab3ccfb8dda0dfa99482a041422d2685ad5da444c7cf41"},
+    {0x15d360,112,"e10b9a818675214cfe7e96d261f3beb28ad53493f4727898dec3b8dfc2cd7695"},
+    {0x15d1c0,144,"a2f7155756373e2829e95e6a66557cb7e06bf4539c904fb305d1bf3b943bed22"},
+    {0x15d3d0,112,"bd269eacbfed808f3506e8605f423f4be5f97065fc4738cef4931f645dcf569c"},
+    {0x53e6e0,1040,"d811f297c3e31d0c57d018b4feb7a52dcd7c2d45c1e84493d026fdb37d976f6d"},
+};
+template<class Memory>bool verify(uintptr_t image,Memory& memory,std::string& error){
+    for(const auto& pin:values){std::vector<unsigned char> bytes(pin.bytes);
+        if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),error))return false;
+        if(!hooks::framework::verify_original_hash(image+pin.rva,bytes.data(),bytes.size(),pin.sha,error)){
+            error="Dungeon input original body differs RVA="+std::to_string(pin.rva)+" original="+error;return false;}}
+    return true;
+}
+}

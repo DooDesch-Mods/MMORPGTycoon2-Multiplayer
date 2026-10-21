@@ -1,8 +1,10 @@
 #include "multiplayer_world/world_state.h"
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 namespace w=mt2mp::world_state;
 void need(bool b,const std::string& e){if(!b)throw std::runtime_error(e);}
+#include "dungeon_building_table_cases.inc"
 int main()try{
     const std::string id="11111111-1111-4111-8111-111111111111";const w::Origin origin{"22222222-2222-4222-8222-222222222222",std::string(64,'a'),3,4};
     w::Building state;state.type="SmallInn";state.variant="Original";state.alive=true;state.rotation={0,0,0,1};state.scale={1,1,1};
@@ -40,5 +42,6 @@ int main()try{
     need(!table.restore_native_buildings(origin,2,redo,rows,e)&&table.rows()==tombstones,"stale restore revision accepted");++checks;
     need(table.restore_native_buildings(origin,3,redo,rows,e)&&table.rows()==stable&&table.revision()==3,e);++checks;
     need(!table.restore_native_buildings(origin,4,redo,rows,e)&&table.rows()==stable&&table.revision()==3,"restoration replay advanced one graph revision");++checks;
+    checks+=dungeon_building_table_cases();
     std::cout<<checks<<" actual atomic create-batch/full binding/no-partial cases passed\n";return 0;
 }catch(const std::exception& ex){std::cerr<<ex.what()<<'\n';return 1;}

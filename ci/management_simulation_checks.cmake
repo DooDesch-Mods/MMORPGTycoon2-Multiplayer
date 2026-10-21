@@ -30,9 +30,21 @@ if(WIN32)
     endif()
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${MT2MP_SOURCE_ROOT}/src/game/management_live_port.inc"
-        "${MT2MP_SOURCE_ROOT}/test/extract_management_native.py")
+        "${MT2MP_SOURCE_ROOT}/src/game/dungeon_gizmo_live_native.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp"
+        "${MT2MP_SOURCE_ROOT}/test/extract_management_native.py"
+        "${MT2MP_SOURCE_ROOT}/src/game/analytics_native.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/analytics_state.h"
+        "${MT2MP_SOURCE_ROOT}/src/game/subscriber_demand_native.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/subscriber_demand_state.h"
+        "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_lifetime.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_lifetime.h"
+        "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_state.h"
+        "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_frame.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_codes.inc")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/src/game/building_uptime_native.inc")
     add_executable(test_management_native "${MT2MP_SOURCE_ROOT}/test/test_management_native.cpp")
-    target_include_directories(test_management_native PRIVATE "${management_generated}")
+    target_include_directories(test_management_native PRIVATE "${management_generated}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
     target_compile_features(test_management_native PRIVATE cxx_std_20)
     target_compile_definitions(test_management_native PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     if(MSVC)

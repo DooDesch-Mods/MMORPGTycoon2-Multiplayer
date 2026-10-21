@@ -1,4 +1,5 @@
 #include "native_bridge.h"
+#include "dungeon_held_graph.h"
 #include "region_history_key.h"
 #include "stack_transition.h"
 #include "multiplayer_world/world_state.h"
@@ -267,7 +268,7 @@ bool invoke_ui(const nlohmann::json& args,nlohmann::json& out,std::string& error
 
 static bool remember_graph(const std::string& original,const std::string& object_key,uintptr_t graph,std::string& error) {
     auto* runtime=published.load(std::memory_order_acquire);
-    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||(!world_state::valid_object_key(object_key)&&object_key!="group-object:"+original&&object_key!="groups:"+original&&object_key!="duplicate:"+original&&object_key!="scenery-stroke:"+original&&object_key!="selection:"+original&&object_key!="path:"+original&&object_key!="terrain:"+original&&object_key!="dungeon-tiles:"+original&&object_key!="quests:"+original&&object_key!="network:"+original&&!mt2mp::game::region_history_key::parse(object_key))||!graph) {
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||original.empty()||(!world_state::valid_object_key(object_key)&&object_key!="modular:"+original&&object_key!="district-edit:"+original&&object_key!="group-object:"+original&&object_key!="groups:"+original&&object_key!="duplicate:"+original&&object_key!="scenery-stroke:"+original&&object_key!="selection:"+original&&object_key!="path:"+original&&object_key!="terrain:"+original&&object_key!="dungeon-tiles:"+original&&object_key!="dungeon-input:"+original&&object_key!="npc-history:"+original&&object_key!="monster-history:"+original&&object_key!="quests:"+original&&object_key!="network:"+original&&!mt2mp::game::region_history_key::parse(object_key))||!graph) {
         error="building history mutation graph binding invalid";return false;
     }
     if(!bind_current_snapshot(*runtime,error))return false;
@@ -291,12 +292,19 @@ bool remember_region(const std::string& original,int32_t id,uintptr_t graph,std:
 }
 bool remember_terrain(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"terrain:"+original,graph,error);}
 bool remember_dungeon_tiles(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"dungeon-tiles:"+original,graph,error);}
+bool remember_npc(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"npc-history:"+original,graph,error);}
+bool remember_monster(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"monster-history:"+original,graph,error);}
+bool remember_dungeon_input(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"dungeon-input:"+original,graph,error);}
 bool remember_quest(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"quests:"+original,graph,error);}
 bool remember_network(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"network:"+original,graph,error);}
 bool remember_path(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"path:"+original,graph,error);}
 bool remember_duplicate(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"duplicate:"+original,graph,error);}
 bool remember_scenery(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"scenery-stroke:"+original,graph,error);}
 bool remember_group(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"groups:"+original,graph,error);}
+bool remember_zone_edit(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"zone-edit:"+original,graph,error);}
+bool remember_district_stroke(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"district-stroke:"+original,graph,error);}
+bool remember_modular(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"modular:"+original,graph,error);}
+bool remember_district(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"district-edit:"+original,graph,error);}
 bool remember_group_object(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"group-object:"+original,graph,error);}
 bool remember_selection(const std::string& original,uintptr_t graph,std::string& error){return remember_graph(original,"selection:"+original,graph,error);}
 bool graph_for(action::Action direction,const std::string& original,uintptr_t& graph,std::string& error){
@@ -315,6 +323,41 @@ bool graph_for(action::Action direction,const std::string& original,uintptr_t& g
     if(!witness::read_graph(memory,runtime->image,expected,checked,error))return false;
     if(!checked.locked||checked.pending_delete){error="history graph source is not drained/locked";return false;}
     graph=expected;error.clear();return true;
+}
+
+bool retained_dungeon_node(action::Action direction,const std::string& original,
+                          uintptr_t node,bool& present,std::string& error){
+    present=false;auto* runtime=published.load(std::memory_order_acquire);
+    if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId()||!node||
+       (direction!=action::Action::UndoBuilding&&direction!=action::Action::RedoBuilding)){
+        error="Held Dungeon graph lookup requires its bound Mainthread and direction";return false;
+    }
+    if(!bind_current_snapshot(*runtime,error))return false;
+    const auto found=runtime->buildings.find(original);
+    if(found==runtime->buildings.end()){error="Held Dungeon graph source action absent";return false;}
+    const auto graph=direction==action::Action::UndoBuilding?found->second.undo:found->second.redo;
+    host::ProcessMemory memory;witness::UndoWitness before,after;witness::GraphWitness checked,final_graph;
+    if(!witness::read_undo(memory,runtime->image,before,error))return false;
+    if(before.active_graph){error="Held Dungeon graph lookup encountered an active original graph";return false;}
+    const auto& stack=direction==action::Action::UndoBuilding?before.undo:before.redo;
+    // AddUndo can retire old history. Do not read a node after its owning graph
+    // leaves the original stack, even if a later allocation reused its address.
+    if(!graph||std::find(stack.begin(),stack.end(),graph)==stack.end()){error.clear();return true;}
+    if(std::count(stack.begin(),stack.end(),graph)!=1||
+       !witness::read_graph(memory,runtime->image,graph,checked,error)||!checked.locked||checked.pending_delete){
+        if(error.empty())error="Held Dungeon graph is not unique, locked and drained";return false;
+    }
+    auto at=[&](uintptr_t pointer,size_t offset,auto& value,std::string& cause){
+        if(!pointer||pointer>UINTPTR_MAX-offset||pointer+offset>UINTPTR_MAX-sizeof(value)){
+            cause="Held Dungeon graph field span invalid";return false;
+        }
+        return memory.copy(pointer+offset,&value,sizeof value,cause);
+    };
+    if(!dungeon_held_graph::member(at,runtime->image,graph,node,error)||
+       !witness::read_graph(memory,runtime->image,graph,final_graph,error)||
+       !witness::read_undo(memory,runtime->image,after,error))return false;
+    if(before!=after||checked!=final_graph){error="Held Dungeon original graph membership changed during lookup";return false;}
+    present=true;error.clear();return true;
 }
 
 action::Outcome perform(action::Action direction,const std::string& original,std::string& error) {

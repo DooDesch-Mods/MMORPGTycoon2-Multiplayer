@@ -1,5 +1,8 @@
 #include "append_calls.h"
 #include "native_codes.h"
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+#include "mt2mp/hooks/framework_backend.h"
+#endif
 #include <array>
 #include <exception>
 #include <Windows.h>
@@ -80,7 +83,19 @@ bool resolve_append_api(Memory& memory,uintptr_t image,AppendApi& out,std::strin
     out={};
     for(const auto& c:native_codes){std::array<unsigned char,16> actual{};
         if(!image||image>UINTPTR_MAX-c.rva||!memory.read(image+c.rva,actual.data(),actual.size(),e))return false;
-        if(actual!=c.bytes){e="Subscriber append native code mismatch RVA="+std::to_string(c.rva);return false;}}
+        if(actual!=c.bytes){
+            const auto mismatch="Subscriber append native code mismatch RVA="+std::to_string(c.rva);
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+            // Context.Lookup is also the owned private-link observer during normal gameplay.
+            if(c.rva==lookup_rva){
+                std::string route_error;
+                if(hooks::framework::verify_code(image+c.rva,c.bytes.data(),c.bytes.size(),route_error))continue;
+                e=mismatch+"; "+route_error;return false;
+            }
+#endif
+            e=mismatch;return false;
+        }
+    }
     out.records=record_functions(image);
     out.context_construct=reinterpret_cast<Unary>(image+0x89e940);out.context_destroy=reinterpret_cast<Unary>(image+0x89e480);out.context_abort=reinterpret_cast<Unary>(image+0x89dfb0);
     out.progress_construct=reinterpret_cast<Unary>(image+0xc08f20);out.progress_destroy=reinterpret_cast<Unary>(image+0xc08fb0);

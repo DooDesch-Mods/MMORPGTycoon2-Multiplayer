@@ -64,34 +64,34 @@ public:
         if(created.empty())return reject(error,"original Wall/Pass produced no native Path or Intersection birth");
         keys_=std::move(next);used_=std::move(used);out=std::move(created);return true;
     }
-    // Original Undo/Redo can allocate a new full UID for an existing canonical
-    // birth. Bind only expected Region/type/bucket positions; the caller then
-    // compares the complete topology and original Records before confirmation.
+    // Original MakePath and MakeIntersection restore their retained full UID.
+    // Array insertion order may change. Compare key, full UID, family and owner;
+    // the caller then compares complete topology and original Record contents.
     bool restore(const mixed_path_graph::Snapshot& expected,const Census& current,std::string& error){
         if(snapshot_.empty())return reject(error,"history restore has no seeded World");
-        std::map<std::pair<bool,Ref>,std::string> slots;
+        std::map<std::string,std::pair<bool,mixed_path_graph::Identity>> required;
         for(const auto& row:expected.paths)
-            if(!slots.emplace(std::make_pair(true,row.local_ref),row.key).second)
-                return reject(error,"expected Path history bucket repeated");
+            if(!row.local_uid||!required.emplace(row.key,std::make_pair(true,row)).second)
+                return reject(error,"expected Path history key/full UID repeated or absent");
         for(const auto& row:expected.nodes)
-            if(!slots.emplace(std::make_pair(false,row.local_ref),row.key).second)
-                return reject(error,"expected Intersection history bucket repeated");
-        std::map<uint64_t,std::string> next=keys_;
+            if(!row.local_uid||!required.emplace(row.key,std::make_pair(false,row)).second)
+                return reject(error,"expected Intersection history key/full UID repeated or absent");
         std::set<std::string> live;
         auto bind=[&](const Member& member,bool path){
-            const auto found=slots.find(std::make_pair(path,member.ref));
-            if(found==slots.end()||found->second.empty())return false;
-            const auto existing=next.find(member.uid);
-            if(existing!=next.end()&&existing->second!=found->second)return false;
-            if(existing==next.end())next.emplace(member.uid,found->second);
-            return live.insert(found->second).second;
+            const auto key=keys_.find(member.uid);
+            if(key==keys_.end())return false;
+            const auto found=required.find(key->second);
+            if(found==required.end()||found->second.first!=path)return false;
+            const auto& wanted=found->second.second;
+            return wanted.local_uid==member.uid&&wanted.local_ref.region==member.ref.region&&
+                wanted.local_ref.type==member.ref.type&&live.insert(key->second).second;
         };
         for(const auto& row:current.paths)if(!bind(row.member,true))
-            return reject(error,"original Path history UID/bucket/key cannot rebind");
+            return reject(error,"original Path history full UID/key/owner cannot rebind");
         for(const auto& row:current.nodes)if(!bind(row.member,false))
-            return reject(error,"original Intersection history UID/bucket/key cannot rebind");
-        if(live.size()!=slots.size())return reject(error,"original history restored incomplete topology");
-        keys_=std::move(next);return true;
+            return reject(error,"original Intersection history full UID/key/owner cannot rebind");
+        if(live.size()!=required.size())return reject(error,"original history restored incomplete topology");
+        return true;
     }
 };
 }

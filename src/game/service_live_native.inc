@@ -4,25 +4,34 @@ bool service_uid(Runtime& r,uintptr_t object,uint64_t uid,uintptr_t expected,std
     if(!ap(r,object,expected,e)||!at(r,object,0x18,actual,e)||actual!=uid)return fail(e,e.empty()?"Service Frame full UID/class changed":e);
     const auto seh=uid_lookup(r.image,uid,found);return (!seh&&found==object)||fail(e,"Service Frame FindUID/current pointer differs SEH="+std::to_string(seh));
 }
-bool service_sample(Runtime& r,const std::map<uintptr_t,std::string>& destinations,ServiceOwner& owner,service_live::Building& out,std::string& e){
+bool service_sample(Runtime& r,const std::map<uintptr_t,std::string>& destinations,ServiceOwner& owner,service_live::Building& out,std::string& e,const std::set<uintptr_t>* proved_buildings=nullptr){
     auto read=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return at(r,p,offset,value,cause);};
     auto string=[&](uintptr_t p,std::string& value,std::string& cause){return text(r,p,value,4096,cause);};
-    auto destination=[&](uintptr_t p,std::string& key,std::string& cause){const auto found=destinations.find(p);if(found==destinations.end())return fail(cause,"Service Frame destination lacks complete canonical Building identity");key=found->second;return true;};
+    auto destination=[&](uintptr_t p,std::string& key,std::string& cause){const auto found=destinations.find(p);if(found==destinations.end())return fail(cause,"Service Frame destination lacks complete canonical Building identity");if(proved_buildings&&!proved_buildings->contains(p)){
+            remove_diagnostics::LocalTarget actual;
+            if(!remove_diagnostics::resolve_identity_destination(p,actual,cause))return false;
+            if(actual.object!=p||actual.record_key!=found->second)return fail(cause,"Service Frame referenced destination canonical identity changed");
+        }key=found->second;return true;};
     a::ServiceMembershipState state;
     if(!service_uid(r,owner.object,owner.uid,0x16d93c0,e)||!service_membership_reader::sample(read,string,destination,r.image,owner.object,state,owner.local,e))return false;
     for(const auto& row:owner.local.rows)if(!service_uid(r,row.object,row.uid,0x1718480,e))return false;
     for(size_t i=0;i<owner.local.characters.size();++i)if(!service_uid(r,owner.local.characters[i],owner.local.character_uids[i],0x1705990,e))return false;
-    owner.sampled=state;out=service_live::project(owner.key,state,owner.local,[](const auto& value){return mt2mp::sha256(std::vector<unsigned char>(value.begin(),value.end()));});return true;
+    if(!building_uptime::read(r.memory,r.image,owner.object,owner.uptime,e))return false;
+    owner.sampled=state;out=service_live::project(owner.key,state,owner.local,[](const auto& value){return mt2mp::sha256(std::vector<unsigned char>(value.begin(),value.end()));});out.uptime=owner.uptime.values;return true;
 }
 bool services_read(Runtime& r,const a::Context& c,const a::Binding& b,Local& local,service_live::State& out,std::string& e){
-    std::vector<remove_diagnostics::LocalTarget> census;if(!remove_diagnostics::identity_targets(census,e))return false;
-    local.services.clear();local.service_destinations.clear();out.clear();
+    local.services.clear();local.service_destinations.clear();out.clear();if(!uptime_native::fault.empty())return fail(e,uptime_native::fault);
+    std::vector<remove_diagnostics::LocalTarget> census;
+    {std::optional<live::apply_timing::Scope> measured_identity;if(live::apply_timing::host_capture_depth)measured_identity.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishIdentityBuildings:live::apply_timing::Part::HostManagementIdentityBuildings);
+    if(!remove_diagnostics::identity_building_targets(census,e,&local.service_destinations))return false;}
+    std::set<uintptr_t> proved_buildings;
     for(const auto& target:census){
-        if(target.world_epoch!=b.native_epoch||target.world_generation!=b.native_generation||!local.service_destinations.emplace(target.object,target.record_key).second)return fail(e,"Service Frame duplicate or changed canonical Building owner");
+        const auto destination=local.service_destinations.find(target.object);
+        if(target.world_epoch!=b.native_epoch||target.world_generation!=b.native_generation||destination==local.service_destinations.end()||destination->second!=target.record_key||!proved_buildings.insert(target.object).second)return fail(e,"Service Frame duplicate or changed canonical Building owner");
         if(target.normal_building)local.services.push_back({target.record_key,target.object,target.uid,{},{}});
     }
     std::sort(local.services.begin(),local.services.end(),[](const auto& x,const auto& y){return x.key<y.key;});
-    for(auto& owner:local.services){service_live::Building value;if(!service_sample(r,local.service_destinations,owner,value,e))return false;out.push_back(std::move(value));}
+    for(auto& owner:local.services){service_live::Building value;if(!service_sample(r,local.service_destinations,owner,value,e,&proved_buildings))return false;out.push_back(std::move(value));}
     return service_live::valid(out,e);
 }
 nlohmann::json services_difference(const Local& local,const service_live::State& before,const service_live::State& target){
@@ -78,6 +87,8 @@ bool services_apply(Runtime& r,const a::Context& c,const a::Binding& b,Local& lo
             for(size_t j=0;j<before[i].rows.size();++j)for(size_t k=0;k<2;++k){service_live::Receipt count;
                 if(!service_live::apply_count(r.memory,r.image,local.services[i].local.rows[j].object,0x50+k*0x70,before[i].rows[j].counts[k],target[i].rows[j].counts[k],compare,reserve,guard,count,cause))return false;
             }
+            building_uptime::Receipt uptime;
+            if(!building_uptime::apply(r.memory,r.image,local.services[i].object,before[i].uptime,target[i].uptime,compare,reserve,guard,uptime,cause))return false;
             if(!service_sample(r,local.service_destinations,sampled,actual,cause)||actual!=target[i])return fail(cause,cause.empty()?"Service Frame complete owned after differs":cause);
         }return true;
     };

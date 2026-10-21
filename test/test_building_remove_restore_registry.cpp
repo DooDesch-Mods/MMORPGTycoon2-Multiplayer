@@ -1,5 +1,6 @@
 #include "remove_diagnostics.h"
 #include "snapshot_building_key.h"
+#include "scenery_scene_key.h"
 #include "object_identity/remove_runtime/copy/prop_lease.h"
 #include "mt2mp/game/native_engine.h"
 #include <atomic>
@@ -45,7 +46,7 @@ bool current(host::opened::CurrentWorld& out,std::string& e){out={};if(!world_ok
 bool lookup(host::LookupApi&,uint64_t,void*& out,uint32_t& seh){++lookups;seh=0;out=reinterpret_cast<void*>(live_pointer);return lookup_ok;}
 json fixture_metadata={{"type","SmallInn"},{"state","exact"}};
 json building_metadata(const native::BuildingState&){return fixture_metadata;}
-bool read_registered_building(uint64_t,host::opened::CurrentWorld& out,native::BuildingState&,uintptr_t& object,uintptr_t& ap,std::string& e){++reads;out={};object=0x9000;ap=0xa000;if(!reader_ok){e="original fresh registry read failure";return false;}return true;}
+bool read_registered_building(uint64_t,host::opened::CurrentWorld& out,native::BuildingState&,uintptr_t& object,uintptr_t& ap,std::string& e,bool=false,bool=false,const std::string& fixture_scene={}){(void)fixture_scene;++reads;out={};object=0x9000;ap=0xa000;if(!reader_ok){e="original fresh registry read failure";return false;}return true;}
 #include "registry_history.inc"
 void reset(){world_ok=lookup_ok=reader_ok=revoke_ok=true;fixture_thread=7;live_pointer=0;lookups=reads=0;main_thread=7;registry.clear();attempts.clear();retirements.clear();rt::Runtime::instance()={};
 Bound b;b.snapshot=snap;b.key=fixture_key;b.uid=3176;b.entry=4;b.generation=1;b.sequence=9;b.world=actual_world;b.revoked=true;b.object=0x3000;b.class_addresspoint=0xa000;b.metadata=fixture_metadata;b.revocation_key="sealed";registry[registry_id(snap,fixture_key)]=b;

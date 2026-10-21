@@ -28,9 +28,13 @@ AbilityRecord ability_record_read(const json& j){
         for(const auto& row:list){exact(row,{"integers","values","count"});AbilityEffectRecord effect;ability_array(row.at("integers"),effect.integers,i32);ability_array(row.at("values"),effect.values,scalar);effect.count=i32(row.at("count"));(n?v.effects:v.costs).push_back(effect);}}
     return v;
 }
-bool valid_ability_edit_intent(const AbilityEditIntent& v){return v.kind>=0&&v.kind<5&&v.id>=0&&v.id<1000000&&v.slot>=0&&v.slot<10000&&digest(v.before_sha256)&&valid_ability_record(v.record)&&!v.record.effects.empty();}
-json ability_edit_intent_json(const AbilityEditIntent& v){return {{"kind",v.kind},{"id",v.id},{"slot",v.slot},{"before_sha256",v.before_sha256},{"record",ability_record_json(v.record)}};}
-AbilityEditIntent ability_edit_intent_read(const json& j){exact(j,{"kind","id","slot","before_sha256","record"});return {i32(j.at("kind")),i32(j.at("id")),i32(j.at("slot")),j.at("before_sha256").get<std::string>(),ability_record_read(j.at("record"))};}
+bool valid_ability_edit_intent(const AbilityEditIntent& v){return v.kind>=0&&v.kind<5&&v.id>=0&&v.id<1000000&&v.slot>=0&&v.slot<10000&&digest(v.before_sha256)&&valid_ability_record(v.record)&&(v.adjustment?(v.adjustment->index>=0&&v.adjustment->index<64&&std::isfinite(v.adjustment->delta)&&v.adjustment->delta!=0):!v.record.effects.empty());}
+json ability_edit_intent_json(const AbilityEditIntent& v){return {{"kind",v.kind},{"id",v.id},{"slot",v.slot},{"before_sha256",v.before_sha256},{"record",ability_record_json(v.record)},{"adjustment",v.adjustment?json{{"cost",v.adjustment->cost},{"index",v.adjustment->index},{"delta",v.adjustment->delta}}:json(nullptr)}};}
+AbilityEditIntent ability_edit_intent_read(const json& j,bool extended=false){
+    if(extended)exact(j,{"kind","id","slot","before_sha256","record","adjustment"});else exact(j,{"kind","id","slot","before_sha256","record"});
+    AbilityEditIntent out;out.kind=i32(j.at("kind"));out.id=i32(j.at("id"));out.slot=i32(j.at("slot"));out.before_sha256=j.at("before_sha256").get<std::string>();out.record=ability_record_read(j.at("record"));
+    if(extended&&!j.at("adjustment").is_null()){const auto& a=j.at("adjustment");exact(a,{"cost","index","delta"});out.adjustment=AbilityAdjustment{ability_bool(a.at("cost")),i32(a.at("index")),scalar(a.at("delta"))};}return out;
+}
 bool valid_ability_edit_state(const AbilityEditState& v){return v==AbilityEditState{}||(valid_character_rename_state(v.owner)&&v.owner!=CharacterRenameState{}&&v.count>0&&v.count<=1000000&&digest(v.all_sha256)&&valid_ability_record(v.record));}
 json ability_edit_state_json(const AbilityEditState& v){if(v==AbilityEditState{})return nullptr;return {{"owner",character_rename_state_json(v.owner)},{"record",ability_record_json(v.record)},{"all_sha256",v.all_sha256},{"count",v.count}};}
 AbilityEditState ability_edit_state_read(const json& j){if(j.is_null())return {};exact(j,{"owner","record","all_sha256","count"});const auto count=u64(j.at("count"));if(count>1000000)throw std::runtime_error("Ability global census exceeds bound");return {character_rename_state_read(j.at("owner")),ability_record_read(j.at("record")),j.at("all_sha256").get<std::string>(),uint32_t(count)};}

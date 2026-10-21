@@ -3,7 +3,7 @@
 #include <cstdint>
 namespace mt2mp::game::costume_edit_codes {
 struct Code {uintptr_t rva;size_t size;const char* sha;};
-inline constexpr std::array<Code,7> helpers{{
+inline constexpr std::array<Code,10> helpers{{
 {0x29f40,2635,"cb4a3c592829341ff3a64c1040312c6dcd9d2f451bd1fe1eaf0f3ae1755cabdf"},
 {0x2c970,1373,"ca7e64eb0ee9b8d507cb0f9d672ed4aa09ba7f09e0c6e79ff31cd813b9d6fdf3"},
 {0x2d020,1669,"9eb0201a0fda1dfbf56e06eca2304d705b70d0fffc4e9ab722b8180ace779f2d"},
@@ -11,5 +11,8 @@ inline constexpr std::array<Code,7> helpers{{
 {0x94bd0,196,"1e91bd3740b94500a84b2e907f63f89d0631ab15fee36facacccbdf93d095677"},
 {0x6b4400,249,"4b036f58d41750bc6dec41e2dd7dc11c873f35b4bb622fe7c46e9f40a5fe5a2a"},
 {0x9ff370,49,"ffe20a4c1edc1cea5bf07910f5132caff86a664fc4ce7e92c5f5a9fed020a72b"},
+{0x91060,128,"a97ce84f82d6307d9b581e3f30fe0906e2c61c514a0e80bac8e503170ccde550"},
+{0x910e0,576,"85457b332a14ee974f156efa315728944ba838fac6c82a9f1386fc02ec2f534d"},
+{0x6b1c40,80,"2615dd7fe6da5b3b57d9c789f3945339efc6315c6d276491895037b1f401c1c5"},
 }};
 }
