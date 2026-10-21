@@ -592,3 +592,5 @@ add_test(NAME startup_hook_catalog_consumer
     --source-root "${MT2MP_SOURCE_ROOT}")
 
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+
+include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")
