@@ -27,9 +27,12 @@ candidate=args.candidate
 runtime=candidate.parent/'scene_clone/runtime.cpp'
 sources=[path.read_text(encoding='utf-8') for path in (baseline,candidate,runtime)]
 methods=['\n'.join(method(source,name) for name in ('prepare_capture','capture')) for source in sources[:2]]
-guards=[line.strip() for line in sources[2].splitlines() if 'if(!state_||!state_->prepared' in line]
+confirm_start=sources[2].index('bool Runtime::confirm_impl(')
+confirm_end=sources[2].index('\nbool Runtime::confirm(',confirm_start)
+confirmation=sources[2][confirm_start:confirm_end]
+guards=[line.strip() for line in confirmation.splitlines() if 'if(!state_||!state_->prepared' in line]
 if len(guards)!=1:raise RuntimeError('Exact original Scene confirmation admission guard not found')
-if sources[2].count('state_->prepared=false;')!=1:raise RuntimeError('Exact consume-on-confirm statement not found')
+if confirmation.count('state_->prepared=false;')!=1:raise RuntimeError('Exact consume-on-confirm statement not found')
 template=(root/'capture_fixture.in').read_text(encoding='utf-8')
 output=template.replace('@CONFIRM_GUARD@',guards[0]).replace('@CONSUME_PREPARATION@','state_->prepared=false;').replace('@BASELINE_METHODS@',methods[0]).replace('@CANDIDATE_METHODS@',methods[1])
 target=args.output

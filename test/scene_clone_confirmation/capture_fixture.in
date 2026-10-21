@@ -61,6 +61,10 @@ struct State {
 };
 bool valid(const State&,std::string& error){error.clear();return true;}
 namespace live_host_state {
+namespace apply_timing {
+enum class Part {HostPartyScenePrepare,HostPartyNativeBatch,HostPartyDrain,HostPartySceneConfirm,HostPartyBirths,HostPartyPins};
+struct Scope {explicit Scope(Part){}};
+}
 struct Frame {uint64_t revision=1;};
 struct PartyPort {
     virtual bool prepare_capture(const action_session::Context&,const action_session::Binding&,uint64_t,std::string&)=0;
@@ -70,7 +74,7 @@ struct PartyPort {
 std::string operation(){static unsigned value=0;return "operation-"+std::to_string(++value);}
 struct NativeFixture:live_host_state::PartyPort {
     SceneRuntime scenes_;std::optional<scene_clone::Mapping> scene_mapping_;
-    Parties parties_;life::Host host_;int origin_=1;
+    Parties parties_;life::Host host_;int origin_=1;std::optional<int> dungeon_building_;
     std::string capture_operation_;uint64_t capture_revision_=0;unsigned birth_ordinal_=0;
     std::set<std::string> host_actions_;unsigned batches=0,fail_batch=0,rejections=0;bool unknown=false;
     bool context(const action_session::Context&,const action_session::Binding&,std::string& e){e.clear();return true;}
@@ -100,6 +104,9 @@ int main(){try{action_session::Context context;action_session::Binding binding;l
     check(after.scenes_.prepares==2&&after.scenes_.confirms==2&&after.scenes_.publications==2&&after.batches==2,"each original drained batch needs fresh preparation");
     check(output.scenes&&output.scenes->operation==after.scene_mapping_->operation,"final scene mapping not handed to Frame");
     check(!after.scenes_.state_->prepared,"successful confirmation did not consume preparation");
+    Candidate pending;pending.dungeon_building_=1;
+    check(!pending.prepare_capture(context,binding,frame.revision,error)&&error=="Party Frame capture waits for the exact Dungeon Building scene phase","pending Dungeon Building scene guard lost");
+    check(pending.scenes_.prepares==0&&pending.batches==0&&pending.scenes_.publications==0,"pending Dungeon Building reached capture work");
     Candidate preparation;
     check(preparation.prepare_capture(context,binding,1,error),error);preparation.scenes_.fail_prepare=2;
     check(!preparation.capture(context,binding,frame,output,error)&&error=="fixture native preparation failed","prepare failure lost");
