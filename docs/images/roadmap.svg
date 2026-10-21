@@ -1,42 +1,42 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="475" viewBox="0 0 1200 475" role="img" aria-labelledby="title description">
 <title id="title">MMORPG Tycoon 2 Multiplayer roadmap</title>
-<desc id="description">Available now: Build together. Steam lobbies and worlds; Buildings and regions; Shared pause and speed. Next priorities: A living world. Live monster gameplay; More NPC and quest tools; More complete save support. Longer term: Grow your world. More building tools; More gameplay systems; Four-player, larger worlds</desc>
+<desc id="description">Play now: Build together. Copy buildings and props; Group, erase and undo; Buy regions, build roads. In development: Build in more ways. Modular blocks and doors; Save modular worlds; Construction and right-click. Later: Grow your world. Join a running world later; Four-player sessions; Larger worlds under load</desc>
 <path fill="#0b1723" d="M0 0h1200v475H0z"/>
 <g font-family="Arial">
-<text x="28" y="46" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">The road to a shared MMO world.</text>
-<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 17 - Build, copy and clear together</text>
+<text x="28" y="46" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Build a shared world.</text>
+<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 17 + development progress</text>
 <path d="M44 118h392" stroke="#64e4d5" stroke-width="2" stroke-dasharray="0" opacity=".5"/>
 <circle cx="44" cy="118" r="14" fill="#0b1723" stroke="#64e4d5" stroke-width="3"/>
 <path d="m38 118 4 4 8-8" fill="none" stroke="#64e4d5" stroke-width="3"/>
-<text x="28" y="172" font-family="Arial" font-size="23" fill="#64e4d5" font-weight="700">Available now</text>
+<text x="28" y="172" font-family="Arial" font-size="23" fill="#64e4d5" font-weight="700">Play now</text>
 <text x="28" y="212" font-family="Arial" font-size="27" fill="#f2f7fb" font-weight="700">Build together</text>
 <circle cx="33" cy="246" r="3" fill="#64e4d5"/>
-<text x="48" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Steam lobbies and worlds</text>
+<text x="48" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Copy buildings and props</text>
 <circle cx="33" cy="285" r="3" fill="#64e4d5"/>
-<text x="48" y="293" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Buildings and regions</text>
+<text x="48" y="293" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Group, erase and undo</text>
 <circle cx="33" cy="324" r="3" fill="#64e4d5"/>
-<text x="48" y="332" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Shared pause and speed</text>
+<text x="48" y="332" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Buy regions, build roads</text>
 <path d="M436 118h392" stroke="#ffca67" stroke-width="2" stroke-dasharray="6" opacity=".5"/>
 <circle cx="436" cy="118" r="14" fill="#0b1723" stroke="#ffca67" stroke-width="3"/>
 <circle cx="436" cy="118" r="5" fill="#ffca67"/>
-<text x="420" y="172" font-family="Arial" font-size="23" fill="#ffca67" font-weight="700">Next priorities</text>
-<text x="420" y="212" font-family="Arial" font-size="27" fill="#f2f7fb" font-weight="700">A living world</text>
+<text x="420" y="172" font-family="Arial" font-size="23" fill="#ffca67" font-weight="700">In development</text>
+<text x="420" y="212" font-family="Arial" font-size="27" fill="#f2f7fb" font-weight="700">Build in more ways</text>
 <circle cx="425" cy="246" r="3" fill="#ffca67"/>
-<text x="440" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Live monster gameplay</text>
+<text x="440" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Modular blocks and doors</text>
 <circle cx="425" cy="285" r="3" fill="#ffca67"/>
-<text x="440" y="293" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">More NPC and quest tools</text>
+<text x="440" y="293" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Save modular worlds</text>
 <circle cx="425" cy="324" r="3" fill="#ffca67"/>
-<text x="440" y="332" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">More complete save</text>
-<text x="440" y="361" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">support</text>
+<text x="440" y="332" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Construction and right-</text>
+<text x="440" y="361" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">click</text>
 <circle cx="828" cy="118" r="14" fill="#0b1723" stroke="#a8c1d5" stroke-width="3"/>
-<text x="812" y="172" font-family="Arial" font-size="23" fill="#a8c1d5" font-weight="700">Longer term</text>
+<text x="812" y="172" font-family="Arial" font-size="23" fill="#a8c1d5" font-weight="700">Later</text>
 <text x="812" y="212" font-family="Arial" font-size="27" fill="#f2f7fb" font-weight="700">Grow your world</text>
 <circle cx="817" cy="246" r="3" fill="#a8c1d5"/>
-<text x="832" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">More building tools</text>
-<circle cx="817" cy="285" r="3" fill="#a8c1d5"/>
-<text x="832" y="293" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">More gameplay systems</text>
-<circle cx="817" cy="324" r="3" fill="#a8c1d5"/>
-<text x="832" y="332" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Four-player, larger</text>
-<text x="832" y="361" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">worlds</text>
+<text x="832" y="254" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Join a running world</text>
+<text x="832" y="283" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">later</text>
+<circle cx="817" cy="314" r="3" fill="#a8c1d5"/>
+<text x="832" y="322" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Four-player sessions</text>
+<circle cx="817" cy="353" r="3" fill="#a8c1d5"/>
+<text x="832" y="361" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Larger worlds under load</text>
 <text x="28" y="455" font-family="Arial" font-size="19" fill="#b8cad8" font-weight="400">Priorities can change. No release dates promised.</text>
 </g></svg>

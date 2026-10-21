@@ -1,78 +1,142 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title description">
-<title id="title">Co-op feature coverage</title>
-<desc id="description">available: 4 of 13; partial: 8 of 13; planned: 1 of 13. Each tile is one tracked feature area. Percentages describe the listed areas, not overall project completion or stability.</desc>
-<path fill="#0b1723" d="M0 0h1200v560H0z"/>
-<text x="28" y="44" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Co-op feature coverage</text>
-<text x="28" y="78" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 17 - Build, copy and clear together</text>
-<text x="28.0" y="126" font-family="Arial" font-size="37" fill="#64e4d5" font-weight="700">30.8%</text>
-<text x="28.0" y="155" font-family="Arial" font-size="23" fill="#64e4d5" font-weight="700">Available</text>
-<text x="28.0" y="184" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">4 of 13 tracked areas</text>
-<text x="409.3333333333333" y="126" font-family="Arial" font-size="37" fill="#ffca67" font-weight="700">61.5%</text>
-<text x="409.3333333333333" y="155" font-family="Arial" font-size="23" fill="#ffca67" font-weight="700">Partial</text>
-<text x="409.3333333333333" y="184" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">8 of 13 tracked areas</text>
-<text x="790.6666666666666" y="126" font-family="Arial" font-size="37" fill="#a8c1d5" font-weight="700">7.7%</text>
-<text x="790.6666666666666" y="155" font-family="Arial" font-size="23" fill="#a8c1d5" font-weight="700">Planned</text>
-<text x="790.6666666666666" y="184" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">1 of 13 tracked areas</text>
-<rect x="31.00" y="213.00" width="170.00" height="126.00" fill="#15383d" stroke="#64e4d5" stroke-opacity=".65"/>
-<g><title>Steam lobbies: available</title>
-<text x="43" y="283.5" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Steam lobbies</text>
-</g>
-<rect x="31.00" y="345.00" width="170.00" height="126.00" fill="#15383d" stroke="#64e4d5" stroke-opacity=".65"/>
-<g><title>A shared world: available</title>
-<text x="43" y="403.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">A shared</text>
-<text x="43" y="428.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">world</text>
-</g>
-<rect x="207.00" y="213.00" width="170.00" height="126.00" fill="#15383d" stroke="#64e4d5" stroke-opacity=".65"/>
-<g><title>Regions: available</title>
-<text x="219.0" y="283.5" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Regions</text>
-</g>
-<rect x="207.00" y="345.00" width="170.00" height="126.00" fill="#15383d" stroke="#64e4d5" stroke-opacity=".65"/>
-<g><title>Pause and game speed: available</title>
-<text x="219.0" y="403.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Pause and</text>
-<text x="219.0" y="428.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">game speed</text>
-</g>
-<rect x="383.00" y="213.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Session chat: partial</title>
-<text x="395.0" y="283.5" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Session chat</text>
-</g>
-<rect x="383.00" y="345.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Buildings and scenery: partial</title>
-<text x="395.0" y="403.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Buildings and</text>
-<text x="395.0" y="428.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">scenery</text>
-</g>
-<rect x="559.00" y="213.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Terrain and roads: partial</title>
-<text x="571.0" y="271.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Terrain and</text>
-<text x="571.0" y="296.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">roads</text>
-</g>
-<rect x="559.00" y="345.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Research: partial</title>
-<text x="571.0" y="415.5" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Research</text>
-</g>
-<rect x="735.00" y="213.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>NPC placement: partial</title>
-<text x="747.0" y="283.5" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">NPC placement</text>
-</g>
-<rect x="735.00" y="345.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Elite monsters: partial</title>
-<text x="747.0" y="403.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Elite</text>
-<text x="747.0" y="428.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">monsters</text>
-</g>
-<rect x="911.00" y="213.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Save and resume: partial</title>
-<text x="923.0" y="271.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Save and</text>
-<text x="923.0" y="296.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">resume</text>
-</g>
-<rect x="911.00" y="345.00" width="170.00" height="126.00" fill="#3e321f" stroke="#ffca67" stroke-opacity=".65"/>
-<g><title>Quests and combat: partial</title>
-<text x="923.0" y="403.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Quests and</text>
-<text x="923.0" y="428.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">combat</text>
-</g>
-<rect x="1087.00" y="213.00" width="82.00" height="258.00" fill="#21303e" stroke="#a8c1d5" stroke-opacity=".65"/>
-<g><title>Four players and larger worlds: planned</title>
-<text x="1099.0" y="337.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">Larger</text>
-<text x="1099.0" y="362.0" font-family="Arial" font-size="20" fill="#f2f7fb" font-weight="600">sessions</text>
-</g>
-<text x="28" y="516" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">Each tile is one tracked feature area.</text>
-<text x="28" y="544" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">See feature details for scope and limits.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="1270" viewBox="0 0 1200 1270" role="img" aria-labelledby="title description">
+<title id="title">Co-op, one feature at a time</title>
+<desc id="description">44 released, 11 confirmed in game, 29 implemented, 9 planned. Each segment is one named feature. Development features are not included in the current download. Counts and percentages describe this inventory, not overall completion.</desc>
+<path fill="#0b1723" d="M0 0h1200v1270H0z"/>
+<text x="28" y="44" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Co-op, one feature at a time</text>
+<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 17 + development progress</text>
+<text x="28" y="130" font-family="Arial" font-size="24" fill="#64e4d5" font-weight="700">44 Released</text>
+<text x="28" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">47.3% - In Early Beta 17</text>
+<text x="320" y="130" font-family="Arial" font-size="24" fill="#8cb9ff" font-weight="700">11 Confirmed in game</text>
+<text x="320" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">11.8% - Development build only</text>
+<text x="612" y="130" font-family="Arial" font-size="24" fill="#ffca67" font-weight="700">29 Implemented</text>
+<text x="612" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">31.2% - Not confirmed in game</text>
+<text x="904" y="130" font-family="Arial" font-size="24" fill="#a8c1d5" font-weight="700">9 Planned</text>
+<text x="904" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">9.7% - Future scope</text>
+<text x="28" y="212" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">One segment = one feature. See the list for its scope.</text>
+<text x="28" y="264" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Play together</text>
+<rect data-feature="host-lobby" x="322" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Host a Steam lobby: Released. Open a lobby from the Multiplayer window.</title></rect>
+<rect data-feature="join-lobby" x="378" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Join a lobby: Released. Join the Host and receive the selected world.</title></rect>
+<rect data-feature="new-world" x="434" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Create a shared world: Released. The Host uses the original new-world wizard while the other player waits.</title></rect>
+<rect data-feature="session-chat" x="490" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Send session messages: Released. Send and read basic messages in the Multiplayer window.</title></rect>
+<rect data-feature="shared-pause" x="546" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Pause together: Released. Pause or resume the shared world from either player.</title></rect>
+<rect data-feature="shared-speed" x="602" y="244" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change game speed: Released. Keep both players on the same selected simulation speed.</title></rect>
+<text x="668" y="267" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">6</text>
+<text x="28" y="326" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Buildings</text>
+<rect data-feature="building-place" x="322" y="306" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Place a building: Released. Place supported buildings with shared costs.</title></rect>
+<rect data-feature="building-move" x="378" y="306" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move a building: Released. Move a supported building and preserve its shared identity.</title></rect>
+<rect data-feature="building-remove" x="434" y="306" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a building: Released. Remove a supported building and share its refund.</title></rect>
+<rect data-feature="building-copy" x="490" y="306" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Copy a building: Released. Copy supported buildings, including after placement and undo/redo.</title></rect>
+<rect data-feature="building-history" x="546" y="306" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Undo and redo building placement: Released. Restore the building and scenery cleared by its placement.</title></rect>
+<text x="612" y="329" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">5</text>
+<text x="28" y="388" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Scenery</text>
+<rect data-feature="scenery-place" x="322" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Place individual scenery: Released. Place a supported scenery object with shared costs.</title></rect>
+<rect data-feature="scenery-move" x="378" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move individual scenery: Released. Move one scenery object with both players seeing the same pose.</title></rect>
+<rect data-feature="scenery-remove" x="434" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove individual scenery: Released. Remove one selected scenery object and share its refund.</title></rect>
+<rect data-feature="scenery-copy" x="490" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Copy individual scenery: Released. Create a shared copy with its own identity.</title></rect>
+<rect data-feature="scenery-group" x="546" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Group scenery: Released. Group selected scenery objects together.</title></rect>
+<rect data-feature="scenery-group-copy" x="602" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Copy a scenery group: Released. Copy the group and its member objects.</title></rect>
+<rect data-feature="scenery-ungroup" x="658" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Ungroup scenery: Released. Ungroup either the original group or its copy.</title></rect>
+<rect data-feature="scenery-group-history" x="714" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Undo and redo grouping: Released. Restore group membership and names through shared history.</title></rect>
+<rect data-feature="scenery-eraser-click" x="770" y="368" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Erase one scenery object: Released. Use one eraser click and share the refund. Held strokes and large brushes are separate work.</title></rect>
+<rect data-feature="scenery-brush" x="826" y="368" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Erase with held and large brushes: Planned. Extend the confirmed single-click eraser scope.</title></rect>
+<text x="892" y="391" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">10</text>
+<text x="28" y="450" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Regions</text>
+<rect data-feature="region-buy" x="322" y="430" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Buy a region: Released. Share the region purchase and cost.</title></rect>
+<rect data-feature="region-biome" x="378" y="430" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change a region biome: Released. Share supported biome-style changes.</title></rect>
+<rect data-feature="region-level" x="434" y="430" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change region levels: Released. Share the selected region level range.</title></rect>
+<rect data-feature="region-sell" x="490" y="430" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Sell a region: Implemented. Share the ownership change and its financial effects.</title></rect>
+<text x="556" y="453" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">4</text>
+<text x="28" y="512" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Terrain and roads</text>
+<rect data-feature="forest-paint" x="322" y="492" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Paint forest terrain: Released. Share a completed forest-terrain stamp.</title></rect>
+<rect data-feature="road-place" x="378" y="492" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Build a road: Released. Place a road, including a connection to an existing endpoint.</title></rect>
+<rect data-feature="road-remove" x="434" y="492" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a road: Released. Remove a road and share its refund.</title></rect>
+<rect data-feature="terrain-other-styles" x="490" y="492" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Paint other terrain styles: Implemented. Share the other active terrain-paint styles.</title></rect>
+<rect data-feature="walls-build" x="546" y="492" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Build and remove walls: Implemented. Share the active wall tool and its changes.</title></rect>
+<rect data-feature="district-shape" x="602" y="492" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Draw and edit a district: Implemented. Share district shape, height and title placement.</title></rect>
+<text x="668" y="515" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">6</text>
+<text x="28" y="574" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">NPCs</text>
+<rect data-feature="trainer-place" x="322" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Place a Class Trainer: Released. Place a Class Trainer in the shared world.</title></rect>
+<rect data-feature="trainer-move" x="378" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move a Class Trainer: Released. Move an existing Class Trainer.</title></rect>
+<rect data-feature="trainer-remove" x="434" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a Class Trainer: Released. Remove an existing Class Trainer.</title></rect>
+<rect data-feature="quest-giver-place" x="490" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Place a Quest Giver: Released. Place a Quest Giver in the shared world.</title></rect>
+<rect data-feature="quest-giver-move" x="546" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move a Quest Giver: Released. Move an existing Quest Giver.</title></rect>
+<rect data-feature="quest-giver-remove" x="602" y="554" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a Quest Giver: Released. Remove an existing Quest Giver.</title></rect>
+<rect data-feature="npc-properties" x="658" y="554" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit NPC properties: Implemented. Share the offered NPC property controls and affected quest references.</title></rect>
+<text x="724" y="577" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
+<text x="28" y="636" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Monsters</text>
+<rect data-feature="elite-place" x="322" y="616" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Place an Elite monster: Released. Place an individual Elite monster while paused.</title></rect>
+<rect data-feature="elite-move" x="378" y="616" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move an Elite monster: Released. Move an individual Elite monster while paused.</title></rect>
+<rect data-feature="elite-remove" x="434" y="616" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove an Elite monster: Released. Remove an individual Elite monster while paused.</title></rect>
+<rect data-feature="monster-zone-edit" x="490" y="616" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit a monster zone: Implemented. Share zone shape, population settings and resets.</title></rect>
+<rect data-feature="monster-live-state" x="546" y="616" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Share moving monster state: Implemented. Publish the Host&#x27;s current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation.</title></rect>
+<rect data-feature="full-live-simulation" x="602" y="616" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Share the full running simulation: Planned. Cover interacting combat, quests, economy and lifecycle behavior together.</title></rect>
+<text x="668" y="639" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">6</text>
+<text x="28" y="698" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Quests</text>
+<rect data-feature="quest-create" x="322" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Create a quest: Released. Add a quest to a supported Quest Giver.</title></rect>
+<rect data-feature="quest-remove" x="378" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a quest: Released. Remove a supported authored quest.</title></rect>
+<rect data-feature="quest-title" x="434" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Rename a quest: Released. Share changes to its title.</title></rect>
+<rect data-feature="quest-count" x="490" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change quest counts: Released. Share changes to the required count.</title></rect>
+<rect data-feature="quest-rewards" x="546" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change quest rewards: Released. Share XP, gold and default-reward changes.</title></rect>
+<rect data-feature="quest-building-target" x="602" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Choose a building destination: Released. Use a supported building as the quest destination.</title></rect>
+<rect data-feature="quest-npc-target" x="658" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Choose an NPC destination: Released. Use a supported NPC as the quest destination.</title></rect>
+<text x="724" y="701" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
+<text x="28" y="760" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Research</text>
+<rect data-feature="research-bridges" x="322" y="740" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Research Bridges: Released. Start Bridges research, assign workers and unlock it together.</title></rect>
+<text x="388" y="763" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">1</text>
+<text x="28" y="822" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Modular building</text>
+<rect data-feature="modular-prefab" x="322" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Place a modular prefab: Confirmed in game. Place a normal prefab with its selected theme. Other theme variants are not confirmed.</title></rect>
+<rect data-feature="modular-block-add" x="378" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Add a modular block: Confirmed in game. Use the normal block-adding tool.</title></rect>
+<rect data-feature="modular-block-remove" x="434" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Remove a modular block: Confirmed in game. Use the left-click block-removal tool.</title></rect>
+<rect data-feature="modular-entrance-add" x="490" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Add a modular entrance: Confirmed in game. Use the normal entrance-adding tool.</title></rect>
+<rect data-feature="modular-entrance-remove" x="546" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Remove a modular entrance: Confirmed in game. Use the normal entrance-removal tool.</title></rect>
+<rect data-feature="modular-undo" x="602" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Undo a modular layout edit: Confirmed in game. The Client undoes a shared layout change.</title></rect>
+<rect data-feature="modular-redo" x="658" y="802" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Redo a modular layout edit: Confirmed in game. The Host redoes that shared layout change.</title></rect>
+<rect data-feature="modular-construction" x="714" y="802" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Progress modular construction: Implemented. Share developer assignment, movement, activation and job completion from the Host.</title></rect>
+<rect data-feature="modular-right-click" x="770" y="802" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Remove a block with right-click: Implemented. Use right-click in block-building mode to request a shared removal.</title></rect>
+<rect data-feature="modular-theme-edit" x="826" y="802" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Change an existing building theme: Planned. Confirm separate theme editing and additional theme variants.</title></rect>
+<text x="892" y="825" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">10</text>
+<text x="28" y="884" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Save and return</text>
+<rect data-feature="resume-host-save" x="322" y="864" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Continue a saved world: Released. Continue together from the Host&#x27;s supported saved world.</title></rect>
+<rect data-feature="save-modular-world" x="378" y="864" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Save a modular world: Confirmed in game. Save the current world through the original game operation.</title></rect>
+<rect data-feature="reload-modular-host" x="434" y="864" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Reload a modular world: Confirmed in game. Load the saved modular world on the Host.</title></rect>
+<rect data-feature="distribute-modular-save" x="490" y="864" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Share the loaded modular world: Confirmed in game. Load it on a Client that has already joined. This does not cover a later join.</title></rect>
+<rect data-feature="edit-loaded-modular" x="546" y="864" width="51" height="28" fill="#1b304a" stroke="#8cb9ff"><title>Edit a loaded modular building: Confirmed in game. Continue editing after the save assigns new object identities.</title></rect>
+<rect data-feature="late-join" x="602" y="864" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Join an already running world later: Planned. Receive current state and continue without missing or repeating edits.</title></rect>
+<rect data-feature="reconnect" x="658" y="864" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Rejoin after a disconnect: Planned. Return to a continuing session after a Client restart or connection loss.</title></rect>
+<text x="724" y="887" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
+<text x="28" y="946" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Dungeons</text>
+<rect data-feature="dungeon-portal" x="322" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place and remove a Dungeon portal: Implemented. Keep the exterior building, Dungeon identity and related references together.</title></rect>
+<rect data-feature="dungeon-tiles" x="378" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Open and close Dungeon cells: Implemented. Share layout-cell edits and their history.</title></rect>
+<rect data-feature="dungeon-paint" x="434" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Paint Dungeon floors: Implemented. Share the offered Dungeon paint and theme controls.</title></rect>
+<rect data-feature="dungeon-door" x="490" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place Dungeon doors: Implemented. Share a door and its layout references.</title></rect>
+<rect data-feature="dungeon-key" x="546" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place Dungeon keys: Implemented. Preserve the shared key-to-door relationship.</title></rect>
+<rect data-feature="dungeon-treasure" x="602" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place Dungeon treasure: Implemented. Share treasure placement and references.</title></rect>
+<rect data-feature="dungeon-lighting" x="658" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Change Dungeon lighting: Implemented. Share authored light and palette settings.</title></rect>
+<rect data-feature="dungeon-instances" x="714" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Configure Dungeon instances: Implemented. Share the offered instance configuration values. Creation, removal, entering and party lifecycles are not included in this claim.</title></rect>
+<text x="780" y="949" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">8</text>
+<text x="28" y="1008" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Character design</text>
+<rect data-feature="character-definitions" x="322" y="988" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Create and copy character types: Implemented. Share committed character-type creation, copy and variant membership commands. This does not claim every editor operation.</title></rect>
+<rect data-feature="character-costume" x="378" y="988" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit a character costume: Implemented. Share committed model, body, color and animation choices.</title></rect>
+<rect data-feature="character-import" x="434" y="988" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Import a character PNG card: Implemented. Share a character-definition import through the original image-loading operation. This is not a world or map import.</title></rect>
+<rect data-feature="ability-edit" x="490" y="988" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit abilities: Implemented. Share offered ability costs, effects and membership changes.</title></rect>
+<rect data-feature="boss-phase-edit" x="546" y="988" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit Boss phases: Implemented. Share offered phase and character-stat controls.</title></rect>
+<text x="612" y="1011" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">5</text>
+<text x="28" y="1070" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Run your MMO</text>
+<rect data-feature="network-nodes" x="322" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place server-network nodes: Implemented. Share the offered server-network node operations.</title></rect>
+<rect data-feature="network-cables" x="378" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Connect server-network cables: Implemented. Share endpoints, waypoints and connection removal.</title></rect>
+<rect data-feature="business-fees" x="434" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Change game fees: Implemented. Share purchase, subscription and offered service prices.</title></rect>
+<rect data-feature="business-loans" x="490" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Take and repay loans: Implemented. Share the loan state and resulting money changes.</title></rect>
+<rect data-feature="business-ads" x="546" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Run advertising campaigns: Implemented. Share campaigns, budgets and financial effects.</title></rect>
+<rect data-feature="staff-management" x="602" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Manage developers and Game Masters: Implemented. Share the implemented staff-assignment and job-state commands. This does not claim the whole staff simulation.</title></rect>
+<rect data-feature="release-management" x="658" y="1050" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Publish MMO updates: Implemented. Share the implemented release-state and committed-project commands. This does not claim every MMO-update workflow.</title></rect>
+<text x="724" y="1073" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
+<text x="28" y="1132" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Larger sessions</text>
+<rect data-feature="four-players" x="322" y="1112" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Build with four players: Planned. Confirm the same gameplay with four participants.</title></rect>
+<rect data-feature="large-world" x="378" y="1112" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Play in larger worlds: Planned. Confirm gameplay and save behavior beyond the small-world scope.</title></rect>
+<rect data-feature="performance-load" x="434" y="1112" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Keep large sessions responsive: Planned. Confirm performance under representative multiplayer load.</title></rect>
+<rect data-feature="separate-accounts" x="490" y="1112" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Play across separate Steam accounts: Planned. Complete the online acceptance with separate accounts and machines.</title></rect>
+<text x="556" y="1135" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">4</text>
+<text x="28" y="1206" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">93 named features - updated 2026-10-22</text>
+<text x="28" y="1234" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">This is feature progress, not a project completion score.</text>
+<text x="28" y="1260" font-family="Arial" font-size="20" fill="#b8cad8" font-weight="400">Development features are not in the current download.</text>
 </svg>

@@ -2,52 +2,246 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Coverage in [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.
+Play [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17) today. Development progress below is separate from the download. Each row names one feature and its exact scope.
 
-## Available now: Build together
+Updated 2026-10-22. Development entries do not change the current download.
 
-- Steam lobbies and worlds
-- Buildings and regions
-- Shared pause and speed
+| Status | Features | What it means |
+| --- | ---: | --- |
+| Released | 44 | Included in Early Beta 17, within the scope listed below. |
+| Confirmed in game | 11 | Works in the development build within the listed scope. Not released yet. |
+| Implemented | 29 | Code is integrated, but successful in-game behavior is not yet confirmed. |
+| Planned | 9 | No completed implementation or in-game confirmation is claimed for this scope. |
 
-## Next priorities: A living world
+## Recent progress
 
-- Live monster gameplay
-- More NPC and quest tools
-- More complete save support
+### New in Early Beta 17
 
-## Longer term: Grow your world
+- Copy a building.
+- Undo and redo building placement.
+- Copy individual scenery.
+- Group scenery.
+- Copy a scenery group.
+- Ungroup scenery.
+- Undo and redo grouping.
+- Erase one scenery object.
 
-- More building tools
-- More gameplay systems
-- Four-player, larger worlds
+### Confirmed since the release - development only
+
+- Place a modular prefab.
+- Add a modular block.
+- Remove a modular block.
+- Add a modular entrance.
+- Remove a modular entrance.
+- Undo a modular layout edit.
+- Redo a modular layout edit.
+- Save a modular world.
+- Reload a modular world.
+- Share the loaded modular world.
+- Edit a loaded modular building.
+
+## Feature list
+
+### Play together
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Host a Steam lobby | Released - Early Beta 17 | Open a lobby from the Multiplayer window. |
+| Join a lobby | Released - Early Beta 17 | Join the Host and receive the selected world. |
+| Create a shared world | Released - Early Beta 17 | The Host uses the original new-world wizard while the other player waits. |
+| Send session messages | Released - Early Beta 17 | Send and read basic messages in the Multiplayer window. |
+| Pause together | Released - Early Beta 17 | Pause or resume the shared world from either player. |
+| Change game speed | Released - Early Beta 17 | Keep both players on the same selected simulation speed. |
+
+### Buildings
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place a building | Released - Early Beta 17 | Place supported buildings with shared costs. |
+| Move a building | Released - Early Beta 17 | Move a supported building and preserve its shared identity. |
+| Remove a building | Released - Early Beta 17 | Remove a supported building and share its refund. |
+| Copy a building | Released - Early Beta 17 | Copy supported buildings, including after placement and undo/redo. |
+| Undo and redo building placement | Released - Early Beta 17 | Restore the building and scenery cleared by its placement. |
+
+### Scenery
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place individual scenery | Released - Early Beta 17 | Place a supported scenery object with shared costs. |
+| Move individual scenery | Released - Early Beta 17 | Move one scenery object with both players seeing the same pose. |
+| Remove individual scenery | Released - Early Beta 17 | Remove one selected scenery object and share its refund. |
+| Copy individual scenery | Released - Early Beta 17 | Create a shared copy with its own identity. |
+| Group scenery | Released - Early Beta 17 | Group selected scenery objects together. |
+| Copy a scenery group | Released - Early Beta 17 | Copy the group and its member objects. |
+| Ungroup scenery | Released - Early Beta 17 | Ungroup either the original group or its copy. |
+| Undo and redo grouping | Released - Early Beta 17 | Restore group membership and names through shared history. |
+| Erase one scenery object | Released - Early Beta 17 | Use one eraser click and share the refund. Held strokes and large brushes are separate work. |
+| Erase with held and large brushes | Planned | Extend the confirmed single-click eraser scope. |
+
+### Regions
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Buy a region | Released - Early Beta 17 | Share the region purchase and cost. |
+| Change a region biome | Released - Early Beta 17 | Share supported biome-style changes. |
+| Change region levels | Released - Early Beta 17 | Share the selected region level range. |
+| Sell a region | Implemented - development | Share the ownership change and its financial effects. |
+
+### Terrain and roads
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Paint forest terrain | Released - Early Beta 17 | Share a completed forest-terrain stamp. |
+| Build a road | Released - Early Beta 17 | Place a road, including a connection to an existing endpoint. |
+| Remove a road | Released - Early Beta 17 | Remove a road and share its refund. |
+| Paint other terrain styles | Implemented - development | Share the other active terrain-paint styles. |
+| Build and remove walls | Implemented - development | Share the active wall tool and its changes. |
+| Draw and edit a district | Implemented - development | Share district shape, height and title placement. |
+
+### NPCs
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place a Class Trainer | Released - Early Beta 17 | Place a Class Trainer in the shared world. |
+| Move a Class Trainer | Released - Early Beta 17 | Move an existing Class Trainer. |
+| Remove a Class Trainer | Released - Early Beta 17 | Remove an existing Class Trainer. |
+| Place a Quest Giver | Released - Early Beta 17 | Place a Quest Giver in the shared world. |
+| Move a Quest Giver | Released - Early Beta 17 | Move an existing Quest Giver. |
+| Remove a Quest Giver | Released - Early Beta 17 | Remove an existing Quest Giver. |
+| Edit NPC properties | Implemented - development | Share the offered NPC property controls and affected quest references. |
+
+### Monsters
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place an Elite monster | Released - Early Beta 17 | Place an individual Elite monster while paused. |
+| Move an Elite monster | Released - Early Beta 17 | Move an individual Elite monster while paused. |
+| Remove an Elite monster | Released - Early Beta 17 | Remove an individual Elite monster while paused. |
+| Edit a monster zone | Implemented - development | Share zone shape, population settings and resets. |
+| Share moving monster state | Implemented - development | Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation. |
+| Share the full running simulation | Planned | Cover interacting combat, quests, economy and lifecycle behavior together. |
+
+### Quests
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Create a quest | Released - Early Beta 17 | Add a quest to a supported Quest Giver. |
+| Remove a quest | Released - Early Beta 17 | Remove a supported authored quest. |
+| Rename a quest | Released - Early Beta 17 | Share changes to its title. |
+| Change quest counts | Released - Early Beta 17 | Share changes to the required count. |
+| Change quest rewards | Released - Early Beta 17 | Share XP, gold and default-reward changes. |
+| Choose a building destination | Released - Early Beta 17 | Use a supported building as the quest destination. |
+| Choose an NPC destination | Released - Early Beta 17 | Use a supported NPC as the quest destination. |
+
+### Research
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Research Bridges | Released - Early Beta 17 | Start Bridges research, assign workers and unlock it together. |
+
+### Modular building
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place a modular prefab | Confirmed in game - development | Place a normal prefab with its selected theme. Other theme variants are not confirmed. |
+| Add a modular block | Confirmed in game - development | Use the normal block-adding tool. |
+| Remove a modular block | Confirmed in game - development | Use the left-click block-removal tool. |
+| Add a modular entrance | Confirmed in game - development | Use the normal entrance-adding tool. |
+| Remove a modular entrance | Confirmed in game - development | Use the normal entrance-removal tool. |
+| Undo a modular layout edit | Confirmed in game - development | The Client undoes a shared layout change. |
+| Redo a modular layout edit | Confirmed in game - development | The Host redoes that shared layout change. |
+| Progress modular construction | Implemented - development | Share developer assignment, movement, activation and job completion from the Host. |
+| Remove a block with right-click | Implemented - development | Use right-click in block-building mode to request a shared removal. |
+| Change an existing building theme | Planned | Confirm separate theme editing and additional theme variants. |
+
+### Save and return
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Continue a saved world | Released - Early Beta 17 | Continue together from the Host's supported saved world. |
+| Save a modular world | Confirmed in game - development | Save the current world through the original game operation. |
+| Reload a modular world | Confirmed in game - development | Load the saved modular world on the Host. |
+| Share the loaded modular world | Confirmed in game - development | Load it on a Client that has already joined. This does not cover a later join. |
+| Edit a loaded modular building | Confirmed in game - development | Continue editing after the save assigns new object identities. |
+| Join an already running world later | Planned | Receive current state and continue without missing or repeating edits. |
+| Rejoin after a disconnect | Planned | Return to a continuing session after a Client restart or connection loss. |
+
+### Dungeons
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place and remove a Dungeon portal | Implemented - development | Keep the exterior building, Dungeon identity and related references together. |
+| Open and close Dungeon cells | Implemented - development | Share layout-cell edits and their history. |
+| Paint Dungeon floors | Implemented - development | Share the offered Dungeon paint and theme controls. |
+| Place Dungeon doors | Implemented - development | Share a door and its layout references. |
+| Place Dungeon keys | Implemented - development | Preserve the shared key-to-door relationship. |
+| Place Dungeon treasure | Implemented - development | Share treasure placement and references. |
+| Change Dungeon lighting | Implemented - development | Share authored light and palette settings. |
+| Configure Dungeon instances | Implemented - development | Share the offered instance configuration values. Creation, removal, entering and party lifecycles are not included in this claim. |
+
+### Character design
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Create and copy character types | Implemented - development | Share committed character-type creation, copy and variant membership commands. This does not claim every editor operation. |
+| Edit a character costume | Implemented - development | Share committed model, body, color and animation choices. |
+| Import a character PNG card | Implemented - development | Share a character-definition import through the original image-loading operation. This is not a world or map import. |
+| Edit abilities | Implemented - development | Share offered ability costs, effects and membership changes. |
+| Edit Boss phases | Implemented - development | Share offered phase and character-stat controls. |
+
+### Run your MMO
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Place server-network nodes | Implemented - development | Share the offered server-network node operations. |
+| Connect server-network cables | Implemented - development | Share endpoints, waypoints and connection removal. |
+| Change game fees | Implemented - development | Share purchase, subscription and offered service prices. |
+| Take and repay loans | Implemented - development | Share the loan state and resulting money changes. |
+| Run advertising campaigns | Implemented - development | Share campaigns, budgets and financial effects. |
+| Manage developers and Game Masters | Implemented - development | Share the implemented staff-assignment and job-state commands. This does not claim the whole staff simulation. |
+| Publish MMO updates | Implemented - development | Share the implemented release-state and committed-project commands. This does not claim every MMO-update workflow. |
+
+### Larger sessions
+
+| Feature | Status | Scope |
+| --- | --- | --- |
+| Build with four players | Planned | Confirm the same gameplay with four participants. |
+| Play in larger worlds | Planned | Confirm gameplay and save behavior beyond the small-world scope. |
+| Keep large sessions responsive | Planned | Confirm performance under representative multiplayer load. |
+| Play across separate Steam accounts | Planned | Complete the online acceptance with separate accounts and machines. |
+
+
+## Play now: Build together
+
+- Copy buildings and props
+- Group, erase and undo
+- Buy regions, build roads
+
+## In development: Build in more ways
+
+- Modular blocks and doors
+- Save modular worlds
+- Construction and right-click
+
+## Later: Grow your world
+
+- Join a running world later
+- Four-player sessions
+- Larger worlds under load
 
 Priorities can change. No release dates are promised.
 
-## Feature coverage
+## How progress is counted
 
-| Feature | Early Beta 17 | What is covered |
-| --- | --- | --- |
-| Steam lobbies | ✅ Available | Host a lobby or join a friend's session from the Multiplayer window. |
-| A shared world | ✅ Available | The Host creates or loads a world; the joining player receives it. |
-| Session chat | ◐ Partial | Basic session messages in the Multiplayer window. |
-| Buildings and scenery | ◐ Partial | Place, move and remove supported buildings and scenery. Copy buildings or scenery, group and ungroup scenery, use the single-click scenery eraser, and undo or redo supported shared edits. |
-| Terrain and roads | ◐ Partial | Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned. |
-| Regions | ✅ Available | Share region purchases, biome styles and region levels. |
-| Pause and game speed | ✅ Available | Keep the same pause state and simulation speed. |
-| Research | ◐ Partial | Start Bridges research, assign workers and unlock it together. More research options are planned. |
-| NPC placement | ◐ Partial | Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority. |
-| Elite monsters | ◐ Partial | Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority. |
-| Save and resume | ◐ Partial | Continue from the Host's saved world. Wider support for saved objects is a next priority. |
-| Quests and combat | ◐ Partial | Create and remove quests, edit titles, required counts and rewards, and choose building or NPC destinations. Live combat remains planned. |
-| Four players and larger worlds | ○ Planned | The current focus is two-player co-op in small worlds. |
+Each stable feature ID counts once, in exactly one status. A feature moves between statuses; it is not counted again when it advances. The listed scope is the claim, not every variant of a larger game system.
 
-## How coverage is counted
+- Released: 44/93 (47.3%)
+- Confirmed in game: 11/93 (11.8%)
+- Implemented: 29/93 (31.2%)
+- Planned: 9/93 (9.7%)
 
-Each listed feature area counts once. The categories have equal weight. Partial and experimental areas do not count as fully available.
+This inventory is not an exhaustive completion score for the game. It replaces the old 13-area count, so those percentages are not comparable. Adding a genuinely new scope changes the denominator; it does not indicate lost progress.
 
-- Available: 4/13 (30.8%)
-- Partial: 8/13 (61.5%)
-- Planned: 1/13 (7.7%)
+A successful build alone cannot promote a feature to Confirmed in game. Development confirmation alone cannot promote it to Released.
 
-This measures the listed feature areas, not overall project completion or stability. The denominator changes when the inventory changes.
+Source: [roadmap.json](roadmap.json). Development scope: [progress record](evidence/development-progress.json).

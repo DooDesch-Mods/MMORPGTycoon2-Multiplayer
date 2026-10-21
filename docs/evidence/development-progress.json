@@ -1,0 +1,160 @@
+{
+  "schema_version": 1,
+  "as_of": "2026-10-22",
+  "released_baseline": "0.1.0-beta.17",
+  "development_features_are_released": false,
+  "confirmed": {
+    "environment": "Two local game instances",
+    "milestones": [
+      {
+        "id": "modular-tools",
+        "scope": "Normal prefab placement, individual block and entrance tools, one Client layout undo and matching Host redo.",
+        "features": [
+          "modular-prefab",
+          "modular-block-add",
+          "modular-block-remove",
+          "modular-entrance-add",
+          "modular-entrance-remove",
+          "modular-undo",
+          "modular-redo"
+        ]
+      },
+      {
+        "id": "saved-modular-world",
+        "scope": "Original save, Host reload, distribution to an already joined Client and subsequent editing with new saved identities. No later join is claimed.",
+        "features": [
+          "save-modular-world",
+          "reload-modular-host",
+          "distribute-modular-save",
+          "edit-loaded-modular"
+        ]
+      }
+    ]
+  },
+  "implemented": {
+    "features": [
+      {
+        "id": "modular-construction",
+        "scope": "Share developer assignment, movement, activation and job completion from the Host."
+      },
+      {
+        "id": "modular-right-click",
+        "scope": "Use right-click in block-building mode to request a shared removal."
+      },
+      {
+        "id": "terrain-other-styles",
+        "scope": "Share the other active terrain-paint styles."
+      },
+      {
+        "id": "walls-build",
+        "scope": "Share the active wall tool and its changes."
+      },
+      {
+        "id": "district-shape",
+        "scope": "Share district shape, height and title placement."
+      },
+      {
+        "id": "region-sell",
+        "scope": "Share the ownership change and its financial effects."
+      },
+      {
+        "id": "monster-zone-edit",
+        "scope": "Share zone shape, population settings and resets."
+      },
+      {
+        "id": "monster-live-state",
+        "scope": "Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation."
+      },
+      {
+        "id": "npc-properties",
+        "scope": "Share the offered NPC property controls and affected quest references."
+      },
+      {
+        "id": "dungeon-portal",
+        "scope": "Keep the exterior building, Dungeon identity and related references together."
+      },
+      {
+        "id": "dungeon-tiles",
+        "scope": "Share layout-cell edits and their history."
+      },
+      {
+        "id": "dungeon-paint",
+        "scope": "Share the offered Dungeon paint and theme controls."
+      },
+      {
+        "id": "dungeon-door",
+        "scope": "Share a door and its layout references."
+      },
+      {
+        "id": "dungeon-key",
+        "scope": "Preserve the shared key-to-door relationship."
+      },
+      {
+        "id": "dungeon-treasure",
+        "scope": "Share treasure placement and references."
+      },
+      {
+        "id": "dungeon-lighting",
+        "scope": "Share authored light and palette settings."
+      },
+      {
+        "id": "dungeon-instances",
+        "scope": "Share the offered instance configuration values. Creation, removal, entering and party lifecycles are not included in this claim."
+      },
+      {
+        "id": "character-definitions",
+        "scope": "Share committed character-type creation, copy and variant membership commands. This does not claim every editor operation."
+      },
+      {
+        "id": "character-costume",
+        "scope": "Share committed model, body, color and animation choices."
+      },
+      {
+        "id": "character-import",
+        "scope": "Share a character-definition import through the original image-loading operation. This is not a world or map import."
+      },
+      {
+        "id": "ability-edit",
+        "scope": "Share offered ability costs, effects and membership changes."
+      },
+      {
+        "id": "boss-phase-edit",
+        "scope": "Share offered phase and character-stat controls."
+      },
+      {
+        "id": "network-nodes",
+        "scope": "Share the offered server-network node operations."
+      },
+      {
+        "id": "network-cables",
+        "scope": "Share endpoints, waypoints and connection removal."
+      },
+      {
+        "id": "business-fees",
+        "scope": "Share purchase, subscription and offered service prices."
+      },
+      {
+        "id": "business-loans",
+        "scope": "Share the loan state and resulting money changes."
+      },
+      {
+        "id": "business-ads",
+        "scope": "Share campaigns, budgets and financial effects."
+      },
+      {
+        "id": "staff-management",
+        "scope": "Share the implemented staff-assignment and job-state commands. This does not claim the whole staff simulation."
+      },
+      {
+        "id": "release-management",
+        "scope": "Share the implemented release-state and committed-project commands. This does not claim every MMO-update workflow."
+      }
+    ],
+    "in_game_success_claimed": false
+  },
+  "limits": [
+    "Confirmed development scopes are not included in Early Beta17.",
+    "These records do not establish complete gameplay, later join, full live simulation, four-player play, large-world performance or separate-account online compatibility.",
+    "Integrated code and successful builds do not establish successful in-game behavior."
+  ]
+}

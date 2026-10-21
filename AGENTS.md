@@ -42,8 +42,11 @@ Documentation-only changes do not require replaying unchanged gameplay tests.
 
 Public roadmap stages and feature coverage originate in `docs/roadmap.json`.
 Run `python tools/render_roadmap.py` after changing it. Its `--check` mode verifies
-the README, text roadmap and desktop/mobile SVGs without writing. Mark only
-released behavior as available; private acceptance does not make a feature public.
+the README, text roadmap and desktop/mobile SVGs without writing. Each concrete
+feature has one stable ID and one status: released, verified in a development
+build, implemented, or planned. Keep its scope and evidence reference current.
+Only shipped behavior is released; development confirmation does not change the
+download. A successful build alone does not establish in-game confirmation.
 
 ## Prepare a release
 

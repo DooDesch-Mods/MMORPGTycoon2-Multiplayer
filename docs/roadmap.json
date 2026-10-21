@@ -3,107 +3,883 @@
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
   "version_label": "Early Beta 17",
-  "release_label": "Early Beta 17 - Build, copy and clear together",
-  "graphic_title": "The road to a shared MMO world.",
-  "coverage_title": "Co-op feature coverage",
+  "release_label": "Early Beta 17 + development progress",
+  "graphic_title": "Build a shared world.",
+  "coverage_title": "Co-op, one feature at a time",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Coverage in [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17). The current focus is one Host and one friend building a small world. Partial means only the listed parts are supported.",
+  "overview_intro": "Play [Early Beta 17](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17) today. Development progress below is separate from the download. Each row names one feature and its exact scope.",
   "stages": [
     {
-      "label": "Available now",
+      "label": "Play now",
       "title": "Build together",
       "items": [
-        "Steam lobbies and worlds",
-        "Buildings and regions",
-        "Shared pause and speed"
+        "Copy buildings and props",
+        "Group, erase and undo",
+        "Buy regions, build roads"
       ]
     },
     {
-      "label": "Next priorities",
-      "title": "A living world",
+      "label": "In development",
+      "title": "Build in more ways",
       "items": [
-        "Live monster gameplay",
-        "More NPC and quest tools",
-        "More complete save support"
+        "Modular blocks and doors",
+        "Save modular worlds",
+        "Construction and right-click"
       ]
     },
     {
-      "label": "Longer term",
+      "label": "Later",
       "title": "Grow your world",
       "items": [
-        "More building tools",
-        "More gameplay systems",
-        "Four-player, larger worlds"
+        "Join a running world later",
+        "Four-player sessions",
+        "Larger worlds under load"
       ]
     }
   ],
   "features": [
     {
-      "name": "Steam lobbies",
-      "status": "available",
-      "scope": "Host a lobby or join a friend's session from the Multiplayer window."
+      "id": "host-lobby",
+      "group": "sessions",
+      "name": "Host a Steam lobby",
+      "status": "released",
+      "scope": "Open a lobby from the Multiplayer window.",
+      "evidence": "beta17"
     },
     {
-      "name": "A shared world",
-      "status": "available",
-      "scope": "The Host creates or loads a world; the joining player receives it."
+      "id": "join-lobby",
+      "group": "sessions",
+      "name": "Join a lobby",
+      "status": "released",
+      "scope": "Join the Host and receive the selected world.",
+      "evidence": "beta17"
     },
     {
-      "name": "Session chat",
-      "status": "partial",
-      "scope": "Basic session messages in the Multiplayer window."
+      "id": "new-world",
+      "group": "sessions",
+      "name": "Create a shared world",
+      "status": "released",
+      "scope": "The Host uses the original new-world wizard while the other player waits.",
+      "evidence": "beta17"
     },
     {
-      "name": "Buildings and scenery",
-      "status": "partial",
-      "scope": "Place, move and remove supported buildings and scenery. Copy buildings or scenery, group and ungroup scenery, use the single-click scenery eraser, and undo or redo supported shared edits."
+      "id": "session-chat",
+      "group": "sessions",
+      "name": "Send session messages",
+      "status": "released",
+      "scope": "Send and read basic messages in the Multiplayer window.",
+      "evidence": "beta17"
     },
     {
-      "name": "Terrain and roads",
-      "status": "partial",
-      "scope": "Paint forest terrain, place roads and remove roads. More terrain tools and path types are planned."
+      "id": "shared-pause",
+      "group": "sessions",
+      "name": "Pause together",
+      "status": "released",
+      "scope": "Pause or resume the shared world from either player.",
+      "evidence": "beta17"
     },
     {
-      "name": "Regions",
-      "status": "available",
-      "scope": "Share region purchases, biome styles and region levels."
+      "id": "shared-speed",
+      "group": "sessions",
+      "name": "Change game speed",
+      "status": "released",
+      "scope": "Keep both players on the same selected simulation speed.",
+      "evidence": "beta17"
     },
     {
-      "name": "Pause and game speed",
-      "status": "available",
-      "scope": "Keep the same pause state and simulation speed."
+      "id": "building-place",
+      "group": "buildings",
+      "name": "Place a building",
+      "status": "released",
+      "scope": "Place supported buildings with shared costs.",
+      "evidence": "beta17"
     },
     {
-      "name": "Research",
-      "status": "partial",
-      "scope": "Start Bridges research, assign workers and unlock it together. More research options are planned."
+      "id": "building-move",
+      "group": "buildings",
+      "name": "Move a building",
+      "status": "released",
+      "scope": "Move a supported building and preserve its shared identity.",
+      "evidence": "beta17"
     },
     {
-      "name": "NPC placement",
-      "status": "partial",
-      "scope": "Place, move and remove Class Trainers and Quest Givers. Broader NPC gameplay is a next priority."
+      "id": "building-remove",
+      "group": "buildings",
+      "name": "Remove a building",
+      "status": "released",
+      "scope": "Remove a supported building and share its refund.",
+      "evidence": "beta17"
     },
     {
-      "name": "Elite monsters",
-      "status": "partial",
-      "scope": "Place, move and remove individual Elite monsters while paused. Live monster gameplay is a next priority."
+      "id": "building-copy",
+      "group": "buildings",
+      "name": "Copy a building",
+      "status": "released",
+      "scope": "Copy supported buildings, including after placement and undo/redo.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
     },
     {
-      "name": "Save and resume",
-      "status": "partial",
-      "scope": "Continue from the Host's saved world. Wider support for saved objects is a next priority."
+      "id": "building-history",
+      "group": "buildings",
+      "name": "Undo and redo building placement",
+      "status": "released",
+      "scope": "Restore the building and scenery cleared by its placement.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
     },
     {
-      "name": "Quests and combat",
-      "status": "partial",
-      "scope": "Create and remove quests, edit titles, required counts and rewards, and choose building or NPC destinations. Live combat remains planned."
+      "id": "scenery-place",
+      "group": "scenery",
+      "name": "Place individual scenery",
+      "status": "released",
+      "scope": "Place a supported scenery object with shared costs.",
+      "evidence": "beta17"
     },
     {
-      "name": "Four players and larger worlds",
-      "short_name": "Larger sessions",
+      "id": "scenery-move",
+      "group": "scenery",
+      "name": "Move individual scenery",
+      "status": "released",
+      "scope": "Move one scenery object with both players seeing the same pose.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "scenery-remove",
+      "group": "scenery",
+      "name": "Remove individual scenery",
+      "status": "released",
+      "scope": "Remove one selected scenery object and share its refund.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "scenery-copy",
+      "group": "scenery",
+      "name": "Copy individual scenery",
+      "status": "released",
+      "scope": "Create a shared copy with its own identity.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "scenery-group",
+      "group": "scenery",
+      "name": "Group scenery",
+      "status": "released",
+      "scope": "Group selected scenery objects together.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "scenery-group-copy",
+      "group": "scenery",
+      "name": "Copy a scenery group",
+      "status": "released",
+      "scope": "Copy the group and its member objects.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "scenery-ungroup",
+      "group": "scenery",
+      "name": "Ungroup scenery",
+      "status": "released",
+      "scope": "Ungroup either the original group or its copy.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "scenery-group-history",
+      "group": "scenery",
+      "name": "Undo and redo grouping",
+      "status": "released",
+      "scope": "Restore group membership and names through shared history.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "scenery-eraser-click",
+      "group": "scenery",
+      "name": "Erase one scenery object",
+      "status": "released",
+      "scope": "Use one eraser click and share the refund. Held strokes and large brushes are separate work.",
+      "evidence": "beta17",
+      "milestone": "Early Beta 17"
+    },
+    {
+      "id": "region-buy",
+      "group": "regions",
+      "name": "Buy a region",
+      "status": "released",
+      "scope": "Share the region purchase and cost.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "region-biome",
+      "group": "regions",
+      "name": "Change a region biome",
+      "status": "released",
+      "scope": "Share supported biome-style changes.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "region-level",
+      "group": "regions",
+      "name": "Change region levels",
+      "status": "released",
+      "scope": "Share the selected region level range.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "forest-paint",
+      "group": "terrain",
+      "name": "Paint forest terrain",
+      "status": "released",
+      "scope": "Share a completed forest-terrain stamp.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "road-place",
+      "group": "terrain",
+      "name": "Build a road",
+      "status": "released",
+      "scope": "Place a road, including a connection to an existing endpoint.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "road-remove",
+      "group": "terrain",
+      "name": "Remove a road",
+      "status": "released",
+      "scope": "Remove a road and share its refund.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "trainer-place",
+      "group": "npcs",
+      "name": "Place a Class Trainer",
+      "status": "released",
+      "scope": "Place a Class Trainer in the shared world.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "trainer-move",
+      "group": "npcs",
+      "name": "Move a Class Trainer",
+      "status": "released",
+      "scope": "Move an existing Class Trainer.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "trainer-remove",
+      "group": "npcs",
+      "name": "Remove a Class Trainer",
+      "status": "released",
+      "scope": "Remove an existing Class Trainer.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-giver-place",
+      "group": "npcs",
+      "name": "Place a Quest Giver",
+      "status": "released",
+      "scope": "Place a Quest Giver in the shared world.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-giver-move",
+      "group": "npcs",
+      "name": "Move a Quest Giver",
+      "status": "released",
+      "scope": "Move an existing Quest Giver.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-giver-remove",
+      "group": "npcs",
+      "name": "Remove a Quest Giver",
+      "status": "released",
+      "scope": "Remove an existing Quest Giver.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "elite-place",
+      "group": "monsters",
+      "name": "Place an Elite monster",
+      "status": "released",
+      "scope": "Place an individual Elite monster while paused.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "elite-move",
+      "group": "monsters",
+      "name": "Move an Elite monster",
+      "status": "released",
+      "scope": "Move an individual Elite monster while paused.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "elite-remove",
+      "group": "monsters",
+      "name": "Remove an Elite monster",
+      "status": "released",
+      "scope": "Remove an individual Elite monster while paused.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-create",
+      "group": "quests",
+      "name": "Create a quest",
+      "status": "released",
+      "scope": "Add a quest to a supported Quest Giver.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-remove",
+      "group": "quests",
+      "name": "Remove a quest",
+      "status": "released",
+      "scope": "Remove a supported authored quest.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-title",
+      "group": "quests",
+      "name": "Rename a quest",
+      "status": "released",
+      "scope": "Share changes to its title.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-count",
+      "group": "quests",
+      "name": "Change quest counts",
+      "status": "released",
+      "scope": "Share changes to the required count.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-rewards",
+      "group": "quests",
+      "name": "Change quest rewards",
+      "status": "released",
+      "scope": "Share XP, gold and default-reward changes.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-building-target",
+      "group": "quests",
+      "name": "Choose a building destination",
+      "status": "released",
+      "scope": "Use a supported building as the quest destination.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "quest-npc-target",
+      "group": "quests",
+      "name": "Choose an NPC destination",
+      "status": "released",
+      "scope": "Use a supported NPC as the quest destination.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "research-bridges",
+      "group": "research",
+      "name": "Research Bridges",
+      "status": "released",
+      "scope": "Start Bridges research, assign workers and unlock it together.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "resume-host-save",
+      "group": "saves",
+      "name": "Continue a saved world",
+      "status": "released",
+      "scope": "Continue together from the Host's supported saved world.",
+      "evidence": "beta17"
+    },
+    {
+      "id": "modular-prefab",
+      "group": "modular",
+      "name": "Place a modular prefab",
+      "status": "verified",
+      "scope": "Place a normal prefab with its selected theme. Other theme variants are not confirmed.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-block-add",
+      "group": "modular",
+      "name": "Add a modular block",
+      "status": "verified",
+      "scope": "Use the normal block-adding tool.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-block-remove",
+      "group": "modular",
+      "name": "Remove a modular block",
+      "status": "verified",
+      "scope": "Use the left-click block-removal tool.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-entrance-add",
+      "group": "modular",
+      "name": "Add a modular entrance",
+      "status": "verified",
+      "scope": "Use the normal entrance-adding tool.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-entrance-remove",
+      "group": "modular",
+      "name": "Remove a modular entrance",
+      "status": "verified",
+      "scope": "Use the normal entrance-removal tool.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-undo",
+      "group": "modular",
+      "name": "Undo a modular layout edit",
+      "status": "verified",
+      "scope": "The Client undoes a shared layout change.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-redo",
+      "group": "modular",
+      "name": "Redo a modular layout edit",
+      "status": "verified",
+      "scope": "The Host redoes that shared layout change.",
+      "evidence": "modular"
+    },
+    {
+      "id": "save-modular-world",
+      "group": "saves",
+      "name": "Save a modular world",
+      "status": "verified",
+      "scope": "Save the current world through the original game operation.",
+      "evidence": "modular"
+    },
+    {
+      "id": "reload-modular-host",
+      "group": "saves",
+      "name": "Reload a modular world",
+      "status": "verified",
+      "scope": "Load the saved modular world on the Host.",
+      "evidence": "modular"
+    },
+    {
+      "id": "distribute-modular-save",
+      "group": "saves",
+      "name": "Share the loaded modular world",
+      "status": "verified",
+      "scope": "Load it on a Client that has already joined. This does not cover a later join.",
+      "evidence": "modular"
+    },
+    {
+      "id": "edit-loaded-modular",
+      "group": "saves",
+      "name": "Edit a loaded modular building",
+      "status": "verified",
+      "scope": "Continue editing after the save assigns new object identities.",
+      "evidence": "modular"
+    },
+    {
+      "id": "modular-construction",
+      "group": "modular",
+      "name": "Progress modular construction",
+      "status": "implemented",
+      "scope": "Share developer assignment, movement, activation and job completion from the Host.",
+      "evidence": "construction"
+    },
+    {
+      "id": "modular-right-click",
+      "group": "modular",
+      "name": "Remove a block with right-click",
+      "status": "implemented",
+      "scope": "Use right-click in block-building mode to request a shared removal.",
+      "evidence": "construction"
+    },
+    {
+      "id": "terrain-other-styles",
+      "group": "terrain",
+      "name": "Paint other terrain styles",
+      "status": "implemented",
+      "scope": "Share the other active terrain-paint styles.",
+      "evidence": "source"
+    },
+    {
+      "id": "walls-build",
+      "group": "terrain",
+      "name": "Build and remove walls",
+      "status": "implemented",
+      "scope": "Share the active wall tool and its changes.",
+      "evidence": "source"
+    },
+    {
+      "id": "district-shape",
+      "group": "terrain",
+      "name": "Draw and edit a district",
+      "status": "implemented",
+      "scope": "Share district shape, height and title placement.",
+      "evidence": "source"
+    },
+    {
+      "id": "region-sell",
+      "group": "regions",
+      "name": "Sell a region",
+      "status": "implemented",
+      "scope": "Share the ownership change and its financial effects.",
+      "evidence": "source"
+    },
+    {
+      "id": "monster-zone-edit",
+      "group": "monsters",
+      "name": "Edit a monster zone",
+      "status": "implemented",
+      "scope": "Share zone shape, population settings and resets.",
+      "evidence": "source"
+    },
+    {
+      "id": "monster-live-state",
+      "group": "monsters",
+      "name": "Share moving monster state",
+      "status": "implemented",
+      "scope": "Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation.",
+      "evidence": "source"
+    },
+    {
+      "id": "npc-properties",
+      "group": "npcs",
+      "name": "Edit NPC properties",
+      "status": "implemented",
+      "scope": "Share the offered NPC property controls and affected quest references.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-portal",
+      "group": "dungeons",
+      "name": "Place and remove a Dungeon portal",
+      "status": "implemented",
+      "scope": "Keep the exterior building, Dungeon identity and related references together.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-tiles",
+      "group": "dungeons",
+      "name": "Open and close Dungeon cells",
+      "status": "implemented",
+      "scope": "Share layout-cell edits and their history.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-paint",
+      "group": "dungeons",
+      "name": "Paint Dungeon floors",
+      "status": "implemented",
+      "scope": "Share the offered Dungeon paint and theme controls.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-door",
+      "group": "dungeons",
+      "name": "Place Dungeon doors",
+      "status": "implemented",
+      "scope": "Share a door and its layout references.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-key",
+      "group": "dungeons",
+      "name": "Place Dungeon keys",
+      "status": "implemented",
+      "scope": "Preserve the shared key-to-door relationship.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-treasure",
+      "group": "dungeons",
+      "name": "Place Dungeon treasure",
+      "status": "implemented",
+      "scope": "Share treasure placement and references.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-lighting",
+      "group": "dungeons",
+      "name": "Change Dungeon lighting",
+      "status": "implemented",
+      "scope": "Share authored light and palette settings.",
+      "evidence": "source"
+    },
+    {
+      "id": "dungeon-instances",
+      "group": "dungeons",
+      "name": "Configure Dungeon instances",
+      "status": "implemented",
+      "scope": "Share the offered instance configuration values. Creation, removal, entering and party lifecycles are not included in this claim.",
+      "evidence": "source"
+    },
+    {
+      "id": "character-definitions",
+      "group": "characters",
+      "name": "Create and copy character types",
+      "status": "implemented",
+      "scope": "Share committed character-type creation, copy and variant membership commands. This does not claim every editor operation.",
+      "evidence": "source"
+    },
+    {
+      "id": "character-costume",
+      "group": "characters",
+      "name": "Edit a character costume",
+      "status": "implemented",
+      "scope": "Share committed model, body, color and animation choices.",
+      "evidence": "source"
+    },
+    {
+      "id": "character-import",
+      "group": "characters",
+      "name": "Import a character PNG card",
+      "status": "implemented",
+      "scope": "Share a character-definition import through the original image-loading operation. This is not a world or map import.",
+      "evidence": "source"
+    },
+    {
+      "id": "ability-edit",
+      "group": "characters",
+      "name": "Edit abilities",
+      "status": "implemented",
+      "scope": "Share offered ability costs, effects and membership changes.",
+      "evidence": "source"
+    },
+    {
+      "id": "boss-phase-edit",
+      "group": "characters",
+      "name": "Edit Boss phases",
+      "status": "implemented",
+      "scope": "Share offered phase and character-stat controls.",
+      "evidence": "source"
+    },
+    {
+      "id": "network-nodes",
+      "group": "management",
+      "name": "Place server-network nodes",
+      "status": "implemented",
+      "scope": "Share the offered server-network node operations.",
+      "evidence": "source"
+    },
+    {
+      "id": "network-cables",
+      "group": "management",
+      "name": "Connect server-network cables",
+      "status": "implemented",
+      "scope": "Share endpoints, waypoints and connection removal.",
+      "evidence": "source"
+    },
+    {
+      "id": "business-fees",
+      "group": "management",
+      "name": "Change game fees",
+      "status": "implemented",
+      "scope": "Share purchase, subscription and offered service prices.",
+      "evidence": "source"
+    },
+    {
+      "id": "business-loans",
+      "group": "management",
+      "name": "Take and repay loans",
+      "status": "implemented",
+      "scope": "Share the loan state and resulting money changes.",
+      "evidence": "source"
+    },
+    {
+      "id": "business-ads",
+      "group": "management",
+      "name": "Run advertising campaigns",
+      "status": "implemented",
+      "scope": "Share campaigns, budgets and financial effects.",
+      "evidence": "source"
+    },
+    {
+      "id": "staff-management",
+      "group": "management",
+      "name": "Manage developers and Game Masters",
+      "status": "implemented",
+      "scope": "Share the implemented staff-assignment and job-state commands. This does not claim the whole staff simulation.",
+      "evidence": "source"
+    },
+    {
+      "id": "release-management",
+      "group": "management",
+      "name": "Publish MMO updates",
+      "status": "implemented",
+      "scope": "Share the implemented release-state and committed-project commands. This does not claim every MMO-update workflow.",
+      "evidence": "source"
+    },
+    {
+      "id": "scenery-brush",
+      "group": "scenery",
+      "name": "Erase with held and large brushes",
       "status": "planned",
-      "scope": "The current focus is two-player co-op in small worlds."
+      "scope": "Extend the confirmed single-click eraser scope.",
+      "evidence": "future"
+    },
+    {
+      "id": "modular-theme-edit",
+      "group": "modular",
+      "name": "Change an existing building theme",
+      "status": "planned",
+      "scope": "Confirm separate theme editing and additional theme variants.",
+      "evidence": "future"
+    },
+    {
+      "id": "late-join",
+      "group": "saves",
+      "name": "Join an already running world later",
+      "status": "planned",
+      "scope": "Receive current state and continue without missing or repeating edits.",
+      "evidence": "future"
+    },
+    {
+      "id": "reconnect",
+      "group": "saves",
+      "name": "Rejoin after a disconnect",
+      "status": "planned",
+      "scope": "Return to a continuing session after a Client restart or connection loss.",
+      "evidence": "future"
+    },
+    {
+      "id": "full-live-simulation",
+      "group": "monsters",
+      "name": "Share the full running simulation",
+      "status": "planned",
+      "scope": "Cover interacting combat, quests, economy and lifecycle behavior together.",
+      "evidence": "future"
+    },
+    {
+      "id": "four-players",
+      "group": "scale",
+      "name": "Build with four players",
+      "status": "planned",
+      "scope": "Confirm the same gameplay with four participants.",
+      "evidence": "future"
+    },
+    {
+      "id": "large-world",
+      "group": "scale",
+      "name": "Play in larger worlds",
+      "status": "planned",
+      "scope": "Confirm gameplay and save behavior beyond the small-world scope.",
+      "evidence": "future"
+    },
+    {
+      "id": "performance-load",
+      "group": "scale",
+      "name": "Keep large sessions responsive",
+      "status": "planned",
+      "scope": "Confirm performance under representative multiplayer load.",
+      "evidence": "future"
+    },
+    {
+      "id": "separate-accounts",
+      "group": "scale",
+      "name": "Play across separate Steam accounts",
+      "status": "planned",
+      "scope": "Complete the online acceptance with separate accounts and machines.",
+      "evidence": "future"
     }
-  ]
+  ],
+  "schema_version": 2,
+  "updated_on": "2026-10-22",
+  "groups": [
+    {
+      "id": "sessions",
+      "name": "Play together"
+    },
+    {
+      "id": "buildings",
+      "name": "Buildings"
+    },
+    {
+      "id": "scenery",
+      "name": "Scenery"
+    },
+    {
+      "id": "regions",
+      "name": "Regions"
+    },
+    {
+      "id": "terrain",
+      "name": "Terrain and roads"
+    },
+    {
+      "id": "npcs",
+      "name": "NPCs"
+    },
+    {
+      "id": "monsters",
+      "name": "Monsters"
+    },
+    {
+      "id": "quests",
+      "name": "Quests"
+    },
+    {
+      "id": "research",
+      "name": "Research"
+    },
+    {
+      "id": "modular",
+      "name": "Modular building"
+    },
+    {
+      "id": "saves",
+      "name": "Save and return"
+    },
+    {
+      "id": "dungeons",
+      "name": "Dungeons"
+    },
+    {
+      "id": "characters",
+      "name": "Character design"
+    },
+    {
+      "id": "management",
+      "name": "Run your MMO"
+    },
+    {
+      "id": "scale",
+      "name": "Larger sessions"
+    }
+  ],
+  "references": {
+    "beta17": {
+      "status": "released",
+      "url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.17",
+      "summary": "Scope carried in the current released build and its published feature list."
+    },
+    "modular": {
+      "status": "verified",
+      "url": "docs/evidence/development-progress.json",
+      "summary": "Eleven bounded Modular and saved-world actions confirmed in development on 22 October 2026. Not included in Beta17."
+    },
+    "construction": {
+      "status": "implemented",
+      "url": "docs/evidence/development-progress.json",
+      "summary": "Running construction and right-click block removal are implemented and built; successful game behavior is not yet confirmed."
+    },
+    "source": {
+      "status": "implemented",
+      "url": "docs/evidence/development-progress.json",
+      "summary": "Ordinary gameplay source routes are integrated. The exact feature scopes below are not yet confirmed end to end in game."
+    },
+    "future": {
+      "status": "planned",
+      "summary": "No complete implementation or game acceptance is claimed for this scope."
+    }
+  }
 }
