@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.18",
-  "summary": "Build modular worlds together and try experimental Dungeon, character-design and MMO-management tools in this broader Early Beta.",
-  "native_evidence": "docs/evidence/beta18-native.json"
+  "version": "0.1.0-beta.19",
+  "summary": "Continue building after rejoining, start modular construction and keep NPC edits in modular worlds synchronized.",
+  "native_evidence": "docs/evidence/beta19-native.json"
 }

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.19",
+  "game_build": "24993678",
+  "framework_version": "0.2.6",
+  "players": 2,
+  "accepted_scope": [
+    "Retained Host modular-construction transition and Client construction-state application",
+    "Retained same-process Client leave/rejoin and subsequent normal scenery placement",
+    "Host normal Guard placement, move and removal in the shared modular world",
+    "Both peers confirm each Guard action once and return to zero Guards with matching NPC data, RNG, Undo, Quest target pools and Ledger"
+  ],
+  "experimental_scope": [
+    "Dungeon tools",
+    "Character Design and character PNG import",
+    "Abilities and Boss-phase editing",
+    "Network and MMO-management commands",
+    "Other integrated terrain, region, NPC and monster combinations",
+    "Complete interacting simulation, all construction variants and staff interactions"
+  ],
+  "shared_state_acknowledged": true,
+  "full_coop_proven": false,
+  "performance_scope": "Paused small-world smoke only; no controlled FPS or sustained multiplayer-load acceptance.",
+  "native_gameplay_parent_dll_sha256": "6bfd4429a4e406a5c851b2a523390fb1a254b562422de530bd2bc4c855d9490c",
+  "diagnostic_response_fix": "The final diagnostic-only Host Remove acknowledgement branch is covered by the existing actual-code unit fixture; gameplay execution and retirement bodies are unchanged.",
+  "scope": "Broad experimental Early Beta. Retained accepted scopes stay closed; remaining combinations are for tester feedback."
+}

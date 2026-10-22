@@ -2,6 +2,7 @@
 #include "release_boundary_owner.h"
 #include "release_boundary_frames.h"
 #include "release_reference_reader.h"
+#include "remove_diagnostics.h"
 #include "release_current_owner.h"
 #include "release_demand_owner.h"
 #include <iostream>
@@ -62,6 +63,23 @@ int main(){try{
     }
     {
         namespace references=mt2mp::game::release_references;
+        mt2mp::game::remove_diagnostics::LocalTarget prop;
+        prop.uid=3673;prop.type="Scenery";prop.variant="base";
+        prop.snapshot_id="shared-snapshot";prop.world_epoch=2;prop.world_generation=2;
+        unsigned modular_calls=0;bool modular_ok=true;const char* family=nullptr;
+        auto modular=[&](const auto& actual,std::string& cause){++modular_calls;check(&actual==&prop,"exact census target reaches Modular proof");
+            if(!modular_ok){cause="native Modular full UID/Layout/Plan differs";return false;}return true;};
+        check(references::prop_family(prop,modular,family,e)&&std::string(family)=="building"&&modular_calls==1,"Scenery/base Modular owner maps to canonical Building only after strict proof");
+        modular_ok=false;
+        check(!references::prop_family(prop,modular,family,e)&&!family&&modular_calls==2&&e=="native Modular full UID/Layout/Plan differs","failed Modular proof retains cause and publishes no family");
+        prop.variant="other";
+        check(!references::prop_family(prop,modular,family,e)&&!family&&modular_calls==2,"unsupported variant cannot enter Modular proof");
+        prop.variant="base";prop.type="DungeonExterior";
+        check(!references::prop_family(prop,modular,family,e)&&!family&&modular_calls==2,"other non-normal Building remains rejected");
+        prop.type="Scenery";prop.normal_scenery=true;
+        check(references::prop_family(prop,modular,family,e)&&std::string(family)=="scenery"&&modular_calls==2,"normal Scenery keeps its family without Modular admission");
+        prop.normal_scenery=false;prop.normal_building=true;
+        check(references::prop_family(prop,modular,family,e)&&std::string(family)=="building"&&modular_calls==2,"normal Building keeps its family without Modular admission");
         std::map<uintptr_t,std::string> fields;std::map<uintptr_t,std::string> texts;
         const auto put=[&](uintptr_t base,size_t offset,auto value){fields[base+offset]=std::string(reinterpret_cast<const char*>(&value),sizeof value);};
         const auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){const auto found=fields.find(base+offset);if(found==fields.end()||found->second.size()!=sizeof value){cause="fixture exact field missing";return false;}std::memcpy(&value,found->second.data(),sizeof value);return true;};

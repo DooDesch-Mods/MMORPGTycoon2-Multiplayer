@@ -26,7 +26,13 @@ bool code(Memory& memory,std::string& error){
         {0x55ed80,704,"555aef77c8b022b696a31e5c65a0c6c8a8f860449323943d4980e48187214aee"},
         {0x53ccf0,2080,"56268bdf8aacde4fa4241d462a614c8a58fd9cd3e1e6ea10244189254e8047fa"}};
     for(const auto& pin:pins){std::string bytes(pin.size,'\0'),sha;
-        if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,sha,error))return false;
+        if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
+        if(pin.rva==0x55ed80){
+            if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
+                return fail(error,"NPC history original full body differs RVA="+std::to_string(pin.rva)+" original="+error);
+            continue;
+        }
+        if(!quest_bridge::sha256(bytes,sha,error))return false;
         if(sha!=pin.sha)return fail(error,"NPC history original full body differs RVA="+std::to_string(pin.rva));}
     std::array<int32_t,3> costs{};
     if(!memory.copy(state.image+0x1493b28,costs.data(),sizeof costs,error))return false;
@@ -122,7 +128,7 @@ bool inverse_values(Memory& memory,const Source& source,const Graph& value,const
             if(!field(memory,uintptr_t(world.origin.state),0x168,manager,error)||
                !character_definition_identity::read(at,state.image,uintptr_t(world.origin.state),manager,definitions,error))return false;
             const character_definition_identity::Definition* definition=nullptr;
-            for(const auto& row:definitions.definitions)if(row.kind==stored.character_type&&row.id==stored.character_slot){
+            for(const auto& row:definitions.definitions)if(character_definition_identity::matches_actor(row,stored)){
                 if(definition)return fail(error,"NPC history original Make CharacterTypeID is ambiguous");definition=&row;}
             if(!definition||definition->deleted||!definition->uid)return fail(error,"NPC history original Make CharacterTypeID is absent or deleted");
             uintptr_t registered=0;const auto seh=lookup(api.find,definition->uid,registered);

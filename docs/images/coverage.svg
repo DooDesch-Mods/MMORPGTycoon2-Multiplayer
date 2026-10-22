@@ -3,9 +3,9 @@
 <desc id="description">55 released, 29 experimental, 9 planned. Each segment is one named feature. Development features are not included in the current download. Counts and percentages describe this inventory, not overall completion.</desc>
 <path fill="#0b1723" d="M0 0h1200v1270H0z"/>
 <text x="28" y="44" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Co-op, one feature at a time</text>
-<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 18 - broader experimental co-op</text>
+<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 19 - modular construction and quest fixes</text>
 <text x="28.0" y="130" font-family="Arial" font-size="24" fill="#64e4d5" font-weight="700">55 Released</text>
-<text x="28.0" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">59.1% - In Early Beta 18</text>
+<text x="28.0" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">59.1% - In Early Beta 19</text>
 <text x="409.3333333333333" y="130" font-family="Arial" font-size="24" fill="#ffca67" font-weight="700">29 Experimental</text>
 <text x="409.3333333333333" y="157" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">31.2% - In the download</text>
 <text x="790.6666666666666" y="130" font-family="Arial" font-size="24" fill="#a8c1d5" font-weight="700">9 Planned</text>
@@ -75,7 +75,7 @@
 <rect data-feature="quest-title" x="434" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Rename a quest: Released. Share changes to its title.</title></rect>
 <rect data-feature="quest-count" x="490" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change quest counts: Released. Share changes to the required count.</title></rect>
 <rect data-feature="quest-rewards" x="546" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Change quest rewards: Released. Share XP, gold and default-reward changes.</title></rect>
-<rect data-feature="quest-building-target" x="602" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Choose a building destination: Released. Use a supported building as the quest destination.</title></rect>
+<rect data-feature="quest-building-target" x="602" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Choose a building destination: Released. Use a supported building, including a modular building, as the quest destination on both players.</title></rect>
 <rect data-feature="quest-npc-target" x="658" y="678" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Choose an NPC destination: Released. Use a supported NPC as the quest destination.</title></rect>
 <text x="724" y="701" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
 <text x="28" y="760" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Research</text>
@@ -89,7 +89,7 @@
 <rect data-feature="modular-entrance-remove" x="546" y="802" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove a modular entrance: Released. Use the normal entrance-removal tool.</title></rect>
 <rect data-feature="modular-undo" x="602" y="802" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Undo a modular layout edit: Released. The Client undoes a shared layout change.</title></rect>
 <rect data-feature="modular-redo" x="658" y="802" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Redo a modular layout edit: Released. The Host redoes that shared layout change.</title></rect>
-<rect data-feature="modular-construction" x="714" y="802" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Progress modular construction: Experimental. Share developer assignment, movement, activation and job completion from the Host.</title></rect>
+<rect data-feature="modular-construction" x="714" y="802" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Progress modular construction: Experimental. Host developers can start construction, and the Client receives the current construction state. Full construction completion and all staff interactions remain experimental.</title></rect>
 <rect data-feature="modular-right-click" x="770" y="802" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Remove a block with right-click: Experimental. Use right-click in block-building mode to request a shared removal.</title></rect>
 <rect data-feature="modular-theme-edit" x="826" y="802" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Change an existing building theme: Planned. Confirm separate theme editing and additional theme variants.</title></rect>
 <text x="892" y="825" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">10</text>
@@ -100,7 +100,7 @@
 <rect data-feature="distribute-modular-save" x="490" y="864" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Share the loaded modular world: Released. Load it on a Client that has already joined. This does not cover a later join.</title></rect>
 <rect data-feature="edit-loaded-modular" x="546" y="864" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Edit a loaded modular building: Released. Continue editing after the save assigns new object identities.</title></rect>
 <rect data-feature="late-join" x="602" y="864" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Join an already running world later: Planned. Receive current state and continue without missing or repeating edits.</title></rect>
-<rect data-feature="reconnect" x="658" y="864" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Rejoin after a disconnect: Planned. Return to a continuing session after a Client restart or connection loss.</title></rect>
+<rect data-feature="reconnect" x="658" y="864" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Rejoin after a disconnect: Planned. Leaving and rejoining without closing the game, followed by scenery placement, works in the current two-player scope. Recovery after a Client restart or connection loss remains unconfirmed.</title></rect>
 <text x="724" y="887" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">7</text>
 <text x="28" y="946" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Dungeons</text>
 <rect data-feature="dungeon-portal" x="322" y="926" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Place and remove a Dungeon portal: Experimental. Keep the exterior building, Dungeon identity and related references together.</title></rect>

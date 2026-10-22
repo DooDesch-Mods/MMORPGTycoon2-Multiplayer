@@ -127,6 +127,18 @@ new = 'if(!hooks::framework::verify_original_bytes(image+guard.rva,actual.data()
 assert duplicate["after"].removeprefix(include).replace(new, old) == duplicate["before"]
 table = duplicate["before"][duplicate["before"].index("    struct Guard{"):duplicate["before"].index("    for(const auto& guard:guards)")]
 (args.output / "duplicate_fixture_guards.inc").write_text(table + '\n    for(const auto& guard:guards)memory[image+guard.rva]=std::vector<unsigned char>(guard.bytes,guard.bytes+guard.size);\n')
-inputs = [args.source / name for name in files] + [args.source / "include/mt2mp/hooks/original_body.h", root / "test_original_body.cpp"]
+monster = (args.source / "src/game/monster_action_runtime.inc").read_text(encoding="utf-8")
+(args.output / "monster_cursor_extracted.inc").write_text(function(monster,"bool code(Memory&")+"\n",encoding="utf-8")
+import re
+npc_history = function((args.source / 'src/game/npc_history_runtime.inc').read_text(encoding='utf-8'), 'bool code(Memory&')
+npc_pins = re.findall(r'\{(0x[0-9a-f]+),(\d+),"([0-9a-f]{64})"\}', npc_history)
+assert len(npc_pins) == 6 and npc_pins[4] == ('0x55ed80', '704', '555aef77c8b022b696a31e5c65a0c6c8a8f860449323943d4980e48187214aee')
+for index, (_, _, digest) in enumerate(npc_pins):
+    assert npc_history.count('"' + digest + '"') == 1
+    npc_history = npc_history.replace('"' + digest + '"', 'npc_history_hashes[' + str(index) + '].c_str()', 1)
+(args.output / 'npc_history_extracted.inc').write_text(npc_history + '\n', encoding='utf-8')
+(args.output / 'npc_history_fixture_pins.inc').write_text('const std::array<std::pair<uintptr_t,size_t>,6> npc_history_pins{{' + ','.join('{' + rva + ',' + size + '}' for rva,size,_ in npc_pins) + '}};\n', encoding='utf-8')
+inputs = [args.source / "src/game/monster_action_runtime.inc"] + [args.source / name for name in files] + [args.source / "include/mt2mp/hooks/original_body.h", root / "test_original_body.cpp"]
+inputs.append(args.source / 'src/game/npc_history_runtime.inc')
 (args.output / "inputs.json").write_text(json.dumps([{"path":str(path),"sha256":hashlib.sha256(path.read_bytes()).hexdigest()} for path in inputs],indent=2)+"\n")
 print("PASS exact changed function boundaries; original Confirm ownership/trampoline guard, Dungeon graph helpers and every unrelated byte pin unchanged")

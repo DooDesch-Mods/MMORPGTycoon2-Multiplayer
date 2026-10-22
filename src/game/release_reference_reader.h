@@ -19,6 +19,19 @@ struct Types {
 };
 inline std::string type_key(int32_t kind,int32_t id){return nlohmann::json::array({"character",kind,id}).dump();}
 inline std::string object_key(const char* family,const std::string& key){return nlohmann::json::array({family,key}).dump();}
+template<class Target,class Modular>bool prop_family(const Target& prop,Modular&& modular,const char*& family,std::string& e){
+    family=nullptr;e.clear();
+    if(prop.normal_building){family="building";return true;}
+    if(prop.normal_scenery){family="scenery";return true;}
+    if(prop.type!="Scenery"||prop.variant!="base"){
+        e="Release reference prop is neither normal Building/Scenery nor an exact native Modular Building";
+        return false;
+    }
+    // Modular objects share Building ownership despite their Scenery definition.
+    // Require the existing full UID, native class, non-Art and Layout/Plan proof.
+    if(!modular(prop,e))return false;
+    family="building";return true;
+}
 template<class Read,class Text>bool base_types(Read& read,Text& text,uintptr_t image,uintptr_t native_state,Types& out,std::string& e){
     out={};e.clear();
     if(!read(image,0x13df7a0,out.manager,e))return false;

@@ -43,6 +43,11 @@ bool code(Memory& m,bool hooked,std::string& e){
         }
         if(c.rva==0x67fb40){if(!zone_action_runtime::verify_owned_entry(c.rva,e))return false;continue;}
         std::string bytes(c.size,'\0'),sha;if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
+        if(c.rva==0x5854e0){
+            if(!hooks::framework::verify_original_hash(state.image+c.rva,bytes.data(),bytes.size(),c.sha,e))
+                return fail(e,"Monster Cursor SetBehaviour original body differs RVA="+std::to_string(c.rva)+" original="+e);
+            continue;
+        }
         if(c.rva==0x5bf3c0&&hooked){
             std::array<unsigned char,5> prefix{};std::array<unsigned char,6> jump{};uintptr_t target=0;
             constexpr std::array<unsigned char,6> ff25{0xff,0x25,0,0,0,0};

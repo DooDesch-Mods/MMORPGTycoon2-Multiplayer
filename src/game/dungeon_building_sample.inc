@@ -228,7 +228,7 @@ bool children(Memory& memory,Local& local,std::map<std::string,json>& values,std
             uintptr_t definition=0;if(!at(row.local_pointer,0x498,definition,error))return false;
             const character_definition_identity::Definition* selected=nullptr;
             for(const auto& entry:definitions.definitions)if(entry.object==definition)selected=&entry;
-            if(!selected||selected->deleted||selected->kind!=row.character_type||selected->id!=row.character_slot)
+            if(!selected||selected->deleted||!character_definition_identity::matches_actor(*selected,row))
                 return fail(error,"Dungeon Building child actual Character definition differs");
             uintptr_t actual=0;if(!registered(selected->uid,actual,error))return false;
             if(actual!=selected->object)return fail(error,"Dungeon Building child Character full UID registry differs");

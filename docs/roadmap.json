@@ -2,13 +2,13 @@
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
-  "version_label": "Early Beta 18",
-  "release_label": "Early Beta 18 - broader experimental co-op",
+  "version_label": "Early Beta 19",
+  "release_label": "Early Beta 19 - modular construction and quest fixes",
   "graphic_title": "Build a shared world.",
   "coverage_title": "Co-op, one feature at a time",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Play [Early Beta 18](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.18) with modular building and experimental Dungeon, character-design and management tools. Experimental features are included in the download; their in-game coverage is still incomplete.",
+  "overview_intro": "Play [Early Beta 19](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.19) with fixes for modular construction and NPC quest destinations. Leave and rejoin without closing the game, then continue placing scenery. Dungeon, character-design and management tools remain included as experimental; their in-game coverage is still incomplete.",
   "stages": [
     {
       "label": "Play now",
@@ -372,8 +372,9 @@
       "group": "quests",
       "name": "Choose a building destination",
       "status": "released",
-      "scope": "Use a supported building as the quest destination.",
-      "evidence": "beta18"
+      "scope": "Use a supported building, including a modular building, as the quest destination on both players.",
+      "evidence": "beta18",
+      "milestone": "Early Beta 19"
     },
     {
       "id": "quest-npc-target",
@@ -503,7 +504,7 @@
       "group": "modular",
       "name": "Progress modular construction",
       "status": "experimental",
-      "scope": "Share developer assignment, movement, activation and job completion from the Host.",
+      "scope": "Host developers can start construction, and the Client receives the current construction state. Full construction completion and all staff interactions remain experimental.",
       "evidence": "experimental",
       "milestone": "Early Beta 18"
     },
@@ -788,7 +789,7 @@
       "group": "saves",
       "name": "Rejoin after a disconnect",
       "status": "planned",
-      "scope": "Return to a continuing session after a Client restart or connection loss.",
+      "scope": "Leaving and rejoining without closing the game, followed by scenery placement, works in the current two-player scope. Recovery after a Client restart or connection loss remains unconfirmed.",
       "evidence": "future"
     },
     {

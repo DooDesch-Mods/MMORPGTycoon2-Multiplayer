@@ -90,6 +90,23 @@ namespace native {using Memory=::Memory;}
 #include "scenery_extracted.inc"
 }
 
+namespace control_input::runtime {
+bool verify_item_activate(uintptr_t,size_t,const char*,bool&,std::string& error){error="unexpected ItemActivate fixture route";return false;}
+}
+namespace monster_cursor {
+struct Runtime {uintptr_t image=fixture::image;void(*release)(void*,void*,const float*)=nullptr;} state;
+namespace elite_probe_codes {struct Code {uintptr_t rva;size_t size;const char* sha;};std::array<Code,2> values;}
+namespace monster_hook_contract {constexpr std::array<unsigned char,5> prefix{};const char* tail_sha="unused fixture Release";}
+namespace zone_action_runtime {bool verify_owned_entry(uintptr_t,std::string& error){error="unexpected Zone fixture route";return false;}}
+bool field(Memory& memory,uintptr_t base,size_t offset,uintptr_t& value,std::string& error){return memory.copy(base+offset,&value,sizeof value,error);}
+void release_entry(void*,void*,const float*){}
+#include "monster_cursor_extracted.inc"
+}
+namespace npc_history {
+std::array<std::string,6> npc_history_hashes;
+#include "npc_history_extracted.inc"
+}
+
 int main()try{
     using namespace fixture;
 #include "duplicate_fixture_guards.inc"
@@ -155,5 +172,57 @@ int main()try{
     hook(0x684250);character::original=reinterpret_cast<void(*)(void*)>(service(0x684250).receipt.trampoline);character::generation=service(0x684250).receipt.generation;
     require(!character::code(m,error)&&error.find("ownership")!=std::string::npos,"existing Character Confirm-specific detour guard preserved");character::original=nullptr;
     require(character::code(m,error)&&cells::code(m,error)&&policy::code(image,error)&&mt2mp::game::duplicate_code::check(m,image,error),"actual consumers recover after fixture changes removed");
+    route(0x5854e0,272,"mp.dungeon.build-cursor-behaviour.5854e0");
+    const auto cursor_sha=mt2mp::sha256(memory.at(image+0x5854e0));
+    monster_cursor::elite_probe_codes::values={monster_cursor::elite_probe_codes::Code{0x5854e0,272,cursor_sha.c_str()},
+        monster_cursor::elite_probe_codes::Code{unrelated,64,pin_hashes[5].c_str()}};
+    const uintptr_t monster_release=image+0x5bf3c0;auto& release_slot=memory[image+0x1739500+0xe8];release_slot.resize(sizeof monster_release);
+    std::memcpy(release_slot.data(),&monster_release,sizeof monster_release);
+    require(monster_cursor::code(m,false,error),"Monster first activation accepts pristine Cursor body");
+    hook(0x5854e0);
+    require(monster_cursor::code(m,true,error),"Monster repeated activation accepts actual Building-owned Cursor hook");
+    auto& cursor_service=service(0x5854e0);const auto cursor_receipt=cursor_service.receipt;
+    const auto cursor_reject=[&](const char* cause){error.clear();require(!monster_cursor::code(m,true,error)&&error.find("RVA=5788896")!=std::string::npos,cause);cursor_service.receipt=cursor_receipt;};
+    available=false;cursor_reject("Monster missing Cursor receipt rejected");available=true;
+    physical=false;cursor_reject("Monster invalid physical Cursor owner rejected");physical=true;
+    strcpy_s(cursor_service.receipt.owner,"foreign");cursor_reject("Monster foreign Cursor owner rejected");
+    cursor_service.receipt.generation++;cursor_reject("Monster stale Cursor generation rejected");
+    cursor_service.receipt.trampoline++;cursor_reject("Monster changed Cursor trampoline rejected");
+    cursor_service.receipt.detour++;cursor_reject("Monster changed Cursor detour rejected");
+    cursor_service.receipt.current[12]^=1;cursor_reject("Monster mismatched live Cursor prefix rejected");
+    verification=false;cursor_reject("Monster original Cursor prefix authentication failure rejected");verification=true;
+    memory[image+0x5854e0][271]^=1;cursor_reject("Monster complete Cursor tail corruption rejected");memory[image+0x5854e0][271]^=1;
+    memory[image+unrelated][63]^=1;error.clear();require(!monster_cursor::code(m,true,error)&&error=="Monster native body differs RVA="+std::to_string(unrelated),"Monster unrelated raw body pin retained");memory[image+unrelated][63]^=1;
+    release_slot[0]^=1;error.clear();require(!monster_cursor::code(m,true,error)&&error=="Monster primary Release address point differs","Monster Release address point guard retained");release_slot[0]^=1;
+    require(monster_cursor::code(m,true,error),"Monster current owned Cursor recovers after invalid evidence removed");
+    {
+#include "npc_history_fixture_pins.inc"
+        for(size_t i=0;i<npc_history_pins.size();++i){const auto [rva,size]=npc_history_pins[i];
+            memory[image+rva]=std::vector<unsigned char>(size,0x41);
+            npc_history::npc_history_hashes[i]=mt2mp::sha256(memory.at(image+rva));}
+        const std::array<int32_t,3> costs{1000,100,500};auto& cost_bytes=memory[image+0x1493b28];cost_bytes.resize(sizeof costs);
+        std::memcpy(cost_bytes.data(),costs.data(),sizeof costs);
+        require(npc_history::code(m,error),"NPC retirement accepts all pristine full bodies");
+        route(0x55ed80,704,"objects.move");auto& move=service(0x55ed80);auto& receipt=move.receipt;
+        receipt.state=MT2FW_MT2_ROUTE_ENABLED;receipt.generation=1;receipt.detour=image+0x2000000;receipt.trampoline=image+0x3000000;
+        strcpy_s(receipt.owner,"framework");memory[image+0x55ed80][0]=0xe9;
+        std::memcpy(receipt.current,memory.at(image+0x55ed80).data(),32);
+        const auto saved=receipt;
+        require(npc_history::code(m,error),"NPC retirement accepts authenticated shared Framework objects.move");
+        const auto rejects=[&](const char* why){error.clear();require(!npc_history::code(m,error)&&error.find("RVA=5631360")!=std::string::npos,why);receipt=saved;};
+        available=false;rejects("NPC missing MoveDo receipt rejects");available=true;
+        physical=false;rejects("NPC unauthenticated physical MoveDo rejects");physical=true;
+        strcpy_s(receipt.owner,"foreign");rejects("NPC foreign shared owner rejects");
+        receipt.generation=0;rejects("NPC absent shared generation rejects");
+        receipt.trampoline=0;rejects("NPC absent shared trampoline rejects");
+        receipt.detour=0;rejects("NPC absent shared detour rejects");
+        receipt.current[12]^=1;rejects("NPC live prefix mismatch rejects");
+        verification=false;rejects("NPC original prefix authentication failure rejects");verification=true;
+        memory[image+0x55ed80][703]^=1;rejects("NPC complete704byte tail corruption rejects");memory[image+0x55ed80][703]^=1;
+        for(const auto [rva,size]:npc_history_pins)if(rva!=0x55ed80){memory[image+rva][size-1]^=1;error.clear();
+            require(!npc_history::code(m,error)&&error=="NPC history original full body differs RVA="+std::to_string(rva),"NPC unrelated raw full body pin rejects");memory[image+rva][size-1]^=1;}
+        cost_bytes[0]^=1;require(!npc_history::code(m,error)&&error=="NPC history original TypeCost table differs","NPC TypeCost guard retained");cost_bytes[0]^=1;
+        require(npc_history::code(m,error),"NPC retirement guard recovers after invalid evidence removed");
+    }
     std::cout<<"PASS "<<checks<<" original-body and actual consumer/Backend checks\n";return 0;
 }catch(const std::exception& problem){std::cerr<<problem.what()<<'\n';return 1;}

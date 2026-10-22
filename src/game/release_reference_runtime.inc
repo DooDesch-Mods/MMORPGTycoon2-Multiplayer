@@ -22,11 +22,18 @@ bool reference_keys(Runtime& r,const a::Context& c,const a::Binding& b,std::map<
     }
     std::vector<remove_diagnostics::LocalTarget> props;if(!([&]{live::apply_timing::PageReadScope original_read(live::apply_timing::PageBoundary::OriginalCall);return remove_diagnostics::identity_targets(props,e);}()))return false;
     for(const auto& prop:props){
-        if(prop.world_epoch!=b.native_epoch||prop.world_generation!=b.native_generation||prop.snapshot_id!=c.snapshot_uuid||!prop.uid||(!prop.normal_building&&!prop.normal_scenery))
-            return fail(e,"Release reference full-UID Building/Scenery current NativeOrigin/type differs: session_snapshot="+c.snapshot_uuid+" native_snapshot="+world.uuid+
+        if(prop.world_epoch!=b.native_epoch||prop.world_generation!=b.native_generation||prop.snapshot_id!=c.snapshot_uuid||!prop.uid)
+            return fail(e,"Release reference full-UID Building/Scenery current NativeOrigin differs: session_snapshot="+c.snapshot_uuid+" native_snapshot="+world.uuid+
                 " alias_snapshot="+prop.snapshot_id+" prop_epoch="+std::to_string(prop.world_epoch)+" binding_epoch="+std::to_string(b.native_epoch)+
-                " prop_generation="+std::to_string(prop.world_generation)+" binding_generation="+std::to_string(b.native_generation));
-        if(!add(prop.object,prop.normal_building?"building":"scenery",prop.record_key))return false;
+                " prop_generation="+std::to_string(prop.world_generation)+" binding_generation="+std::to_string(b.native_generation)+
+                " uid="+std::to_string(prop.uid)+" key="+prop.record_key);
+        const char* family=nullptr;
+        auto modular=[](const auto& target,std::string& cause){live::apply_timing::PageReadScope original_read(live::apply_timing::PageBoundary::OriginalCall);return remove_diagnostics::is_modular_target(target,cause);};
+        if(!release_references::prop_family(prop,modular,family,e))
+            return fail(e,"Release reference Building/Scenery type proof failed: uid="+std::to_string(prop.uid)+" key="+prop.record_key+
+                " type="+prop.type+" variant="+prop.variant+" normal_building="+std::to_string(prop.normal_building)+
+                " normal_scenery="+std::to_string(prop.normal_scenery)+" classification="+prop.kind_cause+" cause="+e);
+        if(!add(prop.object,family,prop.record_key))return false;
     }
     std::vector<npc_probe::action_runtime::StateOwner> npcs;if(!npc_probe::action_runtime::state_owners(c,b,npcs,e))return false;
     for(const auto& row:npcs){if(!add(row.npc,"npc",row.key))return false;

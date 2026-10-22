@@ -23,7 +23,9 @@ import_include = '#include "character_import_runtime.inc"\n'
 assert monster.count('#include "ability_edit_runtime.inc"\n' + import_include + '#include "ability_membership_runtime.inc"\n') == 1
 assert monster.count(import_include) == 1
 assert hashlib.sha256((args.source / "src/game/character_import_runtime.inc").read_bytes()).hexdigest() == "27d37f92590ca35944e19ca81b753c6bb1befad1021dbce648f804f76d50e363", "Character Import admitted implementation differs"
-comparison = monster.replace(import_include, '', 1)
+cursor_shared = '        if(c.rva==0x5854e0){\n            if(!hooks::framework::verify_original_hash(state.image+c.rva,bytes.data(),bytes.size(),c.sha,e))\n                return fail(e,"Monster Cursor SetBehaviour original body differs RVA="+std::to_string(c.rva)+" original="+e);\n            continue;\n        }\n'
+assert monster.count(cursor_shared) == 1
+comparison = monster.replace(cursor_shared, '', 1).replace(import_include, '', 1)
 for admitted in json.loads((root / "monster_edit_delta.json").read_text(encoding="utf-8")):
     assert comparison.count(admitted["after"]) == 1, "exact Monster edit delta differs"
     comparison = comparison.replace(admitted["after"], admitted["before"], 1)

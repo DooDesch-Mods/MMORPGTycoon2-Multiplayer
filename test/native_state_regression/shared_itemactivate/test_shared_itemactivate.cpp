@@ -1,4 +1,5 @@
 #include "release_ui_owner.h"
+#include "mt2mp/hooks/original_body.h"
 #include "mt2mp/core/hash.h"
 #include <native_routes.h>
 #include <algorithm>
@@ -40,7 +41,7 @@ bool fail(std::string& error,const std::string& cause){error=cause;return false;
 }
 namespace mt2mp::game::npc_probe::monster_action_runtime {
 struct Runtime {uintptr_t image=::fixture_image;void(*release)(void*,void*,const float*)=nullptr;} state;
-namespace elite_probe_codes {struct Code {uintptr_t rva;size_t size;std::string sha;};std::vector<Code> values;}
+namespace elite_probe_codes {struct Code {uintptr_t rva;size_t size;const char* sha;};std::vector<Code> values;}
 namespace monster_hook_contract {constexpr std::array<unsigned char,5> prefix{};const char* tail_sha="unused fixture route";}
 namespace zone_action_runtime {bool verify_owned_entry(uintptr_t,std::string& error){error="unexpected Zone fixture route";return false;}}
 namespace quest_bridge {bool sha256(const std::string& bytes,std::string& sha,std::string&){sha=mt2mp::sha256(std::vector<unsigned char>(bytes.begin(),bytes.end()));return true;}}
@@ -70,7 +71,7 @@ void setup(bool hooked=true,bool publish=true){
     memory_bytes[owner.trampoline]=trampoline;
     if(hooked){auto& body=memory_bytes[owner.entry];body[0]=0xe9;const int32_t delta=int32_t(owner.trampoline+owner.stolen+14-owner.entry-5);std::memcpy(body.data()+1,&delta,4);}
     std::vector<unsigned char> other(64,0xcc);other_sha=mt2mp::sha256(other);memory_bytes[fixture_image+other_rva]=other;
-    monster::elite_probe_codes::values={{item_rva,128,item_sha},{other_rva,64,other_sha}};
+    monster::elite_probe_codes::values={{item_rva,128,item_sha.c_str()},{other_rva,64,other_sha.c_str()}};
     const uintptr_t release=fixture_image+0x5bf3c0;std::vector<unsigned char> ap(sizeof release);std::memcpy(ap.data(),&release,sizeof release);memory_bytes[fixture_image+0x1739500+0xe8]=ap;
     observed={};observed.size=sizeof observed;observed.state=MT2FW_MT2_ROUTE_ENABLED;observed.entry=owner.entry;observed.rva=item_rva;
     observed.generation=owner.generation;observed.trampoline=owner.trampoline;observed.detour=owner.detour;

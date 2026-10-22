@@ -1,6 +1,7 @@
 #include "party_live.h"
 #include "npc_quest_targets.h"
 #include "remove_diagnostics.h"
+#include "release_reference_reader.h"
 #include <iostream>
 #include <algorithm>
 #include <compare>
@@ -32,7 +33,7 @@ const std::string local="53aebc01-fd57-45c5-8b76-b45c69d59e9d";
 const std::string shared_sha(64,'a'),local_sha(64,'b');
 std::string selected=shared,seen_snapshot;
 typed::Binding admitted{1,1};bool binding_ok=true,uid_ok=true,read_ok=true,owners_ok=true;
-unsigned lookups=0,checks=0;
+unsigned lookups=0,checks=0,modular_calls=0;bool modular_ok=false;
 World actual;
 void check(bool condition,const char* cause){++checks;if(!condition)throw std::runtime_error(cause);}
 }
@@ -54,6 +55,10 @@ namespace native_open_runtime {
 bool read_current_world(World& out,std::string& error){if(!fixture::read_ok)return fail(error,"original NativeOpen read failure");out=fixture::actual;return true;}
 }
 namespace remove_diagnostics {
+bool is_modular_target(const Target& target,std::string& error){
+    ++fixture::modular_calls;
+    return fixture::modular_ok&&target.uid==3673&&target.type=="Scenery"&&target.variant=="base"||fail(error,"original Modular full UID/Layout/Plan failure");
+}
 bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,uint64_t uid,std::string& key,std::string& error){
     fixture::seen_snapshot=snapshot;
     if(snapshot!=fixture::shared||!object||!uid)return fail(error,"original unrevoked shared Building identity absent");key="building:1";return true;
@@ -77,6 +82,8 @@ namespace live_host_state::apply_timing {
 enum class PageBoundary {OriginalCall};
 struct PageReadScope {explicit PageReadScope(PageBoundary){}};
 }
+namespace live=live_host_state;
+namespace release_references=mt2mp::game::release_references;
 #include "domain_bodies.inc"
 #include "actor_census_scope.inc"
 
@@ -174,7 +181,18 @@ int main(){try{actor_census_checks();actor_order_fixture::run();using fixture::c
         if(field==2)++value.world_generation;
         if(field==3)value.uid=0;
         if(field==4)value.normal_building=false;
-        error.clear();check(!cases::release({value},host_world,host,binding,owners,error),"Foreign Release target admitted");has(error,"session_snapshot="+fixture::shared);
+        error.clear();check(!cases::release({value},host_world,host,binding,owners,error),"Foreign Release target admitted");has(error,field<4?"session_snapshot="+fixture::shared:"Release reference Building/Scenery type proof failed");
+    }
+    {
+        auto modular=target();modular.uid=3673;modular.type="Scenery";modular.variant="base";modular.normal_building=false;
+        owners={};fixture::modular_ok=true;fixture::modular_calls=0;
+        check(cases::release({modular},host_world,host,binding,owners,error)&&fixture::modular_calls==1&&owners.owners.size()==1,"Release rejected strictly proved Modular shared alias with distinct native UUID");
+        owners={};fixture::modular_ok=false;
+        check(!cases::release({modular},host_world,host,binding,owners,error)&&fixture::modular_calls==2&&owners.owners.empty(),"Release published Modular owner after failed native proof");
+        has(error,"original Modular full UID/Layout/Plan failure");
+        fixture::modular_ok=true;modular.snapshot_id=fixture::local;
+        check(!cases::release({modular},host_world,host,binding,owners,error)&&fixture::modular_calls==2&&owners.owners.empty(),"Modular proof bypassed shared snapshot guard");
+        fixture::modular_ok=false;
     }
     for(unsigned field=0;field<3;++field){auto world=host_world;
         if(field==0)world.uuid.clear();if(field==1)++world.world_epoch;if(field==2)++world.generation;

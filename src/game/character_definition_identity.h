@@ -13,6 +13,10 @@ struct Definition {
     uintptr_t object=0,parent=0,owning_collection=0,variants=0,record=0;
     uint64_t uid=0,parent_uid=0;bool deleted=false,edited=false,released=false;
 };
+// Actor wire names retain their original meaning: slot is catalogue kind, type is definition index.
+template<class Actor>inline bool matches_actor(const Definition& definition,const Actor& actor){
+    return definition.kind==actor.character_slot&&definition.id==actor.character_type;
+}
 struct Collection {uintptr_t object=0,owner=0;std::array<Array,5> arrays;std::vector<std::array<int32_t,2>> ids;};
 struct Census {uintptr_t state=0,manager=0;std::array<Array,5> arrays;std::vector<Definition> definitions;std::vector<Collection> collections;};
 inline bool fail(std::string& error,const char* cause){error=cause;return false;}

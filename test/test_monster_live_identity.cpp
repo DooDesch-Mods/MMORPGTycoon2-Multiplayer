@@ -2,6 +2,7 @@
 #include "live_host_state/monster_state.h"
 #include "direct_monster_identity.h"
 #include "npc_quest_targets.h"
+#include "npc_quest_building_key.h"
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -16,6 +17,17 @@ namespace identity=mt2mp::game::direct_monster_identity;
 namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace ml=mt2mp::game::live_host_state::monsters;
 namespace q=mt2mp::game::npc_quest_targets;
+namespace mt2mp::game::remove_diagnostics {
+static LocalTarget quest_target;
+static bool quest_resolve=true,quest_modular_proven=true;
+static unsigned quest_modular_reads=0;
+bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget& out,std::string& e){
+    if(!quest_resolve){e="original target resolution failed";return false;}out=quest_target;return true;
+}
+bool is_modular_target(const LocalTarget&,std::string& e){
+    ++quest_modular_reads;if(!quest_modular_proven){e="original Modular class/full UID/Layout/Plan proof failed";return false;}return true;
+}
+}
 namespace fixture {
 constexpr uintptr_t image_base=0x140000000,world_root=0x100000,map_pointer=0x200000,region_pointer=0x300000,manager_pointer=0x400000,object_pointer=0x500000,regions_data=0x600000,members_data=0x700000;
 constexpr uint64_t full_uid=0x100001d01;
@@ -127,5 +139,34 @@ int main(){try{
     reset(port);stage();uid_result=object_pointer+8;reject_read(port,"full UID lookup differs");
     reset(port);stage();after_lookup=[]{put(object_pointer+0x18,full_uid+1);};reject_read(port,"full UID changed after lookup");
     reset(port);stage();array(manager_pointer+0x38,0x16e8b60,members_data,2);put(members_data+8,object_pointer);reject_read(port,"owning membership differs");
+    {
+        namespace rd=mt2mp::game::remove_diagnostics;
+        q::World w;w.origin={shared_snapshot,std::string(64,'a'),8,9};w.selection=0x400;w.saved_region=60;
+        const auto reset_key=[&]{rd::quest_target={w.selection,0x500,0x100000e59ull,8,9,shared_snapshot,
+            std::string(64,'a')+":world:building:inline:region{60}/buildingManager/building[1]","Scenery","base",false,false,"separate Scenery"};
+            rd::quest_resolve=true;rd::quest_modular_proven=true;rd::quest_modular_reads=0;};
+        std::string key,cause;reset_key();
+        need(q::building_key(w,0x500,key,cause)&&key==rd::quest_target.record_key&&rd::quest_modular_reads==1,
+             "actual Quest key did not admit the proven Modular Building");
+        reset_key();rd::quest_target.normal_building=true;
+        need(q::building_key(w,0x500,key,cause)&&rd::quest_modular_reads==0,"normal Building gained a Modular requirement");
+        reset_key();rd::quest_modular_proven=false;
+        need(!q::building_key(w,0x500,key,cause)&&key.empty()&&cause=="original Modular class/full UID/Layout/Plan proof failed",
+             "Quest key accepted an unproven Modular or lost its original cause");
+        for(int defect=0;defect<10;++defect){reset_key();
+            if(defect==0)rd::quest_target.snapshot_id=local_origin;
+            if(defect==1)++rd::quest_target.world_epoch;
+            if(defect==2)++rd::quest_target.world_generation;
+            if(defect==3)++rd::quest_target.object;
+            if(defect==4)++rd::quest_target.manager;
+            if(defect==5)rd::quest_target.record_key.clear();
+            if(defect==6)rd::quest_target.normal_scenery=true;
+            if(defect==7)rd::quest_target.type="Other";
+            if(defect==8)rd::quest_target.variant="Other";
+            if(defect==9)rd::quest_resolve=false;
+            need(!q::building_key(w,0x500,key,cause)&&key.empty()&&rd::quest_modular_reads==0,
+                 "Quest key relaxed existing identity/family/resolution before Modular proof");
+        }
+    }
     std::cout<<"PASS "<<checks<<" actual world/full/read and Registry assertions with distinct local/shared UUIDs\n";return 0;
 }catch(const std::exception& x){std::cerr<<"FAIL "<<x.what()<<'\n';return 1;}}

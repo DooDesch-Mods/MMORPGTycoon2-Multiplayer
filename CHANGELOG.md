@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-beta.19
+
+### Fixed
+
+- Let developers start modular construction and share the current construction state with the joining player.
+- Keep modular buildings available as destinations for NPC quests on both players.
+- Continue placing scenery after leaving and rejoining without closing the game.
+- Keep NPC edits in modular worlds from ending the co-op session.
+
+### Early Beta
+
+Dungeon, character-design and MMO-management tools remain included as experimental. Some actions can still fail or desync. Full simulation, reconnecting after a game restart, four-player sessions and larger worlds remain unconfirmed.
+
+Both players need Early Beta 19 and MT2 Mod Framework Runtime 0.2.6 or newer. Close the game before updating and keep save backups.
+
 ## 0.1.0-beta.18
 
 ### Added

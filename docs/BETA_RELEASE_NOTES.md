@@ -1,31 +1,28 @@
-# MMORPG Tycoon 2 Multiplayer - Early Beta 18
+# Early Beta 19 - Keep building together
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Build together with modular buildings and try more of your MMO in co-op. This Early Beta also includes experimental Dungeon, character-design and management features.
+Build with a friend, give NPCs modular quest destinations and continue after leaving and rejoining the lobby.
 
-### Added
+### Improved
 
-- Build with modular prefabs, add or remove blocks and entrances, and undo or redo shared layout edits.
-- Save a modular world, load it together and keep editing your buildings.
+- Developers can start modular construction on the Host while the joining player receives the current construction state.
+- Modular buildings work as destinations for NPC quests on both players.
+- Leave and rejoin without closing the game, then continue placing scenery.
+- Keep NPC edits in modular worlds from ending the co-op session.
 
 ### Experimental
 
-- Try Dungeon portals, layout tools, doors, keys, treasure and lighting together.
-- Create and copy character types, change their appearance, edit abilities and import character PNG cards.
-- Try server-network tools, game fees, loans, advertising, staff commands and MMO updates.
-- Try the other integrated terrain, region, NPC and monster tools.
-
-Experimental features are included in this download. Some interactions and combinations can still fail or desync. This is not a complete Multiplayer release.
+Dungeon tools, character design, server networks, MMO management and the other experimental terrain, region, NPC and monster tools remain included. Some actions and combinations can still fail or desync. Full construction completion and the whole running simulation remain experimental.
 
 ### Install
 
-Both players need this version and the matching [MT2 Mod Framework Runtime 0.2.6](https://www.nexusmods.com/mmorpgtycoon2/mods/25). Close the game before updating, deploy through the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) and launch through Steam.
+Both players need Early Beta 19 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25), with matching mod versions. Close the game before updating, deploy through the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) and launch through Steam.
 
 Open the **Multiplayer** desktop icon, or choose **Mods... > Multiplayer > Open**.
 
 ### Early Beta
 
-Start with two players in a small world and keep backups. Shared edits can take several seconds or longer. Four-player sessions, larger worlds and the full running simulation are not confirmed.
+Start with two players in a small world and keep backups. Shared edits can take several seconds or longer. Reconnecting after a crash or game restart, four-player sessions and larger worlds are not confirmed.
 
 Use **Report a problem** in the Multiplayer window to send technical details privately. Include what you were doing, what you expected and what happened.

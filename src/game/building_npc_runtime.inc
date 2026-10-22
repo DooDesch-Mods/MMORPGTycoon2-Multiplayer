@@ -120,8 +120,7 @@ bool witness(const opened::CurrentWorld& world,const child::OwnerResolver& exter
        !at(ap,0xa8,name_method,error))return false;
     const character_definition_identity::Definition* definition=nullptr;
     for(const auto& candidate:definitions.definitions)if(candidate.object==type)definition=&candidate;
-    if(!definition||definition->deleted||!definition->uid||definition->kind!=receipt.child.row.character_type||
-       definition->id!=receipt.child.row.character_slot||name_method!=image+0xe3f530)
+    if(!definition||definition->deleted||!definition->uid||!character_definition_identity::matches_actor(*definition,receipt.child.row)||name_method!=image+0xe3f530)
         return q::fail(error,"Building child NPC current Character definition/virtual name owner differs");
     Lookup lookup;uintptr_t registered=0;
     if(!lookup.initialize(error)||!lookup(definition->uid,registered,error))return false;

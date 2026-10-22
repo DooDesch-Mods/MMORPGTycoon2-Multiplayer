@@ -434,13 +434,7 @@ bool native_remove_ui(const json& args,json& result,std::string& error) {
         job["cause"]=error.empty()?"NPC original DestroyNPC command lacks exact typed capture":error;
         job["unknown"]=receipt.ui_command_attempted;result=job;
         return fail(error,job.at("cause").get<std::string>());}
-    npc_census::State after_census;action::NpcState after;action::Ledger after_money;undo::UndoWitness after_undo;
-    json after_tasks=json::array();
-    if(!read_effect(memory,state.image,region,local.uid,after,after_money,after_undo,after_census,error,
-                    quest_target,&after_tasks)||
-       after!=before||after_money!=money||after_undo!=undo_before||after_tasks!=before_tasks){
-        job["cause"]=error.empty()?"NPC Client UI changed world before Host authority":error;
-        job["unknown"]=true;result=job;return fail(error,job.at("cause").get<std::string>());}
+#include "npc_remove_ui_receipt.inc"
     result=job;error.clear();return true;
 }
 

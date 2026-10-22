@@ -255,7 +255,7 @@ assert character.count(pure_call)==1
 current=body(character,'bool read_current(')
 assert current.index(pure_call)<current.index('character_membership_reader::users(')<current.index('!reader.current(after,true,error)')
 definitions=(a.root/'src/game/character_definition_identity.h').read_bytes()
-assert hashlib.sha256(definitions).hexdigest()=='6ffffcd3f95f3125115a064fb1e986748361cbf8ae85eaa473e69b2399565778', 'Pure Character reader changed; recheck callback-free extent'
+assert hashlib.sha256(definitions).hexdigest()=='13183364fc57c67c734f1d6d5bd576710caf80801381bffa33ec5d365c38f9ea', 'Pure Character reader changed; recheck callback-free extent'
 (a.output/'character_definition_pure_call.inc').write_text('return '+pure_call+';\n',encoding='utf-8')
 
 # Each extent reads live bytes. The callback-bearing users reader resets page
@@ -282,7 +282,7 @@ assert current.index(find_call)<current.index(users_call)<current.index('!reader
 for relative,digest in [
     ('src/game/character_membership_reader.h','762605d894cf728dbe2f869bc3f0128d66e05be53ef137a63ff9e75e43643cac'),
     ('src/game/subscriber_intervention.h','33ec7264580c592c105776a3b6b292e5f954a80eafafee61205a535b756f3fcf'),
-    ('src/game/release_reference_reader.h','ac0a1cc7745f07d71d872ad38f915d7f1d8d58e529face039035304a6ce51b78')]:
+    ('src/game/release_reference_reader.h','5df5d77b15ee40ffda7dd8b4eafc0d6bacc96c1fbf54459527cd21e788559775')]:
     assert hashlib.sha256((a.root/relative).read_bytes().replace(b'\r\n', b'\n')).hexdigest()==digest, 'Reader callbacks changed; recheck bounded metadata extent: '+relative
 
 # Extract each complete production loop, including both full validations.

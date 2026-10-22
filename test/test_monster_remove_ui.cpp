@@ -1,5 +1,6 @@
 #include "monster_remove_fixture.h"
 #include "monster_target_key.h"
+#include "npc_target_key.h"
 namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "ui_remove/ui_capture.h"
 #include <iostream>
@@ -61,7 +62,61 @@ bool info_window(Memory&,const ur::LocalBinding&,a::ui_diagnostic::Window&,json&
 bool remove_observe(const a::Binding&,const a::Request&,a::Evidence&,std::string& e){++observations;return mode!=11||fail(e,"exact absence/Undo readback failure");}
 #include "monster_remove_ui.inc"
 void reset(unsigned selected,bool host){mode=selected;state={};Config::instance().is_host=host;removals.clear();remove_ui_token.clear();effects=observations=commands=captured=0;dead=false;actor=born(empty());}
-int main(){try{unsigned n=0;json result;std::string e;
+
+namespace npc_ui_receipt_test {
+namespace action=a;
+namespace npc_target_key=mt2mp::game::npc_target_key;
+namespace npc_census {struct State {};}
+namespace undo {struct UndoWitness {bool operator==(const UndoWitness&)const=default;};}
+struct Operation {
+ a::Binding binding{3,4};a::Request request;uintptr_t local_pointer=20;uint64_t local_uid=0x100000001ull;
+ unsigned attempted=3,returned=3,destroyprops_original_calls=1;bool confirmed=true;
+ a::Evidence evidence;json quest_tasks_before=json::array();std::string cause;
+};
+struct State {std::map<std::string,Operation> operations;uintptr_t image=1;} state;
+unsigned mode=0,reads=0,observations=0;bool dead=false;
+a::NpcState actor;
+bool read_effect(Memory&,uintptr_t,uintptr_t,uint64_t uid,a::NpcState& out,a::Ledger&,undo::UndoWitness&,npc_census::State&,std::string& error,bool,json* tasks){
+ ++reads;if(dead&&uid)return fail(error,"NPC action created UID absent from actual manager");out=actor;
+ if(mode==9)++out.count;*tasks=json::array();return true;
+}
+bool remove_observe(const a::Binding&,const a::Request&,a::Evidence&,std::string& error){
+ ++observations;return mode!=7||fail(error,"original NPC absence/Undo observation failure");
+}
+bool receipt(json& result,std::string& error){
+ const a::Binding binding{3,4};const ur::LocalBinding local{10,20,0x100000001ull,3,4,snapshot_id,std::string("action:")+birth_id,false,false,true};
+ const std::string target=birth_id;const auto before=actor;const a::Ledger money{};const undo::UndoWitness undo_before{};
+ const json before_tasks=json::array();Memory memory;const uintptr_t region=1;const bool quest_target=false;
+ json job={{"action_uuid",action_id}};
+#include "npc_remove_ui_receipt.inc"
+ result=job;error.clear();return true;
+}
+unsigned run(){
+ unsigned cases=0;
+ for(unsigned value=0;value<=7;++value){
+  mode=value;reads=observations=0;state={};dead=true;Config::instance().is_host=true;
+  ::mode=0;::commands=1;Operation op;op.request=remove_request().request;op.request.action=a::Action::RemoveNPC;op.evidence.npc_before=actor;
+  if(value==2)++op.local_uid;if(value==3)op.confirmed=false;if(value==4)++op.evidence.npc_before.count;
+  if(value==5){op.confirmed=false;op.cause="original NPC removal failure";}if(value==6)::mode=12;
+  if(value!=1)state.operations.emplace(action_id,op);
+  json result;std::string error;const bool ok=receipt(result,error);
+  need(value==0?ok:!ok,"NPC synchronous Host receipt outcome differs");need(!reads,"Host tried reading a removed NPC as live");
+  if(value==0)need(result.value("execution_confirmed",false)&&observations==1,"Host skipped existing exact absence/Undo observer");
+  else need(result.value("unknown",false),"failed Host receipt lost Unknown status");
+  if(value==5)need(error=="original NPC removal failure","NPC operation failure cause lost");
+  if(value==7)need(error=="original NPC absence/Undo observation failure","NPC observation cause lost");++cases;
+ }
+ for(unsigned value:{0u,8u,9u}){
+  mode=value;reads=observations=0;dead=value==8;Config::instance().is_host=false;json result;std::string error;
+  const bool ok=receipt(result,error);need(value==0?ok:!ok,"NPC Client unchanged-before-Host check differs");
+  need(reads==1&&!observations,"NPC Client bypassed live unchanged readback");
+  if(value==0)need(!result.value("execution_confirmed",true),"Client capture claimed native execution");++cases;
+ }
+ return cases;
+}
+}
+
+int main(){try{unsigned n=npc_ui_receipt_test::run();json result;std::string e;
  const json args={{"family","monster"},{"token",ui_token},{"target_action_uuid",birth_id}};
  for(unsigned value=0;value<=18;++value){if(value==14||value==15||value==16)continue;reset(value,true);e.clear();
   const auto ok=native_remove_ui(args,result,e);

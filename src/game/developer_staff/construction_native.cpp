@@ -154,6 +154,9 @@ bool code(const Capture& c,uintptr_t& dp,uintptr_t& jp,std::string& e){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Body bodies[]={
         {0x4d0140,64,"be269dd99cc4585d34b5e7dceed29058d2db2c55efd7d12b07774864e8bbc9ef"},
+        {0x3b1cb0,176,"b17c3a82bfa769d5a0ee82b72cf8b542a0be0bcc548a1f0fb9779b31c796cce9"},
+        {0x4cf6e0,16,"1352ba185c1aadfff33882b525618d08126efe44082443f61bec24ef1b8f35b1"},
+        {0xb38120,16,"499f1f307c1cb989f968a6b7fcaec591e1828877223d0b0e7e8e8b76cde8c9ca"},
         {0x967370,416,"2a6e4111f91e2c3cecb2aa35b99ed8d71f22a75f8300694f7d9ba6b086c01daa"},
         {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
         {0x1113d80,272,"dee54a7232d3aef27b73436213be00e802ba3cb997d4fb09a5f41f38468fafcc"},
@@ -186,6 +189,10 @@ bool code(const Capture& c,uintptr_t& dp,uintptr_t& jp,std::string& e){
     for(const auto& b:bodies){if(b.rva==0xc2e810){if(!bug_authority::verify_job_destructor(e))return false;continue;}std::vector<unsigned char> bytes(b.size);
         if(!memory.copy(c.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha)return fail(e,"Construction native full body differs RVA="+std::to_string(b.rva));}
+    uintptr_t set_shard=0,shard_changed=0;
+    if(!at(c.image+0x17422e0,0x190,set_shard,e)||!at(c.image+0x17422e0,0x3b8,shard_changed,e))return false;
+    if(set_shard!=c.image+0x3b1cb0||shard_changed!=c.image+0xb38120)
+        return fail(e,"Construction Developer SetShard dispatch differs");
     if(!at(c.image,0x1a32148,dp,e)||!at(c.image,0x1a30a20,jp,e))return false;
     struct Property{uintptr_t object,ap,offset;};
     const Property properties[]={{dp,0x1729040,0x4c8},{jp,0x1728f60,0xb8},
@@ -281,8 +288,13 @@ bool target_plan(const Capture& c,const PoolState& wire,const std::vector<LocalJ
         return fail(e,"Construction frame original occurrence/count/fixed50 shape differs");
     for(size_t i=0;i<50;++i){const auto& row=c.state.rows[i];const auto& t=target.rows[i];
         if(row.id!=t.id||row.employed!=t.employed||wanted.actors[i].id!=t.id||!quiet(actors[i],e))return fail(e,e.empty()?"Construction frame actor ID/employment differs":e);
+        // A never-deployed indoor employee has no Region yet. The original
+        // SetRegion below establishes its root shard before pose or OnMap.
+        const bool initial_indoor=row.employed&&(row.state==0||row.state==6||row.state==7)&&
+            !row.on_map&&!row.job_link&&!actors[i].region&&!actors[i].quadtree;
         if((t.on_map||t.position!=row.position||wanted.actors[i]!=actual.actors[i])&&
-           (!actors[i].shard||!actors[i].region||wanted.actors[i].region_id<0))return fail(e,"Construction moving actor has no existing root-shard/Region owner");
+           (wanted.actors[i].region_id<0||((!actors[i].shard||!actors[i].region)&&!initial_indoor)))
+            return fail(e,"Construction moving actor lacks existing ownership or an unplaced indoor employee");
         if(t.on_map&&t.state!=0&&t.state!=1&&t.state!=2&&t.state!=4)return fail(e,"Construction frame Developer state requires another Job family");
         if(t.on_map&&!t.active)return fail(e,"Construction frame inactive Developer remains on map");
         if(!t.on_map&&t.job_link)return fail(e,"Construction frame Job-linked actor is off map");
@@ -407,6 +419,10 @@ bool apply(const action_session::Context& context,const action_session::Binding&
                     if(!([&]{live_host_state::apply_timing::PageReadScope pages;return region_saved_identity::resolve(before.image,map,map+0x1c0,wanted.actors[i].region_id,0,region,
                         [](uintptr_t p,size_t o,auto& value,std::string& cause){return at(p,o,value,cause);},e);}()))return false;
                     Call selected;bug_authority::work_region(before.image,before.local.developers[i],region,&selected);if(!call(w,selected,"Developer SetRegion",e))return false;
+                    uintptr_t actual_region=0,actual_shard=0;
+                    if(!at(before.local.developers[i],0x178,actual_region,e)||!at(before.local.developers[i],0x170,actual_shard,e))return false;
+                    if(actual_region!=region||actual_shard!=map+0x1c0)
+                        return fail(e,"Construction original Developer SetRegion ownership readback differs");
                 }
                 Call r;pose(before.image,before.local.developers[i],&wanted.actors[i],&next.position,&r);
                 if(!call(w,r,"Developer pose",e))return false;

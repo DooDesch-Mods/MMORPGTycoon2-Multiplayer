@@ -1,10 +1,15 @@
 #include "character_definition_identity.h"
+#include "npc_census.h"
 #include <iostream>
 #include <map>
 #include <stdexcept>
 namespace definitions=mt2mp::game::character_definition_identity;
-struct Memory {
+struct Memory final:mt2mp::npc_census::Memory {
     std::map<uintptr_t,unsigned char> bytes;uintptr_t changing=0;unsigned hits=0;
+    bool copy(uintptr_t address,void* destination,size_t size,std::string& error)override{
+        auto* out=static_cast<unsigned char*>(destination);for(size_t i=0;i<size;++i){const auto found=bytes.find(address+i);
+            if(found==bytes.end()){error="original NPC census field read failure";return false;}out[i]=found->second;}return true;
+    }
     template<class T>void put(uintptr_t address,const T& value){const auto* source=reinterpret_cast<const unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i)bytes[address+i]=source[i];}
     template<class T>bool read(uintptr_t address,size_t offset,T& value,std::string& error){auto* out=reinterpret_cast<unsigned char*>(&value);for(size_t i=0;i<sizeof value;++i){const auto found=bytes.find(address+offset+i);if(found==bytes.end()){error="original Character definition field read failure";return false;}out[i]=found->second;}
         if(changing==address+offset&&++hits==2)out[0]^=1;return true;}
@@ -58,5 +63,27 @@ int main()try{
     check(definitions::find(census,second,0x900000012,owner,error)&&owner->key=="character:1:0","Fresh native slot reuse lost its new full UID/global identity");
     memory.put(variant+0x490,uint8_t(0));memory.put(variant+0x18,variant_uid);
     check(!definitions::read(at,image,native_state,manager,census,error),"Live variant was allowed to use a freed old parent after slot reuse");
+    // SetCharacterType stores kind at actor+0x4a8 and definition index at actor+0x4a4.
+    constexpr uintptr_t npc_region=0x70000000,npc_manager=0x71000000,npc_data=0x72000000,npc=0x73000000,npc_name=0x74000000,random=0x75000000;
+    setup();check(definitions::read(at,image,native_state,manager,census,error),error);
+    memory.put(image+0x164b250,random);memory.put(random,std::array<uint64_t,4>{1,2,3,4});
+    memory.put(npc_region+0x998,npc_manager);memory.put(npc_manager+0xc8,npc_region);memory.put(npc_manager+0xdc,uint32_t(1));
+    for(size_t bucket=0;bucket<3;++bucket){memory.put(npc_manager+0x40+bucket*0x30,bucket==0?npc_data:uintptr_t(0));
+        memory.put(npc_manager+0x48+bucket*0x30,int32_t(bucket==0));memory.put(npc_manager+0x4c+bucket*0x30,int32_t(bucket==0));}
+    memory.put(npc_data,npc);memory.put(npc,image+0x1742980);memory.put(npc+0x18,uint64_t(0x400000012));memory.put(npc+0x178,npc_region);
+    memory.put(npc+0x80c,int32_t(0));memory.put(npc+0x830,int32_t(0));memory.put(npc+0x4a8,int32_t(1));memory.put(npc+0x4a4,int32_t(0));
+    memory.put(npc+0x6f8,int32_t(5));memory.put(npc+0x870,int32_t(0));memory.put(npc+0x100,std::array<float,4>{0,0,0,1});
+    memory.put(npc+0x110,std::array<float,3>{1,2,3});memory.put(npc+0x11c,std::array<float,3>{1,1,1});
+    memory.put(npc+0x38,npc_name);memory.put(npc+0x40,size_t(1));memory.put(npc_name,char('N'));
+    mt2mp::npc_census::State actors;check(mt2mp::npc_census::read(memory,image,npc_region,actors,error),error);
+    check(actors.rows.size()==1&&actors.rows[0].character_slot==1&&actors.rows[0].character_type==0,"Actor reader swapped native kind and definition index");
+    check(definitions::matches_actor(census.definitions[0],actors.rows[0]),"Unequal native kind/index rejected its actual definition");
+    check(!definitions::matches_actor(census.definitions[1],actors.rows[0]),"Different definition index admitted");
+    auto other_kind=census.definitions[0];other_kind.kind=2;
+    check(!definitions::matches_actor(other_kind,actors.rows[0]),"Different catalogue kind admitted");
+    auto reversed=census.definitions[0];reversed.kind=0;reversed.id=1;
+    check(!definitions::matches_actor(reversed,actors.rows[0]),"Swapped catalogue kind/index admitted");
+    memory.put(npc+0x4a4,int32_t(1));check(mt2mp::npc_census::read(memory,image,npc_region,actors,error),error);
+    check(definitions::matches_actor(census.definitions[1],actors.rows[0])&&!definitions::matches_actor(census.definitions[0],actors.rows[0]),"Current actor definition change selected stale catalogue identity");
     std::cout<<checks<<" Character base/variant global ID/full UID/private Collection/retirement comparisons passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

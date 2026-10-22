@@ -2,7 +2,7 @@
 #include "mt2mp/game/native_engine.h"
 namespace mt2mp::game::modular_identity {
 // This separate admission does not make modular Scenery a normal Building for
-// the existing Quest, Service, purchase or standalone inventory UI contracts.
+// the existing Service, purchase or standalone inventory UI contracts.
 template<class Read>bool read(Read&& at,uintptr_t image,uintptr_t object,const native::BuildingState& value,std::string& e){
     if(!object||object>UINTPTR_MAX-0xcc0||value.type!="Scenery"||value.variant!="base"||value.dungeon_membership||value.dungeon_instance_membership){e="Modular identity requires the original root Scenery/base form";return false;}
     uintptr_t ap=0,layout=0,plan=0,layout_ap=0,plan_ap=0;uint64_t uid=0;uint8_t art=1;
