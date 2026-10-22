@@ -12,14 +12,14 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 Shared edits can take several seconds or longer to finish. The game can occasionally crash during startup. This build adds modular building and includes experimental Dungeon, character-design and MMO-management tools. Some actions and combinations can still fail or desync.
 
-**Early Beta 21** shows your loaded Multiplayer version in every menu view and keeps the Lobby ID visible while the Host chooses a world. It includes Beta 20's Steam invite fixes, worldwide public search and corrected installation guide. Both players need Beta 21 and MT2 Mod Framework Runtime 0.2.6 or newer. Install and enable Beta 21 in Vortex, then deploy before starting through Steam. Gameplay coverage is unchanged from Beta 19.
+**Early Beta 21** shows your loaded Multiplayer version in the lobby and browser and keeps the Lobby ID visible while the Host chooses a world. It includes Beta 20's Steam invite fixes, worldwide public search and corrected installation guide. Both players need Beta 21 and MT2 Mod Framework Runtime 0.2.6 or newer. Install and enable Beta 21 in Vortex, then deploy before starting through Steam. Gameplay coverage is unchanged from Beta 19.
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Play [Early Beta 21](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.21) with a visible Multiplayer version in every menu and a Lobby ID that stays visible while the Host chooses a world. Includes Beta 20 Steam invite and public lobby fixes. Gameplay coverage is retained from Beta 19.
+Play [Early Beta 21](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.21) with a visible Multiplayer version in the lobby and browser and a Lobby ID that stays visible while the Host chooses a world. Includes Beta 20 Steam invite and public lobby fixes. Gameplay coverage is retained from Beta 19.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">

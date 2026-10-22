@@ -6,7 +6,7 @@ Check that you and your friend are running the same version, then share your Lob
 
 ### Fixed
 
-- The loaded Multiplayer version appears in every Multiplayer menu view.
+- The loaded Multiplayer version appears in the lobby and browser.
 - The Lobby ID stays visible while the Host chooses a world.
 - Includes Beta 20's Steam invite fixes, worldwide public search and corrected installation guide.
 
