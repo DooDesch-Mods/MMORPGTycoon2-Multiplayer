@@ -261,8 +261,8 @@ bool tick(std::string& error) {
     if(!process_save_cache_refresh(error))return false;
     if(!close_playing_panel_once(ingame_active,preparation,error)||!show_failed_panel_once(preparation,error)||!process_panel_toggle(true,error)||!render_chat(error))return false;
     if(!Config::instance().local_test&&!publication_failed&&mm.in_lobby()&&mm.is_host()){
-        const std::string state=preparation.value("leaving",false)?"leaving":preparation.value("playing",false)?"playing":
-            (net::session_wire::connected()||(load_attempted&&mm.get_lobby_members().size()>1))?"preparing":"open";
+        const std::string state=lobby_presentation::lobby_state(preparation.value("leaving",false),
+            preparation.value("playing",false),load_attempted,preparation.value("state",0));
         if(state!=published_state){std::string detail;if(!mm.publish_lobby_data("lobby_state",state,detail)||!mm.set_lobby_joinable(state=="open",detail))metadata_failure(detail);else published_state=state;}
     }
     auto list_caption=list_status;

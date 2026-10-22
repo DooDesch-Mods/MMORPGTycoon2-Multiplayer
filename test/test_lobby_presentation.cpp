@@ -5,6 +5,12 @@ using namespace mt2mp::game::lobby_presentation;
 void require(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 int main(){
     try{
+        require(lobby_state(false,false,false,0)=="open","empty/choosing lobby must stay open regardless of Host or peer transport admission");
+        require(lobby_state(false,false,true,0)=="preparing","world load attempt left the lobby open");
+        for(int preparation=1;preparation<=12;++preparation)
+            require(lobby_state(false,false,false,preparation)=="preparing","active preparation left the lobby open");
+        require(lobby_state(false,true,true,9)=="playing","Playing lost precedence over preparation");
+        require(lobby_state(true,true,true,12)=="leaving","Leave lost precedence over Playing and preparation");
         require(host_phase(1,false,true,"idle")==Phase::Loading,"selected-save load was not announced");
         require(host_phase(0,true,false,"idle")==Phase::Loading,"native world transition was not announced");
         require(host_phase(0,false,true,"idle")==Phase::Selected,"selected world lost start action");

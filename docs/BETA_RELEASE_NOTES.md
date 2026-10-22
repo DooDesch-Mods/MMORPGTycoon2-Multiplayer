@@ -6,6 +6,7 @@ Accept a Steam invite and join your friend's lobby without opening the Multiplay
 
 ### Fixed
 
+- Keep the lobby open for invites, public search and Lobby ID joins until world preparation starts.
 - Steam invites reach the regular lobby join flow on Windows.
 - Invite handling starts before your first lobby action.
 - The Lobby ID appears before the world loads.

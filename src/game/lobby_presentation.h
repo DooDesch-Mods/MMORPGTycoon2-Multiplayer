@@ -4,6 +4,13 @@
 #include <string_view>
 
 namespace mt2mp::game::lobby_presentation {
+inline std::string lobby_state(bool leaving,bool playing,bool load_attempted,int preparation) {
+    if(leaving)return "leaving";
+    if(playing)return "playing";
+    // Transport admission can finish while the host is still choosing a world.
+    // Only the world preparation flow closes an otherwise open lobby.
+    return load_attempted||preparation!=0?"preparing":"open";
+}
 enum class Phase : uint8_t { Choosing, Selected, Loading, Preparing, Sending, ClientLoading, Starting, Playing, Leaving, Failed, Creating };
 inline bool parse_phase(std::string_view value,Phase& phase){
     if(value.size()==1&&value[0]>='0'&&value[0]<='9'){phase=Phase(value[0]-'0');return true;}

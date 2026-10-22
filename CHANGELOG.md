@@ -4,6 +4,7 @@
 
 ### Fixed
 
+- Keep the lobby open for invites, public search and Lobby ID joins until world preparation starts.
 - Receive Steam lobby invites as soon as Multiplayer is ready, before opening a lobby menu.
 - Fix Steam invite callbacks on Windows so an accepted invite reaches the normal lobby join flow.
 - Show the Lobby ID before loading a world.

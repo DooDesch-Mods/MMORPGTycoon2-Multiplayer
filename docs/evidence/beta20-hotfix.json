@@ -8,12 +8,14 @@
     "windows_steam_callback_abi": "passed",
     "invite_initialization_and_normal_admission_route": "passed",
     "worldwide_public_search": "passed",
-    "packaged_version_and_installation_guide": "passed"
+    "packaged_version_and_installation_guide": "passed",
+    "pre_world_lobby_remains_joinable": "passed"
   },
   "in_game_acceptance": "pending",
   "two_player_online_invite_acceptance": "pending",
-  "manual_lobby_id_join_fix_claimed": false,
   "online_acceptance_passed": false,
   "full_coop_proven": false,
-  "retained_gameplay_evidence": "docs/evidence/beta19-native.json"
+  "retained_gameplay_evidence": "docs/evidence/beta19-native.json",
+  "manual_lobby_id_join_runtime_acceptance": "pending",
+  "release_validation": "Affected local MSVC, source and package tests; no new full gameplay claim."
 }
