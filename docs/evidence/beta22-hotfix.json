@@ -1,0 +1,21 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.22",
+  "game_build": "24993678",
+  "framework_min_version": "0.2.6",
+  "chat_enter_framework_version": "0.3.1",
+  "scope": "Normal installed-profile internal snapshot executor, safe pending-operation Leave, chat Steam names and native chat submit binding.",
+  "reported_build": "0.1.0-beta.21",
+  "observed_failure": "Normal Framework configuration disables the diagnostic mailbox. A shared executor early return also blocked internal load/capture requests, leaving preparation and Leave pending.",
+  "source_regression": {
+    "installed_executor_mailbox_disabled": "Original source failed the new extracted production-gate test; fixed source passed. Internal request and completion work without reading the external mailbox.",
+    "leave_scheduling": "Passed actual scheduling block: pending Leave drains while reload is suspended.",
+    "leave_operation_ownership": "Passed queued cancellation, in-flight retention, completed failure and eventual Leave cases.",
+    "leave_presentation": "Passed Leaving session precedence over retained failure.",
+    "chat_names_and_submit": "Passed extracted Steam name and native submit descriptor tests with MSVC. Native event delivery is owned by Framework 0.3.1."
+  },
+  "in_game_acceptance": "pending",
+  "online_acceptance_passed": false,
+  "full_coop_proven": false,
+  "retained_gameplay_evidence": "docs/evidence/beta19-native.json"
+}

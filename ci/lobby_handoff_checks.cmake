@@ -24,3 +24,8 @@ add_test(NAME lobby_wizard_automation
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8 -m unittest discover
         -s "${MT2MP_SOURCE_ROOT}/test/lobby_ui" -p test_wizard_automation.py)
 set_tests_properties(lobby_wizard_automation PROPERTIES TIMEOUT 30)
+
+add_test(NAME framework_chat_names
+    COMMAND "${CMAKE_COMMAND}" -E env "MT2_STEAM_TEST_CXX=${CMAKE_CXX_COMPILER}"
+        "${Python3_EXECUTABLE}" -B -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_framework_chat_names.py")
+set_tests_properties(framework_chat_names PROPERTIES TIMEOUT 60)

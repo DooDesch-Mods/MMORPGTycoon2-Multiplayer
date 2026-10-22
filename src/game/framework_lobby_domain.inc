@@ -6,13 +6,37 @@ bool fail(const std::string& detail) {
 
 bool metadata_failure(const std::string& detail){publication_failed=true;publication_error=detail;return fail(detail);}
 
+std::array<std::string,5> chat_speaker_names(const net::chat::Snapshot& snapshot){
+    // Retain known names during a disconnect, but never reuse them in a new conversation.
+    static uint64_t session=0,conversation=0;
+    static uint8_t local=0;
+    static std::array<std::string,5> names;
+    if(session!=snapshot.session||conversation!=snapshot.conversation||local!=snapshot.local_peer){
+        session=snapshot.session;conversation=snapshot.conversation;local=snapshot.local_peer;
+        for(size_t peer=1;peer<names.size();++peer)
+            names[peer]=peer==local?"You":peer==1?"Host":"Player "+std::to_string(peer);
+    }
+    if(!Config::instance().local_test&&snapshot.connected){
+        std::array<uint64_t,5> ids{};uint64_t lobby=0,mine=0;std::string error;
+        if(net::session_wire::read_binding(ids,lobby,mine,error)&&
+           snapshot.session==net::session_wire::session_id()&&mine==local){
+            for(size_t peer=1;peer<names.size();++peer)if(peer!=local&&ids[peer]){
+                const auto name=net::SteamNetworking::instance().get_persona_name(ids[peer]);
+                if(!name.empty()&&name!=std::to_string(ids[peer]))names[peer]=name;
+            }
+        }
+    }
+    return names;
+}
+
 std::string chat_transcript(const net::chat::Snapshot& snapshot){
+    const auto names=chat_speaker_names(snapshot);
     std::string result;
     const auto first=snapshot.entries.size()>3?snapshot.entries.size()-3:0;
     for(size_t i=first;i<snapshot.entries.size();++i){
         const auto& entry=snapshot.entries[i];
         if(!result.empty())result+='\n';
-        result+=entry.origin==snapshot.local_peer?"You":entry.origin==1?"Host":"Player "+std::to_string(entry.origin);
+        result+=entry.origin>0&&entry.origin<names.size()?names[entry.origin]:"Player";
         result+=": "+entry.text;
         if(entry.origin==snapshot.local_peer){
             if(entry.delivery==net::chat::Delivery::Queued)result+=" - Sending";

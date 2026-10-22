@@ -37,6 +37,8 @@ int main(){
         require(view.heading=="Playing together"&&!view.busy,"actual Playing did not close loading state");
         view=describe(false,true,false,9,Phase::Playing,"active",128,128,true);
         require(view.heading=="Connection lost","error was hidden by previous Playing state");
+        view=describe(false,true,false,12,Phase::Failed,"failed",0,0,true);
+        require(view.heading=="Leaving session"&&view.busy,"retained failure hid explicit Leave progress");
         std::cout<<"PASS Host load, actual byte progress, Client load, Playing and failure precedence\n";
         return 0;
     }catch(const std::exception& error){std::cerr<<"FAIL "<<error.what()<<'\n';return 1;}

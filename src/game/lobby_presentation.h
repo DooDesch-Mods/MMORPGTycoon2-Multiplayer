@@ -32,9 +32,9 @@ inline Phase host_phase(int preparation, bool transitioning, bool selected, cons
 struct Message {std::string heading,detail;bool busy=false;};
 inline Message describe(bool host, bool member, bool pending, int preparation, Phase remote,
                         const std::string& snapshot, uint64_t done, uint64_t total, bool failed) {
+    if(preparation==12)return {"Leaving session","",true};
     if(failed||preparation==10)return {"Connection lost","Leave the session and reconnect."};
     if(!member)return pending?Message{"Connecting","" ,true}:Message{"Build together",""};
-    if(preparation==12)return {"Leaving session","",true};
     if(snapshot=="transferring"&&total){
         const auto percent=done>=total?100:unsigned((done*100)/total);
         return {host?"Sending world":"Receiving world",std::to_string(percent)+" %",true};

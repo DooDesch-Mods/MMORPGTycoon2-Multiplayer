@@ -1,26 +1,26 @@
-# Early Beta 21 - See your version and Lobby ID
+# Early Beta 22 - Shared-world loading and lobby recovery
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Check that you and your friend are running the same version, then share your Lobby ID while choosing a world.
+Fixes for getting into a shared world, leaving an unfinished session and seeing your friends' names in chat.
 
 ### Fixed
 
-- The loaded Multiplayer version appears in the lobby and browser.
-- The Lobby ID stays visible while the Host chooses a world.
-- Includes Beta 20's Steam invite fixes, worldwide public search and corrected installation guide.
+- Shared-world loading and saving can start in normal Vortex installations.
+- Leave lobby cancels a queued operation or exits after an active operation finishes.
+- Leaving session stays visible when exiting after a connection failure.
+- Chat shows other players' Steam names.
+- Enter sends chat messages with Framework Runtime 0.3.1 or newer.
 
 ### Update and play
 
-Both players need Early Beta 21 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25).
-
 1. Close both games.
-2. Install and enable Multiplayer Beta 21 in Vortex, then deploy with the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465).
-3. Start both games through Steam and check that Multiplayer shows Beta 21.
-4. Host a lobby and invite your friend through Steam.
+2. Update Multiplayer to Beta 22 and [MT2 Mod Framework Runtime to 0.3.1](https://www.nexusmods.com/mmorpgtycoon2/mods/25) in Vortex.
+3. Enable both mods and deploy, then start through Steam.
+4. Check that Multiplayer shows Beta 22, host a lobby and invite your friend.
 
 ### Early Beta
 
-Gameplay features are unchanged from Beta 19. Start with two players in a small world and keep backups. Some actions can still fail or desync.
+Start with two players in a small world and keep backups. Some actions can still fail or desync.
 
 Use **Report a problem** in the Multiplayer window to send technical details privately. Include what you were doing, what you expected and what happened.

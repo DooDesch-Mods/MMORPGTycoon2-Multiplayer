@@ -76,6 +76,7 @@ namespace lobby_prepare {
 bool captures_ready(){return true;}
 bool all_ack(std::string& error){error="unrelated runtime ACK intentionally unavailable in fixture";return false;}
 bool start_runtime(std::string& error){++fixture::runtime_calls;error="unrelated runtime start intentionally unavailable in fixture";return false;}
+bool leave(std::string&){throw std::runtime_error("unexpected Leave intent in preparation fixture");}
 #include "prepare_current_entry_body.inc"
 #include "prepare_current_tick_body.inc"
 }

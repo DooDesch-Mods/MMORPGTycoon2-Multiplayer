@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-beta.22
+
+### Fixed
+
+- Start shared-world loading and saving in normal Vortex installations.
+- Let Leave lobby cancel a queued world operation or finish leaving after an active operation completes.
+- Show Leaving session while exiting after a connection failure.
+- Show other players' Steam names in chat.
+- Add the chat input binding for Enter to send through the Framework's native UI.
+
+Both players need Early Beta 22. Close both games, update in Vortex and deploy before starting through Steam.
+
 ## 0.1.0-beta.21
 
 ### Fixed

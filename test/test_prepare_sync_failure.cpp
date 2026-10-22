@@ -46,6 +46,7 @@ bool read_simulation_state(SimulationState&,std::string&){throw std::runtime_err
 namespace native_lobby {bool admitted(){return true;}}
 namespace lobby_operations {
 bool available(){return true;}bool pending(){return fixture::pending;}
+bool release_for_leave(bool& ready,std::string& error){ready=!fixture::pending;error.clear();return true;}
 bool submit(const char*,const json&,std::string&,std::string&){++fixture::submits;return true;}
 bool take_response(const std::string&,json&){throw std::runtime_error("unexpected snapshot response read");}
 }
@@ -110,14 +111,21 @@ int main(){try{
     check(!prepare::leave(error)&&error=="native Leave blocked by unresolved Network cause=original unresolved capture"
         &&!fixture::begin_leave&&owner.live_error==original,"failed sync bypassed unresolved Leave guard");
     fixture::unresolved=false;fixture::pending=true;
-    check(!prepare::leave(error)&&!fixture::begin_leave,"failed sync bypassed pending snapshot guard");
+    check(prepare::leave(error)&&prepare::leave_requested&&!fixture::begin_leave&&error.empty(),"Leave did not wait for executing snapshot");
+    check(prepare::leaving(),"queued Leave is not visible to scheduler");
+    check(prepare::tick(error)&&prepare::leave_requested&&!fixture::begin_leave&&!fixture::title_requests&&!fixture::submits,
+        "pending Leave executed retirement or another preparation operation");
+    state=prepare::status();
+    check(state.at("leaving")==true&&state.at("ready")==false&&state.at("label")=="Leaving session", "pending Leave status lost intent");
+    check(!prepare::start(error)&&!fixture::starts,"pending Leave admitted Start");
     fixture::pending=false;
-    check(prepare::leave(error)&&prepare::step==prepare::Step::Leaving&&fixture::begin_leave==1
+    check(prepare::tick(error)&&!prepare::leave_requested&&prepare::step==prepare::Step::Leaving&&fixture::begin_leave==1
         &&fixture::title_requests==1&&owner.live_error==original,"Failed state could not enter existing Leave route");
     check(!prepare::leave(error)&&fixture::begin_leave==1&&fixture::title_requests==1,"Leave replayed native request");
     check(prepare::tick(error)&&prepare::step==prepare::Step::Leaving&&prepare::failure==original,"pending Leave cleared cause before acknowledgement");
     fixture::leave_ready=true;fixture::ingame=false;
     check(prepare::tick(error)&&prepare::step==prepare::Step::Idle&&prepare::failure.empty()&&prepare::leave_confirmed==1,"confirmed Leave did not use existing cleanup");
+    check(!prepare::leaving(),"confirmed Leave retained scheduler ownership");
     check(owner.live_error==original&&!fixture::full_reads&&!fixture::submits&&!fixture::starts,"UI cleanup replayed or erased runtime failure");
     prepare::step=prepare::Step::Playing;owner.live_error.clear();owner.controller.value.locked=true;owner.controller.value.cause="original Controller lock";
     check(!prepare::tick(error)&&error=="native playing authority/capture readiness lost: original Controller lock","existing Controller lock cause changed");
@@ -132,6 +140,12 @@ int main(){try{
     check(!prepare::leave(error)&&error=="original reload release failed"&&fixture::reload_releases==1&&fixture::begin_leave==prior_leave&&!fixture::chat_retirements,"reload release failure crossed Leave or lost its cause");
     fixture::reload_release_ok=true;
     check(prepare::leave(error)&&fixture::reload_releases==2&&fixture::begin_leave==prior_leave+1&&fixture::chat_retirements==1,"reload Leave did not release ownership and retire chat once");
+    prepare::step=prepare::Step::CaptureLocal;fixture::pending=true;
+    const auto begins_before_timeout=fixture::begin_leave;
+    check(prepare::leave(error)&&prepare::leave_requested,"executing capture did not retain Leave intent");
+    prepare::leave_began=std::chrono::steady_clock::now()-std::chrono::seconds(901);
+    check(!prepare::tick(error)&&!prepare::leave_requested&&fixture::pending&&fixture::begin_leave==begins_before_timeout&&
+        error.find("executing snapshot operation")!=std::string::npos,"Leave timeout cancelled a native operation or hid its cause");
     runtime::published_runtime.store(nullptr);
     check(runtime::controller_status().at("initialized")==false,"uninitialized status changed");
     std::cout<<"PASS actual cheap Controller status and prepare Playing/Failed/Leave bodies\n";return 0;

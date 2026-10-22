@@ -7,6 +7,7 @@ BOOL WINAPI snapshot_fixture_set_information(HANDLE,FILE_INFO_BY_HANDLE_CLASS,LP
 #include <iostream>
 #include <random>
 #include <set>
+#include <sstream>
 using json=nlohmann::json;
 namespace fs=std::filesystem;
 namespace mt2mp {
@@ -18,6 +19,10 @@ namespace fixture {
 std::set<size_t> rename_residues;
 fs::path root;std::vector<std::string> calls;bool title=true,title_pending=false,reject_prepare=false,reject_begin=false,reject_request=false;
 unsigned checks=0;
+std::vector<std::string> errors;
+template<class... Args> void log_error(const char* format,const Args&... args){
+    std::ostringstream text;text<<format;((text<<' '<<args),...);errors.push_back(text.str());
+}
 void need(bool b,const std::string& e){++checks;if(!b)throw std::runtime_error(e);}
 void write(const fs::path& p,const std::string& s){fs::create_directories(p.parent_path());std::ofstream f(p,std::ios::binary);f<<s;f.close();need(bool(f),"fixture write failed");}
 std::string read(const fs::path& p){std::ifstream f(p,std::ios::binary);return {std::istreambuf_iterator<char>(f),std::istreambuf_iterator<char>()};}
@@ -69,7 +74,7 @@ bool suspend_time(const std::string&,std::string&){fixture::calls.push_back("sus
 void write_json(const fs::path& p,const json& j){fixture::write(p,j.dump());}
 struct Watch {void begin(int){fixture::calls.push_back("pending");}}load_watch;
 json pending_load;std::string last_request;
-#define LOG_ERROR(...) ((void)0)
+#define LOG_ERROR(...) fixture::log_error(__VA_ARGS__)
 #define LOG_INFO(...) ((void)0)
 #include "selected_snapshot_lobby_actual.inc"
 void execute(const json& args,const std::string& id,bool internal_request=true){
@@ -93,6 +98,22 @@ int main(int argc,char** argv)try{
     fixture::need(!game::lobby_operations::submit("load_snapshot",selected,operation,e)&&e.find("already pending")!=std::string::npos,"actual lobby replayed pending operation");
     fixture::need(game::lobby_operations::receive({{"id",queued.at("id")},{"ok",true}})&&game::lobby_operations::take_response(queued.at("id").get<std::string>(),queued),"actual lobby completion failed");
     fixture::need(!game::lobby_operations::submit("load_snapshot",{{"selected_file","save/Selected/chosen.vrz"},{"snapshot_id",fixture::uuid(1)}},operation,e),"actual lobby admitted ambiguous source");
+    bool leave_ready=false;
+    fixture::need(game::lobby_operations::submit("load_snapshot",selected,operation,e),e);
+    fixture::need(game::lobby_operations::release_for_leave(leave_ready,e)&&leave_ready&&!game::lobby_operations::pending(),"queued Leave did not cancel never-executed operation");
+    fixture::need(!game::lobby_operations::take_request(queued),"cancelled operation was dispatched");
+    fixture::need(!game::lobby_operations::receive({{"id",operation},{"ok",true}}),"cancelled operation accepted stale completion");
+    fixture::need(game::lobby_operations::submit("capture_local_snapshot",json::object(),operation,e),e);
+    fixture::need(game::lobby_operations::take_request(queued),"capture request missing");
+    fixture::need(game::lobby_operations::release_for_leave(leave_ready,e)&&!leave_ready&&game::lobby_operations::pending(),"Leave discarded an executing native operation");
+    fixture::need(game::lobby_operations::receive({{"id",operation},{"ok",false},{"error",{{"message","original capture failure"}}}}),"native failure completion rejected");
+    fixture::need(game::lobby_operations::release_for_leave(leave_ready,e)&&leave_ready&&!game::lobby_operations::pending(),"Leave did not drain completed failure");
+    fixture::need(fixture::errors.size()==1&&fixture::errors.back().find("original capture failure")!=std::string::npos,"Leave lost original completed failure cause");
+    fixture::need(!game::lobby_operations::take_response(operation,queued),"Leave retained a consumed failure response");
+    fixture::need(game::lobby_operations::release_for_leave(leave_ready,e)&&leave_ready,"idle Leave did not complete");
+    fixture::need(game::lobby_operations::submit("capture_local_snapshot",json::object(),operation,e)&&game::lobby_operations::take_request(queued),"second capture request missing");
+    fixture::need(game::lobby_operations::receive({{"id",operation},{"ok",true}}),"successful completion rejected");
+    fixture::need(game::lobby_operations::release_for_leave(leave_ready,e)&&leave_ready&&!game::lobby_operations::pending()&&fixture::errors.size()==1,"Leave did not drain successful completion exactly once");
     execute(selected,fixture::uuid(1));
     fixture::need(fixture::calls==std::vector<std::string>{"prepare","suspend","network_invalidate","snapshot_invalidate","begin","before_request","request:save/Selected/snapshot-"+fixture::uuid(1)+".vrz","pending"},"actual selected owned transaction order differs");
     const auto out=net::snapshot_world_path::physical(fixture::root,"Selected",fixture::uuid(1));

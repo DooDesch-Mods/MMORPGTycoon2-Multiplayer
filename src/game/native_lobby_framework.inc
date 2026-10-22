@@ -146,7 +146,10 @@ bool framework_render(std::string& error){
             if(widget.type=="button")value["style"]=widget.style;
             if(!widget.tone.empty())value["tone"]=widget.tone;
             if(widget.type=="image"){value["path"]=widget.text;value["visible"]=framework_effectively_visible(widget)&&!widget.text.empty();}
-            else if(widget.type=="input"){value["value"]=widget.text;value["max_bytes"]=widget.max_length;}
+            else if(widget.type=="input"){
+                value["value"]=widget.text;value["max_bytes"]=widget.max_length;
+                if(id=="chat_input")value["submit"]="chat_send";
+            }
             else value["text"]=widget.text;
             widgets.push_back(std::move(value));
         }

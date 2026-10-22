@@ -23,5 +23,23 @@ bool submit(const std::string& op,const nlohmann::json& args,std::string& id,std
 }
 bool take_request(nlohmann::json& out){if(request.is_null())return false;out=std::move(request);request=nullptr;return true;}
 bool receive(const nlohmann::json& result){if(active.empty()||result.value("id",std::string{})!=active)return false;response=result;return true;}
+bool release_for_leave(bool& ready,std::string& error){
+    ready=false;error.clear();
+    if(active.empty()){ready=true;return true;}
+    if(!request.is_null()){
+        if(request.value("id",std::string{})!=active||!response.is_null()){
+            error="native Leave queued operation identity/state differs";return false;
+        }
+        LOG_INFO("[NativeLobby] Native operation cancelled before execution for Leave id={} op={}",active,request.value("op",std::string{}));
+        request=nullptr;active.clear();ready=true;return true;
+    }
+    if(response.is_null())return true;
+    if(response.value("id",std::string{})!=active){error="native Leave completed operation identity differs";return false;}
+    if(!response.value("ok",false))
+        LOG_ERROR("[NativeLobby] Native operation completed with failure before Leave id={} cause={}",active,
+            response.value("error",nlohmann::json::object()).value("message",std::string("native operation failed")));
+    else LOG_INFO("[NativeLobby] Native operation completed before Leave id={}",active);
+    response=nullptr;active.clear();ready=true;return true;
+}
 bool take_response(const std::string& id,nlohmann::json& out){if(id!=active||response.is_null())return false;out=std::move(response);response=nullptr;active.clear();return true;}
 }

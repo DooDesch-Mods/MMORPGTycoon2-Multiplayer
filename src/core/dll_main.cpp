@@ -896,9 +896,9 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         game::native_free_diagnostics::drain_logs();}
         {FrameTimingScope measured(FrameTimingPart::Diagnostics);GameUpdateWorkScope traced(game_update_pair::Section::Diagnostics);diagnostics_tick();}
         frame.live.close();
-        game::session_reload::tick();
+        if(!game::lobby_prepare::leaving())game::session_reload::tick();
         std::string lobby_error;
-        {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if(!game::session_reload::busy()&&!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
+        {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if((game::lobby_prepare::leaving()||!game::session_reload::busy())&&!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
     }
 }
 static void game_update(void* receiver,float dt) {
@@ -1445,7 +1445,8 @@ static json chat_ui_status() {
 static void diagnostics_tick() {
     if(runtime_root.empty()) return;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-    if(!Config::instance().diagnostic_mailbox_enabled)return;
+    // Installed lobby loads and captures share this executor with optional diagnostics.
+    if(!Config::instance().diagnostic_mailbox_enabled&&!game::lobby_operations::pending())return;
 #endif
     static auto last=std::chrono::steady_clock::time_point{};
     auto now=std::chrono::steady_clock::now();
