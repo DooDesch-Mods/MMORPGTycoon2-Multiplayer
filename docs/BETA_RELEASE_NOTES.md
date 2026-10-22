@@ -1,25 +1,22 @@
-# Early Beta 20 - Steam invite hotfix
+# Early Beta 21 - See your version and Lobby ID
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Accept a Steam invite and join your friend's lobby without opening the Multiplayer menu first.
+Check that you and your friend are running the same version, then share your Lobby ID while choosing a world.
 
 ### Fixed
 
-- Keep the lobby open for invites, public search and Lobby ID joins until world preparation starts.
-- Steam invites reach the regular lobby join flow on Windows.
-- Invite handling starts before your first lobby action.
-- The Lobby ID appears before the world loads.
-- Public lobby search includes all regions.
-- The packaged README shows the right version and manual installation steps.
+- The loaded Multiplayer version appears in every Multiplayer menu view.
+- The Lobby ID stays visible while the Host chooses a world.
+- Includes Beta 20's Steam invite fixes, worldwide public search and corrected installation guide.
 
 ### Update and play
 
-Both players need Early Beta 20 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25).
+Both players need Early Beta 21 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25).
 
 1. Close both games.
-2. Update Multiplayer in Vortex and deploy with the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465).
-3. Start both games through Steam.
+2. Install and enable Multiplayer Beta 21 in Vortex, then deploy with the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465).
+3. Start both games through Steam and check that Multiplayer shows Beta 21.
 4. Host a lobby and invite your friend through Steam.
 
 ### Early Beta

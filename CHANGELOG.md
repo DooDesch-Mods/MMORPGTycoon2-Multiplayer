@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.0-beta.21
+
+### Fixed
+
+- Show the loaded Multiplayer version in the lobby and browser.
+- Keep the Lobby ID visible while the Host chooses a world.
+- Include the Steam invite and public lobby fixes from Beta 20.
+
+Both players need Early Beta 21 and MT2 Mod Framework Runtime 0.2.6 or newer. Close both games, install and enable Beta 21 in Vortex, then deploy before starting through Steam. Gameplay features are unchanged from Beta 19.
+
 ## 0.1.0-beta.20
 
 ### Fixed

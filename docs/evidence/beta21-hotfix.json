@@ -1,0 +1,20 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.21",
+  "game_build": "24993678",
+  "framework_min_version": "0.2.6",
+  "scope": "Loaded-version footer and Lobby ID visibility in the Host world picker; retains Beta 20 join fixes and Beta 19 gameplay coverage.",
+  "source_regression": {
+    "compiled_version_footer_lobby_and_browser": "source wiring and layout passed",
+    "lobby_id_host_world_picker": "layout passed",
+    "native_layout_bounds": "passed",
+    "version_only_incremental_rebuild": "passed with MSVC and Visual Studio 2022"
+  },
+  "in_game_acceptance": "pending",
+  "two_player_online_invite_acceptance": "pending",
+  "online_acceptance_passed": false,
+  "full_coop_proven": false,
+  "retained_join_evidence": "docs/evidence/beta20-hotfix.json",
+  "retained_gameplay_evidence": "docs/evidence/beta19-native.json",
+  "release_validation": "Affected checks and exact release build are recorded by the release owner. No new full gameplay acceptance is claimed."
+}

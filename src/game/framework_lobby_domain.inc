@@ -394,6 +394,7 @@ bool process_host_world_picker_request(bool title_active,std::string& error){
 
 bool render_context(bool title_active,bool ingame_active,const nlohmann::json& preparation,const nlohmann::json& transfer,std::string& error){
     const bool member=admitted(),host=lobby_host();
+    if(!label("build_version","v"+std::string(MOD_VERSION))){error=cause;return false;}
     const auto lobby_id=net::SteamMatchmaking::instance().current_lobby_id();
     if(!label("session_id",member&&!Config::instance().local_test&&lobby_id?"Lobby ID: "+std::to_string(lobby_id):std::string{})){error=cause;return false;}
     const bool choose=title_active&&host&&!load_attempted;

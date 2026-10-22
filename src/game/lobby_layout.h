@@ -38,6 +38,7 @@ inline std::map<std::string,Widget> make_layout(){
     };
     add("status","text",16,10,788,28,"","report");
     add("report","button",620,420,184,36,"Report a problem","shell").style="quiet";
+    add("build_version","text",244,428,340,20,"","shell",14).tone="muted";
     add("report_heading","text",16,26,788,32,"Report a multiplayer problem","report",24);
     add("report_intro","text",16,70,788,32,"Versions, recent errors and multiplayer actions are attached to the report.","report");
     add("report_details","text",16,114,788,44,"Save files, chat, screenshots and Steam account IDs are not sent.","report").tone="muted";
@@ -68,7 +69,7 @@ inline std::map<std::string,Widget> make_layout(){
 
     art("world_icon",24,12,48,48,"world","session");
     add("world","text",88,24,420,64,"Your world","session",24);
-    add("session_id","text",24,88,484,20,"","session",14).tone="muted";
+    add("session_id","text",548,314,248,20,"","party",14).tone="muted";
     panel("load_panel",24,112,484,190,"session");
     add("load_status","text",40,136,452,48,"","session",22);
     add("load_detail","text",40,184,452,60,"","session");

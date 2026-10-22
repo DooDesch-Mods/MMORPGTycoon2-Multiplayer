@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.20",
-  "summary": "Restore Steam invites and keep pre-world lobbies open for public search and Lobby ID joins.",
-  "native_evidence": "docs/evidence/beta20-hotfix.json"
+  "version": "0.1.0-beta.21",
+  "summary": "Show the loaded Multiplayer version in every menu and keep the Lobby ID visible while choosing a world.",
+  "native_evidence": "docs/evidence/beta21-hotfix.json"
 }

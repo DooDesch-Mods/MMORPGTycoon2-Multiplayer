@@ -6,10 +6,7 @@
 namespace mt2mp {
 
 // Version
-#ifndef MT2MP_BUILD_VERSION
-#define MT2MP_BUILD_VERSION "0.1.0"
-#endif
-constexpr const char* MOD_VERSION = MT2MP_BUILD_VERSION;
+extern const char* const MOD_VERSION;
 constexpr const char* MOD_NAME = "MT2_Multiplayer";
 
 // Network

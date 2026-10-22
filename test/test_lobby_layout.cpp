@@ -102,11 +102,17 @@ void check_visible_interactions(const Layout& layout) {
     require(layout.at("start").group == "legacy" && exposed.count("start") == 0,
             "The redundant legacy Start action is visible");
     const auto& session_id = layout.at("session_id");
-    require(session_id.type == "text" && session_id.group == "session" && session_id.visible &&
-                session_id.width >= 400 && session_id.height >= session_id.size &&
+    require(session_id.type == "text" && session_id.group == "party" && session_id.visible &&
+                session_id.width >= 240 && session_id.height >= session_id.size &&
                 !intersects(session_id, layout.at("world")) &&
-                !intersects(session_id, layout.at("load_panel")),
-            "Lobby ID must have its own readable session row before world loading starts");
+                !intersects(session_id, layout.at("load_panel")) &&
+                !intersects(session_id, layout.at("invite")) &&
+                !intersects(session_id, layout.at("chat_transcript")),
+            "Lobby ID must remain readable in both the session and Host world picker");
+    const auto& version = layout.at("build_version");
+    require(version.type == "text" && version.group == "shell" && version.visible &&
+                !intersects(version, layout.at("leave")) && !intersects(version, layout.at("report")),
+            "Loaded build version must remain visible beside the footer actions");
     require(layout.at("new_world").group == "picker" && exposed.count("new_world") &&
                 layout.at("new_world").text == "Create a new world",
             "The native New Game action is not confined to the Host world picker");

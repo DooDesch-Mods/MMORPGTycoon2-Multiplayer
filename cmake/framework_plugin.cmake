@@ -29,7 +29,7 @@ target_include_directories(MT2MultiplayerPlugin PRIVATE include src/game
     include/vendor/steam include/vendor/minhook/include
     "${MT2_FRAMEWORK_SDK}/include" "${MT2_FRAMEWORK_SDK}/adapters/mt2/sdk")
 target_compile_definitions(MT2MultiplayerPlugin PRIVATE MT2MP_FRAMEWORK_PLUGIN
-    MT2MP_EXPORTS MT2MP_BUILD_VERSION="${MT2MP_BUILD_VERSION}" NOMINMAX WIN32_LEAN_AND_MEAN)
+    MT2MP_EXPORTS NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(MT2MultiplayerPlugin PRIVATE mp_imgui opengl32 ws2_32 bcrypt version)
 if(MSVC)
     target_compile_options(MT2MultiplayerPlugin PRIVATE
