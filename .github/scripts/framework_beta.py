@@ -108,6 +108,26 @@ def validate(archive, candidate):
             raise ValueError("Framework release mod contract differs")
         if manifest.get("online_acceptance_passed") is not False:
             raise ValueError("CI cannot claim native online acceptance")
+        if manifest.get("schema_version") == 2:
+            installation = manifest.get("installation", {})
+            if (manifest.get("stage") != "early-beta" or manifest.get("validation_scope") != "package-integrity"
+                    or any(key in manifest for key in ("manual_test_package", "ready_for_manual_testing", "delivery_integration_accepted"))
+                    or installation.get("manager") != "vortex" or installation.get("game_id") != "mmorpgtycoon2"
+                    or installation.get("mod_id") != mod["id"]
+                    or installation.get("framework_runtime_required") is not True
+                    or installation.get("framework_runtime_included") is not False
+                    or installation.get("manual_target") != "<profile>/mods/doodesch.multiplayer"
+                    or installation.get("manual_requires_configured_framework") is not True
+                    or installation.get("game_root_extraction_supported") is not False
+                    or not re.fullmatch(r"\d+\.\d+\.\d+", str(installation.get("framework_min_version", "")))):
+                raise ValueError("Framework package installation or validation scope differs")
+            readme = zipped.read("README.md").decode("utf-8")
+            if (readme.splitlines()[0] != "# MMORPG Tycoon 2 Multiplayer " + mod["version"]
+                    or "{{" in readme
+                    or "MT2 Mod Framework Runtime " + installation["framework_min_version"] + " or newer" not in readme):
+                raise ValueError("Framework package README version or dependency differs")
+        elif manifest.get("schema_version") != 1:
+            raise ValueError("Unsupported Framework package schema")
         if set(manifest.get("files", {})) != PAYLOAD:
             raise ValueError("Framework release file manifest differs")
         for name in PAYLOAD:

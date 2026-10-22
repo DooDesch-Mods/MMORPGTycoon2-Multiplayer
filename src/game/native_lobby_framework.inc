@@ -19,6 +19,8 @@ bool current_host_world=false;
 std::string current_host_world_error;
 bool choosing=false,pending=false,load_attempted=false,append_attempted=false;
 bool host_world_pick_requested=false;
+uint64_t pending_steam_invite=0;
+bool steam_invite_handler_bound=false;
 bool playing_close_attempted=false;
 std::string failure_notice_attempted,failure_notice_error;
 std::string departed_host_attempt, departed_host_error;
@@ -216,6 +218,10 @@ bool tick(std::string& error) {
     if(!thread)thread=GetCurrentThreadId();
     if(thread!=GetCurrentThreadId()){error="native lobby tick outside bound game thread";return false;}
     auto& mm=net::SteamMatchmaking::instance();
+    if(!Config::instance().local_test&&!steam_invite_handler_bound){
+        mm.set_invite_handler([](uint64_t lobby_id){pending_steam_invite=lobby_id;});
+        steam_invite_handler_bound=true;
+    }
     mm.poll();
     if(!Config::instance().local_test&&mm.in_lobby()&&!owner){owner=mm.host_steam_id();Config::instance().is_host=owner!=0&&owner==net::SteamNetworking::instance().local_steam_id();}
     const auto preparation=lobby_prepare::status();
@@ -241,6 +247,7 @@ bool tick(std::string& error) {
     const size_t mode_offset=title_active?0x350:0x358;
     if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!read(game,mode_offset,mode)||!read(game,0x28,active)||mode!=active){error="native UI owner differs from actual active mode";return false;}
     if(ui_owner!=mode||ui_mode!=world.active_mode_index){ui_owner=mode;ui_mode=world.active_mode_index;framework_ready=false;framework_observed_open=false;framework_visibility_known=false;last_ui_status.clear();last_chat_transcript.clear();last_chat_status.clear();}
+    process_steam_invite(title_active);
     if(title_active)title=mode;
     if(!framework_assets_attempted){
         framework_assets_attempted=true;

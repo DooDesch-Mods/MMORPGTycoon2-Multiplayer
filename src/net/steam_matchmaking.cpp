@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <chrono>
 #include <algorithm>
+#include <atomic>
 #include "mt2mp/net/steam_presence.h"
 
 // Flat C API types
@@ -19,6 +20,7 @@ using FnSetLobbyData = bool(*)(void* self, uint64_t steamIDLobby, const char* k,
 using FnGetLobbyData = const char*(*)(void* self, uint64_t steamIDLobby, const char* k);
 using FnRequestLobbyList = uint64_t(*)(void* self);
 using FnAddStringFilter = void(*)(void* self, const char* k, const char* v, int cmp);
+using FnAddDistanceFilter = void(*)(void* self, int distance);
 using FnGetLobbyByIndex = uint64_t(*)(void* self, int iLobby);
 using FnMatchmakingAccessor = void*(*)();
 
@@ -46,8 +48,8 @@ constexpr int k_GameLobbyJoinRequested = 333;
 
 static void* g_lobby_join_vtable_storage[5] = {
     nullptr, nullptr,
-    reinterpret_cast<void*>(&cb_run_lobby_join),
     reinterpret_cast<void*>(&cb_run_lobby_join_result),
+    reinterpret_cast<void*>(&cb_run_lobby_join),
     reinterpret_cast<void*>(&cb_get_size_lobby_join),
 };
 static void** g_lobby_join_vtable = &g_lobby_join_vtable_storage[2];
@@ -60,7 +62,8 @@ struct alignas(8) LobbyJoinCallbackObj {
 };
 static LobbyJoinCallbackObj g_lobby_join_cb;
 static bool g_lobby_join_cb_registered = false;
-static uint64_t g_pending_invite_lobby = 0;
+static std::atomic<uint64_t> g_pending_invite_lobby{0};
+static std::chrono::steady_clock::time_point g_next_invite_init{};
 
 // ── LobbyChatMsg_t Callback (ID 507) ─────────────────────────
 constexpr int k_LobbyChatMsg = 507;
@@ -71,8 +74,8 @@ static int  __cdecl cb_get_size_lobby_chat(void* thisptr);
 
 static void* g_lobby_chat_vtable_storage[5] = {
     nullptr, nullptr,
-    reinterpret_cast<void*>(&cb_run_lobby_chat),
     reinterpret_cast<void*>(&cb_run_lobby_chat_result),
+    reinterpret_cast<void*>(&cb_run_lobby_chat),
     reinterpret_cast<void*>(&cb_get_size_lobby_chat),
 };
 static void** g_lobby_chat_vtable = &g_lobby_chat_vtable_storage[2];
@@ -128,10 +131,8 @@ static void __cdecl cb_run_lobby_join(void* thisptr, void* pvParam) {
     auto* ev = reinterpret_cast<GameLobbyJoinRequested_t*>(pvParam);
     if (ev && ev->m_steamIDLobby != 0) {
         g_pending_invite_lobby = ev->m_steamIDLobby;
-        // Can't use LOG_STEAM_INFO here (outside namespace), use simple file log
-        FILE* f = fopen("mt2mp_invite_debug.log", "a");
-        if (f) { fprintf(f, "GameLobbyJoinRequested! lobby=%llu\n", ev->m_steamIDLobby); fclose(f); }
-    }
+        LOG_STEAM_INFO("GameLobbyJoinRequested received lobby={}", ev->m_steamIDLobby);
+    } else LOG_STEAM_ERROR("GameLobbyJoinRequested rejected: missing event or zero lobby ID");
 }
 
 static void __cdecl cb_run_lobby_join_result(void* thisptr, void* pvParam, bool bIOFailure, uint64_t hCall) {
@@ -154,6 +155,7 @@ static FnSetLobbyData fn_SetLobbyData = nullptr;
 static FnGetLobbyData fn_GetLobbyData = nullptr;
 static FnRequestLobbyList fn_RequestLobbyList = nullptr;
 static FnAddStringFilter fn_AddStringFilter = nullptr;
+static FnAddDistanceFilter fn_AddDistanceFilter = nullptr;
 static FnGetLobbyByIndex fn_GetLobbyByIndex = nullptr;
 static FnIsAPICallCompleted fn_IsCallCompleted = nullptr;
 static FnGetAPICallResult fn_GetCallResult = nullptr;
@@ -215,11 +217,13 @@ bool SteamMatchmaking::init() {
     fn_GetLobbyData = load_fn<FnGetLobbyData>("SteamAPI_ISteamMatchmaking_GetLobbyData");
     fn_RequestLobbyList = load_fn<FnRequestLobbyList>("SteamAPI_ISteamMatchmaking_RequestLobbyList");
     fn_AddStringFilter = load_fn<FnAddStringFilter>("SteamAPI_ISteamMatchmaking_AddRequestLobbyListStringFilter");
+    fn_AddDistanceFilter = load_fn<FnAddDistanceFilter>("SteamAPI_ISteamMatchmaking_AddRequestLobbyListDistanceFilter");
     fn_GetLobbyByIndex = load_fn<FnGetLobbyByIndex>("SteamAPI_ISteamMatchmaking_GetLobbyByIndex");
     fn_IsCallCompleted = load_fn<FnIsAPICallCompleted>("SteamAPI_ISteamUtils_IsAPICallCompleted");
     fn_GetCallResult = load_fn<FnGetAPICallResult>("SteamAPI_ISteamUtils_GetAPICallResult");
 
     if (!fn_CreateLobby || !fn_JoinLobby || !fn_LeaveLobby || !fn_RequestLobbyList ||
+        !fn_AddStringFilter || !fn_AddDistanceFilter || !fn_GetLobbyByIndex || !fn_GetLobbyData ||
         !g_utils_iface || !fn_IsCallCompleted || !fn_GetCallResult) {
         LOG_STEAM_ERROR("Lobby operations unavailable: required async Steam API missing");
         steam_matchmaking_ = nullptr;
@@ -234,6 +238,11 @@ bool SteamMatchmaking::init() {
         using FnRegisterCb = void(*)(void*, int);
         auto fn_register = reinterpret_cast<FnRegisterCb>(
             GetProcAddress(get_steam(), "SteamAPI_RegisterCallback"));
+        if (!fn_register) {
+            LOG_STEAM_ERROR("Lobby invite handling unavailable: SteamAPI_RegisterCallback export missing");
+            steam_matchmaking_ = nullptr;
+            return false;
+        }
         if (fn_register) {
             g_lobby_join_cb.vfptr = g_lobby_join_vtable;
             g_lobby_join_cb.m_nCallbackFlags = 0;
@@ -343,12 +352,20 @@ constexpr int k_LobbyMatchList = 510;
 // Callback implementations are at file scope (before namespace)
 
 void SteamMatchmaking::poll() {
-    // Check if a Steam invite was accepted (from callback)
-    if (g_pending_invite_lobby != 0 && !in_lobby()) {
-        uint64_t invite_lobby = g_pending_invite_lobby;
-        g_pending_invite_lobby = 0;
-        LOG_STEAM_INFO("Auto-joining lobby {} from Steam invite", invite_lobby);
-        join_lobby(invite_lobby, nullptr);
+    // Register before the first accepted invite, even with the Multiplayer panel closed.
+    // Local tests do not bind a handler and must not start an online session here.
+    if (invite_handler_ && !steam_matchmaking_) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now < g_next_invite_init) return;
+        g_next_invite_init = now + std::chrono::seconds(2);
+        if (!init()) return;
+    }
+    if (invite_handler_) {
+        const auto invite_lobby = g_pending_invite_lobby.exchange(0);
+        if (invite_lobby) {
+            LOG_STEAM_INFO("Steam invite received for lobby {}; routing through native admission", invite_lobby);
+            invite_handler_(invite_lobby);
+        }
     }
 
     // Poll async lobby CREATION result
@@ -413,6 +430,7 @@ void SteamMatchmaking::poll() {
                     lobbies.push_back(std::move(info));
                 }
             } else LOG_STEAM_ERROR("Lobby search failed: got={}, call={}, io={}", got, failed, io_failed);
+            if (got && !failed && !io_failed) LOG_STEAM_INFO("Public lobby search completed matches={} usable={}", result.m_nLobbiesMatching, lobbies.size());
             if (cb) cb(got && !failed && !io_failed && fn_GetLobbyByIndex && fn_GetLobbyData, lobbies);
         }
     }
@@ -510,11 +528,12 @@ void SteamMatchmaking::leave_lobby() {
 }
 
 void SteamMatchmaking::request_lobby_list(LobbyListCallback cb) {
-    if (!steam_matchmaking_ || !fn_RequestLobbyList || !fn_AddStringFilter || g_pending_list_call != 0) {
+    if (!steam_matchmaking_ || !fn_RequestLobbyList || !fn_AddStringFilter || !fn_AddDistanceFilter || g_pending_list_call != 0) {
         LOG_STEAM_ERROR("Lobby search rejected: unavailable Steam interface or pending request");
         if (cb) cb(false, {});
         return;
     }
+    fn_AddDistanceFilter(steam_matchmaking_, 3); // Steam worldwide search for the small co-op lobby pool.
     fn_AddStringFilter(steam_matchmaking_,"mt2mp","1",0);
     fn_AddStringFilter(steam_matchmaking_,"mt2mp_version",MOD_VERSION,0);
     g_pending_list_call = fn_RequestLobbyList(steam_matchmaking_);
@@ -523,6 +542,7 @@ void SteamMatchmaking::request_lobby_list(LobbyListCallback cb) {
         if (cb) cb(false, {});
         return;
     }
+    LOG_STEAM_INFO("Public lobby search requested worldwide version={} handle={}", MOD_VERSION, g_pending_list_call);
     g_pending_list_cb = std::move(cb);
     g_list_started = std::chrono::steady_clock::now();
 }
@@ -568,6 +588,8 @@ uint64_t SteamMatchmaking::host_steam_id() const {
     if (!steam_matchmaking_ || !fn_GetLobbyOwner || !in_lobby()) return 0;
     return fn_GetLobbyOwner(steam_matchmaking_, lobby_id_);
 }
+
+void SteamMatchmaking::set_invite_handler(std::function<void(uint64_t)> handler) { invite_handler_ = std::move(handler); }
 
 void SteamMatchmaking::set_member_callback(LobbyMemberCallback cb) { member_callback_ = std::move(cb); }
 

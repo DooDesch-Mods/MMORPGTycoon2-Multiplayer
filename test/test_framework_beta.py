@@ -71,6 +71,12 @@ class FrameworkReleaseTests(unittest.TestCase):
         self.assertEqual(manifest["sdk_commit"], self.pin["revision"])
         with zipfile.ZipFile(self.archive) as zipped:
             self.assertEqual(set(zipped.namelist()), framework_beta.PAYLOAD | {"package.json"})
+            readme = zipped.read("README.md").decode("utf-8")
+            self.assertEqual(readme.splitlines()[0], "# MMORPG Tycoon 2 Multiplayer " + self.mod["version"])
+            self.assertIn("<profile>/mods/doodesch.multiplayer/mod.json", readme)
+            self.assertNotIn("Early Beta 17", readme)
+            self.assertNotIn("0.2.5", readme)
+        self.assertEqual(manifest["validation_scope"], "package-integrity")
         checksum = self.archive.with_suffix(".zip.sha256").read_text(encoding="ascii")
         self.assertEqual(checksum, hashlib.sha256(self.archive.read_bytes()).hexdigest() + "  " + self.archive.name + "\n")
 
@@ -110,6 +116,28 @@ class FrameworkReleaseTests(unittest.TestCase):
         self.package()
         self.rewrite(lambda entries: entries.update({"MT2MultiplayerPlugin.dll": b"changed"}))
         with self.assertRaisesRegex(ValueError, "content differs"):
+            framework_beta.validate(self.archive, TAG + "@" + COMMIT)
+
+    def test_stale_readme_is_rejected_even_with_updated_file_hash(self):
+        self.package()
+        def edit(entries):
+            entries["README.md"] = entries["README.md"].replace(TAG[1:].encode(), b"0.1.0-beta.17")
+            manifest = json.loads(entries["package.json"])
+            data = entries["README.md"]
+            manifest["files"]["README.md"] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+            entries["package.json"] = json.dumps(manifest).encode()
+        self.rewrite(edit)
+        with self.assertRaisesRegex(ValueError, "README version or dependency differs"):
+            framework_beta.validate(self.archive, TAG + "@" + COMMIT)
+
+    def test_game_root_installation_claim_is_rejected(self):
+        self.package()
+        def edit(entries):
+            manifest = json.loads(entries["package.json"])
+            manifest["installation"]["game_root_extraction_supported"] = True
+            entries["package.json"] = json.dumps(manifest).encode()
+        self.rewrite(edit)
+        with self.assertRaisesRegex(ValueError, "installation or validation scope differs"):
             framework_beta.validate(self.archive, TAG + "@" + COMMIT)
 
     def test_other_package_mode_cannot_accept_framework_payload(self):

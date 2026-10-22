@@ -68,6 +68,7 @@ inline std::map<std::string,Widget> make_layout(){
 
     art("world_icon",24,12,48,48,"world","session");
     add("world","text",88,24,420,64,"Your world","session",24);
+    add("session_id","text",24,88,484,20,"","session",14).tone="muted";
     panel("load_panel",24,112,484,190,"session");
     add("load_status","text",40,136,452,48,"","session",22);
     add("load_detail","text",40,184,452,60,"","session");

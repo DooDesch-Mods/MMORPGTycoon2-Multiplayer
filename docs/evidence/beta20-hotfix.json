@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.20",
+  "game_build": "24993678",
+  "framework_min_version": "0.2.6",
+  "scope": "Steam invite and lobby discovery hotfix; gameplay coverage retained from Beta 19.",
+  "source_regression": {
+    "windows_steam_callback_abi": "passed",
+    "invite_initialization_and_normal_admission_route": "passed",
+    "worldwide_public_search": "passed",
+    "packaged_version_and_installation_guide": "passed"
+  },
+  "in_game_acceptance": "pending",
+  "two_player_online_invite_acceptance": "pending",
+  "manual_lobby_id_join_fix_claimed": false,
+  "online_acceptance_passed": false,
+  "full_coop_proven": false,
+  "retained_gameplay_evidence": "docs/evidence/beta19-native.json"
+}

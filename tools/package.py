@@ -13,6 +13,17 @@ BINARY_NAMES = ("MT2_Multiplayer.dll", "steam_api64.dll")
 UI_NAMES = ("entry.win", "lobby.win", "browser.win", "multiplayer.png",
             "materials/mt2mp_desktop_multiplayer.mat")
 GAME_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
+FRAMEWORK_MIN_VERSION = "0.2.6"
+
+
+def vortex_readme(root, version):
+    text = regular_bytes(root / "tools/packaging/VORTEX_TEST.md").decode("utf-8")
+    for token, value in (("{{MULTIPLAYER_VERSION}}", version),
+                         ("{{FRAMEWORK_MIN_VERSION}}", FRAMEWORK_MIN_VERSION)):
+        if token not in text:
+            raise ValueError("Vortex README template lacks required token: " + token)
+        text = text.replace(token, value)
+    return text.encode("utf-8")
 
 
 def digest(data):
@@ -75,17 +86,20 @@ def collect_vortex(root, build, freeze, multiplayer_package, release_version):
         "licenses/DearImGui.txt": root / "include/vendor/imgui/LICENSE.txt",
         "licenses/nlohmann-json.txt": root / "include/vendor/nlohmann/LICENSE.MIT",
         "licenses/SDL3.txt": root / "include/vendor/SDL3/LICENSE.txt",
-        "README.md": root / "tools/packaging/VORTEX_TEST.md",
     }
     entries.update({name: regular_bytes(source) for name, source in notices.items()})
+    entries["README.md"] = vortex_readme(root, version)
     metadata = {
-        "schema_version": 1, "version": version, "candidate": "framework-native-plugin",
-        "package_mode": "vortex", "stage": "vortex-integration-pending",
-        "manual_test_package": True, "ready_for_manual_testing": False,
-        "delivery_integration_accepted": False, "online_acceptance_passed": False,
+        "schema_version": 2, "version": version, "candidate": "framework-native-plugin",
+        "package_mode": "vortex", "stage": "early-beta",
+        "validation_scope": "package-integrity", "online_acceptance_passed": False,
         "required_game_exe_sha256": GAME_SHA256,
         "installation": {"manager": "vortex", "game_id": "mmorpgtycoon2", "mod_id": mod["id"],
-                         "framework_runtime_required": True, "framework_runtime_included": False},
+                         "framework_runtime_required": True, "framework_runtime_included": False,
+                         "framework_min_version": FRAMEWORK_MIN_VERSION,
+                         "manual_target": "<profile>/mods/doodesch.multiplayer",
+                         "manual_requires_configured_framework": True,
+                         "game_root_extraction_supported": False},
         "inputs": {"candidate_receipt_sha256": digest(frozen_bytes), "mod_manifest_sha256": digest(manifest_bytes)},
         "files": {name: {"size": len(data), "sha256": digest(data)} for name, data in entries.items()},
     }
@@ -218,8 +232,11 @@ def main():
         entries, manifest = collect(ROOT, args.build or ROOT / "build/bin/Release", args.freeze,
                                     args.with_sidecar, args.launcher, args.version, args.mode, args.multiplayer_package)
         write_package(entries, output)
-        print(json.dumps({"status": "payload-verified", "output": str(output),
-                          "files": len(entries), "ready_for_manual_testing": manifest["ready_for_manual_testing"]}))
+        result = {"status": "payload-verified", "output": str(output), "files": len(entries),
+                  "package_mode": manifest["package_mode"]}
+        if "ready_for_manual_testing" in manifest:
+            result["ready_for_manual_testing"] = manifest["ready_for_manual_testing"]
+        print(json.dumps(result))
         return 0
     except (OSError, ValueError, KeyError, zipfile.BadZipFile) as error:
         print(f"error: package failed: {error}", file=sys.stderr)

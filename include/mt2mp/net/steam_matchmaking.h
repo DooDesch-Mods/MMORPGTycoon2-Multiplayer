@@ -57,6 +57,9 @@ public:
     // Optional Steam presence uses the existing game-thread Steam session.
     void update_rich_presence(bool enabled, bool playing, bool preparing, bool unavailable, uint64_t expected_host);
 
+    // Bind the native admission flow before online polling starts.
+    void set_invite_handler(std::function<void(uint64_t)> handler);
+
     // Member change callback
     void set_member_callback(LobbyMemberCallback cb);
 
@@ -72,6 +75,7 @@ private:
     bool is_host_ = false;
     void* steam_matchmaking_ = nullptr;
     LobbyMemberCallback member_callback_;
+    std::function<void(uint64_t)> invite_handler_;
 };
 
 } // namespace mt2mp::net

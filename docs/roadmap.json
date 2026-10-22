@@ -2,13 +2,13 @@
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
-  "version_label": "Early Beta 19",
-  "release_label": "Early Beta 19 - modular construction and quest fixes",
+  "version_label": "Early Beta 20",
+  "release_label": "Early Beta 20 - Steam invite hotfix",
   "graphic_title": "Build a shared world.",
   "coverage_title": "Co-op, one feature at a time",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Play [Early Beta 19](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.19) with fixes for modular construction and NPC quest destinations. Leave and rejoin without closing the game, then continue placing scenery. Dungeon, character-design and management tools remain included as experimental; their in-game coverage is still incomplete.",
+  "overview_intro": "Play [Early Beta 20](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.20) with the Windows Steam-invite hotfix, earlier invite handling, visible Lobby IDs and worldwide public search. Gameplay coverage is retained from Beta 19; the new two-player online invite test is pending.",
   "stages": [
     {
       "label": "Play now",

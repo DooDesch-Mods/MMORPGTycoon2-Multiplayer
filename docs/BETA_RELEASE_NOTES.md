@@ -1,28 +1,28 @@
-# Early Beta 19 - Keep building together
+# Early Beta 20 - Steam invite hotfix
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Build with a friend, give NPCs modular quest destinations and continue after leaving and rejoining the lobby.
+Accept a Steam invite and join your friend's lobby without opening the Multiplayer menu first.
 
-### Improved
+### Fixed
 
-- Developers can start modular construction on the Host while the joining player receives the current construction state.
-- Modular buildings work as destinations for NPC quests on both players.
-- Leave and rejoin without closing the game, then continue placing scenery.
-- Keep NPC edits in modular worlds from ending the co-op session.
+- Steam invites reach the regular lobby join flow on Windows.
+- Invite handling starts before your first lobby action.
+- The Lobby ID appears before the world loads.
+- Public lobby search includes all regions.
+- The packaged README shows the right version and manual installation steps.
 
-### Experimental
+### Update and play
 
-Dungeon tools, character design, server networks, MMO management and the other experimental terrain, region, NPC and monster tools remain included. Some actions and combinations can still fail or desync. Full construction completion and the whole running simulation remain experimental.
+Both players need Early Beta 20 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25).
 
-### Install
-
-Both players need Early Beta 19 and [MT2 Mod Framework Runtime 0.2.6 or newer](https://www.nexusmods.com/mmorpgtycoon2/mods/25), with matching mod versions. Close the game before updating, deploy through the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465) and launch through Steam.
-
-Open the **Multiplayer** desktop icon, or choose **Mods... > Multiplayer > Open**.
+1. Close both games.
+2. Update Multiplayer in Vortex and deploy with the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465).
+3. Start both games through Steam.
+4. Host a lobby and invite your friend through Steam.
 
 ### Early Beta
 
-Start with two players in a small world and keep backups. Shared edits can take several seconds or longer. Reconnecting after a crash or game restart, four-player sessions and larger worlds are not confirmed.
+Gameplay coverage is unchanged from Beta 19. Start with two players in a small world and keep backups. Some actions can still fail or desync. The Windows callback regression is covered by automated tests; the new two-player online invite test is still pending.
 
 Use **Report a problem** in the Multiplayer window to send technical details privately. Include what you were doing, what you expected and what happened.

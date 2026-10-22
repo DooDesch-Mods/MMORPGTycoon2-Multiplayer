@@ -177,17 +177,49 @@ class VortexPackageTests(unittest.TestCase):
 
     def test_readiness_dependencies_and_support_text_are_honest(self):
         entries, metadata = self.collect()
-        self.assertFalse(metadata["ready_for_manual_testing"])
-        self.assertFalse(metadata["delivery_integration_accepted"])
+        self.assertEqual(metadata["schema_version"], 2)
+        self.assertEqual(metadata["stage"], "early-beta")
+        self.assertEqual(metadata["validation_scope"], "package-integrity")
+        for key in ("ready_for_manual_testing", "delivery_integration_accepted", "manual_test_package"):
+            self.assertNotIn(key, metadata)
         self.assertFalse(metadata["online_acceptance_passed"])
         self.assertEqual(metadata["installation"], {"manager": "vortex", "game_id": "mmorpgtycoon2",
-            "mod_id": "doodesch.multiplayer", "framework_runtime_required": True, "framework_runtime_included": False})
+            "mod_id": "doodesch.multiplayer", "framework_runtime_required": True, "framework_runtime_included": False,
+            "framework_min_version": "0.2.6", "manual_target": "<profile>/mods/doodesch.multiplayer",
+            "manual_requires_configured_framework": True, "game_root_extraction_supported": False})
         self.assertNotIn("framework_version", metadata)
         text = entries["README.md"].decode("utf-8")
         support = "> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer)."
         self.assertEqual(text.count(support), 1)
         self.assertIn("Enable Multiplayer and deploy", text)
-        self.assertIn("No manual profile path", text)
+        self.assertIn("Manual installation", text)
+        self.assertIn("Extracting it beside MT2.exe does not install", text)
+        self.assertIn("mt2fw.json", text)
+        self.assertIn("absolute profile path", text)
+        self.assertIn("<profile>/mods/doodesch.multiplayer/mod.json", text)
+        self.assertIn("<profile>/game-data", text)
+        self.assertIn("originals remain untouched", text)
+        self.assertNotIn('game_data', text)
+
+    def test_shipped_readme_uses_selected_version_and_minimum_runtime(self):
+        for version in ("0.1.0-beta.13", "0.1.0-beta.19", "0.2.0"):
+            with self.subTest(version=version):
+                self.mod["version"] = version
+                self.write_mod()
+                entries, metadata = self.collect()
+                text = entries["README.md"].decode("utf-8")
+                self.assertEqual(text.splitlines()[0], "# MMORPG Tycoon 2 Multiplayer " + version)
+                self.assertIn("Both players need Multiplayer " + version, text)
+                self.assertIn("MT2 Mod Framework Runtime " + metadata["installation"]["framework_min_version"] + " or newer", text)
+                self.assertNotIn("{{", text)
+                self.assertNotIn("Early Beta 17", text)
+                self.assertNotIn("0.2.5", text)
+
+    def test_unversioned_readme_template_is_rejected(self):
+        template = self.root / "tools/packaging/VORTEX_TEST.md"
+        template.write_text("stale hardcoded beta instructions", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "README template lacks required token"):
+            self.collect()
 
     def test_requires_explicit_manifest_directory(self):
         with self.assertRaisesRegex(ValueError, "explicit --multiplayer-package"):
@@ -283,7 +315,10 @@ class VortexPackageTests(unittest.TestCase):
         self.assertFalse((self.root / "artifacts/tester.zip").exists())
         with patch.object(package, "ROOT", self.root), patch.object(sys, "argv", args + ["--build", str(self.build)]), contextlib.redirect_stdout(output):
             self.assertEqual(package.main(), 0)
-        self.assertFalse(json.loads(output.getvalue())["ready_for_manual_testing"])
+        result = json.loads(output.getvalue())
+        self.assertEqual(result["status"], "payload-verified")
+        self.assertEqual(result["package_mode"], "vortex")
+        self.assertNotIn("ready_for_manual_testing", result)
         with zipfile.ZipFile(self.root / "artifacts/tester.zip") as archive:
             self.assertIn("mod.json", archive.namelist())
 

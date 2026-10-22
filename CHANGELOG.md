@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-beta.20
+
+### Fixed
+
+- Receive Steam lobby invites as soon as Multiplayer is ready, before opening a lobby menu.
+- Fix Steam invite callbacks on Windows so an accepted invite reaches the normal lobby join flow.
+- Show the Lobby ID before loading a world.
+- Search public lobbies worldwide.
+- Include the correct version and manual installation steps in the packaged README.
+
+Both players need Early Beta 20 and MT2 Mod Framework Runtime 0.2.6 or newer. Close both games before updating. This hotfix keeps the gameplay coverage from Beta 19; a new two-player online invite test is still pending.
+
 ## 0.1.0-beta.19
 
 ### Fixed

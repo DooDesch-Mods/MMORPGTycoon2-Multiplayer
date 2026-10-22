@@ -394,6 +394,8 @@ bool process_host_world_picker_request(bool title_active,std::string& error){
 
 bool render_context(bool title_active,bool ingame_active,const nlohmann::json& preparation,const nlohmann::json& transfer,std::string& error){
     const bool member=admitted(),host=lobby_host();
+    const auto lobby_id=net::SteamMatchmaking::instance().current_lobby_id();
+    if(!label("session_id",member&&!Config::instance().local_test&&lobby_id?"Lobby ID: "+std::to_string(lobby_id):std::string{})){error=cause;return false;}
     const bool choose=title_active&&host&&!load_attempted;
     std::string entry_notice;
     if(pending)entry_notice=ui_status;
@@ -423,8 +425,6 @@ bool render_context(bool title_active,bool ingame_active,const nlohmann::json& p
         if(Config::instance().local_test)append_fact("Connection: Local");
         else {
             if(host&&!framework_host_visibility.empty())append_fact(framework_host_visibility);
-            const auto lobby_id=net::SteamMatchmaking::instance().current_lobby_id();
-            if(lobby_id)append_fact("Lobby ID: "+std::to_string(lobby_id));
         }
     }
     if(!label("load_status",message.heading)||!label("load_detail",detail)||
@@ -445,9 +445,20 @@ bool ready_for_start() {
     return lobby_prepare::status().value("ready",false);
 }
 
+void dispatch_action(void* mode,std::string cmd);
+void process_steam_invite(bool title_active){
+    if(!pending_steam_invite)return;
+    const auto target=pending_steam_invite;pending_steam_invite=0;
+    framework_open=true;framework_browser=false;last_command="MT2MPJoin";
+    if(!title_active||pending||admitted())fail("Steam invite requires the main menu without an active lobby or pending admission");
+    else if(label("lobby_id",std::to_string(target)))dispatch_action(ui_owner,"MT2MPJoin");
+}
+
 void dispatch_action(void* mode,std::string cmd) {
     if(GetCurrentThreadId()!=thread||mode!=ui_owner){fail("Framework lobby action outside bound mode/thread");return;}
     ++command_count;last_command=cmd;
+    if(cmd=="MT2MPJoin"||cmd=="MT2MPSearch"||cmd=="MT2MPRefresh"||cmd=="MT2MPInvite")
+        LOG_INFO("[NativeLobby] Lobby action={} mode={} pending={} admitted={}",cmd,ui_mode,pending,admitted());
     auto& mm=net::SteamMatchmaking::instance();
     if(publication_failed&&cmd!="MT2MPLeave"&&cmd!="MT2MPOpen"&&cmd!="MT2MPChatSend"){fail("Host metadata unavailable: "+publication_error);return;}
     if(cmd=="MT2MPChatSend"){const auto failed=command_failures;if(!send_chat()&&command_failures==failed)++command_failures;return;}

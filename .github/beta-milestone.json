@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.19",
-  "summary": "Continue building after rejoining, start modular construction and keep NPC edits in modular worlds synchronized.",
-  "native_evidence": "docs/evidence/beta19-native.json"
+  "version": "0.1.0-beta.20",
+  "summary": "Fix Steam invite handling, show the Lobby ID before loading and search public lobbies worldwide.",
+  "native_evidence": "docs/evidence/beta20-hotfix.json"
 }
