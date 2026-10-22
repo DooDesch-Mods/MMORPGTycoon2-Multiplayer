@@ -24,6 +24,6 @@ Both players need Early Beta 20 and [MT2 Mod Framework Runtime 0.2.6 or newer](h
 
 ### Early Beta
 
-Gameplay coverage is unchanged from Beta 19. Start with two players in a small world and keep backups. Some actions can still fail or desync. The Windows callback regression is covered by automated tests; the new two-player online invite test is still pending.
+Gameplay features are unchanged from Beta 19. Start with two players in a small world and keep backups. Some actions can still fail or desync.
 
 Use **Report a problem** in the Multiplayer window to send technical details privately. Include what you were doing, what you expected and what happened.

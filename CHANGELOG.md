@@ -11,7 +11,7 @@
 - Search public lobbies worldwide.
 - Include the correct version and manual installation steps in the packaged README.
 
-Both players need Early Beta 20 and MT2 Mod Framework Runtime 0.2.6 or newer. Close both games before updating. This hotfix keeps the gameplay coverage from Beta 19; a new two-player online invite test is still pending.
+Both players need Early Beta 20 and MT2 Mod Framework Runtime 0.2.6 or newer. Close both games before updating. Gameplay features are unchanged from Beta 19.
 
 ## 0.1.0-beta.19
 
