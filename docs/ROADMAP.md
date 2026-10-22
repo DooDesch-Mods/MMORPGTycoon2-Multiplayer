@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Play [Early Beta 21](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.21) with a visible Multiplayer version in every menu and a Lobby ID that stays visible while the Host chooses a world. Includes Beta 20 Steam invite and public lobby fixes. Gameplay coverage is retained from Beta 19.
+Play [Early Beta 21](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.21) with a visible Multiplayer version in the lobby and browser and a Lobby ID that stays visible while the Host chooses a world. Includes Beta 20 Steam invite and public lobby fixes. Gameplay coverage is retained from Beta 19.
 
 Updated 2026-10-22. Development entries do not change the current download.
 
