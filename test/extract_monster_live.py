@@ -33,6 +33,12 @@ write('monster_live_callbacks.inc',body(n,'void live_update_entry(uintptr_t obje
 write('monster_live_identity_bodies.inc','\n'.join(body(n,x) for x in ['bool world(Memory&','bool full(Memory&','bool read(ml::State&'])+'\n')
 reader=source('src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp')
 write('monster_live_world_reader.inc','\n'.join(body(reader,x) for x in ['bool fail(std::string& e,const char*','struct Busy {','template<class T>bool at(','bool vt(']).replace('~Busy(){b=false;}}','~Busy(){b=false;}};')+'\n'+body(reader,'bool Reader::current(')+'\n')
+for path,guard in json.loads((a.source_root/'test/party_timing_source_guard.json').read_text()).items():
+ timed="\n".join(body(source(path),anchor) for anchor in guard["anchors"])
+ for before,after in reversed(guard['replacements']):
+  assert timed.count(after)==1,(path,'Party timing boundary differs',after)
+  timed=timed.replace(after,before)
+ assert hashlib.sha256(timed.encode()).hexdigest()==guard['before'],(path,'Party timing changed production flow')
 scope=source('src/game/subscriber_lifecycle/save_scope.cpp')
 write('monster_live_save_scope.inc','\n'.join(body(scope,x) for x in ['bool callback(','bool begin_save_scope(','bool finish_save_scope(','bool with_save_scope('])+'\n')
 write('monster_live_lifecycle_bodies.inc','\n'.join(body(n,x)+(';' if x.startswith('struct ') else '') for x in ['struct Membership {','bool membership(Memory&','bool expire_proxy(Memory&','bool lifecycle_scalars(Memory&','void trace(const ml::State&','bool row(Memory&','bool set(const ml::Row&'])+'\n')
@@ -55,6 +61,10 @@ assert '_InterlockedCompareExchange8' in body(n,'uint32_t live_byte(')
 full=body(n,'bool full(Memory&')
 for guard in ['0x16c0770','0x18,uid','0x170,root','0x178,region','0x988,manager','0x80,owner','0x8d0,zone','0x8d8,proxy','lookup(p.api.find,uid,found)','identity::registry.resolve(','identity::registry.lookup(','q::unchanged(']:assert guard in full,guard
 read=body(n,'bool read(ml::State&')
+scope='{live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());'
+original='{live_host_state::apply_timing::PageReadScope original_row(live_host_state::apply_timing::PageBoundary::OriginalCall);\n                    if(!row(m,p,object,value,local,e))return false;}'
+assert read.count(scope)==1 and read.count(original)==1
+assert read.index('world(m,p,e)')<read.index(scope)<read.index('q::bounds(')<read.index(original)<read.index('q::unchanged(memory,manager+0x38')<read.index('q::unchanged(memory,uintptr_t(p.world.origin.map)')<read.index('        }\n        std::sort(out.rows')<read.index('world(m,after,e)')
 assert 'out.rows.size()!=expected.size()' in read and 'if(zone)continue;if(proxy)' in read and 'identity::registry.enumerate(' in read
 catalog=source('src/hooks/framework_catalog.inc')
 for route in ['mp.monster-entity-update.3c0750','mp.character-adjust-attribute.39fb80']:assert catalog.count(route)==1,route

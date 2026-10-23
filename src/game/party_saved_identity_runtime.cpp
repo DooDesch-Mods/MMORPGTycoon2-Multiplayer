@@ -382,12 +382,14 @@ bool collect_current_raw(NativeCensus& out,std::string& error){
     if(actual_image!=image||thread!=main_thread||digest!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
         return q::fail(error,"Party current aliases require exact executable image/Mainthread");
     q::Bounds regions;const uintptr_t map=uintptr_t(world.map);
+    std::vector<std::pair<uintptr_t,uintptr_t>> owners;
+    {live_host_state::apply_timing::PageReadScope region_pages;
     if(!q::typed(memory,image,map,0x1742860,error)||!q::typed(memory,image,map+0x230,0x16f04e0,error)||
        !q::bounds(memory,map+0x230,4096,regions,error))return false;
-    std::vector<std::pair<uintptr_t,uintptr_t>> owners;
     for(int32_t i=0;i<regions.count;++i){uintptr_t region=0;
         if(!q::at(memory,regions.data,size_t(i)*sizeof(uintptr_t),region,error))return false;
         owners.emplace_back(current.root,region);
+    }
     }
     dungeon_scene_identity_runtime::World scene_world;std::vector<dungeon_scene_roster::Scene> scenes;
     if(!dungeon_scene_identity_runtime::read_scene_roster(scene_world,scenes,error))return false;

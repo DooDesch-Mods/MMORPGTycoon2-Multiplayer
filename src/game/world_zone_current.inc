@@ -101,6 +101,10 @@ bool read_world_zones(const action_session::Binding& binding,const std::string& 
     };
     if(!capture_regions())return false;
     if(region_index.saved.size()!=pools.size())return q::fail(error,"World Zone current complete root Region count differs");
+    {
+#ifdef _WIN32
+    mt2mp::game::live_host_state::apply_timing::PageReadScope owner_pages(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+#endif
     for(const auto& [id,region]:region_index.saved){uintptr_t manager=0;const auto saved=pools.find(id);
         if(saved==pools.end())return q::fail(error,"World Zone current root Region lacks confirmed snapshot pool");
         if(!at(region,0x968,manager,error)||!add(manager,root,region,"root",saved->second))return false;}
@@ -114,6 +118,7 @@ bool read_world_zones(const action_session::Binding& binding,const std::string& 
     }
     for(const auto& [manager,saved]:world_zone_pools)if(!managers.contains(manager)&&!saved.rows.empty())
         return q::fail(error,"World Zone non-Monster owner retired without confirmed lifecycle");
+    }
     opened::CurrentWorld after;
     const auto verify_regions=[&](){
 #ifdef _WIN32

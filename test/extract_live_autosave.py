@@ -18,24 +18,32 @@ def body(path, anchor):
     return s[start:end]
 
 for target, path, anchors in [
-    ('autosave_activity.inc', 'src/game/live_host_state/native_port.h', ['inline bool native_activity(', 'inline bool publication_activity(']),
-    ('autosave_scope.inc', 'src/game/live_host_state/native_port.cpp', ['bool current_scope(', 'bool NativePort::publication_ready(']),
+    ('autosave_activity.inc', 'src/game/live_host_state/native_port.h', ['inline bool native_activity(', 'inline bool publication_activity(', 'inline bool application_activity(']),
+    ('autosave_scope.inc', 'src/game/live_host_state/native_port.cpp', ['bool current_scope(', 'bool NativePort::publication_ready(', 'bool NativePort::application_ready(']),
     ('autosave_owners.inc', 'src/game/live_host_state/native_port.cpp', ['bool NativePort::current_owners(', 'bool NativePort::store(']),
     ('autosave_tutorial_publication.inc', 'src/game/live_host_state/bridge.cpp', ['bool same_tutorial_publication(']),
     ('autosave_tick.inc', 'src/game/live_host_state/bridge.cpp', ['bool Bridge::tick(']),
+    ('autosave_before.inc', 'src/game/live_host_state/bridge.cpp', ['bool Bridge::application_ready(', 'bool Bridge::before_result(', 'action_session::AuthorityReadiness Bridge::before_ready(']),
 ]:
     actual='\n'.join(body(path, anchor) for anchor in anchors) + '\n'
     if target=='autosave_tick.inc':actual=actual.replace('bool Bridge::tick(', 'bool Bridge::tick_actual(', 1)
     (a.output / target).write_text(actual, encoding='utf-8')
 
+owner=body('src/game/party_live_native.cpp','bool NativePort::owner(')
+guard=owner[owner.index('    if(status.active_mode_index'):owner.index('    if(context_.role==')]
+(a.output/'autosave_party_guard.inc').write_text(
+    'bool party_guard(const native::WorldStatus& status,bool held_,std::string& error){\n'+guard+'    error.clear();return true;\n}\n',encoding='utf-8')
+
 native = body('src/game/live_host_state/native_port.cpp', 'bool once(')
 assert 'current_scope(expected,binding,p,status,e)' in native
 assert 'native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e)' in native
 assert 'publication_activity(' not in native
+assert 'application_activity(' not in native
 bridge = (a.root / 'src/game/live_host_state/bridge.cpp').read_text(encoding='utf-8')
 for name in ['capture_before', 'publish_before', 'take', 'before_result']:
     assert 'publication_ready' not in body('src/game/live_host_state/bridge.cpp', 'bool Bridge::' + name + '(')
 assert bridge.count('port_.publication_ready(') == 1
+assert 'application_ready' not in body('src/game/live_host_state/bridge.cpp','bool Bridge::take(')
 
 header=(a.root/'src/game/live_host_state/bridge.h').read_text(encoding='utf-8')
 assert 'std::function<std::chrono::steady_clock::time_point()> capture_clock={}' in header

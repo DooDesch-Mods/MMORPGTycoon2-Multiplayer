@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.1.0-beta.23
+
+### Fixed
+
+- Reduce repeated checks and unnecessary object-register copies during shared-world updates.
+- Fix assigning developers to queued projects in the shared world.
+- Avoid loading a newly created Host world twice during session startup.
+- Wait for an active Client save before applying the next shared-world update.
+
+### Known issues
+
+Low FPS, long pauses and desyncs can still occur. This update does not resolve every reported performance issue.
+
+Both players need Early Beta 23. Close both games, update in Vortex and deploy before starting through Steam.
+
 ## 0.1.0-beta.22
 
 ### Fixed

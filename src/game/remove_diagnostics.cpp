@@ -2,6 +2,7 @@
 #include "service_building_census.h"
 #include "remove_diagnostics.h"
 #include "building_scene_identity.h"
+#include "scene_building_registry_preview.h"
 #include "scenery_scene_identity.h"
 #include "character_boss_retirement_read.h"
 #include "typed_action/action_session.h"
@@ -22,6 +23,10 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include <regex>
 #include <set>
+#include <memory_resource>
+#include <unordered_map>
+#include <unordered_set>
+#include <type_traits>
 #include <Windows.h>
 
 namespace mt2mp::game::native_open_runtime {

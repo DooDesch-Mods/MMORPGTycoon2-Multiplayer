@@ -144,8 +144,7 @@ bool enable(std::string& e){
         {0x406290,reinterpret_cast<void*>(&building_description_entry),reinterpret_cast<void**>(&building_description)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.detour,h.original);
         if(result!=MH_OK||!*h.original){e=install_cause="Prop text hook create RVA="+std::to_string(h.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
-    for(const auto& h:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));
-        if(result!=MH_OK){e=install_cause="Prop text hook enable RVA="+std::to_string(h.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"Prop text hook",e)){install_cause=e;return false;}
     installed=true;return true;
 }
 bool pending(){return bool(captured);}

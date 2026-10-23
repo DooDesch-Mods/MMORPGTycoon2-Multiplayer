@@ -270,8 +270,7 @@ bool enable(std::string& e){
         {0x67fb40,reinterpret_cast<void*>(&selection_entry),reinterpret_cast<void**>(&state.get)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+h.rva),h.entry,h.original);
         if(result!=MH_OK||!*h.original)return failed("Zone MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
-    for(const auto& h:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(state.image+h.rva));
-        if(result!=MH_OK)return failed("Zone MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
+    if(!mt2mp::hooks::enable_prepared_routes(state.image,hooks,"Zone hooks",e))return failed(e);
     if(!all_code(m,true,e))return failed(e);state.ready=true;return true;
 }
 void tick(){

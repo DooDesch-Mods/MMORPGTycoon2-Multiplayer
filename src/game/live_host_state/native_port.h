@@ -18,6 +18,13 @@ inline bool publication_activity(int32_t saves,int32_t edits,bool& waiting,std::
     }
     return native_activity(saves,edits,0,e);
 }
+inline bool application_activity(int32_t saves,int32_t edits,bool& waiting,std::string& e) {
+    waiting=false;
+    if(saves>0&&edits==0){
+        waiting=true;e="info: Client Frame waits for native save saves="+std::to_string(saves)+" edits=0";return true;
+    }
+    return native_activity(saves,edits,0,e);
+}
 struct EconomicBoundary {
     virtual ~EconomicBoundary()=default;
     // Root reads its actual installed dispatch records and current world scope.
@@ -28,6 +35,7 @@ class NativePort final:public Port {
 public:
     NativePort(const Context& c,const Binding& b,EconomicBoundary* boundary):context_(c),binding_(b),boundary_(boundary){}
     bool publication_ready(uint64_t,bool&,std::string&)override;
+    bool application_ready(uint64_t,bool&,std::string&)override;
     bool read(Pin&,std::string&)override;
     bool store(const Pin&,size_t,int32_t,int32_t,std::string&)override;
     bool rebind_snapshot(const Context&,const Binding&,std::string&);

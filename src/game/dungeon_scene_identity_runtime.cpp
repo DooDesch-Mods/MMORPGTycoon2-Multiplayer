@@ -256,7 +256,10 @@ bool read_scene_roster(World& out,std::vector<dungeon_scene_roster::Scene>& scen
 }catch(const std::exception& e){out={};scenes.clear();return fail(error,std::string("Dungeon current scene roster: ")+e.what());}
 static bool current_census(Census& out,bool verify,std::string& error,const identity::Registry* preview=nullptr){
     out={};World world;std::vector<Exterior> exteriors;
-    if(!current_exteriors(world,exteriors,error)||!read_census(world,exteriors,false,out,error,preview))return false;
+    {
+        live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
+        if(!current_exteriors(world,exteriors,error)||!read_census(world,exteriors,false,out,error,preview))return false;
+    }
     identity::Scope after;if(!current(after,error)||after!=scope(world)){out={};return fail(error,error.empty()?"Dungeon current census NativeOpen lifetime changed":error);}
     std::vector<identity::Member> members;for(const auto& row:out.saved)members.push_back(row.member);
     if(verify){if(preview){if(!preview->verify_roster(after,members,error)){out={};return false;}}

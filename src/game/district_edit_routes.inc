@@ -45,10 +45,14 @@ bool enable(std::string& error){
     begin_original=reinterpret_cast<Notice>(routes[0].original);end_original=reinterpret_cast<Notice>(routes[1].original);cancel_original=reinterpret_cast<Notice>(routes[2].original);
     spinner_original=reinterpret_cast<Spinner>(routes[3].original);color_original=reinterpret_cast<Color>(routes[4].original);
     for(size_t i=0;i<additional_spinners.size();++i)additional_spinners[i]=routes[i+5].original;
+    const bool batch=hooks::framework::process_backend().batch_available();
+    if(batch&&!hooks::enable_prepared_routes(runtime->image,routes,"District named route",error))return fail_install();
     for(auto& route:routes){const auto target=reinterpret_cast<void*>(runtime->image+route.rva);
-        const auto enabled=MH_EnableHook(target);MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
-        if(enabled!=MH_OK||!hooks::framework::process_backend().read_route(target,receipt)){
-            error="District named route enable/receipt failed status="+std::to_string(enabled)+" "+hooks::framework::process_backend().error();return fail_install();}
+        if(!batch){const auto result=MH_EnableHook(target);if(result!=MH_OK){
+            error="District named route enable failed status="+std::to_string(result)+" "+hooks::framework::process_backend().error();return fail_install();}}
+        MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
+        if(!hooks::framework::process_backend().read_route(target,receipt)){
+            error="District named route receipt failed: "+hooks::framework::process_backend().error();return fail_install();}
         route.generation=receipt.generation;
     }
     installed=true;if(!code(*runtime,error)){installed=false;return fail_install();}return true;

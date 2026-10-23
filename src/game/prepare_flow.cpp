@@ -21,6 +21,8 @@
 #include "session_provider.h"
 #include "live_host_state/native_port.h"
 #include <chrono>
+#include "startup_calendar_native.inc"
+#include "startup_timing.h"
 namespace mt2mp::game::lobby_prepare {
 namespace {
 enum class Step {Idle,LoadSelected,CaptureLocal,ReturnTitle,LoadOrigin,CaptureShared,AwaitAck,Ready,Starting,Playing,Failed,Handshake,Leaving};
@@ -41,14 +43,14 @@ bool terrain_ready(){return ui_terrain_runtime::status().value("enabled",false);
 bool path_ready(){return ui_path_runtime::status().value("enabled",false);}
 bool captures_ready(){return ui_build_runtime::enabled()&&ui_remove_runtime::enabled()&&ui_move_runtime::enabled()&&ui_region_runtime::enabled()&&terrain_ready()&&path_ready()&&ui_network_runtime::enabled();}
 bool start_runtime(std::string& error){
-    if(!typed_action_runtime::start(error))return fail(error);
-    if((!ui_build_runtime::enabled()&&!ui_build_runtime::enable(error))||
-       (!ui_remove_runtime::enabled()&&!ui_remove_runtime::enable(error))||
-       (!ui_move_runtime::enabled()&&!ui_move_runtime::enable(error))||
-       (!ui_region_runtime::enabled()&&!ui_region_runtime::enable(error))||
-       (!terrain_ready()&&!ui_terrain_runtime::enable(error))||
-       (!path_ready()&&!ui_path_runtime::enable(error))||
-       (!ui_network_runtime::enabled()&&!ui_network_runtime::enable(error)))return fail("native action capture installation failed: "+error);
+    if(!startup_timing::run("typed_action_start",error,[&]{return typed_action_runtime::start(error);}))return fail(error);
+    if((!ui_build_runtime::enabled()&&!startup_timing::run("capture_build",error,[&]{return ui_build_runtime::enable(error);}))||
+       (!ui_remove_runtime::enabled()&&!startup_timing::run("capture_remove",error,[&]{return ui_remove_runtime::enable(error);}))||
+       (!ui_move_runtime::enabled()&&!startup_timing::run("capture_move",error,[&]{return ui_move_runtime::enable(error);}))||
+       (!ui_region_runtime::enabled()&&!startup_timing::run("capture_region",error,[&]{return ui_region_runtime::enable(error);}))||
+       (!terrain_ready()&&!startup_timing::run("capture_terrain",error,[&]{return ui_terrain_runtime::enable(error);}))||
+       (!path_ready()&&!startup_timing::run("capture_path",error,[&]{return ui_path_runtime::enable(error);}))||
+       (!ui_network_runtime::enabled()&&!startup_timing::run("capture_network",error,[&]{return ui_network_runtime::enable(error); })))return fail("native action capture installation failed: "+error);
     if(!captures_ready())return fail("native action capture installation returned without actual enabled readback");
     // Claiming Channel9 and arming its live discriminator must occur before the next packet poll.
     if(!typed_action_runtime::enable_live_state(error))return fail(error);
@@ -213,6 +215,13 @@ bool tick(std::string& error){
             if(zero_day_reload_attempted){error="Host native zero-day normalization incomplete after one original reload day="+
                 std::to_string(actual.clock.flat_day)+" record_day="+std::to_string(actual.record_day)+
                 " cash="+std::to_string(actual.cash)+" record_cash="+std::to_string(actual.record_cash);return fail(error);}
+            const auto normalized=startup_calendar::normalize_loaded(error);
+            if(normalized==startup_calendar::Result::Failed)return fail("Host loaded calendar normalization failed: "+error);
+            if(normalized==startup_calendar::Result::Normalized){
+                LOG_INFO("[StartupCalendar] Original Resolve/PostResolve confirmed day=1 record_day=1; ledger/seconds/owners unchanged; extra reload skipped");
+                return submit("capture_snapshot",nlohmann::json::object(),Step::CaptureShared,error);
+            }
+            LOG_INFO("[StartupCalendar] Original reload retained cause={}",error);error.clear();
             zero_day_reload_attempted=true;
             return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
         }

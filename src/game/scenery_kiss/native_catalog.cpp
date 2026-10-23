@@ -4,6 +4,7 @@
 #include "scenery_codeguards.h"
 #include "catalog_sample.h"
 #include "live_host_state/memory_query_timing.h"
+#include "character_catalogue_timing.h"
 #include <Windows.h>
 #include <cstring>
 
@@ -58,7 +59,10 @@ struct ActualRoot final:Root {
         uintptr_t object=0;const auto seh=find(api.find,uid,object);if(!require_registry(uid,object,seh,"ActualRoot.bind",e))return false;
         if(!reader.current(world,true,e))return false;
         uintptr_t shard=0,region=0;
-        if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;
+        {
+            mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;
+            if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;
+        }
         if(shard==world.root){int32_t saved_id=-1;
             if(!memory.copy(region+0x834,&saved_id,sizeof saved_id,e)||!reader.saved_root_scenery(reinterpret_cast<void*>(object),uid,saved_id,region,prop,e))return false;
         }else{
@@ -75,14 +79,17 @@ bool NativeCatalog::identify(int32_t category,int32_t variant,std::string& direc
     directory_text.clear();filename_text.clear();if(GetCurrentThreadId()!=thread_||category<0||category>=47){e="scenery_catalog_actual_thread_or_category_invalid";return false;}
     uintptr_t actual_manager=0,after_manager=0,directory=0,filename=0;uint64_t roundtrip=0;
     {
+        mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropCode);
         mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
         if(!code(memory_,image_,e)||!manager(memory_,image_,actual_manager,e))return false;
     }
-    const auto seh=lookup(image_,actual_manager,category,variant,directory,filename,roundtrip);
+    const auto seh=([&]{mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropLookup);
+        return lookup(image_,actual_manager,category,variant,directory,filename,roundtrip);}());
     if(seh){e="scenery_catalog_native_lookup_failed SEH="+std::to_string(seh);return false;}
     const uint64_t expected=uint64_t(uint32_t(category))|(uint64_t(uint32_t(variant))<<32);
     if(roundtrip!=expected){e="scenery_catalog_native_roundtrip_differs";return false;}
     {
+        mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropText);
         mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
         if(!text(memory_,directory,directory_text,e)||!text(memory_,filename,filename_text,e)||!manager(memory_,image_,after_manager,e))return false;
     }
@@ -141,10 +148,13 @@ bool read_native_scenery_samples(nlohmann::json& out,std::string& e){
     out={{"observed",true},{"scope","actual_root_scenery_from_first_128_props"},{"prop_count",props.size()},{"sample_count",samples.size()},{"prop_limit",128},{"possibly_truncated",props.size()==128},{"snapshot_uuid",before.origin.uuid},{"world_epoch",before.origin.world_epoch},{"generation",before.origin.generation},{"samples",std::move(samples)}};e.clear();return true;
 }
 bool read_action_prop(uint64_t uid,game::native::BuildingState& out,std::string& e){
+    mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropRead);
     out={};uintptr_t image=0;uint32_t thread=0;std::string hash;
     if(!game::native::read_resolver_receipt(image,thread,hash,e))return false;
     if(hash!=exe||thread!=GetCurrentThreadId()){e="scenery_action_prop_exe_or_thread_differs";return false;}
-    host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,hash,api,e))return false;
+    host::ProcessMemory memory;host::LookupApi api;
+    {mt2mp::game::live_host_state::apply_timing::PageReadScope lookup_fields;
+        if(!host::resolve_lookup(memory,image,hash,api,e))return false;}
     uintptr_t object=0,ap=0;const auto seh=find(api.find,uid,object);
     if(!require_registry(uid,object,seh,"read_action_prop",e))return false;
     if(!memory.copy(object,&ap,sizeof ap,e))return false;

@@ -19,26 +19,27 @@ void check(bool v,const char* label){++assertions;if(!v)throw std::runtime_error
 bool fail(std::string& e,const std::string& why){e=why;return false;}
 #include "autosave_activity.inc"
 
-namespace action_session {enum class Role {Host,Client};}
+namespace action_session {enum class Role {Host,Client};enum class AuthorityReadiness {Ready,Wait,Rejected};struct Message {};}
 struct Context {action_session::Role role=action_session::Role::Host;uint32_t local_peer=1;int id=1;bool operator==(const Context&)const=default;};
 struct Binding {uint64_t native_epoch=7,native_generation=8;bool operator==(const Binding&)const=default;};
 struct Pin {Context context;Binding binding;uint64_t common_epoch=0;uintptr_t image=0,world=0,clock=0,business=0,record=0,history=0;uint32_t thread=0;int32_t history_count=0,history_capacity=0;int values=0;float selected=0,pause=0;bool operator==(const Pin&)const=default;};
 constexpr const char* image_sha="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
-struct Fixture {bool resolver=true,session=true,world_read=true,status_read=true;uintptr_t image=100;uint32_t thread=2;std::string sha=image_sha;Context context;void* world=reinterpret_cast<void*>(200);void* state=reinterpret_cast<void*>(300);uint64_t epoch=7,generation=8,common=9;int32_t saves=0,edits=0;} world_fixture;
+struct Fixture {bool resolver=true,session=true,world_read=true,status_read=true;uintptr_t image=100;uint32_t thread=2;std::string sha=image_sha;Context context;void* world=reinterpret_cast<void*>(200);void* state=reinterpret_cast<void*>(300);uint64_t epoch=7,generation=8,common=9;int32_t saves=0,edits=0;int32_t mode=3,mode_state=4;bool present=true,quitting=false,title=false,map=false;} world_fixture;
 uint32_t GetCurrentThreadId(){return 2;}
 void* GetModuleHandleW(const void*){return reinterpret_cast<void*>(100);}
 namespace native {
-struct WorldStatus {int32_t saves_in_progress=0,edit_operations=0;};
+struct WorldStatus {int32_t saves_in_progress=0,edit_operations=0,active_mode_index=3,in_game_state=4;bool world_present=true,quitting=false,title_transition_pending=false,map_task_pending=false;};
 bool read_resolver_receipt(uintptr_t& i,uint32_t& t,std::string& s,std::string& e){if(!world_fixture.resolver)return fail(e,"original resolver read failure");i=world_fixture.image;t=world_fixture.thread;s=world_fixture.sha;return true;}
-bool read_world_status(WorldStatus& s,std::string& e){if(!world_fixture.status_read)return fail(e,"original world status failure");s={world_fixture.saves,world_fixture.edits};return true;}
+bool read_world_status(WorldStatus& s,std::string& e){if(!world_fixture.status_read)return fail(e,"original world status failure");s={world_fixture.saves,world_fixture.edits,world_fixture.mode,world_fixture.mode_state,world_fixture.present,world_fixture.quitting,world_fixture.title,world_fixture.map};return true;}
 }
 namespace action_session {struct Session {bool current(Context& c,std::string& e){if(!world_fixture.session)return fail(e,"original session failure");c=world_fixture.context;return true;}};Session& selected_session(){static Session s;return s;}}
 namespace building_mixed_identity::opened_file {struct CurrentWorld {void* world=nullptr;void* state=nullptr;uint64_t world_epoch=0,generation=0;};}
 namespace native_open_runtime {bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& w,std::string& e){if(!world_fixture.world_read)return fail(e,"original opened world failure");w={world_fixture.world,world_fixture.state,world_fixture.epoch,world_fixture.generation};return true;}}
 namespace net {uint64_t current_world_epoch(){return world_fixture.common;}}
 struct EconomicBoundary {int reads=0;bool okay=true;bool read_current_fence(const Pin&,std::string& e){++reads;return okay||fail(e,"original economic fence failed");}};
-struct NativePort {Context context_;Binding binding_;EconomicBoundary* boundary_=nullptr;bool current_owners(const Pin&,std::string&,int32_t=0);bool store(const Pin&,size_t,int32_t,int32_t,std::string&);bool publication_ready(uint64_t,bool&,std::string&);bool publication_ready(bool& w,std::string& e){return publication_ready(9,w,e);}};
+struct NativePort {Context context_;Binding binding_;EconomicBoundary* boundary_=nullptr;bool current_owners(const Pin&,std::string&,int32_t=0);bool store(const Pin&,size_t,int32_t,int32_t,std::string&);bool publication_ready(uint64_t,bool&,std::string&);bool application_ready(uint64_t,bool&,std::string&);bool publication_ready(bool& w,std::string& e){return publication_ready(9,w,e);}};
 #include "autosave_scope.inc"
+#include "autosave_party_guard.inc"
 
 constexpr size_t scalar_count=52;
 Pin owner_sample;bool owner_read_ok=true;int owner_reads=0,scalar_stores=0;
@@ -87,11 +88,13 @@ struct Time {bool okay=true;uint64_t revision=1;explicit operator bool()const{re
 struct Fragment {bool okay=true;bool timely(std::chrono::steady_clock::time_point,std::string& e){return okay?true:fail(e,"original fragment failure");}};
 Admission admission_result=Admission::New;
 Admission admit(int,const Context&,uint64_t,uint64_t,const Frame*,const Frame&,uint64_t,uint64_t,bool,std::string& e){if(admission_result==Admission::Rejected)e="original admission failure";return admission_result;}
+Admission admit_before_result(uint64_t,const Context&,uint64_t,uint64_t,const Frame*,const Frame&,const action_session::Message&,uint64_t,uint64_t,std::string& e){if(admission_result==Admission::Rejected)e="original admission failure";return admission_result;}
 struct BridgeContext:Context {int host_peer=1;};
 struct Port {
-    NativePort native;Pin sample;int probes=0,reads=0;bool read_ok=true;
+    NativePort native;Pin sample;int probes=0,reads=0,application_probes=0;bool read_ok=true;
     Port(){sample.common_epoch=9;}
     bool publication_ready(uint64_t epoch,bool& w,std::string& e){++probes;return native.publication_ready(epoch,w,e);}
+    bool application_ready(uint64_t epoch,bool& w,std::string& e){++application_probes;return native.application_ready(epoch,w,e);}
     bool read(Pin& out,std::string& e){++reads;if(!read_ok)return fail(e,"original paused Pin read failed");out=sample;e.clear();return true;}
 };
 struct Bridge {
@@ -99,6 +102,9 @@ struct Bridge {
     std::string publication_first_wait_,publication_last_wait_;
     uint64_t publication_wait_count_=0,publication_recovery_count_=0;
     bool publication_was_waiting_=false;
+    std::string application_first_wait_,application_last_wait_;
+    uint64_t application_wait_count_=0,application_recovery_count_=0;
+    bool application_waiting_=false;
     FrameApplyAcks apply_acks_;
     Fragment fragments_;BridgeContext context_;Binding binding_;Port port_;Time time_;
     std::optional<Frame> last_,queued_;
@@ -117,11 +123,16 @@ struct Bridge {
     bool send(const Frame& out,std::string& e){++sends;if(!send_ok)return fail(e,"original send failure");last_=out;if(day_)last_day_sequence_=day_->sequence();if(economy_)last_economy_=captured_economy_;if(ack_mask)apply_acks_.sent(++sent_revision,ack_mask,fake_send_time);return true;}
     bool take(const Frame&,std::string& e){++takes;return take_ok?true:fail(e,"original take failure");}
     bool tick_actual(uint64_t,bool,std::string&,std::chrono::steady_clock::time_point);
+    bool application_ready(bool&,std::string&);
+    bool before_result(uint64_t,const action_session::Message&,uint64_t,std::string&);
+    action_session::AuthorityReadiness before_ready(uint64_t,const action_session::Message&,uint64_t,std::string&);
     bool tick(uint64_t action,bool pending,std::string& error,std::chrono::steady_clock::time_point now){
         capture_now=now;capture_clock_=[this]{return capture_now;};return tick_actual(action,pending,error,now);
     }
 };
 #include "autosave_tick.inc"
+#include "autosave_before.inc"
+#include "live_client_save_cases.inc"
 
 void publication_payload_cases(std::chrono::steady_clock::time_point now){
     world_fixture={};std::string e;
@@ -277,7 +288,7 @@ int main(){try{
     world_fixture={};world_fixture.saves=1;Bridge pending;check(pending.tick(1,true,e,now)&&pending.port_.probes==0&&pending.captures==0,"existing pending action wait unchanged");
     world_fixture={};Bridge capture;capture.capture_ok=false;check(!capture.tick(0,false,e,now)&&e=="original capture failure","idle capture failure retained");
     Bridge send;send.send_ok=false;check(!send.tick(0,false,e,now)&&e=="original send failure","send failure retained");
-    world_fixture={};world_fixture.saves=1;Bridge client;client.context_.role=action_session::Role::Client;client.queued_=Frame{};check(client.tick(0,false,e,now)&&client.port_.probes==0&&client.takes==1,"Client adoption unchanged, no save bypass");
+    client_application_cases(now);
     publication_payload_cases(now);
     scalar_owner_cases();
     frame_ack_cases(now);

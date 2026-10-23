@@ -1,0 +1,110 @@
+{
+  "src/game/subscriber_lifecycle/save_scope.cpp": {
+    "before": "fb8695f5270d8f8bc6442412673ab6e9df815a1f86849eab60c9507bfc9a0571",
+    "replacements": [
+      [
+        "    }else r.enter_exception = call(api.enter, mode);",
+        "    }else if(game::live_host_state::apply_timing::client_party_prepare_depth){\n        game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ClientPartySaveEnter);\n        r.enter_exception = call(api.enter, mode);\n    }else r.enter_exception = call(api.enter, mode);"
+      ],
+      [
+        "        r.leave_attempted = true; r.leave_exception = call(api.leave, mode);",
+        "        r.leave_attempted = true;\n        if(game::live_host_state::apply_timing::client_party_prepare_depth){\n            game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ClientPartySaveLeave);\n            r.leave_exception = call(api.leave, mode);\n        }else r.leave_exception = call(api.leave, mode);"
+      ]
+    ],
+    "anchors": [
+      "uint32_t call(",
+      "bool callback(",
+      "bool begin_save_scope(",
+      "bool finish_save_scope(",
+      "bool with_save_scope("
+    ]
+  },
+  "src/game/party_frame_native.cpp": {
+    "before": "40fbe2754b984485278311d92b9109af06f8ddcfbcdf6db5b6ecc7e1d27a933a",
+    "replacements": [
+      [
+        "!client_.prepare(source,frame.party->lifecycle,work,error)||!scenes_.prepare(context,binding,error)",
+        "![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyJournalPrepare);return client_.prepare(source,frame.party->lifecycle,work,error);}()||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyScenePrepare);return scenes_.prepare(context,binding,error);}()"
+      ],
+      [
+        "const bool okay=native_.batch(context,binding,[&](std::string& e){held_=true;\n            for(const auto& row:work)",
+        "const bool okay=[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyNativeBatch);return native_.batch(context,binding,[&](std::string& e){held_=true;\n            for(const auto& row:work)"
+      ],
+      [
+        "        },error);held_=false;\n        if(!okay){receipt.unknown=",
+        "        },error);}();held_=false;\n        if(!okay){receipt.unknown="
+      ],
+      [
+        "!scenes_.confirm(context,binding,frame.party->scenes->operation,&*frame.party->scenes,mapping,admitted,published,error)",
+        "![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneConfirm);return scenes_.confirm(context,binding,frame.party->scenes->operation,&*frame.party->scenes,mapping,admitted,published,error);}()"
+      ]
+    ],
+    "anchors": [
+      "bool prepare_apply("
+    ]
+  },
+  "src/game/party_live_native.cpp": {
+    "before": "29820372847c028652de2dc53f6ca9c8ff65f3af620ef1e77bc3c259b77d8f97",
+    "replacements": [
+      [
+        "party_live::Raw current;if(!this->current(context,binding,current,error))return false;",
+        "party_live::Raw current;if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchCurrent);return this->current(context,binding,current,error);}())return false;"
+      ],
+      [
+        "const auto run=[](void* user,std::string& cause){auto& w=*static_cast<Work*>(user);w.port.held_=true;",
+        "const auto run=[](void* user,std::string& cause){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchBody);auto& w=*static_cast<Work*>(user);w.port.held_=true;"
+      ],
+      [
+        "const auto exit=[](void* user,std::string& cause){auto& port=static_cast<Work*>(user)->port;",
+        "const auto exit=[](void* user,std::string& cause){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchExitGuard);auto& port=static_cast<Work*>(user)->port;"
+      ],
+      [
+        "    return ok&&owner(error);",
+        "    return ok&&[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchFinalOwner);return owner(error);}();"
+      ]
+    ],
+    "anchors": [
+      "bool NativePort::batch("
+    ]
+  },
+  "src/game/scene_clone/runtime.cpp": {
+    "anchors": [
+      "bool Runtime::confirm_impl("
+    ],
+    "before": "c320a3de67fdf9c36f7b8bfca460be4f549fd91c9d13d10c5060979b8622bfdb",
+    "replacements": [
+      [
+        "read_raw(actual,e)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneRawActual);return read_raw(actual,e);}()"
+      ],
+      [
+        "read_raw(final,e)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneRawFinal);return read_raw(final,e);}()"
+      ],
+      [
+        "gizmo::preview_clones(actual.world,gizmo_births,gizmo_retired,gizmos,admitted,e,gizmo_restored,template_exterior,retained)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneGizmoPreview);return gizmo::preview_clones(actual.world,gizmo_births,gizmo_retired,gizmos,admitted,e,gizmo_restored,template_exterior,retained);}()"
+      ],
+      [
+        "gizmo::read_current(admitted,e)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneGizmoFinal);return gizmo::read_current(admitted,e);}()"
+      ],
+      [
+        "npc_quest_target_runtime::preview_clones(actual,mapping,zones,e,template_exterior,restoration,retained)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneZonePreview);return npc_quest_target_runtime::preview_clones(actual,mapping,zones,e,template_exterior,restoration,retained);}()"
+      ],
+      [
+        "buildings::preview(actual.world,building_births,building_retired,building_restored,building_preview,e,retained)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingPreview);return buildings::preview(actual.world,building_births,building_retired,building_restored,building_preview,e,retained);}()"
+      ],
+      [
+        "buildings::check(building_preview,e)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingCheck);return buildings::check(building_preview,e);}()"
+      ],
+      [
+        "buildings::publish(building_preview,e)",
+        "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingPublish);return buildings::publish(building_preview,e);}()"
+      ]
+    ]
+  }
+}

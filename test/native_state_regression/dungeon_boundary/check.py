@@ -48,10 +48,13 @@ for row in json.loads((root / 'baseline.json').read_text()):
     if name == 'src/game/dungeon_cells_runtime.inc':
         # Reverse only the exact Scene Scenery addition, then recover the
         # original all-CRLF bytes required by the unchanged historical hash.
-        original = normalize(name, original.decode('utf-8')).encode('utf-8')
+        from prepared_hook_batch_boundary import normalize_cells_enable
+        original = normalize(name, normalize_cells_enable(original.decode('utf-8'))).encode('utf-8')
         assert b'\r' not in original, 'Scene Scenery prior Cells newline form differs'
         original = original.replace(b'\n', b'\r\n')
     if name.endswith('dungeon_gizmo_runtime.inc'):
+        from gizmo_code_digest_boundary import normalize_gizmo_code
+        original = normalize_gizmo_code(original.decode('utf-8')).encode('utf-8')
         rename_include = b'#include "dungeon_gizmo_live_native.inc"\n#include "dungeon_gizmo_rename.inc"\n'
         if rename_include in original:
             assert original.count(rename_include) == 1, 'Gizmo Rename include is not unique'

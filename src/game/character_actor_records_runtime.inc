@@ -1,28 +1,40 @@
 namespace character_actor_records {
+namespace catalogue_detail {
+using Sample=monster_action_runtime::character_membership::Sample;
+namespace timing=character_catalogue_timing;
+using Mode=character_catalogue_batch::Mode;
+using CaptureResult=character_catalogue_batch::Result;
+struct CaptureTiming {
+    timing::Totals totals;timing::Binding binding{totals};timing::Clock::time_point started=timing::Clock::now();bool confirmed=false;
+    ~CaptureTiming(){
+        const auto elapsed=timing::elapsed(started);if(elapsed<100000000)return;
+        static thread_local timing::Clock::time_point next_log{};static thread_local uint64_t suppressed=0;
+        const auto now=timing::Clock::now();if(confirmed&&now<next_log){++suppressed;return;}next_log=now+std::chrono::seconds(1);
+        using P=timing::Part;
+        LOG_WARN("[CharacterCatalogue] Slow capture status={} total_ms={} code_ms={} prepare_ms_inclusive={} census_ms={} quests_ms={} references_ms={} external_owners_ms_inclusive={} external_props_ms_inclusive={} prop_read_ms_inclusive={} prop_catalog_code_ms={} prop_catalog_lookup_ms={} prop_catalog_text_ms={} lifetime_ms={} native_capture_ms_inclusive={} graph_read_ms={} canonical_records_ms={} final_hash_ms={} preparations={} records={} graph_nodes={} private_links={} suppressed_successful_slow_logs={}",
+            confirmed?"confirmed":"failed",double(elapsed)/1000000.0,totals.ms(P::Code),totals.ms(P::Prepare),totals.ms(P::Census),totals.ms(P::Quests),
+            totals.ms(P::References),totals.ms(P::ExternalOwners),totals.ms(P::ExternalProps),totals.ms(P::PropRead),totals.ms(P::PropCode),totals.ms(P::PropLookup),totals.ms(P::PropText),totals.ms(P::Lifetime),totals.ms(P::NativeCapture),totals.ms(P::GraphRead),
+            totals.ms(P::CanonicalRecords),totals.ms(P::FinalHash),totals.preparations,totals.records,totals.graph_nodes,totals.private_links,suppressed);suppressed=0;
+    }
+};
+bool prepare(Memory&,const action_session::Context&,const action_session::Binding&,Mode,Sample&,std::string&);
+CaptureResult record(Memory&,const action_session::Context&,const action_session::Binding&,Mode,const Sample&,
+                     const character_definition_identity::Definition&,std::string&,std::string&);
+}
 bool capture_catalogue(const action_session::Context& context,const action_session::Binding& binding,
                        CatalogueProof& out,std::string& error)try{
+    catalogue_detail::CaptureTiming measured;
     out={};namespace member=monster_action_runtime::character_membership;
-    Memory memory;if(!member::code(memory,error))return false;
-    character_definition_identity::Census before,after;character_membership_reader::Users users,after_users;
-    if(!read_current(context,binding,before,users,error))return false;
-    const auto capture=[&](const character_definition_identity::Census& census,json& rows){
-        std::map<std::string,std::string> records;
-        for(const auto& definition:census.definitions)if(!definition.deleted){std::string record;
-            if(!read_definition(context,binding,definition.kind,definition.id,record,error))return false;
-            if(!records.emplace(definition.key,std::move(record)).second)
-                return fail(error,"Character catalogue repeats an original global key");
-        }
-        return character_catalogue_proof::rows(census,records,rows,error);
+    Memory memory;{character_catalogue_timing::Scope code(character_catalogue_timing::Part::Code);if(!member::code(memory,error))return false;}
+    auto prepare=[&](auto mode,auto& value,auto& cause){return catalogue_detail::prepare(memory,context,binding,mode,value,cause);};
+    auto record=[&](auto mode,const auto& value,const auto& definition,auto& sha,auto& cause){return catalogue_detail::record(memory,context,binding,mode,value,definition,sha,cause);};
+    auto stable=[](const auto& before,const auto& after){
+        return character_catalogue_batch::same(before.definitions,after.definitions)&&before.users==after.users&&
+               before.owners==after.owners&&action_runtime::same_world(before.world,after.world);
     };
-    json first,second;
-    if(!capture(before,first)||!read_current(context,binding,after,after_users,error)||!capture(after,second))return false;
-    if(first!=second||before.state!=after.state||before.manager!=after.manager||users!=after_users)
-        return fail(error,"Character catalogue original records/manager/users changed during complete capture");
-    for(size_t kind=0;kind<before.arrays.size();++kind)
-        if(before.arrays[kind].object!=after.arrays[kind].object||before.arrays[kind].members!=after.arrays[kind].members)
-            return fail(error,"Character catalogue original global member lifetimes changed during capture");
-    std::string sha;if(!quest_bridge::sha256(first.dump(),sha,error))return false;
-    out.sha256=std::move(sha);error.clear();return true;
+    json first;if(!character_catalogue_batch::capture_manifest<catalogue_detail::Sample>(prepare,record,stable,first,error))return false;
+    std::string sha;{character_catalogue_timing::Scope hash(character_catalogue_timing::Part::FinalHash);if(!quest_bridge::sha256(first.dump(),sha,error))return false;}
+    out.sha256=std::move(sha);measured.confirmed=true;error.clear();return true;
 }catch(const std::exception& exception){return fail(error,std::string("Character catalogue original capture: ")+exception.what());}
 
 namespace {
@@ -34,6 +46,8 @@ struct RecordMemory final:subscriber_lifecycle::Memory {
 };
 struct Inspect {RecordMemory& memory;subscriber_lifecycle::Graph graph;};
 bool inspect(void* user,const void* record,const void* context,std::string& error){auto& value=*static_cast<Inspect*>(user);
+    // SaveRecord has returned; this pure read ends before native record cleanup.
+    live_host_state::apply_timing::PageReadScope record_pages;
     return subscriber_lifecycle::read_graph(value.memory,uintptr_t(record),uintptr_t(context),{100000,1000000,32*1024*1024,100000},value.graph,error);
 }
 }
@@ -59,44 +73,85 @@ bool read_current(const action_session::Context& expected,const action_session::
         return fail(error,error.empty()?"Character current complete census changed NativeOpen world lifetime":error);
     definitions=std::move(current);users=std::move(current_users);error.clear();return true;
 }
-bool read_definition(const action_session::Context& expected,const action_session::Binding& binding,
-    int32_t kind,int32_t global_id,std::string& original_record_sha,std::string& error)try{
-    original_record_sha.clear();
+namespace catalogue_detail {
+bool prepare_references(Memory& memory,const action_session::Context& expected,const action_session::Binding& binding,
+    Sample& value,std::string& error,Mode mode=Mode::Eager){
     namespace member=monster_action_runtime::character_membership;
     const auto& runtime=monster_action_runtime::state;
-    if(kind<0||kind>=5||global_id<0||!member::ready||member::fault)
-        return fail(error,"Character authored definition requires its active original reader and global kind/ID");
-    Memory memory;member::Sample value;
-    if(!read_current(expected,binding,value.definitions,value.users,error))return false;
-    const auto selected=std::find_if(value.definitions.definitions.begin(),value.definitions.definitions.end(),
-        [&](const auto& row){return row.kind==kind&&row.id==global_id;});
-    if(selected==value.definitions.definitions.end()||selected->deleted||!selected->uid)
-        return fail(error,"Character authored definition global kind/ID is absent or deleted");
-    value.manager=value.definitions.manager;value.selected=selected->object;value.uid=selected->uid;
+    value.manager=value.definitions.manager;
     host::NativeOrigin origin;
     if(!host::resolve_lookup(memory.process,runtime.image,exe_sha,value.api,error))return false;
     host::Reader reader(memory.process,origin,runtime.image,runtime.thread,value.api);
     if(!reader.current(value.world,true,error)||!action_runtime::bound(value.world,binding,expected.snapshot_uuid,error))return false;
+    // Without external manifest entries, unrelated props cannot affect canonical
+    // record bytes. The eager fallback retains their complete admission checks.
+    if(mode==Mode::LinkFree)return true;
     auto seed=value.quests;
     for(const auto& user:value.users.rows)if(user.family==Family::Npc&&!seed.owners.contains(user.object)){
         std::string key;if(!action_runtime::local_key(user.object,user.uid,key,error))return false;
         monster_quest_retirement::Owner row;row.pointer=user.object;row.uid=user.uid;row.key=key;
         seed.owners.emplace(user.object,std::move(row));
     }
-    if(!monster_action_runtime::read_remove_quests(memory,binding,expected.snapshot_uuid,0,{},value.quests,error,&seed)||
-       !monster_action_runtime::quest_list::references(memory,binding,expected.snapshot_uuid,value.quests,value.references,error)||
-       !member::external_owners(memory,binding,expected.snapshot_uuid,value,error,nullptr))return false;
+    {timing::Scope measured(timing::Part::Quests);
+        if(!monster_action_runtime::read_remove_quests(memory,binding,expected.snapshot_uuid,0,{},value.quests,error,&seed))return false;}
+    {timing::Scope measured(timing::Part::References);
+        if(!monster_action_runtime::quest_list::references(memory,binding,expected.snapshot_uuid,value.quests,value.references,error))return false;}
+    {timing::Scope measured(timing::Part::ExternalOwners);
+        if(!member::external_owners(memory,binding,expected.snapshot_uuid,value,error,nullptr))return false;}
+    return true;
+}
+bool prepare(Memory& memory,const action_session::Context& expected,const action_session::Binding& binding,
+    Mode mode,Sample& value,std::string& error){
+    namespace member=monster_action_runtime::character_membership;
+    timing::Scope measured(timing::Part::Prepare);if(timing::active)++timing::active->preparations;
+    value={};if(!member::ready||member::fault)return fail(error,"Character authored definition requires its active original reader");
+    {timing::Scope census(timing::Part::Census);if(!read_current(expected,binding,value.definitions,value.users,error))return false;}
+    return prepare_references(memory,expected,binding,value,error,mode);
+}
+CaptureResult record(Memory& memory,const action_session::Context& expected,const action_session::Binding& binding,
+    Mode mode,const Sample& value,const character_definition_identity::Definition& selected,std::string& original_record_sha,std::string& error){
+    namespace member=monster_action_runtime::character_membership;
+    const auto& runtime=monster_action_runtime::state;
+    if(timing::active)++timing::active->records;
+    host::NativeOrigin origin;host::Reader reader(memory.process,origin,runtime.image,runtime.thread,value.api);
+    const auto lifetime=[&](){
+        timing::Scope measured(timing::Part::Lifetime);
+        live_host_state::apply_timing::PageReadScope pages;
+        auto at=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){return field(memory,base,offset,out,cause);};
+        for(const auto& array:value.definitions.arrays)if(!character_definition_identity::unchanged(at,array,error))return false;
+        uintptr_t registered=0;uint32_t seh=0;
+        {live_host_state::apply_timing::PageReadScope original_lookup(live_host_state::apply_timing::PageBoundary::OriginalCall);
+            seh=lookup(value.api.find,selected.uid,registered);}
+        if(seh||registered!=selected.object)return fail(error,"Character authored original Record changed registered full UID SEH="+std::to_string(seh));
+        uint64_t uid=0;host::WorldState current_world;action_session::Context current;
+        if(!field(memory,selected.object,0x18,uid,error)||!reader.current(current_world,true,error)||
+           !action_session::selected_session().current(current,error))return false;
+        return (uid==selected.uid&&current==expected&&action_runtime::bound(current_world,binding,expected.snapshot_uuid,error)&&
+                action_runtime::same_world(value.world,current_world))||
+            fail(error,error.empty()?"Character authored original Record changed global owner/World/Session":error);
+    };
+    if(!lifetime())return CaptureResult::Failed;
     std::string captured;
-    if(!member::complete_record(memory,value.selected,0xf62880,0xf628e0,value.owners,captured,error))return false;
-    auto at=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){return field(memory,base,offset,out,cause);};
-    for(const auto& array:value.definitions.arrays)if(!character_definition_identity::unchanged(at,array,error))return false;
-    uintptr_t registered=0;const auto seh=lookup(value.api.find,value.uid,registered);
-    uint64_t uid=0;host::WorldState after;action_session::Context current;
-    if(!field(memory,value.selected,0x18,uid,error)||!reader.current(after,true,error)||
-       !action_session::selected_session().current(current,error))return false;
-    if(seh||registered!=value.selected||uid!=value.uid||current!=expected||!action_runtime::same_world(value.world,after))
-        return fail(error,"Character authored original Record changed global owner/World/Session SEH="+std::to_string(seh));
-    original_record_sha=std::move(captured);error.clear();return true;
+    const auto result=member::complete_record_capture(memory,selected.object,0xf62880,0xf628e0,value.owners,mode,captured,error);
+    if(result==CaptureResult::Failed||!lifetime())return CaptureResult::Failed;
+    if(result==CaptureResult::NeedsExternalOwners)return result;
+    original_record_sha=std::move(captured);error.clear();return CaptureResult::Complete;
+}
+}
+bool read_definition(const action_session::Context& expected,const action_session::Binding& binding,
+    int32_t kind,int32_t global_id,std::string& original_record_sha,std::string& error)try{
+    original_record_sha.clear();
+    namespace member=monster_action_runtime::character_membership;
+    if(kind<0||kind>=5||global_id<0||!member::ready||member::fault)
+        return fail(error,"Character authored definition requires its active original reader and global kind/ID");
+    Memory memory;catalogue_detail::Sample value;
+    if(!read_current(expected,binding,value.definitions,value.users,error))return false;
+    const auto selected=std::find_if(value.definitions.definitions.begin(),value.definitions.definitions.end(),
+        [&](const auto& row){return row.kind==kind&&row.id==global_id;});
+    if(selected==value.definitions.definitions.end()||selected->deleted||!selected->uid)
+        return fail(error,"Character authored definition global kind/ID is absent or deleted");
+    if(!catalogue_detail::prepare_references(memory,expected,binding,value,error))return false;
+    return catalogue_detail::record(memory,expected,binding,catalogue_detail::Mode::Eager,value,*selected,original_record_sha,error)==catalogue_detail::CaptureResult::Complete;
 }catch(const std::exception& exception){original_record_sha.clear();return fail(error,std::string("Character authored definition Record boundary: ")+exception.what());}
 bool read(const action_session::Binding& binding,const std::string& snapshot,Family family,uintptr_t actor,const External& external,Result& out,std::string& error)try{
     out={};const auto& owner=monster_action_runtime::state;

@@ -286,7 +286,7 @@ bool enable(std::string& e) {
         {0x5e0c20,reinterpret_cast<void*>(&finished_entry),reinterpret_cast<void**>(&terrain.finished)},
         {0x5e06a0,reinterpret_cast<void*>(&cancel_entry),reinterpret_cast<void**>(&terrain.cancel)}};
     for(const auto& h:hooks){const auto status=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.replacement,h.original);if(status!=MH_OK||!*h.original)return fail(e,"terrain MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
-    for(const auto& h:hooks){const auto status=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(status!=MH_OK)return fail(e,"terrain MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"terrain hook",e))return false;
     if(!native_code(*r,true,e)||!height_enable(*r,e))return false;terrain.ready=true;return true;
 }
 void tick() {

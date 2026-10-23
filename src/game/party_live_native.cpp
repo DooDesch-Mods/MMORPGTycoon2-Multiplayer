@@ -1,4 +1,5 @@
 #include "party_live_native.h"
+#include "live_host_state/apply_timing.h"
 #include "party_live_codes.h"
 #include "native_open_runtime.h"
 #include "session_provider.h"
@@ -149,7 +150,13 @@ bool NativePort::owner(std::string& error){
     native::WorldStatus status;if(!native::read_world_status(status,error))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.quitting||status.title_transition_pending||
        status.map_task_pending||status.edit_operations||status.saves_in_progress!=(held_?1:0))
-        return fail(error,"Party original active World/edit/save boundary differs");
+        return fail(error,"Party original active World/edit/save boundary differs mode="+std::to_string(status.active_mode_index)+
+            " required_mode=3 state="+std::to_string(status.in_game_state)+" required_state=4 world_present="+
+            std::to_string(status.world_present)+" required_world_present=1 quitting="+std::to_string(status.quitting)+
+            " required_quitting=0 title_pending="+std::to_string(status.title_transition_pending)+
+            " required_title_pending=0 map_task_pending="+std::to_string(status.map_task_pending)+
+            " required_map_task_pending=0 edits="+std::to_string(status.edit_operations)+" required_edits=0 saves="+
+            std::to_string(status.saves_in_progress)+" required_saves="+std::to_string(held_?1:0)+" held="+std::to_string(held_));
     if(context_.role==action_session::Role::Client){native::ClockState clock;
         if(!native::read_clock(clock,error))return false;
         if(clock.time_scale!=0||!clock.paused)return fail(error,"Party native Client replay requires its actual paused authoritative Clock");
@@ -179,12 +186,12 @@ bool NativePort::batch(const action_session::Context& context,const action_sessi
     if(!body)return fail(error,"Party native batch body is absent");
     if(held_){if(context!=context_||binding!=binding_)return fail(error,"Party held batch has another actual owner");
         if(!batch_unknown_.empty())return fail(error,batch_unknown_);return owner(error)&&body(error);}
-    party_live::Raw current;if(!this->current(context,binding,current,error))return false;
+    party_live::Raw current;if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchCurrent);return this->current(context,binding,current,error);}())return false;
     batch_unknown_.clear();
     struct Work {NativePort& port;const std::function<bool(std::string&)>& body;};Work work{*this,body};
-    const auto run=[](void* user,std::string& cause){auto& w=*static_cast<Work*>(user);w.port.held_=true;
+    const auto run=[](void* user,std::string& cause){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchBody);auto& w=*static_cast<Work*>(user);w.port.held_=true;
         return w.port.owner(cause)&&w.body(cause);};
-    const auto exit=[](void* user,std::string& cause){auto& port=static_cast<Work*>(user)->port;
+    const auto exit=[](void* user,std::string& cause){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchExitGuard);auto& port=static_cast<Work*>(user)->port;
         if(!port.batch_unknown_.empty())return fail(cause,port.batch_unknown_);
         if(!port.owner(cause))return false;
         for(const auto& reservation:port.reservations_)if(reservation.second.scope==port.current_.scope)
@@ -199,7 +206,7 @@ bool NativePort::batch(const action_session::Context& context,const action_sessi
     held_=false;
     if(receipt.unknown){blocked_scope_=current.scope;blocked_cause_=error.empty()?"Party original SaveScope outcome unknown":error;return fail(error,blocked_cause_);}
     if(!batch_unknown_.empty()){blocked_scope_=current.scope;blocked_cause_=batch_unknown_;return fail(error,blocked_cause_);}
-    return ok&&owner(error);
+    return ok&&[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyBatchFinalOwner);return owner(error);}();
 }
 bool NativePort::capture(const party_live::Member& member,const party_live::References& refs,party_live::Record& value,std::string& error){
     if(!held_)return fail(error,"Party complete original Record requires one held native batch");

@@ -6,6 +6,17 @@ endif()
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/check_query_adapter_tags.py"
     --root "${CMAKE_CURRENT_LIST_DIR}/.." COMMAND_ERROR_IS_FATAL ANY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/intervention_actor_runtime.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/actor_code_scope_cases.inc"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/gm_ticket_live.inc"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/gm_ticket_reader.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/gm_census_scope_cases.inc"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/monster_live_runtime.inc"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/monster_live_codes.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/monster_code_scope_cases.inc"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/native_port.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/native_port.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/native_port_pair_cases.inc"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/apply_timing.h"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/object_identity/remove_runtime/copy/saved_scenery_reader.h"

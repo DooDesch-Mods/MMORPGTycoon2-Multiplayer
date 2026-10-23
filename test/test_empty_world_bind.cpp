@@ -10,6 +10,10 @@
 #include "vendor/nlohmann/json.hpp"
 using json=nlohmann::json;
 using std::uint64_t;
+namespace startup_timing {
+struct Phase {Phase(const char*,const std::string&){} bool complete(bool result){return result;}};
+template<class Call> bool run(const char*,const std::string&,Call&& call){return call();}
+}
 static constexpr const char* uuid="30d0c486-b499-4baf-9e12-36081ad2e1bf";
 static std::string fixture_sha(64,'a');
 static uint32_t GetCurrentThreadId(){return 7;}

@@ -108,7 +108,7 @@ bool Bridge::send(const Frame& frame,std::string& e){apply_timing::Scope measure
 bool Bridge::capture_before(const action_session::Request& r,const action_session::Ledger& before,uint64_t previous,std::string& e){paused_idle_equal_=false;Frame frame;if(r.snapshot_uuid!=context_.snapshot_uuid||r.host_revision!=previous||!capture(previous,frame,e))return fail(e,e.empty()?"live Host before request/snapshot/order differs":e);frame.for_action=r.action_uuid;if(!valid(frame,e))return false;if(ledger(frame.values)!=before)return fail(e,"live Host capture differs from actual action before ledger");host_before_=frame;if(day_){captured_day_->frame=frame;before_day_=captured_day_;if(economy_){captured_economy_->day.frame=frame;before_economy_=captured_economy_;}}e.clear();return true;}
 bool Bridge::publish_before(const action_session::Message& result,std::string& e){if(!host_before_||result.kind!=action_session::Kind::HostResult||result.outcome!=action_session::Outcome::Confirmed||result.session!=context_.session||result.request.action_uuid!=host_before_->for_action||result.revision!=host_before_->base_action_revision+1||result.evidence.before!=ledger(host_before_->values))return fail(e,"live Host before publication differs from actual confirmed result");if(day_)captured_day_=before_day_;if(economy_)captured_economy_=before_economy_;if(!send(*host_before_,e)){locked_=true;return false;}host_before_.reset();before_day_.reset();before_economy_.reset();return true;}
 bool Bridge::receive(uint64_t sender,const uint8_t* bytes,size_t n,std::string& e){if(locked_)return fail(e,"live Client frame locked after Unknown; no replay");if(suspended_){e="info: live frame waits during actual Snapshot load";return true;}Frame frame;std::optional<day::Target> target;std::optional<day::economy::State> economic;if(economy_){day::economy::State decoded;if(!day::economy::decode(bytes,n,decoded,e))return false;frame=decoded.day.frame;target=decoded.day;economic=std::move(decoded);}else if(day_){day::Target decoded;if(!day::decode(bytes,n,decoded,e))return false;frame=decoded.frame;target=std::move(decoded);}else if(!decode(bytes,n,frame,e))return false;if(bool(frame.party)!=bool(party_port_))return fail(e,"Party complete component/provider presence differs before Frame admission");if(bool(frame.monsters)!=bool(monster_port_))return fail(e,"Monster complete component/provider presence differs before Frame admission");if(bool(frame.release)!=bool(release_port_))return fail(e,"Release complete component/provider presence differs before full Frame ACK");if(bool(frame.management)!=bool(management_port_))return fail(e,"Management component/provider presence differs before full Frame ACK");if(bool(frame.marketing)!=bool(marketing_port_))return fail(e,"Marketing component/provider presence differs before full Frame ACK");if(bool(frame.vips)!=bool(vip_port_))return fail(e,vip_port_?"armed VIP Frame component missing":"VIP Frame requires native UI consumer before full-frame ACK");uint64_t time=0;if(!time_||!time_(time,e))return fail(e,e.empty()?"live actual Time authority provider missing":e);const auto gate=admit(sender,context_,common_epoch_,source_generation_?source_generation_:frame.source_generation,last_?&*last_:nullptr,frame,frame.base_action_revision,time,true,e);if(gate==Admission::Rejected)return false;if(gate==Admission::Duplicate||gate==Admission::Stale){if(gate==Admission::Duplicate&&day_&&(!last_day_||target!=last_day_))return fail(e,"live duplicate Frame conflicts with retained Day history");if(gate==Admission::Duplicate&&economy_&&economic!=last_economy_)return fail(e,"live duplicate Frame conflicts with retained Economy state");e.clear();return true;}if(!admit_vips(frame,e)||(marketing_port_&&!marketing_port_->admit(frame,queued_?&*queued_:nullptr,e))||(management_port_&&!management_port_->admit(frame,queued_?&*queued_:nullptr,e))||(party_port_&&!party_port_->admit(frame,queued_?&*queued_:nullptr,e)))return false;if(queued_&&frame.revision<=queued_->revision){if(frame==*queued_&&(!day_||target==queued_day_)&&(!economy_||economic==queued_economy_)){e.clear();return true;}return fail(e,"live queued revision stale/conflicting; no overwrite");}if(queued_&&!queued_->for_action.empty())return fail(e,"live action before frame retained until matching HostResult; no overwrite");source_generation_=frame.source_generation;queued_=frame;queued_day_=std::move(target);queued_economy_=std::move(economic);e.clear();return true;}
-bool Bridge::take(const Frame& frame,std::string& e){apply_timing::Scope measured_take(apply_timing::Part::Take);bool party_attempted=false,party_completed=false;PartyFailureLatch party_latch{party_attempted,party_completed,locked_,receipt_,e};bool vip_attempted=false,vip_completed=false;VipFailureLatch vip_latch{vip_attempted,vip_completed,locked_,receipt_,e};std::vector<vip::Transition> vip_work;if(!prepare_vips(frame,vip_work,e))return false;bool developer_attempted=false,developer_completed=false;DeveloperFailureLatch developer_latch{developer_attempted,developer_completed,locked_,receipt_,e};bool bug_attempted=false,bug_completed=false;BugFailureLatch bug_latch{bug_attempted,bug_completed,locked_,receipt_,e};if(locked_)return fail(e,"live Client Apply locked after Unknown; no replay");if(bool(frame.party)!=bool(party_port_))return fail(e,"Party complete component/provider presence differs before mutation");if(party_port_){PartyReceipt prepared;const bool okay=party_port_->prepare_apply(context_,binding_,frame,prepared,e);party_attempted=prepared.attempted||prepared.unknown;if(!okay||!prepared.confirmed)return fail(e,e.empty()?"Party/Instance structural receipt unconfirmed":e);}Pin before;if(!port_.read(before,e))return false;if(before.context!=context_||before.binding!=binding_||before.common_epoch!=common_epoch_)return fail(e,"live Client actual pin differs from Controller");if(!frame.network||!([&]{apply_timing::Scope measured_group(apply_timing::Part::NetworkPreflight);return network::preflight_native(port_,*frame.network,e);}()))return fail(e,e.empty()?"live exact Node state/preflight absent":e);if(!frame.tutorial||!tutorial_replication::valid(*frame.tutorial,e))return fail(e,e.empty()?"live tutorial state absent":e);
+bool Bridge::take(const Frame& frame,std::string& e){apply_timing::Scope measured_take(apply_timing::Part::Take);bool party_attempted=false,party_completed=false;PartyFailureLatch party_latch{party_attempted,party_completed,locked_,receipt_,e};bool vip_attempted=false,vip_completed=false;VipFailureLatch vip_latch{vip_attempted,vip_completed,locked_,receipt_,e};std::vector<vip::Transition> vip_work;if(!prepare_vips(frame,vip_work,e))return false;bool developer_attempted=false,developer_completed=false;DeveloperFailureLatch developer_latch{developer_attempted,developer_completed,locked_,receipt_,e};bool bug_attempted=false,bug_completed=false;BugFailureLatch bug_latch{bug_attempted,bug_completed,locked_,receipt_,e};if(locked_)return fail(e,"live Client Apply locked after Unknown; no replay");if(bool(frame.party)!=bool(party_port_))return fail(e,"Party complete component/provider presence differs before mutation");if(party_port_){PartyReceipt prepared;const bool okay=([&]{apply_timing::Scope measured(apply_timing::Part::ClientPartyPrepare);return party_port_->prepare_apply(context_,binding_,frame,prepared,e);}());party_attempted=prepared.attempted||prepared.unknown;if(!okay||!prepared.confirmed)return fail(e,e.empty()?"Party/Instance structural receipt unconfirmed":e);}Pin before;if(!port_.read(before,e))return false;if(before.context!=context_||before.binding!=binding_||before.common_epoch!=common_epoch_)return fail(e,"live Client actual pin differs from Controller");if(!frame.network||!([&]{apply_timing::Scope measured_group(apply_timing::Part::NetworkPreflight);return network::preflight_native(port_,*frame.network,e);}()))return fail(e,e.empty()?"live exact Node state/preflight absent":e);if(!frame.tutorial||!tutorial_replication::valid(*frame.tutorial,e))return fail(e,e.empty()?"live tutorial state absent":e);
 if(bool(frame.monsters)!=bool(monster_port_))return fail(e,"Monster component/provider presence differs before mutation");
 if(monster_port_&&!monster_port_->preflight(context_,binding_,frame,e))return false;
 if(applying_economy_)return fail(e,"live nested Economy adoption rejected");
@@ -144,6 +144,14 @@ bool Bridge::acknowledge_frame(const Frame& frame,std::string& e){
     if(party_port_&&!party_port_->committed(frame,e)){locked_=true;receipt_.unknown=true;receipt_.confirmed=false;receipt_.cause="Party Frame ACK cleanup failed original="+e;return false;}
     if(economy_&&queued_economy_&&queued_economy_->additions.available)economy_->subscriber_frame_committed(frame.revision);
     e.clear();return true;
+}
+bool Bridge::application_ready(bool& waiting,std::string& e){
+    if(!port_.application_ready(common_epoch_,waiting,e)){application_waiting_=false;return false;}
+    if(waiting){
+        application_last_wait_=e;if(application_first_wait_.empty())application_first_wait_=e;
+        if(application_wait_count_!=UINT64_MAX)++application_wait_count_;
+    }else if(application_waiting_&&application_recovery_count_!=UINT64_MAX)++application_recovery_count_;
+    application_waiting_=waiting;return true;
 }
 bool Bridge::tick(uint64_t action,bool pending,std::string& e,std::chrono::steady_clock::time_point now){
     publication_wait_.clear();
@@ -215,11 +223,40 @@ bool Bridge::tick(uint64_t action,bool pending,std::string& e,std::chrono::stead
     const auto gate=admit(context_.host_peer,context_,common_epoch_,source_generation_,last_?&*last_:nullptr,*queued_,action,time,pending,e);
     if(gate==Admission::Wait)return true;
     if(gate==Admission::Rejected)return false;
-    if(gate==Admission::New&&!take(*queued_,e))return false;
+    if(gate==Admission::New){
+        bool waiting=false;if(!application_ready(waiting,e))return false;
+        // Keep all queued components until native saving ends, before any Frame work.
+        if(waiting){publication_wait_=e;return true;}
+        if(!take(*queued_,e))return false;
+    }
     queued_.reset();queued_day_.reset();queued_economy_.reset();e.clear();return true;
 }
-bool Bridge::before_result(uint64_t sender,const action_session::Message& result,uint64_t previous,std::string& e){if(locked_||!queued_)return fail(e,locked_?"live before-result locked; no replay":"live exact HostBeforeFrame missing before native replay");uint64_t time=0;if(!time_||!time_(time,e))return fail(e,e.empty()?"live actual Time authority provider missing":e);const auto gate=admit_before_result(sender,context_,common_epoch_,source_generation_,last_?&*last_:nullptr,*queued_,result,previous,time,e);if(gate!=Admission::New&&gate!=Admission::Duplicate)return fail(e,"live authority before-result refused: "+e);if(gate==Admission::New&&!take(*queued_,e))return false;queued_.reset();queued_day_.reset();queued_economy_.reset();e.clear();return true;}
-action_session::AuthorityReadiness Bridge::before_ready(uint64_t sender,const action_session::Message& result,uint64_t previous,std::string& e){using Ready=action_session::AuthorityReadiness;if(locked_||!queued_){e=locked_?"live before-result locked":"live exact HostBeforeFrame missing before native replay";return Ready::Rejected;}uint64_t time=0;if(!time_||!time_(time,e)){if(e.empty())e="live actual Time authority provider missing";return Ready::Rejected;}const auto gate=admit_before_result(sender,context_,common_epoch_,source_generation_,last_?&*last_:nullptr,*queued_,result,previous,time,e);if(gate==Admission::Wait){e="info: live HostResult waits for actual Time revision measured="+std::to_string(time)+" required="+std::to_string(queued_->time_revision);return Ready::Wait;}if(gate!=Admission::New&&gate!=Admission::Duplicate)return Ready::Rejected;e.clear();return Ready::Ready;}
+bool Bridge::before_result(uint64_t sender,const action_session::Message& result,uint64_t previous,std::string& e){
+    if(locked_||!queued_)return fail(e,locked_?"live before-result locked; no replay":"live exact HostBeforeFrame missing before native replay");
+    uint64_t time=0;if(!time_||!time_(time,e))return fail(e,e.empty()?"live actual Time authority provider missing":e);
+    const auto gate=admit_before_result(sender,context_,common_epoch_,source_generation_,last_?&*last_:nullptr,*queued_,result,previous,time,e);
+    if(gate!=Admission::New&&gate!=Admission::Duplicate)return fail(e,"live authority before-result refused: "+e);
+    if(gate==Admission::New){
+        bool waiting=false;if(!application_ready(waiting,e))return false;
+        // The Controller has committed this HostResult by now; only before_ready may defer it.
+        if(waiting)return fail(e,"live authority before-result native save began after readiness; no replay: "+e);
+        if(!take(*queued_,e))return false;
+    }
+    queued_.reset();queued_day_.reset();queued_economy_.reset();e.clear();return true;
+}
+action_session::AuthorityReadiness Bridge::before_ready(uint64_t sender,const action_session::Message& result,uint64_t previous,std::string& e){
+    using Ready=action_session::AuthorityReadiness;
+    if(locked_||!queued_){e=locked_?"live before-result locked":"live exact HostBeforeFrame missing before native replay";return Ready::Rejected;}
+    uint64_t time=0;if(!time_||!time_(time,e)){if(e.empty())e="live actual Time authority provider missing";return Ready::Rejected;}
+    const auto gate=admit_before_result(sender,context_,common_epoch_,source_generation_,last_?&*last_:nullptr,*queued_,result,previous,time,e);
+    if(gate==Admission::Wait){e="info: live HostResult waits for actual Time revision measured="+std::to_string(time)+" required="+std::to_string(queued_->time_revision);return Ready::Wait;}
+    if(gate!=Admission::New&&gate!=Admission::Duplicate)return Ready::Rejected;
+    if(gate==Admission::New){
+        bool waiting=false;if(!application_ready(waiting,e))return Ready::Rejected;
+        if(waiting)return Ready::Wait;
+    }
+    e.clear();return Ready::Ready;
+}
 }
 
 namespace mt2mp::game::live_host_state {
@@ -240,7 +277,7 @@ bool Bridge::suspend_lobby(std::string& e){
     paused_idle_equal_=false;suspended_=lobby_retiring_=true;fragments_.clear();apply_acks_.clear();
     if(!vip_clean)e="warn: live lobby retiring after VIP cleanup failure original="+vip_cause;else if(!marketing_clean)e="warn: live lobby retiring after Marketing suspension failure original="+marketing_cause;else if(!monster_clean)e="warn: live lobby retiring after Monster suspension failure original="+monster_cause;else if(!party_clean)e="warn: live lobby retiring after Party suspension failure original="+party_cause;else e.clear();return true;
 }
-bool Bridge::rebind_snapshot(const Context& c,const Binding& b,uint64_t epoch,std::string& e){if(lobby_retiring_||!suspended_||locked_||!epoch||c.session!=context_.session||c.role!=context_.role||c.local_peer!=context_.local_peer||c.host_peer!=context_.host_peer||c.peer_mask!=context_.peer_mask)return fail(e,"live snapshot rebind requires suspended same Controller");Pin actual;if(!port_.read(actual,e)||actual.context!=c||actual.binding!=b||actual.common_epoch!=epoch)return fail(e,e.empty()?"live snapshot fresh actual Pin differs":e);if(day_&&!day_->rebind_snapshot(c,b,e))return false;if(economy_&&!economy_->rebind_snapshot(e))return false;if((management_port_&&!management_port_->bind(c,b,epoch,e))||(release_port_&&!release_port_->bind(c,b,epoch,e))||!reset_vips(c,b,epoch,e)||(marketing_port_&&!marketing_port_->bind(c,b,epoch,e))||(monster_port_&&!monster_port_->bind(c,b,epoch,e))||(party_port_&&!party_port_->bind(c,b,epoch,e)))return false;context_=c;binding_=b;common_epoch_=epoch;time_=[c](uint64_t& revision,std::string& cause){return read_time_authority(c,revision,cause);};last_.reset();queued_.reset();host_before_.reset();captured_day_.reset();queued_day_.reset();before_day_.reset();last_day_.reset();captured_economy_.reset();queued_economy_.reset();before_economy_.reset();last_economy_.reset();host_revision_=source_generation_=last_day_sequence_=0;last_capture_.reset();paused_idle_equal_=false;fragments_.clear();apply_acks_.clear();sent_frame_transport_=received_frame_transport_=nullptr;network_activation_receipt_.clear();publication_wait_.clear();publication_first_wait_.clear();publication_last_wait_.clear();publication_wait_count_=publication_recovery_count_=0;publication_was_waiting_=false;suspended_=false;e.clear();return true;}
+bool Bridge::rebind_snapshot(const Context& c,const Binding& b,uint64_t epoch,std::string& e){if(lobby_retiring_||!suspended_||locked_||!epoch||c.session!=context_.session||c.role!=context_.role||c.local_peer!=context_.local_peer||c.host_peer!=context_.host_peer||c.peer_mask!=context_.peer_mask)return fail(e,"live snapshot rebind requires suspended same Controller");Pin actual;if(!port_.read(actual,e)||actual.context!=c||actual.binding!=b||actual.common_epoch!=epoch)return fail(e,e.empty()?"live snapshot fresh actual Pin differs":e);if(day_&&!day_->rebind_snapshot(c,b,e))return false;if(economy_&&!economy_->rebind_snapshot(e))return false;if((management_port_&&!management_port_->bind(c,b,epoch,e))||(release_port_&&!release_port_->bind(c,b,epoch,e))||!reset_vips(c,b,epoch,e)||(marketing_port_&&!marketing_port_->bind(c,b,epoch,e))||(monster_port_&&!monster_port_->bind(c,b,epoch,e))||(party_port_&&!party_port_->bind(c,b,epoch,e)))return false;context_=c;binding_=b;common_epoch_=epoch;time_=[c](uint64_t& revision,std::string& cause){return read_time_authority(c,revision,cause);};last_.reset();queued_.reset();host_before_.reset();captured_day_.reset();queued_day_.reset();before_day_.reset();last_day_.reset();captured_economy_.reset();queued_economy_.reset();before_economy_.reset();last_economy_.reset();host_revision_=source_generation_=last_day_sequence_=0;last_capture_.reset();paused_idle_equal_=false;fragments_.clear();apply_acks_.clear();sent_frame_transport_=received_frame_transport_=nullptr;network_activation_receipt_.clear();publication_wait_.clear();publication_first_wait_.clear();publication_last_wait_.clear();publication_wait_count_=publication_recovery_count_=0;publication_was_waiting_=false;application_first_wait_.clear();application_last_wait_.clear();application_wait_count_=application_recovery_count_=0;application_waiting_=false;suspended_=false;e.clear();return true;}
 }
 
 namespace mt2mp::game::live_host_state {
@@ -364,6 +401,7 @@ bool Bridge::reset_vips(const Context& c,const Binding& b,uint64_t epoch,std::st
 
 namespace mt2mp::game::live_host_state {
 bool Bridge::apply_marketing(const Frame& frame,std::string& e){
+    apply_timing::Scope measured(apply_timing::Part::ClientMarketingApply);
     if(!marketing_port_&&!frame.marketing)return true;
     MarketingReceipt result;
     if(!marketing_port_||!frame.marketing){e="Marketing complete component/provider absent";}
@@ -380,6 +418,7 @@ bool Bridge::apply_marketing(const Frame& frame,std::string& e){
 
 namespace mt2mp::game::live_host_state {
 bool Bridge::apply_monsters(const Frame& frame,std::string& e){
+    apply_timing::Scope measured(apply_timing::Part::ClientMonstersApply);
     if(!monster_port_&&!frame.monsters)return true;
     monsters::Receipt result;bool returned=false;
     if(!monster_port_||!frame.monsters)e="Monster complete component/provider absent at final Apply";
@@ -397,6 +436,7 @@ bool Bridge::apply_monsters(const Frame& frame,std::string& e){
 
 namespace mt2mp::game::live_host_state {
 bool Bridge::apply_management(const Frame& frame,std::string& e){
+    apply_timing::Scope measured(apply_timing::Part::ClientManagementApply);
     if(!management_port_&&!frame.management)return true;
     ManagementReceipt result;bool returned=false;
     if(!management_port_||!frame.management)e="Management complete component/provider absent";
@@ -413,6 +453,7 @@ bool Bridge::apply_management(const Frame& frame,std::string& e){
 
 namespace mt2mp::game::live_host_state {
 bool Bridge::apply_release(const Frame& frame,std::string& e){
+    apply_timing::Scope measured(apply_timing::Part::ClientReleaseApply);
     if(!release_port_&&!frame.release)return true;ReleaseReceipt result;bool returned=false;
     if(!release_port_||!frame.release)e="Release complete component/provider absent";
     else try{returned=release_port_->apply(context_,binding_,frame,result,e);}

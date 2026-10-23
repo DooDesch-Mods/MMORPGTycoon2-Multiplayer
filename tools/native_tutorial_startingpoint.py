@@ -6,6 +6,7 @@ import uuid
 
 from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, compare_ledgers, extract_result, hash_file, read_json, utc
 from lobby_ui.native_local_acceptance import button, observe, left, ready
+from runtime import candidate_binary_receipt
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--expected-run-id', required=True)
@@ -16,6 +17,7 @@ parser.add_argument('--natural-work', action='store_true', help='Let the assigne
 parser.add_argument('--resume-start-from', type=Path, help='Reuse a confirmed open Research view after a recorded no-effect hidden-HUD time rejection')
 parser.add_argument('--snapshot', default='71b654a4-e005-4ad6-af5c-9c2974f9d41f')
 parser.add_argument('--require-client', action='store_true', help='Require the joined Client to adopt every Host transition')
+parser.add_argument('--candidate-binary', type=Path, help='Exact frozen plugin or standalone DLL for this owned run')
 args = parser.parse_args()
 args.players, args.cleanup = 2, False
 args.step_timeout, args.ready_timeout, args.wait_seconds = 45, 60, 60
@@ -354,11 +356,11 @@ def client_start():
             raise AcceptanceError('Client Research changed local ledger before applying the Host result: ' + field)
     action_id = submitted.get('action_uuid')
     try:
-        if submitted.get('submitted') is not True or str(uuid.UUID(action_id)) != action_id:
+        if not (submitted.get('submitted') is True or submitted.get('queued') is True) or str(uuid.UUID(action_id)) != action_id:
             raise ValueError('actual action UUID missing')
     except (ValueError, TypeError, AttributeError) as error:
         raise AcceptanceError('Client Research has no confirmed submission identity; no replay: ' + str(error)) from error
-    runner.checked('submitted-start-action', {'action_uuid': action_id, 'submitted': True, 'result_confirmed': False})
+    runner.checked('submitted-start-action', {'action_uuid': action_id, 'submitted': submitted.get('submitted', False), 'queued': submitted.get('queued', False), 'result_confirmed': False})
     deadline, sample = time.monotonic() + 60, 0
     while True:
         sample += 1
@@ -416,7 +418,9 @@ def client_start():
         raise AcceptanceError('Research full ledger differs from one category3 purchase: ' +
                               str({'expected': expected, 'actual': after_ledger}))
     progress = runner.single('client-start-progress', 'client-1', 'game_read_tutorial_progress')
-    if (progress.get('client_start_submitted') is not True or progress.get('client_start_suppressed') is not True
+    if submitted.get('route') == 'general_project':
+        confirm_project_receipt(action_id, 1)
+    elif (progress.get('client_start_submitted') is not True or progress.get('client_start_suppressed') is not True
             or progress.get('client_start_action_uuid') != action_id or progress.get('client_start_cause')
             or progress.get('client_start_presentation_cause')):
         raise AcceptanceError('Ordinary Client Research capture/presentation receipt differs')
@@ -475,11 +479,11 @@ def client_staff():
             raise AcceptanceError('Staff changed local ledger before Host result: ' + field)
     action_id = submitted.get('action_uuid')
     try:
-        if submitted.get('submitted') is not True or str(uuid.UUID(action_id)) != action_id:
+        if not (submitted.get('submitted') is True or submitted.get('queued') is True) or str(uuid.UUID(action_id)) != action_id:
             raise ValueError('actual action UUID missing')
     except (ValueError, TypeError, AttributeError) as error:
         raise AcceptanceError('Staff lacks confirmed intent submission; no replay: ' + str(error)) from error
-    runner.checked('staff-submitted', {'action_uuid': action_id, 'submitted': True, 'host_completion_confirmed': False})
+    runner.checked('staff-submitted', {'action_uuid': action_id, 'submitted': submitted.get('submitted', False), 'queued': submitted.get('queued', False), 'host_completion_confirmed': False})
     deadline, sample = time.monotonic() + 60, 0
     while True:
         sample += 1
@@ -521,7 +525,9 @@ def client_staff():
     if ledger_after != ledger_before:
         raise AcceptanceError('Staff action changed full native ledger')
     progress = runner.single('staff-capture-progress', 'client-1', 'game_read_tutorial_progress')
-    if (progress.get('client_staff_suppressed') is not True or progress.get('client_staff_submitted') is not True
+    if submitted.get('route') == 'general_project':
+        confirm_project_receipt(action_id, 4)
+    elif (progress.get('client_staff_suppressed') is not True or progress.get('client_staff_submitted') is not True
             or progress.get('client_staff_action_uuid') != action_id or progress.get('client_staff_cause')
             or progress.get('client_staff_desired_workers') != 1):
         raise AcceptanceError('Staff hook capture receipt differs from confirmed action')
@@ -740,14 +746,24 @@ def begin_project():
     runner.summary.update(before=baseline, after=after, native_host_begin_proven=True,
                           client_adoption_proven=True, ledger_equality_proven=True, native_purchase_price=price)
 
+def confirm_project_receipt(action_id, command):
+    for peer in ('host', 'client-1'):
+        engine = runner.inspect('general-project-' + peer, peer)
+        receipt = engine.get('typed_actions', {}).get('general_project', {}).get('operations', {}).get(action_id, {})
+        if (not all(receipt.get(field) is True for field in ('attempted', 'native_entered', 'returned', 'confirmed', 'retired'))
+                or receipt.get('cause') or receipt.get('intent', {}).get('command') != command):
+            raise AcceptanceError('General project actual native receipt incomplete on ' + peer + ': ' + str(receipt))
+        runner.checked('general-project-' + peer, receipt)
+
+
 try:
     runner.load_manifests()
     if runner.summary['runtime_run_id'] != args.expected_run_id:
         raise AcceptanceError('Owned run differs; no mutation attempted')
-    digest = hash_file(ROOT / 'build/bin/Release/MT2_Multiplayer.dll')
+    candidate = args.candidate_binary or ROOT / 'build/bin/Release/MT2_Multiplayer.dll'
+    digest = hash_file(candidate)
     for peer, manifest in runner.manifests.items():
-        if read_json(manifest)['installed_binary_sha256']['MT2_Multiplayer.dll'] != digest:
-            raise AcceptanceError('Candidate DLL differs on ' + peer)
+        runner.checked('candidate-' + peer, candidate_binary_receipt(read_json(manifest), candidate))
     runner.summary['dll_sha256'] = digest
     if args.phase == 'prepare':
         for peer in ('host', 'client-1'):

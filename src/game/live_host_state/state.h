@@ -56,6 +56,8 @@ struct Port {
     virtual ~Port()=default;
     // Only the ordinary Host publication loop may defer before capture.
     virtual bool publication_ready(uint64_t,bool& waiting,std::string& e){waiting=false;e.clear();return true;}
+    // A Client may defer only before starting any work for the retained Frame.
+    virtual bool application_ready(uint64_t,bool& waiting,std::string& e){waiting=false;e.clear();return true;}
     virtual bool read(Pin&,std::string&)=0;
     virtual bool store(const Pin&,size_t slot,int32_t expected,int32_t target,std::string&)=0;
 };

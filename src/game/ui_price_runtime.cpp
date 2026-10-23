@@ -248,10 +248,8 @@ bool enable(std::string& e) {
     const auto second=MH_CreateHook(reinterpret_cast<void*>(r->image+0x54cf0),reinterpret_cast<void*>(&subscription_entry),reinterpret_cast<void**>(&subscription));
     if(second!=MH_OK||!subscription)return fail(e,"price Subscription MinHook create status="+std::to_string(second));
     r->subscription.store(subscription,std::memory_order_release);
-    const auto enabled_purchase=MH_EnableHook(reinterpret_cast<void*>(r->image+0x54ce0));
-    if(enabled_purchase!=MH_OK)return fail(e,"price Purchase MinHook enable status="+std::to_string(enabled_purchase));
-    const auto enabled_subscription=MH_EnableHook(reinterpret_cast<void*>(r->image+0x54cf0));
-    if(enabled_subscription!=MH_OK)return fail(e,"price Subscription MinHook enable status="+std::to_string(enabled_subscription));
+    const uintptr_t targets[]{r->image+0x54ce0,r->image+0x54cf0};
+    if(!mt2mp::hooks::enable_prepared_targets(targets,"price setters",e))return false;
     r->ready.store(true,std::memory_order_release);r->install_cause.clear();e.clear();return true;
 }
 void tick() {

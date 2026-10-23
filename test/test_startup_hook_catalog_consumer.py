@@ -10,6 +10,20 @@ CATALOG = None
 
 
 class ConsumerStartupHookTests(unittest.TestCase):
+    def test_legacy_receipt_checks_stay_between_immediate_enables(self):
+        for name in ('district_edit_routes.inc', 'district_stroke_routes.inc', 'zone_edit_routes.inc'):
+            with self.subTest(name=name):
+                text = (SOURCE / 'src/game' / name).read_text(encoding='utf8')
+                phase = text[text.index('    const bool batch='):]
+                self.assertIn('const bool batch=hooks::framework::process_backend().batch_available();', phase)
+                self.assertRegex(phase, r'if\(batch&&!.*enable_prepared_routes\(')
+                loop = phase[phase.index('    for(auto& route:routes){'):]
+                self.assertRegex(loop, r'if\(!batch\)\{const auto result=MH_EnableHook\((target|entry)\);if\(result!=MH_OK\)\{')
+                self.assertLess(loop.index('MH_EnableHook('), loop.index('read_route('))
+                self.assertLess(loop.index('read_route('), loop.index('route.generation=receipt.generation;'))
+                self.assertEqual(loop.count('MH_EnableHook('), 1)
+                self.assertNotIn('enable_prepared_routes(', loop)
+
     def setUp(self):
         self.consumer = rows((CATALOG or SOURCE / "src/hooks/framework_catalog.inc").read_text(encoding="utf-8"))
         targets, _ = startup_targets(SOURCE)

@@ -19,24 +19,31 @@ struct ValueMemory final:subscriber_lifecycle::Memory {
 };
 struct Captured {ValueMemory& memory;subscriber_lifecycle::Graph graph;};
 bool inspect(void* user,const void* record,const void* context,std::string& error){auto& value=*static_cast<Captured*>(user);
+    character_catalogue_timing::Scope measured(character_catalogue_timing::Part::GraphRead);
+    // SaveRecord has returned; this pure read ends before native record cleanup.
+    live_host_state::apply_timing::PageReadScope record_pages;
     return subscriber_lifecycle::read_graph(value.memory,uintptr_t(record),uintptr_t(context),{100000,1000000,32*1024*1024,100000},value.graph,error);
 }
 bool owner_add(std::map<uintptr_t,std::string>& owners,uintptr_t object,const std::string& key,std::string& error){
     if(!object||key.empty())return fail(error,"Character original Record owner is empty");
     const auto [found,inserted]=owners.emplace(object,key);return inserted||found->second==key||fail(error,"Character original Record owner aliases two canonical keys");
 }
-bool complete_record(Memory& memory,uintptr_t object,uintptr_t prepare,uintptr_t save,const std::map<uintptr_t,std::string>& owners,std::string& hash,std::string& error){
+character_catalogue_batch::Result complete_record_capture(Memory& memory,uintptr_t object,uintptr_t prepare,uintptr_t save,
+    const std::map<uintptr_t,std::string>& owners,character_catalogue_batch::Mode mode,std::string& hash,std::string& error){
     ValueMemory graph_memory(memory);Captured value{graph_memory};subscriber_lifecycle::CaptureReceipt cleanup;
     const subscriber_lifecycle::CaptureApi calls{
         reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
         reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
         reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+prepare),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+save)};
-    {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
-        if(!subscriber_lifecycle::capture_original(calls,reinterpret_cast<const void*>(object),inspect,&value,cleanup,error))return false;}
-    const auto external=[&](uintptr_t pointer,std::string& key,std::string& cause){const auto found=owners.find(pointer);
-        if(found==owners.end())return fail(cause,"Character complete original definition Record contains an unresolved external reference");key=found->second;return true;};
-    duplicate_records::Witness result;if(!duplicate_records::summarize(value.graph,object,external,result,error))return false;
-    hash=std::move(result.sha);return true;
+    {character_catalogue_timing::Scope measured(character_catalogue_timing::Part::NativeCapture);
+        live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
+        if(!subscriber_lifecycle::capture_original(calls,reinterpret_cast<const void*>(object),inspect,&value,cleanup,error))return character_catalogue_batch::Result::Failed;}
+    if(character_catalogue_timing::active){character_catalogue_timing::active->graph_nodes+=value.graph.records.size();character_catalogue_timing::active->private_links+=value.graph.private_links.size();}
+    {character_catalogue_timing::Scope measured(character_catalogue_timing::Part::CanonicalRecords);
+        return character_catalogue_record::summarize(value.graph,object,owners,mode,hash,error);}
+}
+bool complete_record(Memory& memory,uintptr_t object,uintptr_t prepare,uintptr_t save,const std::map<uintptr_t,std::string>& owners,std::string& hash,std::string& error){
+    return complete_record_capture(memory,object,prepare,save,owners,character_catalogue_batch::Mode::Eager,hash,error)==character_catalogue_batch::Result::Complete;
 }
 bool row(Memory& memory,const definitions::Census& census,const definitions::Definition& definition,a::CharacterMembershipRow& out,std::string& error){
     out={};out.kind=definition.kind;out.id=definition.id;out.deleted=definition.deleted;
@@ -73,11 +80,14 @@ bool external_owners(Memory& memory,const a::Binding& binding,const std::string&
             const auto prior=previous?previous->owners.find(definition.owning_collection):owners.end();
             owners.emplace(definition.owning_collection,previous&&prior!=previous->owners.end()?prior->second:"character-collection:"+definition.key);}}
     auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return field(memory,base,offset,value,cause);};
-    definitions::Array regions;if(!definitions::array(at,map+0x230,regions,error))return false;
-    for(const auto region:regions.members){int32_t id=-1;uintptr_t selected=0;
-        if(!at(region,0x834,id,error)||!region_saved_identity::resolve(state.image,map,out.world.root,id,region,selected,at,error)||
-           !owner_add(owners,region,"region:"+std::to_string(id),error))return false;}
-    if(!definitions::unchanged(at,regions,error))return false;
+    {
+        live_host_state::apply_timing::PageReadScope region_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
+        region_saved_identity::Index regions;
+        if(!region_saved_identity::capture(state.image,map,out.world.root,regions,at,error))return false;
+        for(const auto& [id,region]:regions.saved)
+            if(!owner_add(owners,region,"region:"+std::to_string(id),error))return false;
+        if(!region_saved_identity::verify(state.image,map,out.world.root,regions,at,error))return false;
+    }
     dungeon_scene_identity_runtime::Census scenes;
     if(!dungeon_scene_identity_runtime::read_current(scenes,error))return false;
     if(scenes.world.map!=out.world.origin.map||scenes.world.state!=out.world.origin.state||
@@ -93,12 +103,16 @@ bool external_owners(Memory& memory,const a::Binding& binding,const std::string&
             if(!owner_add(owners,pool.managers[i],scene.key+"/manager/"+std::to_string(i),error))return false;
         for(const auto& gizmo:pool.local.members){std::string key;
             if(!dungeon_scene_identity_runtime::resolve(gizmo.object,gizmo.uid,key,error)||!owner_add(owners,gizmo.object,key,error))return false;}}
-    json props;if(!remove_diagnostics::bindings(props,error))return false;
+    {
+    character_catalogue_timing::Scope prop_names(character_catalogue_timing::Part::ExternalProps);
+    // Character Record references need current canonical identity and full UID.
+    json props;if(!remove_diagnostics::identity_bindings(props,error))return false;
     for(const auto& prop:props.at("bindings")){if(prop.at("revoked").get<bool>())continue;
         if(prop.at("unknown").get<bool>()||prop.at("snapshot_id")!=snapshot)return fail(error,"Character complete original Record shared prop alias is unknown or foreign");
         uintptr_t pointer=0;const auto seh=lookup(out.api.find,prop.at("local_uid").get<uint64_t>(),pointer);
         if(seh||!pointer)return fail(error,"Character complete original Record prop FindUID failed SEH="+std::to_string(seh));
         if(!owner_add(owners,pointer,prop.at("record_key").get<std::string>(),error))return false;}
+    }
     a::Context context;std::vector<action_runtime::StateOwner> npcs;
     if(!a::selected_session().current(context,error)||!action_runtime::state_owners(context,binding,npcs,error))return false;
     for(const auto& npc:npcs){if(!owner_add(owners,npc.npc,npc.key,error))return false;

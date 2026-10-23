@@ -11,6 +11,11 @@ text = (a.source_root / 'src/game/live_host_state/bridge.cpp').read_text(encodin
 start = text.index('bool Bridge::take(')
 end = text.index('\nbool Bridge::', start + 1)
 body = text[start:end]
+# Compare the exact original Party call after removing its named timing scope.
+party_call = 'party_port_->prepare_apply(context_,binding_,frame,prepared,e)'
+party_timed = '([&]{apply_timing::Scope measured(apply_timing::Part::ClientPartyPrepare);return '+party_call+';}())'
+assert body.count(party_timed) == 1, 'one exact Client Party timing scope required'
+body = body.replace(party_timed, party_call, 1)
 # Party/Instance effects use the same full-Frame failure latch and ACK. Check
 # their ordering separately before comparing the pre-existing component flow.
 party_prefix = 'bool party_attempted=false,party_completed=false;PartyFailureLatch party_latch{party_attempted,party_completed,locked_,receipt_,e};'

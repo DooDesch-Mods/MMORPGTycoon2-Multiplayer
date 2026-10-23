@@ -1,4 +1,5 @@
 #include "gm_ticket_native.h"
+#include "live_host_state/memory_query_timing.h"
 #include <Windows.h>
 #include <atomic>
 #include <memory>
@@ -9,7 +10,10 @@ namespace {
 namespace c=subscriber_lifecycle;
 struct Borrow {c::Memory& memory;const Key& key;release_graph::Value& value;};
 bool inspect(void* user,const void* record,const void* context,std::string& error){auto& scope=*static_cast<Borrow*>(user);c::Graph graph;
-    if(!c::read_graph(scope.memory,uintptr_t(record),uintptr_t(context),{release_graph::maximum_records,release_graph::maximum_tokens,release_graph::maximum_text,release_graph::maximum_links},graph,error))return false;
+    {
+        live_host_state::apply_timing::PageReadScope record_pages;
+        if(!c::read_graph(scope.memory,uintptr_t(record),uintptr_t(context),{release_graph::maximum_records,release_graph::maximum_tokens,release_graph::maximum_text,release_graph::maximum_links},graph,error))return false;
+    }
     return release_graph::capture_value(graph,scope.key,scope.value,error,release_graph::Kind::GameMasterTickets);
 }
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}

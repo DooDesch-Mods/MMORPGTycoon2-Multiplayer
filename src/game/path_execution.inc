@@ -42,7 +42,7 @@ bool enable(std::string& e) {
     struct Hook{uintptr_t rva;void* entry;void** original;};
     const Hook hooks[]{{0x5cc2b0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&path.press)},{0x43a1b0,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&path.purchase)},{0x7b04b0,reinterpret_cast<void*>(&remove_ui_entry),reinterpret_cast<void**>(&path.remove_ui)}};
     for(const auto& h:hooks){auto s=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(s!=MH_OK||!*h.original)return fail(e,"path MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
-    for(const auto& h:hooks){auto s=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(s!=MH_OK)return fail(e,"path MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"path hook",e))return false;
     if(!code(*r,true,e)||!world_path_runtime::enable(*r,e))return false;
     path.ready=true;return true;
 }

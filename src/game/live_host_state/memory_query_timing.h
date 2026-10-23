@@ -14,12 +14,15 @@ class PageReadScope;
 inline thread_local PageReadScope* page_read_scope=nullptr;
 enum class PageBoundary {Reader,OriginalCall};
 inline thread_local uint64_t original_call_revision=0;
+inline bool reader_query_scope()noexcept;
 namespace detail {
 template<auto Query,class Clock=std::chrono::steady_clock>
 inline SIZE_T query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T length,Part category=Part::QueryOther){
     if(!take_depth&&!host_capture_depth)return Query(address,information,length);
     const bool scoped=page_read_scope!=nullptr;
     const auto phase=query_phase;
+    const auto management=management_query_parts;
+    const bool reader_scoped=reader_query_scope();
     const DWORD incoming=GetLastError();
     const auto started=Clock::now();
     SetLastError(incoming);
@@ -30,6 +33,11 @@ inline SIZE_T query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T
     if(take_depth){
         record(Part::MemoryVirtualQuery,ns);
         record(category,ns);
+        if(management.all!=Part::Count){record(Part::ClientQueryManagementTotalOs,ns);record(management.all,ns);}
+        if(category==Part::QueryWorldProp){
+            record(reader_scoped?Part::WorldPropScopedOs:Part::WorldPropUnscopedOs,ns);
+            if(management.all!=Part::Count)record(reader_scoped?management.world_prop_scoped:management.world_prop_unscoped,ns);
+        }
         if(category==Part::QueryPlacement){
             record(scoped?Part::PlacementScopedOs:Part::PlacementUnscopedOs,ns);
             record(scoped?scoped_phase_part(phase):unscoped_phase_part(phase),ns);
@@ -71,6 +79,7 @@ public:
     PageReadScope& operator=(const PageReadScope&)=delete;
     ~PageReadScope(){if(enabled_){page_read_scope=previous_;clear_parent();}}
 };
+inline bool reader_query_scope()noexcept{return PageReadScope::reader_active();}
 inline SIZE_T virtual_query(LPCVOID address,PMEMORY_BASIC_INFORMATION information,SIZE_T length,Part category=Part::QueryOther){
     auto* scope=page_read_scope;
     // Mixed original bodies can change mappings between their own reads.

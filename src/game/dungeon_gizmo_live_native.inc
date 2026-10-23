@@ -81,6 +81,8 @@ bool capture_live(const a::Context& context,const a::Binding& binding,dungeon_gi
 bool apply_live(const a::Context& context,const a::Binding& binding,const dungeon_gizmo_live::State& target,dungeon_gizmo_live::Receipt& receipt,std::string& error){
     receipt={};Memory memory;LiveSample before;
     if(context.role!=a::Role::Client||!gl::valid(target,error)||!live_sample(memory,context,binding,before,error)||!gl::same_members(before.value,target,error))return false;
+    // The fresh paired census proves no Scene exists on either side; no adoption can run.
+    if(before.value.empty()&&target.empty()){receipt.confirmed=true;error.clear();return true;}
     auto expected=before.value;
     const auto failed=[&]{receipt.cause=error.empty()?"Gizmo live adoption failed without cause":error;error=receipt.cause;receipt.unknown=receipt.attempted;return false;};
     const auto current=[&](LiveSample& now){return live_sample(memory,context,binding,now,error)&&now.locals==before.locals&&now.value==expected||fail(error,error.empty()?"Gizmo live current complete owner/value differs before write":error);};

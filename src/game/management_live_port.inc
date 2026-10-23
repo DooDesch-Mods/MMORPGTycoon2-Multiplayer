@@ -5,20 +5,28 @@ namespace management=management_simulation;
 #include "analytics_native.inc"
 #include "subscriber_demand_native.inc"
 #include "toon_thought_frame.inc"
-bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& binding,const live::Pin& pin,management::LiveState& out,std::string& e){
+bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& binding,const live::Pin& pin,management::LiveState& out,std::string& e,thought_frame_native::Snapshot* primary_thoughts=nullptr,bool planning=false){
     character_calendar::State calendar;subscriber_demand::State demands;
-    {std::optional<live::apply_timing::Scope> measured_calendar;if(live::apply_timing::host_capture_depth)measured_calendar.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishCalendar:live::apply_timing::Part::HostManagementCalendar);
+    {std::optional<live::apply_timing::Scope> measured_calendar;if(live::apply_timing::host_capture_depth)measured_calendar.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishCalendar:live::apply_timing::Part::HostManagementCalendar);else if(live::apply_timing::take_depth)measured_calendar.emplace(live::apply_timing::Part::ClientManagementCalendarRead);
         live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);
         if(!character_calendar::capture_demands(context,binding,pin,calendar,demands,e))return false;}
-    scenario_intro::State intro;if(!tutorial_replication::capture_intro(context,binding,intro,e))return false;out.intro=intro;
-    thought_frame_native::Snapshot thoughts;{std::optional<live::apply_timing::Scope> measured_thought;if(live::apply_timing::host_capture_depth)measured_thought.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishThought:live::apply_timing::Part::HostManagementThought);
-        if(!thought_frame_native::sample(r,context,binding,thoughts,e)||thoughts.bound.pin!=pin)return fail(e,e.empty()?"Management Thought complete Clock/Ledger origin differs":e);out.thoughts=std::move(thoughts.value);}
+    if(!planning){
+    scenario_intro::State intro;
+    {std::optional<live::apply_timing::Scope> measured_intro;if(live::apply_timing::take_depth)measured_intro.emplace(live::apply_timing::Part::ClientManagementIntroRead);
+        if(!tutorial_replication::capture_intro(context,binding,intro,e))return false;}out.intro=intro;
+    thought_frame_native::Snapshot thoughts;{std::optional<live::apply_timing::Scope> measured_thought;if(live::apply_timing::host_capture_depth)measured_thought.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishThought:live::apply_timing::Part::HostManagementThought);else if(live::apply_timing::take_depth)measured_thought.emplace(live::apply_timing::Part::ClientManagementThoughtRead);
+        const bool read=primary_thoughts?thought_frame_native::once(r,context,binding,thoughts,e):thought_frame_native::sample(r,context,binding,thoughts,e);
+        if(!read||thoughts.bound.pin!=pin)return fail(e,e.empty()?"Management Thought complete Clock/Ledger origin differs":e);
+        if(primary_thoughts){*primary_thoughts=std::move(thoughts);out.thoughts=primary_thoughts->value;}else out.thoughts=std::move(thoughts.value);}
     dungeon_gizmo_live::State gizmos;
-    if(!npc_probe::monster_action_runtime::dungeon_gizmo::capture_live(context,binding,gizmos,e))return false;out.gizmos=std::move(gizmos);
+    {std::optional<live::apply_timing::Scope> measured_gizmos;if(live::apply_timing::take_depth)measured_gizmos.emplace(live::apply_timing::Part::ClientManagementGizmoRead);
+        if(!npc_probe::monster_action_runtime::dungeon_gizmo::capture_live(context,binding,gizmos,e))return false;}out.gizmos=std::move(gizmos);
+    }
     out.character_calendar=std::move(calendar);out.subscriber_demands=std::move(demands);return true;
 }
 
-bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,std::string& e){
+bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,thought_frame_native::Snapshot& thoughts,std::string& e,bool planning){
+    {std::optional<live::apply_timing::Scope> measured_roots;if(live::apply_timing::take_depth)measured_roots.emplace(live::apply_timing::Part::ClientManagementPrimaryRoots);
     local={};out={};if(!thought_native::fault.empty())return fail(e,thought_native::fault);a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Management live Session/Mainthread differs":e);
     live::NativePort port(context,binding,nullptr);if(!port.read(local.pin,e)||local.pin.image!=r.image)return false;
     if(!at(r,r.image,0x13df500,local.software,e)||!ap(r,local.software,0x1715450,e)||!at(r,r.image,0x13df4f0,local.release,e)||!ap(r,local.release,0x1714ed0,e)||
@@ -29,15 +37,28 @@ bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding
     out.release_present=local.current_release!=0;
     if(out.release_present&&(!ap(r,local.current_release,0x16c12b0,e)||!at(r,local.current_release,0x50,out.planned_version,e)||!at(r,local.current_release,0x60,out.release_type,e)))return false;
     if(!read_slots(r,local.software,out.character_slots,e)||!read_employment(r,local,out.lounge_employed,out.gm_employment,e))return false;
+    }
+    if(!planning){
     analytics_state::State analytics;analytics_state::Owners analytics_owners;live::Pin analytics_pin;
-    if(!analytics_native::sample(r,context,binding,analytics_owners,analytics,analytics_pin,e)||analytics_pin!=local.pin)return fail(e,e.empty()?"Management Analytics complete Clock/Ledger origin differs":e);
+    {std::optional<live::apply_timing::Scope> measured_analytics;if(live::apply_timing::take_depth)measured_analytics.emplace(live::apply_timing::Part::ClientManagementAnalyticsRead);
+        if(!analytics_native::sample(r,context,binding,analytics_owners,analytics,analytics_pin,e)||analytics_pin!=local.pin)return fail(e,e.empty()?"Management Analytics complete Clock/Ledger origin differs":e);}
     out.analytics=std::move(analytics);
-    if(!calendar_sample(r,context,binding,local.pin,out,e))return false;
-    return services_read(r,context,binding,local,out.services,e)&&general_project_runtime::capture_progress(context,binding,out.project,e)&&management::valid(out,e);
+    }
+    if(!calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning))return false;
+    {std::optional<live::apply_timing::Scope> measured_services;if(live::apply_timing::take_depth)measured_services.emplace(live::apply_timing::Part::ClientManagementServiceRead);
+        if(!services_read(r,context,binding,local,out.services,e))return false;}
+    {std::optional<live::apply_timing::Scope> measured_project;if(live::apply_timing::take_depth)measured_project.emplace(live::apply_timing::Part::ClientManagementProjectRead);
+        if(!general_project_runtime::capture_progress(context,binding,out.project,e))return false;}
+    return management::valid(out,e);
 }
-bool primary_read(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,std::string& e){
-    std::optional<live::apply_timing::Scope> measured_primary;if(live::apply_timing::host_capture_depth)measured_primary.emplace(live::apply_timing::Part::HostManagementPrimaryRead);
-    Local first;management::LiveState before;if(!primary_once(r,context,binding,first,before,e)||!primary_once(r,context,binding,local,out,e))return false;
+bool primary_read(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,std::string& e,bool planning=false){
+    std::optional<live::apply_timing::Scope> measured_primary;if(live::apply_timing::host_capture_depth)measured_primary.emplace(live::apply_timing::Part::HostManagementPrimaryRead);else if(live::apply_timing::take_depth)measured_primary.emplace(live::apply_timing::Part::ClientManagementPrimaryRead);
+    if(planning&&context.role!=a::Role::Client)return fail(e,"Management planning read requires Client role");
+    // Planning needs scalar, Service, Project and reciprocal Calendar/Demand state.
+    // Other children validate freshly at adoption; the final read remains complete.
+    Local first;management::LiveState before;thought_frame_native::Snapshot first_thoughts,last_thoughts;
+    if(!primary_once(r,context,binding,first,before,first_thoughts,e,planning)||!primary_once(r,context,binding,local,out,last_thoughts,e,planning))return false;
+    if(!planning&&(first_thoughts.bound!=last_thoughts.bound||first_thoughts.owners!=last_thoughts.owners||first_thoughts.value!=last_thoughts.value))return fail(e,"Thought complete current owners/values changed during double read");
     if(first.pin!=local.pin||first.software!=local.software||first.release!=local.release||first.current_release!=local.current_release||first.lounge!=local.lounge||first.gm_rows!=local.gm_rows||first.gm_uids!=local.gm_uids||first.services!=local.services||first.service_destinations!=local.service_destinations||before!=out)return fail(e,"Management live roots/scalars changed during double read");return true;
 }
 #include "gm_ticket_live.inc"
@@ -109,7 +130,7 @@ bool LivePort::apply(const a::Context& context,const a::Binding& binding,const l
     if(!r||!bound_||suspended_||locked_||context!=context_||binding!=binding_||context.role!=a::Role::Client||frame.session!=context.session||frame.snapshot!=context.snapshot_uuid||frame.epoch!=epoch_||!frame.management)return fail(e,"Management live Apply saved Context/Binding/Frame unavailable");
     if(!management::valid(*frame.management,e))return false;
     if(!frame.management->gizmos||!frame.management->thoughts||!frame.management->intro||!frame.management->analytics||!frame.management->character_calendar||!frame.management->subscriber_demands)return fail(e,"Management complete authoritative Gizmo/Thought/Intro/Analytics/Character calendar/Subscriber Demand component is absent");
-    Local local;management::LiveState before;if(!primary_read(*r,context,binding,local,before,e)||local.pin.selected!=0)return fail(e,e.empty()?"Management Client actual Clock must be0":e);
+    Local local;management::LiveState before;if(!primary_read(*r,context,binding,local,before,e,true)||local.pin.selected!=0)return fail(e,e.empty()?"Management Client actual Clock must be0":e);
     auto failed=[&](const std::string& cause){const auto original=cause;e=cause_.empty()?original:cause_;cause_=e;receipt.cause=e;receipt.unknown=receipt.attempted;locked_=receipt.unknown;last_={{"revision",frame.revision},{"confirmed",false},{"unknown",receipt.unknown},{"cause",e}};const auto services=services_difference(local,before.services,frame.management->services);if(!services.is_null())last_["service_difference"]=services;return false;};
     if(!gm_prepare_pool(*r,context,binding,local,before,*frame.management,receipt,e))return failed(e);
     std::vector<management::Change> changes;if(!management::plan(before,*frame.management,changes,e))return failed(e);
@@ -133,37 +154,37 @@ bool LivePort::apply(const a::Context& context,const a::Binding& binding,const l
     }
     if(!services_apply(*r,context,binding,local,before.services,frame.management->services,receipt,e))return failed(e);
     bool project_attempted=false;uint32_t project_attempts=0,project_stores=0;
-    const bool project_applied=general_project_runtime::apply_progress(context,binding,frame.management->project,project_attempted,project_attempts,project_stores,e);
+    const bool project_applied=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementProjectApply);return general_project_runtime::apply_progress(context,binding,frame.management->project,project_attempted,project_attempts,project_stores,e);}());
     receipt.attempted|=project_attempted;receipt.attempted_stores+=project_attempts;receipt.stores+=project_stores;
     if(!project_applied)return failed(e);
-    if(frame.management->subscriber_interventions&&!intervention_adopt_subscribers(*r,context,binding,*frame.management->subscriber_interventions,receipt,e))return failed(e);
+    if(frame.management->subscriber_interventions&&!([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementSubscribersApply);return intervention_adopt_subscribers(*r,context,binding,*frame.management->subscriber_interventions,receipt,e);}()))return failed(e);
     if(frame.management->rules&&!rules_adopt(*r,*frame.management->rules,receipt,e))return failed(e);
     if(frame.management->policies&&!policy_adopt(*r,*frame.management->policies,receipt,e))return failed(e);
-    if(frame.management->gm&&!gm_apply(*r,context,binding,local,*frame.management->gm,receipt,e))return failed(e);
+    if(frame.management->gm&&!([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementGmApply);return gm_apply(*r,context,binding,local,*frame.management->gm,receipt,e);}()))return failed(e);
     if(frame.management->intervention_actors||frame.management->actor_lifecycle){
-        interventions::actors::Receipt actors;const auto okay=interventions::actors::live::apply(context,binding,frame,actors,e);
+        interventions::actors::Receipt actors;const auto okay=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementActorsApply);return interventions::actors::live::apply(context,binding,frame,actors,e);}());
         receipt.attempted|=actors.attempted;receipt.attempted_stores+=actors.attempted_stores;receipt.stores+=actors.stores;if(!okay)return failed(e);
     }
     if(!frame.control)return failed("Control authoritative Frame state is absent");
-    bool control_attempted=false;const bool control_okay=control_input::runtime::apply(context,binding,*frame.control,control_attempted,e);receipt.attempted|=control_attempted;if(!control_okay)return failed(e);
+    bool control_attempted=false;const bool control_okay=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementControlApply);return control_input::runtime::apply(context,binding,*frame.control,control_attempted,e);}());receipt.attempted|=control_attempted;if(!control_okay)return failed(e);
     character_calendar::Receipt calendar_receipt;bool calendar_okay=false;
-    {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);calendar_okay=character_calendar::apply(context,binding,*frame.management->character_calendar,calendar_receipt,e);}
+    {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);calendar_okay=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementCalendarApply);return character_calendar::apply(context,binding,*frame.management->character_calendar,calendar_receipt,e);}());}
     receipt.attempted|=calendar_receipt.attempted;receipt.attempted_stores+=calendar_receipt.attempted_stores;receipt.stores+=calendar_receipt.stores;if(!calendar_okay)return failed(e);
-    if(!subscriber_demand_native::apply(*r,context,binding,*frame.management->subscriber_demands,*frame.management->character_calendar,receipt,e))return failed(e);
-    bool intro_attempted=false;const auto intro_okay=tutorial_replication::apply_intro(context,binding,*frame.management->intro,intro_attempted,e);receipt.attempted|=intro_attempted;if(!intro_okay)return failed(e);
-    if(!thought_frame_native::adopt(*r,context,binding,*frame.management->thoughts,receipt,e))return failed(e);
-    if(!analytics_native::adopt(*r,context,binding,*frame.management->analytics,receipt,e))return failed(e);
-    dungeon_gizmo_live::Receipt gizmos;const auto gizmo_okay=npc_probe::monster_action_runtime::dungeon_gizmo::apply_live(context,binding,*frame.management->gizmos,gizmos,e);
+    if(!([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementDemandsApply);return subscriber_demand_native::apply(*r,context,binding,*frame.management->subscriber_demands,*frame.management->character_calendar,receipt,e);}()))return failed(e);
+    bool intro_attempted=false;const auto intro_okay=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementIntroApply);return tutorial_replication::apply_intro(context,binding,*frame.management->intro,intro_attempted,e);}());receipt.attempted|=intro_attempted;if(!intro_okay)return failed(e);
+    if(!([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementThoughtApply);return thought_frame_native::adopt(*r,context,binding,*frame.management->thoughts,receipt,e);}()))return failed(e);
+    if(!([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementAnalyticsApply);return analytics_native::adopt(*r,context,binding,*frame.management->analytics,receipt,e);}()))return failed(e);
+    dungeon_gizmo_live::Receipt gizmos;const auto gizmo_okay=([&]{live::apply_timing::Scope measured(live::apply_timing::Part::ClientManagementGizmosApply);return npc_probe::monster_action_runtime::dungeon_gizmo::apply_live(context,binding,*frame.management->gizmos,gizmos,e);}());
     receipt.attempted|=gizmos.attempted;receipt.attempted_stores+=gizmos.attempted_stores;receipt.stores+=gizmos.stores;if(!gizmo_okay)return failed(e);
-    Local final;management::LiveState actual;if(!primary_read(*r,context,binding,final,actual,e))return failed(e);
+    Local final;management::LiveState actual;{live::apply_timing::Scope measured_finish(live::apply_timing::Part::ClientManagementFinishRead);if(!primary_read(*r,context,binding,final,actual,e))return failed(e);
     if(frame.management->gm){gm_ticket::Publication values;if(!gm_capture(*r,context,binding,final,values,e))return failed(e);actual.gm=std::move(values);}
     if(frame.management->policies){gm_policy::State values;uintptr_t queue=0;if(!policy_values(*r,values,queue,e))return failed(e);actual.policies=values;}
     if(frame.management->rules){game_rules::State values;game_rules::Pin owners;if(!rules_values(*r,values,owners,e)||owners.software!=final.software)return failed(e.empty()?"Management final Design Software owner differs":e);actual.rules=values;}
     if(frame.management->subscriber_interventions){subscriber_intervention::State values;subscriber_intervention::Owners owners;if(!intervention_subscribers(*r,values,owners,e))return failed(e);actual.subscriber_interventions=std::move(values);}
     if(frame.management->intervention_actors){interventions::actors::State values;interventions::actors::Locals owners;if(!interventions::actors::read_current(context,binding,values,owners,e))return failed(e);actual.intervention_actors=std::move(values);}
     if(frame.management->actor_lifecycle)actual.actor_lifecycle=frame.management->actor_lifecycle;
-    if(actual!=*frame.management||final.pin!=local.pin||final.software!=local.software||final.release!=local.release||final.current_release!=local.current_release||final.lounge!=local.lounge||final.gm_rows!=local.gm_rows||final.gm_uids!=local.gm_uids)return failed("Management actual complete scalar/GM/slot/Clock/Ledger readback differs from Host");
-    receipt.confirmed=true;last_={{"revision",frame.revision},{"confirmed",true},{"unknown",false},{"native_readback_present",true},{"before",management::encode(before)},{"after",management::encode(actual)},{"host_state",management::encode(*frame.management)},{"stores",receipt.stores}};e.clear();return true;
+    if(actual!=*frame.management||final.pin!=local.pin||final.software!=local.software||final.release!=local.release||final.current_release!=local.current_release||final.lounge!=local.lounge||final.gm_rows!=local.gm_rows||final.gm_uids!=local.gm_uids)return failed("Management actual complete scalar/GM/slot/Clock/Ledger readback differs from Host");}
+    receipt.confirmed=true;last_={{"revision",frame.revision},{"confirmed",true},{"unknown",false},{"native_readback_present",true},{"before_scope",before.thoughts?"complete":"planning_with_calendar_demands"},{"before",management::encode(before)},{"after",management::encode(actual)},{"host_state",management::encode(*frame.management)},{"stores",receipt.stores}};e.clear();return true;
 }
 bool LivePort::sent(const live::Frame& frame,std::string& error){return interventions::actors::live::sent(frame,error);}
 bool LivePort::acknowledge(uint64_t peer,uint64_t revision,std::string& error){return interventions::actors::live::acknowledge(peer,revision,error);}

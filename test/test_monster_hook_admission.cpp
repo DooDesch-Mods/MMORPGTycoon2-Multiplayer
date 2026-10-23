@@ -41,6 +41,8 @@ struct Fake {
     const void* verified_bytes=nullptr;
     std::string verified_name;
     std::vector<unsigned char> required_code;
+    unsigned query_mode=0,batch_mode=0;
+    std::vector<void*> batch_originals;
     static MT2FW_MT2_RouteReceipt initial(uintptr_t rva) {
         MT2FW_MT2_RouteReceipt value{};value.size=sizeof value;value.rva=rva;value.entry=image+rva;
         copy(value.game_sha256,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6");return value;
@@ -54,6 +56,40 @@ struct Fake {
     MT2FW_MT2_RoutesV1 api() {
         MT2FW_MT2_RoutesV1 value{};value.size=sizeof value;value.version=MT2FW_MT2_ROUTES_VERSION;value.context=this;
         value.hook_prepare=prepare;value.hook_enable=enable;value.hook_remove=remove;value.route_read=read;value.code_verify=verify;return value;
+    }
+    MT2FW_MT2_RoutesV2 api2(){MT2FW_MT2_RoutesV2 value{};value.v1=api();value.v1.size=sizeof value;
+        value.v1.version=MT2FW_MT2_ROUTES_BATCH_VERSION;value.hook_enable_batch=batch;return value;}
+    static MT2FW_MT2_Result MT2FW_CALL query(const MT2FW_Host* host,uint32_t version,MT2FW_MT2_RoutesV1* out,uint32_t capacity){
+        auto& self=*reinterpret_cast<Fake*>(const_cast<MT2FW_Host*>(host));self.calls.push_back("query2");
+        CHECK(version==MT2FW_MT2_ROUTES_BATCH_VERSION&&capacity==sizeof(MT2FW_MT2_RoutesV2));
+        const auto* bytes=reinterpret_cast<const unsigned char*>(out);
+        CHECK(std::all_of(bytes,bytes+capacity,[](auto byte){return byte==0;}));
+        if(self.query_mode==0)return MT2FW_MT2_INVALID;
+        if(self.query_mode==2)return MT2FW_MT2_UNAVAILABLE;
+        if(self.query_mode==3)return MT2FW_MT2_FAILED;
+        if(self.query_mode==4){out->version=1;return MT2FW_MT2_INVALID;}
+        auto value=self.api2();if(self.query_mode==5)value.v1.context=nullptr;
+        if(self.query_mode==6)value.v1.size=sizeof(MT2FW_MT2_RoutesV1);
+        if(self.query_mode==7)value.v1.version=1;
+        if(self.query_mode==8)value.v1.hook_enable=nullptr;
+        std::memcpy(out,&value,sizeof value);return MT2FW_MT2_OK;
+    }
+    static MT2FW_MT2_Result MT2FW_CALL batch(void* context,const char* const* names,uint32_t count,MT2FW_MT2_RouteReceipt* out,uint32_t capacity){
+        auto& self=*static_cast<Fake*>(context);self.calls.push_back("batch");
+        CHECK((count==1||count==2)&&capacity==count&&self.batch_originals.size()==count);
+        if(count==2)CHECK(std::string(names[0])==first_name&&std::string(names[1])==second_name);
+        else CHECK(self.batch_mode==0&&std::string(names[0])==second_name);
+        for(uint32_t i=0;i<count;++i){auto& value=self.routes.at(names[i]);CHECK(out[i].size==sizeof(out[i]));
+            CHECK(value.state==MT2FW_MT2_ROUTE_PREPARED&&self.batch_originals[i]==reinterpret_cast<void*>(value.trampoline));
+            value.state=self.batch_mode==1?MT2FW_MT2_ROUTE_UNKNOWN:self.batch_mode==4?MT2FW_MT2_ROUTE_PREPARED:MT2FW_MT2_ROUTE_ENABLED;
+            value.current[0]=static_cast<unsigned char>(0xe9+i);
+            if(self.batch_mode==1)copy(value.cause,"backend partial activation failure");
+            if(self.batch_mode==4&&i==1)copy(value.cause,"second target admission failure");
+            out[i]=value;
+        }
+        if(self.batch_mode==2)++out[1].generation;
+        if(self.batch_mode==3)std::swap(out[0],out[1]);
+        return self.batch_mode==1||self.batch_mode==4?MT2FW_MT2_FAILED:MT2FW_MT2_OK;
     }
     static void log(void* context,const char* operation,const std::string& cause) {
         CHECK(!cause.empty());static_cast<Fake*>(context)->logs.push_back(std::string(operation)+":"+cause);
@@ -105,6 +141,8 @@ struct Fake {
         return static_cast<size_t>(std::count_if(calls.begin(),calls.end(),[&](const auto& call){return call.starts_with(prefix);}));
     }
 };
+#include "prepared_hook_batch_cases.inc"
+#include "enable_all_batch_cases.inc"
 void publication_and_cleanup() {
     Fake fake;Backend backend;CHECK(fake.bind(backend));CHECK(backend.initialize()==MH_OK);
     void* original=nullptr;fake.published=&original;
@@ -286,10 +324,17 @@ void admission_and_shim() {
     CHECK(std::strstr(MH_StatusToString(MH_OK),"plugin-owned")!=nullptr);
     unsigned char expected=0;std::string error;CHECK(mt2mp::hooks::framework::verify_code(image+shared,&expected,1,error));
     CHECK(MH_RemoveHook(address(first))==MH_OK);CHECK(MH_Uninitialize()==MH_OK);CHECK(global.count("remove:")==1);
+    CHECK(process.bind_batch(global.api2()));void* next_original=nullptr;
+    CHECK(process.create(address(second),detour(),&next_original)==MH_OK);global.batch_originals.push_back(next_original);
+    struct Route {uintptr_t rva;};const Route prepared[]{{second}};
+    CHECK(mt2mp::hooks::enable_prepared_routes(image,prepared,"test prepared routes",error));
+    CHECK(global.count("batch")==1);
+    CHECK(MH_RemoveHook(address(second))==MH_OK);
+    CHECK(MH_Uninitialize()==MH_OK);
 }
 }
 int main() {
-    try{publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
+    try{enable_all_batch_cases();prepared_batch_cases();publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
         monster_named_admission(0x5ba2c0,"mp.modular-b07.5ba2c0");
         monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
         monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");

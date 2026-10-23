@@ -1,4 +1,5 @@
 #include "party_frame_native.h"
+#include "party_capture_references.h"
 #include "live_host_state/apply_timing.h"
 #include "scene_clone/runtime.h"
 #include "party_live_native.h"
@@ -123,6 +124,13 @@ class Native final:public live_host_state::PartyPort {
             if(!owners.emplace(key,row).second||!keys.emplace(pointer,key).second)return fail(error,"complete canonical external owners repeat");}
         if(!prop_pins(owners,keys,error)||!current(error))return false;
         owners_=std::move(owners);keys_=std::move(keys);return true;
+    }
+    bool capture_pins(std::string& error,bool incoming_parties=false,bool incoming_subscribers=false){
+        if(held_)return fail(error,"complete external owner census requires SaveIdle");
+        return capture_reference_pins<party_live::Raw>(
+            [&](party_live::Raw& raw,std::string& cause){return current(cause)&&parties_.raw_current(context_,binding_,raw,cause);},
+            [&](std::string& cause){return pins(cause);},
+            [&]{owners_.clear();keys_.clear();},error,incoming_parties,incoming_subscribers);
     }
     bool any_identify(uintptr_t pointer,std::string& key,std::string& error){
         if(!current(error))return false;
@@ -271,11 +279,11 @@ public:
         for(const auto& event:events){if(!life::append(host_,origin_,event,error))return false;if(event.action)host_actions_.insert(event.operation);}
         scene_clone::Mapping mapping;dungeon_scene_identity_runtime::Census admitted;bool attempted=false;
         if(!([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartySceneConfirm);return scenes_.confirm(context,binding,operation(),nullptr,mapping,admitted,attempted,error);}()))return reject(error,error,attempted);
-        scene_mapping_=std::move(mapping);return ([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyBirths);return births(error);}())&&([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyPins);return pins(error);}());
+        scene_mapping_=std::move(mapping);return ([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyBirths);return births(error);}())&&([&]{live_host_state::apply_timing::Scope measured(live_host_state::apply_timing::Part::HostPartyPins);return capture_pins(error);}());
     }
     bool capture(const action_session::Context& context,const action_session::Binding& binding,const live_host_state::Frame& frame,State& out,std::string& error)override{
         out={};if(!this->context(context,binding,error)||context.role!=action_session::Role::Host||capture_revision_!=frame.revision)return false;
-        if(!births(error)||!pins(error))return false;std::vector<party_live::Record> records;
+        if(!births(error)||!capture_pins(error))return false;std::vector<party_live::Record> records;
         if(!scenes_.prepare(context,binding,error)||!host_batch([&](std::string& e){return parties_.current_records(context,binding,references(),records,e);},error))return false;
         scene_clone::Mapping mapping;dungeon_scene_identity_runtime::Census admitted;bool attempted=false;
         if(!scenes_.confirm(context,binding,operation(),nullptr,mapping,admitted,attempted,error))return reject(error,error,attempted);
@@ -295,8 +303,8 @@ public:
         if(!source_){if(!client_.bind(source,error))return false;source_=source;}else if(*source_!=source)return fail(error,"Host source changed before snapshot rebind");
         if(prepared_revision_==frame.revision){if(!prepared_||*prepared_!=*frame.party)return fail(error,"repeated prepared Frame differs");receipt.confirmed=true;return true;}
         if(!frame.party->scenes)return fail(error,"Host Party Frame omitted complete scene clone assignments");
-        std::vector<journal::Row> work;if(!client_.prepare(source,frame.party->lifecycle,work,error)||!scenes_.prepare(context,binding,error))return false;
-        const bool okay=native_.batch(context,binding,[&](std::string& e){held_=true;
+        std::vector<journal::Row> work;if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyJournalPrepare);return client_.prepare(source,frame.party->lifecycle,work,error);}()||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyScenePrepare);return scenes_.prepare(context,binding,error);}())return false;
+        const bool okay=[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartyNativeBatch);return native_.batch(context,binding,[&](std::string& e){held_=true;
             for(const auto& row:work){const auto event=life::event(row);life::Receipt actual;const bool applied=executor_->apply(event,actual,e);
                 receipt.attempted=receipt.attempted||actual.attempted;receipt.unknown=receipt.unknown||actual.unknown;receipt.calls+=actual.calls;
                 if(!applied)return false;if(event.action)client_actions_[frame.revision].insert(event.operation);}
@@ -306,10 +314,10 @@ public:
             if(!applied)return false;
             for(const auto& pool:frame.party->pools){life::Pin actual;if(!instances_.current(pool.exterior,actual,e)||life::indices(actual)!=pool.indices||actual.counter!=pool.counter)return fail(e,e.empty()?"complete original Instance membership/counter differs":e);}
             return true;
-        },error);held_=false;
+        },error);}();held_=false;
         if(!okay){receipt.unknown=receipt.unknown||receipt.attempted;return reject(error,error,receipt.unknown);}
         scene_clone::Mapping mapping;dungeon_scene_identity_runtime::Census admitted;bool published=false;
-        if(!scenes_.confirm(context,binding,frame.party->scenes->operation,&*frame.party->scenes,mapping,admitted,published,error)){receipt.attempted=receipt.attempted||published;receipt.unknown=receipt.attempted;return reject(error,error,receipt.unknown);}
+        if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneConfirm);return scenes_.confirm(context,binding,frame.party->scenes->operation,&*frame.party->scenes,mapping,admitted,published,error);}()){receipt.attempted=receipt.attempted||published;receipt.unknown=receipt.attempted;return reject(error,error,receipt.unknown);}
         receipt.attempted=receipt.attempted||published;scene_mapping_=std::move(mapping);
         if(!client_.confirm(source,frame.party->lifecycle,work,error))return reject(error,error,receipt.attempted);
         prepared_revision_=frame.revision;prepared_=*frame.party;receipt.confirmed=true;return true;
@@ -371,8 +379,9 @@ bool Native::apply(const action_session::Context& context,const action_session::
     try{
         std::vector<party_live::Record> targets;std::set<std::string> wanted;
         for(const auto& encoded:frame.party->parties){auto row=record(encoded);wanted.insert(row.key);targets.push_back(std::move(row));}
+        const auto refresh_pins=[&](){return capture_pins(error,!targets.empty(),!graphs.empty());};
         building_mixed_identity::opened_file::CurrentWorld world;
-        if(!native_open_runtime::read_current_world(world,error)||!pins(error))return finish_failure();
+        if(!native_open_runtime::read_current_world(world,error)||!refresh_pins())return finish_failure();
         const append::FrameBinding owner{context,binding,epoch_,world.sha256};
         std::vector<nlohmann::json> online;std::vector<int32_t> ids;
         for(const auto& graph:graphs){local::first_append::Payload payload;
@@ -385,7 +394,7 @@ bool Native::apply(const action_session::Context& context,const action_session::
             if(!okay||actual.value("state",std::string{})!="confirmed"){
                 if(error.empty())error="offline Subscriber original append lacks confirmation";return finish_failure();}
         }
-        if(!pins(error))return finish_failure();
+        if(!refresh_pins())return finish_failure();
         std::shared_ptr<append::PartyToonInputs> inputs;
         if(!online.empty()&&!append::prepare_party_toons(online,world.uuid,owner,inputs,error))return finish_failure();
         party_live::Raw before;if(!parties_.raw_current(context,binding,before,error))return finish_failure();
@@ -455,7 +464,7 @@ bool Native::apply(const action_session::Context& context,const action_session::
         },error);held_=false;
         if(!okay)return finish_failure();
         pending_=nullptr;pending_toons_.clear();reserved_.clear();
-        if(!current(error)||!pins(error))return finish_failure();
+        if(!current(error)||!refresh_pins())return finish_failure();
         for(const auto id:ids)receipt["rows"].push_back({{"id",id},{"state","confirmed"}});
         receipt["attempted"]=attempted;receipt["confirmed"]=true;receipt["native_receipts"]=native_receipts;
         applied_revision_=frame.revision;last_=receipt;error.clear();return true;

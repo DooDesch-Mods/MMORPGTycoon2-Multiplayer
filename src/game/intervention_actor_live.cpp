@@ -1,4 +1,5 @@
 #include "intervention_actor_live.h"
+#include "intervention_actor_empty_adopt.h"
 #include "management_runtime.h"
 #include "native_open_runtime.h"
 #include "root_saved_building.h"
@@ -229,8 +230,14 @@ bool apply(const a::Context& context,const a::Binding& binding,const live_host_s
         if(code||!returned){error="Actor24 witnessed original lifecycle failed SEH="+std::to_string(code)+"; no replay";return failed();}++receipt.stores;
         if(!world(error)||!read_bound(found->second,actual,physical,error)||physical!=found->second)return failed();++state.replayed;
     }
-    Receipt adoption;const auto adopted=adopt_current(context,binding,*frame.management->intervention_actors,adoption,error);receipt.attempted|=adoption.attempted;receipt.attempted_stores+=adoption.attempted_stores;receipt.stores+=adoption.stores;if(!adopted)return failed();
+    live_host_state::NativePort empty_port(context,binding,nullptr);
+    EmptyAdoption<live_host_state::NativePort,live_host_state::Pin> empty_adoption(empty_port);
+    if(!empty_adoption.begin(before,*frame.management->intervention_actors,state.locals,work,error))return failed();
+    if(!empty_adoption.active()){
+        Receipt adoption;const auto adopted=adopt_current(context,binding,*frame.management->intervention_actors,adoption,error);receipt.attempted|=adoption.attempted;receipt.attempted_stores+=adoption.attempted_stores;receipt.stores+=adoption.stores;if(!adopted)return failed();
+    }
     State after;if(!read_current(context,binding,after,locals,error))return failed();if(after!=*frame.management->intervention_actors){error="Actor24 complete current Actor values differ after final Host adoption";return failed();}if(!install_cache(std::move(locals),error))return failed();
+    if(!empty_adoption.finish(error))return failed();
     if(!state.client.confirm(*state.source,journal,work,error))return failed();
     for(const auto& event:consumed){auto found=state.local_events.find(event.action);if(found==state.local_events.end())continue;
         // The complete native action receipts remain until its last observed

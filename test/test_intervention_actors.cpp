@@ -1,5 +1,6 @@
 #include "intervention_actor_saved.h"
 #include "intervention_actor_saved_adopt.h"
+#include "intervention_actor_empty_adopt.h"
 #include <cstring>
 #include <iostream>
 #include <limits>
@@ -135,4 +136,5 @@ void saved_adoption_order(){Fixture f(i::Family::Boss);a::Row row;a::Local local
 void births(){namespace b=mt2mp::game::boss_identity;namespace r=mt2mp::game::character_boss_retirement_read;const r::Pool before{1,2,3,{{4,0x100000001}}};auto after=before;after.members.push_back({5,0x200000001});b::Member created;std::string error;
     need(b::born(before,after,5,created,error)&&created==after.members.back(),error);need(!b::born(before,after,4,created,error),"Boss returned an existing object but birth confirmed");auto wrong=after;wrong.members[0].uid=1;need(!b::born(before,wrong,5,created,error),"Boss birth changed prior full UID");wrong=after;wrong.members.push_back({6,3});need(!b::born(before,wrong,5,created,error),"Boss multiple native births accepted as one");wrong=after;wrong.manager=8;need(!b::born(before,wrong,5,created,error),"Boss birth changed actual owning manager");wrong=after;wrong.members.back().uid=before.members.front().uid;need(!b::born(before,wrong,5,created,error),"Boss birth reused existing full UID");}
 }
-int main()try{read_native();codec();dungeon_direct();saved_native_guards();saved_adoption_order();births();std::cout<<checks<<" Actor24 original native reader, saved effects/items, independent lifecycle, strict codec and Boss birth assertions passed\n";return 0;}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}
+#include "actor_empty_adoption_cases.inc"
+int main()try{actor_empty_fixture::run();read_native();codec();dungeon_direct();saved_native_guards();saved_adoption_order();births();std::cout<<checks<<" Actor24 original native reader, saved effects/items, independent lifecycle, strict codec and Boss birth assertions passed\n";return 0;}catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

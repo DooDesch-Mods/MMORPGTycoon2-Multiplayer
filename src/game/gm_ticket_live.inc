@@ -13,9 +13,11 @@ bool gm_world(Runtime& r,const a::Context& context,const a::Binding& binding,bui
     if(r.gm_failed)return fail(error,r.gm_cause);return true;
 }
 bool gm_census(Runtime& r,const a::Context& context,const a::Binding& binding,const Local& local,ticket::Census& out,building_mixed_identity::opened_file::CurrentWorld& world,std::string& error){
-    if(!gm_world(r,context,binding,world,error))return false;uintptr_t queue=0;if(!at(r,r.image,0x13df360,queue,error))return false;
+    if(!gm_world(r,context,binding,world,error))return false;
+    live::apply_timing::PageReadScope census_pages(!live::apply_timing::PageReadScope::reader_active());
+    uintptr_t queue=0;if(!at(r,r.image,0x13df360,queue,error))return false;
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
-    auto find=[&](uint64_t uid,uintptr_t& object,std::string& cause){const auto exception=uid_lookup(r.image,uid,object);return !exception||fail(cause,"GM current FindUID SEH="+std::to_string(exception));};
+    auto find=[&](uint64_t uid,uintptr_t& object,std::string& cause){live::apply_timing::PageReadScope original_call(live::apply_timing::PageBoundary::OriginalCall);const auto exception=uid_lookup(r.image,uid,object);return !exception||fail(cause,"GM current FindUID SEH="+std::to_string(exception));};
     return ticket::read(read,find,r.image,queue,uintptr_t(world.map)+0x1c0,local.gm_rows,out,error);
 }
 bool gm_key(Runtime& r,const a::Context& context,const a::Binding& binding,const Local& local,uintptr_t object,std::string& out,std::string& error){

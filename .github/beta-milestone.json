@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.22",
-  "summary": "Fix shared-world loading in normal installations, leaving an unfinished session and Steam names in chat.",
-  "native_evidence": "docs/evidence/beta22-hotfix.json"
+  "version": "0.1.0-beta.23",
+  "summary": "Reduce shared-world update overhead and fix developer assignment and duplicate Host world loading.",
+  "native_evidence": "docs/evidence/beta23-performance.json"
 }

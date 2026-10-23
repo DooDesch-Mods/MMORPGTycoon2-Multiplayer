@@ -4,6 +4,8 @@
 #include <MinHook.h>
 #include <map>
 #include <string>
+#include <span>
+#include <optional>
 
 namespace mt2mp::hooks::framework {
 // A remove permission must include the feature's in-flight and original-retention guards.
@@ -18,9 +20,14 @@ public:
     bool bind(const MT2FW_MT2_RoutesV1&, uintptr_t image, const char* owner,
               uint32_t game_thread, Reclaim, Log, void* user);
     bool bind_ownership(const MT2FW_MT2_OwnershipV1&);
+    bool bind_batch(const MT2FW_MT2_RoutesV2&);
+    bool discover_batch(MT2FW_MT2_QueryRoutesFn,const MT2FW_Host*);
+    bool batch_available()const noexcept{return batch_!=nullptr;}
     MH_STATUS initialize();
     MH_STATUS create(void* target, void* detour, void** original);
     MH_STATUS enable(void* target);
+    MH_STATUS enable_prepared_batch(std::span<const uintptr_t> targets);
+    bool last_batch_receipt(void* target, MT2FW_MT2_RouteReceipt&) const;
     MH_STATUS disable(void* target);
     MH_STATUS remove(void* target);
     MH_STATUS cleanup();
@@ -41,8 +48,10 @@ private:
         uint32_t state=MT2FW_MT2_ROUTE_UNKNOWN;
         bool owned=false, blocked=false;
         std::string cause;
+        std::optional<MT2FW_MT2_RouteReceipt> batch_receipt;
     };
     MT2FW_MT2_RoutesV1 api_{};
+    decltype(MT2FW_MT2_RoutesV2::hook_enable_batch) batch_=nullptr;
     MT2FW_MT2_OwnershipV1 ownership_{};
     MT2FW_MT2_FreeReceipt free_{};
     bool ownership_bound_=false, free_attempted_=false, free_blocked_=false;

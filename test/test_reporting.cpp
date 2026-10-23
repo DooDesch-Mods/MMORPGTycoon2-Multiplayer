@@ -34,7 +34,7 @@ int main(int argc,char** argv){
         const auto numeric=reporting::redact("peer76561198000000000 lobby=1234567890123456789");
         require(numeric.find("76561198000000000")==std::string::npos&&numeric.find("1234567890123456789")==std::string::npos,"embedded account or lobby number survived redaction");
         reporting::initialize(profile,json::object());reporting::bind_session(id,2);
-        for(unsigned i=0;i<400;++i)reporting::event("action.confirmed",{{"revision",uint64_t(i)},{"secret","must not enter bundle"}},reporting::random_id());
+        for(unsigned i=0;i<400;++i)reporting::event("action.confirmed",{{"revision",uint64_t(i)},{"action_type",uint64_t(42)},{"duration_us",uint64_t(29490327)},{"secret","must not enter bundle"}},reporting::random_id());
         reporting::open_report();const auto ready=wait_ready();
         require(ready.at("event_count")==256,"event ring is not bounded");
         const auto path=profile/"reports"/(ready.at("report_id").get<std::string>()+".json");
@@ -44,6 +44,7 @@ int main(int argc,char** argv){
         require(value.at("consent")==false,"local capture granted upload consent");
         require(value.at("dropped_events")==144,"ring overflow is not reported");
         require(value.dump().find("must not enter bundle")==std::string::npos,"arbitrary event fields entered bundle");
+        require(value.at("events").back().at("values").at("action_type")==42&&value.at("events").back().at("values").at("duration_us")==29490327,"action type or measured stage duration lost");
         require(std::filesystem::file_size(path)<256*1024,"bundle size exceeded");
         reporting::initialize(profile,json::object());const auto recovered=reporting::status();
         require(recovered.at("report_id")==ready.at("report_id"),"unsent report did not survive restart");

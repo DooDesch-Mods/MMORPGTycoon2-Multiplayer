@@ -4,6 +4,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/native_port.h"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/bridge.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/live_host_state/bridge.h"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/party_live_native.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../test/extract_live_autosave.py")
 set(autosave_generated "${CMAKE_CURRENT_BINARY_DIR}/live_autosave_generated")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/extract_live_autosave.py"

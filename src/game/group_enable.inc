@@ -19,7 +19,6 @@ bool enable(std::string& e){
         {0x2d6650,reinterpret_cast<void*>(&single_entry),reinterpret_cast<void**>(&original_single)}};
     for(const auto& hook:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+hook.rva),hook.entry,hook.original);
         if(result!=MH_OK||!*hook.original){e=install_cause="Group hook create RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
-    for(const auto& hook:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+hook.rva));
-        if(result!=MH_OK){e=install_cause="Group hook enable RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"Group hook",e)){install_cause=e;return false;}
     installed=true;return true;
 }

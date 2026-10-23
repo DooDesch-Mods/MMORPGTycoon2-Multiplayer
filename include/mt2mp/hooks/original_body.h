@@ -1,5 +1,6 @@
 #pragma once
 #include "mt2mp/core/hash.h"
+#include "mt2mp/hooks/code_body_digest.h"
 #if defined(MT2MP_FRAMEWORK_PLUGIN)
 #include "mt2mp/hooks/framework_backend.h"
 #endif
@@ -22,12 +23,18 @@ inline bool restore_prefix(uintptr_t entry,std::vector<unsigned char>& body,std:
 #endif
 }
 }
-inline bool verify_original_hash(uintptr_t entry,const void* observed,size_t size,const char* expected,std::string& error){
+inline bool verify_original_hash(uintptr_t entry,const void* observed,size_t size,const char* expected,std::string& error,CodeBodyDigest* memo=nullptr){
     if(!entry||!observed||!size||!expected||std::strlen(expected)!=64){error="Original body hash input or extent invalid";return false;}
     const auto* begin=static_cast<const unsigned char*>(observed);std::vector<unsigned char> body(begin,begin+size);
-    if(mt2mp::sha256(body)==expected){error.clear();return true;}
+    const auto hash=[&](std::string& value){
+        const auto calculate=[&](std::string& out,std::string&){out=mt2mp::sha256(body);return true;};
+        return memo?memo->read(entry,body.data(),body.size(),expected,value,error,calculate):calculate(value,error);
+    };
+    std::string digest;if(!hash(digest))return false;
+    if(digest==expected){error.clear();return true;}
     if(!original_body_detail::restore_prefix(entry,body,error))return false;
-    if(mt2mp::sha256(body)!=expected){error="Authenticated original full body SHA differs";return false;}
+    if(!hash(digest))return false;
+    if(digest!=expected){error="Authenticated original full body SHA differs";return false;}
     error.clear();return true;
 }
 inline bool verify_original_bytes(uintptr_t entry,const void* observed,const void* expected,size_t size,std::string& error){

@@ -1,4 +1,6 @@
 #include "developer_staff/action_native.h"
+#include "general_project_runtime.h"
+#include "queued_project_expected.h"
 #include "startingpoint_fixture.h"
 #include "activity_format_probe.h"
 #include "controller_admission.h"

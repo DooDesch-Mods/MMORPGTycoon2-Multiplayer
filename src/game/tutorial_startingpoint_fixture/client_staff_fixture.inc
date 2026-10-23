@@ -14,6 +14,7 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
     if(!economy.read(ledger_before,e)||!native::read_simulation_state(simulation_before,e))return false;
     int32_t available=0;if(!at(ledger_before.business,0x4c,available,e))return false;
     json measured;json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
+    const auto project_before=general_project_runtime::status().value("captures",uint64_t{});
     key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
     if((is_show&&phase->shown)||(!is_show&&phase->begun))return fail(e,"startingpoint Client Staff phase consumed; no replay");
@@ -30,6 +31,8 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
        begin_ledger(simulation_before)!=begin_ledger(simulation_after))return fail(e,e.empty()?"startingpoint Client Staff ledger changed before call":e);
     action_session::Context current;if(!action_session::selected_session().current(current,e)||current!=context)
         return fail(e,e.empty()?"startingpoint Client Staff common Context changed":e);
+    general_project::Intent project_intent;
+    if(!is_show&&!expected_project_intent(stable,p.tech_key,general_project::Command::Workers,project_intent,e))return false;
     result.update({{"operation",request.operation},{"token",request.token},{"before",p.development},{"tutorial_before",p.tutorial},
         {"desired_workers",is_show?0:1},{"ledger_before",begin_ledger(simulation_before)},{"host_completion_confirmed",false},
         {"submitted",false},{"submission_confirmed",false},{"selection_confirmed",false},{"attempted",true},{"unknown",true}});
@@ -54,8 +57,11 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
     }
     json progress;std::string id;Pin after;tutorial_development::StartingpointSnapshot after_snapshot;json after_diagnostic;StaffUI after_ui;
     if(e.empty()&&!tutorial_replication::read_progress(progress,e))result["progress_readback_failed"]=true;
-    if(e.empty()&&!is_show&&!staff_submission(progress_before,progress,id,e))result["submission_readback_failed"]=true;
-    if(e.empty()&&(!pin(request,after,e,true,id,&context,&binding)||!begin_snapshot(after,after_snapshot,after_diagnostic,e)))result["readback_failed"]=true;
+    const bool project_queued=!is_show&&general_project_runtime::status().value("captures",uint64_t{})!=project_before;
+    if(e.empty()&&!is_show&&!(project_queued?
+        general_project_runtime::observe_pending_ui(context,binding,project_intent,project_before,id,e):
+        staff_submission(progress_before,progress,id,e)))result["submission_readback_failed"]=true;
+    if(e.empty()&&(!pin(request,after,e,true,project_queued?std::string{}:id,&context,&binding)||!begin_snapshot(after,after_snapshot,after_diagnostic,e)))result["readback_failed"]=true;
     if(e.empty()&&!same_research_native(p,after,snapshot,after_snapshot))e="startingpoint Client Staff changed local row/catalogue/inventory/tutorial before Host order";
     if(e.empty()&&(!economy.read(ledger_after,e)||ledger_after!=ledger_before||!native::read_simulation_state(simulation_after,e)||
        begin_ledger(simulation_after)!=begin_ledger(simulation_before))){if(e.empty())e="startingpoint Client Staff changed full native ledger";}
@@ -74,7 +80,7 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
         result["confirmed"]=true;result["unknown"]=false;
         if(!is_show)result["ui_after"]=measured;
         result["after"]=after.development;result["tutorial_after"]=after.tutorial;result["ledger_after"]=begin_ledger(simulation_after);
-        if(!is_show){result["submitted"]=true;result["submission_confirmed"]=true;result["action_uuid"]=id;result["confirmation"]="intent_submission";}
+        if(!is_show){result["submitted"]=!project_queued;result["queued"]=project_queued;result["submission_confirmed"]=!project_queued;result["action_uuid"]=id;result["route"]=project_queued?"general_project":"legacy";result["confirmation"]=project_queued?"intent_queued":"intent_submission";}
     }else{phase->cause=e;result["cause"]=e;}
     receipts[request.token]=result;return e.empty();
 }

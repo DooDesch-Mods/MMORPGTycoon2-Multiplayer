@@ -55,11 +55,15 @@ bool enable(std::string& error){
     }
     original_command=reinterpret_cast<Command>(routes[0].original);
     original_right=reinterpret_cast<zone_edit_calls::Press>(routes[1].original);
+    const bool batch=hooks::framework::process_backend().batch_available();
+    if(batch&&!mt2mp::hooks::enable_prepared_routes(za::state.image,routes,"Zone named routes",error))return failed();
     for(auto& route:routes){
         auto* entry=reinterpret_cast<void*>(za::state.image+route.rva);
-        const auto result=MH_EnableHook(entry);MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
-        if(result!=MH_OK||!hooks::framework::process_backend().read_route(entry,receipt)){
-            error="Zone named route enable/receipt failed status="+std::to_string(result)+" "+hooks::framework::process_backend().error();return failed();}
+        if(!batch){const auto result=MH_EnableHook(entry);if(result!=MH_OK){
+            error="Zone named route enable failed status="+std::to_string(result)+" "+hooks::framework::process_backend().error();return failed();}}
+        MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
+        if(!hooks::framework::process_backend().read_route(entry,receipt)){
+            error="Zone named route receipt failed: "+hooks::framework::process_backend().error();return failed();}
         route.generation=receipt.generation;
     }
     ready=true;if(!code(memory,error)){ready=false;return failed();}return true;

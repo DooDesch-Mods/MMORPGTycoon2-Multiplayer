@@ -102,6 +102,33 @@ class FrameworkReadRaceTests(unittest.TestCase):
         self.request();self.assertEqual(len(self.publications()),1)
         self.assertIn('JSONDecodeError',self.evidence()['read_observations'][str(self.response)]['first_cause'])
 
+    def test_replaced_response_recovers_without_republishing(self):
+        self.actions=[FileNotFoundError('fixture response replacement gap'),lambda:self.ack()]
+        self.request();self.assertEqual(len(self.publications()),1)
+        receipt=self.evidence()['read_observations'][str(self.response)]
+        self.assertEqual(receipt['failures'],1);self.assertEqual(receipt['recoveries'],1)
+        self.assertIn('FileNotFoundError',receipt['first_cause'])
+        self.assertTrue(any(level=='warn' and 'observing only' in message for level,message in self.logs))
+        self.assertTrue(any(level=='info' and 'recovered' in message for level,message in self.logs))
+
+    def test_persistently_missing_response_expires_without_republishing(self):
+        self.default_response=lambda:FileNotFoundError('fixture missing response')
+        with self.assertRaises(driver.AcceptanceError) as caught:self.request()
+        self.assertIsInstance(caught.exception.__cause__,FileNotFoundError)
+        self.assertIn('no replay',str(caught.exception));self.assertEqual(len(self.publications()),1)
+        self.assertEqual(json.loads(self.pending.read_text(encoding='utf-8')),self.command)
+        self.assertEqual(self.evidence()['state'],'observation-timeout')
+        self.assertIn('fixture missing response',self.evidence()['error'])
+        self.assertLessEqual(self.clock.now,.300001);self.runner.checked.assert_not_called()
+
+    def test_previous_response_replacement_recovers_before_publication(self):
+        previous=self.previous()
+        self.actions=[FileNotFoundError('previous response replacement'),self.ack(previous),lambda:self.ack()]
+        self.request();self.assertEqual(len(self.publications()),1)
+        publication=self.sequence.index(('write',self.pending))
+        self.assertGreaterEqual(sum(event==('read',self.response) for event in self.sequence[:publication]),2)
+        self.assertEqual(self.evidence()['read_observations'][str(self.response)]['recoveries'],1)
+
     def test_first_cause_survives_different_later_read_failure(self):
         self.actions=[PermissionError('first sharing cause'),self.partial(),lambda:self.ack()]
         self.request();receipt=self.evidence()['read_observations'][str(self.response)]

@@ -85,7 +85,7 @@ bool enable(region::Runtime& r,std::string& e){
         {0x5c7970,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
         {0x433e80,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r.image+h.rva),h.entry,h.original);if(result!=MH_OK||!*h.original)return fail(e,"network Pipe MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
-    for(const auto& h:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(r.image+h.rva));if(result!=MH_OK)return fail(e,"network Pipe MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
+    if(!mt2mp::hooks::enable_prepared_routes(r.image,hooks,"network Pipe hook",e))return false;
     if(!code(r,true,e))return false;state.ready=true;return true;
 }
 bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::UndoWitness& after,Operation& op,std::string& e){

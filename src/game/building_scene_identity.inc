@@ -1,6 +1,6 @@
 namespace scene_buildings {
 struct State {
-    std::map<std::string,Bound> before,after;
+    scene_building_registry::Preview<std::map<std::string,Bound>> registry_copy;
     dungeon_scene_identity_runtime::World world;
     std::string snapshot;
     uint64_t generation=0,first_entry=0,next_entry=0;
@@ -56,25 +56,25 @@ bool resolve(const dungeon_scene_identity_runtime::World& world,uintptr_t object
 bool preview(const dungeon_scene_identity_runtime::World& world,const std::vector<Row>& born,
     const std::vector<Row>& retired,const std::vector<Restore>& restored,Preview& out,std::string& error,const scene_clone::Raw* held){
     out={};if(!scene_current(world,error))return false;
-    auto phase=std::make_shared<State>();phase->before=registry;phase->after=registry;phase->world=world;
+    auto phase=std::make_shared<State>();phase->registry_copy.prepare(registry,!born.empty()||!retired.empty()||!restored.empty());phase->world=world;
     phase->snapshot=net::current_snapshot_id();phase->generation=registry_generation;phase->first_entry=next_entry;phase->next_entry=next_entry;
     const auto id=[&](const std::string& key){return std::to_string(phase->generation)+":"+binding_id(phase->snapshot,key);};
     for(const auto& row:retired){
-        auto found=phase->after.find(id(row.key));uintptr_t actual=0;
-        if(found==phase->after.end()||!exact_bound(found->second,*phase,row,false)||
+        auto found=phase->registry_copy.after->find(id(row.key));uintptr_t actual=0;
+        if(found==phase->registry_copy.after->end()||!exact_bound(found->second,*phase,row,false)||
            !scene_clone::find_uid(row.uid,actual,error)||(scene_clone::held_member(held,row.scene,row.object,row.uid)?actual!=row.object:actual!=0)){
             if(error.empty())error="Scene Building retirement lacks exact original full UID absence";return false;}
         found->second.revoked=true;
     }
     const auto admit=[&](const Row& row,const Row* old)->bool{
         native::BuildingState value;if(!row_read(world,row,value,error))return false;
-        const auto key=id(row.key);auto found=phase->after.find(key);
+        const auto key=id(row.key);auto found=phase->registry_copy.after->find(key);
         if(old){
-            if(row.key!=old->key||row.scene!=old->scene||row.scenery!=old->scenery||found==phase->after.end()||!exact_bound(found->second,*phase,*old,true)){
+            if(row.key!=old->key||row.scene!=old->scene||row.scenery!=old->scenery||found==phase->registry_copy.after->end()||!exact_bound(found->second,*phase,*old,true)){
                 error="Scene Building restoration differs from exact retired original member";return false;}
-        }else if(found!=phase->after.end()||!row.key.starts_with("action:")){
+        }else if(found!=phase->registry_copy.after->end()||!row.key.starts_with("action:")){
             error="Scene Building birth key is reused or lacks original operation provenance";return false;}
-        for(const auto& [other,bound]:phase->after)if(other!=key&&bound.generation==phase->generation&&
+        for(const auto& [other,bound]:*phase->registry_copy.after)if(other!=key&&bound.generation==phase->generation&&
             bound.snapshot==phase->snapshot&&(bound.uid==row.uid||(!bound.revoked&&bound.object==row.object))){
             error="Scene Building native full UID/pointer aliases another confirmed member";return false;}
         if(phase->next_entry==UINT64_MAX){error="Scene Building registry entry exhausted";return false;}
@@ -83,7 +83,7 @@ bool preview(const dungeon_scene_identity_runtime::World& world,const std::vecto
         fresh.world={world.world_epoch,world.generation,world.world,world.map};
         fresh.metadata=building_metadata(value);fresh.object=row.object;fresh.scene_owner=row.scenery?row.scene:std::string{};
         if(row.scenery){fresh.scene_manager=row.manager;fresh.scene_shard=row.shard;fresh.scene_region=row.region;}fresh.class_addresspoint=uintptr_t(GetModuleHandleW(nullptr))+(row.scenery?0x16c1390:0x16d93c0);
-        phase->after[key]=std::move(fresh);return true;
+        (*phase->registry_copy.after)[key]=std::move(fresh);return true;
     };
     for(const auto& row:born)if(!admit(row,nullptr))return false;
     for(const auto& row:restored)if(!admit(row.after,&row.before))return false;
@@ -92,12 +92,13 @@ bool preview(const dungeon_scene_identity_runtime::World& world,const std::vecto
 bool check(const Preview& preview,std::string& error){
     if(!preview.state||!preview.state->prepared||!scene_current(preview.state->world,error)||
        preview.state->snapshot!=net::current_snapshot_id()||preview.state->generation!=registry_generation||
-       preview.state->first_entry!=next_entry||preview.state->before!=registry){
+       preview.state->first_entry!=next_entry||!preview.state->registry_copy.current(registry)){
         if(error.empty())error="Scene Building registry preview changed or consumed";return false;}
     return true;
 }
 bool publish(Preview& preview,std::string& error){
     if(!check(preview,error))return false;
-    registry=std::move(preview.state->after);next_entry=preview.state->next_entry;preview.state->prepared=false;error.clear();return true;
+    if(preview.state->registry_copy.after){preview.state->registry_copy.publish_after_check(registry);next_entry=preview.state->next_entry;}
+    preview.state->prepared=false;error.clear();return true;
 }
 }

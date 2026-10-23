@@ -1,15 +1,25 @@
+#include "mt2mp/core/hash.h"
+#include "mt2mp/hooks/framework_backend.h"
+namespace mt2mp {inline unsigned body_hash_calls=0;inline std::string counted_body_sha256(const std::vector<unsigned char>& bytes){++body_hash_calls;return sha256(bytes);}}
+#define sha256 counted_body_sha256
 #include "mt2mp/hooks/original_body.h"
+#undef sha256
 #include "framework_backend.cpp"
 #include "duplicate_codeguards.h"
 #include "scenery_kiss/lifecycle_codeguards.h"
 #include <iostream>
 #include <map>
 #include <array>
+#include "live_host_state/memory_query_timing.h"
+namespace live_host_state=mt2mp::game::live_host_state;
 
 namespace fixture {
 constexpr uintptr_t image=0x140000000;
 unsigned checks=0,reads=0,verifies=0;
 bool available=true,physical=true,verification=true;
+uintptr_t denied_read=0;
+void* query_page=nullptr;
+std::vector<std::pair<uintptr_t,size_t>> byte_reads;
 std::map<uintptr_t,std::vector<unsigned char>> memory;
 struct Service {MT2FW_MT2_RouteReceipt receipt{};std::vector<unsigned char> pristine;};
 std::map<std::string,Service> services;
@@ -22,8 +32,9 @@ MT2FW_MT2_Result read(void*,const char* name,MT2FW_MT2_RouteReceipt* output){
 MT2FW_MT2_Result verify(void* context,const char* name,uint32_t offset,const void* expected,uint32_t length,MT2FW_MT2_RouteReceipt* output){
     ++verifies;const auto result=read(context,name,output);if(result!=MT2FW_MT2_OK)return result;
     auto& row=services.at(name);const auto& live=memory.at(row.receipt.entry);
-    if(!verification||offset||!length||length>32||length>row.pristine.size()||
-       std::memcmp(expected,row.pristine.data(),length)||std::memcmp(live.data(),row.receipt.current,std::min<size_t>(32,live.size())))return MT2FW_MT2_FAILED;
+    if(!verification||offset||!length||length>row.pristine.size()||
+       std::memcmp(expected,row.pristine.data(),length)||std::memcmp(live.data(),row.receipt.current,std::min<size_t>(32,live.size()))||
+       (length>32&&std::memcmp(live.data()+32,row.pristine.data()+32,length-32)))return MT2FW_MT2_FAILED;
     return MT2FW_MT2_OK;
 }
 MT2FW_MT2_Result prepare(void*,const char* name,void* detour,MT2FW_MT2_RouteReceipt* output){
@@ -52,7 +63,11 @@ void hook(uintptr_t rva){auto& backend=mt2mp::hooks::framework::process_backend(
 }
 struct Memory {
     bool copy(uintptr_t address,void* out,size_t count,std::string& error){auto it=fixture::memory.find(address);
-        if(it==fixture::memory.end()||count>it->second.size()){error="fixture unreadable memory";return false;}
+        fixture::byte_reads.emplace_back(address,count);
+        if(fixture::query_page){MEMORY_BASIC_INFORMATION info{};
+            if(!live_host_state::apply_timing::virtual_query(fixture::query_page,&info,sizeof info,live_host_state::apply_timing::Part::QueryWorldProp)||
+               (info.Protect&(PAGE_NOACCESS|PAGE_GUARD))){error="fixture unreadable memory";return false;}}
+        if(address==fixture::denied_read||it==fixture::memory.end()||count>it->second.size()){error="fixture unreadable memory";return false;}
         std::memcpy(out,it->second.data(),count);return true;}
     bool read(uintptr_t address,void* out,size_t count,std::string& error){return copy(address,out,count,error);}
 };
@@ -63,9 +78,10 @@ struct Pin {uintptr_t rva;size_t bytes;const char* sha;};
 std::array<std::string,7> pin_hashes;
 namespace character_membership_codes {std::array<Pin,5> helpers{};}
 namespace dungeon_cells_codes {std::array<Pin,2> helpers{},graph_helpers{};constexpr int drag=0,release=1,create=2;}
-namespace quest_bridge {bool sha256(const std::string& bytes,std::string& hash,std::string&){hash=mt2mp::sha256(std::vector<unsigned char>(bytes.begin(),bytes.end()));return true;}}
+namespace quest_bridge {bool sha256(const std::string& bytes,std::string& hash,std::string&){hash=mt2mp::counted_body_sha256(std::vector<unsigned char>(bytes.begin(),bytes.end()));return true;}}
 namespace quest_list {
 bool read_route(uintptr_t entry,MT2FW_MT2_RouteReceipt& receipt,std::string& error){auto& backend=hooks::framework::process_backend();if(backend.read_route(reinterpret_cast<void*>(entry),receipt))return true;error=backend.error();return false;}
+bool verify_code(uintptr_t entry,const void* bytes,size_t size,std::string& error){return hooks::framework::process_backend().verify_code(entry,bytes,size,error);}
 }
 namespace character {
 void confirm_entry(void*){}
@@ -106,6 +122,7 @@ namespace npc_history {
 std::array<std::string,6> npc_history_hashes;
 #include "npc_history_extracted.inc"
 }
+#include "gizmo_code_digest_cases.inc"
 
 int main()try{
     using namespace fixture;
@@ -224,5 +241,6 @@ int main()try{
         cost_bytes[0]^=1;require(!npc_history::code(m,error)&&error=="NPC history original TypeCost table differs","NPC TypeCost guard retained");cost_bytes[0]^=1;
         require(npc_history::code(m,error),"NPC retirement guard recovers after invalid evidence removed");
     }
+    gizmo_code_digest_fixture::run();
     std::cout<<"PASS "<<checks<<" original-body and actual consumer/Backend checks\n";return 0;
 }catch(const std::exception& problem){std::cerr<<problem.what()<<'\n';return 1;}

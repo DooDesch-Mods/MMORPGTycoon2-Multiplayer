@@ -29,6 +29,9 @@ bool begin_save_scope(const SaveScopeApi& api,void* mode,SaveScopeReceipt& r,std
     if(game::live_host_state::apply_timing::quest_store_depth){
         game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::QuestStoreSaveEnter);
         r.enter_exception = call(api.enter, mode);
+    }else if(game::live_host_state::apply_timing::client_party_prepare_depth){
+        game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ClientPartySaveEnter);
+        r.enter_exception = call(api.enter, mode);
     }else r.enter_exception = call(api.enter, mode);
     if (r.enter_exception) {
         r.unknown = true; e = "native SaveScope Increment exception=" + std::to_string(r.enter_exception); return false;
@@ -41,7 +44,11 @@ bool finish_save_scope(const SaveScopeApi& api,void* mode,bool body_ok,bool exit
         r.unknown = true;
         if (r.cleanup_cause.empty()) r.cleanup_cause = "save scope exit owner guard rejected without cause";
     } else {
-        r.leave_attempted = true; r.leave_exception = call(api.leave, mode);
+        r.leave_attempted = true;
+        if(game::live_host_state::apply_timing::client_party_prepare_depth){
+            game::live_host_state::apply_timing::Scope measured(game::live_host_state::apply_timing::Part::ClientPartySaveLeave);
+            r.leave_exception = call(api.leave, mode);
+        }else r.leave_exception = call(api.leave, mode);
         r.leave_returned = r.leave_exception == 0;
         if (!r.leave_returned) { r.unknown = true; r.cleanup_cause = "native SaveScope Decrement exception=" + std::to_string(r.leave_exception); }
     }

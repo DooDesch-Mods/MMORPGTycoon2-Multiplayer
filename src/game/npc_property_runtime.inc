@@ -140,9 +140,9 @@ bool property_enable(std::string& error){
     const auto command=MH_CreateHook(reinterpret_cast<void*>(state.image+0x3c4c10),
         reinterpret_cast<void*>(&property_command_entry),reinterpret_cast<void**>(&property_command));
     if(command!=MH_OK||!property_command)return failure("NPC level command hook create",command);
-    for(uintptr_t rva:{uintptr_t(0x4cf710),uintptr_t(0x3c4800),uintptr_t(0x3c4c10)}){
-        const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+rva));
-        if(enabled!=MH_OK)return failure("NPC property hook enable",enabled);}
+    const uintptr_t targets[]{state.image+0x4cf710,state.image+0x3c4800,state.image+0x3c4c10};
+    if(!mt2mp::hooks::enable_prepared_targets(targets,"NPC property hooks",error)){
+        property_install_cause=error;return false;}
     property_installed=true;return true;
 }
 void property_tick(){

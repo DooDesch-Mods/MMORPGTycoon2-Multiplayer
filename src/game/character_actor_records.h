@@ -1,6 +1,9 @@
 #pragma once
 #include "character_membership_reader.h"
 #include "character_catalogue_proof.h"
+#include "character_catalogue_batch.h"
+#include "character_catalogue_record.h"
+#include "character_catalogue_timing.h"
 #include "subscriber_lifecycle/record_graph.h"
 #include "subscriber_lifecycle/capture.h"
 #include "duplicate_records.h"

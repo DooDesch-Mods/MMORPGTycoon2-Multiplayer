@@ -47,3 +47,6 @@ foreach(name interventions subscriber_intervention boss_identity intervention_ac
     add_test(NAME ${name} COMMAND test_${name})
     set_tests_properties(${name} PROPERTIES TIMEOUT 60)
 endforeach()
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+add_test(NAME actor_empty_adoption_boundary COMMAND "${Python3_EXECUTABLE}"
+    "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py" --root "${MT2MP_SOURCE_ROOT}")

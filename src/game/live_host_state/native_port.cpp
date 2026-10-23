@@ -30,7 +30,7 @@ bool current_scope(const Context& expected,const Binding& binding,Pin& p,native:
     p.context=current;p.binding=binding;p.common_epoch=net::current_world_epoch();if(!p.common_epoch)return fail(e,"live actual common Sidecar epoch absent");p.image=image;p.thread=thread;p.world=uintptr_t(world.world);
     return true;
 }
-bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages;native::WorldStatus status;
+bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());native::WorldStatus status;
     if(!current_scope(expected,binding,p,status,e)||!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
     const auto image=p.image;
     if(!at(image,0x13df9a0,p.clock,e)||!ap(p.clock,image,0x17499d0,e)||!at(image,0x13df220,p.business,e)||!ap(p.business,image,0x16d97e0,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1712c00,e))return false;
@@ -55,7 +55,22 @@ bool NativePort::publication_ready(uint64_t expected_epoch,bool& waiting,std::st
     if(current.common_epoch!=expected_epoch)return fail(e,"live publication actual common epoch differs from Bridge");
     return publication_activity(status.saves_in_progress,status.edit_operations,waiting,e);
 }
-bool NativePort::read(Pin& out,std::string& e){out={};Pin first,second;float pause1=0,pause2=0;if(!once(context_,binding_,first,pause1,e)||!once(context_,binding_,second,pause2,e))return false;if(first!=second||pause1!=pause2)return fail(e,"live native roots/fields/session changed during double read");Frame shape;shape.session=context_.session;shape.snapshot=context_.snapshot_uuid;shape.epoch=binding_.native_epoch;shape.source_generation=binding_.native_generation;shape.revision=shape.time_revision=1;shape.values=first.values;shape.selected=first.selected;shape.pause=pause1;if(!valid(shape,e))return false;out=first;e.clear();return true;}
+bool NativePort::application_ready(uint64_t expected_epoch,bool& waiting,std::string& e){
+    waiting=false;
+    if(context_.role!=action_session::Role::Client)return fail(e,"live application readiness requires bound Client");
+    Pin current;native::WorldStatus status;
+    if(!current_scope(context_,binding_,current,status,e))return false;
+    if(current.common_epoch!=expected_epoch)return fail(e,"live application actual common epoch differs from Bridge");
+    if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.quitting||
+       status.title_transition_pending||status.map_task_pending)
+        return fail(e,"live application active World boundary differs mode="+std::to_string(status.active_mode_index)+
+            " required_mode=3 state="+std::to_string(status.in_game_state)+" required_state=4 world_present="+
+            std::to_string(status.world_present)+" required_world_present=1 quitting="+std::to_string(status.quitting)+
+            " required_quitting=0 title_pending="+std::to_string(status.title_transition_pending)+
+            " required_title_pending=0 map_task_pending="+std::to_string(status.map_task_pending)+" required_map_task_pending=0");
+    return application_activity(status.saves_in_progress,status.edit_operations,waiting,e);
+}
+bool NativePort::read(Pin& out,std::string& e){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());out={};Pin first,second;float pause1=0,pause2=0;if(!once(context_,binding_,first,pause1,e)||!once(context_,binding_,second,pause2,e))return false;if(first!=second||pause1!=pause2)return fail(e,"live native roots/fields/session changed during double read");Frame shape;shape.session=context_.session;shape.snapshot=context_.snapshot_uuid;shape.epoch=binding_.native_epoch;shape.source_generation=binding_.native_generation;shape.revision=shape.time_revision=1;shape.values=first.values;shape.selected=first.selected;shape.pause=pause1;if(!valid(shape,e))return false;out=first;e.clear();return true;}
 bool NativePort::current_owners(const Pin& expected,std::string& e,int32_t expected_edits){Pin current;float pause=0;if(!once(context_,binding_,current,pause,e,expected_edits))return false;current.values={};auto identity=expected;identity.values={};if(current!=identity||(context_.role==action_session::Role::Client&&current.selected!=0))return fail(e,"live scalar current owner identities/History membership/Clock0 differ");e.clear();return true;}
 bool NativePort::store(const Pin& pin,size_t slot,int32_t before,int32_t target,std::string& e){if(slot>=scalar_count||GetCurrentThreadId()!=pin.thread||pin.context!=context_||pin.binding!=binding_||pin.context.role!=action_session::Role::Client||pin.selected!=0)return fail(e,"live fixed scalar store slot/actual Mainthread/Client binding invalid");if(!boundary_)return fail(e,"live actual Client economic dispatch fence provider missing; no store");if(!boundary_->read_current_fence(pin,e))return false;
     if(!current_owners(pin,e))return false;

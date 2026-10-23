@@ -16,6 +16,7 @@ bool live_hook_current(Memory& m,const LiveHook& hook,std::string& e){
     return true;
 }
 bool live_code(Memory& m,bool hooked,std::string& e){
+    live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     for(const auto& c:monster_live_codes::values){std::string bytes(c.size,'\0'),sha;
         bool observer=false;if(!interventions::actors::live::verify_observer(c.rva,c.sha,observer,e))return false;if(observer)continue;
         if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
@@ -275,6 +276,7 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
             if(!identity::root_owned(entry.scope))continue;
             if(entry.retired)out.retired.push_back(birth);else expected.emplace(birth,entry);
         }
+        {live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
         d::ReadMemory memory{m};q::Bounds regions;if(!q::typed(memory,state.image,uintptr_t(p.world.origin.map)+0x230,0x16f04e0,e)||!q::bounds(memory,uintptr_t(p.world.origin.map)+0x230,4096,regions,e))return false;
         std::set<int32_t> ids;std::set<uintptr_t> region_pointers,objects;
         for(int32_t i=0;i<regions.count;++i){uintptr_t region=0,ap=0,root=0,manager=0,owner=0;int32_t id=-1;
@@ -286,12 +288,14 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
                 if(!field(m,members.data,size_t(j)*8,object,e)||!object||!objects.insert(object).second||!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||
                    !field(m,object,0x8d0,zone,e)||!field(m,object,0x8d8,proxy,e))return fail(e,e.empty()?"Monster live owning row class/uniqueness differs":e);
                 if(zone)continue;if(proxy)return fail(e,"Monster live null-Zone row retains proxy");ml::Row value;LiveLocal local;
-                if(!row(m,p,object,value,local,e))return false;auto found=expected.find(value.birth);
+                {live_host_state::apply_timing::PageReadScope original_row(live_host_state::apply_timing::PageBoundary::OriginalCall);
+                    if(!row(m,p,object,value,local,e))return false;}auto found=expected.find(value.birth);
                 if(found==expected.end()||local.entry.scope.region!=region||local.entry.scope.manager!=manager||local.entry.pointer!=found->second.pointer||local.entry.uid!=found->second.uid)return fail(e,"Monster live unbound/mismatched birth in complete census");
                 if(!locals_.emplace(value.birth,local).second)return fail(e,"Monster live duplicate current birth");out.rows.push_back(std::move(value));}
             if(!q::unchanged(memory,manager+0x38,4096,members,e))return false;
         }
         if(!q::unchanged(memory,uintptr_t(p.world.origin.map)+0x230,4096,regions,e)||out.rows.size()!=expected.size())return fail(e,e.empty()?"Monster live confirmed birth absent from complete current census":e);
+        }
         std::sort(out.rows.begin(),out.rows.end(),[](const auto& a,const auto& b){return a.birth<b.birth;});
         LiveWorld after;if(!world(m,after,e)||!same_world(p.world,after.world))return fail(e,e.empty()?"Monster live World changed during complete sample":e);
         return ml::valid(out,e);

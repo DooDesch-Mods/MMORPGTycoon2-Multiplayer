@@ -243,7 +243,7 @@ void observe(int level,const char* source,int line,const std::string& message){
     }catch(const std::exception& error){warning(std::string("event capture failed: ")+error.what());}
 }
 void event(const std::string& code,const json& values,const std::string& action_id){
-    static const std::array<const char*,10> allowed={"action_sequence","revision","peer_slot","required_mask","ack_mask","channel","bytes","duration_us","count","frame_us"};
+    static const std::array<const char*,11> allowed={"action_sequence","action_type","revision","peer_slot","required_mask","ack_mask","channel","bytes","duration_us","count","frame_us"};
     static const std::regex action_pattern("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     if(code.size()>120||(!action_id.empty()&&!std::regex_match(action_id,action_pattern))){warning("diagnostic event identity invalid; event skipped");return;}
     json safe=json::object();for(const auto* name:allowed)if(values.contains(name)&&values.at(name).is_number_unsigned())safe[name]=values.at(name);

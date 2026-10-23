@@ -1,0 +1,24 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.23",
+  "game_build": "24993678",
+  "dll_sha256": "e8d2e1f9e8887da7e7184febc226626b6041745b5e1adc90b0967cd0f058e9a8",
+  "framework_runtime_version": "0.3.1",
+  "framework_runtime_sha256": "f73d452e26301665880be5784be6c779aa581d9c0fd92860a79567a572b1ab77",
+  "in_game_acceptance": "Two isolated peers started with the public V1 Framework runtime, connected and loaded the shared test world.",
+  "retained_gameplay_checks": [
+    "Client developer assignment and activity",
+    "Single Host load for a new day-zero world"
+  ],
+  "performance_scope": "Local development candidate with identical gameplay code; small world, 24 Client world updates, mean 96.534 ms. This is update processing time, not rendered FPS.",
+  "scene_confirm_before_ms": 8.981,
+  "scene_confirm_after_ms": 2.401,
+  "source_regression": "Affected production-code tests retained for memory-read scopes, action admission, save readiness and empty scene transactions.",
+  "limits": [
+    "Performance work remains open",
+    "Client save wait branch has unit coverage; native overlap was not observed",
+    "Separate-account online FPS and large worlds not rechecked"
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

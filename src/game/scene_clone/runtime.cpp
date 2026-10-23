@@ -1,4 +1,5 @@
 #include "runtime.h"
+#include "../live_host_state/apply_timing.h"
 #include "raw.h"
 #include "quest_preview.h"
 #include "../npc_quest_target_runtime.h"
@@ -88,7 +89,7 @@ bool Runtime::confirm_impl(const action_session::Context& context,const action_s
     out={};admitted={};attempted=false;
     if(!state_||!state_->prepared||state_->locked||state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding||!current(context,binding,e)||(authority!=nullptr)!=(context.role==action_session::Role::Client)||state_->operations.contains(operation))return fail(e,e.empty()?"Scene clone confirmation token/current bound preparation differs":e);
     Raw actual;Mapping mapping;Changes changes;
-    if(!read_raw(actual,e)||!identities(actual,direct::registry,e,&state_->baseline)||!plan(state_->baseline,actual,operation,state_->mapping,authority,mapping,changes,e,template_exterior,restoration))return false;
+    if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneRawActual);return read_raw(actual,e);}()||!identities(actual,direct::registry,e,&state_->baseline)||!plan(state_->baseline,actual,operation,state_->mapping,authority,mapping,changes,e,template_exterior,restoration))return false;
     Raw held;const Raw* retained=nullptr;
     const bool departed_template=std::any_of(state_->baseline.pools.begin(),state_->baseline.pools.end(),[&](const auto& pool){
         return pool.scene.owner.type==1&&!pool_named(actual,pool.scene.owner.key);
@@ -132,15 +133,15 @@ bool Runtime::confirm_impl(const action_session::Context& context,const action_s
         }
     }
     gizmo::ClonePreview gizmos;npc_quest_target_runtime::ClonePreview zones;buildings::Preview building_preview;
-    if(!gizmo::preview_clones(actual.world,gizmo_births,gizmo_retired,gizmos,admitted,e,gizmo_restored,template_exterior,retained)||!npc_quest_target_runtime::preview_clones(actual,mapping,zones,e,template_exterior,restoration,retained)||!verify_direct(actual,direct_after,e)||!buildings::preview(actual.world,building_births,building_retired,building_restored,building_preview,e,retained))return false;
-    Raw final;if(!read_raw(final,e)||!same_raw(actual,final)||!current(context,binding,e)||!gizmo::check_clones(gizmos,e)||!npc_quest_target_runtime::check_clones(zones,e)||!buildings::check(building_preview,e)||direct::registry!=direct_before)return fail(e,e.empty()?"Scene clone complete native preview changed before publication":e);
+    if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneGizmoPreview);return gizmo::preview_clones(actual.world,gizmo_births,gizmo_retired,gizmos,admitted,e,gizmo_restored,template_exterior,retained);}()||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneZonePreview);return npc_quest_target_runtime::preview_clones(actual,mapping,zones,e,template_exterior,restoration,retained);}()||!verify_direct(actual,direct_after,e)||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingPreview);return buildings::preview(actual.world,building_births,building_retired,building_restored,building_preview,e,retained);}())return false;
+    Raw final;if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneRawFinal);return read_raw(final,e);}()||!same_raw(actual,final)||!current(context,binding,e)||!gizmo::check_clones(gizmos,e)||!npc_quest_target_runtime::check_clones(zones,e)||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingCheck);return buildings::check(building_preview,e);}()||direct::registry!=direct_before)return fail(e,e.empty()?"Scene clone complete native preview changed before publication":e);
     if(retained){Raw final_held;if(!read_held_template(state_->baseline,template_exterior,held_node,final_held,e)||
         !same_raw(held,final_held))return fail(e,e.empty()?"Scene clone inverse-owned template changed before publication":e);}
     const auto unknown=[&](){state_->locked=true;state_->cause="Scene clone registry publication incomplete: "+e;e=state_->cause;return false;};
     attempted=true;
-    if(!gizmo::publish_clones(gizmos,e)||!npc_quest_target_runtime::publish_clones(zones,e)||!buildings::publish(building_preview,e))return unknown();
+    if(!gizmo::publish_clones(gizmos,e)||!npc_quest_target_runtime::publish_clones(zones,e)||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingPublish);return buildings::publish(building_preview,e);}())return unknown();
     direct::registry=std::move(direct_after);
-    if(!identities(final,direct::registry,e)||!gizmo::read_current(admitted,e))return unknown();
+    if(!identities(final,direct::registry,e)||![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneGizmoFinal);return gizmo::read_current(admitted,e);}())return unknown();
     for(auto& pool:final.pools)for(auto& member:pool.members){const auto row=std::find_if(mapping.members.begin(),mapping.members.end(),[&](const auto& value){return value.scene==pool.scene.owner.key&&value.family==member.family&&value.child==member.child;});
         if(row==mapping.members.end()||row->key!=member.key){e="Scene clone published alias differs from complete mapping";return unknown();}member.origin=row->origin;member.ordinal=row->ordinal;}
     for(const auto& pool:state_->baseline.pools)if(!pool_named(final,pool.scene.owner.key))state_->retired_pools[pool.scene.owner.key]=pool;

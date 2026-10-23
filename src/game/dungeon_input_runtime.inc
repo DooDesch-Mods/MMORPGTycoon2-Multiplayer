@@ -87,8 +87,7 @@ bool enable(std::string& error){
         {pins::paint_finish.rva,uintptr_t(&paint_finish_entry),reinterpret_cast<void**>(&original_paint_finish)}}};
     for(const auto& hook:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+hook.rva),reinterpret_cast<void*>(hook.entry),hook.original);
         if(result!=MH_OK||!*hook.original)return fail(error,"Dungeon input original hook prepare failed RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" original="+mt2mp::hooks::framework::process_backend().error());}
-    for(const auto& hook:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(state.image+hook.rva));
-        if(result!=MH_OK)return fail(error,"Dungeon input hook enable failed RVA="+std::to_string(hook.rva)+" status="+std::to_string(result));}
+    if(!mt2mp::hooks::enable_prepared_routes(state.image,hooks,"Dungeon input hooks",error))return false;
     for(size_t i=0;i<hooks.size();++i){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
         if(!quest_list::read_route(state.image+hooks[i].rva,receipt,error))return false;generations[i]=receipt.generation;}
     if(!code(memory,error))return false;ready=true;return true;

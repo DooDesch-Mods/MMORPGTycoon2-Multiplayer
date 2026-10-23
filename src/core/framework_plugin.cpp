@@ -159,8 +159,10 @@ void prepare() {
         state.test=framework_profile::local_test(state.paths,value);
     }
     auto& backend=hooks::framework::process_backend();
+    // The V1 binding remains the identity authority for optional V2 discovery.
     if(!backend.bind(state.routes,reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)),framework_profile::plugin_id,state.thread,reclaim,hook_log,&state)||
-       !backend.bind_ownership(state.ownership))throw std::runtime_error("Framework hook owner binding failed: "+backend.error());
+       !backend.bind_ownership(state.ownership)||!backend.discover_batch(query_routes,state.host))throw std::runtime_error("Framework hook owner binding failed: "+backend.error());
+    LOG_INFO("[Framework] Hook activation mode={}",backend.batch_available()?"prepared batch":"legacy immediate");
     state.prepared=true;
     std::string error;
     if(!game::native_lobby::framework_bind(state.host,&state.routes,&state.ownership,error))throw std::runtime_error("Framework lobby bind failed: "+error);

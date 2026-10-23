@@ -8,6 +8,8 @@
 #include <memory>
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/reporting.h"
+#include "mt2mp/core/logger.h"
+#include <chrono>
 #endif
 #include "../bug_authority/job_codec.h"
 #include "../snapshot_building_key.h"
@@ -37,6 +39,27 @@
 namespace mt2mp::action_session {
 namespace {
 using json=nlohmann::json;
+// Measure native work separately from waiting for a remote acknowledgement.
+class ActionMeasurement {
+public:
+    explicit ActionMeasurement(const Request& request):request_(request) {}
+    void checkpoint(const char* phase) {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        const auto end=std::chrono::steady_clock::now();
+        const auto micros=uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(end-started_).count());
+        reporting::event(phase,{{"action_type",uint64_t(request_.action)},{"duration_us",micros}},request_.action_uuid);
+        if(micros>=100000)LOG_WARN("[ActionTiming] phase={} action_type={} action={} duration_us={}",phase,unsigned(request_.action),request_.action_uuid,micros);
+        started_=std::chrono::steady_clock::now();
+#else
+        (void)phase;
+#endif
+    }
+private:
+    const Request& request_;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    std::chrono::steady_clock::time_point started_=std::chrono::steady_clock::now();
+#endif
+};
 template<class Function>bool callback(Function fn,std::string& cause) {
     try{const bool accepted=fn();if(!accepted&&cause.empty())cause="callback rejected without original cause";return accepted;}
     catch(const std::exception& e){cause=std::string("callback exception: ")+e.what();return false;}
@@ -2295,7 +2318,7 @@ bool Controller::send(uint64_t target,const Message& m,std::string& error) {
     if(!encode(m,bytes,error))return fail(error,error,true);
     if(!invoke([&]{return transport_.send(target,bytes,error);},error))return fail("action send target="+std::to_string(target)+": "+error,error,true);
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-    reporting::event("action.sent."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},
+    reporting::event("action.sent."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},{"action_type",uint64_t(m.request.action)},
         {"revision",m.revision},{"peer_slot",target},{"required_mask",m.required_mask},{"ack_mask",uint64_t(status_.ack_mask)},
         {"bytes",uint64_t(bytes.size())}},m.request.action_uuid);
 #endif
@@ -2630,20 +2653,25 @@ bool Controller::request(const Message& m,uint64_t sender,std::string& error) {
     const bool revision_conflict=m.request.host_revision!=status_.host_revision;
     ++status_.host_revision;
     if(revision_conflict)return finish(Outcome::RejectedNoEffect,"request host revision conflict",error);
+    ActionMeasurement measurement(m.request);
     Ledger before;
     if(!invoke([&]{return engine_.ledger(binding_,before,error);},error))return finish(status_.locked?Outcome::Unknown:Outcome::RejectedNoEffect,"host before ledger: "+error,error);
     if(!valid_ledger(before))return finish(Outcome::RejectedNoEffect,"host before ledger record_present requires 0 or 1",error);
     if(!invoke([&]{return engine_.capture_host_authority_before(binding_,m.request,before,status_.host_revision-1,error);},error))return finish(Outcome::RejectedNoEffect,"host authority before capture: "+error,error);
+    measurement.checkpoint("action.host.capture");
     ++status_.attempted;busy_=true;Outcome outcome;
     try {outcome=engine_.execute_action(binding_,m.request,error);}catch(const std::exception& e){outcome=Outcome::Unknown;error=e.what();}
     catch(...){outcome=Outcome::Unknown;error="nonstandard native execution exception";}
     busy_=false;
+    measurement.checkpoint("action.host.execute");
     if(status_.locked)return finish(Outcome::Unknown,status_.cause,error);
     if(outcome!=Outcome::Confirmed&&error.empty())error="native execution returned failure without original cause";
     if(outcome!=Outcome::Confirmed)return finish(outcome==Outcome::RejectedNoEffect?outcome:Outcome::Unknown,"host native action: "+error,error);
     Message result=m;result.kind=Kind::HostResult;result.revision=status_.host_revision;result.required_mask=context_.peer_mask;result.outcome=Outcome::Confirmed;
     if(!observe(m.request,before,result.evidence,error))return finish(Outcome::Unknown,error,error);
+    measurement.checkpoint("action.host.observe");
     if(!invoke([&]{return engine_.publish_host_authority_before(result,error);},error))return finish(Outcome::Unknown,"host authority before publication: "+error,error);
+    measurement.checkpoint("action.host.publish");
     auto& cached=history_.at(id);cached.result=result;cached.has_result=true;status_.ack_mask=bit(context_.local_peer);
     for(uint64_t peer=1;peer<=4;++peer)if(peer!=context_.local_peer&&(context_.peer_mask&bit(peer)))if(!send(peer,result,error))return finish(Outcome::Unknown,error,error);
     if(status_.ack_mask==status_.required_mask)return finish(Outcome::Confirmed,"",error);
@@ -2682,14 +2710,17 @@ bool Controller::result(const Message& m,std::string& error) {
     last_result_revision_=m.revision;status_.host_revision=m.revision;status_.required_mask=context_.peer_mask;
     pending_=m;status_.pending=true;status_.action_uuid=m.request.action_uuid;
     Message ack=m;ack.kind=Kind::ApplyAck;ack.ack_peer=context_.local_peer;
+    ActionMeasurement measurement(m.request);
     Ledger before;
     if(!invoke([&]{return engine_.apply_client_authority_before(binding_,m,m.revision-1,error);},error)){ack.outcome=Outcome::Unknown;ack.cause="client authority before apply: "+error;}
     else if(!invoke([&]{return engine_.ledger(binding_,before,error);},error)||before!=m.evidence.before){ack.outcome=Outcome::Unknown;ack.cause="client before ledger differs from authority: "+error;}
     else {
+        measurement.checkpoint("action.client.authority");
         ++status_.attempted;busy_=true;Outcome applied;
         try{applied=engine_.apply_action(binding_,m.request,m.evidence,error);}catch(const std::exception& e){applied=Outcome::Unknown;error=e.what();}
         catch(...){applied=Outcome::Unknown;error="nonstandard native apply exception";}
         busy_=false;
+        measurement.checkpoint("action.client.apply");
         if(status_.locked){applied=Outcome::Unknown;error=status_.cause;}
         if(applied!=Outcome::Confirmed&&error.empty())error="native apply returned failure without original cause";
         if(applied!=Outcome::Confirmed){ack.outcome=Outcome::Unknown;ack.cause="client native apply: "+error;}
@@ -2697,6 +2728,7 @@ bool Controller::result(const Message& m,std::string& error) {
             Evidence local;
             if(!observe(m.request,before,local,error)||!authority_evidence(m.request,local,m.evidence)){ack.outcome=Outcome::Unknown;ack.cause="client after ledger/native receipt differs from authority: "+error;}
             else ack.evidence=local;
+            measurement.checkpoint("action.client.observe");
         }
     }
     history_.at(id).ack=ack;history_.at(id).has_ack=true;
@@ -2815,7 +2847,7 @@ bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64
     if(m.kind!=Kind::Request&&m.required_mask!=context_.peer_mask)return fail("packet immutable participant mask differs",error,true);
     if(m.kind!=Kind::Request&&m.kind!=Kind::ApplyAck&&sender!=context_.host_peer)return fail("result/completion sender is not Host",error);
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-    reporting::event("action.received."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},
+    reporting::event("action.received."+std::to_string(unsigned(m.kind)),{{"action_sequence",m.request.sequence},{"action_type",uint64_t(m.request.action)},
         {"revision",m.revision},{"peer_slot",sender},{"required_mask",m.required_mask},{"ack_mask",uint64_t(status_.ack_mask)},
         {"bytes",uint64_t(size)}},m.request.action_uuid);
 #endif

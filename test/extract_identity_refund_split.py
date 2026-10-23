@@ -149,6 +149,52 @@ print('Extracted complete collector, public report, refund enrichment, both reso
 # New owner-only consumers use the same actual known-Bound resolver.
 owner=(args.root/'src/game/building_identity_census.inc').read_text(encoding='utf-8')
 (args.output/'building_identity_census_actual.inc').write_text(owner,encoding='utf-8')
+index_body=body('bool building_identity_index(',owner)
+object_index=('    using ObjectIndex=std::conditional_t<requires{indexed.bucket_count();},std::pmr::unordered_set<uintptr_t>,std::pmr::set<uintptr_t>>;\n'
+              '    ObjectIndex objects{storage};\n'
+              '    if constexpr(requires{objects.reserve(registry.size());})objects.reserve(registry.size());')
+assert index_body.count(object_index)==1, 'Building object index container boundary changed'
+index_body=index_body.replace(object_index,'    std::pmr::set<uintptr_t> objects{storage};',1)
+(args.output/'building_identity_index_ordered_arena.inc').write_text(
+    'template<class Index>\n'+index_body.replace('bool building_identity_index(', 'bool building_identity_index_ordered_arena(',1)+'\n',encoding='utf-8')
+index_arena_delta=(
+    ('Index& indexed', 'std::map<uint64_t,const Bound*>& indexed'),
+    ('const auto prefix=registry_id(snapshot,{});\n'
+     '    auto* storage=[&]{if constexpr(requires{indexed.get_allocator().resource();})return indexed.get_allocator().resource();else return std::pmr::get_default_resource();}();\n'
+     '    std::pmr::set<uintptr_t> objects{storage};', 'const auto prefix=registry_id(snapshot,{});std::set<uintptr_t> objects;'),
+)
+for added,prior in index_arena_delta:
+    assert index_body.count(added)==1, 'Building index local arena boundary changed'
+    index_body=index_body.replace(added,prior,1)
+pre_arena_index=index_body
+(args.output/'building_identity_index_pre_arena.inc').write_text(
+    pre_arena_index.replace('bool building_identity_index(', 'bool building_identity_index_pre_arena(',1)+'\n',encoding='utf-8')
+# The measured baseline uses one upstream allocation per original tree node.
+# Only allocator types change; all previous production guards remain extracted.
+(args.output/'building_identity_index_measured.inc').write_text(
+    pre_arena_index.replace('bool building_identity_index(', 'bool building_identity_index_measured(',1)
+    .replace('std::map<uint64_t,const Bound*>& indexed','std::pmr::map<uint64_t,const Bound*>& indexed')
+    .replace('std::set<uintptr_t> objects;','std::pmr::set<uintptr_t> objects;')+'\n',encoding='utf-8')
+index_delta=(
+    ('    const auto snapshot=net::current_snapshot_id();const auto prefix=registry_id(snapshot,{});std::set<uintptr_t> objects;\n'
+     '    constexpr char scenery_suffix[]=":world:scenery:inline:";',
+     '    const auto snapshot=net::current_snapshot_id();std::set<std::string> keys;std::set<uintptr_t> objects;'),
+    ('        // Exact registry IDs are unique map keys. With one fixed prefix, their\n'
+     '        // validated suffixes also prove canonical key uniqueness.\n'
+     '        if(!binding.uid||!binding.entry||binding.key.empty()||!id.starts_with(prefix)||id.compare(prefix.size(),std::string::npos,binding.key)!=0||\n'
+     '           !indexed.emplace(binding.uid,&binding).second||',
+     '        if(!binding.uid||!binding.entry||binding.key.empty()||id!=registry_id(snapshot,binding.key)||\n'
+     '           !keys.insert(binding.key).second||!indexed.emplace(binding.uid,&binding).second||'),
+    ('           binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha)&&\n'
+     '           binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)==0&&',
+     '           binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha+":world:scenery:inline:")&&'),
+)
+for added,prior in index_delta:
+    assert index_body.count(added)==1, 'Building identity index allocation boundary changed'
+    index_body=index_body.replace(added,prior,1)
+assert hashlib.sha256(index_body.encode()).hexdigest()=='520714c51fc03269db8d7ed19a2b9ab159076ead6c4b96a4bc776403132a1ef3', 'Original Building identity index guard changed'
+(args.output/'building_identity_index_baseline.inc').write_text(
+    index_body.replace('bool building_identity_index(', 'bool building_identity_index_baseline(',1)+'\n',encoding='utf-8')
 service=(args.root/'src/game/service_live_native.inc').read_text(encoding='utf-8')
 owners=body('for(const auto& target:census)',service)
 (args.output/'service_owners_actual.inc').write_text(owners+'\nreturn true;\n',encoding='utf-8')
@@ -182,6 +228,60 @@ assert 'resolve_record_target' not in target and 'resolve_local_target' not in t
 
 # Preserve the complete source census without copying its discarded binding array.
 building_targets=body('bool identity_building_targets(',owner)
+ordered_targets=building_targets
+unordered_delta=(
+    ('// Both fresh indexes share local storage;', '// Both fresh ordered indexes share local storage;'),
+    ('std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());',
+     'std::pmr::map<uint64_t,const Bound*> indexed{&index_storage};'),
+    ('    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};if(!destinations)candidate_objects.reserve(indexed.size());\n', ''),
+    ('    // The ordered exclusions preserve canonical insertion order. Thought callers\n'
+     '    // only need pointer uniqueness, so their collision index stores no key strings.\n'
+     '    for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}',
+     '    // Thought callers need the pointer collision proof, but not destination key copies.\n'
+     '    for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,destinations?binding->key:std::string{});'),
+    ('if(!(destinations?candidates.emplace(target.object,target.record_key).second:candidate_objects.emplace(target.object).second))',
+     'if(!candidates.emplace(target.object,target.record_key).second)'),
+)
+for added,prior in unordered_delta:
+    assert ordered_targets.count(added)==1, 'Building unordered index boundary changed'
+    ordered_targets=ordered_targets.replace(added,prior,1)
+(args.output/'building_targets_ordered_arena.inc').write_text(
+    ordered_targets.replace('bool identity_building_targets(', 'bool identity_building_targets_ordered_arena(',1)
+    .replace('building_identity_index(', 'building_identity_index_ordered_arena(')+'\n',encoding='utf-8')
+arena_declaration=('    // Both fresh ordered indexes share local storage; no binding survives this call.\n'
+                   '    std::pmr::monotonic_buffer_resource index_storage;\n'
+                   '    std::pmr::map<uint64_t,const Bound*> indexed{&index_storage};std::set<uint64_t> omitted;')
+assert ordered_targets.count(arena_declaration)==1
+assert building_targets.count('const auto prior_omitted=std::move(omitted);')==1
+pre_arena_targets=ordered_targets.replace(arena_declaration,'    std::map<uint64_t,const Bound*> indexed;std::set<uint64_t> omitted;',1)
+pre_arena_targets=pre_arena_targets.replace('const auto prior_omitted=std::move(omitted);','const auto prior_omitted=omitted;',1)
+(args.output/'building_targets_arena_baseline.inc').write_text(
+    pre_arena_targets.replace('bool identity_building_targets(', 'bool identity_building_targets_arena_baseline(',1)
+    .replace('building_identity_index(', 'building_identity_index_pre_arena(')+'\n',encoding='utf-8')
+(args.output/'building_targets_arena_measured.inc').write_text(
+    pre_arena_targets.replace('bool identity_building_targets(', 'bool identity_building_targets_arena_measured(',1)
+    .replace('building_identity_index(', 'building_identity_index_measured(')
+    .replace('std::map<uint64_t,const Bound*> indexed;', 'std::pmr::map<uint64_t,const Bound*> indexed;')+'\n',encoding='utf-8')
+candidate_new=('    // Thought callers need the pointer collision proof, but not destination key copies.\n'
+               '    for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,destinations?binding->key:std::string{});')
+candidate_prior='    for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,binding->key);'
+assert ordered_targets.count(candidate_new)==1, 'Omitted destination allocation boundary changed'
+prior_targets=pre_arena_targets.replace(candidate_new,candidate_prior,1)
+assert hashlib.sha256(prior_targets.encode()).hexdigest()=='b1068edb1279cf130da6a2f2913c57acf1607e50d65fe441a775defd6780a416', 'Original Building target census body changed'
+for name,actual,key in [('baseline',prior_targets,'binding->key'),('tracked',building_targets,'binding->key')]:
+    if name=='baseline':actual=actual.replace('building_identity_index(', 'building_identity_index_pre_arena(')
+    # Count bytes supplied to the omitted candidate map while executing the
+    # complete extracted body. No census or native-reader predicate is replaced.
+    statement='candidates.emplace(binding->object,'+key+');'
+    assert actual.count(statement)==1
+    actual=actual.replace(statement,'candidates.emplace(binding->object,candidate_key_probe('+key+'));',1)
+    if name=='tracked':
+        statement='candidate_objects.emplace(binding->object);'
+        assert actual.count(statement)==1
+        actual=actual.replace(statement,'(candidate_key_probe(std::string{}),candidate_objects.emplace(binding->object));',1)
+    actual=actual.replace('bool identity_building_targets(', 'bool identity_building_targets_'+name+'(',1)
+    (args.output/('building_targets_'+name+'.inc')).write_text(actual+'\n',encoding='utf-8')
+assert building_targets.count('building_identity_index(world,heap.image,indexed,omitted,error)')==2, 'Both fresh Building identity scans must remain'
 assert 'json selected=sources' not in building_targets
 assert 'json selected={{"world_epoch",sources.at("world_epoch")},{"world_generation",sources.at("world_generation")},{"bindings",json::array()}};' in building_targets
 assert building_targets.index('collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted)')<building_targets.index('json selected=')

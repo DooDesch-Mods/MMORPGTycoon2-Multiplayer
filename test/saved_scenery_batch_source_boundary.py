@@ -529,6 +529,10 @@ LEAF_DELTAS=[('    mt2mp::game::live_host_state::apply_timing::PageReadScope '
   'false;')]
 
 def normalize(relative, source):
+    if relative=='src/game/remove_diagnostics.cpp':
+        includes='#include <memory_resource>\n#include <unordered_map>\n#include <unordered_set>\n#include <type_traits>\n'
+        assert source.count(includes)==1, 'Building index arena include changed'
+        source=source.replace(includes,'',1)
     if relative=='src/game/remove_diagnostics.cpp' and 'BindingDetails {Identity,Refund,BuildingTargets}' in source:
         building_target_delta=[('enum class BindingDetails {Identity,Refund,BuildingTargets};', 'enum class BindingDetails {Identity,Refund};'), ('    json retained=json::array();bool retained_present=false;\n    for(auto& [id,saved]:registry) {', '    json retained=json::array();\n    for(auto& [id,saved]:registry) {'), ('        if(saved.generation!=registry_generation||saved.world!=actual||saved.snapshot!=session_snapshot||saved.scene_owner=="retired")continue;\n        retained_present=true;\n', '        if(saved.generation!=registry_generation||saved.world!=actual||saved.snapshot!=session_snapshot||saved.scene_owner=="retired")continue;\n'), ('        if(details==BindingDetails::BuildingTargets&&omit_metadata&&omit_metadata->contains(saved.uid)&&!saved.revoked&&!saved.unknown){\n            // The Building census already excludes this admitted saved Scenery.\n            // Preserve the stored field guards without allocating its unused row.\n            for(const char* field:{"type","variant","x","y","z"})(void)saved.metadata.at(field);\n            if(saved.metadata.contains("rotation"))(void)saved.metadata.at("rotation");\n            if(saved.metadata.contains("scale"))(void)saved.metadata.at("scale");\n            continue;\n        }\n        retained.push_back({{"snapshot_id",saved.snapshot},{"record_key",saved.key},{"local_uid",saved.uid},', '        retained.push_back({{"snapshot_id",saved.snapshot},{"record_key",saved.key},{"local_uid",saved.uid},'), ('    if(retained_present) {\n', '    if(!retained.empty()) {\n')]
         for added,prior in building_target_delta:

@@ -1,6 +1,9 @@
 #include "mt2mp/hooks/framework_backend.h"
 #include <cstring>
 #include <limits>
+#include <set>
+#include <vector>
+#include <algorithm>
 
 namespace mt2mp::hooks::framework {
 namespace {
@@ -82,6 +85,30 @@ bool Backend::bind(const MT2FW_MT2_RoutesV1& routes,uintptr_t image,const char* 
     api_=routes;image_=image;owner_=owner;thread_=thread;reclaim_=reclaim;bound_=true;error_.clear();return true;
 }
 MH_STATUS Backend::initialize(){if(!current("initialize"))return MH_ERROR_NOT_INITIALIZED;error_.clear();return MH_OK;}
+bool Backend::bind_batch(const MT2FW_MT2_RoutesV2& value) {
+    if(!current("bind_batch"))return false;
+    const auto& v=value.v1;
+    if(batch_||v.size!=sizeof(value)||v.version!=MT2FW_MT2_ROUTES_BATCH_VERSION||v.context!=api_.context||
+       v.create_subscribe!=api_.create_subscribe||v.create_unsubscribe!=api_.create_unsubscribe||
+       v.remove_bind!=api_.remove_bind||v.remove_unbind!=api_.remove_unbind||
+       v.hook_prepare!=api_.hook_prepare||v.hook_enable!=api_.hook_enable||v.hook_remove!=api_.hook_remove||
+       v.route_read!=api_.route_read||v.code_verify!=api_.code_verify||!value.hook_enable_batch){
+        fail("bind_batch",MH_ERROR_NOT_INITIALIZED,"Framework batch service differs from the bound owner and immediate routes");return false;
+    }
+    batch_=value.hook_enable_batch;error_.clear();return true;
+}
+bool Backend::discover_batch(MT2FW_MT2_QueryRoutesFn query,const MT2FW_Host* host){
+    if(!current("discover_batch"))return false;
+    if(!query||!host){fail("discover_batch",MH_ERROR_NOT_INITIALIZED,"Framework batch query requires the authenticated Host and export");return false;}
+    MT2FW_MT2_RoutesV2 value;std::memset(&value,0,sizeof(value));
+    const auto result=query(host,MT2FW_MT2_ROUTES_BATCH_VERSION,&value.v1,sizeof(value));
+    const auto* bytes=reinterpret_cast<const unsigned char*>(&value);
+    if(result==MT2FW_MT2_INVALID&&std::all_of(bytes,bytes+sizeof(value),[](unsigned char byte){return byte==0;})){
+        error_.clear();return true;
+    }
+    if(result!=MT2FW_MT2_OK){fail("discover_batch",MH_ERROR_NOT_INITIALIZED,"Framework batch discovery failed or wrote rejected output result="+std::to_string(result));return false;}
+    return bind_batch(value);
+}
 bool Backend::bind_ownership(const MT2FW_MT2_OwnershipV1& value) {
     if(!current("bind_ownership"))return false;
     if(ownership_bound_){fail("bind_ownership",MH_ERROR_ALREADY_INITIALIZED,"Framework ownership service cannot rebind");return false;}
@@ -138,10 +165,80 @@ MH_STATUS Backend::enable_one(uintptr_t target,Entry& entry) {
 MH_STATUS Backend::enable(void* address) {
     if(!current("enable"))return MH_ERROR_NOT_INITIALIZED;
     if(address){auto it=entries_.find(reinterpret_cast<uintptr_t>(address));if(it==entries_.end())return fail("enable",MH_ERROR_NOT_CREATED,"Target has no local prepare receipt");return enable_one(it->first,it->second);}
+    if(batch_){
+        std::vector<uintptr_t> prepared;prepared.reserve(MT2FW_MT2_ROUTES_BATCH_MAX);
+        const auto flush=[&](){if(prepared.empty())return MH_OK;
+            const auto result=enable_prepared_batch(prepared);prepared.clear();return result;};
+        for(auto& [target,entry]:entries_){
+            if(entry.owned&&!entry.blocked&&entry.state==MT2FW_MT2_ROUTE_PREPARED){
+                prepared.push_back(target);
+                if(prepared.size()==MT2FW_MT2_ROUTES_BATCH_MAX){const auto result=flush();if(result!=MH_OK)return result;}
+                continue;
+            }
+            // Keep receipt validation and retained resume in the original order.
+            const auto result=flush();if(result!=MH_OK)return result;
+            if(entry.state==MT2FW_MT2_ROUTE_REMOVED)continue;
+            const auto enabled=enable_one(target,entry);if(enabled!=MH_OK&&enabled!=MH_ERROR_ENABLED)return enabled;
+        }
+        const auto result=flush();if(result!=MH_OK)return result;
+        error_.clear();return MH_OK;
+    }
     // Legacy all means only this backend's prepared entries. It never reaches the SDK.
     for(auto& [target,entry]:entries_){if(entry.state==MT2FW_MT2_ROUTE_REMOVED)continue;
         const auto result=enable_one(target,entry);if(result!=MH_OK&&result!=MH_ERROR_ENABLED)return result;}
     error_.clear();return MH_OK;
+}
+MH_STATUS Backend::enable_prepared_batch(std::span<const uintptr_t> targets) {
+    if(!current("enable_batch"))return MH_ERROR_NOT_INITIALIZED;
+    if(targets.empty()||targets.size()>MT2FW_MT2_ROUTES_BATCH_MAX)
+        return fail("enable_batch",MH_ERROR_UNSUPPORTED_FUNCTION,"Prepared batch count must be 1..128");
+    // Older providers retain the original immediate operation and failure order.
+    if(!batch_){
+        for(auto target:targets){const auto result=enable(reinterpret_cast<void*>(target));if(result!=MH_OK)return result;}
+        return MH_OK;
+    }
+    std::set<uintptr_t> unique;
+    std::vector<Entry*> entries;std::vector<const char*> names;
+    std::vector<MT2FW_MT2_RouteReceipt> observed(targets.size());
+    for(auto target:targets){
+        const auto found=entries_.find(target);
+        if(!unique.insert(target).second||found==entries_.end())
+            return fail("enable_batch",MH_ERROR_NOT_CREATED,"Prepared batch contains a duplicate or unknown local target RVA="+std::to_string(target>=image_?target-image_:target));
+        auto& entry=found->second;
+        if(entry.blocked||!entry.owned||entry.state!=MT2FW_MT2_ROUTE_PREPARED)
+            return fail("enable_batch",MH_UNKNOWN,"Prepared batch target is not an unblocked owned prepared route: "+entry.name+" cause="+entry.cause);
+        auto before=fresh();const auto result=api_.route_read(api_.context,entry.name.c_str(),&before);
+        if(result!=MT2FW_MT2_OK||!receipt(before,target,&entry,MT2FW_MT2_ROUTE_PREPARED))
+            return fail("enable_batch",MH_UNKNOWN,"Framework current route differs before batch enable: "+entry.name+" cause="+cause(before),&entry);
+        entries.push_back(&entry);names.push_back(entry.name.c_str());
+    }
+    for(auto& value:observed)value=fresh();
+    const auto result=batch_(api_.context,names.data(),static_cast<uint32_t>(names.size()),observed.data(),static_cast<uint32_t>(observed.size()));
+    std::string failure;
+    for(size_t i=0;i<entries.size();++i){
+        auto& entry=*entries[i];entry.batch_receipt=observed[i];
+        const bool enabled=receipt(observed[i],targets[i],&entry,MT2FW_MT2_ROUTE_ENABLED);
+        if(((result!=MT2FW_MT2_OK&&!cause(observed[i]).empty())||(result==MT2FW_MT2_OK&&!enabled))&&failure.empty())
+            failure="Framework batch enable failed or receipt differs: "+entry.name+" index="+std::to_string(i)+
+                " result="+std::to_string(result)+" cause="+cause(observed[i]);
+    }
+    if(result!=MT2FW_MT2_OK&&failure.empty())failure="Framework batch enable failed result="+std::to_string(result)+"; provider returned no cause";
+    if(!failure.empty()){
+        for(size_t i=0;i<entries.size();++i){auto& entry=*entries[i];
+            const auto state=observed[i].state;
+            entry.state=(result!=MT2FW_MT2_OK&&(state==MT2FW_MT2_ROUTE_PREPARED||state==MT2FW_MT2_ROUTE_UNKNOWN)&&
+                receipt(observed[i],targets[i],&entry,state))?state:MT2FW_MT2_ROUTE_UNKNOWN;
+            entry.blocked=true;entry.cause=failure+"; target="+entry.name+" cause="+cause(observed[i]);
+        }
+        return fail("enable_batch",MH_UNKNOWN,failure);
+    }
+    for(auto* entry:entries)entry->state=MT2FW_MT2_ROUTE_ENABLED;
+    error_.clear();return MH_OK;
+}
+bool Backend::last_batch_receipt(void* target,MT2FW_MT2_RouteReceipt& out)const {
+    const auto found=entries_.find(reinterpret_cast<uintptr_t>(target));
+    if(found==entries_.end()||!found->second.batch_receipt)return false;
+    out=*found->second.batch_receipt;return true;
 }
 MH_STATUS Backend::disable(void* address) {
     if(!current("disable"))return MH_ERROR_NOT_INITIALIZED;

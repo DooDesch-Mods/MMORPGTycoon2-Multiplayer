@@ -11,6 +11,7 @@ namespace {
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}
 struct Read {template<class T>bool operator()(uintptr_t object,size_t offset,T& out,std::string& error){return root_saved_building::bytes(reinterpret_cast<void*>(object),offset,&out,sizeof out,error);}};
 bool code(uintptr_t image,std::string& error){
+    live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     constexpr uintptr_t leaves[]={0x9ff370,0xc67c80,0x39e750,0x3b1b50,0x39d670,0x287d0,0x28970,0x21df0,0x28730,0x28750,0x28760,0x23890,0x237e0,0x23860,0x39f6e0,0x3bbc00,0x39a920,0x23770,0x23840,0x237a0,0x238b0,0x9ca3a0};
     for(const auto rva:leaves){const auto pin=std::find_if(std::begin(monster_live_codes::values),std::end(monster_live_codes::values),[&](const auto& value){return value.rva==rva;});
         if(pin==std::end(monster_live_codes::values)||pin->tail)return fail(error,"Actor Frame native leaf has no original complete function pin RVA="+std::to_string(rva));

@@ -27,7 +27,11 @@ files = {}
 for row in json.loads((root / "baseline.json").read_text()):
     name = row["path"]
     before = (root / "baseline" / name).read_text()
-    after = normalize(name, (args.source / name).read_text())
+    after = (args.source / name).read_text()
+    if name == "src/game/dungeon_cells_runtime.inc":
+        from prepared_hook_batch_boundary import normalize_cells_enable
+        after = normalize_cells_enable(after)
+    after = normalize(name, after)
     assert hashlib.sha256((root / "baseline" / name).read_bytes()).hexdigest() == row["sha256"]
     files[name] = {"before": before, "after": after}
 
@@ -140,5 +144,11 @@ for index, (_, _, digest) in enumerate(npc_pins):
 (args.output / 'npc_history_fixture_pins.inc').write_text('const std::array<std::pair<uintptr_t,size_t>,6> npc_history_pins{{' + ','.join('{' + rva + ',' + size + '}' for rva,size,_ in npc_pins) + '}};\n', encoding='utf-8')
 inputs = [args.source / "src/game/monster_action_runtime.inc"] + [args.source / name for name in files] + [args.source / "include/mt2mp/hooks/original_body.h", root / "test_original_body.cpp"]
 inputs.append(args.source / 'src/game/npc_history_runtime.inc')
+from gizmo_code_digest_boundary import normalize_gizmo_code
+gizmo_text = (args.source / 'src/game/dungeon_gizmo_runtime.inc').read_text(encoding='utf-8')
+gizmo_baseline = normalize_gizmo_code(gizmo_text)
+(args.output / 'gizmo_code_actual.inc').write_text(function(gizmo_text, 'bool code(') + '\n', encoding='utf-8')
+(args.output / 'gizmo_code_baseline.inc').write_text(function(gizmo_baseline, 'bool code(').replace('bool code(', 'bool code_baseline(', 1) + '\n', encoding='utf-8')
+inputs.extend([args.source / 'src/game/dungeon_gizmo_runtime.inc', args.source / 'include/mt2mp/hooks/code_body_digest.h', args.source / 'test/gizmo_code_digest_boundary.py'])
 (args.output / "inputs.json").write_text(json.dumps([{"path":str(path),"sha256":hashlib.sha256(path.read_bytes()).hexdigest()} for path in inputs],indent=2)+"\n")
 print("PASS exact changed function boundaries; original Confirm ownership/trampoline guard, Dungeon graph helpers and every unrelated byte pin unchanged")

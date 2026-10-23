@@ -130,7 +130,8 @@ bool enable(std::string& error){
     if(status!=MH_OK||!original_release)return fail(error,"Dungeon cell Release prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
     status=MH_CreateHook(reinterpret_cast<void*>(state.image+dungeon_cells_codes::create.rva),reinterpret_cast<void*>(&create_entry),reinterpret_cast<void**>(&original_create));
     if(status!=MH_OK||!original_create)return fail(error,"Dungeon original Gizmo return observer prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
-    for(const auto rva:{dungeon_cells_codes::drag.rva,dungeon_cells_codes::release.rva,dungeon_cells_codes::create.rva}){status=MH_EnableHook(reinterpret_cast<void*>(state.image+rva));if(status!=MH_OK)return fail(error,"Dungeon cell UI enable failed RVA="+std::to_string(rva)+" status="+std::to_string(status));}
+    const uintptr_t targets[]{state.image+dungeon_cells_codes::drag.rva,state.image+dungeon_cells_codes::release.rva,state.image+dungeon_cells_codes::create.rva};
+    if(!mt2mp::hooks::enable_prepared_targets(targets,"Dungeon cell UI",error))return false;
     MT2FW_MT2_RouteReceipt drag{sizeof drag},release{sizeof release},create{sizeof create};
     if(!quest_list::read_route(state.image+dungeon_cells_codes::drag.rva,drag,error)||!quest_list::read_route(state.image+dungeon_cells_codes::release.rva,release,error)||!quest_list::read_route(state.image+dungeon_cells_codes::create.rva,create,error))return false;
     drag_generation=drag.generation;release_generation=release.generation;create_generation=create.generation;if(!code(memory,error))return false;ready=true;return true;

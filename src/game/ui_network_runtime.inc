@@ -164,7 +164,7 @@ bool enable(std::string& e){
         {0x5c5580,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
         {0x42db30,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
     for(const auto& h:hooks){const auto status=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(status!=MH_OK||!*h.original)return fail(e,"network MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
-    for(const auto& h:hooks){const auto status=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(status!=MH_OK)return fail(e,"network MH_EnableHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"network hook",e))return false;
     if(!code(*r,true,e)||!pipe::enable(*r,e))return false;state.ready=true;return true;
 }
 bool enabled()noexcept{return state.ready;}

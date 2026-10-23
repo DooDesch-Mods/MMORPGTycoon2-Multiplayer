@@ -7,6 +7,7 @@
 #include "bug_authority/manual_action.h"
 #include "bug_authority/codec.h"
 #include "typed_action_runtime.h"
+#include "startup_timing.h"
 #include "intervention_actor_live.h"
 #include "scenery_stroke_runtime.h"
 #include "building_clearance_runtime.h"
@@ -1056,6 +1057,7 @@ public:
         return true;
     }
     bool bind(const std::string& snapshot,action::Binding& out,std::string& error)override {
+        startup_timing::Phase measured("native_engine_bind",error);
         {
         mt2mp::build_actions::private_native::host::RootSceneryReadBatch batch;
         building_mixed_identity::opened_file::CurrentWorld before,opened;
@@ -1096,11 +1098,11 @@ public:
         if(!world_.bind_snapshot(origin,objects,0,error))return false;
         }
         std::vector<developer_staff::construction::LocalJob> loaded;
-        if(!developer_staff::construction::capture_loaded(snapshot,out,loaded,error))return false;
+        if(!startup_timing::run("loaded_construction_bind",error,[&]{return developer_staff::construction::capture_loaded(snapshot,out,loaded,error);}))return false;
         for(const auto& job:loaded){const auto row=world_.rows().find(job.building_key);
             if(row==world_.rows().end()||!row->second.state.alive){error="Loaded construction lacks an admitted alive snapshot Building row";return false;}}
         loaded_construction_binding_=out;loaded_construction_snapshot_=snapshot;loaded_construction_=std::move(loaded);
-        return true;
+        return measured.complete(true);
     }
     bool current(const action::Binding& binding,const std::string&,std::string& error)override {
         if(!thread_||GetCurrentThreadId()!=thread_){error="typed native action requires bound Mainthread";return false;}
@@ -1814,17 +1816,22 @@ bool start(std::string& error) {
     if(runtime->lobby_retiring){error="typed lobby owner is retiring; no start";return false;}
     if(runtime->attempted){error="typed action start already attempted; no restart";return false;}
     runtime->attempted=true;
+    const auto enable_features=[&]()->bool {
     if(!weapon_initialize(error))return false;
     if(!toon_time_initialize(error))return false;
     if(!vip_initialize(error))return false;
     if(!vip_alert_initialize(error))return false;
     if(!release_runtime::enable(error)||!general_project_runtime::enable(error)||!logo_runtime::enable(error)||!management_runtime::enable(error)||!ui_price_runtime::enable(error)||!npc_probe::action_runtime::enable(error)||!developer_staff::action_runtime::enable(error)||!npc_probe::zone_action_runtime::enable(error)||!npc_probe::zone_edit_runtime::enable(error)||!npc_probe::monster_action_runtime::enable(error)||!npc_probe::monster_action_runtime::quest_authoring::enable(error)||!npc_probe::monster_action_runtime::quest_list::enable(error)||!npc_probe::monster_action_runtime::character_membership::enable(error)||!npc_probe::monster_action_runtime::character_rename::enable(error)||!npc_probe::monster_action_runtime::ability_membership::enable(error)||!npc_probe::monster_action_runtime::ability_edit::enable(error)||!npc_probe::monster_action_runtime::costume_edit::enable(error)||!npc_probe::monster_action_runtime::dungeon_config::enable(error)||!npc_probe::monster_action_runtime::dungeon_sound::enable(error)||!npc_probe::monster_action_runtime::dungeon_gizmo::enable(error)||!npc_probe::monster_action_runtime::dungeon_palette::enable(error)||!npc_probe::monster_action_runtime::dungeon_input::enable(error)||!npc_probe::monster_action_runtime::dungeon_light::enable(error)||!npc_probe::monster_action_runtime::building_status::enable(error)||!bug_authority::manual_action::enable(error))return false;
-    return runtime->controller.start(GetTickCount64(),error);
+    return true;
+    };
+    if(!startup_timing::run("feature_family_enable",error,enable_features))return false;
+    return startup_timing::run("controller_start",error,[&]{return runtime->controller.start(GetTickCount64(),error);});
 }
 bool enable_live_state(std::string& error) {
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()||!runtime->controller.status().started||runtime->controller.status().locked||runtime->controller.status().pending||runtime->live_attempted) {error="live state requires idle actual bound Controller; no restart";return false;}
     runtime->live_attempted=true;action::Context context;
+    startup_timing::Phase measured("live_state_setup",error);
     struct KeepFailure {Runtime& runtime;std::string& cause;~KeepFailure(){if(!cause.empty())runtime.live_error=cause;}} keep{*runtime,error};
     if(!runtime->session.current(context,error))return false;if(context!=runtime->controller.bound_context()){error="live actual Session differs from Controller";return false;}
     const auto binding=runtime->controller.bound_binding();const auto epoch=net::current_world_epoch();uint64_t time=0;
@@ -1834,24 +1841,24 @@ bool enable_live_state(std::string& error) {
     if(context.role==action::Role::Client){
         if(!runtime->engine.current(binding,context.snapshot_uuid,error))return false;
         bool movement_attempted=false;
-        if(!developer_staff::construction::settle_loaded_client(context,binding,movement_attempted,error))return false;
+        if(!startup_timing::run("loaded_client_movement",error,[&]{return developer_staff::construction::settle_loaded_client(context,binding,movement_attempted,error);}))return false;
     }
     runtime->live_port=std::make_unique<live_host_state::NativePort>(context,binding,&fence);
     auto live_state=std::make_unique<live_host_state::Bridge>(context,binding,epoch,*runtime->live_port,runtime->transport,[context](uint64_t& revision,std::string& cause){return live_host_state::read_time_authority(context,revision,cause);});
-    runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!runtime->day_state->bootstrap(error))return false;live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);live_state->bind_economy(*runtime->economy_state);
+    runtime->day_port=std::make_unique<live_host_state::day::NativePort>(context,binding,fence);runtime->day_state=std::make_unique<live_host_state::day::Sync>(*runtime->day_port,*runtime->live_port,context,binding);if(!startup_timing::run("day_bootstrap",error,[&]{return runtime->day_state->bootstrap(error);}))return false;live_state->bind_day(*runtime->day_state);runtime->economy_port=std::make_unique<live_host_state::day::economy::NativePort>(*runtime->day_port,fence,live_host_state::day::Target{});runtime->economy_state=std::make_unique<live_host_state::day::economy::Coupling>(*runtime->day_state,*runtime->economy_port);live_state->bind_economy(*runtime->economy_state);
     runtime->parties=party_frame::make_native(*runtime->live_port);
-    if(!live_state->bind_parties(*runtime->parties,error))return false;
+    if(!startup_timing::run("party_bind",error,[&]{return live_state->bind_parties(*runtime->parties,error);}))return false;
     runtime->vip_presentation=std::make_unique<scenario_vip_authority::FrameAdapter>(&vip_alert_authorize);
-    if(!live_state->bind_vip(*runtime->vip_presentation,error))return false;
+    if(!startup_timing::run("vip_bind",error,[&]{return live_state->bind_vip(*runtime->vip_presentation,error);}))return false;
     runtime->release=std::make_unique<release_runtime::LivePort>();
-    if(!live_state->bind_release(*runtime->release,error))return false;
+    if(!startup_timing::run("release_bind",error,[&]{return live_state->bind_release(*runtime->release,error);}))return false;
     runtime->management=std::make_unique<management_runtime::LivePort>();
-    if(!live_state->bind_management(*runtime->management,error))return false;
+    if(!startup_timing::run("management_bind",error,[&]{return live_state->bind_management(*runtime->management,error);}))return false;
     runtime->marketing=std::make_unique<marketing_authority::NativePort>();
-    if(!live_state->bind_marketing(*runtime->marketing,error))return false;
-    if(!live_state->bind_monsters(npc_probe::monster_action_runtime::live_port(),error))return false;
+    if(!startup_timing::run("marketing_bind",error,[&]{return live_state->bind_marketing(*runtime->marketing,error);}))return false;
+    if(!startup_timing::run("monster_bind",error,[&]{return live_state->bind_monsters(npc_probe::monster_action_runtime::live_port(),error);}))return false;
     runtime->live_state=std::move(live_state);
-    if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return true;
+    if(context.role==action::Role::Host)live_host_state::day::bind_host_journal(runtime->day_state.get());runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);return measured.complete(true);
 }
 bool read_character_membership_actors(const action::Binding& binding,const action::Request& request,json& economy,json& monsters,std::string& error){
     economy=monsters=nullptr;auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -2002,7 +2009,7 @@ void tick() {
         const auto& wait=runtime->live_state->publication_wait();
         if(wait!=runtime->live_publication_wait){
             if(!wait.empty())LOG_INFO("[LiveState] {}",wait);
-            else if(!runtime->live_publication_wait.empty())LOG_INFO("[LiveState] Native save publication wait ended");
+            else if(!runtime->live_publication_wait.empty())LOG_INFO("[LiveState] Native frame wait ended");
             runtime->live_publication_wait=wait;
         }
     }
@@ -2099,6 +2106,7 @@ json status() {
         {"live_state",{{"requested",runtime->live_attempted},{"active",runtime->live_state!=nullptr},{"locked",(runtime->live_state&&runtime->live_state->locked())||live_host_state::economic_fence().locked()},
             {"publication_wait",runtime->live_state?runtime->live_state->publication_wait():std::string{}},
             {"publication_wait_receipt",runtime->live_state?runtime->live_state->publication_wait_status():nlohmann::json(nullptr)},
+            {"application_wait_receipt",runtime->live_state?runtime->live_state->application_wait_status():nlohmann::json(nullptr)},
             {"day_record_sequence",runtime->day_state?runtime->day_state->sequence():0},{"day_receipt",runtime->day_state?nlohmann::json{{"attempted",runtime->day_state->day_receipt().attempted},{"confirmed",runtime->day_state->day_receipt().confirmed},{"unknown",runtime->day_state->day_receipt().unknown},{"created",runtime->day_state->day_receipt().created_records},{"appended",runtime->day_state->day_receipt().appended_records},{"pruned",runtime->day_state->day_receipt().pruned_records},{"cause",runtime->day_state->day_receipt().cause}}:nlohmann::json::object()},
             {"economic_fence_locked",live_host_state::economic_fence().locked()},{"economic_fence_cause",live_host_state::economic_fence().cause()},{"economic_retired_cause",live_host_state::economic_fence().retired_cause()},{"economic_suppressed",live_host_state::economic_fence().suppressed()},
             {"attempted",receipt.attempted},{"confirmed",receipt.confirmed},{"unknown",receipt.unknown},{"attempted_stores",receipt.attempted_stores},{"completed_stores",receipt.completed_stores},

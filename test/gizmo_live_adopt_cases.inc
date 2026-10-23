@@ -37,7 +37,7 @@ using Physical=building_mixed_identity::opened_file::CurrentWorld;
 using Census=mt2mp::game::dungeon_scene_identity_runtime::Census;
 Physical fixture_origin;Census fixture_census;
 std::optional<Physical> fixture_origin_change;std::optional<mt2mp::game::dungeon_scene_identity_runtime::World> fixture_census_change;
-size_t fixture_reads=0,fixture_censuses=0,change_at=0,census_change_at=0;bool fixture_read_failure=false,fixture_network=true,fixture_code=true,fixture_session_change=false;
+size_t fixture_reads=0,fixture_censuses=0,fixture_code_reads=0,change_at=0,census_change_at=0;bool fixture_read_failure=false,fixture_network=true,fixture_code=true,fixture_session_change=false;
 namespace typed_action_runtime {
 namespace action=a;
 struct ControllerStatus {bool started=true,locked=false,pending=false;}fixture_status;
@@ -76,7 +76,7 @@ namespace live_host_state::apply_timing {
 enum class PageBoundary {OriginalCall};
 struct PageReadScope {explicit PageReadScope(PageBoundary){}};
 }
-bool code(Memory&,std::string& error){return fixture_code||fail(error,"fixture original code pin differs");}
+bool code(Memory&,std::string& error){++fixture_code_reads;return fixture_code||fail(error,"fixture original code pin differs");}
 uint32_t live_clip(uintptr_t actor,int32_t index,gl::Clip& value)noexcept{
     if(actor!=uintptr_t(fixture_actor.data())||index<0||index>3)return 0xe0010003;
     value=fixture_clips[size_t(index)];return 0;
@@ -93,7 +93,7 @@ void reset_origin(){
     fixture_origin.world_epoch=7;fixture_origin.generation=9;
     fixture_origin.game=reinterpret_cast<void*>(0x80000);fixture_origin.mode=reinterpret_cast<void*>(0x81000);
     fixture_origin.state=reinterpret_cast<void*>(0x82000);fixture_origin.world=reinterpret_cast<void*>(0x83000);fixture_origin.map=reinterpret_cast<void*>(0x84000);
-    fixture_origin_change.reset();fixture_census_change.reset();fixture_reads=fixture_censuses=change_at=census_change_at=0;
+    fixture_origin_change.reset();fixture_census_change.reset();fixture_reads=fixture_censuses=fixture_code_reads=change_at=census_change_at=0;
     fixture_read_failure=false;fixture_network=fixture_code=true;fixture_session_change=false;
     fixture_census={};fixture_census.world={fixture_origin.game,fixture_origin.mode,fixture_origin.state,fixture_origin.world,fixture_origin.map,
         fixture_origin.generation,fixture_origin.world_epoch,fixture_origin.uuid,fixture_origin.sha256};
@@ -108,6 +108,7 @@ uint32_t live_clip(uintptr_t actor,int32_t index,const gl::Clip& target)noexcept
 uint32_t live_on_map(uintptr_t object,bool value)noexcept{if(object!=object_address())return 0xe0010003;put(object+0x300,uintptr_t(value?0x60000:0));return 0;}
 #include "gizmo_live_cas_actual.inc"
 #include "gizmo_live_apply_actual.inc"
+#include "gizmo_live_apply_baseline.inc"
 void reset(){
     reset_origin();
     fixture_object.fill(0);fixture_actor.fill(0);fixture_shard.fill(0);fixture_definition.fill(0);fixture_owner=true;fixture_clip_failure=false;fixture_native_clips=0;
@@ -211,7 +212,47 @@ void pending_cases(){
              "actual new-action admission did not recover after pending action ended");
     }
 }
+void empty_delta_cases(){
+    struct Outcome {bool okay=false;gl::Receipt receipt;std::string error;size_t reads=0,censuses=0,codes=0;unsigned clips=0;
+        decltype(fixture_object) object;decltype(fixture_shard) shard;decltype(fixture_clips) clip_values;};
+    for(int scenario=0;scenario<15;++scenario){
+        const auto invoke=[&](bool baseline){
+            reset();auto context=a::observed;const auto binding=a::admitted;gl::State target;
+            if(scenario<10){fixture_census.keys.clear();fixture_census.pools.clear();}
+            else {Memory memory;LiveSample initial;std::string error;
+                if(scenario==12){put(uintptr_t(fixture_definition.data())+0xa0,uint32_t(0));put(object_address()+0x2d0,uint8_t(1));put(object_address()+0x2c4,int32_t(-1));put(object_address()+0x2c8,int32_t(0));put(object_address()+0x2cc,int32_t(0));}
+                need(live_sample(memory,context,binding,initial,error),"Gizmo differential initial current read");target=initial.value;
+                fixture_reads=fixture_censuses=fixture_code_reads=0;
+            }
+            if(scenario==1)fixture_code=false;
+            if(scenario==2)fixture_owner=false;
+            if(scenario==3)fixture_read_failure=true;
+            if(scenario==4)fixture_network=false;
+            if(scenario==5)context.role=a::Role::Host;
+            if(scenario==6){fixture_origin_change=fixture_origin;fixture_origin_change->map=reinterpret_cast<void*>(0x99000);change_at=1;}
+            if(scenario==7){fixture_census_change=fixture_census.world;fixture_census_change->map=reinterpret_cast<void*>(0x99000);census_change_at=1;}
+            if(scenario==8)fixture_session_change=true;
+            if(scenario==9)target.push_back({fixture_scene,0,{}});
+            if(scenario==11)target.clear();
+            if(scenario==13)target[0].unlocked=7;
+            if(scenario==14){target[0].rows[0].state=2;target[0].rows[0].clips[0].time=uint32_t(0x3f800000);fixture_clip_failure=true;}
+            Outcome result;result.okay=baseline?apply_live_baseline(context,binding,target,result.receipt,result.error):apply_live(context,binding,target,result.receipt,result.error);
+            result.reads=fixture_reads;result.censuses=fixture_censuses;result.codes=fixture_code_reads;result.clips=fixture_native_clips;
+            result.object=fixture_object;result.shard=fixture_shard;result.clip_values=fixture_clips;return result;
+        };
+        const auto old=invoke(true),now=invoke(false);
+        need(now.okay==old.okay&&now.error==old.error&&now.receipt.attempted==old.receipt.attempted&&now.receipt.confirmed==old.receipt.confirmed&&
+            now.receipt.unknown==old.receipt.unknown&&now.receipt.attempted_stores==old.receipt.attempted_stores&&now.receipt.stores==old.receipt.stores&&now.receipt.cause==old.receipt.cause,
+            "Gizmo empty delta preserves actual result, receipt and original cause");
+        need(now.object==old.object&&now.shard==old.shard&&now.clip_values==old.clip_values&&now.clips==old.clips,"Gizmo empty delta preserves exact writes and native effects");
+        if(scenario==0){need(now.okay&&now.receipt.confirmed&&!now.receipt.attempted&&now.codes==1&&old.codes==2&&now.censuses==2&&old.censuses==4&&now.reads==4&&old.reads==8,
+            "Gizmo empty delta retains fresh code and paired census, removes only unused post-adoption pair");}
+        else need(now.reads==old.reads&&now.censuses==old.censuses&&now.codes==old.codes,"Gizmo failure and nonempty paths retain every native sample");
+        if(scenario==12)need(!now.okay&&now.error=="Gizmo live target transition has no current local Door asset","Gizmo nonempty equal values retain feature rejection");
+    }
+}
 void run(){
+    empty_delta_cases();
     pending_cases();
     origin_cases();
     reset();const auto context=a::observed;const auto binding=a::admitted;Memory memory;LiveSample initial;std::string error;

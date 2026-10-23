@@ -36,7 +36,7 @@ def _read_sdk_json(runtime, path, deadline, observations):
             raise error from last_error
         try:
             value = read_json(path)
-        except (PermissionError, json.JSONDecodeError) as cause:
+        except (FileNotFoundError, PermissionError, json.JSONDecodeError) as cause:
             last_error = cause
             reason = type(cause).__name__ + ': ' + str(cause)
             record['failures'] += 1

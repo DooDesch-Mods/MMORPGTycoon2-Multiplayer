@@ -14,6 +14,27 @@ def main() -> None:
     start = "    runtime->live_port=std::make_unique<live_host_state::NativePort>"
     tail = function.split(start, 1)[1].rsplit("\n}", 1)[0]
     tail = start + tail
+    assert function.count('startup_timing::Phase measured("live_state_setup",error);') == 1
+    timed_calls = (
+        ("day_bootstrap", "runtime->day_state->bootstrap(error)"),
+        ("party_bind", "live_state->bind_parties(*runtime->parties,error)"),
+        ("vip_bind", "live_state->bind_vip(*runtime->vip_presentation,error)"),
+        ("release_bind", "live_state->bind_release(*runtime->release,error)"),
+        ("management_bind", "live_state->bind_management(*runtime->management,error)"),
+        ("marketing_bind", "live_state->bind_marketing(*runtime->marketing,error)"),
+        ("monster_bind", "live_state->bind_monsters(npc_probe::monster_action_runtime::live_port(),error)"),
+    )
+    # Extract only the exact checked wrappers. The fixture exercises the original
+    # publication and failure paths without substituting a timing implementation.
+    for phase, call in timed_calls:
+        wrapped = f'startup_timing::run("{phase}",error,[&]{{return {call};}})'
+        guarded = f"if(!{wrapped})return false;"
+        assert tail.count(guarded) == 1, f"timed provider failure guard changed: {phase}"
+        tail = tail.replace(guarded, f"if(!{call})return false;", 1)
+    assert "startup_timing::" not in tail, "unexpected timing wrapper in publication tail"
+    publication = "runtime->engine.bind_live_state(*runtime->live_state,*runtime->live_port);"
+    assert tail.count(publication + "return measured.complete(true);") == 1
+    tail = tail.replace(publication + "return measured.complete(true);", publication + "return true;", 1)
     ordered = (
         "auto live_state=std::make_unique<live_host_state::Bridge>",
         "bootstrap(error)",

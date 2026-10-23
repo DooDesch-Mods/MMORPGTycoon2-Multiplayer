@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <map>
 #include <set>
+#include <optional>
 #include <cstring>
 #include <atomic>
 #include "analytics_state.h"
@@ -26,7 +27,9 @@ int assertions=0;void need(bool ok,const char* cause){++assertions;if(!ok)throw 
 #include "toon_thought_frame_cases.inc"
 #include "gizmo_live_adopt_cases.inc"
 #include "building_uptime_fence_cases.inc"
+#include "management_primary_cases.inc"
 int main(){try{uptime_fence_cases();
+    management_primary_fixture::run();
     analytics_projection_fixture::run();
     demand_projection_fixture::run();
     thought_lifetime_fixture::run();

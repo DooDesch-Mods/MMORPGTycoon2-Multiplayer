@@ -9,6 +9,48 @@ def body(text,anchor):
     while depth:depth+=(text[end]=='{')-(text[end]=='}');end+=1
     return text[start:end]
 
+monster_code=(a.root/'src/game/monster_live_runtime.inc').read_text(encoding='utf-8')
+monster_actual=body(monster_code,'bool live_code(')
+monster_scope='    live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());\n'
+assert monster_actual.count(monster_scope)==1
+assert hashlib.sha256(monster_actual.replace(monster_scope,'',1).encode()).hexdigest()=='b3c0959618f05bf93d66c769722d954b4787a081551e9755e58bb5cf57f8730b', 'Monster code scope changed original checks'
+(a.output/'monster_code_scope_actual.inc').write_text(body(monster_code,'bool live_hook_current(')+'\n'+monster_actual+'\n',encoding='utf-8')
+
+gm_source=(a.root/'src/game/gm_ticket_live.inc').read_text(encoding='utf-8')
+gm_actual=body(gm_source,'bool gm_census(')
+gm_scope='\n    live::apply_timing::PageReadScope census_pages(!live::apply_timing::PageReadScope::reader_active());\n    '
+gm_boundary='live::apply_timing::PageReadScope original_call(live::apply_timing::PageBoundary::OriginalCall);'
+assert gm_actual.count(gm_scope)==1 and gm_actual.count(gm_boundary)==1
+gm_prior=gm_actual.replace(gm_scope,'',1).replace(gm_boundary,'',1)
+assert hashlib.sha256(gm_prior.encode()).hexdigest()=='b43ce0996d48bcce2387560a73f00efa401adb64449b298a036e190ef36f0f02', 'GM census scopes changed original fields, UID calls or order'
+gm_capture=body(gm_source,'bool gm_capture(')
+assert gm_capture.index('gm_census(')<gm_capture.index('gn::capture(')<gm_capture.rindex('gm_census(')
+assert 'PageReadScope' not in gm_capture, 'GM original serialization must remain outside the census Reader'
+(a.output/'gm_census_scope_actual.inc').write_text(gm_prior.replace('bool gm_census(','bool prior_gm_census(',1)+'\n'+gm_actual+'\n',encoding='utf-8')
+
+actor_source=(a.root/'src/game/intervention_actor_runtime.cpp').read_text(encoding='utf-8')
+actor_code=body(actor_source,'bool code(uintptr_t image,std::string& error)')
+actor_scope='    live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());\n'
+assert actor_code.count(actor_scope)==1
+actor_prior=actor_code.replace(actor_scope,'',1)
+assert hashlib.sha256(actor_prior.encode()).hexdigest()=='75ab2c6d007680d3886221f22580522039e7ede0b9eb95798f6b5f78365649a1', 'Actor pure code scope changed original pin selection, byte reads or hash guards'
+(a.output/'actor_code_scope_actual.inc').write_text(actor_prior.replace('bool code(','bool prior_code(',1)+'\n'+actor_code+'\n',encoding='utf-8')
+
+# Both complete NativePort passes keep their byte reads and comparisons. Only
+# page metadata is shared across the synchronous pair.
+native_port=(a.root/'src/game/live_host_state/native_port.cpp').read_text(encoding='utf-8')
+port_once=body(native_port,'bool once(')
+port_read=body(native_port,'bool NativePort::read(')
+port_scope='apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());'
+assert port_once.count(port_scope)==1 and port_read.count(port_scope)==1
+prior_once=port_once.replace(port_scope,'apply_timing::PageReadScope pages;',1)
+prior_read=port_read.replace(port_scope,'',1)
+for label,once,read in [('actual',port_once,port_read),('prior',prior_once,prior_read)]:
+    once=once.replace('bool once(', 'bool once_'+label+'(',1)
+    read=read.replace('bool NativePort::read(', 'bool NativePort::read_'+label+'(',1).replace('!once(', '!once_'+label+'(')
+    (a.output/('native_port_pair_'+label+'.inc')).write_text(once+'\n'+read+'\n',encoding='utf-8')
+(a.output/'native_port_activity.inc').write_text(body((a.root/'src/game/live_host_state/native_port.h').read_text(),'inline bool native_activity(')+'\n',encoding='utf-8')
+
 # Extract the production extent declaration, not a test-only approximation.
 census_extents=[
     ('src/game/intervention_census.cpp','static bool census_impl(const action_session::Context&'),
@@ -271,6 +313,11 @@ assert release.count(release_call)==1
 (a.output/'pure_release_baseline.inc').write_text(release_baseline+'\n',encoding='utf-8')
 (a.output/'pure_release_call.inc').write_text(release_call+'\n',encoding='utf-8')
 release_runtime=(a.root/'src/game/release_runtime.cpp').read_text(encoding='utf-8')
+release_sample=body(release_runtime,'bool sample(Runtime&')
+release_scalar_call='    {live::apply_timing::PageReadScope scalar_pages(!live::apply_timing::PageReadScope::reader_active());\n        if(!p::sample(read,text,r.image,before,first,e)||!p::sample(read,text,r.image,out,state,e))return false;}'
+assert release_sample.count(release_scalar_call)==1
+assert release_sample.index('context(r,c,b,pin,e)')<release_sample.index(release_scalar_call)<release_sample.index('if(before!=out||first!=state)')<release_sample.index('native_open_runtime::read_current_world(')
+(a.output/'release_scalar_pair_actual.inc').write_text(release_scalar_call+'\n'+release_sample[release_sample.index('    if(before!=out||first!=state)'):release_sample.index('    building_mixed_identity::')],encoding='utf-8')
 (a.output/'pure_release_string_bodies.inc').write_text(body(release_runtime,'template<class T>bool at(Runtime&')+'\n'+body(release_runtime,'bool string(Runtime&')+'\n',encoding='utf-8')
 find_call='    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){live_host_state::apply_timing::PageReadScope original_lookup(live_host_state::apply_timing::PageBoundary::OriginalCall);const auto seh=lookup(api.find,uid,pointer);\n        return !seh||fail(cause,"Character complete census current FindUID failed SEH="+std::to_string(seh));};'
 users_call='([&]{live_host_state::apply_timing::PageReadScope user_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return character_membership_reader::users(at,find,owner.image,current,current_users,error);}())'
@@ -337,6 +384,14 @@ assert dungeon_callback=='auto typed=[&](uintptr_t object,uintptr_t from,uintptr
 
 # Party manager sampling owns one bounded metadata extent; Find invalidates it.
 party=body((a.root/'src/game/party_saved_identity_runtime.cpp').read_text(encoding='utf-8'),'bool collect_current_raw(')
+party_region=body(party,'{live_host_state::apply_timing::PageReadScope region_pages;')
+party_region_prefix='{live_host_state::apply_timing::PageReadScope region_pages;\n'
+party_region_baseline='    if(!q::typed(memory,image,map,0x1742860,error)||!q::typed(memory,image,map+0x230,0x16f04e0,error)||\n       !q::bounds(memory,map+0x230,4096,regions,error))return false;\n    for(int32_t i=0;i<regions.count;++i){uintptr_t region=0;\n        if(!q::at(memory,regions.data,size_t(i)*sizeof(uintptr_t),region,error))return false;\n        owners.emplace_back(current.root,region);\n    }\n    '
+assert party_region==party_region_prefix+party_region_baseline+'}'
+assert party.count(party_region+'\n    dungeon_scene_identity_runtime::World scene_world;')==1
+assert 'if(!q::unchanged(memory,map+0x230,4096,regions,error)||!native_open_runtime::read_current_world(after,error))return false;' in party
+(a.output/'party_region_loop.inc').write_text(party_region+'\n',encoding='utf-8')
+(a.output/'party_region_baseline.inc').write_text(party_region_baseline+'\n',encoding='utf-8')
 party_loop='{live_host_state::apply_timing::PageReadScope pool_pages;\n    for(const auto& [shard,region]:owners){\n        dungeon_party_census::Pool pool;\n        if(!dungeon_party_census::read(memory,find,image,shard,region,pool,error))return false;\n        if(!managers.insert(pool.manager).second)return q::fail(error,"Party complete current owner census repeats a manager");\n        ready.pools.push_back(pool);\n        for(const auto& row:pool.members){\n            const auto [where,inserted]=members.emplace(row.uid,row);\n            if(!inserted&&where->second!=row)return q::fail(error,"Party transfer has inconsistent actual full-UID owner fields");\n        }\n    }\n    }'
 assert party.count(party_loop)==1
 party_find=body(party,'auto find=[&](uint64_t uid,uintptr_t& found,std::string& cause){')+';'

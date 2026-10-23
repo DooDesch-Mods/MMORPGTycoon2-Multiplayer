@@ -492,13 +492,14 @@ bool enable(std::string& error) {
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     if(!framework_subscribe_create(*runtime,error))return fail();
 #endif
+    std::vector<uintptr_t> prepared_targets;
     for(const auto rva:{0x593cc0,0x40bb10,0x24ed30,0x53b260,0x5854e0,0x585270,0x5d4620,0x448330,0x2cb340,0x5cf440,0x5d64e0,0x5d0600}) {
 #ifdef MT2MP_FRAMEWORK_PLUGIN
         if(rva==0x24ed30)continue;
 #endif
-        const auto result=MH_EnableHook(reinterpret_cast<void*>(runtime->image+rva));
-        if(result!=MH_OK){error="building capture EnableHook failed: "+std::string(MH_StatusToString(result));return fail();}
+        prepared_targets.push_back(runtime->image+rva);
     }
+    if(!hooks::enable_prepared_targets(prepared_targets,"building capture",error))return fail();
     const std::array<uintptr_t,6> scene_entries{uintptr_t(&scene_update_entry),uintptr_t(&scene_purchase_entry),uintptr_t(&scene_add_entry),uintptr_t(&scene_press_entry),uintptr_t(&erase_press_entry),uintptr_t(&scene_release_entry)};
     if(!scenery_kiss::validate_ui_routes(runtime->image,runtime->scene_originals,scene_entries,error))return fail();
     if(!building_history_slice::enable(runtime->image,thread,error))return fail();

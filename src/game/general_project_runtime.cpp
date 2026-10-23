@@ -14,6 +14,7 @@
 #include "placement_ui_probe/ui_probe.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/core/hash.h"
+#include "tutorial_startingpoint_fixture/queued_project_admission.h"
 #include "mt2mp/core/logger.h"
 #include <windows.h>
 #include <bcrypt.h>
@@ -157,6 +158,7 @@ bool presentation(Runtime& r,Operation& op,std::string& e){
 }
 bool progress_once(Runtime& r,const a::Context& c,const a::Binding& b,p::Progress& out,uintptr_t& lounge,uintptr_t& current,std::string& e,bool validate=true){
     live::Pin pin;if(!context(r,c,b,pin,e))return false;uintptr_t ap=0;out={};
+    live::apply_timing::PageReadScope progress_pages;
     if(!at(r,r.image,0x13df290,lounge,e)||!at(r,lounge,0,ap,e)||ap!=r.image+0x16de6c0||!at(r,lounge,0xa8,current,e))return fail(e,e.empty()?"General project Frame current Lounge/class differs":e);
     auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return at(r,base,offset,value,cause);};auto text=[&](uintptr_t address,std::string& value,std::string& cause){return string(r,address,value,cause);};
     if(current){p::Source source;if(!p::source(read,text,r.image,current,source,e))return false;std::vector<uintptr_t> catalogue;if(!p::array(read,lounge,0xd8,catalogue,e))return false;size_t matches=0;
@@ -212,6 +214,20 @@ bool capture_ui(void* receiver,void* record,bool& handled,bool& accepted){
     r->presentations.emplace(pending.id,pending);r->pending=std::move(pending);++r->captures;accepted=true;return true;
 }
 bool pending_ui(){const auto* r=published.load(std::memory_order_acquire);return r&&(r->pending.has_value()||r->replay.has_value());}
+bool observe_pending_ui(const a::Context& c,const a::Binding& b,const p::Intent& intent,
+    uint64_t previous_captures,std::string& id,std::string& e){
+    id.clear();const auto* r=published.load(std::memory_order_acquire);
+    if(!r||!r->ready||GetCurrentThreadId()!=r->thread||!r->pending||r->replay)
+        return fail(e,"General project queued UI observation requires its ready Mainthread and retained intent");
+    const auto& pending=*r->pending;
+    if(!tutorial_startingpoint_fixture::queued_project_admission(true,previous_captures,r->captures,
+        pending.context,pending.binding,pending.intent,pending.id,c,b,intent,e))return false;
+    a::Context current;a::Binding binding;
+    if(!a::selected_session().current(current,e)||current!=c||
+       !typed_action_runtime::network_binding(c.snapshot_uuid,binding,e)||binding!=b)
+        return fail(e,e.empty()?"General project queued UI observation actual idle Context/Binding changed":e);
+    id=pending.id;e.clear();return true;
+}
 void tick(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->pending)return;const auto pending=*r->pending;r->pending.reset();a::Context actual;a::Binding binding;std::string e;
     if(!a::selected_session().current(actual,e)||actual!=pending.context||!typed_action_runtime::network_binding(actual.snapshot_uuid,binding,e)||binding!=pending.binding||!typed_action_runtime::submit_general_project(pending.id,pending.intent,e)){r->presentations.erase(pending.id);rejected(*r,e.empty()?"General project retained UI Context/Binding changed":e);return;}++r->submitted;
 }

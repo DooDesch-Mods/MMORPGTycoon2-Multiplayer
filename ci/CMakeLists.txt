@@ -27,7 +27,7 @@ endif()
 
 enable_testing()
 
-foreach(name action_order software_snapshot snapshot_buffer)
+foreach(name action_order software_snapshot snapshot_buffer slow_frame_diagnostics queued_project_admission party_capture_references scene_building_registry_preview)
 
     add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
 
@@ -592,5 +592,7 @@ add_test(NAME startup_hook_catalog_consumer
     --source-root "${MT2MP_SOURCE_ROOT}")
 
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/character_record_scope_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/startup_calendar_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")

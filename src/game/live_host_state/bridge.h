@@ -81,6 +81,9 @@ class Bridge {
     std::string publication_first_wait_,publication_last_wait_;
     uint64_t publication_wait_count_=0,publication_recovery_count_=0;
     bool publication_was_waiting_=false;
+    std::string application_first_wait_,application_last_wait_;
+    uint64_t application_wait_count_=0,application_recovery_count_=0;
+    bool application_waiting_=false;
     ApplyReceipt receipt_;
     fragments::Assembly fragments_;
     FrameApplyAcks apply_acks_;
@@ -90,6 +93,7 @@ class Bridge {
     bool capture(uint64_t action_revision,Frame&,std::string&);
     bool send(const Frame&,std::string&);
     bool take(const Frame&,std::string&);
+    bool application_ready(bool&,std::string&);
     bool acknowledge_frame(const Frame&,std::string&);
 public:
     Bridge(const Context& c,const Binding& b,uint64_t common_epoch,Port& p,action_session::Transport& t,
@@ -153,6 +157,9 @@ public:
     nlohmann::json publication_wait_status()const{return {{"waiting",!publication_wait_.empty()},
         {"observations",publication_wait_count_},{"recoveries",publication_recovery_count_},
         {"first_cause",publication_first_wait_},{"last_cause",publication_last_wait_}};}
+    nlohmann::json application_wait_status()const{return {{"waiting",application_waiting_},
+        {"observations",application_wait_count_},{"recoveries",application_recovery_count_},
+        {"first_cause",application_first_wait_},{"last_cause",application_last_wait_}};}
     nlohmann::json frame_transport_status()const{
         nlohmann::json peers=nlohmann::json::array();
         for(size_t i=0;i<apply_acks_.peers().size();++i)peers.push_back({{"peer",i+1},{"applied_revision",apply_acks_.peers()[i].revision}});

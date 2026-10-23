@@ -36,6 +36,15 @@ catalog = args.root/'src/game/scenery_kiss/native_catalog.cpp'
 lookup_helper = function(catalog, 'bool require_registry(')
 for anchor, stage, digest in [('bool bind(uint64_t uid,Binding& b,std::string& e)override', 'ActualRoot.bind', 'e477dc075c7dc9e055f3d68f06cd1dd753bb0c0bd7584b050754a6ca3ddd9263'), ('bool read_action_prop(', 'read_action_prop', '127e71b3581dbe64886aef443626cc212ffd1ff5b95b42f7e2edf152d7ba7994')]:
     actual = function(catalog, anchor)
+    if stage == 'ActualRoot.bind':
+        added = '        {\n            mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;\n            if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;\n        }'
+        assert actual.count(added) == 1
+        actual = actual.replace(added, '        if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;', 1)
+    else:
+        timer = '    mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropRead);\n'
+        added = '    host::ProcessMemory memory;host::LookupApi api;\n    {mt2mp::game::live_host_state::apply_timing::PageReadScope lookup_fields;\n        if(!host::resolve_lookup(memory,image,hash,api,e))return false;}'
+        assert actual.count(timer) == 1 and actual.count(added) == 1
+        actual = actual.replace(timer, '', 1).replace(added, '    host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,hash,api,e))return false;', 1)
     edge = 'if(!require_registry(uid,object,seh,"'+stage+'",e))return false;'
     assert actual.count(edge)==1, 'Missing exact original lookup diagnostic edge: '+stage
     baseline = actual.replace(edge, 'if(seh||!object){e="scenery_action_prop_registry_failed SEH="+std::to_string(seh);return false;}', 1)

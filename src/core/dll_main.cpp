@@ -123,6 +123,7 @@
 #include <cmath>
 #include <limits>
 #include "../game/live_host_state/apply_timing.h"
+#include "mt2mp/core/slow_frame_diagnostics.h"
 #include <windows.h>
 #include <psapi.h>
 #include <intrin.h>
@@ -185,6 +186,43 @@ static json frame_timing_status() {
     parts["frame_interval"]={{"count",frame_intervals.count},{"total_ns",frame_intervals.total_ns},{"max_ns",frame_intervals.max_ns}};
     return {{"schema",1},{"unit","nanoseconds"},{"completed_game_updates",completed_game_updates},{"parts",std::move(parts)},{"apply_parts",game::live_host_state::apply_timing::snapshot()}};
 }
+static slow_frame::Counters slow_frame_counters() noexcept {
+    slow_frame::Counters out{};
+    for(size_t i=0;i<slow_frame::outer_count;++i)out[i]=frame_timing[i+1].total_ns;
+    using Part=game::live_host_state::apply_timing::Part;
+    constexpr Part parts[]={Part::Take,Part::HostCapture,Part::ToonNormalize,Part::DeveloperPreflight,
+        Part::DeveloperAdopt,Part::TutorialPreflight,Part::TutorialApply,Part::BeforeDay,
+        Part::AfterDay,Part::NetworkApply,Part::TypedUiGeneralProject,Part::NativeOpenFrameworkBinding};
+    static_assert(std::size(parts)==slow_frame::inner_count);
+    for(size_t i=0;i<std::size(parts);++i)out[slow_frame::outer_count+i]=game::live_host_state::apply_timing::totals[size_t(parts[i])].total_ns;
+    return out;
+}
+struct SlowFrameScope {
+    std::chrono::steady_clock::time_point started=std::chrono::steady_clock::now();
+    slow_frame::Counters before=slow_frame_counters();
+    ~SlowFrameScope() noexcept {
+        try {
+            const auto now=std::chrono::steady_clock::now();
+            const auto elapsed=uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now-started).count());
+            static thread_local slow_frame::Tracker tracker;
+            const auto report=tracker.observe(uint64_t(std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count()),
+                slow_frame::delta(completed_game_updates,elapsed,before,slow_frame_counters()));
+            if(!report)return;
+            constexpr const char* names[]={"original_update","native_lobby","typed_actions","transport","time","hud","diagnostics","lobby_prepare",
+                "client_take","host_capture","toon_normalize","developer_preflight","developer_adopt","tutorial_preflight","tutorial_apply",
+                "before_day","after_day","network_apply","general_project","native_open_binding"};
+            static_assert(std::size(names)==slow_frame::counter_count);
+            const auto first_outer=slow_frame::dominant(report->first,0,slow_frame::outer_count);
+            const auto outer=slow_frame::dominant(report->worst,0,slow_frame::outer_count);
+            const auto inner=slow_frame::dominant(report->worst,slow_frame::outer_count,slow_frame::counter_count);
+            LOG_WARN("[Performance] Slow GameUpdate count={} first_frame={} first_ms={:.3f} first_section={} first_section_ms={:.3f} worst_frame={} worst_ms={:.3f} section={} section_ms={:.3f} nested_inclusive={} nested_ms={:.3f}; wall times, nested values are not additive",
+                report->count,report->first.frame,double(report->first.elapsed_ns)/1e6,names[first_outer],double(report->first.work[first_outer])/1e6,
+                report->worst.frame,double(report->worst.elapsed_ns)/1e6,names[outer],double(report->worst.work[outer])/1e6,
+                names[inner],double(report->worst.work[inner])/1e6);
+        }catch(const std::exception& error){OutputDebugStringA("[Performance] error: slow-frame log failed: ");OutputDebugStringA(error.what());}
+        catch(...){OutputDebugStringA("[Performance] error: slow-frame log failed with unknown exception\n");}
+    }
+};
 using EnginePhaseUpdate=void(*)(void*,float);
 using EnginePhaseDraw=void(*)(void*,void*,void*);
 static EnginePhaseUpdate original_timed_mode_update=nullptr;
@@ -822,6 +860,8 @@ struct GameUpdateLiveScope {
     ~GameUpdateLiveScope(){close();}
 };
 struct GameUpdateFrame {
+    // Declared first so reporting runs after all measured work scopes retire.
+    SlowFrameScope slow_frame_scope;
     FrameTimingScope measured_update{FrameTimingPart::Update};
     GameUpdateInterval interval{measured_update.started};
     game::initial_release::FixtureUpdateScope release_fixture_scope;

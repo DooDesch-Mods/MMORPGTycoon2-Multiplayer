@@ -8,6 +8,10 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/npc_action_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/test/extract_monster_live.py"
+    "${MT2MP_SOURCE_ROOT}/test/party_timing_source_guard.json"
+    "${MT2MP_SOURCE_ROOT}/src/game/party_live_native.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/party_frame_native.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/runtime.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/subscriber_lifecycle/save_scope.cpp")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_monster_live.py"

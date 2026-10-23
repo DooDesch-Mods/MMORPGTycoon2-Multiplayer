@@ -3,6 +3,7 @@
 #include "direct_monster_identity.h"
 #include "npc_quest_targets.h"
 #include "npc_quest_building_key.h"
+#include "live_host_state/memory_query_timing.h"
 #include <atomic>
 #include <cstring>
 #include <functional>
@@ -16,6 +17,7 @@ namespace action=a;
 namespace identity=mt2mp::game::direct_monster_identity;
 namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace ml=mt2mp::game::live_host_state::monsters;
+namespace live_host_state=mt2mp::game::live_host_state;
 namespace q=mt2mp::game::npc_quest_targets;
 namespace mt2mp::game::remove_diagnostics {
 static LocalTarget quest_target;
@@ -33,7 +35,7 @@ constexpr uintptr_t image_base=0x140000000,world_root=0x100000,map_pointer=0x200
 constexpr uint64_t full_uid=0x100001d01;
 const std::string shared_snapshot="11111111-1111-4111-8111-111111111111",local_origin="22222222-2222-4222-8222-222222222222",birth_id="33333333-3333-4333-8333-333333333333",other_id="44444444-4444-4444-8444-444444444444";
 std::map<uintptr_t,unsigned char> bytes;
-unsigned checks=0,world_reads=0;
+unsigned checks=0,world_reads=0,scoped_reads=0;
 bool owner_available=true;uintptr_t uid_result=object_pointer;uint32_t lookup_fault=0;float actual_scale=0;
 std::function<void()> after_lookup;
 bool fail(std::string& e,const std::string& why){e=why;return false;}
@@ -42,6 +44,7 @@ template<class T>void put(uintptr_t address,const T& value){const auto* p=reinte
 struct Memory{
     int process=1;
     bool copy(uintptr_t address,void* target,size_t count,std::string& e){
+        if(live_host_state::apply_timing::PageReadScope::reader_active())++scoped_reads;
         auto* p=static_cast<unsigned char*>(target);for(size_t i=0;i<count;++i){auto found=bytes.find(address+i);if(found==bytes.end())return fail(e,"fixture unreadable field");p[i]=found->second;}return true;
     }
 };
@@ -61,7 +64,7 @@ WorldState current_world;
 bool resolve_lookup(int,uintptr_t,const char*,LookupApi&,std::string&){return true;}
 struct Reader{
     Reader(int,NativeOrigin&,uintptr_t,uint32_t,LookupApi&){}
-    bool current(WorldState& out,bool,std::string& e){++world_reads;if(!owner_available)return fail(e,"original native owner absent");out=current_world;return true;}
+    bool current(WorldState& out,bool,std::string& e){need(!live_host_state::apply_timing::PageReadScope::reader_active(),"Monster census cache crossed native World read");++world_reads;if(!owner_available)return fail(e,"original native owner absent");out=current_world;return true;}
 };
 }
 struct Session:a::Session{a::Context c;bool current(a::Context& out,std::string&)override{out=c;return true;}}session;
@@ -81,6 +84,7 @@ public:
     std::atomic<bool> wrong_thread_{false};std::string cause_;std::map<std::string,LiveLocal> locals_;
     bool reject(std::string& e,const std::string& why,bool lock=false){locked_=lock;return fail(e,why);}
     bool row(Memory& m,const LiveWorld& p,uintptr_t object,ml::Row& out,LiveLocal& local,std::string& e){
+        need(!live_host_state::apply_timing::PageReadScope::reader_active(),"Monster census cache crossed original row/UID calls");
         if(!full(m,p,object,local.entry,out.birth,e))return false;
         out.name="Gnashbone";out.rank=1;out.slot=1;out.type=0;out.level=1;out.pose.region=67;out.pose.orientation={0,0,0,1};out.pose.scale={1,1,1};out.on_map=true;return true;
     }
@@ -99,7 +103,7 @@ void reset(MonsterLivePort& port,a::Role role=a::Role::Host){
 void stage(bool confirm=true,const std::string& birth=birth_id,identity::Scope scope=local_scope(),uintptr_t object=object_pointer,uint64_t uid=full_uid){
     std::string e;need(identity::registry.stage(birth,scope,object,uid,e),e);if(confirm)need(identity::registry.confirm(birth,e),e);
 }
-void reject_read(MonsterLivePort& port,const std::string& cause){ml::State out;std::string e;const bool accepted=port.read(out,e);need(!accepted&&e.find(cause)!=std::string::npos,"expected "+cause+", got "+e);}
+void reject_read(MonsterLivePort& port,const std::string& cause){ml::State out;std::string e;const bool accepted=port.read(out,e);need(!accepted&&e.find(cause)!=std::string::npos,"expected "+cause+", got "+e);need(!live_host_state::apply_timing::PageReadScope::reader_active(),"Monster failed census retained page scope");}
 }
 namespace mt2mp::action_session{Session& selected_session(){return ::fixture::session;}}
 int main(){try{
@@ -111,6 +115,7 @@ int main(){try{
         need(port.world(m,p,e),e);need(port.full(m,p,object_pointer,entry,birth,e)&&birth==birth_id&&entry.scope.snapshot==host::current_world.origin.uuid,"actual full rejected distinct local origin: "+e);
         ml::State out;need(port.read(out,e)&&out.rows.size()==1&&out.rows[0].birth==birth_id&&port.locals_.size()==1,"actual complete census lost distinct origin: "+e);
         need(world_reads==3&&entry.scope.snapshot!=port.context_.snapshot_uuid,"world binding or distinct IDs fixture bypassed");
+        need(scoped_reads>0&&!live_host_state::apply_timing::PageReadScope::reader_active(),"Monster pure headers are scoped and closed on success");
     }
     reset(port);auto wrong=local_scope();wrong.snapshot=shared_snapshot;stage(true,birth_id,wrong);reject_read(port,"no confirmed full-UID/current-world canonical binding");
     reset(port);stage(false);reject_read(port,"unconfirmed birth");

@@ -91,7 +91,9 @@ bool code(Runtime& r,std::string& e){
 bool sample(Runtime& r,const a::Context& c,const a::Binding& b,p::Local& out,p::State& state,a::Ledger& money,std::string& e){
     live::Pin pin;if(!context(r,c,b,pin,e))return false;
     auto read=[&](uintptr_t address,size_t offset,auto& value,std::string& cause){return at(r,address,offset,value,cause);};auto text=[&](uintptr_t address,std::string& value,std::string& cause){return string(r,address,value,cause);};
-    p::Local before;p::State first;if(!p::sample(read,text,r.image,before,first,e)||!p::sample(read,text,r.image,out,state,e))return false;
+    p::Local before;p::State first;
+    {live::apply_timing::PageReadScope scalar_pages(!live::apply_timing::PageReadScope::reader_active());
+        if(!p::sample(read,text,r.image,before,first,e)||!p::sample(read,text,r.image,out,state,e))return false;}
     if(before!=out||first!=state)return fail(e,"Release actual owners/text/state changed during double read");
     building_mixed_identity::opened_file::CurrentWorld world;uintptr_t software=0;if(!native_open_runtime::read_current_world(world,e)||world.world_epoch!=b.native_epoch||world.generation!=b.native_generation||!at(r,uintptr_t(world.state),0x1c8,software,e)||software!=out.software)return fail(e,e.empty()?"Release actual World/Software reciprocal identity differs":e);
     money=live::ledger(pin.values);return true;

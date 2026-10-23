@@ -18,6 +18,7 @@ namespace a=mt2mp::action_session;
 namespace action=a;
 namespace identity=mt2mp::game::direct_monster_identity;
 namespace ml=mt2mp::game::live_host_state::monsters;
+namespace live_host_state=mt2mp::game::live_host_state;
 namespace q=mt2mp::game::npc_quest_targets;
 namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace {
@@ -134,10 +135,51 @@ void reject_read(MonsterLivePort& port,const std::string& cause){ml::State out;s
 }
 namespace mt2mp::action_session{Session& selected_session(){return ::session;}}
 namespace mt2mp::subscriber_lifecycle{
-uint32_t call(SaveScopeCall fn,void*){::scope_native(reinterpret_cast<uintptr_t>(fn)==1);return 0;}
+uint32_t enter_fault=0,leave_fault=0;
+uint32_t call(SaveScopeCall fn,void*){const bool enter=reinterpret_cast<uintptr_t>(fn)==1;const auto fault=enter?enter_fault:leave_fault;if(fault)return fault;::scope_native(enter);return 0;}
 #include "monster_live_save_scope.inc"
 }
+void party_save_timing_tests(){
+    namespace timing=mt2mp::game::live_host_state::apply_timing;
+    namespace saves=mt2mp::subscriber_lifecycle;
+    const saves::SaveScopeApi api{reinterpret_cast<saves::SaveScopeCall>(1),reinterpret_cast<saves::SaveScopeCall>(2)};
+    for(bool gated:{false,true})for(int failure=0;failure<5;++failure){
+        timing::totals={};unsigned enters=0,leaves=0,bodies=0,guards=0;
+        scope_native=[&](bool enter){if(enter)++enters;else ++leaves;};
+        saves::enter_fault=failure==1?0xc0000005u:0;saves::leave_fault=failure==2?0xc0000005u:0;
+        struct Work {int failure;unsigned& bodies;unsigned& guards;} work{failure,bodies,guards};
+        const auto body=[](void* raw,std::string& e){auto& w=*static_cast<Work*>(raw);++w.bodies;if(w.failure==3){e="body original cause";return false;}return true;};
+        const auto guard=[](void* raw,std::string& e){auto& w=*static_cast<Work*>(raw);++w.guards;if(w.failure==4){e="owner original cause";return false;}return true;};
+        saves::SaveScopeReceipt receipt;std::string e;bool okay=false;
+        {
+            std::optional<timing::Scope> prepare;if(gated)prepare.emplace(timing::Part::ClientPartyPrepare);
+            need(timing::client_party_prepare_depth==unsigned(gated),"Party timing depth admission differs");
+            okay=saves::with_save_scope(api,reinterpret_cast<void*>(mode_pointer),body,guard,&work,receipt,e);
+        }
+        need(timing::client_party_prepare_depth==0,"Party timing depth leaked");
+        need(okay==(failure==0),"Party timing changed SaveScope result");
+        need(receipt.enter_attempted&&receipt.enter_returned==(failure!=1),"Party timing changed enter receipt");
+        need(receipt.body_attempted==(failure!=1)&&bodies==unsigned(failure!=1)&&guards==bodies,"Party timing replayed/skipped body or guard");
+        const bool leave_attempted=failure!=1&&failure!=4;
+        need(receipt.leave_attempted==leave_attempted&&receipt.leave_returned==(leave_attempted&&failure!=2),"Party timing changed leave receipt");
+        need(enters==unsigned(failure!=1)&&leaves==unsigned(leave_attempted&&failure!=2),"Party timing changed native call result");
+        need(receipt.unknown==(failure==1||failure==2||failure==4),"Party timing changed unknown outcome");
+        const std::string expected=failure==1?"native SaveScope Increment exception=3221225477":failure==2?"native SaveScope Decrement exception=3221225477":failure==3?"body original cause":failure==4?"owner original cause":"";
+        need(e==expected,"Party timing changed original failure cause: "+e);
+        need(timing::totals[size_t(timing::Part::ClientPartySaveEnter)].count==unsigned(gated),"Party enter timing affected non-Party path or lost failed entry");
+        need(timing::totals[size_t(timing::Part::ClientPartySaveLeave)].count==unsigned(gated&&leave_attempted),"Party leave timing affected non-Party path or timed unattempted leave");
+        need(timing::totals[size_t(timing::Part::QuestStoreSaveEnter)].count==0,"Party timing changed Quest attribution");
+    }
+    saves::enter_fault=saves::leave_fault=0;timing::totals={};
+    scope_native=[](bool){};
+    {timing::Scope quest(timing::Part::QuestStores);saves::SaveScopeReceipt receipt;std::string e;
+        need(saves::begin_save_scope(api,reinterpret_cast<void*>(mode_pointer),receipt,e),"Quest enter timing changed");}
+    need(timing::totals[size_t(timing::Part::QuestStoreSaveEnter)].count==1&&timing::totals[size_t(timing::Part::ClientPartySaveEnter)].count==0,"Quest attribution changed");
+    const auto counters=timing::snapshot();
+    for(const auto* name:{"client_party_journal_prepare","client_party_scene_prepare","client_party_native_batch","client_party_batch_current","client_party_batch_body","client_party_batch_exit_guard","client_party_save_enter","client_party_save_leave","client_party_scene_confirm","client_party_batch_final_owner","client_party_scene_raw_actual","client_party_scene_raw_final","client_party_scene_gizmo_preview","client_party_scene_gizmo_final","client_party_scene_zone_preview","client_party_scene_building_preview","client_party_scene_building_check","client_party_scene_building_publish"})need(counters.contains(name),"Party counter absent from snapshot");
+}
 int main(){try{
+    party_save_timing_tests();
     auto& port=monster_live_port;std::string e;Memory memory;
     live_update_hook.original=reinterpret_cast<void*>(&original_update);live_adjust_hook.original=reinterpret_cast<void*>(&original_adjust);
     const auto reset_client=[&]{reset(port,a::Role::Client);stage();};

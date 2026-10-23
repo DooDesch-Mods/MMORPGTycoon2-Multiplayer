@@ -5,6 +5,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include "character_catalogue_timing.h"
 SIZE_T observed_query(LPCVOID,PMEMORY_BASIC_INFORMATION,SIZE_T);
 #define VirtualQuery observed_query
 #include "live_host_state/memory_query_timing.h"
@@ -57,6 +58,10 @@ void partition(){
 #include "scenery_state_field_cases.inc"
 #include "character_definition_scope_cases.inc"
 #include "pure_reader_followup_cases.inc"
+#include "release_scalar_scope_cases.inc"
+#include "monster_code_scope_cases.inc"
+#include "actor_code_scope_cases.inc"
+#include "gm_census_scope_cases.inc"
 #include "region_identity_scope_cases.inc"
 #include "saved_root_index_scope_cases.inc"
 #include "saved_root_batch_lifetime_cases.inc"
@@ -67,6 +72,7 @@ void partition(){
 #include "shared_census_scope_cases.inc"
 #include "general_project_identity_cases.inc"
 #include "composed_character_census_cases.inc"
+#include "native_port_pair_cases.inc"
 void host_capture_query_cases(void*& owned){
     t::totals={};Clock::calls=0;Fake::calls=0;
     need(t::host_capture_depth==0&&t::host_query_part==t::Part::HostQueryOther,"Host query attribution initially inactive");
@@ -151,6 +157,41 @@ void host_capture_query_cases(void*& owned){
         need(t::snapshot().contains(name),"Host query attribution exported through existing snapshot");
     t::totals={};Clock::calls=0;Fake::calls=0;Fake::result=0;Fake::result_error=0;Fake::throws=false;
 }
+void client_primary_child_cases(){
+    t::totals={};Clock::calls=0;Fake::calls=0;
+    constexpr std::pair<t::Part,const char*> children[]={
+        {t::Part::ClientManagementServiceRead,"client_management_service_read"},
+        {t::Part::ClientManagementGizmoRead,"client_management_gizmo_read"},
+        {t::Part::ClientManagementPrimaryRoots,"client_management_primary_roots"},
+        {t::Part::ClientManagementAnalyticsRead,"client_management_analytics_read"},
+        {t::Part::ClientManagementIntroRead,"client_management_intro_read"},
+        {t::Part::ClientManagementProjectRead,"client_management_project_read"}};
+    need(size_t(children[0].first)==size_t(t::Part::ClientManagementGizmosApply)+1,"primary children append without changing existing counter indices");
+    MEMORY_BASIC_INFORMATION info{};const auto address=reinterpret_cast<LPCVOID>(uintptr_t(0x123456));
+    for(const auto& [part,name]:children){
+        {std::optional<t::Scope> child;if(t::take_depth)child.emplace(part);}
+        need(count(part)==0,"primary child disabled outside Client Take");
+        {
+            t::Scope take(t::Part::Take);t::Scope primary(t::Part::ClientManagementPrimaryRead);
+            const auto phase=t::query_phase;const auto owner=t::host_query_part;
+            {
+                std::optional<t::Scope> child;if(t::take_depth)child.emplace(part);
+                need(t::take_depth==1&&t::host_capture_depth==0&&t::query_phase==phase&&t::host_query_part==owner,"primary child preserves depth and query ownership");
+                Fake::result=17;Fake::result_error=66;SetLastError(55);
+                need(t::detail::query<Fake::query,Clock>(address,&info,sizeof info,t::Part::QueryPlacement)==17&&Fake::incoming==55&&GetLastError()==66,"primary child preserves original query result and LastError");
+            }
+            need(count(part)==1&&t::snapshot().at(name).at("count")==1,"primary child exports one exact snapshot count");
+            const auto failed=[&](){std::optional<t::Scope> child;if(t::take_depth)child.emplace(part);return false;};
+            need(!failed()&&count(part)==2,"primary child records early failure without changing result");
+            try{std::optional<t::Scope> child;if(t::take_depth)child.emplace(part);throw std::runtime_error("original child failure");}
+            catch(const std::runtime_error& error){need(std::string(error.what())=="original child failure","primary child preserves thrown cause");}
+            need(count(part)==3&&t::take_depth==1&&t::query_phase==phase&&t::host_query_part==owner,"primary child unwinds without altering parent attribution");
+        }
+    }
+    need(count(t::Part::MemoryVirtualQuery)==6&&count(t::Part::QueryPlacement)==6&&count(t::Part::ClientManagementPrimaryRead)==6,"primary child queries retain existing exact parent totals");
+    need(t::take_depth==0&&t::host_capture_depth==0,"primary scopes restore inactive state");
+    t::totals={};Clock::calls=0;Fake::calls=0;Fake::result=0;Fake::result_error=0;
+}
 int main(){void* owned=nullptr;try{
     world_prop_attribution_cases();
     pure_scenery_field_cases();
@@ -159,11 +200,17 @@ int main(){void* owned=nullptr;try{
     open_witness_scope_cases();
     prefix_cases();
     npc_find_scope_cases();
+    management_query_cases();
+    native_port_pair_fixture::checks();
     phase_cases();
     scope_cases();
     span_cases();
     character_definition_scope_cases();
     pure_reader_followup_cases();
+    release_scalar_scope_fixture::run();
+    monster_code_scope_fixture::run();
+    actor_code_scope_fixture::run();
+    gm_census_scope_fixture::run();
     region_identity_scope_cases();
     saved_root_index_scope_cases();
     saved_root_batch_lifetime_cases();
@@ -175,6 +222,7 @@ int main(){void* owned=nullptr;try{
     project_identity_fixture::checks();
     composed_character_fixture::checks();
     host_capture_query_cases(owned);
+    client_primary_child_cases();
     MEMORY_BASIC_INFORMATION info{};
     const auto address=reinterpret_cast<LPCVOID>(uintptr_t(0x123456));
     Fake::result=17;Fake::result_error=44;SetLastError(33);

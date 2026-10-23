@@ -7,6 +7,14 @@ def normalize(relative, source, *, batch=True):
     boundary=BOUNDARIES.get(relative)
     if boundary is None:return source
     if relative=='src/game/remove_diagnostics.cpp':
+        # The registry preview helper changes only the separately tested scene
+        # implementation. Normalize its exact declaration include for this
+        # historical whole-file guard; retain both original source hashes.
+        include='#include "scene_building_registry_preview.h"\n'
+        added='#include "building_scene_identity.h"\n'+include
+        if include in source:
+            assert source.count(include)==1 and source.count(added)==1, "Scene registry preview include boundary differs"
+            source=source.replace(added,'#include "building_scene_identity.h"\n',1)
         root_blocks=[
             ('std::string scene_owner,scene_record;', 'std::string scene_owner;'),
             ('        if(!saved.scene_record.empty())retained.back()["native_record_key"]=saved.scene_record;\n', '')]

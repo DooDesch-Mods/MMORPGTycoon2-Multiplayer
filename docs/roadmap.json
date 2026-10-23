@@ -2,13 +2,13 @@
   "product": "MMORPG Tycoon 2 Multiplayer",
   "support_slug": "multiplayer",
   "repository_url": "https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer",
-  "version_label": "Early Beta 22",
-  "release_label": "Early Beta 22 - shared-world loading and lobby recovery",
+  "version_label": "Early Beta 23",
+  "release_label": "Early Beta 23 - performance and world-start fixes",
   "graphic_title": "Build a shared world.",
   "coverage_title": "Co-op, one feature at a time",
   "asset_directory": "docs/images",
   "overview_heading": "What works in co-op?",
-  "overview_intro": "Play [Early Beta 22](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.22) with fixes for shared-world loading in normal installations, leaving unfinished sessions and Steam names in chat. Gameplay coverage is retained from Beta 19.",
+  "overview_intro": "Play [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) with lower shared-world update overhead and fixes for developer assignment and duplicate Host world loading. Low FPS, long pauses and desyncs can still occur.",
   "stages": [
     {
       "label": "Play now",

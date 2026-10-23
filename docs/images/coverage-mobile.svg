@@ -3,9 +3,9 @@
 <desc id="description">55 released, 29 experimental, 9 planned. Each segment is one named feature. Development features are not included in the current download. Counts and percentages describe this inventory, not overall completion.</desc>
 <path fill="#0b1723" d="M0 0h600v2042H0z"/>
 <text x="28" y="44" font-family="Arial" font-size="30" fill="#f2f7fb" font-weight="700">Co-op, one feature at a time</text>
-<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 22 - shared-world loading and lobby recovery</text>
+<text x="28" y="80" font-family="Arial" font-size="22" fill="#b8cad8" font-weight="400">Early Beta 23 - performance and world-start fixes</text>
 <text x="28" y="126" font-family="Arial" font-size="24" fill="#64e4d5" font-weight="700">55 Released</text>
-<text x="28" y="153" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">59.1% - In Early Beta 22</text>
+<text x="28" y="153" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">59.1% - In Early Beta 23</text>
 <text x="28" y="190" font-family="Arial" font-size="24" fill="#ffca67" font-weight="700">29 Experimental</text>
 <text x="28" y="217" font-family="Arial" font-size="18" fill="#b8cad8" font-weight="400">31.2% - In the download</text>
 <text x="28" y="254" font-family="Arial" font-size="24" fill="#a8c1d5" font-weight="700">9 Planned</text>

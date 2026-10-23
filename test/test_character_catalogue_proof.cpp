@@ -1,4 +1,5 @@
 #include "character_catalogue_proof.h"
+#include "character_catalogue_batch.h"
 #include <iostream>
 #include <stdexcept>
 namespace {
@@ -45,6 +46,52 @@ void run(){using json=nlohmann::json;std::string error;const auto before=census(
     changed=records;changed["character:1:2"]=std::string(64,'e');
     expect(proof::rows(local,changed,other,error)&&other!=rows,"native reused tombstone is a new current definition");
 }
+void batch(){
+    namespace batch=mt2mp::game::character_catalogue_batch;
+    struct Sample {definitions::Census definitions;std::map<uintptr_t,std::string> owners;int users=0,world=0;};
+    Sample native{census(),{{5000,"external-owner"}},0,0};
+    const auto stable=[](const Sample& a,const Sample& b){return batch::same(a.definitions,b.definitions)&&a.owners==b.owners&&a.users==b.users&&a.world==b.world;};
+    int preparations=0,records=0;bool change_record=false,fail_record=false;int fail_prepare=0;
+    auto prepare=[&](Sample& out,std::string& error){++preparations;if(preparations==fail_prepare){error="retained native preparation cause";return false;}out=native;return true;};
+    auto record=[&](const Sample& current,const definitions::Definition& definition,std::string& out,std::string& error){
+        ++records;expect(current.owners==native.owners,"record sees its current preparation owner names");
+        if(fail_record){error="retained native serializer cause";return false;}
+        out=std::string(64,change_record&&records>2?'c':definition.id?'b':'a');return true;
+    };
+    nlohmann::json expected,out;std::string error;
+    expect(proof::rows(native.definitions,{{"character:1:0",std::string(64,'a')},{"character:1:1",std::string(64,'b')}},expected,error),"baseline complete canonical records");
+    expect(batch::capture<Sample>(prepare,record,stable,out,error)&&out==expected,"batched proof preserves complete canonical output");
+    expect(preparations==3&&records==4,"two fresh full record passes share three owner preparations");
+    preparations=records=0;change_record=true;
+    expect(!batch::capture<Sample>(prepare,record,stable,out,error)&&error=="Character catalogue original records changed during complete double capture","changed record in second pass rejects");
+    change_record=false;preparations=records=0;fail_record=true;
+    expect(!batch::capture<Sample>(prepare,record,stable,out,error)&&error=="retained native serializer cause"&&preparations==1&&records==1,"serializer failure preserves cause and stops capture");
+    fail_record=false;
+    for(int stage=1;stage<=3;++stage){preparations=records=0;fail_prepare=stage;
+        expect(!batch::capture<Sample>(prepare,record,stable,out,error)&&error=="retained native preparation cause"&&preparations==stage,"each preparation failure propagates without replay");}
+    fail_prepare=0;
+    const auto changed=[&](auto mutate){
+        for(int endpoint=2;endpoint<=3;++endpoint){int calls=0;
+            const auto prepare_changed=[&](Sample& next,std::string&){next=native;if(++calls==endpoint)mutate(next);return true;};
+            preparations=records=0;
+            expect(!batch::capture<Sample>(prepare_changed,record,stable,out,error)&&error=="Character catalogue original records/manager/users/reference owners changed during complete capture","fresh endpoint owner change rejects");
+        }
+    };
+    changed([](Sample& value){value.owners[6000]="new-owner";});
+    changed([](Sample& value){++value.users;});
+    changed([](Sample& value){++value.world;});
+    changed([](Sample& value){++value.definitions.manager;});
+    changed([](Sample& value){++value.definitions.state;});
+    changed([](Sample& value){++value.definitions.arrays[1].data;});
+    changed([](Sample& value){++value.definitions.arrays[1].capacity;});
+    changed([](Sample& value){++value.definitions.definitions[0].uid;});
+    changed([](Sample& value){++value.definitions.definitions[1].record;});
+    changed([](Sample& value){++value.definitions.definitions[1].owning_collection;});
+    changed([](Sample& value){++value.definitions.collections[0].arrays[0].data;});
+    changed([](Sample& value){++value.definitions.collections[0].ids[0][1];});
+    native.definitions.definitions.clear();native.definitions.collections.clear();native.definitions.arrays={};preparations=records=0;
+    expect(batch::capture<Sample>(prepare,record,stable,out,error)&&out.empty()&&preparations==3&&!records,"empty catalogue still verifies all fresh owner endpoints");
 }
-int main(){try{run();std::cout<<checks<<" Character catalogue checks passed\n";return 0;}
+}
+int main(){try{run();batch();std::cout<<checks<<" Character catalogue checks passed\n";return 0;}
 catch(const std::exception& exception){std::cerr<<"Character catalogue: "<<exception.what()<<'\n';return 1;}}

@@ -86,8 +86,7 @@ bool enable(std::string& error){
         {0x4173b0,reinterpret_cast<void*>(&description_entry),reinterpret_cast<void**>(&set_description)}};
     for(const auto& hook:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+hook.rva),hook.entry,hook.original);
         if(result!=MH_OK||!*hook.original){error=install_cause="District text hook create RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
-    for(const auto& hook:hooks){const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+hook.rva));
-        if(result!=MH_OK){error=install_cause="District text hook enable RVA="+std::to_string(hook.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
+    if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"District text hook",error)){install_cause=error;return false;}
     installed=true;return true;
 }
 bool pending(){return bool(captured);}

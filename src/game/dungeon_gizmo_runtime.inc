@@ -15,6 +15,9 @@ std::optional<Pending> pending;std::map<std::string,Operation> operations;
 bool entry(void*,void*);
 bool reject(const std::string& error){if(replaying)callback_failed=true;++rejected;if(cause!=error){cause=error;LOG_ERROR("[DungeonGizmo] {}",error);}return false;}
 bool code(Memory& memory,std::string& error){
+    live_host_state::apply_timing::PageReadScope pages(!live_host_state::apply_timing::PageReadScope::reader_active());
+    static thread_local std::array<hooks::framework::CodeBodyDigest,1+std::size(dungeon_gizmo_codes::helpers)+std::size(dungeon_gizmo_live_codes::values)> digests;
+    size_t slot=0;
     std::string bytes(ui_code.bytes,'\0'),hash;if(!memory.copy(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;
     if(original){MT2FW_MT2_RouteReceipt receipt{sizeof receipt};const npc_quest_list_ui_codes::Owned owner{uintptr_t(&entry),uintptr_t(original),generation};
         if(!quest_list::read_route(state.image+ui_code.rva,receipt,error)||!npc_quest_list_ui_codes::receipt(receipt,state.image+ui_code.rva,ui_code,owner,error)||std::memcmp(bytes.data(),receipt.current,32))return fail(error,error.empty()?"Gizmo exact owned route differs":error);
@@ -22,11 +25,13 @@ bool code(Memory& memory,std::string& error){
         if(!memory.copy(uintptr_t(original),trampoline.data(),trampoline.size(),error))return false;std::memcpy(&resume,trampoline.data()+11,8);
         if(!std::equal(ui_code.prefix.begin(),ui_code.prefix.begin()+5,trampoline.begin())||!std::equal(continuation.begin(),continuation.end(),trampoline.begin()+5)||resume!=state.image+ui_code.rva+5)return fail(error,"Gizmo exact original five-byte instruction boundary differs");
         std::memcpy(bytes.data(),receipt.pristine,32);if(!quest_list::verify_code(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;}
-    if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Gizmo original outer UI body differs":error);
-    for(const auto& pin:dungeon_gizmo_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
+    const auto digest=[&](uintptr_t entry,const char* expected){return digests[slot++].read(entry,bytes.data(),bytes.size(),expected,hash,error,
+        [&](std::string& value,std::string& cause){return quest_bridge::sha256(bytes,value,cause);});};
+    if(!digest(state.image+ui_code.rva,ui_code.sha)||hash!=ui_code.sha)return fail(error,error.empty()?"Gizmo original outer UI body differs":error);
+    for(const auto& pin:dungeon_gizmo_codes::helpers){bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!digest(state.image+pin.rva,pin.sha))return false;
         if(hash!=pin.sha)return fail(error,"Gizmo original UI/weak/feature/token helper differs RVA="+std::to_string(pin.rva));}
     for(const auto& pin:dungeon_gizmo_live_codes::values){bytes.assign(pin.bytes,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||
-        !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return fail(error,"Gizmo original State/animation helper differs RVA="+std::to_string(pin.rva)+" original="+error);}
+        !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error,&digests[slot++]))return fail(error,"Gizmo original State/animation helper differs RVA="+std::to_string(pin.rva)+" original="+error);}
     return true;
 }
 bool protected_digest(const a::DungeonPaletteState& value,std::string& hash,std::string& error){

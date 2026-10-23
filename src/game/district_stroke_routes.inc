@@ -39,10 +39,14 @@ bool enable(std::string& error){
         if(created!=MH_OK||!route.original){error="District stroke named route create failed status="+std::to_string(created)+" "+hooks::framework::process_backend().error();return failed();}
         originals[i]=route.original;
     }
+    const bool batch=hooks::framework::process_backend().batch_available();
+    if(batch&&!hooks::enable_prepared_routes(runtime->image,routes,"District stroke named route",error))return failed();
     for(auto& route:routes){const auto target=reinterpret_cast<void*>(runtime->image+route.rva);
-        const auto enabled=MH_EnableHook(target);MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
-        if(enabled!=MH_OK||!hooks::framework::process_backend().read_route(target,receipt)){
-            error="District stroke named route enable/receipt failed status="+std::to_string(enabled)+" "+hooks::framework::process_backend().error();return failed();}
+        if(!batch){const auto result=MH_EnableHook(target);if(result!=MH_OK){
+            error="District stroke named route enable failed status="+std::to_string(result)+" "+hooks::framework::process_backend().error();return failed();}}
+        MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
+        if(!hooks::framework::process_backend().read_route(target,receipt)){
+            error="District stroke named route receipt failed: "+hooks::framework::process_backend().error();return failed();}
         route.generation=receipt.generation;
     }
     installed=true;if(!code(*runtime,error)){installed=false;return failed();}return true;

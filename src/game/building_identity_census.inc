@@ -1,24 +1,33 @@
 namespace {
-bool building_identity_index(const host::WorldState& world,uintptr_t image,std::map<uint64_t,const Bound*>& indexed,
+template<class Index>
+bool building_identity_index(const host::WorldState& world,uintptr_t image,Index& indexed,
                             std::set<uint64_t>& omitted,std::string& error){
     indexed.clear();omitted.clear();
     if(unknown_locked){error="remove diagnostics are Unknown; no new binding admission";return false;}
     const prop_lease::World expected{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map};
     if(admitted_world.epoch&&admitted_world!=expected){error="Building owner census admitted World changed";return false;}
-    const auto snapshot=net::current_snapshot_id();std::set<std::string> keys;std::set<uintptr_t> objects;
+    const auto snapshot=net::current_snapshot_id();const auto prefix=registry_id(snapshot,{});
+    auto* storage=[&]{if constexpr(requires{indexed.get_allocator().resource();})return indexed.get_allocator().resource();else return std::pmr::get_default_resource();}();
+    using ObjectIndex=std::conditional_t<requires{indexed.bucket_count();},std::pmr::unordered_set<uintptr_t>,std::pmr::set<uintptr_t>>;
+    ObjectIndex objects{storage};
+    if constexpr(requires{objects.reserve(registry.size());})objects.reserve(registry.size());
+    constexpr char scenery_suffix[]=":world:scenery:inline:";
     for(const auto& [id,binding]:registry){
         if(binding.generation!=registry_generation||binding.snapshot!=snapshot||binding.revoked||binding.scene_owner=="retired")continue;
         if(binding.unknown){error="Service census includes Unknown native binding";return false;}
         if(binding.world!=expected){error="Building owner census current registry World differs";return false;}
-        if(!binding.uid||!binding.entry||binding.key.empty()||id!=registry_id(snapshot,binding.key)||
-           !keys.insert(binding.key).second||!indexed.emplace(binding.uid,&binding).second||
+        // Exact registry IDs are unique map keys. With one fixed prefix, their
+        // validated suffixes also prove canonical key uniqueness.
+        if(!binding.uid||!binding.entry||binding.key.empty()||!id.starts_with(prefix)||id.compare(prefix.size(),std::string::npos,binding.key)!=0||
+           !indexed.emplace(binding.uid,&binding).second||
            (binding.object&&!objects.insert(binding.object).second)){
             error="Building owner census complete registry identity is ambiguous or invalid";return false;
         }
         // Only previously admitted original saved Root members can avoid an
         // unused full property read. Unclassified and newly born rows stay fresh.
         if(binding.object&&binding.scene_owner=="world"&&binding.scene_manager&&binding.scene_region&&
-           binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha+":world:scenery:inline:")&&
+           binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha)&&
+           binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)==0&&
            binding.class_addresspoint==image+0x16c1390)omitted.insert(binding.uid);
     }
     return true;
@@ -59,10 +68,12 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
     host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
     if(!reader.current(world,true,error))return false;
-    std::map<uint64_t,const Bound*> indexed;std::set<uint64_t> omitted;
+    // Both fresh indexes share local storage; no binding survives this call.
+    std::pmr::monotonic_buffer_resource index_storage;
+    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());std::set<uint64_t> omitted;
     if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
     json sources;if(!collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted))return false;
-    const auto prior_omitted=omitted;
+    const auto prior_omitted=std::move(omitted);
     if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
     if(!std::includes(omitted.begin(),omitted.end(),prior_omitted.begin(),prior_omitted.end())){
         error="Building owner census saved exclusion changed during collection";return false;
@@ -80,10 +91,13 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
         return building_identity_resolve(*found->second,world,api,target,cause);
     };
     std::vector<LocalTarget> sampled,pending;std::map<uintptr_t,std::string> candidates;
+    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};if(!destinations)candidate_objects.reserve(indexed.size());
     if(!service_building_census::read(selected,resolve,sampled,error))return false;
-    for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,binding->key);
+    // The ordered exclusions preserve canonical insertion order. Thought callers
+    // only need pointer uniqueness, so their collision index stores no key strings.
+    for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}
     for(auto& target:sampled){
-        if(!candidates.emplace(target.object,target.record_key).second){error="Building owner census current receiver is ambiguous";return false;}
+        if(!(destinations?candidates.emplace(target.object,target.record_key).second:candidate_objects.emplace(target.object).second)){error="Building owner census current receiver is ambiguous";return false;}
         bool uptime_owner=false;if(!building_uptime_target(target,uptime_owner,error))return false;
         if(uptime_owner)pending.push_back(std::move(target));
     }
