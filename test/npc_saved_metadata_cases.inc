@@ -39,6 +39,13 @@ namespace net {
 std::string current_snapshot_id(){return snapshot;}
 uint64_t current_world_epoch(){return common_epoch;}
 }
+namespace action_session::recovery_read {
+bool snapshot_current(const std::string& expected,uint64_t,uint64_t,std::string& error){
+    if(net::current_snapshot_id()!=expected||!net::current_world_epoch())
+        return q::fail(error,"fixture ordinary snapshot identity or epoch differs");
+    error.clear();return true;
+}
+}
 namespace native_open_runtime {
 bool read_current_world(opened::CurrentWorld& out,std::string& error){
     events.push_back("world");out=origin;

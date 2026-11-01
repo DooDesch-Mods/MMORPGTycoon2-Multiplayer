@@ -60,6 +60,9 @@ struct Runtime {
     Runtime(uint64_t peer,std::deque<fixture::Packet>& packets):session(peer),transport(peer,packets),controller(session,engine,transport,{}){engine.live_state_=&live;}
 };
 std::atomic<Runtime*> published_runtime{nullptr};
+bool held_tutorial_session_read(action::Session&,action::Context&,std::string& error){
+    error="unexpected held tutorial read";return false;
+}
 #include "binding_queries.inc"
 }
 namespace runtime=mt2mp::game::typed_action_runtime;

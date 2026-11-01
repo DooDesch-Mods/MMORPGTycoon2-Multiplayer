@@ -16,14 +16,12 @@ Shared edits can take several seconds or longer to finish. The game can occasion
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
+The coverage table below records **Beta 23** and is not a Beta 24 compatibility list. Beta 24 has been tested locally with two players through rejoin, a recovered world and a subsequent Terrain paint action. Its new simulation routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions; source routing does not confirm every scenario in game. Groups, modular buildings, dungeons and management actions are not yet available. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
+
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Play [Early Beta 24](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.24) with the new ordered shared simulation. Low FPS, long pauses and desyncs can still occur.
-
-The table below records **Beta 23** coverage for its earlier synchronization system. It is not a Beta 24 compatibility list. Beta 24's new simulation has been tested locally with two players through rejoin, a recovered world and a subsequent Terrain paint action; broader gameplay coverage is still being established.
-
-The new simulation routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions. Source routing does not confirm every scenario in game. Groups, modular buildings, dungeons and management actions are not yet available. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
+This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 24 compatibility list.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">

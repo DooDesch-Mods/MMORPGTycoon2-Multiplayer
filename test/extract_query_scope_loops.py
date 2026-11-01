@@ -177,7 +177,7 @@ saved_reader=body(saved,'bool read_current(std::vector<Current>& out, std::strin
 baseline=prior_child_reader(saved_reader).replace(', bool share_metadata)',')',1).replace('PageReadScope pages(!share_metadata||!live_host_state::apply_timing::page_read_scope);','PageReadScope pages;',1)
 assert hashlib.sha256(baseline.encode()).hexdigest()=='524a94ad82498e4537635794b214019997aaec43c7d1293c2955e328f244fec5', 'Saved reader changed outside opt-in metadata lifetime'
 helpers=[]
-for anchor,digest in [('bool current(opened::CurrentWorld&','933d0e7e6696736310489d260080d1e68bde02df955cc33cfd45b6987dfb5a5e'),('bool same_world(','479498691688688022a6d054c8704d5cd19bd176e360a3e91a656cf6b1cb1c34'),('DWORD find_call(','3965e558d3ea5137b66ab6d4fba17b8548c340d3c993e7e8af1d8378aeac3455')]:
+for anchor,digest in [('bool current(opened::CurrentWorld&','cdcf82dae9fcdc10f41faddc5c940f73a73f57e3403ccde0e1525fae38a43148'),('bool same_world(','479498691688688022a6d054c8704d5cd19bd176e360a3e91a656cf6b1cb1c34'),('DWORD find_call(','3965e558d3ea5137b66ab6d4fba17b8548c340d3c993e7e8af1d8378aeac3455')]:
     selected=body(saved,anchor)
     assert hashlib.sha256(selected.encode()).hexdigest()==digest, 'Saved reader dependency drifted: '+anchor
     helpers.append(selected)

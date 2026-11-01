@@ -66,7 +66,7 @@
 <rect data-feature="elite-move" x="378" y="616" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Move an Elite monster: Released. Move an individual Elite monster while paused.</title></rect>
 <rect data-feature="elite-remove" x="434" y="616" width="51" height="28" fill="#15383d" stroke="#64e4d5"><title>Remove an Elite monster: Released. Remove an individual Elite monster while paused.</title></rect>
 <rect data-feature="monster-zone-edit" x="490" y="616" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Edit a monster zone: Experimental. Share zone shape, population settings and resets.</title></rect>
-<rect data-feature="monster-live-state" x="546" y="616" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Share moving monster state: Experimental. Publish the Host&#x27;s current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation.</title></rect>
+<rect data-feature="monster-live-state" x="546" y="616" width="51" height="28" fill="#3e321f" stroke="#ffca67"><title>Share moving monster state: Experimental. Beta 23 published the Host&#x27;s current moving actor state. This did not establish complete combat, respawn, Boss or visitor simulation.</title></rect>
 <rect data-feature="full-live-simulation" x="602" y="616" width="51" height="28" fill="#21303e" stroke="#a8c1d5"><title>Share the full running simulation: Planned. Cover interacting combat, quests, economy and lifecycle behavior together.</title></rect>
 <text x="668" y="639" font-family="Arial" font-size="21" fill="#b8cad8" font-weight="400">6</text>
 <text x="28" y="698" font-family="Arial" font-size="23" fill="#f2f7fb" font-weight="600">Quests</text>

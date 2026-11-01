@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Play [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) with lower shared-world update overhead and fixes for developer assignment and duplicate Host world loading. Low FPS, long pauses and desyncs can still occur.
+This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 24 compatibility list.
 
 Updated 2026-10-22. Development entries do not change the current download.
 
@@ -127,7 +127,7 @@ Updated 2026-10-22. Development entries do not change the current download.
 | Move an Elite monster | Released - Early Beta 23 | Move an individual Elite monster while paused. |
 | Remove an Elite monster | Released - Early Beta 23 | Remove an individual Elite monster while paused. |
 | Edit a monster zone | Experimental - Early Beta 23 | Share zone shape, population settings and resets. |
-| Share moving monster state | Experimental - Early Beta 23 | Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation. |
+| Share moving monster state | Experimental - Early Beta 23 | Beta 23 published the Host's current moving actor state. This did not establish complete combat, respawn, Boss or visitor simulation. |
 | Share the full running simulation | Planned | Cover interacting combat, quests, economy and lifecycle behavior together. |
 
 ### Quests
