@@ -12,6 +12,7 @@ bool start(std::string& error);
 bool leaving();
 bool tick(std::string& error);
 nlohmann::json status();
+bool status_is_handshake(const nlohmann::json& value);
 }
 
 namespace mt2mp::game::lobby_prepare { bool leave(std::string&); }

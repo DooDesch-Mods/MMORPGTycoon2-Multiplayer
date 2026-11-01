@@ -48,6 +48,7 @@ struct Session{bool current(a::Context& context,std::string&){context.snapshot_u
 struct Engine{bool current(const a::Binding& binding,const std::string& snapshot,std::string&){return binding==a::Binding{3,4}&&snapshot==snapshot_id;}};
 struct Runtime{unsigned thread=1;bool lobby_retiring=false,live_state=false,live_port=false;Controller controller;Session session;Engine engine;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
+bool held_tutorial_session_read(Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "remove_read_binding_body.inc"
 bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 #include "remove_network_binding_body.inc"

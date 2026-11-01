@@ -57,6 +57,7 @@ struct Engine {
 struct Runtime {bool live_state=false,live_port=false;DWORD thread=GetCurrentThreadId();Controller controller;bool lobby_retiring=false;a::Session session;Engine engine;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
+bool held_tutorial_session_read(a::Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "controller_binding_actual.inc"
 }
 namespace native_open_runtime {

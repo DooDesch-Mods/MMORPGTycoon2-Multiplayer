@@ -3,6 +3,7 @@
 #include <iostream>
 #include <memory>
 #include <stdexcept>
+#include "typed_action/held_service_interruption.h"
 #include <string>
 #include <vector>
 #include "host_failure_action_session.h"

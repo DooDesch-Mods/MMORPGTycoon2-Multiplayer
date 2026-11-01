@@ -23,6 +23,11 @@ bool held=false;std::string failure;
 json ordered_snapshot_status(){return {{"runtime_failure",failure}};}
 bool ordered_snapshot_active(){return held;}
 }
+namespace game::session_reload {
+bool active=false;std::string capture_id;
+bool recovery_active(){return active;}
+bool recovery_capture_pending(const std::string& id){return !capture_id.empty()&&id==capture_id;}
+}
 json external_request;
 unsigned reads=0,writes=0;bool write_fails=false;
 std::vector<std::string> attempts;
@@ -115,5 +120,10 @@ int main() try {
     bool blocked=false;try{poll();}catch(const std::runtime_error& error){blocked=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
     check(blocked&&attempts.size()==3,"held snapshot admitted a mutation through diagnostics");
     external_request["op"]="read_ordered_world";poll();check(attempts.size()==4,"held snapshot blocked current read-only evidence");
+    game::typed_action_runtime::held=false;game::session_reload::active=true;last_mailbox_request.clear();external_request=request(next);
+    blocked=false;try{poll();}catch(const std::runtime_error& error){blocked=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
+    check(blocked&&attempts.size()==4,"active recovery admitted an unrelated external mutation");
+    ops::active=internal;ops::request=request(internal);ops::request["op"]="capture_recovery_snapshot";
+    game::session_reload::capture_id=internal;poll();check(attempts.size()==5&&attempts.back()==internal,"retained recovery capture was blocked");
     std::cout<<"PASS actual broker selection/response and idle bodies: internal completion cannot replay external mutation, failure response retained, pending operations defer adoption\n";
 } catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

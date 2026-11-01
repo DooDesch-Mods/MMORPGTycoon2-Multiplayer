@@ -12,16 +12,16 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 Shared edits can take several seconds or longer to finish. The game can occasionally crash during startup. This build adds modular building and includes experimental Dungeon, character-design and MMO-management tools. Some actions and combinations can still fail or desync.
 
-**Early Beta 24** introduces an ordered shared simulation and improves recovery after a Client restarts. Both players need Beta 24 and MT2 Mod Framework Runtime 0.5.0. Close the game, update and enable the mod in Vortex, then deploy before starting through Steam.
+**Early Beta 25** introduces an ordered shared simulation and improves recovery after a Client restarts. Both players need Beta 25 and MT2 Mod Framework Runtime 0.5.0. Close the game, update and enable the mod in Vortex, then deploy before starting through Steam.
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
-The coverage table below records **Beta 23** and is not a Beta 24 compatibility list. Beta 24 has been tested locally with two players through rejoin, a recovered world and a subsequent Terrain paint action. Its new simulation routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions; source routing does not confirm every scenario in game. Groups, modular buildings, dungeons and management actions are not yet available. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
+The coverage table below records **Beta 23** and is not a Beta 25 compatibility list. Beta 25 has been tested locally with two players through rejoin, a recovered world and a subsequent Terrain paint action. Its new simulation routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions; source routing does not confirm every scenario in game. Groups, modular buildings, dungeons and management actions are not yet available. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
 
 <!-- roadmap:start -->
 ## What works in co-op?
 
-This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 24 compatibility list.
+This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 25 compatibility list.
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
@@ -226,7 +226,7 @@ Each feature has its own status. Counts describe this list, not how close the wh
 
 ## Start playing
 
-Early Beta 24 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.0 and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
+Early Beta 25 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.0 and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

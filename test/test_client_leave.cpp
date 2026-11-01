@@ -5,10 +5,12 @@
 #include <stdexcept>
 #include <map>
 #include <chrono>
+#include <optional>
 #define LOG_NET_INFO(...) ((void)0)
 #define LOG_WARN(...) ((void)0)
 
 using namespace mt2mp::action_session;
+struct MT2FW_MT2_RecoveryReceipt {uint64_t completed_tick=0;};
 namespace {
 const std::string snapshot="11111111-1111-1111-1111-111111111111";
 const std::string action_id="22222222-2222-2222-2222-222222222222";
@@ -286,6 +288,7 @@ struct Vip {
 struct OrderedSteps{bool unbind(std::string& e){e="unexpected ordered owner in legacy Leave fixture";return false;}};
 struct Runtime {
     std::unique_ptr<OrderedSteps> ordered_steps;
+    std::optional<uint64_t> recovery_retirement_tick;
     action_session::Controller& controller;
     uint32_t thread=7;bool lobby_retiring=false;
     std::unique_ptr<Live> live_state;bool live_port=false;
@@ -296,6 +299,7 @@ struct Runtime {
 };
 std::atomic<Runtime*> published_runtime{nullptr};
 fixture::Json status(){return fixture::snapshot_status;}
+bool recovery_retirement_ready(const MT2FW_MT2_RecoveryReceipt&,std::string& e){e="unexpected recovery in legacy Leave fixture";return false;}
 #include "client_leave_runtime_body.inc"
 }
 }
@@ -515,6 +519,9 @@ void chat_retirement_delta(){
 }
 int main(){
     try{
+        MT2FW_MT2_RecoveryReceipt recovery;std::string recovery_error;
+        require(!runtime::begin_retirement(true,recovery_error,&recovery)&&recovery_error=="Recovery cannot retire through ordinary lobby Leave", "recovery entered ordinary lobby Leave");
+        require(!runtime::begin_retirement(false,recovery_error,&recovery)&&recovery_error=="unexpected recovery in legacy Leave fixture", "legacy fixture admitted recovery without its owner");
         std::cerr<<"info: client Leave fixture Pair bytes="<<sizeof(Pair)<<'\n';
         std::cerr<<"info: running chat retirement\n";
         chat_retirement_delta();

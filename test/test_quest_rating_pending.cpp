@@ -22,6 +22,7 @@ struct Runtime{bool live_state=false,live_port=false;uint32_t thread=7;Controlle
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 namespace typed_action_runtime{
 bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
+bool held_tutorial_session_read(Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "quest_rating_idle.inc"
 }
 struct Pin{a::Context context;a::Binding binding;uintptr_t image=0x100000;};

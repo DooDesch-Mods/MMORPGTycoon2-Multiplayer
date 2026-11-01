@@ -359,6 +359,7 @@ nlohmann::json status(){auto value=nlohmann::json{{"leave_confirmed",leave_confi
         if(value.at("error").get<std::string>().empty())value["error"]=reload.at("error");}
     return value;
 }
+bool status_is_handshake(const nlohmann::json& value){return value.value("state",0)==int(Step::Handshake)&&value.value("reloading",false);}
 }
 
 namespace mt2mp::game::lobby_prepare {

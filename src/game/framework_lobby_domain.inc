@@ -446,6 +446,28 @@ bool process_host_world_picker_request(bool title_active,std::string& error){
     return true;
 }
 
+void update_busy_picker(bool title_active,bool member,bool host,bool busy,const nlohmann::json& preparation){
+    const bool eligible=title_active&&ui_mode==2&&ui_owner&&member&&host&&choosing&&!pending&&!load_attempted&&
+        !current_host_world&&selected_world.empty()&&selected_file.empty()&&preparation.contains("state")&&preparation.contains("error")&&preparation.value("error",std::string{}).empty()&&
+        cause.empty()&&!framework_report&&!framework_creating_world&&framework_open&&framework_observed_open;
+    if(framework_picker_restore_owner&&(!eligible||ui_owner!=framework_picker_restore_owner||generation!=framework_picker_restore_generation)){
+        LOG_INFO("[NativeLobby] Suspended picker restoration cancelled eligible={} same_owner={} same_generation={}",eligible,ui_owner==framework_picker_restore_owner,generation==framework_picker_restore_generation);
+        framework_picker_restore_owner=nullptr;
+    }
+    if(member&&busy&&!framework_busy_notice&&!framework_report&&!(host&&framework_creating_world)){
+        const auto state=preparation.value("state",0);const bool reloading=preparation.value("reloading",false);
+        const bool suspend=eligible&&framework_browser&&lobby_prepare::status_is_handshake(preparation);
+        LOG_INFO("[NativeLobby] Busy picker transition suspend={} eligible={} browser={} preparation={} reloading={} member={} host={} title={} open={} observed={} choosing={} pending={} load_attempted={} report={}",suspend,eligible,framework_browser,state,reloading,member,host,title_active,framework_open,framework_observed_open,choosing,pending,load_attempted,framework_report);
+        if(suspend){framework_picker_restore_owner=ui_owner;framework_picker_restore_generation=generation;}
+        framework_open=true;framework_browser=false;
+    }else if(framework_busy_notice&&!busy&&framework_picker_restore_owner){
+        if(eligible&&preparation.value("state",0)==0){framework_browser=true;LOG_INFO("[NativeLobby] Suspended Host picker restored after transient handshake");}
+        else LOG_INFO("[NativeLobby] Suspended Host picker not restored eligible={} preparation={}",eligible,preparation.value("state",0));
+        framework_picker_restore_owner=nullptr;
+    }
+    framework_busy_notice=member&&busy;
+}
+
 bool render_context(bool title_active,bool ingame_active,const nlohmann::json& preparation,const nlohmann::json& transfer,std::string& error){
     const bool member=admitted(),host=lobby_host();
     if(!label("build_version","v"+std::string(MOD_VERSION))){error=cause;return false;}
@@ -490,8 +512,7 @@ bool render_context(bool title_active,bool ingame_active,const nlohmann::json& p
     if(Config::instance().local_test){const auto mask=member?net::session_wire::peer_mask():0;for(unsigned i=0;i<4;++i)if(mask&(1u<<i))++count;}
     else if(member)count=net::SteamMatchmaking::instance().get_lobby_members().size();
     if(!label("players_heading","Player "+std::to_string(count)+"/4")){error=cause;return false;}
-    if(member&&message.busy&&!framework_busy_notice&&!framework_report&&!(host&&framework_creating_world)){framework_open=true;framework_browser=false;}
-    framework_busy_notice=member&&message.busy;
+    update_busy_picker(title_active,member,host,message.busy,preparation);
     if(member&&!host&&title_active&&preparation.value("state",0)==0&&cause.empty())ui_status=message.heading;
     error.clear();return true;
 }

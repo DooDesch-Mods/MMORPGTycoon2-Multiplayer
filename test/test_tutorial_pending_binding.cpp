@@ -20,6 +20,7 @@ struct Runtime{uint32_t thread=7;Controller controller;Session session;Engine en
 std::atomic<Runtime*> published_runtime;
 namespace typed_action_runtime {
 bool network_binding_with_mode(const std::string&,action::Binding&,std::string&,bool*);
+bool held_tutorial_session_read(action::Session&,action::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "binding_providers.inc"
 }
 struct World{uint64_t world_epoch=8,generation=9;};struct Pin{World world;bool ordered=false;};

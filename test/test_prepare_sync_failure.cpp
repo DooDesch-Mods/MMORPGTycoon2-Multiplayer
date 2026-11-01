@@ -1,6 +1,7 @@
 #include <atomic>
 #include "prepare_flow.h"
 #include "startup_calendar_normalization.h"
+#include "typed_action/tick_commands.h"
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -77,7 +78,8 @@ CAPTURE_SERVICE(ui_region_runtime)
 namespace typed_action_runtime {
 struct ControllerStatus{bool started=true,locked=false,pending=false;uint64_t host_revision=1;
 std::string action_uuid,cause;int outcome=0;};
-struct Controller{bool ordered_mode()const{return false;}uint64_t ack_timeout_ms()const{return 10000;}ControllerStatus value;ControllerStatus status(){++fixture::controller_reads;return value;}};
+struct Controller{bool ordered_mode()const{return false;}uint64_t ack_timeout_ms()const{return 10000;}ControllerStatus value;ControllerStatus status(){++fixture::controller_reads;return value;}
+    std::vector<mt2mp::action_session::tick_commands::CompletedAction> ordered_completed_actions()const{throw std::runtime_error("unexpected ordered completion read in legacy failure fixture");}};
 struct Runtime{uint32_t thread=7;bool lobby_retiring=false,live_failure_terminal=false;Controller controller;std::string live_error;};
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "sync_failure_controller.inc"

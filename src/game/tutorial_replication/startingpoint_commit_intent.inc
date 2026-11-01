@@ -87,7 +87,7 @@ bool commit_startingpoint(const action_session::Context& c,const action_session:
     if(!same_world(before.origin,after.origin)||before.lounge!=after.lounge||before.tech!=after.tech||before.record!=after.record||
        before.player!=after.player||before.inventory!=after.inventory||before.slots!=after.slots||before.release!=after.release||after.project)
         return fail(e,"startingpoint Host original Commit owner/retirement differs");
-    startingpoint::Row actual;startingpoint::Plan operation;
+    startingpoint::Row actual;startingpoint::Plan operation=startingpoint::Plan::None;
     if(!read_startingpoint_row(c,b,actual,e)||!startingpoint::plan(expected,actual,operation,e))return false;
     return operation==startingpoint::Plan::Deploy||fail(e,"startingpoint Host original Commit effect differs");
 }

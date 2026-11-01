@@ -32,6 +32,23 @@ endif()
 add_test(NAME lobby_local_rejoin COMMAND test_lobby_local_rejoin)
 set_tests_properties(lobby_local_rejoin PROPERTIES TIMEOUT 30)
 
+set(busy_picker_generated "${CMAKE_CURRENT_BINARY_DIR}/busy_picker_generated")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/test/extract_busy_picker.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_busy_picker.py"
+    --root "${MT2MP_SOURCE_ROOT}" --output "${busy_picker_generated}"
+    COMMAND_ERROR_IS_FATAL ANY)
+add_executable(test_busy_picker "${MT2MP_SOURCE_ROOT}/test/test_busy_picker.cpp")
+target_compile_features(test_busy_picker PRIVATE cxx_std_20)
+target_include_directories(test_busy_picker PRIVATE "${busy_picker_generated}" "${MT2MP_SOURCE_ROOT}/include")
+if(MSVC)
+    target_compile_options(test_busy_picker PRIVATE /W4 /WX /utf-8 /UNDEBUG)
+else()
+    target_compile_options(test_busy_picker PRIVATE -Wall -Wextra -Werror -UNDEBUG)
+endif()
+add_test(NAME busy_picker COMMAND test_busy_picker)
+set_tests_properties(busy_picker PROPERTIES TIMEOUT 30)
+
 add_test(NAME lobby_wizard_automation
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8 -m unittest discover
         -s "${MT2MP_SOURCE_ROOT}/test/lobby_ui" -p test_wizard_automation.py)

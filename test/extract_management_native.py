@@ -102,7 +102,7 @@ assert hashlib.sha256(gizmo_baseline.encode()).hexdigest()=='81a140976151e67aefe
 
 binding_source=a.source_root/'src/game/typed_action_runtime.cpp'
 native=binding_source.read_text(encoding='utf-8')
-start='bool read_binding(';end='bool observe_startingpoint_submission('
+start='static bool read_binding_impl(';end='bool observe_startingpoint_submission('
 assert native.count(start)==1 and native.count(end)==1,'Controller current/admission binding boundary changed'
 (a.output/'controller_binding_actual.inc').write_text(native[native.index(start):native.index(end)],encoding='utf-8')
 (a.output/'controller_binding_actual.json').write_text(json.dumps({'source':str(binding_source),'sha256':hashlib.sha256(binding_source.read_bytes()).hexdigest(),'functions':['read_binding','network_binding'],'native_calls':'controlled Controller/Session/Engine fixture; actual binding APIs; no game invoked'},indent=2)+'\n',encoding='utf-8')

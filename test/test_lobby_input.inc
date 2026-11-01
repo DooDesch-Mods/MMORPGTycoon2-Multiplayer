@@ -17,6 +17,7 @@ const std::map<std::string,std::string> framework_commands={{"pick","Pick"},{"li
 std::deque<FrameworkAction> framework_actions;
 json framework_response,framework_last_action;
 bool framework_ready=false,framework_observed_open=false,framework_open=false,framework_visibility_known=false;
+void* framework_picker_restore_owner=nullptr;
 bool framework_visible=false,framework_suspended=false,framework_report=false,framework_browser=false,choosing=false;
 bool pending=false,list_pending=false,framework_new_world_requested=false,member=true;
 uint64_t framework_queued=0,framework_processed=0,framework_rejected=0,generation=1,list_generation=1;
@@ -47,6 +48,7 @@ void reset(){
     framework_widgets.at("lobby_id").type="input";framework_widgets.at("chat_input").type="input";
     framework_actions.clear();framework_response=nullptr;framework_last_action=nullptr;
     framework_ready=framework_observed_open=framework_open=framework_visibility_known=framework_visible=false;
+    framework_picker_restore_owner=nullptr;
     framework_suspended=framework_report=framework_browser=choosing=pending=list_pending=framework_new_world_requested=false;
     member=true;framework_queued=framework_processed=framework_rejected=0;generation=list_generation=1;list_page=0;
     ui_owner=&owner;command_failures=dispatches=0;throw_dispatch=fail_dispatch=false;

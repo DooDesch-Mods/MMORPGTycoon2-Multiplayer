@@ -116,9 +116,13 @@ void receipts(){
     std::string error;sp::Row decoded;sp::Plan plan;bool attempted=false,unknown=false;
     auto wire=sp::encode(after());require(wire.size()==14&&wire["commit_bugs"]==nlohmann::json{{"total",0},{"known",0}}&&sp::decode(wire,decoded,error)&&decoded==after(),"original Commit receipt lost in fixed Row");pass("wire Row carries exact original Host Commit bugs receipt");
     auto missing=after();missing.commit_bugs.reset();Calls calls;
-    require(!sp::apply(before(),missing,calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty()&&error=="startingpoint Deploy requires original Host Commit receipt with zero bugs","coalesced deployment inferred bugs from already reset project fields");pass("coalesced deployment requires original Commit receipt instead of reset counters");
+    require(!sp::apply(before(),missing,calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty()&&error=="startingpoint Deploy requires exact original Commit bug receipt","coalesced deployment inferred bugs from already reset project fields");pass("coalesced deployment requires original Commit receipt instead of reset counters");
     auto nonzero=after();nonzero.commit_bugs=sp::CommitBugs{2,1};
     require(sp::valid(nonzero,error)&&!sp::apply(before(),nonzero,calls,attempted,unknown,error)&&!attempted&&calls.effects.empty(),"nonzero Host Commit Map effects were silently discarded");pass("nonzero Host pre-Commit bugs cannot disappear through coalescing");
+    auto matching=before();matching.bugs_total=2;matching.bugs_known=1;
+    require(!sp::apply(matching,nonzero,calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty()&&error=="startingpoint nonzero Commit requires complete Map/RNG readback","matching nonzero receipt without Map/RNG evidence admitted");
+    nonzero.commit_bugs->map_before=std::string(64,'a');nonzero.commit_bugs->map_after=std::string(64,'b');
+    require(!sp::apply(matching,nonzero,calls,attempted,unknown,error)&&!attempted&&!unknown&&calls.effects.empty()&&error=="Startingpoint nonzero Map effects require ordered original Commit on every peer","legacy nonzero Commit effects admitted");
     for(const auto& bad:{nlohmann::json(false),nlohmann::json::array(),nlohmann::json{{"total",0}},nlohmann::json{{"total",0},{"known",0},{"extra",0}},nlohmann::json{{"total",true},{"known",0}},nlohmann::json{{"total",0.0},{"known",0}},nlohmann::json{{"total",-1},{"known",0}},nlohmann::json{{"total",0},{"known",1}}}){
         auto json=wire;json["commit_bugs"]=bad;require(!sp::decode(json,decoded,error)&&!error.empty(),"malformed Commit receipt accepted");
     }pass("Commit receipt exact fields and signed counters reject malformed authority");

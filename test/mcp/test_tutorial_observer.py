@@ -75,7 +75,7 @@ class TutorialObserverTests(unittest.TestCase):
         tool=next(tool for tool in tools_for(runtime) if tool.name=="game_tutorial_startingpoint")
         self.assertIn("tutorial_startingpoint",MUTATIONS)
         self.assertFalse(tool.annotations.readOnlyHint)
-        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"])
+        self.assertEqual(tool.inputSchema["properties"]["operation"]["enum"],["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit","client_bridges_commit_state","client_startingpoint_commit_state"])
         args={"token":"b473438a-510a-4f85-8337-b4e154ea15d6","native_origin_uuid":"77e1531e-709c-4355-b079-465f53cb61a2",
               "world_epoch":1,"world_generation":2,"operation":"complete","expected_development":{"project":{"present":True}}}
         runtime.request.return_value={"attempted":True,"confirmed":True}

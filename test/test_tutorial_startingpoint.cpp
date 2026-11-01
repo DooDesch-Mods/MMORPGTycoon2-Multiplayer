@@ -111,8 +111,15 @@ int main(){
 
         for(const auto* counter:{"bugs_total","bugs_known","bugs_unknown"}){
             auto altered=baseline;altered.development["project"][counter]=1;error.clear();
-            check(!before(altered,error)&&error.find("bug counters0")!=std::string::npos,"nonzero Map effect admitted");
+            check(!before(altered,error),"inconsistent bug counters admitted");
+            check(error.find("native bug counters are inconsistent")!=std::string::npos,"inconsistent counter diagnostic changed");
         }
+        auto nonzero=baseline;nonzero.development["project"]["bugs_total"]=2;
+        nonzero.development["project"]["bugs_known"]=1;nonzero.development["project"]["bugs_unknown"]=1;
+        check(!before(nonzero,error),"legacy nonzero Commit admitted");
+        check(error=="startingpoint nonzero Commit requires ordered original execution","legacy nonzero diagnostic changed");
+        nonzero.ordered=true;
+        check(before(nonzero,error),"ordered original Commit rejected consistent counters");
         for(const auto* flag:{"deployed","custom","owned"}){
             auto altered=baseline;altered.development["startingpoint"][flag]=true;error.clear();
             check(!before(altered,error)&&!error.empty(),"already-owned record admitted");

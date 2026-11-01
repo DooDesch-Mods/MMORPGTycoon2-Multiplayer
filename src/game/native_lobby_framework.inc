@@ -122,7 +122,7 @@ bool framework_render(std::string& error){
         if(app.at("open_requested").get<bool>()){framework_open=true;framework_browser=false;}
         if(!image||!ui_owner){error.clear();return true;}
         if(!framework_ordered_selected&&(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,ui_mode==3,error)))return false;
-        if(!framework_open&&!framework_observed_open){error.clear();return true;}
+        if(!framework_open&&!framework_observed_open){framework_picker_rendered=false;framework_picker_rendered_rows=0;error.clear();return true;}
         framework_widgets.at("status").visible=false;
         if(!framework_report)framework_widgets.at("status").text="Multiplayer";
         if(framework_report){
@@ -157,6 +157,9 @@ bool framework_render(std::string& error){
         }
         auto response=framework_request("ui.native",{{"id","main"},{"open",framework_open},{"width",820},{"height",466},{"widgets",widgets}});
         if(!framework_apply_response(response,error))return false;
+        framework_picker_rendered=framework_ready&&framework_observed_open&&framework_visibility_known&&framework_visible&&!framework_suspended&&framework_browser&&choosing;
+        framework_picker_rendered_rows=0;
+        if(framework_picker_rendered)for(unsigned i=0;i<2;++i)if(framework_effectively_visible(framework_widgets.at("list"+std::to_string(i))))framework_picker_rendered_rows|=1u<<i;
         if(framework_clear_pending&&framework_ready&&framework_visibility_known&&framework_visible&&!framework_suspended&&framework_effectively_visible(framework_widgets.at("chat_input"))){
             framework_clear_pending=false;
             if(!framework_widgets.at("chat_input").text.empty()){
@@ -355,7 +358,7 @@ bool observe(nlohmann::json& result,std::string& error,bool refresh) {
     result["chat"]={{"connected",chat.connected},{"retired",chat.retired},{"conversation",chat.conversation},
         {"last_submit_sequence",chat_last_sequence},{"draft_clear_failed",chat_draft_clear_failed},{"error",chat_error}};
     result["panel_registered"]=framework_ready;
-    result["framework_ui"]={{"app_id","main"},{"ready",framework_ready},{"open",framework_observed_open},{"requested_open",framework_open},{"visibility_known",framework_visibility_known},{"visible",framework_visibility_known?nlohmann::json(framework_visible):nlohmann::json()},{"suspended",framework_ready?nlohmann::json(framework_suspended):nlohmann::json()},{"browser",framework_browser},{"queued",framework_queued},{"processed",framework_processed},{"rejected",framework_rejected},{"last_action",framework_last_action},{"native_response",framework_response}};
+    result["framework_ui"]={{"app_id","main"},{"ready",framework_ready},{"open",framework_observed_open},{"requested_open",framework_open},{"visibility_known",framework_visibility_known},{"visible",framework_visibility_known?nlohmann::json(framework_visible):nlohmann::json()},{"suspended",framework_ready?nlohmann::json(framework_suspended):nlohmann::json()},{"browser",framework_browser},{"picker_rendered",framework_picker_rendered},{"picker_rendered_rows",framework_picker_rendered_rows},{"queued",framework_queued},{"processed",framework_processed},{"rejected",framework_rejected},{"last_action",framework_last_action},{"native_response",framework_response}};
     error.clear();return true;
 }
 

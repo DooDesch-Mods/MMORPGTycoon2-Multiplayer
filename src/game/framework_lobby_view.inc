@@ -34,6 +34,10 @@ nlohmann::json framework_last_action;
 std::string framework_report_comment;
 net::avatars::Provider framework_avatars;
 bool framework_avatar_attempted=false,framework_avatar_ready=false,framework_busy_notice=false;
+void* framework_picker_restore_owner=nullptr;
+uint64_t framework_picker_restore_generation=0;
+bool framework_picker_rendered=false;
+uint32_t framework_picker_rendered_rows=0;
 std::array<std::string,4> framework_avatar_paths;
 std::string framework_host_name,framework_host_visibility;
 lobby_assets::Provider framework_assets;
@@ -111,6 +115,7 @@ bool framework_apply_response(const nlohmann::json& response,std::string& error)
     framework_response=response;framework_ready=response.at("ready").get<bool>();
     if(!framework_ready){framework_observed_open=false;framework_visibility_known=false;framework_visible=false;framework_suspended=false;error.clear();return true;}
     framework_observed_open=response.at("open").get<bool>();framework_open=framework_observed_open;
+    if(!framework_observed_open)framework_picker_restore_owner=nullptr;
     framework_visibility_known=response.at("visibility_known").get<bool>();
     framework_visible=framework_visibility_known&&response.at("visible").get<bool>();
     framework_suspended=response.at("suspended").get<bool>();
@@ -140,6 +145,7 @@ bool process_panel_toggle(bool available,std::string& error){
     ++toggle_processed;
     if(!available||!ui_owner||GetCurrentThreadId()!=thread){++toggle_failed;error="Framework lobby toggle has no current game-thread UI owner";toggle_error=error;if(toggle_first_error.empty())toggle_first_error=error;return fail(error);}
     ++toggle_attempted;framework_open=!framework_open;framework_browser=false;++toggle_returned;
+    if(!framework_open)framework_picker_restore_owner=nullptr;
     framework_toggle_waiting=true;framework_toggle_target=framework_open;
     // Native confirmation is reported by framework_render, not by this request.
     error.clear();return true;

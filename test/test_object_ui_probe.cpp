@@ -149,6 +149,7 @@ struct Engine {bool okay=true;int reads=0;
     bool current(const action::Binding&,const std::string&,std::string& error){++reads;if(!okay){error="original native World binding failure";return false;}return true;}};
 struct BoundRuntime {bool live_state=false,live_port=false;uint32_t thread=0;bool lobby_retiring=false;Controller controller;Session session;Engine engine;};
 inline std::atomic<BoundRuntime*> published_runtime=nullptr;
+bool held_tutorial_session_read(Session&,action::Context&,std::string& error){error="unexpected held tutorial read";return false;}
 #include "object_ui_binding.inc"
 }
 namespace host {

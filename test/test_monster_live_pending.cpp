@@ -20,6 +20,7 @@ struct Engine{int reads=0;bool current(const a::Binding&,const std::string&,std:
 struct Runtime{uint32_t thread=7;Controller controller;Engine engine;Session& session=::session;bool lobby_retiring=false,live_state=false,live_port=false;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 namespace typed_action_runtime {
+bool held_tutorial_session_read(Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "monster_live_idle_binding.inc"
 }
 bool fail(std::string& e,const std::string& why){e=why;return false;}

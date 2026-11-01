@@ -36,6 +36,10 @@ uint64_t current_session=99;
 }
 }
 namespace mt2mp::action_session {
+namespace recovery_read {
+bool selected=false;unsigned calls=0;
+bool local(Context&,std::string& cause){++calls;cause="fixture recovery read blocked";return false;}
+}
 class LocalSession {public:bool current(Context&,std::string&);};
 #include "local_session_context.inc"
 }
@@ -43,6 +47,9 @@ void context_contract(){
     auto& config=mt2mp::Config::instance();config.local_test=true;config.session_id=42;config.peer_id=2;config.is_host=false;
     namespace wire=mt2mp::net::session_wire;
     mt2mp::action_session::LocalSession provider;mt2mp::action_session::Context out;std::string error;
+    mt2mp::action_session::recovery_read::selected=true;
+    require(!provider.current(out,error)&&error=="fixture recovery read blocked"&&mt2mp::action_session::recovery_read::calls==1,"recovery read did not retain its own failure");
+    mt2mp::action_session::recovery_read::selected=false;
     require(wire::session_id()==2,"wire retained fixed relay identity after logical binding");
     require(provider.current(out,error)&&out.session==2&&out.local_peer==2&&out.peer_mask==7&&
             out.role==mt2mp::action_session::Role::Client&&out.snapshot_uuid==context_fixture::snapshot,

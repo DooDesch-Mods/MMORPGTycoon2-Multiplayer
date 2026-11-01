@@ -37,6 +37,7 @@ struct Engine{bool failed=false;unsigned reads=0;
 struct Runtime{bool live_state=false,live_port=false;unsigned thread=1;bool lobby_retiring=false;Controller controller;Session session;Engine engine;}fixture;
 std::atomic<Runtime*> published_runtime{&fixture};
 bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
+bool held_tutorial_session_read(Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "quest_network_binding_body.inc"
 json controller_status(){auto v=fixture.controller.value;return{{"started",v.started},{"locked",v.locked},{"pending",v.pending},{"action_uuid",v.action_uuid}};}
 }
