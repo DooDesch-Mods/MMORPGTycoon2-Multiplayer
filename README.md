@@ -10,8 +10,6 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 **Early Beta:** Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
 
-Shared edits can take several seconds or longer to finish. The game can occasionally crash during startup. This build adds modular building and includes experimental Dungeon, character-design and MMO-management tools. Some actions and combinations can still fail or desync.
-
 **Early Beta 25** introduces an ordered shared simulation and improves recovery after a Client restarts. Both players need Beta 25 and MT2 Mod Framework Runtime 0.5.0. Close the game, update and enable the mod in Vortex, then deploy before starting through Steam.
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
@@ -226,7 +224,7 @@ Each feature has its own status. Counts describe this list, not how close the wh
 
 ## Start playing
 
-Early Beta 25 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.0 and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
+Early Beta 25 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.0 and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.
