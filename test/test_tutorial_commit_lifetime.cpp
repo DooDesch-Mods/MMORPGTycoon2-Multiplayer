@@ -48,16 +48,30 @@ bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::j
     return read_startingpoint(out,diagnostic,e,creation,share);
 }
 }
+namespace typed_action_runtime {
+bool ordered=false;
+nlohmann::json controller_status(){return {{"ordered",ordered}};}
+}
 namespace general_project_runtime {
 // No GeneralProject replay is published in the ordinary tutorial Commit cases.
 bool replay_active=false,replay_allowed=false;
-unsigned route_calls=0;
+unsigned route_calls=0,natural_calls=0,ordered_ui_calls=0;
+bool natural_ok=true,natural_handled=false;
+bool ordered_natural_commit(void* receiver,bool& handled,std::string& e){
+    if(receiver!=reinterpret_cast<void*>(0x200000))throw std::runtime_error("ordered Commit receiver differs");
+    ++natural_calls;handled=natural_handled;
+    if(!natural_ok){e="original ordered natural Commit failure";return false;}return true;
+}
 bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled){
     if(entry!=0x25fb10||!receiver||workers!=0)throw std::runtime_error("unexpected GeneralProject Commit route");
     ++route_calls;handled=replay_active;return handled&&replay_allowed;
 }
 }
 namespace {
+bool ordered_commit_route(void* receiver){
+    if(receiver!=reinterpret_cast<void*>(0x200000))throw std::runtime_error("ordered UI Commit receiver differs");
+    ++general_project_runtime::ordered_ui_calls;return true;
+}
 #include "native_commit.inc"
 tutorial_development::StartingpointSnapshot project(){
     tutorial_development::StartingpointSnapshot out;out.origin.game=reinterpret_cast<void*>(1);out.origin.mode=reinterpret_cast<void*>(2);out.origin.state=reinterpret_cast<void*>(3);out.origin.world=reinterpret_cast<void*>(4);out.origin.map=reinterpret_cast<void*>(5);out.origin.uuid="joined-origin";out.origin.sha256="fixture";out.origin.bytes=75843;out.origin.generation=8;out.origin.world_epoch=5;
@@ -65,12 +79,22 @@ tutorial_development::StartingpointSnapshot project(){
     startingpoint::Row row;row.project_present=row.purchased=true;out.row=row;return out;
 }
 auto deployed(){auto out=project();out.project=0;out.row->project_present=false;out.row->deployed=true;out.row->inventory_count=1;out.row->release_change_count=1;out.row->release_feature_count=1;out.row->release_counter=1;return out;}
-void reset(){client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=research_intent_calls=0;selected_key="startingpoint";commit_receipt={};research_commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};general_project_runtime::replay_active=general_project_runtime::replay_allowed=false;general_project_runtime::route_calls=0;}
+void reset(){typed_action_runtime::ordered=false;general_project_runtime::natural_calls=general_project_runtime::ordered_ui_calls=0;
+    general_project_runtime::natural_ok=true;general_project_runtime::natural_handled=false;client_commit_submitted=intent_accept=false;client_commit_action.clear();client_commit_cause.clear();intent_calls=research_intent_calls=0;selected_key="startingpoint";commit_receipt={};research_commit_receipt={};load.armed=false;client_commit_suppressed=false;entry_valid=true;thread=mainthread;originals=read_calls=0;fault.clear();messages.clear();samples.clear();original_effect={};fail_read=0;action_session::session={};general_project_runtime::replay_active=general_project_runtime::replay_allowed=false;general_project_runtime::route_calls=0;}
 void saved_receipt(){auto old=deployed();commit_receipt={old.origin,old.tech,old.record,startingpoint::CommitBugs{0,0},{}};}
 void need(bool value,const char* cause){if(!value)throw std::runtime_error(cause);}
 void pass(const char* name){++tests;std::cout<<"PASS "<<name<<'\n';}
 }
 int main(){try{
+    {reset();typed_action_runtime::ordered=true;general_project_runtime::natural_handled=true;commit_current(reinterpret_cast<void*>(0x200000));
+        need(general_project_runtime::natural_calls==1&&!general_project_runtime::ordered_ui_calls&&!originals&&!read_calls&&!intent_calls&&fault.empty(),"natural ordered Commit fell through to UI or legacy native call");pass("consumed natural ordered Commit has no duplicate original");}
+    {reset();typed_action_runtime::ordered=true;commit_current(reinterpret_cast<void*>(0x200000));
+        need(general_project_runtime::natural_calls==1&&general_project_runtime::ordered_ui_calls==1&&!originals&&!read_calls&&!intent_calls,"unhandled ordered Commit did not use exact UI capture route");pass("unhandled ordered Commit enters UI capture once");}
+    {reset();typed_action_runtime::ordered=true;general_project_runtime::natural_ok=false;commit_current(reinterpret_cast<void*>(0x200000));
+        need(fault=="original ordered natural Commit failure"&&!general_project_runtime::ordered_ui_calls&&!originals&&!read_calls,"ordered natural Commit failure lost cause or executed original");pass("ordered Commit failure preserves cause and stops execution");}
+    {reset();typed_action_runtime::ordered=true;general_project_runtime::replay_active=general_project_runtime::replay_allowed=true;commit_current(reinterpret_cast<void*>(0x200000));
+        need(originals==1&&!general_project_runtime::natural_calls&&!general_project_runtime::ordered_ui_calls,"admitted ordered replay rerouted as a new input");pass("admitted GeneralProject replay precedes natural/UI capture");}
+
     {reset();load.armed=true;intent_accept=true;commit_current(reinterpret_cast<void*>(0x200000));need(!originals&&!read_calls&&intent_calls==1&&client_commit_submitted&&client_commit_action=="fixed-intent"&&client_commit_cause.empty(),"Client Commit did not submit exactly one intent");pass("joined Client submits fixed intent without executing original Commit");}
     {reset();auto before=project();before.row->bugs_total=2;before.row->bugs_known=1;samples={before,deployed()};commit_current(reinterpret_cast<void*>(before.lounge));need(originals==1&&read_calls==2&&commit_receipt.bugs==startingpoint::CommitBugs{2,1}&&commit_receipt.tech==before.tech&&commit_receipt.record==before.record&&commit_receipt.cause.empty(),"Host Commit did not preserve actual pre-reset bug receipt");pass("original Host Commit runs once and records pre-reset bug counters");}
     {reset();saved_receipt();auto other=deployed();other.project=0x240000;samples={other};commit_current(reinterpret_cast<void*>(other.lounge));need(originals==1&&read_calls==1&&commit_receipt.bugs==startingpoint::CommitBugs{0,0}&&commit_receipt.record==other.record,"later unrelated Commit erased Startingpoint receipt");pass("later other-project Commit preserves proven Startingpoint receipt");}

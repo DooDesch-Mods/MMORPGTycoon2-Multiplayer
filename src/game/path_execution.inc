@@ -38,7 +38,7 @@ bool enable(std::string& e) {
     auto* r=runtime(e);if(!r)return false;
     if(path.attempted)return fail(e,"path hook installation already attempted");path.attempted=true;
     if(!native_error(enums(r->image,path.road,path.node),"canonical Road enum lookup",e)||path.road<0||path.road>=11||path.road==2||path.node<0||path.node>=6)return fail(e,"path canonical Road enum outside first-segment family: "+e);
-    if(!code(*r,false,e))return false;
+    if(!terrain_settlement::enable(*r,e)||!code(*r,false,e))return false;
     struct Hook{uintptr_t rva;void* entry;void** original;};
     const Hook hooks[]{{0x5cc2b0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&path.press)},{0x43a1b0,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&path.purchase)},{0x7b04b0,reinterpret_cast<void*>(&remove_ui_entry),reinterpret_cast<void**>(&path.remove_ui)}};
     for(const auto& h:hooks){auto s=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(s!=MH_OK||!*h.original)return fail(e,"path MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(s));}
@@ -55,6 +55,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!code(*r,true,e))return action::Outcome::RejectedNoEffect;
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="path lacks exact Controller request";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return action::Outcome::RejectedNoEffect;
     region::LocalView before;Graph graph_before;action::TerrainState state;action::Ledger money;undo::UndoWitness undo_before;uintptr_t global=0;
     if(!region::read(*r,request.path.region,0,before,e)||!region::bound(before,binding,request.snapshot_uuid,e)||!region::ledger(money,e)||!graph(*r,before,graph_before,e)||
        !terrain::terrain_state(*r,before,state,global,e)||!undo::read_undo(r->memory,r->image,undo_before,e))return action::Outcome::RejectedNoEffect;
@@ -64,7 +65,10 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     for(const auto& point:{request.path.start,request.path.end}){uintptr_t actual=0;const auto seh=terrain::point_region(r->image,before.world.root,point,actual);if(seh||actual!=before.region){e="path endpoint native region differs before effect, SEH="+std::to_string(seh);return action::Outcome::RejectedNoEffect;}}
     if(!money.record_present||!action::path_receipt_fits(request,money,before.state,e)){if(e.empty())e="path requires original current cash record";return action::Outcome::RejectedNoEffect;}
     if(authority&&(money!=authority->before||graph_before.state!=authority->path_before||!action::same_region_content(before.state,authority->region_before)||!action::same_terrain_content(state,authority->terrain_before))){e="path client before content differs from Host";return action::Outcome::RejectedNoEffect;}
-    auto& op=path.operations[request.action_uuid];op.binding=binding;op.request=request;op.evidence.before=money;
+    const bool ordered=action::tick_commands::authority::active();
+    world_path_runtime::Sample mixed_before;
+    if(ordered&&!world_path_runtime::world_path_sample(*r,request.snapshot_uuid,request.path.region,request.path.region,mixed_before,e))return action::Outcome::RejectedNoEffect;
+    auto& op=path.operations[request.action_uuid];op.ordered=ordered;op.binding=binding;op.request=request;op.evidence.before=money;
     op.evidence.region_before=authority?authority->region_before:before.state;op.evidence.terrain_before=authority?authority->terrain_before:state;op.evidence.path_before=graph_before.state;
     op.attempted=true;auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};
     if(authority&&!native_error(terrain::seed(before.random,global,*authority),"authority RNG seed",e))return unknown();
@@ -93,8 +97,28 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     float units=0;if(!native_error(release_units(r->image,graph_after.paths.back(),units),"committed Length release readback",e))return unknown();
     if(!std::isfinite(units)||units<0||double(units)>=INT32_MAX||int64_t(op.evidence.terrain_after.release_edits[3])-state.release_edits[3]!=int64_t(std::floor(units))+1){e="path measured Release edit3 differs from original committed Length";return unknown();}
     if(!inverse(*r,undo_before,undo_after,op,e))return unknown();op.evidence.undo_confirmed=true;
+    json settlement;if(!terrain_settlement::run(*r,request.action_uuid,op.ordered,settlement,e))return unknown();
+    if(op.ordered){
+        Graph settled;region::LocalView settled_view;uintptr_t settled_global=0;
+        if(!region::read(*r,request.path.region,before.region,settled_view,e)||!region::bound(settled_view,binding,request.snapshot_uuid,e)||
+           !graph(*r,settled_view,settled,e)||!terrain::terrain_state(*r,settled_view,op.evidence.terrain_after,settled_global,e)||!region::ledger(op.evidence.after,e))return unknown();
+        if(!settled_geometry(graph_after,settled,e))return unknown();
+        graph_after=std::move(settled);after=std::move(settled_view);op.evidence.region_after=after.state;
+        op.evidence.path_after=graph_after.state;op.evidence.path_after.cost=price;
+    }
     if(!action::path_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.region_after!=authority->region_after||op.evidence.terrain_after!=authority->terrain_after||op.evidence.path_after!=authority->path_after)){e="path original commit readback differs from Host";return unknown();}
+    if(op.ordered){
+        mixed_path_native::Census current;uintptr_t map=0;std::vector<mixed_path_identity::Birth> births;
+        if(!region::at(*r,r->image,0x13df8c0,map,e)||
+           !mixed_path_native::read_world(r->memory,r->image,map,before.world.root,current,e)||
+           !world_path_runtime::world_path_births(request.action_uuid,mixed_before,current,births,e))return unknown();
+        if(births.size()!=op.uids.size()||std::any_of(births.begin(),births.end(),[&](const auto& birth){
+            return birth.region!=request.path.region||birth.type!=(birth.path?path.road:path.node)||
+                std::find(op.uids.begin(),op.uids.end(),birth.local_uid)==op.uids.end();})){
+            e="Ordered Road complete World birth set differs from validated local inverse UIDs";return unknown();
+        }
+    }
     op.history_before=path_history_graph::Snapshot{graph_before.path_uids,graph_before.node_uids,graph_before.rows};
     op.history_after=path_history_graph::Snapshot{graph_after.path_uids,graph_after.node_uids,graph_after.rows};op.history_graph=undo_after.undo.back();
     op.confirmed=true;return action::Outcome::Confirmed;
@@ -104,7 +128,9 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
         return world_path_runtime::observe(binding,request,out,e);
     auto* r=runtime(e);if(!r)return false;const auto found=path.operations.find(request.action_uuid);
     if(found==path.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"path observation lacks exact confirmed operation");
-    const auto& op=found->second;region::LocalView view;Graph actual;action::TerrainState state;action::Ledger money;uintptr_t global=0;
+    const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(binding,request,e))return false;
+    region::LocalView view;Graph actual;action::TerrainState state;action::Ledger money;uintptr_t global=0;
     if(!region::read(*r,(request.action==action::Action::RemovePath?request.path_delete.region:request.path.region),0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,actual,e)||!terrain::terrain_state(*r,view,state,global,e)||!region::ledger(money,e))return false;
     actual.state.cost=op.evidence.path_after.cost;
     if(view.state!=op.evidence.region_after||state!=op.evidence.terrain_after||actual.state!=op.evidence.path_after||money!=op.evidence.after)return fail(e,"path observation changed after original return");
@@ -124,18 +150,30 @@ bool unresolved(){if(path.captured||path.pending||path.delete_pending||world_pat
 bool world_path_pending(){return world_path_runtime::pending();}
 void tick() {
     if(!path.ready)return;
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        bool inside=false;std::string error;
+        if(!typed_action_runtime::original_go_admission(inside,error)){
+            path.pending.reset();path.captured.reset();path.delete_pending.reset();
+            world_path_runtime::capture.pending.reset();world_path_runtime::capture.pending_action.clear();rejected(error);return;
+        }
+        if(inside)return;
+    }
     world_path_runtime::tick();
     const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:path.jobs){(void)token;const auto id=job.value("action_uuid",std::string{});if(id.empty()||job.value("confirmed",false)||id!=controller.value("action_uuid",std::string{}))continue;
         if(controller.value("locked",false)){job["cause"]=controller.value("cause",std::string{"path Controller locked"});continue;}
-        const auto op=path.operations.find(id);if(!controller.value("pending",true)&&controller.value("outcome",0)==1&&op!=path.operations.end()&&op->second.confirmed&&op->second.retired)job["confirmed"]=true;}
+        const auto op=path.operations.find(id);const auto world_op=world_path_runtime::operations.find(id);
+        if(world_path_runtime::capture.last_action==id)job["submitted"]=true;
+        const bool retired=(op!=path.operations.end()&&op->second.confirmed&&op->second.retired)||
+            (world_op!=world_path_runtime::operations.end()&&world_op->second.confirmed&&world_op->second.retired);
+        if(!controller.value("pending",true)&&controller.value("outcome",0)==1&&retired)job["confirmed"]=true;}
     if(path.delete_pending){auto held=std::move(*path.delete_pending);path.delete_pending.reset();std::string e;auto* r=runtime(e);region::LocalView view;
-        if(!r||!region::identity(*r,held.intent.region,0,view,e)||!region::bound(view,held.binding,held.snapshot,e)){rejected(e);return;}
+        if(!r||!region::identity(*r,held.intent.region,0,view,e)||!region::bound(view,held.binding,held.snapshot,e)||!current_capture(held.context,held.snapshot,held.binding,e)){rejected(e);return;}
         const auto id=region::uuid(e);if(id.empty()){rejected(e);return;}path.last_action=id;
         if(!held.token.empty())path.jobs.at(held.token)["action_uuid"]=id;
         if(!typed_action_runtime::submit_path_delete(id,held.intent,e)){if(!held.token.empty())path.jobs.at(held.token)["cause"]=e;rejected(e);return;}++path.submitted;if(!held.token.empty())path.jobs.at(held.token)["submitted"]=true;return;}
     if(!path.pending)return;auto held=std::move(*path.pending);path.pending.reset();std::string e;auto* r=runtime(e);region::LocalView view;
-    if(!r||!region::identity(*r,held.preview.intent.region,0,view,e)||!region::bound(view,held.binding,held.snapshot,e)){rejected(e);return;}
+    if(!r||!region::identity(*r,held.preview.intent.region,0,view,e)||!region::bound(view,held.binding,held.snapshot,e)||!current_capture(held.context,held.snapshot,held.binding,e)){rejected(e);return;}
     const auto id=region::uuid(e);if(id.empty()){rejected(e);return;}path.last_action=id;
     if(!held.token.empty())path.jobs.at(held.token)["action_uuid"]=id;
     if(!typed_action_runtime::submit_path(id,held.preview.intent,e)){if(!held.token.empty())path.jobs.at(held.token)["cause"]=e;rejected(e);return;}
@@ -144,7 +182,7 @@ void tick() {
 json status(){json operations=json::array();for(const auto& [id,o]:path.operations)operations.push_back({{"action",int(o.request.action)},{"action_uuid",id},{"canonical_record_key",o.request.canonical_record_key},{"attempted",o.attempted},{"confirmed",o.confirmed},{"retired",o.retired},{"purchases",o.purchases},{"cost",o.evidence.path_after.cost},{"local_uids",o.uids},{"undo_confirmed",o.evidence.undo_confirmed},{"graph_before",o.evidence.path_before.graph_sha256},{"graph_after",o.evidence.path_after.graph_sha256},
         {"cash_before",o.evidence.before.cash},{"cash_after",o.evidence.after.cash},{"global_random_before",o.evidence.terrain_before.global_random},{"global_random_after",o.evidence.terrain_after.global_random},{"region_random_before",o.evidence.region_before.random},{"region_random_after",o.evidence.region_after.random},
         {"release_before",o.evidence.terrain_before.release_edits},{"release_after",o.evidence.terrain_after.release_edits},{"bugs_before",o.evidence.terrain_before.bugs_sha256},{"bugs_after",o.evidence.terrain_after.bugs_sha256},{"bug_count_before",o.evidence.terrain_before.bug_count},{"bug_count_after",o.evidence.terrain_after.bug_count},{"paths_before",o.evidence.path_before.paths},{"paths_after",o.evidence.path_after.paths},{"nodes_before",o.evidence.path_before.nodes},{"nodes_after",o.evidence.path_after.nodes},{"cause",o.cause}});
-    return {{"enabled",path.ready},{"captured",path.capture_count},{"pending",bool(path.pending)},{"submitted",path.submitted},{"rejected",path.rejected},{"cause",path.cause},{"last_action_uuid",path.last_action},{"operations",operations},{"ui_jobs",path.jobs}};}
+    return {{"world_path",world_path_runtime::status()},{"enabled",path.ready},{"captured",path.capture_count},{"pending",bool(path.pending)},{"submitted",path.submitted},{"rejected",path.rejected},{"cause",path.cause},{"last_action_uuid",path.last_action},{"operations",operations},{"ui_jobs",path.jobs},{"terrain_settlement",terrain_settlement::last_receipt}};}
 bool region_members(int32_t id,std::vector<uint64_t>& roads,std::vector<uint64_t>& nodes,std::string& e){
     roads.clear();nodes.clear();auto* r=runtime(e);
     if(!r)return fail(e,"path Region census requires enabled Region readback: "+e);

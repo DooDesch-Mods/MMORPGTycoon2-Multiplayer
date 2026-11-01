@@ -1,17 +1,19 @@
 #include "direct_monster_fixture.h"
 #include "monster_zone_read.h"
 #include "direct_monster_identity.h"
+#include "typed_action/tick_authority.h"
 #include <iostream>
 #include <optional>
 #include <cstring>
 namespace a=mt2mp::action_session;namespace z=mt2mp::game::monster_zone_read;
 namespace q=mt2mp::game::npc_quest_targets;namespace identity=mt2mp::game::direct_monster_identity;using json=nlohmann::json;
+namespace mt2mp::action_session::tick_commands::authority {bool active(){return false;}}
 namespace {
 struct Memory{int process=0;bool copy(uintptr_t from,void* to,size_t n,std::string&){std::memcpy(to,reinterpret_cast<const void*>(from),n);return true;}};struct World{uintptr_t root=100;};struct Pin{World world;q::World region;};
 struct Undo{std::vector<uintptr_t> undo;uintptr_t active_graph=0;};
 namespace d{struct Sample{z::State state;a::Ledger money;Undo undo;std::array<int32_t,8> release_edits{};};}
 struct ToolPin{uintptr_t behaviour=100,cursor=200;int32_t rank=1;uint8_t loose=0;};
-struct Operation{a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;uintptr_t pointer=0;uint64_t uid=0;unsigned attempted=0,returned=0;bool confirmed=false,retired=false;std::string cause;json preparation=json::object();};
+struct Operation{a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;uintptr_t pointer=0;uint64_t uid=0;unsigned attempted=0,returned=0;bool confirmed=false,retired=false,ordered=false;std::string cause;json preparation=json::object();};
 struct Pending{a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;};
 struct Runtime{uintptr_t image=0x140000000;unsigned thread=7;bool ready=true,replaying=false,fault=false;
  std::map<std::string,Operation> operations;std::optional<Pending> pending;std::string ui_token,cause;std::map<std::string,json> ui_jobs;uint64_t captures=0;}state;
@@ -19,6 +21,13 @@ struct Model{d::Sample sample;a::MonsterState value;std::string fault;unsigned p
 unsigned GetCurrentThreadId(){return model.thread;}
 bool fail(std::string& e,const std::string& reason){e=reason;return false;}
 bool gate(const char* fault,std::string& e){return model.fault!=fault||fail(e,std::string(fault)+" failed");}
+bool ordered_mode(){return false;}
+bool ordered_scope(const a::Binding&,const a::Request&,std::string& e){return fail(e,"unexpected ordered scope in legacy perform");}
+#include "monster_execution_admission.inc"
+bool remember_place_history(Memory&,uintptr_t graph,uint64_t uid,const std::string& action,std::string& e){
+ need(graph==500&&uid==3713&&action==action_id,"Place history port received another graph/member/action");
+ return gate("history",e);
+}
 namespace typed_action_runtime{json controller_status(){return {{"started",true},{"locked",false},{"pending",model.pending},{"action_uuid",action_id}};}}
 bool code(Memory&,bool,std::string& e){return gate("code",e);}
 bool pin(Memory&,const a::Binding&,const std::string&,int32_t id,Pin& p,std::string& e){
@@ -74,7 +83,7 @@ int main(){try{std::string e;unsigned count=0;const auto req=request().request;c
  need(perform(binding,req,nullptr,e)==a::Outcome::Unknown&&model.release==1,"original Release replayed");++count;
  reset();need(perform(binding,req,&authority,e)==a::Outcome::Confirmed,e);need(model.seed==1&&model.release==1,"Client did not seed/release once");++count;
  for(const auto* f:{"code","pin","point"}){reset();model.fault=f;need(perform(binding,req,nullptr,e)==a::Outcome::RejectedNoEffect,e);need(!model.prepare&&!model.release,"preflight mutated native state");++count;}
- for(const auto* f:{"prepare","prepare_gameplay","hover","hover_gameplay","pose_before","press","pressed","transform","pose_after","release","after_owner","sample","zone","uid","readback","graph","undo_read","undo_commit","release_pressed","counter","ledger","region_rng"}){
+ for(const auto* f:{"prepare","prepare_gameplay","hover","hover_gameplay","pose_before","press","pressed","transform","pose_after","release","after_owner","sample","zone","uid","readback","graph","undo_read","undo_commit","release_pressed","counter","ledger","region_rng","history"}){
   reset();model.fault=f;need(perform(binding,req,nullptr,e)==a::Outcome::Unknown,std::string(f)+": "+e);need(!state.operations.at(action_id).confirmed,"partial original effect confirmed");
   const auto calls=model.prepare+model.hover+model.press+model.transform+model.release;need(perform(binding,req,nullptr,e)==a::Outcome::Unknown&&calls==model.prepare+model.hover+model.press+model.transform+model.release,"Unknown replayed original calls");++count;}
  for(const auto* f:{"seed","seed_mismatch","seed_region"}){reset();model.fault=f;auto host=authority;host.monster_before.roster.global_random[0]=77;need(perform(binding,req,&host,e)==a::Outcome::Unknown&&!model.release,std::string(f)+": "+e);++count;}

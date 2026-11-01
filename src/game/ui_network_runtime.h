@@ -15,6 +15,7 @@ bool refresh_snapshot_node(const Admission&,Admission&,std::string&);
 bool enable(std::string&);
 bool enabled()noexcept;
 void tick();
+void tick_original_input();
 bool unresolved();
 nlohmann::json status();
 bool query(const nlohmann::json&,nlohmann::json&,std::string&);

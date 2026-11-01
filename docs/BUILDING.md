@@ -7,7 +7,18 @@ cmake -S ci -B build/unit -A x64
 cmake --build build/unit --config Release --parallel 2
 ctest --test-dir build/unit -C Release --output-on-failure --no-tests=error
 python -m unittest discover -s test -p test_build_input_guard.py
+python -m unittest discover -s test -p test_build_commands.py
 ```
+
+For changes limited to query attribution, use the dedicated entry and build directory:
+
+```powershell
+cmake -S ci/query-attribution -B build/query-attribution -A x64
+cmake --build build/query-attribution --config Release --target test_query_attribution --parallel 2
+ctest --test-dir build/query-attribution -C Release --output-on-failure --no-tests=error
+```
+
+This entry runs the existing query source checks and extraction without configuring unrelated tests. Its source dependencies still regenerate extracted fixtures. The `ci` entry remains the full suite; the two entries use separate build directories.
 
 The [Windows workflow](../.github/workflows/windows.yml) runs the game-independent tests and builds the native Framework plugin. It does not launch the game or load the plugin. A successful build does not prove gameplay behavior.
 
@@ -20,6 +31,8 @@ python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFra
 Framework mode needs a matching Framework source checkout with the native service, route and ownership headers. It writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
 
 The Framework version defaults to `mod.json`; an explicit version must match it. A matching CMake cache skips the redundant configure step while retaining CMake's automatic regeneration. Use `--reconfigure` to configure explicitly. The build writes `build/framework/build-receipt.json` with the exact DLL hash and version.
+
+For a local DLL iteration, add `--native-only`. This selects only `MT2MultiplayerPlugin` and disables source-test configuration in the Framework build directory. Run affected source tests separately in the dedicated `build/unit` tree above. Default builds configure tests again; the cache match includes this setting. The receipt records `tests_configured` and still requires native game acceptance.
 
 Package that local plugin with the canonical manifest:
 

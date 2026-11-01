@@ -278,12 +278,17 @@ bool read_saves_in_progress(int32_t& count, std::string& error);
 // Takes user/save/<game-folder>/<filename>.vrz in the engine virtual filesystem.
 // True means the native task was dispatched. Confirm persistence via the file hook.
 bool read_active_world_folder(std::string& folder, std::string& error);
-bool capture_snapshot(const std::string& virtual_filename, std::string& error);
+bool capture_snapshot(const std::string& virtual_filename, std::string& error, bool blocking_held=false);
+bool original_export_request(const std::string& nonce,uint32_t kind,bool option,uintptr_t& mode,std::string& filename,std::string& error);
+bool original_save_target(uintptr_t mode,const std::string& filename,uint32_t kind,bool option,std::string& target,std::string& error);
+bool capture_original_save(uintptr_t mode,const std::string& filename,uint32_t kind,bool option,const std::string& target,std::string& error);
+bool request_original_save(const std::string& filename,bool blocking,std::string& error);
+bool request_original_periodic_save(std::string& error);
 // Accepts save/<game-folder>/<filename>.vrz while the title mode is active.
 // True means a load was requested, not that world activation completed.
 bool request_load(const std::string& filename, std::string& error);
 // Return-to-title queues the engine's autosave and waits in the native update path.
-bool request_return_to_title(std::string& error);
+bool request_return_to_title(std::string& error,bool managed_autosave=false);
 // Requires title mode and no transition/save. Call after the mailbox acknowledgement.
 bool request_exit_game(std::string& error);
 // Dismisses the active native crash dialog without submitting a report.

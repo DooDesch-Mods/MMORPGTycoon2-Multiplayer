@@ -23,12 +23,20 @@ if(NOT DEFINED _fragment_generated)
         "${MT2MP_SOURCE_ROOT}/test/test_toon_equipment_value.cpp"
         "${MT2MP_SOURCE_ROOT}/test/extract_frame_fragment_boundary.py")
 endif()
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+set(_actor_empty_generated "${CMAKE_CURRENT_BINARY_DIR}/actor_empty_generated")
+execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py"
+    --root "${MT2MP_SOURCE_ROOT}" --output "${_actor_empty_generated}" COMMAND_ERROR_IS_FATAL ANY)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_runtime.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_live.cpp"
+    "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py")
 foreach(name interventions subscriber_intervention boss_identity intervention_actors actor_lifecycle intervention_protocol intervention_frame frame_fragments)
     if(TARGET test_${name})
         continue()
     endif()
     add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
-    target_include_directories(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${_fragment_generated}")
+    target_include_directories(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${_fragment_generated}" "${_actor_empty_generated}")
     target_compile_features(test_${name} PRIVATE cxx_std_20)
     target_compile_definitions(test_${name} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     if(name STREQUAL "interventions")

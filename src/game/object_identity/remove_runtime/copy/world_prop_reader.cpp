@@ -134,7 +134,16 @@ bool Reader::region_member(const WorldState& world,uintptr_t shard,uintptr_t reg
         mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
         std::vector<uintptr_t> a,b;if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,a,e))return false;
         for(auto candidate:a){uintptr_t candidate_shard=0;if(!vt(memory_,image_,candidate,0x1787930,e)||!at(memory_,candidate,0x70,candidate_shard,e)||candidate_shard!=world.root)return fail(e,"remove_root_region_census_owner");}
-        if(std::find(a.begin(),a.end(),r)==a.end())return fail(e,"remove_region_absent_root_map");
+        if(std::find(a.begin(),a.end(),r)==a.end()){
+            // Sale removes ownership, not the saved Region or its existing objects.
+            mt2mp::game::region_saved_identity::Index saved;
+            const auto read=[&](uintptr_t address,size_t offset,auto& value,std::string& error){return at(memory_,address,offset,value,error);};
+            const auto map=reinterpret_cast<uintptr_t>(world.origin.map);
+            if(!mt2mp::game::region_saved_identity::capture(image_,map,world.root,saved,read,e))return false;
+            if(std::none_of(saved.saved.begin(),saved.saved.end(),[&](const auto& row){return row.second==r;}))
+                return fail(e,"remove_region_absent_root_map");
+            if(!mt2mp::game::region_saved_identity::verify(image_,map,world.root,saved,read,e))return false;
+        }
         if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,b,e)||a!=b)return fail(e,"remove_root_regions_changed");return true;};
     if(shard==world.root)return root_region(region);
     int32_t type=-1;if(!at(memory_,shard,0x48,type,e))return false;
@@ -199,17 +208,36 @@ bool Reader::prop(void* receiver,uint64_t expected,mt2mp::prop_lease::Prop& out,
 #include "saved_scenery_batch_runtime.inc"
 
 bool Reader::saved_root_scenery(void* receiver,uint64_t uid,int32_t region_id,uintptr_t region,mt2mp::prop_lease::Prop& out,std::string& e){
+    auto read_current=[&](WorldState& value,std::string& why){return current(value,true,why);};
+    return saved_root_scenery_impl(receiver,uid,region_id,region,read_current,out,e);
+}
+bool Reader::saved_root_scenery_in_original(void* receiver,uint64_t uid,int32_t region_id,uintptr_t region,
+    const WorldState& expected,const std::function<bool(std::string&)>& guard,mt2mp::prop_lease::Prop& out,std::string& e){
+    out={};
+    if(!guard||expected.saves||expected.edits<0||RootSceneryReadBatch::current_)
+        return fail(e,"saved_scenery_original_boundary_or_batch_invalid");
+    auto read_current=[&](WorldState& value,std::string& why){
+        if(!guard(why)||!current(value,false,why))return false;
+        if(!same_world(expected.origin,value.origin)||expected.root!=value.root||expected.selection!=value.selection||
+           expected.saves!=value.saves||expected.edits!=value.edits||expected.active_graph!=value.active_graph)
+            return fail(why,"saved_scenery_original_world_save_edit_graph_changed");
+        return true;
+    };
+    return saved_root_scenery_impl(receiver,uid,region_id,region,read_current,out,e);
+}
+bool Reader::saved_root_scenery_impl(void* receiver,uint64_t uid,int32_t region_id,uintptr_t region,const std::function<bool(WorldState&,std::string&)>& read_current,mt2mp::prop_lease::Prop& out,std::string& e){
     out={};e.clear();if(busy_)return fail(e,"remove_prop_reader_reentrant");Busy busy(busy_);
     try{
-        WorldState before,after;if(!current(before,true,e))return false;
+        WorldState before,after;if(!read_current(before,e))return false;
         auto* batch=RootSceneryReadBatch::current_?RootSceneryReadBatch::current_->state_.get():nullptr;
         if(batch&&!batch->admit(before,image_,thread_,api_,e))return false;
+        mt2mp::game::live_host_state::apply_timing::PageReadScope fields(batch&&!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
         uintptr_t manager=0;if(!at(memory_,region,0x960,manager,e))return false;
         struct SavedHost final:place::SceneryHost {
-            Reader& reader;WorldState expected;uintptr_t region,manager,image;LookupApi api;
-            SavedHost(Reader& r,const WorldState& w,uintptr_t p,uintptr_t m,uintptr_t i,LookupApi a):reader(r),expected(w),region(p),manager(m),image(i),api(a){}
+            const std::function<bool(WorldState&,std::string&)>& read_current;WorldState expected;uintptr_t region,manager,image;LookupApi api;
+            SavedHost(const std::function<bool(WorldState&,std::string&)>& r,const WorldState& w,uintptr_t p,uintptr_t m,uintptr_t i,LookupApi a):read_current(r),expected(w),region(p),manager(m),image(i),api(a){}
             bool current(place::SceneryContext& context,std::string& error)override{
-                WorldState world;if(!reader.current(world,true,error))return false;
+                WorldState world;if(!read_current(world,error))return false;
                 if(!same_world(expected.origin,world.origin)||expected.root!=world.root)return fail(error,"saved_scenery_current_world_changed");
                 context={world.origin.world_epoch,region,world.root,manager,true,true,true};return true;
             }
@@ -218,7 +246,7 @@ bool Reader::saved_root_scenery(void* receiver,uint64_t uid,int32_t region_id,ui
                 if(exception){error="saved_scenery_lookup_SEH_"+std::to_string(exception);return false;}
                 return actual==casted||fail(error,"saved_scenery_typed_registry_differs");
             }
-        } owner(*this,before,region,manager,image_,api_);
+        } owner(read_current,before,region,manager,image_,api_);
         auto exact=[&](uintptr_t object,uint64_t full,std::string& cause){return typed(object,full,0x164e5c0,cause);};
         auto scan_index=[](uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& index,auto& read,std::string& cause){
             // Share only page metadata during this complete memory-only scan.
@@ -234,11 +262,8 @@ bool Reader::saved_root_scenery(void* receiver,uint64_t uid,int32_t region_id,ui
                 SavedSceneryMemberCapture{}(memory,current_owner,image,current_region,root,current_manager,object,full,cause);
         };
         mt2mp::prop_lease::Prop value;
-        if(!([&]{
-            mt2mp::game::live_host_state::apply_timing::PageReadScope fields(batch&&!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
-            return read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member);
-        }()))return false;
-        if(!current(after,true,e))return false;
+        if(!read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member))return false;
+        if(!read_current(after,e))return false;
         if(!same_world(before.origin,after.origin)||before.root!=after.root)return fail(e,"saved_scenery_world_changed_after_read");
         if(batch)batch->world_ready=true;
         out=std::move(value);return true;

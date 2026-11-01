@@ -7,6 +7,9 @@ bool weapon_owner(uintptr_t toon,toon_weapon_visual::Lease& lease,bool& owned,st
     owned=false;lease={};auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||!runtime->controller.status().started||runtime->lobby_retiring||
        runtime->controller.bound_context().role!=action::Role::Client)return true;
+    // Ordered peers execute original gameplay on the same admitted tick. The
+    // legacy visual replacement requires a state-copy owner and a stopped Client.
+    if(runtime->ordered_steps)return true;
     uintptr_t ap=0;
     if(!toon_weapon_visual::visual_read(weapon_memory,toon,0,ap,error))return false;
     if(ap!=weapon_image+0x1744e90)return true;

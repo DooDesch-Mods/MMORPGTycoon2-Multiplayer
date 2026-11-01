@@ -188,6 +188,11 @@ struct StartingpointCalls {
 void commit_current(void* lounge){
     bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25fb10,lounge,0,project_handled);
     if(project_handled){if(project_allowed)original_commit(lounge);return;}
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        std::string cause;
+        if(!general_project_runtime::ordered_natural_commit(lounge,project_handled,cause)){block(cause);return;}
+        if(!project_handled)ordered_commit_route(lounge);return;
+    }
     // Joined Clients adopt the Host's original Deploy and cleanup below. Their
     // ordinary Commit button must not run a second independent Commit.
     if(load.armed){

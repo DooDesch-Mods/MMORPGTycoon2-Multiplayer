@@ -14,7 +14,7 @@ for name,start,end in [('management_calendar_actual.inc','bool calendar_sample('
     assert text.count(start)==1 and text.count(end)==1,'Management paired sample boundary changed'
     (a.output/name).write_text(text[text.index(start):text.index(end)],encoding='utf-8')
 primary=text[text.index('bool primary_once('):text.index('bool primary_read(')]
-assert primary.count('calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning)')==1
+assert primary.count('calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning,&calendar)')==1
 assert 'thought_frame_native::Snapshot& thoughts' in primary
 assert text.count('primary_read(*r,context,binding,local,before,e,true)')==1
 assert 'primary_read(*r,context,binding,final,actual,e)' in text
@@ -27,7 +27,8 @@ analytics_end=primary.index('    if(!calendar_sample(')
 (a.output/'management_planning_analytics_actual.inc').write_text(primary[analytics_start:analytics_end],encoding='utf-8')
 tail=primary[primary.index('    {std::optional<live::apply_timing::Scope> measured_services;'):]
 (a.output/'management_planning_tail_actual.inc').write_text(tail[:tail.rfind('}')],encoding='utf-8')
-prior=primary.replace('std::string& e,bool planning){','std::string& e){',1)
+prior=primary.replace('thought_frame_native::Snapshot& thoughts,character_calendar::DemandRead& calendar,','thought_frame_native::Snapshot& thoughts,',1).replace('&thoughts,planning,&calendar)', '&thoughts,planning)',1)
+prior=prior.replace('std::string& e,bool planning){','std::string& e){',1)
 prior=prior.replace('    if(!planning){\n    analytics_state::State','    analytics_state::State',1)
 prior=prior.replace('    out.analytics=std::move(analytics);\n    }','    out.analytics=std::move(analytics);',1)
 prior=prior.replace('&thoughts,planning)', '&thoughts)',1)
@@ -67,6 +68,9 @@ assert native.count(start)==1 and native.count(end)==1,'Thought actual destructi
 
 thought_frame=a.source_root/'src/game/toon_thought_frame.inc'
 native=thought_frame.read_text(encoding='utf-8')
+start='bool code(Runtime&';end='enum class Op{'
+assert native.count(start)==1 and native.count(end)==1,'Thought code proof boundary changed'
+(a.output/'thought_frame_code_actual.inc').write_text(native[native.index(start):native.index(end)],encoding='utf-8')
 start='enum class Op{';end='uint32_t invoke('
 assert native.count(start)==1 and native.count(end)==1,'Thought call boundary changed'
 (a.output/'thought_frame_calls.inc').write_text(native[native.index(start):native.index(end)],encoding='utf-8')

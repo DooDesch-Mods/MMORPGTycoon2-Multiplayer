@@ -2,7 +2,7 @@ namespace scenery_stroke {
 namespace {
 struct History {
     action::Binding binding;action::Request request;action::Evidence evidence;Sample after;
-    uintptr_t graph=0,inverse=0;bool attempted=false,returned=false,confirmed=false,retired=false,selection_restored=false;
+    uintptr_t graph=0,inverse=0;bool attempted=false,returned=false,confirmed=false,retired=false,selection_restored=false,ordered=false;
     std::map<uint64_t,Saved> inverse_make;std::set<uint64_t> inverse_destroy;
     std::vector<action::DuplicateCash> inverse_cash;std::string cause,cleanup_cause;
 };
@@ -14,11 +14,25 @@ void retire_histories(){
         else it=history_operations.erase(it);
     }
 }
+json history_ordered_receipt(){
+    if(!Config::instance().local_test)return nullptr;
+    const History* latest=nullptr;
+    for(const auto& [id,op]:history_operations){(void)id;
+        if(op.ordered&&op.confirmed&&(!latest||op.request.host_revision>latest->request.host_revision))latest=&op;
+    }
+    if(!latest)return nullptr;
+    auto out=operation_receipt(*latest);if(out.is_null())return out;
+    const auto& op=*latest;json cash=json::array();
+    for(const auto& row:op.evidence.duplicate_cash)cash.push_back({{"amount",row.amount},{"position",row.position}});
+    out["target_action_uuid"]=op.request.target_action_uuid;out["canonical_record_key"]=op.request.canonical_record_key;
+    out["undo_confirmed"]=op.evidence.undo_confirmed;out["selection_confirmed"]=op.evidence.selection_confirmed;
+    out["cash"]=std::move(cash);return out;
+}
 json history_status(){
     json rows=json::object();for(const auto& [id,op]:history_operations)rows[id]={{"source_action_uuid",op.request.target_action_uuid},{"graph",op.graph},{"inverse",op.inverse},
         {"attempted",op.attempted},{"returned",op.returned},{"selection_restored",op.selection_restored},{"confirmed",op.confirmed},{"retired",op.retired},
         {"cause",op.cause},{"cleanup_cause",op.cleanup_cause}};
-    return {{"operations",std::move(rows)},{"quarantined",history_quarantined.size()}};
+    return {{"operations",std::move(rows)},{"quarantined",history_quarantined.size()},{"last_ordered_receipt",history_ordered_receipt()}};
 }
 bool history_request(const action::Request& request){return (request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
     request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid;}
@@ -46,7 +60,7 @@ bool expected_live(Port& source,bool undo,const Sample& before,std::string& e){
 }
 action::Outcome perform_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
     auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;Port* source=nullptr;
-    if(!r||!installed||!r->ready||r->thread!=GetCurrentThreadId()||request.snapshot_uuid!=net::current_snapshot_id()||bool(authority)==Config::instance().is_host||
+    if(!r||!installed||!r->ready||r->thread!=GetCurrentThreadId()||request.snapshot_uuid!=net::current_snapshot_id()||!execution_admission(binding,request,authority,e)||
        !source_for(binding,request,source,e)||!contract::pending(typed_action_runtime::controller_status(),request,revision,e)){
         if(e.empty())e="Scenery history exact pending owner/role is unavailable";return action::Outcome::RejectedNoEffect;}
     if(history_operations.contains(request.action_uuid)){e="Scenery history already attempted; no replay";return action::Outcome::Unknown;}
@@ -65,6 +79,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     if(!duplicate_edit::history_local_selection(*r,before.props,selection,filter,camera,e))return action::Outcome::RejectedNoEffect;
     duplicate_edit::HistorySource known;for(const auto& [uid,key]:source->aliases){(void)key;known.known.emplace(uid,duplicate_history::Known{});}
     auto& op=history_operations.emplace(request.action_uuid,History{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     op.graph=graph;op.evidence.before=before.props.money;op.evidence.scenery_stroke_before=authority?authority->scenery_stroke_before:std::optional{before.state};
     op.evidence.duplicate_cash=checked.cash;
     std::sort(op.evidence.duplicate_cash.begin(),op.evidence.duplicate_cash.end(),[](const auto& a,const auto& b){return std::tie(a.amount,a.position)<std::tie(b.amount,b.position);});
@@ -133,7 +148,8 @@ bool observe_history(const action::Binding& binding,const action::Request& reque
     auto* r=published.load(std::memory_order_acquire);const auto found=history_operations.find(request.action_uuid);Port* source=nullptr;
     if(!r||r->thread!=GetCurrentThreadId()||found==history_operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||
        !source_for(binding,request,source,e))return q::fail(e,e.empty()?"Scenery history observation lacks exact confirmed operation":e);
-    auto& op=found->second;Sample current;uintptr_t graph=0;duplicate_history::Graph inverse;
+    auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;
+    Sample current;uintptr_t graph=0;duplicate_history::Graph inverse;
     const auto opposite=request.action==action::Action::UndoBuilding?action::Action::RedoBuilding:action::Action::UndoBuilding;
     if(!sample(*r,binding,source->request.scenery_stroke.region,source->aliases,current,e)||!same_binding(op.after,current)||current.state!=op.after.state||
        current.props.money!=op.after.props.money||current.props.undo!=op.after.props.undo||
@@ -152,6 +168,8 @@ bool history_targets(const action::Binding& binding,const action::Request& reque
 bool history_publication(const action::Binding& binding,const action::Request& request,action::SceneryStrokeEffect& out,std::string& e){
     const auto found=history_operations.find(request.action_uuid);
     if(found==history_operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.evidence.scenery_stroke_result)
-        return q::fail(e,"Scenery history publication lacks exact confirmed native operation");out=*found->second.evidence.scenery_stroke_result;return true;
+        return q::fail(e,"Scenery history publication lacks exact confirmed native operation");
+    if(found->second.ordered&&!ordered_scope(binding,request,e))return false;
+    out=*found->second.evidence.scenery_stroke_result;return true;
 }
 }

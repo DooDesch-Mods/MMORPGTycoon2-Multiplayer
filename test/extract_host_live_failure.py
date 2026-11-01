@@ -22,10 +22,10 @@ emit('host_failure_runtime.inc',runtime,['void tick() {','void tick_after_transp
 emit('host_failure_panel.inc',lobby,['bool show_failed_panel_once('])
 emit('host_failure_controller.inc',controller,['Controller::Controller(','bool Controller::update_time(','bool Controller::arm_deadline(','bool Controller::invoke(','bool Controller::can_retire_lobby(','bool Controller::fail(','bool Controller::guard(','bool Controller::tick('])
 emit('host_failure_callback.inc',controller,['template<class Function>bool callback('])
-(a.output/'host_failure_action_session.h').write_text(header.replace('private:\n    struct Cached','public:\n    struct Cached',1),encoding='utf-8')
+(a.output/'host_failure_action_session.h').write_text(header.replace('private:\n    struct Ordered','public:\n    struct Ordered',1),encoding='utf-8')
 
 receive=body(snapshot,'static void receive_control(')
-assert receive.index('json::parse(')<receive.index('receive_host_world_failure(sender,value)')<receive.index('if(Config::instance().is_host)')
+assert receive.index('json::parse(')<receive.index('receive_host_world_failure(sender,value)')<receive.index('if(snapshot_host())')
 host=body(snapshot,'bool fail_host_world(')
 assert host.index('if(snapshot_failed)')<host.index('fail(cause)')<host.index('message(payload)')
 assert '8192' in host and 'host_failure_notice["attempted"]=true' in host

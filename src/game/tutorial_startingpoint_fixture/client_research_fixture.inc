@@ -20,7 +20,7 @@ bool client_research(const Request& request,json& result,Progress*& phase,std::s
     live_host_state::NativePort economy(context,binding,nullptr);live_host_state::Pin ledger_before,ledger_after;
     native::SimulationState simulation_before,simulation_after;
     if(!economy.read(ledger_before,e)||!native::read_simulation_state(simulation_before,e))return false;
-    json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
+    json progress_before;if(!p.ordered&&!tutorial_replication::read_progress(progress_before,e))return false;
     const auto project_before=general_project_runtime::status().value("captures",uint64_t{});
     key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_research:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
@@ -75,8 +75,10 @@ bool client_research(const Request& request,json& result,Progress*& phase,std::s
         }
     }
     json progress;std::string id;Pin after;tutorial_development::StartingpointSnapshot after_snapshot;json after_diagnostic;ResearchUI after_ui;
-    if(e.empty()&&!tutorial_replication::read_progress(progress,e))result["progress_readback_failed"]=true;
+    if(e.empty()&&!p.ordered&&!tutorial_replication::read_progress(progress,e))result["progress_readback_failed"]=true;
     const bool project_queued=!is_show&&general_project_runtime::status().value("captures",uint64_t{})!=project_before;
+    if(e.empty()&&p.ordered&&!is_show&&!project_queued)
+        e="Ordered Client Research input did not queue its project intent";
     if(e.empty()&&!is_show&&!(project_queued?
         general_project_runtime::observe_pending_ui(context,binding,project_intent,project_before,id,e):
         research_submission(progress_before,progress,id,e)))result["submission_readback_failed"]=true;

@@ -3,6 +3,9 @@
 #include "../tutorial_replication/start_ledger.h"
 #include "../tutorial_replication/staff_action.h"
 #include "action_session.h"
+#include "held_service_interruption.h"
+#include "place_trace.h"
+#include "tick_wire.h"
 #include "zone_edit_codec.h"
 #include "../region_history_key.h"
 #include <memory>
@@ -422,6 +425,9 @@ bool valid_request(const Request& r) {
     if(r.action==Action::ReleaseEdit){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->release_edit={};
         return r.canonical_record_key=="release:editing"&&r.target_action_uuid.empty()&&game::release_edit::valid(r.release_edit)&&valid_request(*base);}
     if(r.release_edit!=ReleaseEditIntent{})return false;
+    if(r.action==Action::TutorialAcknowledge){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->tutorial={};
+        return r.canonical_record_key=="tutorial:acknowledge"&&r.target_action_uuid.empty()&&tutorial_valid(r.tutorial)&&valid_request(*base);}
+    if(r.tutorial!=TutorialIntent{})return false;
     if(r.action==Action::GeneralProject){auto base=std::make_unique<Request>(r);base->action=Action::StartStartingpoint;base->canonical_record_key="tech:startingpoint";base->general_project={};
         return r.canonical_record_key=="development:project"&&r.target_action_uuid.empty()&&general_project_valid(r.general_project)&&valid_request(*base);}
     if(r.general_project!=GeneralProjectIntent{})return false;
@@ -643,6 +649,9 @@ bool execution(const Request& r,const Evidence& e) {
     if(r.action==Action::ReleaseCycle){std::string cause;return e.release_cycle_before&&e.release_cycle_after&&e.release_cycle_value&&game::release_cycle::effect(r.release_cycle,*e.release_cycle_before,*e.release_cycle_after,cause)&&
         (r.release_cycle.command==game::release_cycle::Command::Finalize||e.before==e.after)&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
     if(r.action==Action::ReleaseEdit){std::string cause;return e.release_edit_before&&e.release_edit_after&&game::release_edit::effect(r.release_edit,*e.release_edit_before,*e.release_edit_after,cause)&&e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
+    if(r.action==Action::TutorialAcknowledge)return e.tutorial_before&&e.tutorial_after&&
+        e.tutorial_before->step==r.tutorial&&e.tutorial_after->step==r.tutorial&&e.tutorial_after->granted&&
+        e.before==e.after&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;
     if(r.action==Action::GeneralProject){std::string cause;return e.general_project_before&&e.general_project_after&&
         game::general_project::effect(r.general_project,*e.general_project_before,*e.general_project_after,cause)&&
         (r.general_project.command==game::general_project::Command::Start||e.before==e.after)&&!e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed;}
@@ -1047,6 +1056,10 @@ bool valid_message(const Message& m,std::string& error) {
        (m.evidence.release_cycle_before&&(!game::release_cycle::valid(*m.evidence.release_cycle_before)||!game::release_cycle::valid(*m.evidence.release_cycle_after)||!game::release_cycle::valid(*m.evidence.release_cycle_value,error)))){error="Release cycle evidence outside complete action domain";return false;}
     if((m.request.action!=Action::ReleaseEdit&&(m.evidence.release_edit_before||m.evidence.release_edit_after))||m.evidence.release_edit_before.has_value()!=m.evidence.release_edit_after.has_value()||
        (m.evidence.release_edit_before&&(!game::release_edit::valid(*m.evidence.release_edit_before)||!game::release_edit::valid(*m.evidence.release_edit_after)))){error="Release edit evidence outside complete action domain";return false;}
+    if((m.request.action!=Action::TutorialAcknowledge&&(m.evidence.tutorial_before||m.evidence.tutorial_after))||
+       bool(m.evidence.tutorial_before)!=bool(m.evidence.tutorial_after)||
+       (m.evidence.tutorial_before&&(!tutorial_valid(m.evidence.tutorial_before->step)||!tutorial_valid(m.evidence.tutorial_after->step)))){
+        error="Tutorial acknowledgement evidence domain/pair invalid";return false;}
     if((m.request.action!=Action::GeneralProject&&(m.evidence.general_project_before||m.evidence.general_project_after))||m.evidence.general_project_before.has_value()!=m.evidence.general_project_after.has_value()||
        (m.evidence.general_project_before&&(!general_project_valid(*m.evidence.general_project_before)||!general_project_valid(*m.evidence.general_project_after)))){error="General project evidence outside complete action domain";return false;}
     if((m.request.action!=Action::SetLogo&&(m.evidence.logo_before||m.evidence.logo_after))||m.evidence.logo_before.has_value()!=m.evidence.logo_after.has_value()||
@@ -1203,6 +1216,7 @@ bool valid_message(const Message& m,std::string& error) {
 nlohmann::json management_state_observation(const ManagementState& value){return management_state_json(value);}
 nlohmann::json management_intent_observation(const ManagementIntent& value){return management_intent_json(value);}
 nlohmann::json management_ledger_observation(const Ledger& value){return ledger_json(value);}
+nlohmann::json region_property_observation(const RegionPropertyState& value){return property_state_json(value);}
 bool valid_bug_fix(const BugFixIntent& intent){return bug_fix_intent_valid(intent);}
 bool dungeon_light_wire_fits(const Request& request,const DungeonLightState& before,const Ledger& money,std::string& error){
     Message probe;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.kind=Kind::ApplyAck;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;probe.request=request;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;
@@ -1439,6 +1453,14 @@ bool group_object_wire_fits(const Request& r,const Evidence& e,std::string& erro
 }
 bool valid_scenery_stroke(const SceneryStrokeIntent& value){return scenery_stroke_intent_valid(value);}
 bool valid_scenery_stroke_effect(const Request& r,const Evidence& e){return scenery_stroke_history(r)?scenery_stroke_history_effect(r,e):scenery_stroke_effect(r,e);}
+bool check_scenery_stroke_effect(const Request& r,const Evidence& e,std::string& error){
+    error.clear();
+    if(scenery_stroke_history(r)){
+        if(scenery_stroke_history_effect(r,e))return true;
+        error="Scenery history complete effect contract failed";return false;
+    }
+    return scenery_stroke_effect(r,e,&error);
+}
 bool scenery_stroke_wire_fits(const Request& r,const Evidence& e,std::string& error){
     Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.request=r;m.evidence=e;m.outcome=Outcome::Confirmed;
     m.evidence.retirement_confirmed=true;std::vector<uint8_t> payload;return encode(m,payload,error);
@@ -1568,11 +1590,12 @@ bool npc_quest_removal_wire_fits(const Request& request,const NpcState& before,c
     if(bytes.size()>max_payload-256){error="NPC complete Quest retirement receipt exceeds packet budget before original effect";return false;}
     return true;
 }
+#include "tutorial_codec.inc"
 bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
     out.clear();if(!valid_message(m,error))return false;
     try {
         const auto& r=m.request;const auto& e=m.evidence;const bool quests=npc_quest_schema(m)||e.npc_quest_removal.has_value();
-        json j={{"schema",uint64_t(npc_history(r)?36:(r.action==Action::EditZone||zone_edit_history(r))?36:(r.action==Action::MoveMonster||r.action==Action::RemoveMonster||monster_history(r))?36:modular_action(r)?36:(r.action==Action::DungeonInput||dungeon_input_history(r))?36:(world_path_action(r.action)||r.action==Action::PlaceBoss)?35:(group_object_action(r.action)||group_object_history(r))?35:(scenery_stroke_action(r.action)||scenery_stroke_history(r))?35:dungeon_tiles_history(r)?35:terrain_history(r)?35:quest_history(r)?35:network_history(r)?35:duplicate_history(r)?35:group_history(r)?35:r.action==Action::DuplicateSelection?35:r.action==Action::Intervention?35:r.action==Action::GameRules?35:r.action==Action::GmPolicy?35:r.action==Action::ReleaseCycle?35:r.action==Action::ReleaseEdit?35:r.action==Action::EditGroup?35:path_history(r)?35:r.action==Action::EditDungeonGizmo?(r.dungeon_gizmo.edit==DungeonGizmoEdit::State?36:35):r.action==Action::SetDungeonPalette?35:r.action==Action::GeneralProject?35:region_history(r)?35:(r.action==Action::EditDistrict||district_property_history(r)||r.action==Action::DistrictStroke||district_stroke_history(r))?36:r.action==Action::MoveDistrictTitle?35:r.action==Action::EditDistrictText?35:r.action==Action::SetDungeonAtmosphere?35:selection_history(r)?35:r.action==Action::SetDungeonLighting?35:r.action==Action::MoveSelection?35:r.action==Action::ConfigureDungeonInstances?35:r.action==Action::SetLogo?35:r.action==Action::EditAbilityMembership?35:r.action==Action::EditCharacterMembership?(r.character_membership.command==CharacterMembershipCommand::Import?37:35):r.action==Action::EditCharacterCostume||r.action==Action::EditCharacterAbility?36:r.action==Action::RemoveNetworkObject?35:r.action==Action::SetBuildingStatus||(r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)||r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest?35:r.action==Action::ManagementCommand?35:r.action==Action::EditPropText?(!r.prop_text.gizmo_scene.empty()?36:35):r.action==Action::EditServiceMembership||r.action==Action::ReorderBossPhase||r.action==Action::EditNpcProperty?35:r.action==Action::SetNpcQuestDestination?34:r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?((appearance_kind(r.region_property.kind)||r.region_property.kind==RegionPropertyKind::Sale)?35:r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
+        json j={{"schema",uint64_t(r.action==Action::TutorialAcknowledge?35:npc_history(r)?36:(r.action==Action::EditZone||zone_edit_history(r))?36:(r.action==Action::MoveMonster||r.action==Action::RemoveMonster||monster_history(r))?36:modular_action(r)?36:(r.action==Action::DungeonInput||dungeon_input_history(r))?36:(world_path_action(r.action)||r.action==Action::PlaceBoss)?35:(group_object_action(r.action)||group_object_history(r))?35:(scenery_stroke_action(r.action)||scenery_stroke_history(r))?35:dungeon_tiles_history(r)?35:terrain_history(r)?35:quest_history(r)?35:network_history(r)?35:duplicate_history(r)?35:group_history(r)?35:r.action==Action::DuplicateSelection?35:r.action==Action::Intervention?35:r.action==Action::GameRules?35:r.action==Action::GmPolicy?35:r.action==Action::ReleaseCycle?35:r.action==Action::ReleaseEdit?35:r.action==Action::EditGroup?35:path_history(r)?35:r.action==Action::EditDungeonGizmo?(r.dungeon_gizmo.edit==DungeonGizmoEdit::State?36:35):r.action==Action::SetDungeonPalette?35:r.action==Action::GeneralProject?35:region_history(r)?35:(r.action==Action::EditDistrict||district_property_history(r)||r.action==Action::DistrictStroke||district_stroke_history(r))?36:r.action==Action::MoveDistrictTitle?35:r.action==Action::EditDistrictText?35:r.action==Action::SetDungeonAtmosphere?35:selection_history(r)?35:r.action==Action::SetDungeonLighting?35:r.action==Action::MoveSelection?35:r.action==Action::ConfigureDungeonInstances?35:r.action==Action::SetLogo?35:r.action==Action::EditAbilityMembership?35:r.action==Action::EditCharacterMembership?(r.character_membership.command==CharacterMembershipCommand::Import?37:35):r.action==Action::EditCharacterCostume||r.action==Action::EditCharacterAbility?36:r.action==Action::RemoveNetworkObject?35:r.action==Action::SetBuildingStatus||(r.action>=Action::RenameCharacter&&r.action<=Action::SetCharacterSpeed)||r.action==Action::SetNpcQuestList||r.action==Action::EditNpcQuest?35:r.action==Action::ManagementCommand?35:r.action==Action::EditPropText?(!r.prop_text.gizmo_scene.empty()?36:35):r.action==Action::EditServiceMembership||r.action==Action::ReorderBossPhase||r.action==Action::EditNpcProperty?35:r.action==Action::SetNpcQuestDestination?34:r.action==Action::RemoveMonster?33:r.action==Action::MoveMonster?31:r.action==Action::PlaceMonster?30:r.action==Action::StartResearch?27:r.action==Action::SetResearchWorkers?28:r.action==Action::CommitResearch?29:r.action==Action::SetBugFix?26:r.action==Action::PlaceMonsterZone?25:r.action==Action::HireDeveloper?23:r.action==Action::FireDeveloper?24:r.action==Action::SetStartingpointWorkers?22:r.action==Action::StartStartingpoint?21:r.action==Action::CommitStartingpoint?20:quests?19:r.action==Action::MoveNPC?18:r.action==Action::RemoveNPC?17:r.action==Action::PlaceNPC?16:r.action==Action::SetPrices?13:r.action==Action::RemovePath?12:r.action==Action::EditRegionProperty?((appearance_kind(r.region_property.kind)||r.region_property.kind==RegionPropertyKind::Sale)?35:r.region_property.kind==RegionPropertyKind::LevelRange?15:11):r.action==Action::UndoBuilding||r.action==Action::RedoBuilding?10:r.action==Action::PlaceNetworkPipe?9:r.action==Action::PlaceNetworkNode?8:r.action==Action::PlacePath?(path_connected(r.path)?7:6):r.action==Action::SetRegionStyles?5:r.action==Action::TerrainStroke?(r.terrain.height?14:4):(r.action==Action::SetRegionPreset?3:(extended(m)?2:1)))},{"kind",uint64_t(m.kind)},{"session",m.session},{"revision",m.revision},
             {"ack_peer",m.ack_peer},{"required_mask",m.required_mask},{"outcome",uint64_t(m.outcome)},{"cause",m.cause},
             {"request",{{"action",uint64_t(r.action)},{"peer",r.peer},{"sequence",r.sequence},{"host_revision",r.host_revision},
                 {"action_uuid",r.action_uuid},{"snapshot_uuid",r.snapshot_uuid},{"canonical_record_key",r.canonical_record_key}}},
@@ -1644,6 +1667,10 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["evidence"]["release_edit_after"]=e.release_edit_after?game::release_edit::encode(*e.release_edit_after):json(nullptr);
         }else if(r.action==Action::EditGroup){j["request"]["group"]=group_intent_json(r.group);
             j["evidence"]["group_before"]=group_state_json(e.group_before);j["evidence"]["group_after"]=group_state_json(e.group_after);
+        }else if(r.action==Action::TutorialAcknowledge){
+            j["request"]["tutorial"]=tutorial_json(r.tutorial);
+            j["evidence"]["tutorial_before"]=tutorial_proof_json(e.tutorial_before);
+            j["evidence"]["tutorial_after"]=tutorial_proof_json(e.tutorial_after);
         }else if(r.action==Action::GeneralProject){
             j["request"]["general_project"]=game::general_project::encode(r.general_project);
             j["evidence"]["general_project_before"]=e.general_project_before?game::general_project::encode(*e.general_project_before):json(nullptr);
@@ -1872,6 +1899,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         else if(schema==35&&u64(r.at("action"))==48)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","duplicate"});
         else if(schema==35&&u64(r.at("action"))==134)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","release_edit"});
         else if(schema==35&&u64(r.at("action"))==47)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","group"});
+        else if(schema==35&&u64(r.at("action"))==139)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","tutorial"});
         else if(schema==35&&u64(r.at("action"))==133)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","general_project"});
         else if(schema==36&&u64(r.at("action"))==60)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_stroke"});
         else if(schema==36&&u64(r.at("action"))==57)exact(r,{"action","peer","sequence","host_revision","action_uuid","snapshot_uuid","canonical_record_key","district_property"});
@@ -1929,7 +1957,7 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
         const bool gizmo_text_new=schema==36&&action==41;const bool gizmo_new=schema==36&&action==105;const bool costume_new=schema==36&&action==86;const bool ability_new=schema==36&&action==85;const bool character_import_new=schema==37&&action==87;
         const int action_depth=(gizmo_new||gizmo_text_new)?9:modular_form||costume_new?10:schema==35&&(action==86||action==88||action==54||action==55||action==56)?10:schema==35&&(action==40||action==42)?9:8;if(!clearance_packet&&deepest>action_depth)throw std::runtime_error("action JSON nesting depth exceeds its action bound");const bool district_new=schema==36&&(action==57||action==58||action==60||((action==10||action==11)&&
             (r.at("canonical_record_key").get<std::string>()=="district-edit:"+r.at("target_action_uuid").get<std::string>()||r.at("canonical_record_key").get<std::string>()=="district-stroke:"+r.at("target_action_uuid").get<std::string>()||r.at("canonical_record_key").get<std::string>()=="zone-edit:"+r.at("target_action_uuid").get<std::string>())));
-        if((schema==37&&!character_import_new)||(schema==36&&!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new)||((action==57||action==58||action==59||action==60)&&schema!=36)||(!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new&&!character_import_new&&(action<1||(action>33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88))||((action==32||action==33||action==40||action==41||action==42||action==43||action==44||action==45||action==46||action==47||action==48||action==49||action==50||action==51||action==52||action==53||action==54||action==55||action==56||action==57||action==128||action==129||action==130||action==133||action==134||action==135||action==136||action==137||action==138||action==100||action==101||action==103||action==104||action==105||action==102||(action>=80&&action<=88))&&schema!=35)||(schema==34)!=(action==31)||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15||(schema==35&&action!=10&&action!=11&&action!=32&&action!=33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88)))&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))))throw std::runtime_error("unsupported typed action");
+        if((schema==37&&!character_import_new)||(schema==36&&!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new)||((action==57||action==58||action==59||action==60)&&schema!=36)||(!district_new&&!modular_form&&!costume_new&&!ability_new&&!gizmo_new&&!gizmo_text_new&&!character_import_new&&(action<1||(action>33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=139&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88))||((action==32||action==33||action==40||action==41||action==42||action==43||action==44||action==45||action==46||action==47||action==48||action==49||action==50||action==51||action==52||action==53||action==54||action==55||action==56||action==57||action==128||action==129||action==130||action==133||action==134||action==135||action==136||action==137||action==138||action==139||action==100||action==101||action==103||action==104||action==105||action==102||(action>=80&&action<=88))&&schema!=35)||(schema==34)!=(action==31)||(schema==33)!=(action==30)||(schema==31)!=(action==29)||(schema==30)!=(action==28)||(schema==27)!=(action==25)||(schema==28)!=(action==26)||(schema==29)!=(action==27)||(schema==26)!=(action==24)||(schema==25)!=(action==23)||(schema==23)!=(action==21)||(schema==24)!=(action==22)||(schema==22)!=(action==20)||(schema==21)!=(action==19)||(schema==20)!=(action==18)||(schema==19?(action<15||action>17):((schema==18&&action!=17)||(schema!=18&&action==17)||(schema==17&&action!=16)||(schema!=17&&action==16)||(schema==16&&action!=15)||(schema!=16&&action==15)||(schema==14&&(action!=5||!r.at("terrain").contains("height")))||(schema==13&&action!=14)||(schema==12&&action!=13)||((schema==11||schema==15||(schema==35&&action!=10&&action!=11&&action!=32&&action!=33&&action!=40&&action!=41&&action!=42&&action!=43&&action!=44&&action!=45&&action!=46&&action!=47&&action!=48&&action!=49&&action!=50&&action!=51&&action!=52&&action!=53&&action!=54&&action!=55&&action!=56&&action!=57&&action!=128&&action!=129&&action!=130&&action!=133&&action!=134&&action!=135&&action!=136&&action!=137&&action!=138&&action!=139&&action!=100&&action!=101&&action!=103&&action!=104&&action!=105&&action!=102&&(action<80||action>88)))&&action!=12)||(schema==10&&action!=10&&action!=11)||(schema==1&&action!=1)||(schema==2&&action>3)||(schema==3&&action!=4)||(schema==4&&action!=5)||(schema==5&&action!=6)||((schema==6||schema==7)&&action!=7)||(schema==8&&action!=8)||(schema==9&&action!=9))))))throw std::runtime_error("unsupported typed action");
         m.request.action=Action(action);
         m.request.peer=u64(r.at("peer"));m.request.sequence=u64(r.at("sequence"));m.request.host_revision=u64(r.at("host_revision"));
         m.request.action_uuid=r.at("action_uuid").get<std::string>();m.request.snapshot_uuid=r.at("snapshot_uuid").get<std::string>();
@@ -2002,6 +2030,11 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             if(!e.at("release_edit_after").is_null())m.evidence.release_edit_after=game::release_edit::codec::proof(e.at("release_edit_after"));
         }else if(schema==35&&action==47){exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","group_before","group_after"});
             m.request.group=group_intent_read(r.at("group"));m.evidence.group_before=group_state_read(e.at("group_before"));m.evidence.group_after=group_state_read(e.at("group_after"));
+        }else if(schema==35&&action==139){
+            exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","tutorial_before","tutorial_after"});
+            m.request.tutorial=tutorial_read(r.at("tutorial"));
+            m.evidence.tutorial_before=tutorial_proof_read(e.at("tutorial_before"));
+            m.evidence.tutorial_after=tutorial_proof_read(e.at("tutorial_after"));
         }else if(schema==35&&action==133){
             exact(e,{"before","after","target_retired","undo_confirmed","selection_confirmed","retirement_confirmed","general_project_before","general_project_after"});
             m.request.general_project=game::general_project::codec::intent(r.at("general_project"));
@@ -2248,7 +2281,9 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
 #include "network_effect.inc"
 #include "network_pipe_effect.inc"
 #include "network_history_effect.inc"
+#include "ordered_controller.inc"
 Controller::Controller(Session& s,Engine& e,Transport& t,Logger l,uint64_t timeout,Clock clock):session_(s),engine_(e),transport_(t),logger_(std::move(l)),clock_(std::move(clock)),timeout_(timeout) {}
+Controller::~Controller()=default;
 bool Controller::update_time(uint64_t fallback,std::string& error) {
     uint64_t actual=fallback;
     if(clock_){
@@ -2268,13 +2303,36 @@ bool Controller::invoke(const std::function<bool()>& fn,std::string& cause) {
     if(!was_locked&&status_.locked){cause=status_.cause;return false;}
     return accepted;
 }
+std::string Controller::retirement_diagnostic() const {
+    const bool owner=thread_==std::thread::id{}||thread_==std::this_thread::get_id();
+    if(!owner)return "{\"owner_thread\":false}";
+    return nlohmann::json{{"owner_thread",owner},{"busy",busy_},{"ordered",bool(ordered_)},
+        {"status_pending",status_.pending},{"pending",pending_.has_value()},{"local_request",local_request_.has_value()},
+        {"authority_waiting",authority_waiting_.has_value()},{"locked",status_.locked},{"idle_session_loss",idle_session_loss_},
+        {"waiting",ordered_?ordered_->waiting.size():0},{"captured",ordered_&&ordered_->captured.has_value()},
+        {"ordered_local",ordered_&&ordered_->local.has_value()},{"boundaries",ordered_?ordered_->boundaries.size():0},
+        {"queue",ordered_?nlohmann::json::parse(ordered_->queue.retirement_diagnostic()):nlohmann::json(nullptr)}}.dump();
+}
+bool Controller::can_retire_recovery(uint64_t completed_tick) const {
+    if(thread_!=std::this_thread::get_id()||!status_.started||busy_||status_.locked||status_.pending||
+       pending_||local_request_||authority_waiting_||!ordered_||ordered_->captured||ordered_->local||
+       ordered_->snapshot_hold||!ordered_->waiting.empty()||!ordered_->queue.can_retire_recovery(completed_tick))return false;
+    if(context_.role==Role::Host){
+        if(ordered_->boundaries.size()!=ordered_->queue.state().in_flight)return false;
+        for(const auto& [tick,boundary]:ordered_->boundaries)
+            if(!ordered_->queue.recovery_boundary_matches(tick,boundary.mask))return false;
+    }else if(!ordered_->boundaries.empty())return false;
+    return true;
+}
 bool Controller::can_retire_lobby() const {
     return (thread_==std::thread::id{}||thread_==std::this_thread::get_id())&&!busy_&&
+        (!ordered_||(!ordered_->queue.state().queued&&!ordered_->queue.state().in_flight&&ordered_->waiting.empty()))&&
         !status_.pending&&!pending_&&!local_request_&&!authority_waiting_&&(!status_.locked||idle_session_loss_);
 }
 bool Controller::fail(const std::string& cause,std::string& out,bool lock,bool session_loss) {
     out=cause.empty()?"action failure lacks cause":cause;status_.cause=out;++status_.failed;
     if(lock){
+        if(ordered_){ordered_->captured.reset();ordered_->capture_deadline=0;}
         // Lost session observation may retire an idle owner, but never resume it.
         idle_session_loss_=session_loss&&!status_.locked&&!status_.pending&&!busy_&&!pending_&&!local_request_&&!authority_waiting_;
         status_.locked=true;status_.outcome=Outcome::Unknown;
@@ -2288,13 +2346,20 @@ bool Controller::fail(const std::string& cause,std::string& out,bool lock,bool s
     else ++status_.suppressed_errors;
     return false;
 }
-bool Controller::guard(std::string& error) {
+bool Controller::guard(std::string& error,const std::function<bool(std::string&)>* interruption,bool* interrupted) {
     if(!status_.started)return fail("action controller not started",error);
     if(std::this_thread::get_id()!=thread_)return fail("action controller requires bound game thread",error);
     if(busy_)return fail("action controller reentrant call",error,true);
     if(status_.locked){error="action controller locked: "+status_.cause;++status_.suppressed_errors;return false;}
     Context actual;std::string cause;
-    if(!invoke([&]{return session_.current(actual,cause);},cause))return fail("session observation: "+cause,error,true,true);
+    bool returned=false,accepted=false;
+    if(!invoke([&]{accepted=session_.current(actual,cause);returned=true;return accepted;},cause)){
+        if(returned&&!accepted&&!status_.locked&&interruption&&*interruption&&(*interruption)(cause)){
+            if(interrupted){*interrupted=true;error=cause;return false;}
+            throw tick_commands::HeldMembershipInterruption(cause);
+        }
+        return fail("session observation: "+cause,error,true,true);
+    }
     if(actual!=context_)return fail("immutable action session/snapshot/participant binding changed",error,true,true);
     if(!invoke([&]{return engine_.current(binding_,context_.snapshot_uuid,cause);},cause))return fail("native world observation: "+cause,error,true);
     return true;
@@ -2406,6 +2471,9 @@ bool Controller::submit_release_cycle(const std::string& id,const ReleaseCycleIn
 }
 bool Controller::submit_release_edit(const std::string& id,const ReleaseEditIntent& intent,uint64_t now,std::string& error){
     auto r=std::make_unique<Request>();r->action=Action::ReleaseEdit;r->action_uuid=id;r->canonical_record_key="release:editing";r->release_edit=intent;return submit(std::move(*r),now,error);
+}
+bool Controller::submit_tutorial(const std::string& id,const TutorialIntent& intent,uint64_t now,std::string& error){
+    auto r=std::make_unique<Request>();r->action=Action::TutorialAcknowledge;r->action_uuid=id;r->canonical_record_key="tutorial:acknowledge";r->tutorial=intent;return submit(std::move(*r),now,error);
 }
 bool Controller::submit_general_project(const std::string& id,const GeneralProjectIntent& intent,uint64_t now,std::string& error){
     auto r=std::make_unique<Request>();r->action=Action::GeneralProject;r->action_uuid=id;r->canonical_record_key="development:project";r->general_project=intent;return submit(std::move(*r),now,error);
@@ -2600,7 +2668,16 @@ bool Controller::submit_start_startingpoint(const std::string& id,uint64_t now,s
     request.canonical_record_key="tech:startingpoint";return submit(std::move(request),now,error);
 }
 bool Controller::submit(Request request,uint64_t now,std::string& error) {
+    if(ordered_&&busy_&&ordered_->capture_admission){
+        bool admitted=false;
+        if(!callback([&]{return ordered_->capture_admission(admitted,error);},error))return fail("Ordered UI scope admission: "+error,error,true);
+        if(admitted)return ordered_capture(std::move(request),now,error);
+    }
     if(!guard(error)||!update_time(now,error))return false;
+    if(ordered_){
+        if(!valid_request(request))return fail("typed action UUID, object key or building payload invalid",error);
+        return ordered_submit(tick_commands::Input{context_.session,context_.snapshot_uuid,std::move(request)},now,error);
+    }
     if(pending_||local_request_)return fail("one action already pending; no queue",error);
     if(!valid_request(request))return fail("typed action UUID, object key or building payload invalid",error);
     for(const auto& [other,entry]:history_)if(entry.request.request.action_uuid==request.action_uuid)return fail("action UUID already used; no resubmission",error);
@@ -2613,6 +2690,27 @@ bool Controller::submit(Request request,uint64_t now,std::string& error) {
     local_request_=m;remember(identity(m.request),m);
     if(!send(context_.host_peer,m,error)||!arm_deadline(local_deadline_,error))return false;
     deadline_=local_deadline_;return true;
+}
+namespace {
+bool observation_failure(const std::string& cause,std::string& error) {error=cause;return false;}
+}
+bool observe_completed(Engine& engine_,const Binding& binding_,const Request& r,const Ledger& before,Evidence& evidence,std::string& error) {
+    const auto action=r.action==Action::PlaceBuilding?r.action_uuid:std::string{};
+    const auto measured=[&](const char* stage,auto&& call){return place_trace::run(action,stage,error,std::forward<decltype(call)>(call));};
+    if(!callback([&]{return measured("observe_execution",[&]{return engine_.observe_action(binding_,r,evidence,error);});},error))return observation_failure("native execution observation: "+error,error);
+    Ledger actual;
+    if(!execution(r,evidence)||evidence.before!=before||!callback([&]{return measured("observe_ledger",[&]{return engine_.ledger(binding_,actual,error);});},error)||actual!=evidence.after)
+        return observation_failure("native execution receipt/ledger differs: "+error,error);
+    if(!callback([&]{return measured("retire",[&]{return engine_.retire(binding_,r,error);});},error))return observation_failure("native receipt retirement: "+error,error);
+    auto expected=std::make_unique<Evidence>(evidence);
+    expected->retirement_confirmed=true;
+    auto retired=std::make_unique<Evidence>();
+    if(!callback([&]{return measured("observe_retired",[&]{return engine_.observe_action(binding_,r,*retired,error);});},error))
+        return observation_failure("native retirement observation: "+error,error);
+    if(!complete(r,*retired))return observation_failure("native retirement acknowledgment lacks complete execution evidence",error);
+    // Retirement acknowledges the receipt; it must not change any action family.
+    if(*retired!=*expected)return observation_failure("native retirement receipt changed after retirement",error);
+    evidence=std::move(*retired);return true;
 }
 bool Controller::observe(const Request& r,const Ledger& before,Evidence& evidence,std::string& error) {
     if(!invoke([&]{return engine_.observe_action(binding_,r,evidence,error);},error))return fail("native execution observation: "+error,error,true);
@@ -2839,6 +2937,7 @@ bool Controller::rejection(const Message& rejected,std::string& error) {
 bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64_t now,std::string& error) {
     if(!guard(error)||!update_time(now,error))return false;
     if(sender<1||sender>4||sender==context_.local_peer||!(context_.peer_mask&bit(sender)))return fail("untrusted transport sender",error);
+    if(ordered_)return ordered_receive(sender,bytes,size,error);
     bool state_handled=false;if(!invoke([&]{return engine_.receive_authority_state(sender,bytes,size,state_handled,error);},error))return fail("authority state receive: "+error,error);
     if(state_handled)return true;
     Message m;if(!decode(bytes,size,m,error))return fail(error,error);
@@ -2860,8 +2959,15 @@ bool Controller::receive(uint64_t sender,const uint8_t* bytes,size_t size,uint64
     }
     return fail("unsupported action packet",error);
 }
+bool Controller::tick_held_service(uint64_t now,std::string& error,const std::function<bool(std::string&)>& interruption) {
+    if(!guard(error,ordered_?&interruption:nullptr))return false;
+    if(!ordered_)return fail("held service tick requires ordered mode",error);
+    if(!update_time(now,error))return false;
+    return ordered_tick(error);
+}
 bool Controller::tick(uint64_t now,std::string& error) {
     if(!guard(error)||!update_time(now,error))return false;
+    if(ordered_)return ordered_tick(error);
     if(authority_waiting_&&now_<deadline_) {const auto waiting=*authority_waiting_;if(!result(waiting,error))return false;}
     if(!update_time(now_,error))return false;
     if((pending_&&now_>=deadline_)||(local_request_&&local_deadline_&&now_>=local_deadline_)) {

@@ -53,6 +53,10 @@ bool once(Memory&,const a::Context&,const a::Binding&,Bound& local,State& out,st
     if(!with_zones)return fail(error,"fixture complete Zone sample omitted");
     const auto index=(binds-1)%2;local=owner_samples[index];out=state_samples[index];return true;
 }
+#include "calendar_demand_reader_actual.inc"
+struct DemandReadWitness;
+using DemandRead=std::shared_ptr<const DemandReadWitness>;
+#include "calendar_demand_once_actual.inc"
 #include "calendar_demand_capture_actual.inc"
 live::Pin reset(){
     fields.clear();reads=binds=final_checks=reject_once=0;current=true;throw_read=false;on_once={};
@@ -78,6 +82,42 @@ live::Pin reset(){
 void run(){
     a::Context context;a::Binding binding;std::string error;State calendar;subscriber_demand::State demands;
     auto pin=reset();
+    DemandRead first_read,second_read;State first_calendar,second_calendar;subscriber_demand::State first_demands,second_demands;
+    expect(capture_demands_once(context,binding,pin,first_calendar,first_demands,first_read,error)&&binds==1&&reads==13&&final_checks==1,"one-shot capture must retain exactly one fresh complete owner/value sample");
+    expect(capture_demands_once(context,binding,pin,second_calendar,second_demands,second_read,error)&&binds==2&&reads==26&&final_checks==2,"second one-shot must reread all owners and values");
+    expect(same_demand_read(first_read,first_calendar,first_demands,second_read,second_calendar,second_demands,error),"outer Calendar pair stable complete evidence");
+    auto changed_demands=second_demands;changed_demands[0].key.reset();
+    expect(!same_demand_read(first_read,first_calendar,first_demands,second_read,second_calendar,changed_demands,error)&&error=="Subscriber Demand complete current values/owners changed during double read","outer pair lost original Subscriber value failure");
+    for(unsigned drift=0;drift<7;++drift){pin=reset();error.clear();
+        expect(capture_demands_once(context,binding,pin,first_calendar,first_demands,first_read,error),"first owner witness seed");
+        if(drift==0)++owner_samples[1].definitions.definitions[0].uid;
+        if(drift==1)++owner_samples[1].definitions.arrays[0].data;
+        if(drift==2)++owner_samples[1].zones[0].uid;
+        if(drift==3)std::reverse(owner_samples[1].demand_members.begin(),owner_samples[1].demand_members.end());
+        if(drift==4){put(first_subscriber+0xc0,uintptr_t{0});state_samples[1].definitions[0].demands[0]->members.clear();}
+        if(drift==5)++state_samples[1].zones[0].counts[0];
+        if(drift==6){put(data,second_subscriber);put(data+8,first_subscriber);std::swap(owner_samples[1].subscribers.rows[0],owner_samples[1].subscribers.rows[1]);}
+        expect(capture_demands_once(context,binding,pin,second_calendar,second_demands,second_read,error),"second valid but changed owner witness");
+        expect(!same_demand_read(first_read,first_calendar,first_demands,second_read,second_calendar,second_demands,error),"outer Calendar pair accepted owner, slots or state drift");
+        if(drift==5)expect(error=="Character/Zone calendar complete current state changed during double read","outer pair lost original Calendar value failure");
+    }
+    pin=reset();current=false;first_read=second_read;first_calendar={};first_demands={{99,std::nullopt}};error.clear();
+    expect(!capture_demands_once(context,binding,pin,first_calendar,first_demands,first_read,error)&&!first_read&&first_calendar.definitions.empty()&&first_demands==subscriber_demand::State{{99,std::nullopt}}&&error=="fixture final World/SaveScope changed","failed one-shot must not publish a physical witness or values");
+    for(unsigned fault=0;fault<8;++fault){pin=reset();first_read=second_read;first_calendar={};first_demands={{99,std::nullopt}};error.clear();
+        if(fault==0)reject_once=1;
+        if(fault==1)++pin.world;
+        if(fault==2)put(first_subscriber+0xc0,uintptr_t{0xdeadbeef});
+        if(fault==3)put(manager+0x4c,int32_t{1});
+        if(fault==4)++owner_samples[0].subscribers.rows[0].first;
+        if(fault==5)state_samples[0].definitions[0].demands[0]->members.clear();
+        if(fault==6)throw_read=true;
+        if(fault==7)put(first_subscriber+0x20,int32_t{20});
+        expect(!capture_demands_once(context,binding,pin,first_calendar,first_demands,first_read,error)&&!first_read&&!error.empty()&&first_calendar.definitions.empty()&&first_demands==subscriber_demand::State{{99,std::nullopt}},"one-shot published after admission/reference/extent/physical/reciprocal/exception failure");
+        if(fault==0)expect(error=="fixture original complete UID/World admission failed","one-shot lost original admission error");
+        if(fault==6)expect(error=="Character/Subscriber Demand capture: fixture original memory failure","one-shot lost original exception");
+    }
+    pin=reset();error.clear();
+
     expect(capture_demands(context,binding,pin,calendar,demands,error)&&calendar==::initial()&&
            demands==subscriber_demand::State{{10,std::string("character:0:0/demand/buff")},{20,std::string("character:0:0/demand/nerf")}},
            "actual paired capture lost full Calendar or reciprocal Subscriber links");

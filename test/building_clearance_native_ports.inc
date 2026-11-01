@@ -4,8 +4,35 @@
 #include "multiplayer_world/world_state.h"
 #include <atomic>
 #include <memory>
+#include <intrin.h>
+#include "ordered_empty_clearance.h"
+#include "ordered_clearance_group.h"
+namespace mt2mp::action_session {
+struct FixtureSession {
+    bool current(Context&,std::string& e){e="unexpected ordered session in legacy clearance fixture";return false;}
+};
+inline FixtureSession& selected_session(){static FixtureSession session;return session;}
+namespace tick_commands::authority {
+inline bool active(){return false;}
+inline bool matches(const Context&,const Binding&,const Request&,std::string& e){e="unexpected ordered authority in legacy clearance fixture";return false;}
+}
+}
+namespace mt2mp::hooks {
+namespace framework {
+inline bool verify_original_hash(uintptr_t,const void*,size_t,const char*,std::string& e){e="unexpected ordered code check in legacy clearance fixture";return false;}
+}
+template<class Hooks>bool enable_prepared_routes(uintptr_t,const Hooks&,const char*,std::string& e){e="unexpected ordered hook enable in legacy clearance fixture";return false;}
+}
+inline int MH_CreateHook(void*,void*,void**){throw std::runtime_error("unexpected hook creation in legacy clearance fixture");}
+inline constexpr int MH_OK=0;
+
 namespace sample_fixture {
 namespace npc_quest_targets=mt2mp::game::npc_quest_targets;
+namespace ordered_empty_clearance=mt2mp::game::ordered_empty_clearance;
+namespace ordered_clearance_group=mt2mp::game::ordered_clearance_group;
+namespace scenery_stroke_graph=mt2mp::game::scenery_stroke_graph;
+namespace duplicate_history=mt2mp::game::duplicate_history;
+namespace typed_action_runtime {inline json controller_status(){return {{"ordered",false}};}}
 namespace duplicate_edit=::sample_fixture;
 #include "duplicate_sample_binding_actual.inc"
 namespace scenery_make_history=mt2mp::game::scenery_make_history;
@@ -45,6 +72,8 @@ struct NativeCatalog {
 namespace remove_diagnostics {
 struct LocalTarget {uintptr_t object=0;uint64_t uid=0;std::string record_key;bool normal_scenery=false;};
 std::vector<LocalTarget> saved_extra;
+bool current_registry_world(const std::string&,uint64_t,uint64_t,std::string& e){return q::fail(e,"unexpected ordered registry read in legacy clearance fixture");}
+bool resolve_clearing_scenery_key(const std::string&,uintptr_t,uint64_t,std::string&,std::string& e){return q::fail(e,"unexpected ordered scenery key read in legacy clearance fixture");}
 bool identity_targets(std::vector<LocalTarget>& out,std::string& error){
     if(clearance_failure=="metadata"){error="original saved Root metadata proof failed";return false;}
     for(const auto& target:saved_extra){const auto found=uid_objects.find(target.uid);

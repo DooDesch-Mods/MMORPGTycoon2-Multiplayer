@@ -15,6 +15,8 @@ parser.add_argument('--target', action='append', help='CMake target to build; re
 parser.add_argument('--version', help='Full version to embed in a local tester build')
 parser.add_argument('--mode', choices=('standalone', 'framework'), default='standalone')
 parser.add_argument('--framework-sdk', type=Path, help='Framework SDK source tree for the native plugin')
+parser.add_argument('--native-only', action='store_true',
+                    help='Build only the Framework DLL without configuring source tests; run affected checks separately')
 parser.add_argument('--reconfigure', action='store_true', help='Run configure even when the selected CMake cache already matches')
 parser.add_argument('--jobs', type=int, default=4, choices=range(1, 65), metavar='N',
                     help='Maximum build jobs, 1..64 (default: 4)')
@@ -27,6 +29,10 @@ if args.mode == 'framework' and args.framework_sdk is None:
     parser.error('framework mode requires --framework-sdk')
 if args.mode != 'framework' and args.framework_sdk is not None:
     parser.error('--framework-sdk requires --mode framework')
+if args.native_only:
+    if args.mode != 'framework' or args.target not in (None, ['MT2MultiplayerPlugin']):
+        parser.error('--native-only requires Framework mode and only the MT2MultiplayerPlugin target')
+    args.target = ['MT2MultiplayerPlugin']
 sdk = args.framework_sdk.resolve() if args.framework_sdk else None
 version = args.version
 if sdk is not None:
@@ -56,7 +62,8 @@ def matching_cache():
         key, value = line.split('=', 1)
         cache[key.split(':', 1)[0]] = value
     expected = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
-                'MT2MP_FRAMEWORK_PLUGIN': 'ON' if sdk else 'OFF'}
+                'MT2MP_FRAMEWORK_PLUGIN': 'ON' if sdk else 'OFF',
+                'MT2MP_BUILD_TESTS': 'OFF' if args.native_only else 'ON'}
     if version:
         expected['MT2MP_BUILD_VERSION'] = version
     if any(cache.get(key) != value for key, value in expected.items()):
@@ -75,6 +82,7 @@ before = inputs(ROOT, sdk)
 commands = [
     [cmake, "-S", str(ROOT), "-B", str(build), "-G", "Visual Studio 17 2022", "-A", "x64",
      "-DMT2MP_FRAMEWORK_PLUGIN=" + ('ON' if sdk else 'OFF'),
+     "-DMT2MP_BUILD_TESTS=" + ('OFF' if args.native_only else 'ON'),
      *(["-DMT2_FRAMEWORK_SDK=" + str(sdk)] if sdk else []),
      *(["-DMT2MP_BUILD_VERSION=" + version] if version else [])],
     [cmake, "--build", str(build), "--config", "Release", "--parallel", str(args.jobs),
@@ -86,7 +94,7 @@ for index, command in enumerate(commands):
     if index == 0 and not configure_required:
         log.write_text('info: selected CMake cache matches; build-system regeneration remains enabled\n', encoding='utf-8')
         shutil.copy2(log, ROOT / 'artifacts' / f'build-{index}.log')
-        print(f'info: configure skipped: matching mode, SDK and version; log={log}', flush=True)
+        print(f'info: configure skipped: matching mode, SDK, version and test configuration; log={log}', flush=True)
         continue
     with log.open("w", encoding="utf-8") as stream:
         result = subprocess.run(command, cwd=ROOT, stdout=stream, stderr=subprocess.STDOUT)
@@ -111,6 +119,7 @@ if sdk is not None and (not args.target or 'MT2MultiplayerPlugin' in args.target
     digest = hashlib.sha256(data).hexdigest()
     receipt = {'candidate': 'framework-native-plugin', 'state': 'linked-source-unchanged-native-pending',
                'version': version, 'dll_sha256': digest, 'native_accepted': False,
+               'tests_configured': not args.native_only,
                'files': {'MT2MultiplayerPlugin.dll': {'sha256': digest, 'bytes': len(data)}},
                'build_history': str(history.relative_to(ROOT)),
                'source_inputs_sha256': hashlib.sha256(source_record.read_bytes()).hexdigest()}

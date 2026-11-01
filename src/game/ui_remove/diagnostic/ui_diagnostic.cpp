@@ -2,6 +2,8 @@
 #include "ui_diagnostic.h"
 #include "native_contract_bytes.h"
 #include "scenery_ui_contract_bytes.h"
+#include "network_ui_contract_bytes.h"
+#include "../../network_object_identity.h"
 #include <cstring>
 #include <regex>
 #include <vector>
@@ -21,7 +23,7 @@ bool input(const Request& r) {
     if(r.diagnostic_uuid.size()!=36||r.snapshot_uuid.size()!=36||r.canonical_record_key.size()>160)return false;
     static const std::regex uuid("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     static const std::regex key("^action:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
-    return std::regex_match(r.diagnostic_uuid,uuid)&&std::regex_match(r.snapshot_uuid,uuid)&&(std::regex_match(r.canonical_record_key,key)||game::snapshot_building_key::valid(r.canonical_record_key));
+    return std::regex_match(r.diagnostic_uuid,uuid)&&std::regex_match(r.snapshot_uuid,uuid)&&(std::regex_match(r.canonical_record_key,key)||game::snapshot_building_key::valid(r.canonical_record_key)||game::network_object_identity::key(r.canonical_record_key));
 }
 }
 bool resolve_api(ui::Memory& memory,uintptr_t image,std::string_view sha,Api& out,std::string& cause,Family family) {
@@ -31,22 +33,24 @@ bool resolve_api(ui::Memory& memory,uintptr_t image,std::string_view sha,Api& ou
         if(!memory.copy(image+guard.rva,actual.data(),actual.size(),cause))return false;
         if(std::memcmp(actual.data(),guard.bytes,guard.size)){cause="native UI diagnostic full code guard differs rva="+std::to_string(guard.rva);return false;}
     }
-    if(family!=Family::Building&&family!=Family::Scenery){cause="native UI diagnostic family invalid";return false;}
-    const bool scene=family==Family::Scenery;
+    if(family!=Family::Building&&family!=Family::Scenery&&family!=Family::NetworkNode&&family!=Family::NetworkPipe){cause="native UI diagnostic family invalid";return false;}
+    const bool scene=family==Family::Scenery;const bool network=family==Family::NetworkNode||family==Family::NetworkPipe;
     if(scene)for(const auto& guard:scene_contract::guards){std::vector<uint8_t> actual(guard.size);if(!memory.copy(image+guard.rva,actual.data(),actual.size(),cause))return false;
         if(std::memcmp(actual.data(),guard.bytes,guard.size)){cause="native Scenery UI diagnostic full code guard differs rva="+std::to_string(guard.rva);return false;}}
+    if(network)for(const auto& guard:network_contract::guards){std::vector<uint8_t> actual(guard.size);if(!memory.copy(image+guard.rva,actual.data(),actual.size(),cause))return false;
+        if(std::memcmp(actual.data(),guard.bytes,guard.size)){cause="native Network UI diagnostic full code guard differs rva="+std::to_string(guard.rva);return false;}}
     uintptr_t command=0,handler_open=0;
-    if(!field(memory,image+(scene?0x1725bb0:0x172af10),contract::window_ui_command_slot,command,cause)||command!=image+(scene?0x7b3cf0:contract::ui_command_rva)||
-       !field(memory,image+(scene?0x17316a0:0x1731720),0x20,handler_open,cause)||handler_open!=image+(scene?0xc13640:contract::building_handler_open_rva)){if(cause.empty())cause="native UI diagnostic vtable slots differ";return false;}
+    if(!field(memory,image+(network?0x1725300:scene?0x1725bb0:0x172af10),contract::window_ui_command_slot,command,cause)||command!=image+(network?0x74f120:scene?0x7b3cf0:contract::ui_command_rva)||
+       !field(memory,image+(network?0x172e420:scene?0x17316a0:0x1731720),0x20,handler_open,cause)||handler_open!=image+(network?0xc125d0:scene?0xc13640:contract::building_handler_open_rva)){if(cause.empty())cause="native UI diagnostic vtable slots differ";return false;}
     out={reinterpret_cast<SelectProp>(image+contract::select_prop_rva),reinterpret_cast<SetInfoWindow>(image+contract::set_info_window_rva),
         reinterpret_cast<RecordCtor>(image+contract::record_cstr_ctor_rva),reinterpret_cast<RecordDtor>(image+contract::record_dtor_rva),
-        reinterpret_cast<RecordEquals>(image+contract::record_label_equals_rva),reinterpret_cast<UiCommand>(image+(scene?0x7b3cf0:contract::ui_command_rva)),scene?"Destroy":"DestroyBuilding"};
+        reinterpret_cast<RecordEquals>(image+contract::record_label_equals_rva),reinterpret_cast<UiCommand>(image+(network?0x74f120:scene?0x7b3cf0:contract::ui_command_rva)),(scene||network)?"Destroy":"DestroyBuilding"};
     cause.clear();return true;
 }
 bool read_live_window(ui::Memory& memory,const Context& context,Window& out,std::string& cause) {
     out={};cause.clear();uintptr_t manager=0,ap=0,focused=0,proxy_target=0,command=0;uint8_t progress=0,queue=0,visible=0;
-    if(context.family!=Family::Building&&context.family!=Family::Scenery){cause="native UI live window family invalid";return false;}
-    const bool scene=context.family==Family::Scenery;
+    if(context.family!=Family::Building&&context.family!=Family::Scenery&&context.family!=Family::NetworkNode&&context.family!=Family::NetworkPipe){cause="native UI live window family invalid";return false;}
+    const bool scene=context.family==Family::Scenery;const bool network=context.family==Family::NetworkNode||context.family==Family::NetworkPipe;
     if(!context.image||context.image>UINTPTR_MAX-0x1748c50||!context.manager||!context.target||context.target>UINTPTR_MAX-0x20){cause="native UI diagnostic context addresses invalid";return false;}
     if(!field(memory,context.image,0x13df630,manager,cause)||manager!=context.manager||!field(memory,manager,0,ap,cause)||ap!=context.image+0x17205d0||
        !field(memory,manager,0xd1,progress,cause)||!field(memory,manager,0xd3,queue,cause)||progress||queue||
@@ -54,10 +58,21 @@ bool read_live_window(ui::Memory& memory,const Context& context,Window& out,std:
        !selection(memory,context.image,manager,0x20,context.target,cause)||!selection(memory,context.image,manager,0x38,context.target,cause)) {
         if(cause.empty())cause="native UI diagnostic manager/current single selection differs";return false;
     }
-    if(!field(memory,manager,0xb8,out.handler,cause)||!field(memory,out.handler,0,ap,cause)||ap!=context.image+(scene?0x17316a0:0x1731720)||
-       !field(memory,out.handler,0x10,out.window,cause)||!field(memory,out.window,0,ap,cause)||ap!=context.image+(scene?0x1725bb0:0x172af10)||
-       !field(memory,ap,contract::window_ui_command_slot,command,cause)||command!=context.image+(scene?0x7b3cf0:contract::ui_command_rva)||
-       !field(memory,out.window,0x45f,visible,cause)||visible!=1||!field(memory,out.window,scene?0x4f0:0x4f8,out.target,cause)||out.target!=context.target||
+    if(!field(memory,manager,0xb8,out.handler,cause)||!field(memory,out.handler,0,ap,cause)||ap!=context.image+(network?0x172e420:scene?0x17316a0:0x1731720)||
+       !field(memory,out.handler,0x10,out.window,cause)||!field(memory,out.window,0,ap,cause)||ap!=context.image+(network?0x1725300:scene?0x1725bb0:0x172af10)||
+       !field(memory,ap,contract::window_ui_command_slot,command,cause)||command!=context.image+(network?0x74f120:scene?0x7b3cf0:contract::ui_command_rva)||
+       !field(memory,out.window,0x45f,visible,cause)||visible!=1) {
+        if(cause.empty())cause="native UI diagnostic live typed InfoWindow differs";return false;
+    }
+    if(network){uintptr_t node=0,pipe=0;uint64_t uid=0;
+        if(!field(memory,out.window,0x4e8,node,cause)||!field(memory,out.window,0x4f0,pipe,cause)||
+           !field(memory,out.window,0x4f8,out.target,cause)||out.target!=context.target||
+           (context.family==Family::NetworkNode?(node!=context.target||pipe):(pipe!=context.target||node))||
+           !field(memory,out.target,0,ap,cause)||ap!=context.image+(context.family==Family::NetworkNode?0x16fc700:0x16fca60)||
+           !field(memory,out.target,0x18,uid,cause)||uid!=context.uid){if(cause.empty())cause="native Network window raw target/kind/full UID differs";return false;}
+        return true;
+    }
+    if(!field(memory,out.window,scene?0x4f0:0x4f8,out.target,cause)||out.target!=context.target||
        !field(memory,out.window,scene?0x4f8:0x500,out.proxy,cause)||!field(memory,out.proxy,0,proxy_target,cause)||proxy_target!=context.target+0x20) {
         if(cause.empty())cause="native UI diagnostic live typed InfoWindow/weak target differs";return false;
     }

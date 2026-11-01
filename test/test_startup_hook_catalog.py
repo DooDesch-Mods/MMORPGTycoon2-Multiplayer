@@ -128,11 +128,14 @@ def startup_targets(source):
 
     # The outer startup order and its move helpers delimit this coverage scope.
     flow = text("prepare_flow.cpp")
-    capture = flow[flow.index("bool start_runtime("):flow.index("bool completed(")]
+    startup = flow[flow.index("bool start_runtime("):flow.index("bool select_paired_world(")]
+    assert startup.count("enable_captures(error)") == 1
+    assert startup.index("typed_action_runtime::start(error)") < startup.index("enable_captures(error)")
+    assert startup.index("enable_captures(error)") < startup.index("typed_action_runtime::enable_live_state(error)")
+    capture = flow[flow.index("bool enable_captures("):flow.index("void configure_ordered_entry(")]
     assert re.findall(r"ui_(\w+)_runtime::enable\(error\)", capture) == [
         "build", "remove", "move", "region", "terrain", "path", "network"]
-    assert "typed_action_runtime::start(error)" in capture
-    assert "typed_action_runtime::enable_live_state(error)" in capture
+    assert capture.index("ui_network_runtime::enable(error)") < capture.index("if(!captures_ready())")
     move = observed["ui_move_runtime.cpp"]
     move = move[move.index("bool enable(std::string& e)"):move.index("bool enabled()")]
     assert re.findall(r"([\w:]+)::enable\(e\)", move) == [

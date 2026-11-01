@@ -13,5 +13,6 @@ bool record(const action_session::Binding&,const action_session::Request&,const 
 bool retire_source(const action_session::Binding&,const action_session::Request&,std::string&);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
+nlohmann::json status();
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
 }

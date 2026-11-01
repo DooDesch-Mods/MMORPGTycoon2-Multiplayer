@@ -5,12 +5,14 @@ namespace monster_target_key=mt2mp::game::monster_target_key;
 #include "npc_census.h"
 #include "direct_monster_identity.h"
 #include "ui_remove/ui_capture.h"
+#include "typed_action/tick_authority.h"
 #include <iostream>
 #include <map>
 #include <atomic>
 #include <memory>
 #include <cstring>
 using json=nlohmann::json;
+namespace mt2mp::action_session::tick_commands::authority {bool active(){return false;}}
 namespace remove_adapter_fixture {
 namespace a=mt2mp::action_session;
 namespace identity=mt2mp::game::direct_monster_identity;
@@ -39,22 +41,29 @@ namespace typed_action_runtime{
 namespace action=a;
 struct Status{bool started=true,locked=false,pending=true;std::string action_uuid=action_id;};
 struct Controller{Status value;Status status()const{return value;}
+ bool ordered_mode()const{return false;}
  a::Context bound_context()const{a::Context context;context.snapshot_uuid=snapshot_id;return context;}
  a::Binding bound_binding()const{return {3,4};}};
 struct Session{bool current(a::Context& context,std::string&){context.snapshot_uuid=snapshot_id;return true;}};
 struct Engine{bool current(const a::Binding& binding,const std::string& snapshot,std::string&){return binding==a::Binding{3,4}&&snapshot==snapshot_id;}};
-struct Runtime{unsigned thread=1;bool lobby_retiring=false;Controller controller;Session session;Engine engine;}fixture_runtime;
+struct Runtime{unsigned thread=1;bool lobby_retiring=false,live_state=false,live_port=false;Controller controller;Session session;Engine engine;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 #include "remove_read_binding_body.inc"
+bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 #include "remove_network_binding_body.inc"
+bool original_go_admission(bool&,std::string& e){return fail(e,"unexpected original Go in legacy Remove fixture");}
 json controller_status(){const auto value=fixture_runtime.controller.status();return {{"started",value.started},{"locked",value.locked},{"pending",value.pending&&mode!=13},{"action_uuid",value.action_uuid}};}
 }
+#include "remove_ordered_mode_body.inc"
+bool ordered_scope(const a::Binding&,const a::Request&,std::string& e){return fail(e,"unexpected Ordered scope in legacy Remove fixture");}
+#include "remove_execution_admission_body.inc"
+#include "remove_capture_binding_body.inc"
 struct Runtime{bool ready=true;unsigned thread=1;uintptr_t image=1;}state;
 struct RemoveOperation {
  a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;identity::Entry birth;mz::Monster row;d::Sample before;
  qr::Witness quests;uintptr_t graph=0;uint64_t character_id=0;
  std::map<uint64_t,std::string> names_before;
- bool attempted=false,returned=false,confirmed=false,retired=false,seed_attempted=false;uint64_t original_calls=0;std::string cause;
+ bool attempted=false,returned=false,confirmed=false,retired=false,seed_attempted=false,ordered=false;uint64_t original_calls=0;std::string cause;
 };
 std::map<std::string,RemoveOperation> removals;const ur::Replay* remove_replay=nullptr;
 json last_remove_quest_preflight=nullptr;

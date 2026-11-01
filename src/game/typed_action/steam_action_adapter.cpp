@@ -1,4 +1,5 @@
 #include "steam_action_adapter.h"
+#include "recovery_read_scope.h"
 #include "mt2mp/net/session_wire.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/core/config.h"
@@ -16,6 +17,7 @@ bool SteamTransport::send(uint64_t target,const std::vector<uint8_t>& bytes,std:
 }
 bool SteamTransport::poll(std::string& cause){return net::session_wire::tick(cause);}
 bool SteamSession::current(Context& out,std::string& cause) {
+    if(recovery_read::selected)return recovery_read::local(out,cause);
     if(Config::instance().local_test){cause="Steam action adapter cannot bind local sidecar session";return false;}
     std::array<uint64_t,5> ids{};uint64_t lobby=0,host=0,local=0;
     uint64_t own=0;
@@ -34,7 +36,7 @@ bool SteamSession::current(Context& out,std::string& cause) {
         uint8_t ack_slots=0;
         for(const auto& load:loads) {
             const auto peer=load.value("peer",uint64_t{});
-            if(peer<2||peer>4||!ids[peer]||(ack_slots&(1u<<(peer-1)))||!load.value("loaded",false)||!load.value("network_verified",false)) {
+            if(peer<2||peer>4||!ids[peer]||(ack_slots&(1u<<(peer-1)))||!load.value("loaded",false)||!(net::ordered_snapshot_selected()?load.value("ordered_load_verified",false):load.value("network_verified",false))) {
                 cause="Steam peer native network identity LoadACK absent or wrong slot";return false;
             }
             ack_slots|=uint8_t(1u<<(peer-1));

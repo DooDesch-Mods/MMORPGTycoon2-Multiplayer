@@ -58,6 +58,8 @@ public:
     ui::HookResult on_update(void* type,void* item);
     bool suspend(const std::string& reason,std::string&);
     bool observe_receipt(uint8_t request_peer,uint64_t sequence,wire::Message&,bool& available,std::string&);
+    // Drain only a suspended owner. This never binds or advances time.
+    bool finish_retirement(std::string&);
     bool status(Status&,std::string&);
 private:
     struct Impl;

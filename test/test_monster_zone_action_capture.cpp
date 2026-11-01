@@ -5,9 +5,9 @@
 namespace zone_capture_fixture {
 namespace a=mt2mp::action_session;using json=nlohmann::json;
 struct Memory{};struct Pin{int region=1;};namespace d{struct Sample{int cash=0;};}
-struct Capture{uintptr_t brush=100,graph=200;Pin pin;a::ZoneIntent intent;std::string cause,ui_token="token";bool cleanup_attempted=false;};
+struct Capture{uintptr_t brush=100,graph=200;Pin pin;a::ZoneIntent intent;std::string cause,ui_token="token";bool cleanup_attempted=false,context=false;};
 struct Runtime{bool capture_fault=false;unsigned thread=7,captures=0;std::optional<Capture> capture,pending;void(*finished)(void*,const void*)=nullptr;std::map<std::string,json> ui_jobs;std::string cause;}state;
-bool connected=true;unsigned thread_id=7,original_calls=0;int current_cash=20;std::string fault;
+bool ordered=false;bool connected=true;unsigned thread_id=7,original_calls=0;int current_cash=20;std::string fault;
 namespace net::session_wire{bool connected(){return ::zone_capture_fixture::connected;}}
 unsigned GetCurrentThreadId(){return thread_id;}
 void reject(const std::string& e){state.cause=e;}
@@ -20,10 +20,13 @@ namespace zone_edit_runtime {
 bool intercept=false,accepted=true;
 bool capture_finished(void*,const void*,bool& handled){handled=intercept;return accepted;}
 }
+bool ordered_mode(){return ordered;}
+bool input_admission(std::string& e){if(fault=="held"){e="Ordered Zone capture requires actual OriginalGo";return false;}return true;}
+bool current_capture(const Capture&,std::string& e){if(fault=="binding"){e="Zone captured Session/Binding changed";return false;}return true;}
 #include "zone_finish_body.inc"
 #include "zone_edit_capture_cases.inc"
 void need(bool v,const std::string& e){if(!v)throw std::runtime_error(e);}
-void reset(){state={};connected=true;thread_id=7;original_calls=0;current_cash=20;fault.clear();Capture c;c.intent.region=67;c.intent.character_type=0;c.intent.level=1;
+void reset(){state={};ordered=false;connected=true;thread_id=7;original_calls=0;current_cash=20;fault.clear();Capture c;c.intent.region=67;c.intent.character_type=0;c.intent.level=1;
  c.intent.stamps.push_back({{1,0,2},{{{0,0},{1,0},{1,1}}}});state.capture=c;state.ui_jobs["token"]={{"captured",false}};}
 }
 int main(){try{using namespace zone_capture_fixture;unsigned count=0;reset();finished_entry(reinterpret_cast<void*>(100),nullptr);
@@ -41,5 +44,10 @@ int main(){try{using namespace zone_capture_fixture;unsigned count=0;reset();fin
  need(!original_calls&&state.capture&&!state.pending,"owned Zone58 Finish fell through into legacy cleanup");++count;
  reset();zone_edit_runtime::accepted=false;finished_entry(reinterpret_cast<void*>(100),nullptr);
  need(!original_calls&&state.capture&&!state.pending,"rejected Zone58 Finish fell through into legacy cleanup");++count;
+ reset();ordered=true;zone_edit_runtime::intercept=true;zone_edit_runtime::accepted=false;finished_entry(reinterpret_cast<void*>(100),nullptr);
+ need(original_calls==1&&state.pending&&state.captures==1,"ordered creation was intercepted by ZoneEdit");++count;
+ reset();ordered=true;fault="binding";finished_entry(reinterpret_cast<void*>(100),nullptr);need(!original_calls&&!state.pending,"retired capture reached native cleanup");++count;
+ reset();ordered=true;state.capture->context=true;fault="held";finished_entry(reinterpret_cast<void*>(100),nullptr);need(!original_calls&&!state.pending&&state.capture,"held callback escaped OriginalGo");++count;
+ reset();ordered=true;state.capture->context=true;connected=false;finished_entry(reinterpret_cast<void*>(100),nullptr);need(!original_calls&&state.capture&&!state.pending&&!state.cause.empty(),"disconnected ordered capture forwarded native Finish");++count;
  std::cout<<count<<" actual Finish capture cases PASS\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

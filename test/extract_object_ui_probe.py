@@ -36,5 +36,5 @@ assert read_body.endswith(';}') and 'catch(const std::exception& cause)' in read
 for forbidden in ['command(', 'cursor_call(', 'show(', 'submit_', 'sample(']:
     assert forbidden not in read_body,'Read-only observation acquired an effect: '+forbidden
 (args.output/'object_ui_read.inc').write_text(body('bool terminal(')+'\n'+body('bool stopped(')+'\n'+body('json format(')+'\n'+read_body+'\n',encoding='utf-8')
-(args.output/'object_ui_binding.inc').write_text(body('bool read_binding(',runtime)+'\n'+body('bool network_binding(',runtime)+'\n',encoding='utf-8')
+(args.output/'object_ui_binding.inc').write_text(body('bool read_binding(',runtime)+'\n'+body('bool network_binding_with_mode(',runtime)+'\n'+body('bool network_binding(',runtime)+'\n',encoding='utf-8')
 print('PASS actual original command body and existing capture/identity/no-replay boundaries; no direct Controller submit or new hook.')

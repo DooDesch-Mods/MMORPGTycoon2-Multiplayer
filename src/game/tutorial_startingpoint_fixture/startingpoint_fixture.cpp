@@ -1,5 +1,7 @@
 #include "developer_staff/action_native.h"
 #include "general_project_runtime.h"
+#include "initial_release/release_entry.h"
+#include "initial_release/release_bytes.h"
 #include "queued_project_expected.h"
 #include "startingpoint_fixture.h"
 #include "activity_format_probe.h"
@@ -62,7 +64,7 @@ struct Pin {
     World world;
     uintptr_t image=0,lounge=0,project=0,window=0,button=0,player=0,inventory=0,slots=0;
     std::array<uintptr_t,200> items{};
-    json development,tutorial;std::string tech_key="startingpoint";
+    json development,tutorial;std::string tech_key="startingpoint";bool ordered=false;
 };
 bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending_id={},
          const action_session::Context* submitted_context=nullptr,const action_session::Binding* submitted_binding=nullptr){
@@ -73,12 +75,18 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
         return fail(e,"startingpoint fixture requires exact EXE/owned GameUpdate/Mainthread");
     if(!Config::instance().local_test||Config::instance().is_host==client)return fail(e,client?"startingpoint fixture requires isolated local-test Client":"startingpoint fixture requires isolated local-test Host");
     const auto controller=typed_action_runtime::status();
-    if(client?!client_controller_admission(controller,pending_id,e):!controller_admission(controller,e))return false;
+    if(controller.value("initialized",false)&&pending_id.empty()){
+        action_session::Context context;action_session::Binding binding;
+        if(!action_session::selected_session().current(context,e)||
+           !typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&p.ordered))return false;
+    }
+    if(client?!client_controller_admission(controller,pending_id,e,p.ordered):!controller_admission(controller,e,p.ordered))return false;
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.edit_operations||status.saves_in_progress||status.quitting||status.title_transition_pending||status.map_task_pending)
         return fail(e,"startingpoint fixture requires idle InGame without edit/save/transition");
     native::ClockState clock;if(!native::read_clock(clock,e))return false;
-    if(clock.time_scale!=0||!std::isfinite(clock.pause_scale)||clock.pause_scale<0)return fail(e,"startingpoint fixture requires selected Clock0");
+    const bool running_observation=p.ordered&&(request.operation=="client_bridges_commit_state"||request.operation=="client_startingpoint_commit_state");
+    if((clock.time_scale!=0&&!running_observation)||!std::isfinite(clock.time_scale)||clock.time_scale<0||!std::isfinite(clock.pause_scale)||clock.pause_scale<0)return fail(e,"startingpoint fixture requires selected Clock0");
     if(!native_open_runtime::read_current_world(p.world,e)||!tutorial_development::read(p.development,e)||!tutorial_observer::read(p.tutorial,e))return false;
     if(p.world.game!=update_game||p.world.uuid!=request.origin_uuid||p.world.world_epoch!=request.epoch||p.world.generation!=request.generation)
         return fail(e,"startingpoint fixture expected local Origin differs");
@@ -124,8 +132,9 @@ bool before(const Pin& p,std::string& e){
     const auto& d=p.development.at("project");const auto& t=p.development.at("startingpoint");
     if(!d.at("present").get<bool>()||d.at("kind")!=0||d.at("tech_key")!="startingpoint"||!p.project)
         return fail(e,"startingpoint fixture requires current native startingpoint project");
-    if(d.at("bugs_total")!=0||d.at("bugs_known")!=0||d.at("bugs_unknown")!=0)
-        return fail(e,"startingpoint fixture requires all actual bug counters0; nonzero Map effects unsupported");
+    const auto total=d.at("bugs_total").get<int64_t>(),known=d.at("bugs_known").get<int64_t>(),unknown=d.at("bugs_unknown").get<int64_t>();
+    if(total<0||known<0||known>total||unknown!=total-known)return fail(e,"startingpoint fixture native bug counters are inconsistent");
+    if(!p.ordered&&(total||known))return fail(e,"startingpoint nonzero Commit requires ordered original execution");
     if(!t.at("record_present").get<bool>()||!t.at("purchased").get<bool>()||t.at("deployed").get<bool>()||t.at("custom").get<bool>()||t.at("owned").get<bool>()||t.at("inventory_count")!=0)
         return fail(e,"startingpoint fixture requires purchased/unowned record and no StartingPoints item");
     if(std::find(p.items.begin(),p.items.end(),uintptr_t(0))==p.items.end())
@@ -202,6 +211,8 @@ bool before_research(const Pin& p,std::string& e){
 #include "staff_ui_native.inc"
 #include "staff_ui_read.inc"
 #include "client_staff_fixture.inc"
+#include "client_cancel_fixture.inc"
+#include "client_commit_state.inc"
 #include "activity_native.inc"
 #include "activity_read.inc"
 }
@@ -212,12 +223,13 @@ bool run(const Request& request,json& result,std::string& e){
     std::string key;Progress* phase=nullptr;
     try{
         if(request.token.empty()||request.token.size()>64||request.origin_uuid.empty()||!request.epoch||!request.generation||
-           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"&&request.operation!="client_staff_show"&&request.operation!="client_staff_state"&&request.operation!="client_staff_one"&&request.operation!="staff_activity_state"&&request.operation!="client_bridges_show"&&request.operation!="client_bridges_state"&&request.operation!="client_bridges_start"&&request.operation!="client_bridges_staff_show"&&request.operation!="client_bridges_staff_state"&&request.operation!="client_bridges_staff_one"&&request.operation!="client_bridges_commit"))return fail(e,"startingpoint fixture fixed request invalid");
+           (request.operation!="begin"&&request.operation!="show"&&request.operation!="complete"&&request.operation!="commit"&&request.operation!="client_show"&&request.operation!="client_commit"&&request.operation!="client_research_show"&&request.operation!="client_research"&&request.operation!="client_research_state"&&request.operation!="client_staff_show"&&request.operation!="client_staff_state"&&request.operation!="client_staff_one"&&request.operation!="staff_activity_state"&&request.operation!="client_bridges_show"&&request.operation!="client_bridges_state"&&request.operation!="client_bridges_start"&&request.operation!="client_bridges_staff_show"&&request.operation!="client_bridges_staff_state"&&request.operation!="client_bridges_staff_one"&&request.operation!="client_bridges_commit"&&request.operation!="client_bridges_cancel"&&request.operation!="client_bridges_commit_state"&&request.operation!="client_startingpoint_commit_state"))return fail(e,"startingpoint fixture fixed request invalid");
         // No shared receipt state is touched outside the bound update thread.
         uintptr_t image=0;uint32_t thread=0;std::string sha;
         if(!native::read_resolver_receipt(image,thread,sha,e))return false;
         if(thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
             return fail(e,"startingpoint fixture requires owned GameUpdate/Mainthread before receipt access");
+        if(request.operation=="client_bridges_commit_state"||request.operation=="client_startingpoint_commit_state")return client_commit_state(request,result,e);
         if(request.operation=="staff_activity_state")return staff_activity_state(request,result,e);
         if((request.operation=="client_staff_state"||request.operation=="client_bridges_staff_state"))return client_staff_state(request,result,e);
         if((request.operation=="client_research_state"||request.operation=="client_bridges_state"))return client_research_state(request,result,e);
@@ -227,6 +239,7 @@ bool run(const Request& request,json& result,std::string& e){
         if(request.operation=="client_show"||request.operation=="client_commit"||request.operation=="client_bridges_commit")return client_ui(request,result,phase,key,e);
         if(request.operation=="client_research_show"||request.operation=="client_research"||request.operation=="client_bridges_show"||request.operation=="client_bridges_start")return client_research(request,result,phase,key,e);
         if(request.operation=="client_staff_show"||request.operation=="client_staff_one"||request.operation=="client_bridges_staff_show"||request.operation=="client_bridges_staff_one")return client_staff(request,result,phase,key,e);
+        if(request.operation=="client_bridges_cancel")return client_cancel(request,result,phase,key,e);
         if(request.operation=="begin")return begin_project(request,result,phase,key,e);
         Pin p;if(!pin(request,p,e)||!before(p,e))return false;
         if(!same_expected_development(p.development,request.expected_development))return fail(e,"startingpoint fixture expected development readback differs");

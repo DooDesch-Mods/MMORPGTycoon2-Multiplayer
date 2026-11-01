@@ -1,12 +1,9 @@
-# Early Beta 23 - Performance and world-start fixes
+# Early Beta 24 - Shared simulation
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-- Reduced repeated work during shared-world updates.
-- Fixed assigning developers to queued projects.
-- Fixed the Host loading a new world twice when starting a session.
-- Let Client saves finish before applying the next world update.
+Rejoin after restarting the game and continue building. Fixed simulation drift after rejoining.
 
-**Both players need Beta 23.** Close the game, import the ZIP into Vortex, enable it and deploy. Use [MT2 Mod Framework Runtime 0.3.1](https://github.com/DooDesch-Mods/MMORPGTycoon2-ModFramework/releases/tag/v0.3.1), then start through Steam.
+Groups, modular buildings, dungeons and management actions are not yet available in the new simulation. Performance and other gameplay scenarios are still being tested. Start with a small world and see [what works in co-op](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer#what-works-in-co-op). Beta 23 remains available in [earlier releases](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
 
-**Performance is still being improved.** Low FPS, long pauses and desyncs can still occur. Start with a small world and keep backups of your saves.
+Both players need Beta 24, MT2 Mod Framework Runtime 0.5.0 and the MMORPG Tycoon 2 Vortex Extension. Close the game, install the ZIP through Vortex, enable and deploy, then start through Steam.

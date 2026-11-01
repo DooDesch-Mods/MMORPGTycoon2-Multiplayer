@@ -36,6 +36,7 @@
 #include "district_title_reader.h"
 #include "live_host_state/economic_fence.h"
 #include "live_host_state/memory_query_timing.h"
+#include "character_catalogue_timing.h"
 #include "district_reader.h"
 #include "district_saved_identity_runtime.h"
 #include "boss_phase_runtime.h"
@@ -47,7 +48,14 @@
 #include "selection_move_native.h"
 #include "duplicate_runtime.h"
 #include "scenery_stroke_runtime.h"
+#include "scenery_gesture.h"
+#include "placement_ui_probe/ui_probe.h"
+#include "scenery_gesture_code.h"
 #include "building_clearance_runtime.h"
+#include "ordered_empty_clearance.h"
+#include "ordered_clearance_group.h"
+#include <intrin.h>
+#include "typed_action/tick_authority.h"
 #include "building_clearance_graph.h"
 #include "modular_runtime.h"
 #include "modular_calls.h"
@@ -81,6 +89,7 @@
 #include "duplicate_history_effects.h"
 #include "world_quest_history.h"
 #include "npc_saved_identity_runtime.h"
+#include "network_identity.h"
 #include "building_npc_lifecycle.h"
 #include "duplicate_history_value_calls.h"
 #include "subscriber_lifecycle/capture.h"
@@ -247,7 +256,11 @@ bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t 
     state=world_state::building_state(actual);key=target.record_key;return true;
 }
 bool Services::submit_move(const move_kiss::Intent& intent,std::string& e){
-    if(runtime.pending||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||selection_move::pending()||typed_action_runtime::status().value("pending",true)){e="move Controller or UI intent already pending";return false;}
+    bool npc_go=false;
+    if((npc_intent(intent)||intent.family==move_kiss::Family::DirectMonster)&&typed_action_runtime::controller_status().value("ordered",false)&&
+       !typed_action_runtime::original_go_admission(npc_go,e))return false;
+    if(runtime.pending||boss_placement::pending()||group_object::pending()||duplicate_edit::pending()||selection_move::pending()||
+       (typed_action_runtime::status().value("pending",true)&&!npc_go)){e="move Controller or UI intent already pending";return false;}
     auto id=uuid(e);if(id.empty())return false;
     if(npc_intent(intent)){
         if(!npc_probe::action_runtime::move_captured(intent,id,e))return false;
@@ -438,6 +451,9 @@ namespace group_edit { namespace { bool find(Runtime&,uint64_t,uintptr_t&,std::s
 #include "scenery_stroke_sample.inc"
 #include "scenery_stroke_capture_runtime.inc"
 #include "scenery_stroke_routes.inc"
+#include "scenery_stroke_gesture.inc"
+#include "scenery_ordered_gesture.inc"
+#include "scenery_ordered_receipt.inc"
 #include "scenery_stroke_port.inc"
 #include "scenery_stroke_forward.inc"
 #include "scenery_stroke_history_runtime.inc"
@@ -495,7 +511,6 @@ bool enabled()noexcept{const auto* r=published.load(std::memory_order_acquire);r
 void tick(){
     boss_placement::tick();
     group_object::tick();
-    scenery_stroke::tick();
     modular::tick();
     duplicate_edit::tick();
     group_edit::tick();
@@ -507,6 +522,10 @@ void tick(){
     boss_phase::tick();
     service_membership::tick();
     selection_move::tick();
+    tick_core_capture();
+}
+void tick_core_capture(){
+    scenery_stroke::tick();
     auto* r=published.load(std::memory_order_acquire);if(!r||!enabled()||!r->pending)return;
     const auto intent=*r->pending;const auto id=r->pending_id;r->pending.reset();r->pending_id.clear();std::string e;
     move_kiss::Origin fresh;remove_diagnostics::LocalTarget target;native::BuildingState actual;

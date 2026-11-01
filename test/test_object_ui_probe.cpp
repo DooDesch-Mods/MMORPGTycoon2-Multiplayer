@@ -141,13 +141,13 @@ std::string current_snapshot_id(){return snapshot_value;}
 }
 namespace typed_action_runtime {
 struct State {bool started=true,locked=false,pending=false;};
-struct Controller {State state;action::Context context;action::Binding binding;
+struct Controller {bool ordered_mode()const{return false;}State state;action::Context context;action::Binding binding;
     State status(){return state;}action::Context bound_context(){return context;}action::Binding bound_binding(){return binding;}};
 struct Session {action::Context value;bool okay=true;
     bool current(action::Context& out,std::string& error){if(!okay){error="original Session read failure";return false;}out=value;return true;}};
 struct Engine {bool okay=true;int reads=0;
     bool current(const action::Binding&,const std::string&,std::string& error){++reads;if(!okay){error="original native World binding failure";return false;}return true;}};
-struct BoundRuntime {uint32_t thread=0;bool lobby_retiring=false;Controller controller;Session session;Engine engine;};
+struct BoundRuntime {bool live_state=false,live_port=false;uint32_t thread=0;bool lobby_retiring=false;Controller controller;Session session;Engine engine;};
 inline std::atomic<BoundRuntime*> published_runtime=nullptr;
 #include "object_ui_binding.inc"
 }

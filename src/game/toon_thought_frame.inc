@@ -36,9 +36,9 @@ bool once(Runtime& r,const a::Context& c,const a::Binding& b,Snapshot& out,std::
 }
 bool sample(Runtime& r,const a::Context& c,const a::Binding& b,Snapshot& out,std::string& e){Snapshot first;if(!once(r,c,b,first,e)||!once(r,c,b,out,e))return false;
     return (first.bound==out.bound&&first.owners==out.owners&&first.value==out.value)||fail(e,"Thought complete current owners/values changed during double read");}
-bool code(Runtime& r,std::string& e){struct Body{uintptr_t rva;size_t bytes;const char* sha;};constexpr Body bodies[]={
+bool code(Runtime& r,std::string& e,bool mutation_required=true){struct Body{uintptr_t rva;size_t bytes;const char* sha;};constexpr Body bodies[]={
 #include "toon_thought_codes.inc"
-    };for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Thought original constructor/bookkeeping body differs RVA="+std::to_string(body.rva):e);}
+    };if(mutation_required)for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Thought original constructor/bookkeeping body differs RVA="+std::to_string(body.rva):e);}
     if(!thought_native::enabled||!thought_native::fault.empty())return fail(e,thought_native::fault.empty()?"Thought lifetime bridge is not enabled":thought_native::fault);
     auto copy=[&](auto p,auto out,auto count,auto& cause){return r.memory.copy(p,out,count,cause);};auto hash=[](const auto& bytes){return mt2mp::sha256(bytes);};
     return release_ui_owner::verify(thought_native::destroy_owner,copy,hash,"b809f7293fa4d0c143cddd610b18480853bc841ab4ea3441fc6aacd40b0dc625",e);
@@ -129,7 +129,8 @@ bool reorder(Port& p,const values::State& target,Snapshot& actual,std::string& e
     return true;
 }
 bool adopt(Runtime& r,const a::Context& c,const a::Binding& b,const values::State& target,live::ManagementReceipt& receipt,std::string& e){
-    Snapshot before;if(c.role!=a::Role::Client||!sample(r,c,b,before,e)||before.bound.pin.selected!=0||!compatible(before.value,target,before.bound,e)||!code(r,e))return fail(e,e.empty()?"Thought Apply requires complete current Client Clock0":e);
+    // Unchanged values need no mutation body, but still require the active lifetime owner.
+    Snapshot before;if(c.role!=a::Role::Client||!sample(r,c,b,before,e)||before.bound.pin.selected!=0||!compatible(before.value,target,before.bound,e)||!code(r,e,before.value!=target))return fail(e,e.empty()?"Thought Apply requires complete current Client Clock0":e);
     Port port{r,c,b,before.bound,receipt,{}};last={{"attempted",false},{"confirmed",false},{"unknown",false},{"retained",nlohmann::json::array()}};
     auto failed=[&](){last["attempted"]=receipt.attempted;last["unknown"]=receipt.attempted;last["cause"]=e;last["retained"]=port.retained;return false;};
     try{

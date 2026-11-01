@@ -1,8 +1,8 @@
 namespace pipe {
 using Intent=action::NetworkPipeIntent;using Point=action::NetworkPoint;using Preview=network_pipe_native::Preview;
 using Buy=bool(*)(void*,float,const void*);
-struct Pending{Intent intent;action::Binding binding;std::string snapshot,token;};
-struct Operation{action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t tool=0,created=0;uint64_t uid=0,new_uid=0;Point settled_end{};int32_t inverse_cost=0;unsigned calls=0;bool attempted=false,returned=false,confirmed=false,retired=false;std::string cause;};
+struct Pending{Intent intent;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;};
+struct Operation{action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t tool=0,created=0;uint64_t uid=0,new_uid=0;Point settled_end{};int32_t inverse_cost=0;unsigned calls=0;bool attempted=false,returned=false,confirmed=false,retired=false,ordered=false;std::string cause;};
 struct State{bool attempted=false,ready=false,capture_failed=false;Press press=nullptr;Buy purchase=nullptr;uintptr_t capture_receiver=0;std::optional<Pending> captured,pending;std::map<std::string,Operation> operations;std::map<std::string,json> jobs;uint64_t captures=0,submits=0,rejections=0;std::string token,cause,last_action;} state;
 void rejected(const std::string& e){++state.rejections;if(state.cause!=e){state.cause=e;LOG_ERROR("[UINetworkPipe] Rejected cause={}",e);}}
 void press_entry(void*,void*,const void*);bool purchase_entry(void*,float,const void*);
@@ -61,12 +61,19 @@ bool purchase_entry(void* def,float length,const void* point){
     if(!region::at(*r,state.capture_receiver,0x200,region_object,e)||!region::at(*r,region_object,0x834,id,e)||!region::identity(*r,id,region_object,view,e)||
        !graph(*r,view,before,network,e)||!preview(*r,state.capture_receiver,before,network,actual,e)||!r->memory.copy(uintptr_t(point),endpoint.data(),sizeof endpoint,e)||
        actual.definition!=uintptr_t(def)||actual.intent.quoted_length!=length||actual.intent.end!=endpoint){rejected(e.empty()?"network Pipe Purchase parameters differ from actual preview":e);return false;}
-    state.captured=Pending{actual.intent,{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),state.token};return false;
+    const action::Binding binding{view.world.origin.world_epoch,view.world.origin.generation};
+    const auto snapshot=net::current_snapshot_id();std::optional<action::Context> context;
+    if(!capture_context(snapshot,binding,context,e)){rejected(e);return false;}
+    state.captured=Pending{actual.intent,binding,snapshot,state.token,context};return false;
 }
 void press_entry(void* receiver,void* cursor,const void* point){
-    if(!state.ready||!net::session_wire::connected()){state.press(receiver,cursor,point);return;}
-    std::string e;auto* r=runtime(e);const auto controller=typed_action_runtime::status();
-    if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||state.pending||state.captured||state.capture_receiver){rejected(e.empty()?"network Pipe UI requires idle Controller":e);return;}
+    if(!state.ready||!net::session_wire::connected()){
+        if(typed_action_runtime::controller_status().value("ordered",false)||(state.pending&&state.pending->context)||(state.captured&&state.captured->context)){
+            rejected("Ordered Network input lost ready connected Session");return;}
+        state.press(receiver,cursor,point);return;
+    }
+    std::string e;auto* r=runtime(e);
+    if(!r||!input_admission(e)||state.pending||state.captured||state.capture_receiver){rejected(e.empty()?"network Pipe UI requires idle Controller":e);return;}
     uintptr_t active=0;Point position{};action::Ledger money,after;undo::UndoWitness before_undo,after_undo;
     if(!region::at(*r,uintptr_t(cursor),0x190,active,e)||active!=uintptr_t(receiver)||!r->memory.copy(uintptr_t(point),position.data(),sizeof position,e)||
        !region::ledger(money,e)||!undo::read_undo(r->memory,r->image,before_undo,e)||before_undo.active_graph){rejected(e.empty()?"network Pipe actual UI owner or Undo differs":e);return;}
@@ -77,6 +84,9 @@ void press_entry(void* receiver,void* cursor,const void* point){
        !region::ledger(after,e)||!undo::read_undo(r->memory,r->image,after_undo,e)||money!=after||before_undo!=after_undo||
        !region::identity(*r,state.captured->intent.region,0,view,e)||!graph(*r,view,actual,network,e)||network.graph_sha256!=state.captured->intent.graph_before_sha256){
         state.capture_failed=true;rejected(e.empty()?"network Pipe capture completion changed graph/cash/Undo or retained preview":e);return;}
+    std::optional<action::Context> final_context;
+    if(!capture_context(state.captured->snapshot,state.captured->binding,final_context,e)||final_context!=state.captured->context){
+        state.capture_failed=true;rejected(e.empty()?"Network capture Context changed during original completion":e);return;}
     state.pending=std::move(state.captured);state.captured.reset();++state.captures;
 }
 bool enable(region::Runtime& r,std::string& e){
@@ -105,9 +115,10 @@ bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::Undo
     return removed(op.uid);
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
+    bool ordered=false;if(!execution_admission(binding,request,authority,ordered,e))return action::Outcome::RejectedNoEffect;
     auto* r=runtime(e);if(!r||!state.ready||!action::valid_network_pipe(request.network_pipe)){e="network Pipe runtime/intent unavailable: "+e;return action::Outcome::RejectedNoEffect;}
     if(state.operations.contains(request.action_uuid)){e="network Pipe action already attempted; no replay";return action::Outcome::Unknown;}
-    const auto controller=typed_action_runtime::status();if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="network Pipe requires exact pending Controller action";return action::Outcome::RejectedNoEffect;}
+    const auto controller=typed_action_runtime::status();if(!ordered&&(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid)){e="network Pipe requires exact pending Controller action";return action::Outcome::RejectedNoEffect;}
     const auto& intent=request.network_pipe;region::LocalView view;reader::Graph before;action::NetworkState network;action::Ledger money;undo::UndoWitness before_undo;uintptr_t cursor=0;
     if(!code(*r,true,e)||!region::identity(*r,intent.region,0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,before,network,e)||
        !region::ledger(money,e)||!undo::read_undo(r->memory,r->image,before_undo,e)||!region::at(*r,r->image,0x13df9d0,cursor,e)||!reader::read::ap(r->memory,cursor,r->image,0x1786dd0,e))return action::Outcome::RejectedNoEffect;
@@ -119,7 +130,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     // Original AddNode replaces input Y with the map point height before setting the endpoint.
     if(intent.end_node<0&&(!native_error(settled_height(r->image,view.world.root-0x1c0,intent.end,settled.end[1]),"Pipe endpoint GetHeightAt",e)||!std::isfinite(settled.end[1]))){if(e.empty())e="network original Junction height is not finite";return action::Outcome::RejectedNoEffect;}
     network_history_runtime::Snapshot history_before;if(!network_history_runtime::capture(before,{},history_before,e))return action::Outcome::RejectedNoEffect;
-    auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.settled_end=settled.end;op.evidence.before=money;op.evidence.network_before=network;
+    auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.ordered=ordered;op.settled_end=settled.end;op.evidence.before=money;op.evidence.network_before=network;
     auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};
     // Construction and preview have native lifetime effects; failures remain unresolved until inspected.
     op.attempted=true;if(!native_error(construct(r->image,op.tool),"Pipe behaviour constructor/SetType",e))return unknown();
@@ -143,7 +154,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
     auto* r=runtime(e);if(!r)return false;const auto it=state.operations.find(request.action_uuid);
     if(it==state.operations.end()||it->second.binding!=binding||it->second.request!=request||!it->second.confirmed)return fail(e,"network Pipe observation lacks exact confirmed operation");
-    const auto& op=it->second;region::LocalView view;reader::Graph actual;action::NetworkState network;action::Ledger money;
+    const auto& op=it->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;region::LocalView view;reader::Graph actual;action::NetworkState network;action::Ledger money;
     if(!region::identity(*r,request.network_pipe.region,0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,actual,network,e)||!region::ledger(money,e))return false;
     const auto created=std::find_if(actual.pipe_values.begin(),actual.pipe_values.end(),[&](const auto& pipe){return pipe.object==op.created&&pipe.uid==op.uid;});
     if(network!=op.evidence.network_after||money!=op.evidence.after||created==actual.pipe_values.end())return fail(e,"network Pipe actual state changed after original return");
@@ -164,16 +175,20 @@ void tick(){
     const auto controller=typed_action_runtime::controller_status();for(auto& [token,job]:state.jobs){(void)token;const auto id=job.value("action_uuid",std::string{});
         if(id.empty()||job.value("terminal",false))continue;if(controller.value("action_uuid",std::string{})==id&&!controller.value("pending",true)){const auto outcome=controller.value("outcome",0);
             if(outcome==1||outcome==2){job["terminal"]=true;job["confirmed"]=outcome==1;job["outcome"]=outcome;job["cause"]=controller.value("cause",std::string{});}}}
-    if(!state.pending)return;const auto pending=*state.pending;state.pending.reset();std::string e;auto* r=runtime(e);region::LocalView view;
+    if(!state.pending)return;std::string e;bool ready=false;
+    if(!capture_ready(*state.pending,ready,e)){state.capture_failed=true;rejected(e);if(!state.pending->token.empty())state.jobs[state.pending->token]["cause"]=e;return;}
+    if(!ready)return;
+    auto pending=*state.pending;state.pending.reset();auto* r=runtime(e);region::LocalView view;
     if(!r||!region::identity(*r,pending.intent.region,0,view,e)||!region::bound(view,pending.binding,pending.snapshot,e)){state.capture_failed=true;rejected(e);return;}
     const auto id=region::uuid(e);if(id.empty()||!typed_action_runtime::submit_network_pipe(id,pending.intent,e)){state.capture_failed=true;rejected(e.empty()?"network Pipe Controller submit failed":e);return;}
     ++state.submits;state.last_action=id;if(!pending.token.empty()){state.jobs[pending.token]["action_uuid"]=id;state.jobs[pending.token]["submitted"]=true;}
 }
-json status(){json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"native_calls",op.calls},{"inverse_cost",op.inverse_cost},{"settled_end",op.settled_end},{"cause",op.cause},{"before",op.evidence.network_before.graph_sha256},{"after",op.evidence.network_after.graph_sha256}};
+json status(){json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"native_calls",op.calls},{"ordered",op.ordered},{"inverse_cost",op.inverse_cost},{"settled_end",op.settled_end},{"cause",op.cause},{"before",op.evidence.network_before.graph_sha256},{"after",op.evidence.network_after.graph_sha256},{"ledger_before",action::management_ledger_observation(op.evidence.before)},{"ledger_after",action::management_ledger_observation(op.evidence.after)},{"undo_confirmed",op.evidence.undo_confirmed},{"local_uid",op.uid}};
     return {{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},{"rejected",state.rejections},{"pending",bool(state.pending)||bool(state.captured)},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.jobs}};}
 bool native_ui(const json& args,json& out,std::string& e){
-    out=json::object();auto* r=runtime(e);if(!r)return false;const auto controller=typed_action_runtime::status();
-    if(!state.ready||ui_network_runtime::unresolved()||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!net::session_wire::connected())return fail(e,"network Pipe UI requires idle connected Controller");
+    out=json::object();auto* r=runtime(e);if(!r)return false;
+    if(!state.ready||ui_network_runtime::unresolved()||!net::session_wire::connected())return fail(e,"network Pipe UI requires idle connected Controller");
+    if(!input_admission(e))return false;
     if(!args.is_object()||args.size()!=6||!args.contains("token")||!args.contains("id")||!args.contains("start_node")||!args.contains("end_node")||!args.contains("end")||!args.contains("graph_sha256")||
        !args.at("token").is_string()||!args.at("id").is_number_integer()||!args.at("start_node").is_number_integer()||!args.at("end_node").is_number_integer()||!args.at("graph_sha256").is_string())return fail(e,"network Pipe UI requires token,id,start_node,end_node,end,graph_sha256");
     const auto token=args.at("token").get<std::string>();const auto id=args.at("id").get<int64_t>(),start_index=args.at("start_node").get<int64_t>(),end_index=args.at("end_node").get<int64_t>();

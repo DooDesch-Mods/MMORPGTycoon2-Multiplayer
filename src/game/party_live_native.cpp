@@ -1,5 +1,6 @@
 #include "party_live_native.h"
 #include "live_host_state/apply_timing.h"
+#include "live_host_state/memory_query_timing.h"
 #include "party_live_codes.h"
 #include "native_open_runtime.h"
 #include "session_provider.h"
@@ -137,6 +138,7 @@ void set_lookup_hook_ready(bool value){hook_ready=value;}
 bool lookup_active()noexcept{return active.load();}
 void* lookup(void* context,int32_t id,local::Lookup original){return links.lookup(GetCurrentThreadId(),context,id,original);}
 bool NativePort::owner(std::string& error){
+    live_host_state::apply_timing::PageReadScope owner_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
     action_session::Context current;building_mixed_identity::opened_file::CurrentWorld world;
     uintptr_t image=0;uint32_t thread=0;std::string sha;
     if(!action_session::selected_session().current(current,error)||!native_open_runtime::read_current_world(world,error)||

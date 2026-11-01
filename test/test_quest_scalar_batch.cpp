@@ -245,6 +245,11 @@ bool compare_fixed_i32(uintptr_t address,int32_t old,int32_t value,std::string& 
 #include "noop_row.inc"
 #include "fresh_struct.inc"
 #include "fresh.inc"
+namespace hooks::framework {
+bool verify_original_bytes(uintptr_t,const void* actual,const void* expected,size_t size,std::string& e){
+    if(std::memcmp(actual,expected,size)){e="fixture original bytes differ";return false;}return true;
+}
+}
 #include "pause.inc"
 #include "begin.inc"
 unsigned fresh_roots=0,selected_owners=0;bool roots_ok=true,selected_ok=true;

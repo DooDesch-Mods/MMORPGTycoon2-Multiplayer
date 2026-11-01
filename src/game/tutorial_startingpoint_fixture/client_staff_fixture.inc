@@ -13,7 +13,7 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
     native::SimulationState simulation_before,simulation_after;
     if(!economy.read(ledger_before,e)||!native::read_simulation_state(simulation_before,e))return false;
     int32_t available=0;if(!at(ledger_before.business,0x4c,available,e))return false;
-    json measured;json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
+    json measured;json progress_before;if(!p.ordered&&!tutorial_replication::read_progress(progress_before,e))return false;
     const auto project_before=general_project_runtime::status().value("captures",uint64_t{});
     key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client_staff:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
@@ -56,8 +56,10 @@ bool client_staff(const Request& request,json& result,Progress*& phase,std::stri
         if(code)e="startingpoint Client Staff original Activate exception="+std::to_string(code);
     }
     json progress;std::string id;Pin after;tutorial_development::StartingpointSnapshot after_snapshot;json after_diagnostic;StaffUI after_ui;
-    if(e.empty()&&!tutorial_replication::read_progress(progress,e))result["progress_readback_failed"]=true;
+    if(e.empty()&&!p.ordered&&!tutorial_replication::read_progress(progress,e))result["progress_readback_failed"]=true;
     const bool project_queued=!is_show&&general_project_runtime::status().value("captures",uint64_t{})!=project_before;
+    if(e.empty()&&p.ordered&&!is_show&&!project_queued)
+        e="Ordered Client Staff input did not queue its project intent";
     if(e.empty()&&!is_show&&!(project_queued?
         general_project_runtime::observe_pending_ui(context,binding,project_intent,project_before,id,e):
         staff_submission(progress_before,progress,id,e)))result["submission_readback_failed"]=true;

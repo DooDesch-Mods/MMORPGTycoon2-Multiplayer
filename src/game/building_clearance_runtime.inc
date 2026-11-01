@@ -12,6 +12,11 @@ struct Local {
     action::SceneryStrokeEffect effect;
     scenery_alias_order::Receipt settlement;
     uintptr_t graph=0;bool restoring=false,initial=false,finished=false;
+    bool ordered_local=false;action::Context ordered_context;uint64_t primary_uid=0;
+    ordered_empty_clearance::Receipt empty_receipt;
+    std::map<uintptr_t,ordered_clearance_group::State> parents;
+    std::map<uintptr_t,uint64_t> observed_nodes;
+    std::string observation_error;bool original_started=false,original_completed=false;
 };
 namespace {
 bool runtime(Runtime*& out,const action::Binding& binding,const action::Request& request,std::string& error){
@@ -20,6 +25,24 @@ bool runtime(Runtime*& out,const action::Binding& binding,const action::Request&
        !binding.native_epoch||!binding.native_generation)
         return q::fail(error,"Building clearance lacks its current Mainthread/snapshot binding");
     return true;
+}
+bool clearance_world(Runtime&,const Local&,host::WorldState&,std::string&);
+bool ordered_owner(Runtime& r,const Local& value,std::string& error){
+    action::Context context;host::WorldState current;
+    if(!action::selected_session().current(context,error)||context!=value.ordered_context||
+       !action::tick_commands::authority::active()||
+       !action::tick_commands::authority::matches(context,value.binding,value.request,error)||
+       !remove_diagnostics::current_registry_world(context.snapshot_uuid,value.binding.native_epoch,value.binding.native_generation,error)||
+       !clearance_world(r,value,current,error)||!host::same_world(current.origin,value.sample.world.origin)){
+        if(error.empty())error="Ordered clearance Context/Binding/native owner changed";return false;}
+    return true;
+}
+bool read_ordered_graph(Runtime&,const Local&,ordered_empty_clearance::Receipt&,std::string&);
+bool read_empty(Runtime& r,const Local& value,ordered_empty_clearance::Receipt& out,std::string& error){
+    witness::GraphWitness graph;
+    return ordered_owner(r,value,error)&&witness::read_graph(r.memory.process,r.image,value.graph,graph,error)&&
+        ((graph.locked&&!graph.pending_delete)||q::fail(error,"Ordered clearance original graph is not locked/drained"))&&
+        read_ordered_graph(r,value,out,error);
 }
 bool read(Runtime& r,const action::Binding& binding,Local& out,std::string& error){
     out.live.clear();out.objects.clear();
@@ -78,6 +101,7 @@ bool graph(Runtime& r,uintptr_t owner,const std::map<uint64_t,Saved>& saved,bool
     return closed_graph(r,owner,error)&&building_clearance_graph::read(r.memory,r.image,owner,
         makes?saved:std::map<uint64_t,Saved>{},destroy,all,initial,error);
 }
+#include "ordered_clearance_capture.inc"
 bool authority_before(const Local& before,const action::Evidence* authority,std::string& error){
     if(!authority)return true;
     if(!authority->building_clearance)return q::fail(error,"Building clearance Client lacks the Host complete effect");
@@ -91,6 +115,15 @@ bool authority_before(const Local& before,const action::Evidence* authority,std:
     return true;
 }
 }
+bool original_read_boundary(const std::string& snapshot,host::WorldState& out,bool& active,std::string& error){
+    out={};active=false;
+    if(!observing_boundary)return true;
+    auto* value=observing_clearance;Runtime* r=nullptr;
+    if(!value||snapshot!=value->request.snapshot_uuid||!runtime(r,value->binding,value->request,error)||
+       !ordered_owner(*r,*value,error)||!clearance_world(*r,*value,out,error)){
+        if(error.empty())error="Ordered clearance original boundary has no exact consumed owner";return false;}
+    active=true;return true;
+}
 bool capture(const action::Binding& binding,const action::Request& request,Snapshot& out,std::string& error,
              const action::Evidence* authority){
     out={};Runtime* r=nullptr;if(!runtime(r,binding,request,error))return false;
@@ -103,8 +136,35 @@ bool capture(const action::Binding& binding,const action::Request& request,Snaps
         }
     }
     auto next=std::make_shared<Local>();next->binding=binding;next->request=request;
+    if(request.action==action::Action::PlaceBuilding){
+        if(action::tick_commands::authority::active()){
+            action::Context context;
+            if(!action::selected_session().current(context,error))return false;
+            if(authority||!action::tick_commands::authority::matches(context,binding,request,error))
+                return q::fail(error,error.empty()?"Ordered clearance requires its exact local command without Host evidence":error);
+            next->ordered_local=true;next->ordered_context=context;
+            if(!world(*r,next->sample.world,error)||!ordered_owner(*r,*next,error)||!enable_make_observer(*r,error))return false;
+            out.local=std::move(next);return true;
+        }
+        if(typed_action_runtime::controller_status().value("ordered",false))
+            return q::fail(error,"Ordered clearance requires current consumed command scope");
+    }
     if(!read(*r,binding,*next,error)||!authority_before(*next,authority,error))return false;
     out.local=std::move(next);return true;
+}
+bool run_original(const Snapshot& before,const std::function<bool()>& original,std::string& error){
+    if(!original)return q::fail(error,"Building original placement callback is absent");
+    if(!before.local||!before.local->ordered_local)return original();
+    Runtime* r=nullptr;auto& value=*before.local;
+    if(!runtime(r,value.binding,value.request,error)||!ordered_owner(*r,value,error)||observing_clearance||value.original_started)
+        return q::fail(error,error.empty()?"Ordered clearance original window is repeated or nested":error);
+    value.original_started=true;observing_clearance=&value;
+    struct Clear{~Clear(){observing_clearance=nullptr;}}clear;
+    const bool result=original();value.original_completed=result;
+    if(!value.observation_error.empty()){
+        if(error.empty())error=value.observation_error;else error+="; "+value.observation_error;
+        return false;}
+    return result;
 }
 bool prepare_history(const action::Binding& binding,const action::Request& request,const Snapshot& source,
                      Snapshot& before,std::string& error,const action::Evidence* authority){
@@ -134,6 +194,24 @@ bool settle(const action::Binding& binding,const action::Request& request,const 
         return q::fail(error,error.empty()?"Building clearance settlement before receipt differs":error);
     auto next=std::make_shared<Local>();next->binding=binding;next->request=request;next->graph=inverse_graph;
     next->initial=source==nullptr;next->restoring=source&&request.action==action::Action::UndoBuilding;
+    if(before.local->ordered_local){
+        if(source||request.action!=action::Action::PlaceBuilding)return q::fail(error,"Ordered clearance source/action differs");
+        next->ordered_local=true;next->ordered_context=before.local->ordered_context;
+        next->sample.world=before.local->sample.world;next->primary_uid=building_uid;
+        next->removed=before.local->removed;next->aliases=before.local->aliases;next->original=before.local->original;
+        next->parents=before.local->parents;next->observed_nodes=before.local->observed_nodes;
+        next->observation_error=before.local->observation_error;next->original_started=before.local->original_started;
+        next->original_completed=before.local->original_completed;
+        if(!read_empty(*r,*next,next->empty_receipt,error))return false;
+        if(!next->removed.empty()){
+            std::vector<uint64_t> ids;std::vector<std::string> expected;
+            for(const auto& [uid,key]:next->aliases){ids.push_back(uid);expected.push_back(key);}
+            std::sort(expected.begin(),expected.end());
+            if(!remove_diagnostics::retire_region_scenery(request.snapshot_uuid,request.action_uuid,ids,next->settlement.retired,error)||
+               next->settlement.retired!=expected)return q::fail(error,error.empty()?"Ordered clearance canonical retirement does not cover exact affected identities":error);
+        }
+        out.local=std::move(next);return true;
+    }
     const auto& prior=*before.local;host::WorldState current;duplicate_reader::Census census;
     auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& why){return group_edit::find(*r,uid,pointer,why);};
     if(!world(*r,current,error))return false;
@@ -203,6 +281,14 @@ bool finish(const action::Binding& binding,const action::Request& request,const 
     if(!runtime(r,binding,request,error)||!before.local||!after.local||after.local->request!=request||after.local->finished)
         return q::fail(error,error.empty()?"Building clearance full Record settlement receipt differs":error);
     auto& next=*after.local;
+    if(next.ordered_local){
+        ordered_empty_clearance::Receipt actual;
+        if(authority||!before.local->ordered_local||!read_empty(*r,next,actual,error)||actual!=next.empty_receipt)
+            return q::fail(error,error.empty()?"Ordered clearance original receipt changed":error);
+        next.finished=true;
+        LOG_INFO("[OrderedClearance] action={} original_operations={} cash_operations={} removed_scenery={} affected_groups={} confirmed=true",request.action_uuid,actual.operations.size(),actual.cash.size(),next.removed.size(),next.parents.size());
+        return true;
+    }
     if(!read(*r,binding,next,error))return false;
     if(!duplicate_edit::same_binding(before.local->sample,next.sample))return q::fail(error,"Building clearance Record settlement changed its complete World owners");
     std::vector<std::string> restored=next.settlement.restored;std::sort(restored.begin(),restored.end());
@@ -216,11 +302,21 @@ bool finish(const action::Binding& binding,const action::Request& request,const 
         return q::fail(error,"Building clearance Client complete effect differs from Host");
     next.finished=true;return true;
 }
+bool observe_ordered(const action::Binding& binding,const action::Request& request,const Snapshot& expected,bool& handled,std::string& error){
+    handled=expected.local&&expected.local->ordered_local;if(!handled)return true;
+    Runtime* r=nullptr;
+    if(!runtime(r,binding,request,error)||!expected.local->finished||expected.local->binding!=binding||expected.local->request!=request)
+        return q::fail(error,error.empty()?"Ordered clearance observation lacks its exact finished receipt":error);
+    ordered_empty_clearance::Receipt actual;
+    return read_empty(*r,*expected.local,actual,error)&&
+        (actual==expected.local->empty_receipt||q::fail(error,"Ordered clearance original receipt changed before ACK"));
+}
 bool observe(const action::Binding& binding,const action::Request& request,const Snapshot& expected,
              action::SceneryStrokeEffect& out,std::string& error){
     Runtime* r=nullptr;
     if(!runtime(r,binding,request,error)||!expected.local||!expected.local->finished||expected.local->binding!=binding||expected.local->request!=request)
         return q::fail(error,error.empty()?"Building clearance observation lacks its exact confirmed receipt":error);
+    if(expected.local->ordered_local)return q::fail(error,"Ordered clearance has no legacy full-world Record evidence");
     auto current=std::make_unique<Local>();
     if(!read(*r,binding,*current,error)||!duplicate_edit::same_binding(expected.local->sample,current->sample)||
        current->objects!=expected.local->objects||current->live!=expected.local->live||current->sample.undo!=expected.local->sample.undo||
@@ -232,6 +328,11 @@ bool publication(const Snapshot& value,const world_state::Origin& origin,std::ve
                  std::vector<world_state::LocalBinding>& restored,std::string& error){
     retired.clear();restored.clear();
     if(!value.local||!value.local->finished)return q::fail(error,"Building clearance publication lacks complete original Record proof");
+    if(value.local->ordered_local){
+        if(origin.snapshot_uuid!=value.local->request.snapshot_uuid||origin.world_epoch!=value.local->binding.native_epoch||origin.generation!=value.local->binding.native_generation)
+            return q::fail(error,"Ordered clearance publication owner differs");
+        retired=value.local->settlement.retired;return true;
+    }
     retired=value.local->settlement.retired;
     for(const auto& key:value.local->settlement.restored){
         const auto handle=value.local->sample.handles.find(key);remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding row;
@@ -248,6 +349,8 @@ bool current_bindings(const Snapshot& value,const world_state::Origin& origin,st
     if(!value.local||value.local->request.snapshot_uuid!=origin.snapshot_uuid||
        value.local->binding!=action::Binding{origin.world_epoch,origin.generation})
         return q::fail(error,"Building clearance current projection has another snapshot/native binding");
+    if(value.local->ordered_local){Runtime* r=nullptr;
+        return runtime(r,value.local->binding,value.local->request,error)&&ordered_owner(*r,*value.local,error);}
     for(const auto& [key,row]:value.local->objects)if(row.family==Family::Scenery){
         const auto handle=value.local->sample.handles.find(key);const auto state=value.local->sample.props.find(key);
         if(handle==value.local->sample.handles.end()||state==value.local->sample.props.end()||!state->second.alive)

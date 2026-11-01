@@ -25,6 +25,7 @@ import live_ops
 import monster_zone_probe_ops
 import native_tool_prepare_ops
 import terrain_height_ops
+import scenery_gesture_ops
 import lobby_ops
 import loan_ops
 import release_ops
@@ -78,6 +79,10 @@ NEEDS = {"type": "array", "minItems": 7, "maxItems": 7,
          "items": {"type": "number", "minimum": -100, "maximum": 100}}
 from building_keys import KEY_PATTERN, valid_building_key
 SHARED_BUILDING_KEY_PATTERN = "^" + KEY_PATTERN + "$"
+NETWORK_KEY_PATTERN = r"(?:action:[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:network:(?:node|pipe)|[0-9a-f]{64}:world:network:(?:node|pipe):[1-9][0-9]{0,9})"
+def valid_network_key(value):
+    return isinstance(value,str) and re.fullmatch(NETWORK_KEY_PATTERN,value) is not None and (value.startswith("action:") or int(value.rsplit(":",1)[1])<=2147483647)
+REMOVE_UI_KEY_PATTERN = "^(?:" + KEY_PATTERN + "|" + NETWORK_KEY_PATTERN + ")$"
 FINITE_FLOAT = {"type": "number", "minimum": -FLOAT32_MAX, "maximum": FLOAT32_MAX}
 BUILDING_STATE = object_schema({
     "type": {"type": "string", "minLength": 1, "maxLength": 256},
@@ -197,6 +202,8 @@ OP_SCHEMAS = {
     "enable_ui_path": EMPTY,
     "native_path_delete": object_schema({"token": TIME_TOKEN, "id": SUBSCRIBER_ID, "path_index": {"type": "integer", "minimum": 0, "maximum": 999999}}, ("token", "id", "path_index")),
     "read_path": object_schema({"id": SUBSCRIBER_ID}, ("id",)),
+    "read_world_path": object_schema({"id": SUBSCRIBER_ID}, ("id",)),
+    "native_world_path": object_schema({"token": TIME_TOKEN, "id": SUBSCRIBER_ID, "kind": {"type":"string","enum":["wall","pass"]}, "start": {"type":"array","minItems":3,"maxItems":3,"items":{"type":"number"}}, "end": {"type":"array","minItems":3,"maxItems":3,"items":{"type":"number"}}}, ("token","id","kind","start","end")),
     "native_path_segment": object_schema({"token": TIME_TOKEN, "id": SUBSCRIBER_ID, "start": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}, "end": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}}, ("token", "id", "start", "end")),
     "enable_ui_terrain": EMPTY,
     "read_terrain": object_schema({"id": SUBSCRIBER_ID}, ("id",)),
@@ -241,15 +248,16 @@ OP_SCHEMAS = {
     "native_region_styles_ui": object_schema({"diagnostic_uuid": TIME_TOKEN, "region_id": SUBSCRIBER_ID, "styles": {"type": "array", "minItems": 4, "maxItems": 4, "items": {"type": "string", "minLength": 1, "maxLength": 256}}}, ("diagnostic_uuid", "region_id", "styles")),
     "native_region_preset_ui": object_schema({"diagnostic_uuid": TIME_TOKEN, "region_id": SUBSCRIBER_ID, "preset": {"type": "string", "minLength": 1, "maxLength": 256}}, ("diagnostic_uuid", "region_id", "preset")),
     "native_region_property_ui": object_schema({"diagnostic_uuid": TIME_TOKEN, "region_id": SUBSCRIBER_ID,
-        "kind": {"type": "string", "enum": ["name", "type", "purchase", "levels"]},
+        "kind": {"type": "string", "enum": ["name", "type", "purchase", "levels", "sale", "tint", "light", "ambient", "sky", "particles", "particle_color"]},
         "name": {"type": "string", "maxLength": 256}, "type": {"type": "integer", "minimum": -1, "maximum": 1},
         "hit": {"type": "array", "minItems": 3, "maxItems": 3, "items": FINITE_FLOAT},
-        "levels": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1, "maximum": 214748354}}},
+        "levels": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"type": "integer", "minimum": 1, "maximum": 214748354}},
+        "appearance_value": {"type": "array", "minItems": 16, "maxItems": 16, "items": FINITE_FLOAT}},
         ("diagnostic_uuid", "region_id", "kind", "name", "type", "hit")),
     "start_typed_actions": EMPTY,
     "enable_ui_remove": EMPTY,
     "probe_remove_ui": object_schema({"diagnostic_uuid": TIME_TOKEN,"snapshot_uuid": TIME_TOKEN,
-        "record_key": {"type": "string", "pattern": SHARED_BUILDING_KEY_PATTERN}}, ("diagnostic_uuid","snapshot_uuid","record_key")),
+        "record_key": {"type": "string", "pattern": REMOVE_UI_KEY_PATTERN}}, ("diagnostic_uuid","snapshot_uuid","record_key")),
     "request_snapshot_remove": object_schema({"action_uuid": TIME_TOKEN,
         "record_key": {"type": "string", "pattern": SHARED_BUILDING_KEY_PATTERN}}, ("action_uuid", "record_key")),
     "retire_snapshot_remove": object_schema({"token": TIME_TOKEN}, ("token",)),
@@ -279,7 +287,7 @@ OP_SCHEMAS = {
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
     "tutorial_startingpoint": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
-        "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"]},
+        "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit","client_bridges_commit_state","client_startingpoint_commit_state"]},
         "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
         "expected_development": {"type":"object"}},
         ("token","native_origin_uuid","operation","world_epoch","world_generation","expected_development")),
@@ -289,6 +297,9 @@ OP_SCHEMAS = {
     "read_tutorial_movement_focus": EMPTY,
     "tutorial_movement_focus": object_schema({"native_origin_uuid": TIME_TOKEN}, ("native_origin_uuid",)),
     "tutorial_movement": object_schema({"acceptance_token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN}, ("acceptance_token", "native_origin_uuid")),
+    "tutorial_movement_complete": object_schema({"acceptance_token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN}, ("acceptance_token", "native_origin_uuid")),
+    "read_tutorial_camera": EMPTY,
+    "tutorial_camera_complete": object_schema({"acceptance_token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN, "current_step_index": {"type": "integer", "enum": [8, 10, 12]}}, ("acceptance_token", "native_origin_uuid", "current_step_index")),
     "tutorial_welcome_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
         "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
         "current_step_index": {"type": "integer", "const": 4}},
@@ -296,6 +307,10 @@ OP_SCHEMAS = {
     "tutorial_leveltwo_message_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
         "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
         "current_step_index": {"type": "integer", "enum": [2, 4, 6, 9, 11, 13, 14]}},
+        ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
+    "tutorial_initial_message_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
+        "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
+        "current_step_index": {"type": "integer", "enum": [4, 15, 19, 22, 32, 38, 43, 48, 53, 66, 79, 103]}},
         ("token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index")),
     "tutorial_finish_ok": object_schema({"token": TIME_TOKEN, "snapshot_uuid": TIME_TOKEN,
         "world_epoch": POSITIVE_UINT64, "world_generation": POSITIVE_UINT64,
@@ -354,6 +369,8 @@ OP_DESCRIPTIONS = {
     "enable_ui_path": "Capture the original Road purchase intent on the existing Controller. Requires enabled Region readback.",
     "native_path_delete": "Select an existing native Road, show its real PathInfoWindow and invoke its Destroy UICommand once. Observe ui_path.ui_jobs; never replay an attempted token.",
     "read_path": "Read original Road topology, local UIDs, canonical graph digest and native side effects without replay.",
+    "read_world_path": "Read the complete canonical mixed Path graph, original Records, effects and native Pass border candidates.",
+    "native_world_path": "Select an existing original Wall or Pass ItemButton and call native input once inside OriginalGo; preserve the token and never replay a failed attempt.",
     "native_path_segment": "Activate the actual Road ItemButton and original Hover/Press callbacks once for two new endpoints. Observe ui_path.ui_jobs; never replay an attempted token.",
     "enable_ui_terrain": "Capture original TerrainBrush strokes on the existing Controller. Requires Region readback already enabled.",
     "read_terrain": "Read actual terrain contours, scenery, RNG, release points, bug digest and retained UI job receipts.",
@@ -376,7 +393,7 @@ OP_DESCRIPTIONS = {
     "native_region_property_ui": "Trigger one original region Rename, Buy/Lift Press/Release, or actual SetRegionLevel toolbar/range/Press/Drag/Release UI sequence. The hook captures one Host-ordered intent; read ui_region.property_operations for confirmed readback. Never replay the diagnostic UUID.",
     "start_typed_actions": "Bind the current actual native world to the authoritative action controller. Start once on every required peer before submitting actions.",
     "enable_ui_remove": "Install the current build's normal Remove UI capture after the actual Controller is started. One installation attempt per owned process; retain failed receipts.",
-    "probe_remove_ui": "Invoke the actual BuildingInfoWindow DestroyBuilding command once with a genuine native record. This confirms UI intent admission; observe its action UUID for authoritative completion. Never replay the diagnostic UUID after failure.",
+    "probe_remove_ui": "Invoke the original typed InfoWindow Destroy command once with a genuine native record. Network input is queued for actual OriginalGo; observe its retained action UUID for command completion. Never replay the diagnostic UUID after failure.",
     "request_snapshot_remove": "Submit one typed snapshot building removal to Host authority and wait for all native application and retirement acknowledgements. A queued request is not completion; preserve its UUID and never replay Unknown.",
     "retire_snapshot_remove": "Release the actual private holders of one confirmed snapshot removal through its retained token and native quiescence journal. Preserve partial receipts; never replay an unknown attempt.",
     "read_remove_bindings": "Read current native snapshot building keys and local UID diagnostics for one owned world.",
@@ -396,16 +413,20 @@ OP_DESCRIPTIONS = {
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
-    "tutorial_startingpoint": "Fixed development UI proof: client_bridges_show/state/start use the actual owned Bridges Research row and original button; client_bridges_staff_show/state/one use its original Staff Pips; client_bridges_commit activates its original enabled Commit button after natural completion. These operations confirm only Client intent submission, not peer completion. No completion setter is offered for Bridges. Existing Starting Point proof: staff_activity_state reads actual owned Developer activities and probes both fixed native localized project labels, with native call receipts and unchanged project/full ledger. It requires an initialized idle joined Host or Client, Clock0 and purchased current project; native temporary-object exceptions are Unknown and require process restart before another probe. client_staff_show opens the native Staff page; client_staff_state only measures Staff/dev/Pips/button readiness; client_staff_one activates the first owned toggle Button once for one worker and confirms only a fresh pending Host intent with unchanged local row and full ledger. Staff requires a purchased current Startingpoint project with desired workers0. client_research_show opens the window and requests its Tech page; client_research_state only reads page/owner/Grid/button readiness; client_research selects the actual catalogue Grid row and activates its enabled Research button once and confirms only a fresh pending Host intent with unchanged local row and full ledger. client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
+    "tutorial_startingpoint": "Fixed development UI proof: client_bridges_commit_state and client_startingpoint_commit_state only read the exact current project completion, deployed inventory and native owner; both support running ordered simulation and never finish work. client_bridges_show/state/start use the actual owned Bridges Research row and original button; client_bridges_staff_show/state/one use its original Staff Pips; client_bridges_commit activates its original enabled Commit button after natural completion. These operations confirm only Client intent submission, not peer completion. No completion setter is offered for Bridges. Existing Starting Point proof: staff_activity_state reads actual owned Developer activities and probes both fixed native localized project labels, with native call receipts and unchanged project/full ledger. It requires an initialized idle joined Host or Client, Clock0 and purchased current project; native temporary-object exceptions are Unknown and require process restart before another probe. client_staff_show opens the native Staff page; client_staff_state only measures Staff/dev/Pips/button readiness; client_staff_one activates the first owned toggle Button once for one worker and confirms only a fresh pending Host intent with unchanged local row and full ledger. Staff requires a purchased current Startingpoint project with desired workers0. client_research_show opens the window and requests its Tech page; client_research_state only reads page/owner/Grid/button readiness; client_research selects the actual catalogue Grid row and activates its enabled Research button once and confirms only a fresh pending Host intent with unchanged local row and full ledger. client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
     "read_vip_alert_owners": "Read actual current HUD alert Window class, AlertList ancestry and ScenarioVip arrival ownership on the bound game thread. Never creates, shows, hides or destroys alerts.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
     "read_tutorial_movement": "Read the fixed local Host movement fixture receipt. Queued input is not confirmed input. Never replay an unresolved attempt.",
     "read_tutorial_movement_focus": "Read actual owned Host SDL keyboard focus and native keyboard-input admission. No input or focus mutation.",
     "tutorial_movement_focus": "Ask SDL once to raise the exact owned local Host window. Read focus and native input admission before the fixed W fixture. No global input or focus APIs.",
+    "tutorial_movement_complete": "Hold original W input on the owned Host until WASD completes, at most 15 seconds. Read the same movement receipt for ordered completion and key release. No replay.",
+    "read_tutorial_camera": "Read the owned original wheel/RMB input, release and ordered tutorial completion receipt. No replay.",
+    "tutorial_camera_complete": "Complete one exact Initial camera prompt with bounded original SDL wheel or RMB/motion input. Never writes camera or tutorial state; releases RMB on failure.",
     "tutorial_movement": "Queue one fixed W down/up pair to the owned local Host window at tutorial step6. Read its receipt for native input, progress and release confirmation. No replay.",
     "tutorial_welcome_ok": "Hide only the current native Host welcome message once through its original window Show path. Requires exact local origin and index4; read tutorial afterward to confirm native progression. Never replay an unknown result.",
     "tutorial_network_tab": "Press only the actual current Host Network ActionBar tab at Initial step56 once. Uses its existing authored command and original Press. Requires exact owned local origin. Confirm view readback, then observe normal tutorial progression; never replay Unknown.",
     "tutorial_leveltwo_message_ok": "Hide only one of the seven fixed native Host LevelTwo messages through its original Show path. Index must match the authored message ID. Requires exact owned local origin; normal Update owns progression. Never replay Unknown.",
+    "tutorial_initial_message_ok": "Close one exact authored Initial tutorial popup through original native Show. No cursor or completion writes; inspect ordered progression afterward.",
     "tutorial_finish_ok": "Hide only the current native Host initial_tutorial/allDone message at index103 through its original window Show path. Requires exact local origin; normal Host Update owns completion. Read both tutorials afterward. Never replay an unknown result.",
     "read_time_ui": "Read the four owned native time-button states and authoritative presentation revision from the shared host/client runtime.",
     "read_time_acceptance": "Read owned native time-input guards, bindings, actor states and authoritative receipt counters; this does not prove calendar or economy authority.",
@@ -468,8 +489,10 @@ OP_SCHEMAS.update(monster_zone_probe_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(monster_zone_probe_ops.DESCRIPTIONS)
 OP_SCHEMAS.update(native_tool_prepare_ops.SCHEMAS)
 OP_SCHEMAS.update(terrain_height_ops.SCHEMAS)
+OP_SCHEMAS.update(scenery_gesture_ops.SCHEMAS)
 OP_DESCRIPTIONS.update(native_tool_prepare_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(terrain_height_ops.DESCRIPTIONS)
+OP_DESCRIPTIONS.update(scenery_gesture_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(placement_ui_ops.DESCRIPTIONS)
 
 def tools_for(runtime: Runtime) -> list[types.Tool]:
@@ -519,14 +542,23 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "building history UI snapshot, target or revision invalid")
         if op in {"read_vip_alert_owners", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement"} and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", op + " requires empty object arguments")
-        if op == "tutorial_movement":
+        if op == "read_tutorial_camera" and (not isinstance(arguments, dict) or arguments):
+            raise RuntimeErrorDetail("invalid_args", "tutorial camera read requires empty arguments")
+        if op == "tutorial_camera_complete":
+            if not isinstance(arguments, dict) or set(arguments) != {"acceptance_token", "native_origin_uuid", "current_step_index"}:
+                raise RuntimeErrorDetail("invalid_args", "tutorial camera requires exact token/origin/index")
+            if type(arguments["current_step_index"]) is not int or arguments["current_step_index"] not in (8, 10, 12):
+                raise RuntimeErrorDetail("invalid_args", "unsupported exact camera tutorial step")
+            if any(not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None for key in ("acceptance_token", "native_origin_uuid")):
+                raise RuntimeErrorDetail("invalid_args", "tutorial camera requires lowercase UUIDs")
+        if op in {"tutorial_movement", "tutorial_movement_complete"}:
             if not isinstance(arguments, dict) or set(arguments) != {"acceptance_token", "native_origin_uuid"}:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires exact token/origin")
             if any(not isinstance(value, str) or re.fullmatch(TIME_TOKEN_PATTERN, value) is None for value in arguments.values()):
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
         if op == "tutorial_startingpoint":
             required={"token","native_origin_uuid","operation","world_epoch","world_generation","expected_development"}
-            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit"):
+            if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit","client_bridges_commit_state","client_startingpoint_commit_state"):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires exact fixed operation and guards")
             if any(not isinstance(arguments[key],str) or re.fullmatch(TIME_TOKEN_PATTERN,arguments[key]) is None for key in ("token","native_origin_uuid")):
                 raise RuntimeErrorDetail("invalid_args", "startingpoint fixture requires canonical token and native origin UUIDs")
@@ -537,8 +569,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
         if op == "tutorial_movement_focus":
             if not isinstance(arguments, dict) or set(arguments) != {"native_origin_uuid"} or not isinstance(arguments["native_origin_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["native_origin_uuid"]) is None:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement focus requires exact lowercase native origin UUID")
-        if op in {"tutorial_welcome_ok", "tutorial_finish_ok", "tutorial_network_tab", "tutorial_leveltwo_message_ok"}:
-            expected_indices = (2, 4, 6, 9, 11, 13, 14) if op == "tutorial_leveltwo_message_ok" else (4,) if op == "tutorial_welcome_ok" else (103,) if op == "tutorial_finish_ok" else (56,)
+        if op in {"tutorial_welcome_ok", "tutorial_finish_ok", "tutorial_network_tab", "tutorial_leveltwo_message_ok", "tutorial_initial_message_ok"}:
+            expected_indices = (4, 15, 19, 22, 32, 38, 43, 48, 53, 66, 79, 103) if op == "tutorial_initial_message_ok" else (2, 4, 6, 9, 11, 13, 14) if op == "tutorial_leveltwo_message_ok" else (4,) if op == "tutorial_welcome_ok" else (103,) if op == "tutorial_finish_ok" else (56,)
             required = {"token", "snapshot_uuid", "world_epoch", "world_generation", "current_step_index"}
             if not isinstance(arguments, dict) or set(arguments) != required:
                 raise RuntimeErrorDetail("invalid_args", "tutorial welcome requires exact token/origin/index fields")
@@ -599,6 +631,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             live_ops.validate(op, arguments)
         if op in terrain_height_ops.SCHEMAS:
             terrain_height_ops.validate(op,arguments)
+        if op in scenery_gesture_ops.SCHEMAS:
+            scenery_gesture_ops.validate(op,arguments)
         if op in monster_zone_probe_ops.SCHEMAS:
             monster_zone_probe_ops.validate(op,arguments)
         if op in native_tool_prepare_ops.SCHEMAS:
@@ -634,18 +668,20 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 point = arguments["position"]
                 if not isinstance(point, list) or len(point) != 3 or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 3.4028234663852886e38 for v in point):
                     raise RuntimeErrorDetail("invalid_args", "network native UI requires finite float32 position")
-        if op in {"read_path", "native_path_segment", "native_path_delete"}:
-            expected = {"id"} if op == "read_path" else {"token", "id", "path_index"} if op == "native_path_delete" else {"token", "id", "start", "end"}
+        if op in {"read_path", "native_path_segment", "native_path_delete", "read_world_path", "native_world_path"}:
+            expected = {"id"} if op in {"read_path","read_world_path"} else {"token","id","kind","start","end"} if op == "native_world_path" else {"token", "id", "path_index"} if op == "native_path_delete" else {"token", "id", "start", "end"}
             if not isinstance(arguments, dict) or set(arguments) != expected or type(arguments["id"]) is not int or not 0 <= arguments["id"] <= 2147483647:
                 raise RuntimeErrorDetail("invalid_args", "path requires exact nonnegative int32 ID and native UI fields")
             if op == "native_path_delete":
                 if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None or type(arguments["path_index"]) is not int or not 0 <= arguments["path_index"] < 1000000:
                     raise RuntimeErrorDetail("invalid_args", "path delete native UI requires canonical UUID token and bounded path index")
-            if op == "native_path_segment":
+            if op in {"native_path_segment","native_world_path"}:
+                if op == "native_world_path" and arguments["kind"] not in ("wall","pass"):
+                    raise RuntimeErrorDetail("invalid_args", "World Path kind requires wall or pass")
                 if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
                     raise RuntimeErrorDetail("invalid_args", "path native UI requires canonical UUID token")
                 points = [arguments["start"], arguments["end"]]
-                if any(not isinstance(p, list) or len(p) != 3 or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 3.4028234663852886e38 for v in p) for p in points) or points[0] == points[1]:
+                if any(not isinstance(p, list) or len(p) != 3 or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 3.4028234663852886e38 for v in p) for p in points) or ((points[0] == points[1]) != (op == "native_world_path" and arguments["kind"] == "pass")):
                     raise RuntimeErrorDetail("invalid_args", "path native UI requires two distinct finite float32 triples")
         if op in {"read_terrain", "native_terrain_stroke"}:
             expected = {"id"} if op == "read_terrain" else {"token", "id", "style", "points"}
@@ -719,16 +755,25 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             required = {"diagnostic_uuid", "region_id", "kind", "name", "type", "hit"}
             if isinstance(arguments, dict) and arguments.get("kind") == "levels":
                 required.add("levels")
+            appearance_kinds={"tint","light","ambient","sky","particles","particle_color"}
+            if isinstance(arguments, dict) and arguments.get("kind") in appearance_kinds:
+                required.add("appearance_value")
             if not isinstance(arguments, dict) or set(arguments) != required or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647 or not isinstance(arguments["diagnostic_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["diagnostic_uuid"]) is None:
                 raise RuntimeErrorDetail("invalid_args", "region property UI requires exact diagnostic UUID and region ID")
             kind, name, property_type, hit = (arguments[key] for key in ("kind", "name", "type", "hit"))
-            if not isinstance(kind, str) or kind not in {"name", "type", "purchase", "levels"} or not isinstance(name, str) or type(property_type) is not int or not isinstance(hit, list) or len(hit) != 3 or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 1000000 for v in hit):
+            if not isinstance(kind, str) or kind not in {"name", "type", "purchase", "levels", "sale", *appearance_kinds} or not isinstance(name, str) or type(property_type) is not int or not isinstance(hit, list) or len(hit) != 3 or any(type(v) not in (int, float) or not math.isfinite(v) or abs(v) > 1000000 for v in hit):
                 raise RuntimeErrorDetail("invalid_args", "region property kind/name/type/hit outside bounded domain")
+            if kind in appearance_kinds:
+                values=arguments["appearance_value"];used=16 if kind=="sky" else 1 if kind=="particles" else 4
+                if name!="" or property_type!=-1 or hit!=[0,0,0] or not isinstance(values,list) or len(values)!=16 or any(type(v) not in (int,float) or not math.isfinite(v) or abs(v)>3.4028234663852886e38 for v in values) or any(v!=0 for v in values[used:]):
+                    raise RuntimeErrorDetail("invalid_args", "region appearance requires finite native coefficients and no unrelated fields")
+                if kind=="particles" and not (0<=values[0]<=6 and values[0]==int(values[0])):
+                    raise RuntimeErrorDetail("invalid_args", "region particle type outside native domain")
             if kind == "levels":
                 levels = arguments["levels"]
                 if name != "" or property_type != -1 or not isinstance(levels, list) or len(levels) != 2 or any(type(v) is not int or not 1 <= v <= 214748354 for v in levels) or levels[0] > levels[1]:
                     raise RuntimeErrorDetail("invalid_args", "region levels require ordered native integer pair, empty name and type -1")
-            if (kind == "name" and not (1 <= len(name.encode("utf-8")) <= 256 and "\0" not in name and property_type == -1 and hit == [0, 0, 0])) or (kind == "type" and not (name == "" and property_type in (0, 1))) or (kind == "purchase" and not (name == "" and property_type == -1)):
+            if (kind == "name" and not (1 <= len(name.encode("utf-8")) <= 256 and "\0" not in name and property_type == -1 and hit == [0, 0, 0])) or (kind == "type" and not (name == "" and property_type in (0, 1))) or (kind in {"purchase", "sale"} and not (name == "" and property_type == -1)):
                 raise RuntimeErrorDetail("invalid_args", "region property arguments differ from requested kind")
         if op == "probe_remove_ui":
             if not isinstance(arguments, dict) or set(arguments) != {"diagnostic_uuid", "snapshot_uuid", "record_key"}:
@@ -737,8 +782,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 if not isinstance(arguments[key], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments[key]) is None:
                     raise RuntimeErrorDetail("invalid_args", "UI Remove requires canonical scalar UUIDs")
             record = arguments["record_key"]
-            if not valid_building_key(record):
-                raise RuntimeErrorDetail("invalid_args", "UI Remove requires canonical SHA256 linked or saved root-inline building key")
+            if not valid_building_key(record) and not valid_network_key(record):
+                raise RuntimeErrorDetail("invalid_args", "UI Remove requires a canonical Building, Scenery or Network key")
         if op == "request_snapshot_remove":
             if not isinstance(arguments, dict) or set(arguments) != {"action_uuid", "record_key"} or not isinstance(arguments["action_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["action_uuid"]) is None:
                 raise RuntimeErrorDetail("invalid_args", "typed remove requires exact canonical action_uuid and record_key")

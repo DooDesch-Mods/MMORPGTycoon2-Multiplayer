@@ -3,12 +3,19 @@
 #undef main
 #include "duplicate_reader.h"
 #include "duplicate_records.h"
+#include "network_object_identity.h"
 #include "region_saved_identity.h"
 #include "typed_action/action_session.h"
 #include "scenery_stroke_state.h"
 #include <functional>
+#include "character_catalogue_timing.h"
+#include <optional>
+template<class... T>void fixture_sample_log(T&&...){ }
+#define LOG_INFO(...) fixture_sample_log(__VA_ARGS__)
+
 
 namespace sample_fixture {
+namespace character_catalogue_timing=mt2mp::game::character_catalogue_timing;
 namespace action=mt2mp::action_session;
 namespace q=mt2mp::game::npc_quest_targets;
 namespace duplicate_reader=mt2mp::game::duplicate_reader;
@@ -20,7 +27,7 @@ namespace record_graph=mt2mp::subscriber_lifecycle;
 using Family=action::DuplicateFamily;
 using Handle=duplicate_native::Handle;
 using json=nlohmann::json;
-struct Config {bool diagnostic_mailbox_enabled=true;static Config& instance(){static Config value;return value;}};
+struct Config {bool diagnostic_mailbox_enabled=true,local_test=true;static Config& instance(){static Config value;return value;}};
 constexpr uintptr_t map_owner=f::root-0x1c0,building_manager=0xb0000,scenery_manager=0xc0000;
 constexpr uintptr_t building=0xd0000,fixture_release_manager=0xe0000,release=0xf0000,random=0x100000,business=0x110000;
 constexpr uint64_t fixture_building_uid=0x400000007;
@@ -30,7 +37,7 @@ struct Memory:f::Memory {int process=0;};
 struct Runtime {Memory memory;uintptr_t image=f::image;uint32_t thread=7;bool ready=true;};
 namespace host {
 struct Origin {uint64_t world_epoch=3,generation=4;void* map=reinterpret_cast<void*>(map_owner);bool operator==(const Origin&)const=default;};
-struct WorldState {Origin origin;uintptr_t root=f::root,selection=f::selection;};
+struct WorldState {Origin origin;uintptr_t root=f::root,selection=f::selection,active_graph=0;int saves=0,edits=0;};
 bool same_world(const Origin& first,const Origin& last){return first==last;}
 }
 namespace witness {
@@ -38,6 +45,21 @@ struct UndoWitness {uintptr_t active_graph=0;bool operator==(const UndoWitness&)
 bool read_undo(int&,uintptr_t,UndoWitness& out,std::string&){out={};return true;}
 }
 host::WorldState current_world;
+unsigned batch_finishes=0;std::string batch_failure;
+namespace host {
+struct RootSceneryReadBatch {
+    Origin initial=current_world.origin;
+    bool finish(std::string& error){++batch_finishes;
+        if(!batch_failure.empty())return q::fail(error,batch_failure);
+        return same_world(initial,current_world.origin)||q::fail(error,"fixture prop batch world changed");}
+};
+struct NativeOrigin{};struct LookupApi{};
+bool resolve_lookup(int&,uintptr_t,const char*,LookupApi&,std::string& e){return q::fail(e,"unexpected ordered native lookup in legacy clearance fixture");}
+struct Reader {
+    Reader(int&,NativeOrigin&,uintptr_t,uint32_t,LookupApi){}
+    bool current(WorldState&,bool,std::string& e){return q::fail(e,"unexpected ordered native reader in legacy clearance fixture");}
+};
+}
 bool world(Runtime&,host::WorldState& out,std::string&){out=current_world;return true;}
 bool ledger(action::Ledger& out,std::string&){out={};out.cash=94600;return true;}
 namespace net {std::string current_snapshot_id(){return "fixture-snapshot";}}
@@ -69,6 +91,11 @@ struct Current {std::string key;struct Row{uintptr_t local_pointer=0;uint64_t lo
 bool read_current(std::vector<Current>& out,std::string&){out.clear();return true;}
 }
 #include "duplicate_sample_type_actual.inc"
+namespace network_object_identity=mt2mp::game::network_object_identity;
+namespace network_identity {
+struct ObjectEntry{network_object_identity::Kind kind=network_object_identity::Kind::Pipe;uintptr_t pointer=0,region=0;uint64_t uid=0;};
+bool object_key(uintptr_t,uint64_t,std::string&,ObjectEntry&,std::string& e){return q::fail(e,"unexpected Pipe external owner in selected-source fixture");}
+}
 #include "duplicate_sample_owner_actual.inc"
 std::map<uintptr_t,record_graph::Graph> records;
 std::vector<Handle> captured;
@@ -112,7 +139,7 @@ record_graph::Graph graph(uintptr_t self,uint32_t content){
 }
 Runtime setup(){
     Runtime result;static_cast<f::Memory&>(result.memory)=f::setup();auto& m=result.memory;
-    current_world={};captured.clear();failed_record=0;change_during_record=false;
+    current_world={};batch_finishes=0;batch_failure.clear();captured.clear();failed_record=0;change_during_record=false;
     remove_diagnostics::fixture_identity_reads=0;remove_diagnostics::fixture_refund_reads=0;remove_diagnostics::fixture_identity_failure.clear();
     f::array(m,f::manager+0x18,0x16f0060,{});
     m.put(map_owner,f::image+0x1742860);m.put(f::root,f::image+0x174ad20);m.put(f::root+0x48,int32_t(0));
@@ -169,6 +196,10 @@ int main()try{
         "Duplicate sampled unused native refunds instead of complete canonical identities");
     f::need(actual.selected_records.empty(),"unselected whole-world capture retained Record diagnostics");
     const auto initial=actual;
+    runtime=setup();batch_failure="original final Root batch failure";captured.clear();
+    f::need(!sample_duplicate(runtime,admitted,nullptr,{},actual,error)&&error==batch_failure&&batch_finishes==1&&captured.empty(),
+        "Root prop batch failure was hidden or original Record capture continued");
+    runtime=setup();error.clear();f::need(sample_duplicate(runtime,admitted,nullptr,{},actual,error)&&batch_finishes==1,error);
     f::need(actual.census.objects.size()==3&&actual.untouched_scenery.size()==2&&actual.objects.size()==1&&
         actual.handles.size()==1&&captured.size()==3,"Duplicate lost native census or complete original record capture");
     f::need(!actual.handles.contains("")&&actual.groups.state.props.empty(),"witness-only Scenery acquired canonical/group identity");

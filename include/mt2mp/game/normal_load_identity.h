@@ -76,6 +76,8 @@ void observe_registered(void* context, int32_t link_id, void* object) noexcept;
 // Invoke on the native game thread after the normal world activation.
 bool finalize(Status& result, std::string& error);
 Status status();
+// Read the retained identity without copying the building registry.
+bool read_load_phase(const std::string& sha,const std::string& uuid,bool& confirmed,std::string& error);
 void cancel(const std::string& reason);
 void shutdown();
 // Ordinal must come from the SHA-validated RecordV2 index for this snapshot.

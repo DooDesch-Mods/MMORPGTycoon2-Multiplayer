@@ -3,7 +3,9 @@
 namespace mt2mp::game::ui_move_runtime::scenery_stroke {
 bool enable(std::string&);
 bool bulk(uintptr_t receiver,bool eraser,bool& handled,std::string&);
-bool pending();void tick();void retire_session();
+bool pending();void tick();void tick_original_gesture();void retire_session();
+bool native_gesture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_gesture(const nlohmann::json&,nlohmann::json&,std::string&);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);

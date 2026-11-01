@@ -57,8 +57,8 @@ class PageReadScope {
     std::map<uintptr_t,MEMORY_BASIC_INFORMATION> spans_;
     MEMORY_BASIC_INFORMATION last_span_{};
     bool last_span_valid_=false;
-    bool prefix_attempted_=false;
-    void clear()noexcept{spans_.clear();last_span_valid_=false;prefix_attempted_=false;}
+    bool prefix_failed_=false;
+    void clear()noexcept{spans_.clear();last_span_valid_=false;prefix_failed_=false;}
     void clear_parent()noexcept{
         if(!previous_)return;
         if(take_depth)record(boundary_==PageBoundary::OriginalCall?Part::OriginalNestedReset:Part::ReaderNestedReset,0);
@@ -120,13 +120,15 @@ inline SIZE_T virtual_query(LPCVOID address,PMEMORY_BASIC_INFORMATION informatio
     SIZE_T result=0;
     DWORD error=incoming;
     // A lower address may share the allocation of a retained suffix. Ask the OS
-    // for that prefix once per cache lifetime; AllocationBase alone is not proof.
-    if(page_size&&!scope->prefix_attempted_&&following!=scope->spans_.end()){
+    // for that prefix until one attempt fails; AllocationBase alone is not proof.
+    // Successful expansion leaves other allocations eligible. One failed probe
+    // disables further attempts until this reader ends or its boundary resets.
+    if(page_size&&!scope->prefix_failed_&&following!=scope->spans_.end()){
         const auto& known=following->second;
         const auto allocation=reinterpret_cast<uintptr_t>(known.AllocationBase);
         const auto known_start=following->first;
         if(known.Type==MEM_PRIVATE&&allocation&&allocation<page&&page<known_start&&known.RegionSize<=UINTPTR_MAX-known_start){
-            scope->prefix_attempted_=true;
+            scope->prefix_failed_=true;
             SetLastError(incoming);
             const auto queried=detail::query<::VirtualQuery>(known.AllocationBase,&prefix,sizeof prefix,category);
             const auto prefix_error=GetLastError();
@@ -142,7 +144,7 @@ inline SIZE_T virtual_query(LPCVOID address,PMEMORY_BASIC_INFORMATION informatio
                 std::memcpy(information,&prefix,sizeof *information);
                 information->BaseAddress=reinterpret_cast<void*>(page);
                 information->RegionSize=prefix.RegionSize-(page-start);
-                result=sizeof *information;prefix_used=true;
+                result=sizeof *information;prefix_used=true;scope->prefix_failed_=false;
             }
         }
     }

@@ -44,6 +44,7 @@ struct Runtime {
 std::atomic<Runtime*> published_runtime=nullptr;
 placement_ui_probe::ProcessMemory weapon_memory;
 uintptr_t weapon_image=fixture::image;
+bool original_go_admission(bool& inside,std::string& e){inside=false;e.clear();return true;}
 #include "scenario_vip_authority/runtime.inc"
 }
 namespace rt=mt2mp::game::typed_action_runtime;

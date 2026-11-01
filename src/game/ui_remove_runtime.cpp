@@ -4,6 +4,7 @@
 #include "snapshot_building_key.h"
 #include "ui_remove_runtime.h"
 #include "network_remove_runtime.h"
+#include "network_object_identity.h"
 #include "ui_path_runtime.h"
 #include "group_object_runtime.h"
 #include "ui_remove/native_entry_windows.h"
@@ -96,6 +97,33 @@ public:
         if(!net::session_wire::connected()||!current.value("started",false)||current.value("locked",true)||current.value("pending",true)) {
             error="UI Remove cooperative action authority is disconnected, inactive, locked or pending";return ui::Policy::Unavailable;
         }
+        return ui::Policy::AuthorityRequired;
+    }
+    ui::Policy policy_for_origin(ui::Origin origin,std::string& error)override {
+        const auto current=typed_action_runtime::controller_status();
+        if((origin!=ui::Origin::NpcWindow&&origin!=ui::Origin::MonsterWindow)||!current.value("ordered",false)||!current.value("pending",true))return policy(error);
+        if(!on_game_thread()||!net::session_wire::connected()||!current.value("started",false)||current.value("locked",true)){
+            error="Character Remove capture requires connected unlocked Mainthread Controller";return ui::Policy::Unavailable;
+        }
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,error))return ui::Policy::Unavailable;
+        if(!inside){error="Pending character Remove capture requires original Go scope";return ui::Policy::Unavailable;}
+        return ui::Policy::AuthorityRequired;
+    }
+    ui::Policy policy_for_selection(ui::Origin origin,uintptr_t manager,ui::NativePropArray* array,std::string& error)override {
+        const auto current=typed_action_runtime::controller_status();
+        if((origin!=ui::Origin::DestroyCursor&&origin!=ui::Origin::SelectionWindow&&origin!=ui::Origin::NetworkWindow)||
+           !current.value("ordered",false)||!current.value("pending",true))return policy_for_origin(origin,error);
+        if(!on_game_thread()||!net::session_wire::connected()||!manager||
+           !current.value("started",false)||current.value("locked",true)){
+            error="Pending Path/Network Remove capture requires connected unlocked Mainthread Controller";return ui::Policy::Unavailable;
+        }
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,error))return ui::Policy::Unavailable;
+        if(!inside)return policy_for_origin(origin,error);
+        ui::ArrayObservation view;uintptr_t ap=0;
+        if(!ui::read_native_array(memory,image,array,view,error))return ui::Policy::Unavailable;
+        if(view.count!=1||view.capacity<1||!view.data||!view.object)return policy_for_origin(origin,error);
+        if(!memory.copy(view.object,&ap,sizeof ap,error))return ui::Policy::Unavailable;
+        if(ap!=image+0x16fc700&&ap!=image+0x16fca60&&(ap!=image+0x1743f10||origin==ui::Origin::NetworkWindow))return policy_for_origin(origin,error);
         return ui::Policy::AuthorityRequired;
     }
     bool array(ui::NativePropArray* actual,ui::ArrayObservation& out,std::string& error)override {
@@ -400,6 +428,7 @@ bool probe(const json& args,json& out,std::string& error) {
         error="native UI diagnostic requires exact scalar diagnostic_uuid, snapshot_uuid and record_key";return false;
     }
     const action_session::ui_diagnostic::Request request{args.at("diagnostic_uuid").get<std::string>(),args.at("snapshot_uuid").get<std::string>(),args.at("record_key").get<std::string>()};
+    if(network_object_identity::key(request.canonical_record_key))return network_remove_runtime::probe(args,out,error);
     if(!std::regex_match(request.diagnostic_uuid,uuid)||!std::regex_match(request.snapshot_uuid,uuid)||!(std::regex_match(request.canonical_record_key,key)||snapshot_building_key::valid(request.canonical_record_key))) {
         error="native UI diagnostic scalar UUID or record key invalid";return false;
     }

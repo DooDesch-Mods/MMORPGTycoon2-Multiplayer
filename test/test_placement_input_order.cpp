@@ -24,7 +24,7 @@ bool read_existing_tool(Memory&,const Context& c,const Request& r,Binding& b,std
 bool read_palette_index(Memory&,const Binding&,const Request&,std::int32_t& i,std::uintptr_t& p,std::string&){i=0;p=400;return true;}
 bool read_scenery_mode_window(Memory&,const Binding&,std::uintptr_t& p,std::string&){p=500;return true;}
 bool find_mode_pane_seh(const Binding&,std::uintptr_t,std::uintptr_t& p,Receipt&){p=600;return true;}
-bool read_scenery_mode_button(Memory&,const Binding&,std::uintptr_t,std::uintptr_t,std::string&){return true;}
+bool read_scenery_mode_button(Memory&,const Binding&,std::uintptr_t,std::uintptr_t,std::string&,const char* mode){return std::string(mode)=="single";}
 bool read_scenery_release_pose(Memory&,const Binding&,const Request& r,NativePose& p,std::string&){p.position=r.position;return true;}
 bool merge_release_admission(const Request&,const Receipt&,Receipt&,std::string&){return false;}
 bool call_seh(unsigned step,const Binding& b,const Request& r,std::uintptr_t,std::int32_t,Receipt& out)noexcept{

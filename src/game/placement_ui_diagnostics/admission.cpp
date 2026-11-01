@@ -46,11 +46,24 @@ bool observe_confirmation(Job& j,const nlohmann::json& c,const nlohmann::json& r
     if(j.receipt.phase==Phase::Unknown)return fail(e,j.receipt.cause);
     if(j.receipt.phase==Phase::HostConfirmed){e.clear();return true;}
     if(!j.receipt.capture_count){e.clear();return true;}
-    if(!c.value("started",false)||c.value("action_uuid",std::string{})!=j.receipt.action_uuid)return unknown(j,e,"build_ui_controller_action_missing_or_overwritten_no_replay");
-    const int outcome=c.value("outcome",3);
+    if(!c.value("started",false)||c.value("locked",false))return unknown(j,e,"build_ui_host_action_failed: "+c.value("cause",std::string{}));
+    auto action=c;
+    const auto completed=c.value("ordered_completed_actions",nlohmann::json::object());
+    if(completed.is_object()&&completed.contains(j.receipt.action_uuid)){
+        const auto& retained=completed.at(j.receipt.action_uuid);
+        if(retained.value("action_uuid",std::string{})!=j.receipt.action_uuid||
+           retained.value("snapshot_uuid",std::string{})!=j.input.snapshot_uuid||
+           !retained.value("session",uint64_t{})||!retained.value("order",uint64_t{})||!retained.value("tick",uint64_t{})||
+           !retained.value("peer",uint64_t{})||!retained.value("sequence",uint64_t{})||
+           !retained.value("confirmed",false)||retained.value("outcome",3)!=1)
+            return unknown(j,e,"build_ui_retained_completion_identity_invalid_no_replay");
+        action=retained;action["pending"]=false;
+    }
+    if(action.value("action_uuid",std::string{})!=j.receipt.action_uuid)return unknown(j,e,"build_ui_controller_action_missing_or_overwritten_no_replay");
+    const int outcome=action.value("outcome",3);
     if(outcome==2||outcome==3||c.value("locked",false))return unknown(j,e,"build_ui_host_action_failed: "+c.value("cause",std::string{}));
-    if(c.value("pending",true)||outcome==0){e.clear();return true;}
-    const auto required=c.value("required_mask",uint32_t{}),ack=c.value("ack_mask",uint32_t{});
+    if(action.value("pending",true)||outcome==0){e.clear();return true;}
+    const auto required=action.value("required_mask",uint32_t{}),ack=action.value("ack_mask",uint32_t{});
     // Only the Host aggregates peer ACKs; Client completion follows its validated Host packet.
     if(outcome!=1||!required||(aggregate_host_acks&&required!=ack)||!receipts.is_object()||!receipts.contains(j.receipt.action_uuid))return unknown(j,e,"build_ui_complete_ack_or_local_native_receipt_missing");
     const auto& n=receipts.at(j.receipt.action_uuid);

@@ -6,6 +6,7 @@
 #include "mt2mp/net/local_session.h"
 #include "native_open_runtime.h"
 #include "time_integration.h"
+#include "typed_action_runtime.h"
 #include <map>
 #include <windows.h>
 
@@ -22,6 +23,7 @@ struct Job {
     bool admitted=false,confirmed=false,terminal=false;
     std::string error;
     wire::Message host{};
+    ordered_time_input::Current ordered_owner{};json ordered_receipt;
 };
 uintptr_t image=0;uint32_t game_thread=0;
 hud_time::Reader* reader=nullptr;hud_time::Activation* activation=nullptr;Services io;
@@ -55,15 +57,18 @@ json format(const Job& job) {
             {"matched_before",job.before.matched},{"matched_after",job.after.matched},
             {"suppressed_before",job.before.suppressed},{"suppressed_after",job.after.suppressed},
             {"original_before",job.before.original},{"original_after",job.after.original},{"caller_rva",job.after.caller}}}};
-    if(job.confirmed)out["host_receipt"]={{"peer",job.host.peer},{"epoch",job.host.epoch},{"sequence",job.host.sequence},
+    if(job.request.ordered){out["ordered"]=true;out["origin_peer"]=job.ordered_owner.context.local_peer;out["session"]=job.ordered_owner.context.session;out["ordered_receipt"]=job.ordered_receipt;}
+    if(job.confirmed&&!job.request.ordered)out["host_receipt"]={{"peer",job.host.peer},{"epoch",job.host.epoch},{"sequence",job.host.sequence},
         {"revision",job.host.state.revision},{"result",static_cast<int>(job.host.result)},
         {"selected_scale",job.host.state.clock.selected},{"pause_scale",job.host.state.clock.pause}};
     return out;
 }
+bool ordered_button(const button::Request&,button::Binding&,std::string&);
 class RootServices final:public button::RootServices {
 public:
     bool read_actual_button(const button::Request& q,button::Binding& out,std::string& e) override {
         out={};
+        if(q.ordered)return ordered_button(q,out,e);
         if(GetCurrentThreadId()!=game_thread)return fail(e,"time_mouse_wrong_game_thread");
         native_time_input::Context context;
         if(!io.context(context,e))return false;
@@ -117,6 +122,7 @@ public:
     }
 };
 }
+#include "ordered_time_mouse.inc"
 bool initialize(uintptr_t base,uint32_t thread,hud_time::Reader& native_reader,hud_time::Activation& native_activation,Services services,std::string& e) {
     if(initialized)return fail(e,"time_mouse_diagnostics_already_initialized");
     if(!base||!thread||GetCurrentThreadId()!=thread||!services.context||!services.hook_counts)
@@ -135,13 +141,19 @@ bool probe(const json& args,json& result,std::string& e) {
     if(!uuid(q.token)||!uuid(q.snapshot_uuid))throw std::runtime_error("native_time_button requires canonical UUIDs");
     const auto session_epoch=positive(args.at("expected_epoch"),"expected_epoch");
     q.epoch=positive(args.at("expected_world_epoch"),"expected_world_epoch");q.generation=positive(args.at("expected_generation"),"expected_generation");
-    q.revision=positive(args.at("expected_revision"),"expected_revision");
+    q.ordered=typed_action_runtime::ordered_mode_selected();
+    const auto& revision=args.at("expected_revision");
+    if(q.ordered){
+        if(!revision.is_number_integer()||(!revision.is_number_unsigned()&&revision.get<int64_t>()<0))throw std::runtime_error("expected_revision requires nonnegative ordered revision");
+        q.revision=revision.get<uint64_t>();
+    }else q.revision=positive(revision,"expected_revision");
     q.scale=args.at("scale").get<float>();
     if(q.scale!=0&&q.scale!=1&&q.scale!=3&&q.scale!=9)throw std::runtime_error("native_time_button requires scale0,1,3,9");
     const auto expected=positive(args.at("expected_request_sequence"),"expected_request_sequence");
     if(jobs.contains(q.token))return fail(e,"time_mouse_token_already_attempted_no_replay");
     if(pending||unresolved())return fail(e,"time_mouse_previous_effect_unresolved");
     if(jobs.size()>=64)return fail(e,"time_mouse_job_memo_full");
+    if(q.ordered)return ordered_probe(q,session_epoch,expected,result,e);
     wire::Message previous;bool available=false;
     if(!time_integration::instance().observe_receipt(Config::instance().peer_id,expected,previous,available,e))return false;
     if(available)return fail(e,"time_mouse_expected_sequence_already_has_host_receipt");
@@ -174,10 +186,12 @@ bool probe(const json& args,json& result,std::string& e) {
 bool receipt(const json& args,json& result,std::string& e) {
     result=json::object();
     if(!initialized||GetCurrentThreadId()!=game_thread)return fail(e,"time_mouse_receipt_not_initialized_or_wrong_thread");
+    if(args.is_object()&&args.empty()&&typed_action_runtime::ordered_mode_selected())return ordered_observe(result,e);
     if(!args.is_object()||args.size()!=1)throw std::runtime_error("read_time_mouse requires only acceptance_token");
     const auto token=args.at("acceptance_token").get<std::string>();
     const auto found=jobs.find(token);if(found==jobs.end())return fail(e,"time_mouse_receipt_token_unknown");
     auto& job=found->second;
+    if(job.request.ordered)return ordered_receipt(job,result,e);
     if(job.terminal){result=format(job);e=job.error;return job.confirmed;}
     auto read_failure=[&](){job.error=e;result=format(job);return false;};
     try {

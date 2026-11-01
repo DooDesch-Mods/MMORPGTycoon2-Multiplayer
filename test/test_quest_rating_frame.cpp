@@ -31,7 +31,7 @@ struct Gates{
  bool okay=true,waiting=false;bool timely(std::chrono::steady_clock::time_point,std::string& e){return okay||::fail(e,"exact full ACK timeout");}
  bool ready(std::chrono::steady_clock::time_point,bool& out,std::string&){out=waiting;return true;}
 };
-struct FakePort{Pin current;bool read(Pin& out,std::string&){out=current;return true;}bool publication_ready(uint64_t,bool& waiting,std::string&){waiting=false;return true;}};
+struct FakePort{bool application_ready(uint64_t,bool& waiting,std::string&){waiting=false;return true;}Pin current;bool read(Pin& out,std::string&){out=current;return true;}bool publication_ready(uint64_t,bool& waiting,std::string&){waiting=false;return true;}};
 struct FakeDay{uint64_t sequence(){return 1;}};
 struct Receipt{};
 class Bridge{
@@ -46,8 +46,11 @@ public:
  bool capture(uint64_t action,Frame& frame,std::string&){++captures;frame=source.day.frame;frame.base_action_revision=action;frame.time_revision=1;captured_economy_=source;return true;}
  bool send(const Frame& frame,std::string&){++sends;last_=frame;last_economy_=captured_economy_;return true;}
  bool take(const Frame&,std::string&){++takes;return true;}
+ bool application_waiting_=false;std::string application_last_wait_,application_first_wait_;uint64_t application_wait_count_=0,application_recovery_count_=0;
+ bool application_ready(bool&,std::string&);
  bool tick(uint64_t,bool,std::string&,std::chrono::steady_clock::time_point);
 };
+#include "quest_rating_application_ready.inc"
 #include "quest_rating_bridge_tick.inc"
 }
 int main(){try{auto s=fixture();auto& v=s.npcs[0].quests[0].runtime;v.rating_bits={std::bit_cast<uint32_t>(-0.25f),std::bit_cast<uint32_t>(1.5f),0};v.rating_set=true;v.xp_reward=-1;v.gold_reward=-7;

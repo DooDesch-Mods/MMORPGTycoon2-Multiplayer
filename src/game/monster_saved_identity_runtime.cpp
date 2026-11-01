@@ -4,6 +4,7 @@
 #include "network_identity.h"
 #include "direct_monster_identity.h"
 #include "monster_snapshot_companion.h"
+#include "region_rng_capture.h"
 #include "party_saved_identity_runtime.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include <fstream>
@@ -35,22 +36,39 @@ using Owner = building_capture_identity::StreamOwner;
 uintptr_t image = 0;
 uint32_t main_thread = 0;
 bool hooks = false;
-std::atomic<bool> host_active = false, client_active = false, emergency = false;
+std::atomic<bool> host_active = false, client_active = false, export_mode = false;
 std::mutex gate;
-std::string uuid, sha, failure;
-uint64_t generation = 0, next_ticket = 0;
-uintptr_t bound_context = 0;
-opened::CurrentWorld origin;
 struct Save { q::SaveFrame frame; Owner owner; uint32_t thread = 0; };
 struct Load { q::LoadFrame frame; uintptr_t property = 0, manager = 0; uint32_t thread = 0; q::ChildHeader child; bool child_pending = false; };
+namespace attachment=monster_snapshot_companion;
+uint64_t next_ticket=0;
+struct Observer {
+std::atomic<bool> emergency=false;
+std::string uuid, sha, failure;
+uint64_t generation = 0;
+uintptr_t bound_context = 0;
+opened::CurrentWorld origin;
 std::map<Ticket, Save> saves;
 std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Pool> observed;
 std::map<uintptr_t, q::SavedPool> pools;
 std::optional<dungeon_scene_identity_runtime::Census> scene_census;
-namespace attachment=monster_snapshot_companion;
-attachment::Manifest prepared, captured;
+attachment::Manifest captured;
+region_rng_snapshot::Manifest region_capture;
+};
+Observer live_observer, export_observer;
+thread_local Observer* selected_observer=&live_observer;
+Observer& observer() { return *selected_observer; }
+// Only each synchronous export callback selects the capture-owned record.
+// The native save runs after this scope ends; live authority stays published.
+struct ExportScope {
+    Observer* previous=selected_observer;
+    explicit ExportScope(bool isolated) { if(isolated)selected_observer=&export_observer; }
+    ~ExportScope() { selected_observer=previous; }
+};
+attachment::Manifest prepared;
+std::string prepared_region_rng_sha;
 std::string prepared_uuid;
 bool prepared_present=false;
 uint64_t prepared_bytes=0;
@@ -76,16 +94,17 @@ struct Memory {
     }
 } memory;
 bool reject(std::string& error, const std::string& cause) {
-    if (failure.empty()) { failure = cause; LOG_ERROR("[SavedMonster] snapshot={} cause={}; original serialization unchanged", uuid, cause); }
-    error = failure; pools.clear(); return false;
+    if (observer().failure.empty()) { observer().failure = cause; LOG_ERROR("[SavedMonster] snapshot={} cause={}; original serialization unchanged", observer().uuid, cause); }
+    error = observer().failure; observer().pools.clear(); return false;
 }
 void caught(const char* cause) noexcept {
-    emergency = true; OutputDebugStringA("ERROR SavedMonster observer exception: ");
+    ExportScope export_scope(export_mode.load());
+    observer().emergency = true; OutputDebugStringA("ERROR SavedMonster observer exception: ");
     OutputDebugStringA(cause); OutputDebugStringA("; target bindings blocked, original unchanged\n");
 }
 bool healthy(std::string& error) {
-    if (emergency) return reject(error, "Monster identity observer exception; original diagnostic retained");
-    if (!failure.empty()) { error = failure; return false; }
+    if (observer().emergency) return reject(error, "Monster identity observer exception; original diagnostic retained");
+    if (!observer().failure.empty()) { error = observer().failure; return false; }
     return true;
 }
 template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
@@ -93,12 +112,12 @@ template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
         a.mode == b.mode && a.state == b.state && a.world == b.world && a.map == b.map;
 }
 void reset(const std::string& id, const std::string& digest) {
-    uuid = id; sha = digest; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); scene_census.reset(); bound_context = 0; main_thread = GetCurrentThreadId();
+    observer().uuid = id; observer().sha = digest; observer().region_capture={}; observer().failure.clear(); observer().emergency = false; observer().saves.clear(); observer().loads.clear();
+    observer().load_stack.clear(); observer().observed.clear(); observer().pools.clear(); observer().scene_census.reset(); observer().bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
-    if (!actual || (bound_context && bound_context != actual)) return reject(error, "Monster property save/load context differs");
-    bound_context = actual; return true;
+    if (!actual || (observer().bound_context && observer().bound_context != actual)) return reject(error, "Monster property save/load context differs");
+    observer().bound_context = actual; return true;
 }
 DWORD contains_call(uintptr_t ctx, uintptr_t object, int32_t& id, bool& present) {
     __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x89e690)(
@@ -121,33 +140,34 @@ DWORD lookup_call(uintptr_t ctx, int32_t id, uintptr_t& out) {
 #endif
 bool live_reader(uintptr_t reader, uintptr_t ctx, std::string& error) {
     uintptr_t mode = 0, actual = 0;
-    if (!opened::validate_reader(reinterpret_cast<void*>(reader), generation, error) ||
+    if (!opened::validate_reader(reinterpret_cast<void*>(reader), observer().generation, error) ||
         !q::at(memory, image, 0x13df320, mode, error) || !q::typed(memory, image, mode, 0x16e6730, error) ||
         !q::at(memory, mode, 0xd8, actual, error)) return false;
     return actual == ctx || q::fail(error, "Monster LoadContext is not active Mode context");
 }
 Load* top(std::string& error) {
-    const auto thread = load_stack.find(GetCurrentThreadId());
-    if (thread == load_stack.end()) { reject(error, "Monster event outside its owned property frame"); return nullptr; }
-    const auto frame = loads.find(thread->second);
-    if (frame == loads.end()) { reject(error, "Monster property frame missing"); return nullptr; }
+    const auto thread = observer().load_stack.find(GetCurrentThreadId());
+    if (thread == observer().load_stack.end()) { reject(error, "Monster event outside its owned property frame"); return nullptr; }
+    const auto frame = observer().loads.find(thread->second);
+    if (frame == observer().loads.end()) { reject(error, "Monster property frame missing"); return nullptr; }
     return &frame->second;
 }
 bool retain(q::Pool value, std::string& error) {
-    if (observed.size() >= 4096 || !observed.emplace(value.manager, std::move(value)).second)
+    if (observer().observed.size() >= 4096 || !observer().observed.emplace(value.manager, std::move(value)).second)
         return reject(error, "Monster property array duplicate or observation budget exceeded");
     return true;
 }
 bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
-    if (!healthy(error) || !saves.empty() || !loads.empty() || !load_stack.empty() || !bound_context || observed.empty())
-        return reject(error, failure.empty() ? "Monster snapshot lacks complete property returns/context" : failure);
+    if (!healthy(error) || !observer().saves.empty() || !observer().loads.empty() || !observer().load_stack.empty() || !observer().bound_context || observer().observed.empty())
+        return reject(error, observer().failure.empty() ? "Monster snapshot lacks complete property returns/context" : observer().failure);
     const auto map = reinterpret_cast<uintptr_t>(world.map), root = map + 0x1c0;
     q::Bounds regions;
     if (!q::typed(memory, image, map, 0x1742860, error) || !q::typed(memory, image, map + 0x230, 0x16f04e0, error) ||
         !q::bounds(memory, map + 0x230, 4096, regions, error)) return reject(error, error);
     std::map<uintptr_t, q::SavedPool> ready;
     std::set<std::string> keys;
-    attachment::Manifest records;records.native_sha256=sha;
+    attachment::Manifest records;records.native_sha256=observer().sha;
+    records.region_rng=host_active?observer().region_capture:prepared.region_rng;
     std::vector<std::pair<std::string,direct_monster_identity::Entry>> restored;
     for (int32_t i = 0; i < regions.count; ++i) {
         uintptr_t region = 0, manager = 0, selected = 0, owner = 0; int32_t id = -1;
@@ -157,8 +177,8 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
         auto read = [&](uintptr_t p, size_t offset, auto& out, std::string& cause) { return q::at(memory, p, offset, out, cause); };
         if (!region_saved_identity::resolve(image, map, root, id, region, selected, read, error) || owner != region)
             return reject(error, error.empty() ? "Monster saved Region/Manager owner differs" : error);
-        const auto found = observed.find(manager);
-        if (found == observed.end()) return reject(error, "saved root Region Monster property unobserved id=" + std::to_string(id));
+        const auto found = observer().observed.find(manager);
+        if (found == observer().observed.end()) return reject(error, "saved root Region Monster property unobserved id=" + std::to_string(id));
         auto links = [&](uintptr_t object, int32_t& link, std::string& cause) {
             for (const auto& row : found->second.records) if (row.pointer == object) { link = row.link_id; return true; }
             return q::fail(cause, "Monster seal member absent from original serialization");
@@ -170,7 +190,7 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
             uintptr_t actor_region=0,actor_root=0,zone=0,proxy=0,found_uid=0;
             if(!q::at(memory,row.pointer,0x178,actor_region,error)||!q::at(memory,row.pointer,0x170,actor_root,error)||
                !q::at(memory,row.pointer,0x8d0,zone,error)||!q::at(memory,row.pointer,0x8d8,proxy,error))return reject(error,error);
-            const auto record=q::key(sha,id,row);
+            const auto record=q::key(observer().sha,id,row);
             if(actor_region!=region||actor_root!=root||!snapshot_monster_key::valid(record)||!keys.insert(record).second)
                 return reject(error,"Monster saved owner/record duplicate or invalid");
             const auto exception=exact_uid(row.uid,found_uid);
@@ -192,14 +212,14 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
         if (!ready.emplace(manager, q::SavedPool{id, std::move(actual)}).second) return reject(error, "Monster saved Region ID repeats");
     }
     if (ready.empty() || !q::unchanged(memory, map + 0x230, 4096, regions, error)) return reject(error, error.empty() ? "saved root Regions absent" : error);
-    if(scene_census){
-        const auto& census=*scene_census;
-        if(!census.snapshot_census||census.world.uuid!=uuid||census.world.sha256!=sha||!same_world(census.world,world))
+    if(observer().scene_census){
+        const auto& census=*observer().scene_census;
+        if(!census.snapshot_census||census.world.uuid!=observer().uuid||census.world.sha256!=observer().sha||!same_world(census.world,world))
             return reject(error,"Dungeon Monster classification exact snapshot/world lifetime differs");
         for(const auto& scene:census.pools){
             const auto manager=scene.managers[2],region=scene.scene.owner.region,shard=scene.scene.owner.shard;
             if(ready.contains(manager))return reject(error,"Dungeon Monster manager aliases another saved scene");
-            const auto found=observed.find(manager);if(found==observed.end())return reject(error,"Dungeon scene Monster native property unobserved scene="+scene.scene.owner.key);
+            const auto found=observer().observed.find(manager);if(found==observer().observed.end())return reject(error,"Dungeon scene Monster native property unobserved scene="+scene.scene.owner.key);
             auto links=[&](uintptr_t object,int32_t& link,std::string& cause){
                 for(const auto& row:found->second.records)if(row.pointer==object){link=row.link_id;return true;}
                 return q::fail(cause,"Dungeon Monster member lacks original serialization record");
@@ -212,7 +232,7 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
             for(const auto& row:actual.records){uintptr_t actor_region=0,actor_shard=0,zone=0,proxy=0,found_uid=0;
                 if(!q::at(memory,row.pointer,0x178,actor_region,error)||!q::at(memory,row.pointer,0x170,actor_shard,error)||
                    !q::at(memory,row.pointer,0x8d0,zone,error)||!q::at(memory,row.pointer,0x8d8,proxy,error))return reject(error,error);
-                const auto record=sha+":world:monster:"+(row.link_id>0?std::to_string(row.link_id):snapshot_monster_key::scene_suffix(
+                const auto record=observer().sha+":world:monster:"+(row.link_id>0?std::to_string(row.link_id):snapshot_monster_key::scene_suffix(
                     scene.scene.exterior_region,scene.scene.exterior_slot,scene.scene.owner.instance_index,row.child));
                 if(actor_region!=region||actor_shard!=shard||!snapshot_monster_key::valid(record)||!keys.insert(record).second)
                     return reject(error,"Dungeon Monster saved scene/record duplicate or invalid");
@@ -230,24 +250,24 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
             ready.emplace(manager,q::SavedPool{scene.scene.exterior_region,std::move(actual)});
         }
     }
-    if(ready.size()!=observed.size())return reject(error,"Monster serialization contains a foreign Region manager");
-    if(!party_saved_identity_runtime::aliases(uuid,sha,records.parties,error))return reject(error,error);
-    if(scene_census){
+    if(ready.size()!=observer().observed.size())return reject(error,"Monster serialization contains a foreign Region manager");
+    if(!party_saved_identity_runtime::aliases(observer().uuid,observer().sha,records.parties,error))return reject(error,error);
+    if(observer().scene_census){
         if(host_active&&world.generation){
-            if(!dungeon_scene_identity_runtime::capture_aliases(*scene_census,sha,records.dungeon_gizmos,error))return reject(error,error);
+            if(!dungeon_scene_identity_runtime::capture_aliases(*observer().scene_census,observer().sha,records.dungeon_gizmos,error))return reject(error,error);
         }else{
             records.dungeon_gizmos.present=true;
-            for(const auto& row:scene_census->saved)records.dungeon_gizmos.rows.push_back({row.record,row.record});
+            for(const auto& row:observer().scene_census->saved)records.dungeon_gizmos.rows.push_back({row.record,row.record});
             std::sort(records.dungeon_gizmos.rows.begin(),records.dungeon_gizmos.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
             if(!host_active&&prepared_present&&prepared.dungeon_gizmos.present)records.dungeon_gizmos=prepared.dungeon_gizmos;
         }
     }
-    if(scene_census){
-        if(host_active){if(!remove_diagnostics::scene_scenery::capture_saved(*scene_census,records.scene_scenery,error))return reject(error,error);}
+    if(observer().scene_census){
+        if(host_active){if(!remove_diagnostics::scene_scenery::capture_saved(*observer().scene_census,records.scene_scenery,error))return reject(error,error);}
         else if(prepared_present&&prepared.scene_scenery.present)records.scene_scenery=prepared.scene_scenery;
-        else {records.scene_scenery.present=true;records.scene_scenery.root_present=true;for(const auto& row:scene_census->scenery_saved)records.scene_scenery.rows.push_back({row.record,row.record});
+        else {records.scene_scenery.present=true;records.scene_scenery.root_present=true;for(const auto& row:observer().scene_census->scenery_saved)records.scene_scenery.rows.push_back({row.record,row.record});
             std::sort(records.scene_scenery.rows.begin(),records.scene_scenery.rows.end(),[](const auto& first,const auto& second){return first.record<second.record;});}
-        if(!remove_diagnostics::scene_scenery::prepare_saved(*scene_census,records.scene_scenery,error))return reject(error,error);
+        if(!remove_diagnostics::scene_scenery::prepare_saved(*observer().scene_census,records.scene_scenery,error,!export_mode))return reject(error,error);
     }
     std::sort(records.rows.begin(),records.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
     if(!host_active&&prepared_present&&records.rows!=prepared.rows)return reject(error,"Monster companion complete direct-record set differs");
@@ -256,22 +276,24 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
         if(!native_open_runtime::read_current_world(after,error)||!same_world(world,after)||after.uuid!=world.uuid)
             return reject(error,"Monster native world changed before atomic binding: "+error);
         direct_monster_identity::Scope scope{world.uuid,world.world_epoch,world.generation,root,0,0};
-        if(!direct_monster_identity::registry.restore(scope,restored,error))return reject(error,error);
-        if(scene_census&&!host_active&&!dungeon_scene_identity_runtime::seal_snapshot(*scene_census,
+        if(export_mode){auto checked=direct_monster_identity::registry;if(!checked.restore(scope,restored,error))return reject(error,error);}
+        else if(!direct_monster_identity::registry.restore(scope,restored,error))return reject(error,error);
+        if(observer().scene_census&&!host_active&&!dungeon_scene_identity_runtime::seal_snapshot(*observer().scene_census,
             prepared_present&&prepared.dungeon_gizmos.present?&prepared.dungeon_gizmos:nullptr,error))return reject(error,error);
     }
-    captured=std::move(records);origin=world;pools=std::move(ready);observed.clear();scene_census.reset();
-    LOG_INFO("[SavedMonster] Native snapshot Monsters bound uuid={} sha={} regions={}", uuid, sha, pools.size());
+    observer().captured=std::move(records);observer().origin=world;observer().pools=std::move(ready);observer().observed.clear();observer().scene_census.reset();
+    LOG_INFO("[SavedMonster] Native snapshot Monsters bound uuid={} sha={} regions={}", observer().uuid, observer().sha, observer().pools.size());
     error.clear(); return true;
 }
 
 }
 bool stage_scenes(dungeon_scene_identity_runtime::Census census,std::string& error){
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);
-    if((!host_active&&!client_active)||scene_census||GetCurrentThreadId()!=main_thread||!saves.empty()||!loads.empty()||!load_stack.empty())
+    if((!host_active&&!client_active)||observer().scene_census||GetCurrentThreadId()!=main_thread||!observer().saves.empty()||!observer().loads.empty()||!observer().load_stack.empty())
         return reject(error,"Dungeon Monster scene staging requires its idle active native snapshot observer");
-    if(!healthy(error)||!census.snapshot_census||census.world.uuid!=uuid)return reject(error,error.empty()?"Dungeon Monster staged owned snapshot UUID/census differs":error);
-    scene_census=std::move(census);error.clear();return true;
+    if(!healthy(error)||!census.snapshot_census||census.world.uuid!=observer().uuid)return reject(error,error.empty()?"Dungeon Monster staged owned snapshot UUID/census differs":error);
+    observer().scene_census=std::move(census);error.clear();return true;
 }
 bool initialize(std::string& error) {
     std::lock_guard lock(gate);
@@ -292,9 +314,12 @@ bool initialize(std::string& error) {
 }
 void* entrypoint(bool save) { return image ? reinterpret_cast<void*>(image + (save ? q::save_property_rva : q::load_property_rva)) : nullptr; }
 bool confirm_hooks(std::string& error) { std::lock_guard lock(gate); if (!image) return q::fail(error, "Monster property resolver absent"); hooks = true; error.clear(); return true; }
-bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& error) {
+bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& error, bool isolated) {
     std::lock_guard lock(gate);
-    if (!hooks || host_active || client_active || !saves.empty() || !loads.empty()) return q::fail(error, "Monster snapshot observer busy/uninstalled");
+    if(host_active||client_active)return q::fail(error,"Snapshot export cannot replace an active observer");
+    export_mode=isolated;ExportScope export_scope(isolated);
+
+    if (!hooks || host_active || client_active || !observer().saves.empty() || !observer().loads.empty()) return q::fail(error, "Monster snapshot observer busy/uninstalled");
     if (!capture.game || !capture.mode || !capture.state || !capture.world || !capture.map)
         return q::fail(error, "Monster Host capture requires complete BuildingCapture world witness");
     opened::CurrentWorld world;
@@ -310,25 +335,32 @@ bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& e
             return q::fail(error, "Monster Host loaded origin differs from BuildingCapture world witness");
         world = std::move(loaded);
     }
-    reset(id, ""); origin = std::move(world);
+    reset(id, ""); observer().origin = std::move(world);
+    auto read=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+    if(!region_rng_capture::capture(image,reinterpret_cast<uintptr_t>(observer().origin.map),observer().region_capture,read,error))return reject(error,error);
     host_active = true; error.clear(); return true;
 }
 bool seal_host(const std::string& id, const std::string& digest, const CaptureWorld& capture, std::string& error) {
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);
-    if (!host_active || id != uuid || GetCurrentThreadId() != main_thread) return reject(error, "Monster Host snapshot seal lifetime differs");
-    if (capture.game != origin.game || capture.mode != origin.mode || capture.state != origin.state ||
-        capture.world != origin.world || capture.map != origin.map)
+    if (!host_active || id != observer().uuid || GetCurrentThreadId() != main_thread) return reject(error, "Monster Host snapshot seal lifetime differs");
+    if (capture.game != observer().origin.game || capture.mode != observer().origin.mode || capture.state != observer().origin.state ||
+        capture.world != observer().origin.world || capture.map != observer().origin.map)
         return reject(error, "Monster Host BuildingCapture world witness changed");
-    if (origin.generation) {
+    if (observer().origin.generation) {
         opened::CurrentWorld loaded;
-        if (!native_open_runtime::read_current_world(loaded, error) || !same_world(loaded, origin))
+        if (!native_open_runtime::read_current_world(loaded, error) || !same_world(loaded, observer().origin))
             return reject(error, "Monster Host completed origin changed during capture: " + error);
     }
-    sha = digest; const bool confirmed = seal_world(origin, !origin.generation, error); host_active = false; return confirmed;
+    auto read=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+    if(!region_rng_capture::unchanged(image,reinterpret_cast<uintptr_t>(observer().origin.map),observer().region_capture,read,error)){
+        host_active=false;return reject(error,error);
+    }
+    observer().sha = digest; const bool confirmed = seal_world(observer().origin, !observer().origin.generation, error); host_active = false; return confirmed;
 }
 bool arm_client(const std::string& id, const std::string& digest, std::string& error) {
     std::lock_guard lock(gate); const auto witness = opened::status();
-    if (!hooks || host_active || client_active || !saves.empty() || !loads.empty() || witness.state != "pinned" ||
+    if (!hooks || host_active || client_active || !observer().saves.empty() || !observer().loads.empty() || witness.state != "pinned" ||
         !witness.held || witness.uuid != id || witness.sha256 != digest || !witness.generation)
         return q::fail(error, "Monster Client arm lacks idle pinned exact NativeOpen receipt");
     if(prepared_uuid!=id||prepared_sha!=digest||prepared_bytes!=witness.bytes)
@@ -336,19 +368,21 @@ bool arm_client(const std::string& id, const std::string& digest, std::string& e
     // NativeOpen preparation precedes retirement of the previous world.
     // Arm this observer only after that retirement, alongside the other load observers.
     if(!network_identity::begin_original_load(id,digest,error))return false;
-    reset(id, digest); generation = witness.generation; client_active = true; error.clear(); return true;
+    reset(id, digest); observer().generation = witness.generation; client_active = true; error.clear(); return true;
 }
 bool seal_client(std::string& error) {
     std::lock_guard lock(gate);
     if (!client_active || GetCurrentThreadId() != main_thread) return reject(error, "Monster Client seal lifetime differs");
     opened::CurrentWorld world;
-    if (!opened::read_completed_world(generation, world, error) || world.uuid != uuid || world.sha256 != sha)
+    if (!opened::read_completed_world(observer().generation, world, error) || world.uuid != observer().uuid || world.sha256 != observer().sha)
         return reject(error, "Monster Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false;
     if(confirmed&&!network_identity::finalize_original_load(world.uuid,world.sha256,error))return false;return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); scene_census.reset(); }
+void cancel(const std::string& cause) {
+    ExportScope export_scope(export_mode.load()); std::lock_guard lock(gate); host_active = false; client_active = false; observer().failure = cause; observer().saves.clear(); observer().loads.clear(); observer().load_stack.clear(); observer().observed.clear(); observer().pools.clear(); observer().scene_census.reset(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
     const bool checked = building_capture_identity::stream_owner(writer, owner, own, error);
@@ -356,21 +390,22 @@ Ticket save_before(const void* property, void* manager, void* writer, void* ctx)
     if (!host_active || !healthy(error)) return 0;
     if (!checked) { reject(error, "Monster owned snapshot writer: " + error); return 0; }
     if (!own) return 0;
-    if (owner.capture_uuid != uuid || !context(reinterpret_cast<uintptr_t>(ctx), error)) { reject(error, "Monster writer UUID/context differs: " + error); return 0; }
+    if (owner.capture_uuid != observer().uuid || !context(reinterpret_cast<uintptr_t>(ctx), error)) { reject(error, "Monster writer UUID/context differs: " + error); return 0; }
     auto links = [&](uintptr_t object, int32_t& id, std::string& cause) { return contains(reinterpret_cast<uintptr_t>(ctx), object, id, cause); };
     Save value; value.owner = owner; value.thread = GetCurrentThreadId();
     if (!q::begin_save(memory, image, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), links, value.frame, error)) { reject(error, error); return 0; }
-    if (saves.size() >= 256 || next_ticket == UINT64_MAX) { reject(error, "Monster save frame budget/sequence exceeded"); return 0; }
-    const auto ticket = ++next_ticket; saves.emplace(ticket, std::move(value)); return ticket;
+    if (observer().saves.size() >= 256 || next_ticket == UINT64_MAX) { reject(error, "Monster save frame budget/sequence exceeded"); return 0; }
+    const auto ticket = ++next_ticket; observer().saves.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard save before exception"); return 0; }
 void save_after(Ticket ticket, const void* property, void* manager, void* writer, void* ctx, bool result) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!ticket) return;
     Owner owner; bool own = false; std::string error;
     const bool checked = building_capture_identity::stream_owner(writer, owner, own, error);
     std::lock_guard lock(gate); if (!healthy(error)) return;
-    const auto found = saves.find(ticket);
-    if (!checked || !own || found == saves.end()) { reject(error, "Monster save return/file owner absent: " + error); return; }
+    const auto found = observer().saves.find(ticket);
+    if (!checked || !own || found == observer().saves.end()) { reject(error, "Monster save return/file owner absent: " + error); return; }
     const auto& saved = found->second;
     if (saved.thread != GetCurrentThreadId() || saved.owner.capture_uuid != owner.capture_uuid ||
         saved.owner.stream != owner.stream || saved.owner.consumer != owner.consumer || saved.owner.file != owner.file ||
@@ -379,7 +414,7 @@ void save_after(Ticket ticket, const void* property, void* manager, void* writer
     q::Pool value;
     if (!q::finish_save(memory, image, saved.frame, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), result, links, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
-    saves.erase(found);
+    observer().saves.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard save after exception"); }
 Ticket load_before(const void* property, void* manager, void* reader, void* ctx) noexcept try {
     if (!client_active) return 0;
@@ -388,9 +423,9 @@ Ticket load_before(const void* property, void* manager, void* reader, void* ctx)
     const auto r = reinterpret_cast<uintptr_t>(reader), c = reinterpret_cast<uintptr_t>(ctx);
     if (!live_reader(r, c, error) || !context(c, error)) { reject(error, "Monster load reader/context rejected: " + error); return 0; }
     Load value; value.property = reinterpret_cast<uintptr_t>(property); value.manager = reinterpret_cast<uintptr_t>(manager); value.thread = GetCurrentThreadId();
-    if (load_stack.contains(value.thread) || loads.size() >= 256 || next_ticket == UINT64_MAX ||
+    if (observer().load_stack.contains(value.thread) || observer().loads.size() >= 256 || next_ticket == UINT64_MAX ||
         !q::begin_load(memory, image, value.property, value.manager, r, c, value.frame, error)) { reject(error, "Monster load frame rejected: " + error); return 0; }
-    const auto ticket = ++next_ticket; load_stack.emplace(value.thread, ticket); loads.emplace(ticket, std::move(value)); return ticket;
+    const auto ticket = ++next_ticket; observer().load_stack.emplace(value.thread, ticket); observer().loads.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard load before exception"); return 0; }
 void children_before(uintptr_t caller, void* reader) noexcept try {
     if (!client_active || caller != q::load_children_return_rva) return;
@@ -425,22 +460,23 @@ void load_after(Ticket ticket, const void* property, void* manager, void* reader
     if (!ticket) return;
     std::lock_guard lock(gate); std::string error; if (!healthy(error)) return;
     auto* frame = top(error); if (!frame) return;
-    const auto found = loads.find(ticket);
-    if (!result || found == loads.end() || frame != &found->second || frame->child_pending ||
+    const auto found = observer().loads.find(ticket);
+    if (!result || found == observer().loads.end() || frame != &found->second || frame->child_pending ||
         frame->property != reinterpret_cast<uintptr_t>(property) || frame->manager != reinterpret_cast<uintptr_t>(manager) ||
         frame->frame.reader != reinterpret_cast<uintptr_t>(reader) || frame->frame.context != reinterpret_cast<uintptr_t>(ctx) ||
         !live_reader(frame->frame.reader, frame->frame.context, error)) { reject(error, "Monster original LoadStream result/lifetime differs: " + error); return; }
     q::Pool value;
     if (!frame->frame.finish(memory, image, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
-    load_stack.erase(frame->thread); loads.erase(found);
+    observer().load_stack.erase(frame->thread); observer().loads.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard load after exception"); }
 void original_failed(Ticket ticket, const std::string& cause) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!ticket) return; std::lock_guard lock(gate); std::string error; reject(error, "original Monster property failed: " + cause);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("original failure reporting exception"); }
 bool prepare_load(const std::filesystem::path& native_path,const std::string& id,const std::string& digest,uint64_t bytes,std::string& error){
     std::lock_guard lock(gate);
     if(host_active||client_active)return q::fail(error,"Monster companion prepare requires idle observer");
-    prepared={};prepared_uuid.clear();prepared_present=false;prepared_sha.clear();prepared_bytes=0;
+    prepared={};prepared_region_rng_sha.clear();prepared_uuid.clear();prepared_present=false;prepared_sha.clear();prepared_bytes=0;
     auto path=native_path;path+=".monsters.json";
     std::error_code ec;const bool exists=std::filesystem::exists(path,ec);
     if(ec)return q::fail(error,"Monster companion existence check failed: "+ec.message());
@@ -458,13 +494,30 @@ bool prepare_load(const std::filesystem::path& native_path,const std::string& id
     if(!network_identity::prepare_aliases(id,digest,prepared.network,error))return false;
     if(!party_saved_identity_runtime::prepare_aliases(id,digest,bytes,prepared.parties,error))return false;
     if(!boss_saved_identity_runtime::prepare_aliases(id,digest,bytes,prepared.bosses,error))return false;
+    const auto region_bytes=region_rng_snapshot::commitment(prepared.region_rng);
+    net::SnapshotSha256 region_hasher;region_hasher.add(reinterpret_cast<const uint8_t*>(region_bytes.data()),region_bytes.size());
+    prepared_region_rng_sha=region_hasher.finish();
     prepared_uuid=id;prepared_sha=digest;prepared_bytes=bytes;error.clear();return true;
 }
+bool read_prepared_region_rng(const std::string& id,const std::string& digest,uint64_t bytes,uint32_t mode,uint32_t index,region_rng_snapshot::Proof& out,std::string& error){
+    std::lock_guard lock(gate);out={};
+    if(prepared_uuid!=id||prepared_sha!=digest||prepared_bytes!=bytes||prepared_region_rng_sha.empty())
+        return q::fail(error,"Region RNG prepared companion file identity differs");
+    const auto actual_mode=prepared.region_rng.present?2u:1u;
+    if(mode!=actual_mode)return q::fail(error,"Region RNG prepared revision differs from immutable import mode; no fallback");
+    if(index!=UINT32_MAX&&(mode!=2||index>=prepared.region_rng.rows.size()))
+        return q::fail(error,"Region RNG proof row index is outside the preserved census");
+    out.mode=mode;out.count=uint32_t(prepared.region_rng.rows.size());out.index=index;out.sha256=prepared_region_rng_sha;
+    if(index!=UINT32_MAX)out.row=prepared.region_rng.rows[index];
+    error.clear();return true;
+}
 bool write_companion(const std::string& id,const std::string& digest,uint64_t bytes,const std::filesystem::path& native_path,std::string& error)try{
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);
-    if(!healthy(error)||host_active||client_active||id!=uuid||digest!=sha||captured.native_sha256!=digest||pools.empty())
+    if(!healthy(error)||host_active||client_active||id!=observer().uuid||digest!=observer().sha||observer().captured.native_sha256!=digest||observer().pools.empty())
         return q::fail(error,error.empty()?"Monster companion capture is not sealed for exact file":error);
-    auto value=captured;value.native_bytes=bytes;std::string data;
+    if(!observer().captured.region_rng.present)return q::fail(error,"Region RNG sealed capture is missing; no first-import fallback");
+    auto value=observer().captured;value.native_bytes=bytes;std::string data;
     if(!network_identity::snapshot_aliases(id,digest,value.network,error)||!boss_saved_identity_runtime::aliases(id,digest,value.bosses,error))return false;
     if(!attachment::encode(value,data,error))return false;
     std::string hash;net::SnapshotSha256 hasher;
@@ -477,4 +530,12 @@ bool write_companion(const std::string& id,const std::string& digest,uint64_t by
         if(!writer.add(i,reinterpret_cast<const uint8_t*>(data.data()+offset),uint32_t(length),error))return false;}
     return writer.commit(error);
 }catch(const std::exception& ex){return q::fail(error,std::string("Monster companion write failed: ")+ex.what());}
+bool finish_export(std::string& error){
+    std::lock_guard lock(gate);
+    if(!export_mode){error.clear();return true;}
+    if(host_active||!export_observer.saves.empty()||!export_observer.loads.empty())
+        return q::fail(error,"Snapshot export still owns original serialization callbacks");
+    export_mode=false;error.clear();return true;
+}
+
 }

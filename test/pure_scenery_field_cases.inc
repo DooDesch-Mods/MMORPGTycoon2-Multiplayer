@@ -26,6 +26,7 @@ uint32_t lookup(uintptr_t,uintptr_t,int32_t category,int32_t variant,uintptr_t& 
     for(unsigned i=0;i<3;++i){MEMORY_BASIC_INFORMATION information{};need(t::virtual_query(reinterpret_cast<void*>(readable),&information,sizeof information,t::Part::QueryWorldProp)!=0,"original lookup fixture page query failed");}
     directory=101;filename=102;roundtrip=uint64_t(uint32_t(category))|(uint64_t(uint32_t(variant))<<32);return 0;
 }
+struct CatalogCodeReadBatch {static bool verify(Memory& memory,uintptr_t image,std::string& e){return code(memory,image,e);}};
 struct NativeCatalog {
     Memory& memory_;uintptr_t image_;uint32_t thread_=GetCurrentThreadId();
     bool identify(int32_t,int32_t,std::string&,std::string&,std::string&);

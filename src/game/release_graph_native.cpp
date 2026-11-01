@@ -1,5 +1,6 @@
 #include "release_graph_native.h"
 #include "subscriber_lifecycle/append_calls.h"
+#include "live_host_state/memory_query_timing.h"
 #include <Windows.h>
 #include <atomic>
 #include <memory>
@@ -15,7 +16,10 @@ void save_prepared(const void* object,void* record,void* context){
 }
 struct Borrow {c::Memory& memory;const Key& key;release_graph::Value& value;release_graph::Kind kind;};
 bool inspect(void* user,const void* root,const void* context,std::string& e){auto& b=*static_cast<Borrow*>(user);c::Graph graph;
-    if(!c::read_graph(b.memory,uintptr_t(root),uintptr_t(context),{release_graph::maximum_records,release_graph::maximum_tokens,release_graph::maximum_text,release_graph::maximum_links},graph,e))return false;
+    {
+        live_host_state::apply_timing::PageReadScope record_pages;
+        if(!c::read_graph(b.memory,uintptr_t(root),uintptr_t(context),{release_graph::maximum_records,release_graph::maximum_tokens,release_graph::maximum_text,release_graph::maximum_links},graph,e))return false;
+    }
     return release_graph::capture_value(graph,b.key,b.value,e,b.kind);
 }
 }

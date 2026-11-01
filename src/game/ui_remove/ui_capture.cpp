@@ -110,7 +110,7 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
     capturing_=true;
     struct Reset {bool& flag;~Reset(){flag=false;}} reset{capturing_};
     std::string cause;Policy mode=Policy::Unavailable;
-    if(!read([&]{mode=services_.policy(cause);return mode!=Policy::Unavailable;},cause))return reject("UI Remove authority unavailable: "+cause);
+    if(!read([&]{mode=services_.policy_for_selection(origin,uintptr_t(manager),array,cause);return mode!=Policy::Unavailable;},cause))return reject("UI Remove authority unavailable: "+cause);
     if(mode==Policy::Standalone){capturing_=false;return forward(Disposition::StandaloneOriginal,manager,array);}
     if(mode!=Policy::AuthorityRequired)return reject("UI Remove authority policy invalid");
     ArrayObservation view;
@@ -153,7 +153,7 @@ Report Capture::destroy_props(void* manager,NativePropArray* array,Origin origin
 bool Capture::with_replay(const Replay& value,const std::function<bool(std::string&)>& native_call,std::string& cause) {
     if(!services_.on_game_thread()||!enabled_||status_.replay_active||authorizing_||status_.unknown||!native_call||!local(value.binding)||
        !valid(value.intent)||value.intent.snapshot_uuid!=value.binding.snapshot_uuid||value.intent.canonical_record_key!=value.binding.canonical_record_key||
-       (value.purpose!=ReplayPurpose::HostExecution&&value.purpose!=ReplayPurpose::ConfirmedHostApplication)) {
+       (value.purpose!=ReplayPurpose::HostExecution&&value.purpose!=ReplayPurpose::ConfirmedHostApplication&&value.purpose!=ReplayPurpose::OrderedExecution)) {
         cause="own native replay requires exact current authoritative game-thread scope";error(cause);return false;
     }
     authorizing_=true;

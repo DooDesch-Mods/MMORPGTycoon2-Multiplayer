@@ -49,7 +49,8 @@ void height_entry(void* brush,void* supplied_cursor,const void* position,float d
     // original Cursor model translation. They are separate native inputs.
     region::LocalView before;int32_t id=-1;terrain_height::Grid grid;
     if(!height_region_at(*r,h.hit,0,receiver,e)||!region::at(*r,receiver,0x834,id,e)||!region::read(*r,id,receiver,before,e)||!height_grid(*r,receiver,grid,h.before_sha256,e)||!terrain_height::index(grid,h.picked,h.cell,e)){rejected(e);return;}
-    Stroke stroke;stroke.brush=uintptr_t(brush);stroke.intent.id=id;stroke.intent.height=h;stroke.binding={before.world.origin.world_epoch,before.world.origin.generation};stroke.snapshot=net::current_snapshot_id();stroke.ui_token=terrain.ui_token;
+    Stroke stroke;stroke.brush=uintptr_t(brush);stroke.intent.id=id;stroke.intent.height=h;stroke.ui_token=terrain.ui_token;
+    if(!capture_binding(stroke,before,e)){rejected(e);return;}
     if(!action::valid_terrain(stroke.intent)){rejected("height captured native input outside typed domain");return;}
     // Preserve the native per-cell guard when capture delays actual effects
     // until the Host grants the request. Holding the same cell cannot replay.
@@ -78,13 +79,14 @@ action::Outcome height_perform(const action::Binding& b,const action::Request& r
     if(terrain.operations.contains(request.action_uuid)){e="height action already attempted; no replay";return action::Outcome::Unknown;}
     if(!height_code(*r,true,e))return action::Outcome::RejectedNoEffect;
     const auto controller=typed_action_runtime::status();if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="height lacks exact Controller request";return action::Outcome::RejectedNoEffect;}
+    bool ordered=false;if(!command_scope(b,request,authority,ordered,e))return action::Outcome::RejectedNoEffect;
     const auto& h=*request.terrain.height;region::LocalView before;action::TerrainState state;action::Ledger money;terrain_height::Grid grid;uintptr_t global=0,cursor=0,model=0,receiver=0;undo::UndoWitness undo_before;int32_t cell=-1;
     if(!region::read(*r,request.terrain.id,0,before,e)||!region::bound(before,b,request.snapshot_uuid,e)||!region::ledger(money,e)||!height_state(*r,before,h.cell,state,grid,global,e)||!terrain_height::index(grid,h.picked,cell,e)||!height_cursor(*r,0,cursor,model,e)||!undo::read_undo(r->memory,r->image,undo_before,e))return action::Outcome::RejectedNoEffect;
     if(undo_before.active_graph||money.cash<100||!money.record_present||cell!=h.cell||state.heights_sha256!=h.before_sha256){e="height original idle graph/cash/cell/before digest differs";return action::Outcome::RejectedNoEffect;}
     if(!height_region_at(*r,h.hit,before.region,receiver,e))return action::Outcome::RejectedNoEffect;
     if(!action::terrain_receipt_fits(request,money,before.state,e))return action::Outcome::RejectedNoEffect;
     if(authority&&(money!=authority->before||!action::same_region_content(before.state,authority->region_before)||!action::same_terrain_content(state,authority->terrain_before))){e="height Client before content differs from Host";return action::Outcome::RejectedNoEffect;}
-    auto& op=terrain.operations[request.action_uuid];op.binding=b;op.request=request;op.native_cost=100;op.evidence.before=money;op.evidence.region_before=authority?authority->region_before:before.state;op.evidence.terrain_before=authority?authority->terrain_before:state;op.attempted=true;
+    auto& op=terrain.operations[request.action_uuid];op.binding=b;op.request=request;op.ordered=ordered;op.native_cost=100;op.evidence.before=money;op.evidence.region_before=authority?authority->region_before:before.state;op.evidence.terrain_before=authority?authority->terrain_before:state;op.attempted=true;
     auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};if(authority&&!native_error(seed(before.random,global,*authority),"height authority RNG seed",e))return unknown();
     uint32_t restore=0;const auto original=height_original(op,r->image,cursor,model,restore);
     if(original||restore){e="height original Drag SEH="+std::to_string(original)+" input restoration SEH="+std::to_string(restore);return unknown();}
@@ -102,7 +104,9 @@ action::Outcome height_perform(const action::Binding& b,const action::Request& r
 bool height_observe(const action::Binding& b,const action::Request& request,action::Evidence& out,std::string& e){
     auto* r=runtime(e);if(!r)return false;const auto found=terrain.operations.find(request.action_uuid);
     if(found==terrain.operations.end()||found->second.binding!=b||found->second.request!=request||!found->second.confirmed)return fail(e,"height observation lacks confirmed exact native operation");
-    const auto& op=found->second;region::LocalView actual;action::TerrainState state;terrain_height::Grid grid;action::Ledger money;uintptr_t global=0;
+    const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(b,request,e))return false;
+    region::LocalView actual;action::TerrainState state;terrain_height::Grid grid;action::Ledger money;uintptr_t global=0;
     if(!region::read(*r,request.terrain.id,0,actual,e)||!region::bound(actual,b,request.snapshot_uuid,e)||!height_state(*r,actual,request.terrain.height->cell,state,grid,global,e)||!region::ledger(money,e))return false;
     if(actual.state!=op.evidence.region_after||state!=op.evidence.terrain_after||money!=op.evidence.after)return fail(e,"height observation changed after original return");out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }

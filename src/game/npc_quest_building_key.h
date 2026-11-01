@@ -6,7 +6,7 @@ namespace mt2mp::game::npc_quest_targets {
 inline bool building_key(const World& world, uintptr_t pointer, std::string& key, std::string& error) {
     key.clear();
     remove_diagnostics::LocalTarget target;
-    if (!remove_diagnostics::resolve_local_target(world.selection, pointer, target, error)) return false;
+    if (!remove_diagnostics::resolve_identity_destination(pointer, target, error, true)) return false;
     if (!valid_origin(world.origin) || target.object != pointer || target.manager != world.selection ||
         target.snapshot_id != world.origin.uuid || target.world_epoch != world.origin.world_epoch ||
         target.world_generation != world.origin.world_generation || target.record_key.empty())

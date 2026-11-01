@@ -48,6 +48,21 @@ inline std::string load(const std::string& folder,const std::string& uuid) {
     return "save/"+folder+"/snapshot-"+uuid+".vrz";
 }
 inline std::string capture(const std::string& folder,const std::string& uuid) {return "user/"+load(folder,uuid);}
+// Native Save names include the engine's user mount prefix. PhysFS write
+// roots already point at that mount, including the selected account directory.
+inline std::filesystem::path physical_original(const std::filesystem::path& write,const std::string& target) {
+    const auto relative=utf8_path(target);
+    if(!write.is_absolute()||target.rfind("user/save/",0)!=0||relative.is_absolute()||relative.has_root_path()||
+       relative.lexically_normal()!=relative||target.find('\\')!=std::string::npos||
+       target.find(':')!=std::string::npos||target.find('\0')!=std::string::npos||
+       relative.filename().empty()||relative.extension()!=L".vrz")
+        throw std::runtime_error("Original Save target is outside its native virtual save root");
+    const auto native=target.substr(5);
+    const auto folder_end=native.find('/',5);
+    if(folder_end==std::string::npos||folder_end==5||folder_end+1==native.size())
+        throw std::runtime_error("Original Save target lacks its native world and filename");
+    return write/utf8_path(native);
+}
 inline std::filesystem::path physical(const std::filesystem::path& write,const std::string& folder,const std::string& uuid) {
     require(folder,uuid);
     return write/"save"/utf8_path(folder)/("snapshot-"+uuid+".vrz");

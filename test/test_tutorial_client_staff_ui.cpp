@@ -1,3 +1,5 @@
+#include "tutorial_startingpoint_fixture/queued_project_expected.h"
+#include "tutorial_startingpoint_fixture/queued_project_admission.h"
 #include "tutorial_startingpoint_fixture/client_admission.h"
 #include "tutorial_startingpoint_fixture/begin_guards.h"
 #include "tutorial_development.h"
@@ -14,7 +16,7 @@ using DWORD=unsigned long;
 using World=building_mixed_identity::opened_file::CurrentWorld;
 constexpr uintptr_t win=0x2000,tabs=0x3000,view=0x4000,pips=0x5000,button=0x6000,rows=0x7000,fixture_pane=0x8000,tech=0x9000,project_view=0xa000,fixture_dev=0xb000,fixture_children=0xc000,business=0xd000;
 const std::string action="11111111-1111-1111-1111-111111111111";
-struct Pin{World world;uintptr_t image=0x10000000,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
+struct Pin{bool ordered=false;World world;uintptr_t image=0x10000000,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
 struct Request{std::string token="token",origin_uuid="local",operation="client_staff_one";uint64_t epoch=1,generation=1;json expected_development;};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;
@@ -37,7 +39,7 @@ bool text(uintptr_t p,size_t off,std::string& out,std::string& e){auto it=string
 bool same(const World& a,const World& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.uuid==b.uuid&&a.sha256==b.sha256&&a.bytes==b.bytes&&a.world_epoch==b.world_epoch&&a.generation==b.generation;}
 bool same_inventory_owner(const Pin& a,const Pin& b){return a.inventory==b.inventory&&a.player==b.player&&a.slots==b.slots;}
 namespace action_session {
-enum class Role{Host,Client};struct Context{Role role=Role::Client;std::string snapshot_uuid="common";bool operator==(const Context&)const=default;};struct Binding{int owner=7;};
+enum class Role{Host,Client};struct Context{Role role=Role::Client;std::string snapshot_uuid="common";bool operator==(const Context&)const=default;};struct Binding{int owner=7;bool operator==(const Binding&)const=default;};
 struct Session{bool current(Context& c,std::string&){c={};if(activation_calls&&changed_context)c.snapshot_uuid="foreign";return true;}}fixture_session;
 Session& selected_session(){return fixture_session;}
 }
@@ -46,15 +48,16 @@ bool network_binding(const std::string&,action_session::Binding&,std::string& e)
 bool observe_startingpoint_submission(const action_session::Context& c,const action_session::Binding& b,const std::string& id,std::string& e){
     ++pending_observations;return (c.snapshot_uuid=="common"&&b.owner==7&&client_controller_admission(controller,id,e))||fail(e,e.empty()?"bound Context changed":e);}
 }
+#include "tutorial_project_queue_fixture.h"
 bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending={},const action_session::Context* context=nullptr,const action_session::Binding* binding=nullptr){
     if(!client||!client_controller_admission(controller,pending,e))return false;
     if(pending.empty()){action_session::Binding b;if(!typed_action_runtime::network_binding("common",b,e))return false;}
     else if(!context||!binding||!typed_action_runtime::observe_startingpoint_submission(*context,*binding,pending,e))return false;
-    p={};p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
+    p={};p.ordered=fixture_ordered;p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
     if(activation_calls&&change_origin)++p.world.world_epoch;
     return true;
 }
-bool begin_snapshot(const Pin&,tutorial_development::StartingpointSnapshot& s,json& d,std::string&){s=native_snapshot;d=development;if(activation_calls&&changed_row)s.row->desired_workers=1;return true;}
+bool begin_snapshot(const Pin& p,tutorial_development::StartingpointSnapshot& s,json& d,std::string&){s=native_snapshot;s.creation->current=tutorial_development::ProjectSource{s.project,0,0,p.tech_key,""};d=development;if(activation_calls&&changed_row)s.row->desired_workers=1;return true;}
 bool staff_ui_code(uintptr_t,std::string&){return true;}
 DWORD staff_done(uintptr_t,uintptr_t,bool& done){done=debug_done;return getter_exception;}
 bool development_window(Pin& p,std::string&){p.window=win;return true;}
@@ -82,6 +85,7 @@ DWORD show(uintptr_t,uintptr_t){
 DWORD staff_page(uintptr_t,uintptr_t){++page_calls;strings[view+0x3e8]="{dev_tab_staff}";put<uintptr_t>(view,0x418,fixture_pane);put<int32_t>(view,0x408,1);return 0;}
 DWORD activate(uintptr_t,uintptr_t){
     ++activation_calls;if(change_ledger)++ledger_value;
+    if(fixture_ordered){capture_project(general_project::Command::Workers,"startingpoint");put<int32_t>(pips,0x3e0,1);return activate_exception;}
     progress_state={{"client_staff_submitted",!send_failed},{"client_staff_suppressed",true},{"client_staff_action_uuid",action},{"client_staff_cause",send_failed?"original send failure":""}};
     progress_state["client_staff_desired_workers"]=1;put<int32_t>(pips,0x3e0,1);
     controller["pending"]=true;controller["action_uuid"]=wrong_pending?"foreign":action;
@@ -92,7 +96,7 @@ DWORD activate(uintptr_t,uintptr_t){
 #include "client_staff_fixture.inc"
 unsigned checks_completed=0;
 void need(bool yes,const char* cause){if(!yes)throw std::runtime_error(cause);++checks_completed;}
-void reset(){
+void reset(){reset_project_queue();
     worlds.clear();receipts.clear();fixture_bytes.clear();strings.clear();controller=idle();progress_state=json::object();
     activation_calls=show_calls=page_calls=select_calls=idle_binding_calls=pending_observations=0;ledger_value=10;
     changed_row=change_ledger=change_origin=send_failed=wrong_pending=unknown_pending=stale_receipt=changed_context=false;
@@ -152,6 +156,13 @@ void check_bridges(){std::string e;json out;
     need(run(out,e,"client_bridges_staff_one")&&activation_calls==1&&out["submitted"]==true&&out["desired_workers"]==1&&out["before"]==out["after"],"Bridges Staff original toggle failed or wrote project locally");
     need(!run(out,e,"client_bridges_staff_one")&&activation_calls==1,"Bridges Staff pending toggle replayed");
 }
+void check_ordered_queue(){std::string e;json out;
+    reset();fixture_ordered=true;need(run(out,e)&&activation_calls==1&&out["queued"]==true&&out["submitted"]==false&&out["host_completion_confirmed"]==false,"ordered staff queue confused with Host completion");
+    need(!run(out,e)&&activation_calls==1,"ordered staff replayed consumed phase");
+    reset();fixture_ordered=true;queue_missing=true;need(!run(out,e)&&activation_calls==1&&out["unknown"]==true&&!e.empty(),"ordered staff missing capture hidden");
+    reset();fixture_ordered=true;queue_wrong_intent=true;need(!run(out,e)&&out["unknown"]==true&&e.find("intent differs")!=std::string::npos,"ordered staff foreign intent accepted");
+    reset();fixture_ordered=true;change_ledger=true;need(!run(out,e)&&out["unknown"]==true&&e.find("ledger")!=std::string::npos,"ordered staff local ledger mutation accepted");
+}
 void check(){std::string e;json out;
     reset();need(state(out,e)&&out["ready"]==true&&out["ui"]["button_toggle"]==1&&out["ui"]["button_membership_matches"]==true,"actual owned toggle not ready");
     need(worlds.empty()&&receipts.empty()&&activation_calls==0&&out["attempted"]==false,"state inserted phase or mutated");
@@ -198,4 +209,4 @@ void check(){std::string e;json out;
     reset();activate_exception=5;need(!run(out,e)&&out["returned"]==false&&out["unknown"]==true&&activation_calls==1,"Activate exception hidden");
 }
 }
-int main(){try{check();check_bridges();check_scan_observations();std::cout<<"PASS "<<checks_completed<<" actual Staff UI checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{check_ordered_queue();check();check_bridges();check_scan_observations();std::cout<<"PASS "<<checks_completed<<" actual Staff UI checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

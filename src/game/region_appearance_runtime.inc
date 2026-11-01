@@ -36,21 +36,7 @@ bool appearance_color(Runtime& r,uintptr_t window,size_t offset,std::array<float
     for(float x:out)if(!std::isfinite(x))return fail(e,"region selected color is nonfinite");
     return true;
 }
-bool appearance_capture(Runtime& r,void* window,void* record,bool& handled,std::string& e){
-    handled=false;
-    static constexpr const char* commands[]{"ColorTint","ColorLight","ColorAmbient","SkyColor","FXChange","ColorRegionFX"};
-    size_t which=6;
-    for(size_t i=0;i<6;++i){bool match=false;const auto seh=label_is(r.image,record,commands[i],match);
-        if(seh)return fail(e,"region appearance command read failed SEH="+std::to_string(seh));if(match){which=i;break;}}
-    if(which==6)return true;
-    handled=true;
-    if(!property_admit(r,e))return false;
-    uintptr_t region=0,widget=0;action::RegionPropertyIntent intent;LocalView view;json ui;
-    intent.kind=action::RegionPropertyKind(uint8_t(action::RegionPropertyKind::Tint)+uint8_t(which));
-    if(!at(r,uintptr_t(window),0x4e8,region,e)||!at(r,region,0x834,intent.id,e)||!identity(r,intent.id,region,view,e)||
-       !at(r,region,0x370,widget,e)||!ui_readback::read(r.memory,r.image,view.world.selection,ui,e)||
-       !ui_readback::validate(ui,r.image,widget,region,e,false)||ui.at("window").get<uintptr_t>()!=uintptr_t(window))
-        return fail(e,e.empty()?"region appearance receiver differs from active selected InfoWindow":e);
+bool appearance_read_controls(Runtime& r,uintptr_t window,size_t which,action::RegionPropertyIntent& intent,std::string& e){
     std::array<float,4> color{};
     if(which==3){
         std::array<float,4> top{},middle{},bottom{};
@@ -58,7 +44,7 @@ bool appearance_capture(Runtime& r,void* window,void* record,bool& handled,std::
            !appearance_color(r,uintptr_t(window),0x5d8,bottom,e))return false;
         // Same coefficient order as SetSkyPreview -> vsSplineColor::Set(bottom,middle,top).
         for(size_t i=0;i<4;++i){intent.appearance_value[i]=bottom[i];intent.appearance_value[4+i]=middle[i]-bottom[i];
-            intent.appearance_value[8+i]=top[i];intent.appearance_value[12+i]=middle[i]-top[i];}
+            intent.appearance_value[8+i]=top[i];intent.appearance_value[12+i]=top[i]-middle[i];}
     }else if(which==4){
         uintptr_t combo=0,value=0;int32_t selected=-1;bool converted=false;
         if(!appearance_control(r,uintptr_t(window),0x5e8,0x16d9b30,combo,e))return false;
@@ -77,6 +63,24 @@ bool appearance_capture(Runtime& r,void* window,void* record,bool& handled,std::
         std::copy(color.begin(),color.end(),intent.appearance_value.begin());
     }
     for(float x:intent.appearance_value)if(!std::isfinite(x))return fail(e,"region captured appearance coefficient is nonfinite");
+    return true;
+}
+bool appearance_capture(Runtime& r,void* window,void* record,bool& handled,std::string& e){
+    handled=false;
+    static constexpr const char* commands[]{"ColorTint","ColorLight","ColorAmbient","SkyColor","FXChange","ColorRegionFX"};
+    size_t which=6;
+    for(size_t i=0;i<6;++i){bool match=false;const auto seh=label_is(r.image,record,commands[i],match);
+        if(seh)return fail(e,"region appearance command read failed SEH="+std::to_string(seh));if(match){which=i;break;}}
+    if(which==6)return true;
+    handled=true;
+    if(!property_capture_admit(r,e))return false;
+    uintptr_t region=0,widget=0;action::RegionPropertyIntent intent;LocalView view;json ui;
+    intent.kind=action::RegionPropertyKind(uint8_t(action::RegionPropertyKind::Tint)+uint8_t(which));
+    if(!at(r,uintptr_t(window),0x4e8,region,e)||!at(r,region,0x834,intent.id,e)||!identity(r,intent.id,region,view,e)||
+       !at(r,region,0x370,widget,e)||!ui_readback::read(r.memory,r.image,view.world.selection,ui,e)||
+       !ui_readback::validate(ui,r.image,widget,region,e,false)||ui.at("window").get<uintptr_t>()!=uintptr_t(window))
+        return fail(e,e.empty()?"region appearance receiver differs from active selected InfoWindow":e);
+    if(!appearance_read_controls(r,uintptr_t(window),which,intent,e))return false;
     action::RegionAppearance before;
     if(!appearance_read_native(r,region,before,e))return false;
     if(action::appearance_matches(intent,before))return true;

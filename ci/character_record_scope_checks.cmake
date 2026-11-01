@@ -9,6 +9,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CHARACTER_RECORD_ROOT}/src/game/scenery_kiss/native_catalog.cpp"
     "${CHARACTER_RECORD_ROOT}/src/game/general_project_runtime.cpp"
     "${CHARACTER_RECORD_ROOT}/src/game/gm_ticket_native.cpp"
+    "${CHARACTER_RECORD_ROOT}/src/game/release_graph_native.cpp"
     "${CHARACTER_RECORD_ROOT}/src/game/world_zone_current.inc"
     "${CHARACTER_RECORD_ROOT}/src/game/dungeon_scene_identity_runtime.cpp"
     "${CHARACTER_RECORD_ROOT}/src/game/subscriber_lifecycle/capture.cpp")

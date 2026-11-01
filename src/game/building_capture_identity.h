@@ -33,7 +33,7 @@ bool initialize(std::string& error);
 // This read is also used while the owned capture seal holds its mutex.
 bool confirm_current_receivers(void* game,void* mode,void* state,void* world,void* map,std::string& error);
 void* capture_entrypoint();
-bool begin(const std::string& capture_uuid, uint64_t session_epoch, std::string& error, const std::string& world_name="MPTestSession", bool bind_snapshot_identities=true);
+bool begin(const std::string& capture_uuid, uint64_t session_epoch, std::string& error, const std::string& world_name="MPTestSession", bool bind_snapshot_identities=true,bool export_only=false,const std::string& native_filename={});
 // Hook invokes original exactly once between these callbacks, even if the ticket is zero.
 Ticket capture_before(const void* array, void* writer, void* save_context) noexcept;
 void capture_after(Ticket ticket, const void* array, void* writer, void* save_context) noexcept;
@@ -58,4 +58,5 @@ using Readback = bool(*)(uint64_t, void*, native::BuildingState&, std::string&);
 void backend(uintptr_t image_base, Contains contains, Typed typed, Readback readback);
 }
 #endif
+bool finish_export(std::string&);
 }

@@ -3,6 +3,8 @@
 #include "general_project_identity_reader.h"
 #include "character_actor_records.h"
 #include "typed_action_runtime.h"
+#include "typed_action/tick_authority.h"
+#include "mt2mp/core/config.h"
 #include "session_provider.h"
 #include "native_open_runtime.h"
 #include "live_host_state/native_port.h"
@@ -29,13 +31,13 @@
 namespace mt2mp::game::general_project_runtime {
 namespace {
 namespace a=action_session;namespace p=general_project;namespace live=live_host_state;
-struct Pending {a::Context context;a::Binding binding;p::Intent intent;std::string id;uintptr_t window=0,tabs=0;};
-struct Operation {a::Context context;a::Binding binding;a::Request request;a::Evidence evidence;bool attempted=false,native_entered=false,returned=false,confirmed=false,retired=false,ui_attempted=false,ui_returned=false,ui_closed=false;uint32_t calls=0;std::string cause;std::array<uint64_t,4> local_random{};};
-struct Replay {std::string id;a::Context context;a::Binding binding;p::Intent intent;uintptr_t source=0,lounge=0,software=0;uint32_t entered=0;std::string cause;};
+struct Pending {a::Context context;a::Binding binding;p::Intent intent;std::string id;uintptr_t window=0,tabs=0;bool ordered=false;};
+struct Operation {a::Context context;a::Binding binding;a::Request request;a::Evidence evidence;bool attempted=false,native_entered=false,returned=false,confirmed=false,retired=false,ui_attempted=false,ui_returned=false,ui_closed=false,ordered=false;uint32_t calls=0;std::string cause;std::array<uint64_t,4> local_random{};};
+struct Replay {std::string id;a::Context context;a::Binding binding;p::Intent intent;uintptr_t source=0,lounge=0,software=0;uint32_t entered=0;std::string cause;const a::Request* ordered_request=nullptr;bool natural=false;};
 struct Runtime {
     DWORD thread=GetCurrentThreadId();uintptr_t image=0;bool ready=false;
     placement_ui_probe::ProcessMemory memory;std::optional<Pending> pending;std::optional<Replay> replay;
-    std::map<std::string,Operation> operations;std::map<std::string,Pending> presentations;uint64_t captures=0,submitted=0,rejected=0;std::string cause;
+    std::map<std::string,Operation> operations;std::map<std::string,Pending> presentations;uint64_t captures=0,submitted=0,rejected=0,natural_attempted=0,natural_confirmed=0;std::string cause,natural_failure;
 };
 std::atomic<Runtime*> published{nullptr};
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
@@ -70,11 +72,25 @@ bool code(Runtime& r,std::string& e){
     if(!tutorial_replication::start_intent::verify_ui(r.image,[&](auto address,auto out,auto count,auto& cause){return r.memory.copy(address,out,count,cause);},e,developer_staff::action_runtime::verify_entry))return false;
     for(const auto& pin:project_pins){std::vector<unsigned char> bytes(pin.bytes);if(!r.memory.copy(r.image+pin.rva,bytes.data(),bytes.size(),e))return false;if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"General project original body differs RVA="+std::to_string(pin.rva));}return true;
 }
-bool context(Runtime& r,const a::Context& c,const a::Binding& b,live::Pin& pin,std::string& e){
+bool ordered_current(const a::Context& c,const a::Binding& b,const a::Request* request,bool original_go,std::string& e){
+    if(Config::instance().is_host!=(c.role==a::Role::Host))return fail(e,"Ordered project actual role differs");
+    if(request)return request->action==a::Action::GeneralProject&&a::tick_commands::authority::matches(c,b,*request,e);
+    bool admitted=false;a::Binding current;
+    if(!original_go||!typed_action_runtime::original_go_admission(admitted,e)||!admitted||
+       !typed_action_runtime::read_binding(c.snapshot_uuid,current,e)||current!=b)
+        return fail(e,e.empty()?"Ordered project requires current original Go Binding":e);
+    return true;
+}
+bool context(Runtime& r,const a::Context& c,const a::Binding& b,live::Pin& pin,std::string& e,bool ordered_input=false,const a::Request* request=nullptr,bool original_go=false){
     a::Context actual;uintptr_t image=0;uint32_t thread=0;std::string sha;
     if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native::read_resolver_receipt(image,thread,sha,e)||image!=r.image||thread!=r.thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,e.empty()?"General project actual Session/Mainthread/EXE differs":e);
     live::NativePort port(c,b,nullptr);if(!port.read(pin,e))return false;
-    if(c.role==a::Role::Client&&pin.selected!=0)return fail(e,"General project Client actual Clock requires0");return true;
+    if(request||original_go){if(!ordered_current(c,b,request,original_go,e))return false;}
+    else if(ordered_input){
+        a::Binding current;bool ordered=false;
+        if(!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,current,e,&ordered)||!ordered||current!=b)
+            return fail(e,e.empty()?"Ordered project input requires current idle ordered Binding":e);
+    }else if(c.role==a::Role::Client&&pin.selected!=0)return fail(e,"General project Client actual Clock requires0");return true;
 }
 bool reference_snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::ReferenceOwners& out,std::string& e){
     out={};live::Pin pin;if(!context(r,c,b,pin,e))return false;
@@ -92,8 +108,8 @@ bool reference_snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::Re
         return fail(e,e.empty()?"General project canonical reference World/State/Software owner differs":e);
     out=std::move(second);e.clear();return true;
 }
-bool snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::Local& local,p::State& out,a::Ledger& money,std::string& e){
-    live::Pin pin;if(!context(r,c,b,pin,e))return false;
+bool snapshot(Runtime& r,const a::Context& c,const a::Binding& b,p::Local& local,p::State& out,a::Ledger& money,std::string& e,bool ordered_input=false,const a::Request* request=nullptr,bool original_go=false){
+    live::Pin pin;if(!context(r,c,b,pin,e,ordered_input,request,original_go))return false;
     auto read=[&](uintptr_t address,size_t offset,auto& value,std::string& cause){return at(r,address,offset,value,cause);};
     auto text=[&](uintptr_t address,std::string& value,std::string& cause){return string(r,address,value,cause);};
     auto flags=[&](uintptr_t source,p::Catalogue& row,std::string& cause){
@@ -150,10 +166,10 @@ bool presentation(Runtime& r,Operation& op,std::string& e){
     if(std::find(windows.begin(),windows.end(),retained.window)==windows.end()){op.ui_closed=true;r.presentations.erase(found);LOG_INFO("[GeneralProject] Source window closed before confirmed presentation action={}",op.request.action_uuid);return true;}
     uintptr_t tabs=0;if(!window(r,retained.window,tabs,e)||tabs!=retained.tabs||!code(r,e))return fail(e,e.empty()?"General project retained presentation window/tabs changed":e);
     p::Local before_local,after_local;p::State before,after;a::Ledger before_money,after_money;
-    if(!snapshot(r,op.context,op.binding,before_local,before,before_money,e))return false;
+    if(!snapshot(r,op.context,op.binding,before_local,before,before_money,e,false,op.ordered?&op.request:nullptr))return false;
     op.ui_attempted=true;const auto exception=refresh(r.image,retained.window,tabs,retained.intent.command);op.ui_returned=!exception;
     if(exception)return fail(e,"General project original source presentation exception="+std::to_string(exception)+"; no replay");
-    if(!snapshot(r,op.context,op.binding,after_local,after,after_money,e)||before_local!=after_local||before!=after||before_money!=after_money)return fail(e,e.empty()?"General project source presentation changed actual gameplay/owners/RNG/Ledger":e);
+    if(!snapshot(r,op.context,op.binding,after_local,after,after_money,e,false,op.ordered?&op.request:nullptr)||before_local!=after_local||before!=after||before_money!=after_money)return fail(e,e.empty()?"General project source presentation changed actual gameplay/owners/RNG/Ledger":e);
     r.presentations.erase(found);return true;
 }
 bool progress_once(Runtime& r,const a::Context& c,const a::Binding& b,p::Progress& out,uintptr_t& lounge,uintptr_t& current,std::string& e,bool validate=true){
@@ -182,7 +198,10 @@ bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled
     const auto blocked=[&](const std::string& cause){if(replay.cause.empty()){replay.cause=cause;LOG_ERROR("[GeneralProject] original admission failed action={} cause={}",replay.id,cause);}return false;};
     if(GetCurrentThreadId()!=r->thread)return blocked("General project private original Mainthread differs");
     const auto controller=typed_action_runtime::controller_status();a::Context actual;std::string e;building_mixed_identity::opened_file::CurrentWorld world;
-    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=replay.id||!a::selected_session().current(actual,e)||actual!=replay.context||!native_open_runtime::read_current_world(world,e)||world.world_epoch!=replay.binding.native_epoch||world.generation!=replay.binding.native_generation)return blocked(e.empty()?"General project private original exact pending Context/Binding differs":e);
+    if(!a::selected_session().current(actual,e)||actual!=replay.context||!native_open_runtime::read_current_world(world,e)||world.world_epoch!=replay.binding.native_epoch||world.generation!=replay.binding.native_generation)return blocked(e.empty()?"General project private original exact Context/Binding differs":e);
+    if(replay.natural){if(!ordered_current(actual,replay.binding,nullptr,true,e))return blocked(e);}
+    else if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=replay.id)return blocked("General project private original pending action differs");
+    if(replay.ordered_request&&!ordered_current(actual,replay.binding,replay.ordered_request,false,e))return blocked(e);
     if(replay.entered&bit)return blocked("General project private original already entered once; no replay");
     if(nested_stat&&!(replay.entered&1))return blocked("General project nested statistic purchase lacks its original Pay entry");
     const auto owner=nested_stat?replay.software:entry==0x262ec0?replay.source:replay.lounge;
@@ -205,13 +224,13 @@ bool capture_ui(void* receiver,void* record,bool& handled,bool& accepted){
     handled=true;if(r->pending||r->presentations.size()>=a::history_limit){rejected(*r,"General project retained UI intent capacity reached");return false;}
     Pending pending;pending.intent.command=type;pending.window=uintptr_t(receiver);int32_t tokens=-1;
     if(!at(*r,uintptr_t(record),0x40,tokens,e)||tokens!=(type==p::Command::Workers?1:0)||!window(*r,pending.window,pending.tabs,e)||!code(*r,e)||
-       !a::selected_session().current(pending.context,e)||!typed_action_runtime::network_binding(pending.context.snapshot_uuid,pending.binding,e)){rejected(*r,e.empty()?"General project genuine UI argument count differs":e);return false;}
-    p::Local local;p::State before;a::Ledger money;if(!snapshot(*r,pending.context,pending.binding,local,before,money,e)){rejected(*r,e);return false;}
+       !a::selected_session().current(pending.context,e)||!typed_action_runtime::network_binding_with_mode(pending.context.snapshot_uuid,pending.binding,e,&pending.ordered)){rejected(*r,e.empty()?"General project genuine UI argument count differs":e);return false;}
+    p::Local local;p::State before;a::Ledger money;if(!snapshot(*r,pending.context,pending.binding,local,before,money,e,pending.ordered)){rejected(*r,e);return false;}
     if(type==p::Command::Start){uintptr_t source=0;if(!at(*r,pending.window,0x610,source,e)){rejected(*r,e);return false;}const auto found=std::find(local.catalogue.begin(),local.catalogue.end(),source);if(found==local.catalogue.end()){rejected(*r,"General project actual selected UI source is outside owned catalogue");return false;}pending.intent.source=before.catalogue[size_t(found-local.catalogue.begin())].source;}
     else{if(!before.progress.current){rejected(*r,"General project actual current owning project absent");return false;}pending.intent.source=*before.progress.current;}
     if(type==p::Command::Workers){const auto error=command_workers(r->image,record,pending.intent.workers);if(error){rejected(*r,"General project genuine worker value SEH="+std::to_string(error));return false;}}
     if(!p::before(pending.intent,before,e)||!completed(*r,local.lounge,type,e)||(pending.id=uuid(e)).empty()){rejected(*r,e);return false;}
-    r->presentations.emplace(pending.id,pending);r->pending=std::move(pending);++r->captures;accepted=true;return true;
+    if(!pending.ordered||pending.intent.source.kind!=0||pending.intent.source.tech!="startingpoint"||type==p::Command::Cancel)r->presentations.emplace(pending.id,pending);r->pending=std::move(pending);++r->captures;accepted=true;return true;
 }
 bool pending_ui(){const auto* r=published.load(std::memory_order_acquire);return r&&(r->pending.has_value()||r->replay.has_value());}
 bool observe_pending_ui(const a::Context& c,const a::Binding& b,const p::Intent& intent,
@@ -228,11 +247,19 @@ bool observe_pending_ui(const a::Context& c,const a::Binding& b,const p::Intent&
         return fail(e,e.empty()?"General project queued UI observation actual idle Context/Binding changed":e);
     id=pending.id;e.clear();return true;
 }
-void tick(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->pending)return;const auto pending=*r->pending;r->pending.reset();a::Context actual;a::Binding binding;std::string e;
-    if(!a::selected_session().current(actual,e)||actual!=pending.context||!typed_action_runtime::network_binding(actual.snapshot_uuid,binding,e)||binding!=pending.binding||!typed_action_runtime::submit_general_project(pending.id,pending.intent,e)){r->presentations.erase(pending.id);rejected(*r,e.empty()?"General project retained UI Context/Binding changed":e);return;}++r->submitted;
+void tick(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->pending)return;const auto pending=*r->pending;r->pending.reset();a::Context actual;a::Binding binding;std::string e;bool ordered=false;
+    if(!a::selected_session().current(actual,e)||actual!=pending.context||!typed_action_runtime::network_binding_with_mode(actual.snapshot_uuid,binding,e,&ordered)||binding!=pending.binding||ordered!=pending.ordered){r->presentations.erase(pending.id);rejected(*r,e.empty()?"General project retained UI Context/Binding/mode changed":e);return;}
+    bool submitted=false;
+    if(!ordered)submitted=typed_action_runtime::submit_general_project(pending.id,pending.intent,e);
+    else if(pending.intent.source.kind!=0||pending.intent.source.tech!="startingpoint"||pending.intent.command==p::Command::Cancel)submitted=typed_action_runtime::submit_general_project(pending.id,pending.intent,e);
+    else if(pending.intent.command==p::Command::Start)submitted=tutorial_replication::submit_ordered_startingpoint_ui(pending.context,pending.binding,pending.id,pending.window,pending.tabs,e);
+    else if(pending.intent.command==p::Command::Workers)submitted=typed_action_runtime::submit_startingpoint_workers(pending.id,pending.intent.workers,e);
+    else if(pending.intent.command==p::Command::Commit)submitted=typed_action_runtime::submit_commit_startingpoint(pending.id,e);
+    else e="Ordered project retained command is not Start, Workers or Commit";
+    if(!submitted){r->presentations.erase(pending.id);rejected(*r,e);return;}++r->submitted;
 }
 bool retire_lobby(std::string& e){auto* r=published.load(std::memory_order_acquire);if(!r){e.clear();return true;}native::WorldStatus world;if(GetCurrentThreadId()!=r->thread||!native::read_world_status(world,e))return false;
-    if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0||r->replay)return fail(e,"General project retirement requires actual idle Title/no replay");r->pending.reset();r->presentations.clear();r->operations.clear();r->cause.clear();e.clear();return true;
+    if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0||r->replay)return fail(e,"General project retirement requires actual idle Title/no replay");r->pending.reset();r->presentations.clear();r->operations.clear();r->cause.clear();r->natural_failure.clear();r->natural_attempted=r->natural_confirmed=0;e.clear();return true;
 }
 a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Evidence* authority,std::string& e){
     auto* r=published.load(std::memory_order_acquire);
@@ -241,16 +268,18 @@ a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Eviden
     if(r->operations.size()>=a::history_limit){auto oldest=r->operations.end();for(auto i=r->operations.begin();i!=r->operations.end();++i)if(i->second.retired&&(oldest==r->operations.end()||i->second.request.host_revision<oldest->second.request.host_revision))oldest=i;
         if(oldest==r->operations.end()){e="General project retained unretired operation capacity reached";return a::Outcome::RejectedNoEffect;}r->operations.erase(oldest);}
     a::Context c;const auto controller=typed_action_runtime::controller_status();
-    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(c,e)||c.snapshot_uuid!=request.snapshot_uuid||(c.role==a::Role::Client)!=(authority!=nullptr)||!code(*r,e)){if(e.empty())e="General project exact pending Controller/role/Context unavailable";return a::Outcome::RejectedNoEffect;}
+    const bool ordered=a::tick_commands::authority::active();
+    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(c,e)||c.snapshot_uuid!=request.snapshot_uuid||
+       (ordered?(authority!=nullptr||!ordered_current(c,b,&request,false,e)):(controller.value("ordered",false)||(c.role==a::Role::Client)!=(authority!=nullptr)))||!code(*r,e)){if(e.empty())e="General project exact pending Controller/role/Context unavailable";return a::Outcome::RejectedNoEffect;}
     const auto& intent=request.general_project;if(intent.command==p::Command::Commit&&!bug_authority::native_code(e))return a::Outcome::RejectedNoEffect;
     p::Local local;p::State before;a::Ledger money;p::Proof before_proof;
-    if(!snapshot(*r,c,b,local,before,money,e)||!p::before(intent,before,e)||!completed(*r,local.lounge,intent.command,e)||!project_proof(c,b,intent.source,before,before_proof,e))return a::Outcome::RejectedNoEffect;
+    if(!snapshot(*r,c,b,local,before,money,e,false,ordered?&request:nullptr)||!p::before(intent,before,e)||!completed(*r,local.lounge,intent.command,e)||!project_proof(c,b,intent.source,before,before_proof,e))return a::Outcome::RejectedNoEffect;
     const auto source=local.sources.find(p::key(intent.source));if(source==local.sources.end()){e="General project exact native source pointer missing";return a::Outcome::RejectedNoEffect;}
     if(authority){if(!authority->general_project_before||!authority->general_project_after||money!=authority->before){e="General project Client complete immediate Ledger/Host proof missing";return a::Outcome::RejectedNoEffect;}
         auto compared=before_proof;compared.random=authority->general_project_before->random;
         if(compared!=*authority->general_project_before){e="General project Client complete current ownership/source differs from Host";return a::Outcome::RejectedNoEffect;}
     }
-    auto& op=r->operations.try_emplace(request.action_uuid).first->second;op.context=c;op.binding=b;op.request=request;op.local_random=before.random;
+    auto& op=r->operations.try_emplace(request.action_uuid).first->second;op.context=c;op.binding=b;op.request=request;op.local_random=before.random;op.ordered=ordered;
     const auto unknown=[&](const std::string& cause){e=op.cause=cause.empty()?"General project original failed without cause":cause;return a::Outcome::Unknown;};
     if(authority&&before.random!=authority->general_project_before->random){op.attempted=true;const auto exception=seed(local.random,before.random,authority->general_project_before->random);
         if(exception)return unknown("General project exact Host RNG adoption SEH="+std::to_string(exception));
@@ -258,7 +287,7 @@ a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Eviden
         auto expected=before;expected.random=authority->general_project_before->random;if(local!=seeded||actual!=expected||cash!=money)return unknown("General project Host RNG adoption changed other actual state");before=std::move(actual);before_proof.random=before.random;
     }
     op.evidence.before=money;op.evidence.general_project_before=before_proof;
-    r->replay=Replay{request.action_uuid,c,b,intent,source->second,local.lounge,local.software};op.attempted=true;bool accepted=false;uint32_t exception=0;
+    r->replay=Replay{request.action_uuid,c,b,intent,source->second,local.lounge,local.software};r->replay->ordered_request=ordered?&request:nullptr;op.attempted=true;bool accepted=false;uint32_t exception=0;
     {live::apply_timing::PageReadScope original(live::apply_timing::PageBoundary::OriginalCall);exception=call(r->image,intent.command,local.lounge,source->second,intent.workers,op.calls,accepted);}
     const auto origin_cause=r->replay->cause;const auto expected_entry=intent.command==p::Command::Start&&intent.source.kind==2?3u:1u;op.native_entered=intent.command==p::Command::Cancel||r->replay->entered==expected_entry;r->replay.reset();op.returned=!exception;
     if(!origin_cause.empty()||!op.native_entered)return unknown(origin_cause.empty()?"General project private original entry not admitted":origin_cause);
@@ -266,7 +295,7 @@ a::Outcome perform(const a::Binding& b,const a::Request& request,const a::Eviden
     const uint32_t expected_calls=intent.command==p::Command::Start?3:intent.command==p::Command::Cancel?4:intent.command==p::Command::Commit?8:16;
     if(op.calls!=expected_calls)return unknown("General project original returned-call mask differs");
     p::Local after_local;p::State after;p::Proof after_proof;
-    if(!snapshot(*r,c,b,after_local,after,op.evidence.after,e)||!p::transition(intent,before,after,e)||!project_proof(c,b,intent.source,after,after_proof,e))return unknown(e);
+    if(!snapshot(*r,c,b,after_local,after,op.evidence.after,e,false,ordered?&request:nullptr)||!p::transition(intent,before,after,e)||!project_proof(c,b,intent.source,after,after_proof,e))return unknown(e);
     if(local.lounge!=after_local.lounge||local.software!=after_local.software||local.tree!=after_local.tree||local.library!=after_local.library||local.store!=after_local.store||local.player!=after_local.player||local.catalogue!=after_local.catalogue||local.techs!=after_local.techs||local.records!=after_local.records||local.packs!=after_local.packs||local.sources!=after_local.sources||local.random!=after_local.random)return unknown("General project original changed actual native owner/catalogue identity");
     if(intent.command==p::Command::Start){if(!after_local.current||(local.current&&after_local.current!=local.current))return unknown("General project original current clone ownership differs");}
     else if(intent.command==p::Command::Workers){if(after_local.current!=local.current)return unknown("General project worker setter replaced native project owner");}
@@ -281,7 +310,7 @@ bool observe(const a::Binding& b,const a::Request& q,a::Evidence& out,std::strin
     auto* r=published.load(std::memory_order_acquire);if(!r)return fail(e,"General project owner absent");const auto found=r->operations.find(q.action_uuid);
     if(found==r->operations.end()||found->second.binding!=b||found->second.request!=q||!found->second.confirmed)return fail(e,"General project exact confirmed original receipt absent");const auto& op=found->second;
     p::Local local;p::State current;p::Proof proof;a::Ledger money;
-    if(!snapshot(*r,op.context,b,local,current,money,e)||!project_proof(op.context,b,q.general_project.source,current,proof,e))return false;
+    if(!snapshot(*r,op.context,b,local,current,money,e,false,op.ordered?&q:nullptr)||!project_proof(op.context,b,q.general_project.source,current,proof,e))return false;
     const auto& after=*op.evidence.general_project_after;
     if(proof.catalogue_sha256!=after.catalogue_sha256||proof.ownership_sha256!=after.ownership_sha256||proof.character_catalogue_sha256!=after.character_catalogue_sha256||proof.progress.current!=after.progress.current)return fail(e,"General project confirmed native source/complete ownership changed before retirement");
     out=op.evidence;out.retirement_confirmed=op.retired;e.clear();return true;
@@ -291,9 +320,40 @@ bool retire(const a::Binding& b,const a::Request& q,std::string& e){
     auto found=r->operations.find(q.action_uuid);if(found==r->operations.end()||found->second.binding!=b||found->second.request!=q||!found->second.confirmed)return fail(e,"General project exact confirmed retirement receipt absent");
     auto actual=std::make_unique<a::Evidence>();if(!observe(b,q,*actual,e)||!presentation(*r,found->second,e)){found->second.cause=e;return false;}found->second.retired=true;e.clear();return true;
 }
+bool ordered_natural_commit(void* receiver,bool& handled,std::string& e){
+    handled=false;auto* r=published.load(std::memory_order_acquire);
+    if(!r||!r->ready||r->replay)return true;
+    bool admitted=false;if(!typed_action_runtime::original_go_admission(admitted,e))return false;
+    if(!admitted)return true;
+    a::Context c;a::Binding b;
+    if(!a::selected_session().current(c,e)||!typed_action_runtime::read_binding(c.snapshot_uuid,b,e))return false;
+    p::Local local;p::State before;a::Ledger money;
+    if(!snapshot(*r,c,b,local,before,money,e,false,nullptr,true))return false;
+    if(!before.progress.current)return fail(e,"Ordered natural Commit has no current project");
+    const auto selected=*before.progress.current;
+    if(selected.kind==0&&selected.tech=="startingpoint")return true;
+    handled=true;
+    if(!r->natural_failure.empty())return fail(e,r->natural_failure);
+    const auto stop=[&](const std::string& cause){r->natural_failure=cause.empty()?"Ordered natural Commit failed without cause":cause;return fail(e,r->natural_failure);};
+    const p::Intent intent{p::Command::Commit,selected,0};p::Proof before_proof;
+    if(uintptr_t(receiver)!=local.lounge||!code(*r,e)||!bug_authority::native_code(e)||!p::before(intent,before,e)||
+       !completed(*r,local.lounge,intent.command,e)||!project_proof(c,b,selected,before,before_proof,e))return stop(e.empty()?"Ordered natural Commit receiver differs":e);
+    const auto source=local.sources.find(p::key(selected));if(source==local.sources.end())return stop("Ordered natural Commit source absent");
+    r->replay=Replay{{},c,b,intent,source->second,local.lounge,local.software};r->replay->natural=true;
+    ++r->natural_attempted;uint32_t returned=0;bool accepted=false;uint32_t exception=0;
+    {live::apply_timing::PageReadScope original(live::apply_timing::PageBoundary::OriginalCall);exception=call(r->image,intent.command,local.lounge,source->second,0,returned,accepted);}
+    const auto entered=r->replay->entered;const auto cause=r->replay->cause;r->replay.reset();
+    if(!cause.empty()||entered!=1||exception||!accepted||returned!=8)return stop(cause.empty()?"Ordered natural Commit original entry/return differs SEH="+std::to_string(exception):cause);
+    p::Local after_local;p::State after;a::Ledger after_money;p::Proof after_proof;
+    if(!snapshot(*r,c,b,after_local,after,after_money,e,false,nullptr,true)||!p::transition(intent,before,after,e)||
+       !project_proof(c,b,selected,after,after_proof,e)||!p::effect(intent,before_proof,after_proof,e))return stop(e);
+    if(local.lounge!=after_local.lounge||local.software!=after_local.software||local.tree!=after_local.tree||local.library!=after_local.library||local.store!=after_local.store||local.player!=after_local.player||local.catalogue!=after_local.catalogue||local.techs!=after_local.techs||local.records!=after_local.records||local.packs!=after_local.packs||local.sources!=after_local.sources||local.random!=after_local.random||after_local.current||money!=after_money)
+        return stop("Ordered natural Commit native owners/retirement/Ledger differ");
+    ++r->natural_confirmed;e.clear();return true;
+}
 nlohmann::json status(){const auto* r=published.load(std::memory_order_acquire);if(!r)return {{"ready",false}};auto operations=nlohmann::json::object();
     for(const auto& [id,op]:r->operations)operations[id]={{"attempted",op.attempted},{"native_entered",op.native_entered},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"original_calls",op.calls},{"ui_attempted",op.ui_attempted},{"ui_returned",op.ui_returned},{"ui_closed",op.ui_closed},{"cause",op.cause},{"intent",p::encode(op.request.general_project)},{"local_before_rng",op.local_random},{"before",op.evidence.general_project_before?p::encode(*op.evidence.general_project_before):nlohmann::json(nullptr)},{"after",op.evidence.general_project_after?p::encode(*op.evidence.general_project_after):nlohmann::json(nullptr)}};
-    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",std::move(operations)}};
+    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",std::move(operations)},{"natural_attempted",r->natural_attempted},{"natural_confirmed",r->natural_confirmed},{"natural_failure",r->natural_failure}};
 }
 bool release_reference_keys(const a::Context& c,const a::Binding& b,std::map<uintptr_t,std::string>& out,std::string& e){
     out.clear();auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready)return fail(e,"Release reference catalogue requires ready General project owner");

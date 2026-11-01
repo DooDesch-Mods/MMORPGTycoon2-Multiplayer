@@ -1,4 +1,5 @@
 #include "sidecar_adapter.h"
+#include "recovery_read_scope.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/net/local_session.h"
 #include "mt2mp/net/snapshot_sync.h"
@@ -16,6 +17,16 @@ bool SidecarTransport::send(uint64_t target,const std::vector<uint8_t>& bytes,st
     cause.clear();return true;
 }
 bool LocalSession::current(Context& out,std::string& cause) {
+    if(recovery_read::selected)return recovery_read::local(out,cause);
+    if(net::ordered_snapshot_selected()){
+        net::OrderedSnapshotIdentity proof;if(!net::read_ordered_snapshot(proof,cause))return false;
+        const auto progress=net::snapshot_progress();
+        if(!proof.loaded||!proof.world_epoch||!net::current_world_epoch()||progress.value("phase",std::string{})!="active"||!progress.value("world_authority_valid",false)){
+            cause="Ordered local action session awaits native load and peer bootstrap agreement";return false;
+        }
+        out={proof.session,proof.local_peer,1,proof.peer_mask,proof.local_peer==1?Role::Host:Role::Client,proof.snapshot_uuid};
+        cause.clear();return true;
+    }
     const auto& config=Config::instance();auto& transport=net::SidecarClient::instance();
     if(!config.local_test){cause="local action adapter requires local_test; Steam action transport not implemented";return false;}
     if(!net::local_session_connected()||!transport.connected()||!transport.ready()){cause="local action session disconnected: "+transport.failure_reason();return false;}

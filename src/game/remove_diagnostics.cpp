@@ -1,11 +1,13 @@
 #include "modular_identity.h"
 #include "service_building_census.h"
 #include "remove_diagnostics.h"
+#include "building_clearance_runtime.h"
 #include "building_scene_identity.h"
 #include "scene_building_registry_preview.h"
 #include "scenery_scene_identity.h"
 #include "character_boss_retirement_read.h"
 #include "typed_action/action_session.h"
+#include "typed_action/tick_authority.h"
 #include "typed_action_runtime.h"
 #include "move_contract.h"
 #include "dungeon_scene_identity_runtime.h"
@@ -188,7 +190,7 @@ json status() {
 namespace {bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);}
 namespace {
 enum class BindingDetails {Identity,Refund,BuildingTargets};
-bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr) {
+bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr,const std::vector<uint64_t>* sorted_omissions=nullptr) {
     out=json::object();error.clear();host::opened::CurrentWorld world;
     if(!current(world,error))return false;
     if(unknown_locked){error="remove diagnostics are Unknown; no new binding admission";return false;}
@@ -204,7 +206,9 @@ bool collect_bindings_body(json& out,std::string& error,BindingDetails details,c
     for(auto& [id,saved]:registry) {
         if(saved.generation!=registry_generation||saved.world!=actual||saved.snapshot!=session_snapshot||saved.scene_owner=="retired")continue;
         retained_present=true;
-        if(!saved.revoked&&!saved.unknown&&(!omit_metadata||!omit_metadata->contains(saved.uid))) {
+        const bool omitted=sorted_omissions?std::binary_search(sorted_omissions->begin(),sorted_omissions->end(),saved.uid):
+            omit_metadata&&omit_metadata->contains(saved.uid);
+        if(!saved.revoked&&!saved.unknown&&!omitted) {
             native::BuildingState settled;
             if(!scenery_kiss::read_action_prop(saved.uid,settled,error))return false;
             if(settled.prop.uid!=saved.uid||saved.metadata.at("type")!=settled.type||
@@ -219,7 +223,7 @@ bool collect_bindings_body(json& out,std::string& error,BindingDetails details,c
                 saved.metadata["y"]=settled.prop.y;
             }
         }
-        if(details==BindingDetails::BuildingTargets&&omit_metadata&&omit_metadata->contains(saved.uid)&&!saved.revoked&&!saved.unknown){
+        if(details==BindingDetails::BuildingTargets&&omitted&&!saved.revoked&&!saved.unknown){
             // The Building census already excludes this admitted saved Scenery.
             // Preserve the stored field guards without allocating its unused row.
             for(const char* field:{"type","variant","x","y","z"})(void)saved.metadata.at(field);
@@ -296,7 +300,10 @@ bool bindings(json& out,std::string& error) {
     return collect_bindings(out,error,BindingDetails::Refund);
 }
 bool identity_bindings(json& out,std::string& error) {
-    return collect_bindings(out,error,BindingDetails::Identity);
+    scenery_kiss::CatalogCodeReadBatch code;json pending;
+    if(!collect_bindings(pending,error,BindingDetails::Identity)){out=std::move(pending);return false;}
+    if(!code.finish(error)){out=json::object();return false;}
+    out=std::move(pending);return true;
 }
 namespace {
 #include "dungeon_building_identity.inc"
@@ -382,16 +389,23 @@ json building_metadata(const native::BuildingState& building) {
         {"x",building.prop.x},{"y",building.prop.y},{"z",building.prop.z},{"rotation",building.rotation},{"scale",building.scale}};
 }
 }
-static bool admit_created_building_impl(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error,bool modular,const std::string& dungeon_scene={}) {
+bool ordered_placement_owner(const action_session::Binding& binding,const action_session::Request& request,std::string& error){
+    if(request.action!=action_session::Action::PlaceBuilding||request.dungeon_building||
+       request.canonical_record_key!="action:"+request.action_uuid){error="Ordered placement target requires exact Root PlaceBuilding identity";return false;}
+    return action_session::tick_commands::authority::matches(binding,request,error)&&
+        current_registry_world(request.snapshot_uuid,binding.native_epoch,binding.native_generation,error);
+}
+static bool admit_created_building_impl(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error,bool modular,const std::string& dungeon_scene={},bool target_only=false) {
     error.clear();
     static const std::regex uuid("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
     if(!std::regex_match(snapshot,uuid)||key.size()!=43||key.compare(0,7,"action:")||
        !std::regex_match(key.substr(7),uuid)){error="created building shared identity invalid";return false;}
     if(snapshot!=net::current_snapshot_id()){error="created building snapshot differs from current session";return false;}
-    json baseline;if(!bindings(baseline,error))return false;
+    if(!target_only){json baseline;if(!bindings(baseline,error))return false;}
     host::opened::CurrentWorld opened;native::BuildingState building;uintptr_t object=0,addresspoint=0;
     if(!read_registered_building(uid,opened,building,object,addresspoint,error,false,modular,dungeon_scene))return false;
     const prop_lease::World world{opened.world_epoch,opened.generation,opened.world,opened.map};
+    if(target_only&&!current_registry_world(snapshot,opened.world_epoch,opened.generation,error))return false;
     const auto id=registry_id(snapshot,key);
     const auto metadata=building_metadata(building);
     const auto previous=registry.find(id);
@@ -414,6 +428,11 @@ static bool admit_created_building_impl(const std::string& snapshot,const std::s
     registry.emplace(id,std::move(fresh));
     LOG_INFO("[Action] Created building binding admitted key={} local_uid={}",key,uid);
     return true;
+}
+bool admit_ordered_created_building(const action_session::Binding& binding,const action_session::Request& request,uint64_t uid,std::string& error){
+    if(!ordered_placement_owner(binding,request,error))return false;
+    if(!admit_created_building_impl(request.snapshot_uuid,request.canonical_record_key,uid,error,false,{},true))return false;
+    return ordered_placement_owner(binding,request,error);
 }
 bool admit_created_building(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return admit_created_building_impl(snapshot,key,uid,error,false);}
 bool admit_created_modular(const std::string& snapshot,const std::string& key,uint64_t uid,std::string& error){return admit_created_building_impl(snapshot,key,uid,error,true);}
@@ -619,6 +638,86 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     return true;
 }
 }
+bool current_registry_world(const std::string& snapshot,uint64_t epoch,uint64_t generation,std::string& error){
+    if(unknown_locked||!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot.empty()||snapshot!=net::current_snapshot_id()){
+        error="Current canonical registry requires its actual Mainthread and active snapshot";return false;}
+    host::opened::CurrentWorld opened;if(!current(opened,error))return false;
+    const prop_lease::World expected{opened.world_epoch,opened.generation,opened.world,opened.map};
+    if(!epoch||!generation||opened.world_epoch!=epoch||opened.generation!=generation||admitted_world!=expected){
+        error="Current canonical registry NativeOpen world differs";return false;}
+    for(const auto& [id,row]:registry){(void)id;
+        if(row.generation==registry_generation&&row.world==expected&&row.snapshot==snapshot&&!row.revoked&&!row.unknown){error.clear();return true;}}
+    error="Current canonical registry has no admitted current object";return false;
+}
+bool read_clearing_original(host::ProcessMemory& memory,host::Reader& reader,uintptr_t native_image,uint32_t thread,
+    const std::string& snapshot,const host::WorldState& boundary,uintptr_t object,uint64_t uid,prop_lease::Prop& prop,native::BuildingState& actual,std::string& error){
+    auto guard=[&](std::string& why){host::WorldState current;bool active=false;
+        return ui_move_runtime::building_clearance::original_read_boundary(snapshot,current,active,why)&&
+            (active||((why="Clearing Scenery original observer ended"),false));};
+    struct OriginalRoot final:scenery_kiss::Root {
+        host::ProcessMemory& memory;host::Reader& reader;const host::WorldState& boundary;
+        uintptr_t object;uint64_t uid;const std::function<bool(std::string&)>& guard;prop_lease::Prop& prop;
+        OriginalRoot(host::ProcessMemory& m,host::Reader& r,const host::WorldState& b,uintptr_t p,uint64_t id,
+            const std::function<bool(std::string&)>& g,prop_lease::Prop& out):memory(m),reader(r),boundary(b),object(p),uid(id),guard(g),prop(out){}
+        bool bind(uint64_t id,scenery_kiss::Binding& out,std::string& why)override{
+            uintptr_t shard=0,region=0;int32_t region_id=-1;
+            if(id!=uid||!guard(why)||!memory.copy(object+0x170,&shard,sizeof shard,why)||shard!=boundary.root||
+               !memory.copy(object+0x178,&region,sizeof region,why)||!memory.copy(region+0x834,&region_id,sizeof region_id,why)||
+               !reader.saved_root_scenery_in_original(reinterpret_cast<void*>(object),uid,region_id,region,boundary,guard,prop,why))return false;
+            out={object,uid,boundary.origin.world_epoch,boundary.origin.generation,uintptr_t(boundary.origin.world),shard,region};return true;
+        }
+    };
+    const std::function<bool(std::string&)> owned=guard;
+    OriginalRoot root(memory,reader,boundary,object,uid,owned,prop);scenery_kiss::NativeCatalog catalog(memory,native_image,thread);scenery_kiss::State state;
+    if(!scenery_kiss::read_state(memory,catalog,root,native_image,uid,state,error))return false;
+    actual={};actual.prop={uid,state.x,state.y,state.z};actual.type=state.type;actual.variant=state.variant;actual.rotation=state.rotation;actual.scale=state.scale;
+    return guard(error);
+}
+bool resolve_clearing_scenery_key(const std::string& snapshot,uintptr_t object,uint64_t uid,std::string& key,std::string& error){
+    key.clear();host::opened::CurrentWorld opened;
+    if(!uid||!object||!current(opened,error)||!current_registry_world(snapshot,opened.world_epoch,opened.generation,error))return false;
+    const prop_lease::World expected{opened.world_epoch,opened.generation,opened.world,opened.map};
+    const Bound* matched=nullptr;
+    for(const auto& [id,row]:registry){(void)id;
+        if(row.generation!=registry_generation||row.world!=expected||row.uid!=uid||row.revoked||row.unknown)continue;
+        if(matched){error="Clearing Scenery full UID has multiple canonical bindings";return false;}matched=&row;}
+    if(!matched||matched->snapshot!=snapshot||matched->key.empty()||(!matched->scene_owner.empty()&&matched->scene_owner!="world")||
+       (matched->object&&matched->object!=object)){error="Clearing Root Scenery lacks exact retained canonical identity";return false;}
+    host::WorldState before,after;bool original=false;
+    if(!ui_move_runtime::building_clearance::original_read_boundary(snapshot,before,original,error))return false;
+    native_free_runtime::Receipt heap;
+    if(original){
+        // This original-constructor observation reads identity and never invokes Free.
+        // The owned save/edit/graph boundary replaces only the mutation-idle receipt.
+        std::string hash;
+        if(!native::read_resolver_receipt(heap.image,heap.main_thread,hash,error))return false;
+        if(heap.main_thread!=GetCurrentThreadId()||hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+            error="Clearing Scenery original resolver Mainthread/executable differs";return false;}
+        std::copy(hash.begin(),hash.end(),heap.executable.sha256.begin());
+    }else if(!native_free_runtime::Runtime::instance().read_actual_receipt(heap,error))return false;
+    host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    host::Reader reader(memory,origin,heap.image,heap.main_thread,api);prop_lease::Prop prop;
+    native::BuildingState actual;
+    if(original){
+        if(!host::same_world(before.origin,opened)||!read_clearing_original(memory,reader,heap.image,heap.main_thread,snapshot,before,object,uid,prop,actual,error))return false;
+    }else if(!reader.current(before,true,error)||!host::same_world(before.origin,opened)||
+       !read_metadata_prop(memory,reader,heap.image,before,reinterpret_cast<void*>(object),uid,prop,error)||
+       !scenery_kiss::read_action_prop(uid,actual,error))return false;
+    if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=reinterpret_cast<void*>(object)||
+       prop.class_addresspoint!=heap.image+0x16c1390||actual.prop.uid!=uid||actual.dungeon_membership||actual.dungeon_instance_membership||
+       (matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)||
+       matched->metadata.at("type")!=actual.type||matched->metadata.at("variant")!=actual.variant||
+       matched->metadata.at("x")!=actual.prop.x||matched->metadata.at("z")!=actual.prop.z||!std::isfinite(actual.prop.y)||
+       (matched->metadata.contains("rotation")&&matched->metadata.at("rotation")!=actual.rotation)||
+       (matched->metadata.contains("scale")&&matched->metadata.at("scale")!=actual.scale)){
+        error="Clearing Root Scenery actual class/full UID/owner/authored metadata differs";return false;}
+    bool still_original=false;
+    if(!(original?ui_move_runtime::building_clearance::original_read_boundary(snapshot,after,still_original,error)&&still_original:reader.current(after,true,error))||
+       !host::same_world(before.origin,after.origin)||admitted_world!=expected){
+        if(error.empty())error="Clearing Root Scenery world changed during identity read";return false;}
+    key=matched->key;return true;
+}
 bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,uint64_t uid,std::string& key,std::string& error){
     key.clear();error.clear();
     if(!uid||!object||unknown_locked||!main_thread.load()||main_thread.load()!=GetCurrentThreadId()||snapshot!=net::current_snapshot_id()){
@@ -706,8 +805,8 @@ bool is_modular_target(const LocalTarget& target,std::string& error){
     if(target.snapshot_id!=net::current_snapshot_id()||!read_registered_building(target.uid,opened,value,object,ap,error,true,true))return false;
     if(target.object!=object||target.type!=value.type||target.variant!=value.variant||target.world_epoch!=opened.world_epoch||target.world_generation!=opened.generation){error="Modular target full canonical World binding differs";return false;}error.clear();return true;
 }
-bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error) {
-    out={};json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;
+static bool resolve_record_target_impl(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error,bool target_only) {
+    out={};if(!target_only){json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown) {
         error="native UI record has no current unrevoked binding";return false;
@@ -718,6 +817,7 @@ bool resolve_record_target(const std::string& snapshot,const std::string& key,Lo
     if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
     host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
     if(!reader.current(world,true,error))return false;
+    if(target_only&&(found->second.generation!=registry_generation||!current_registry_world(snapshot,world.origin.world_epoch,world.origin.generation,error)))return false;
     const prop_lease::World expected=found->second.world;
     if(expected!=prop_lease::World{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map}) {
         error="native UI record registry and complete current world differ";return false;
@@ -725,12 +825,32 @@ bool resolve_record_target(const std::string& snapshot,const std::string& key,Lo
     void* object=nullptr;uint32_t seh=0;
     if(!lookup(api,found->second.uid,object,seh)) {error="native UI record lookup SEH="+std::to_string(seh);return false;}
     if(!object){error="native UI record lookup returned no target";return false;}
-    if(!resolve_local_target_impl(world.selection,uintptr_t(object),out,error,&world.origin))return false;
+    if(!resolve_local_target_impl(world.selection,uintptr_t(object),out,error,&world.origin,target_only))return false;
     if(out.snapshot_id!=snapshot||out.record_key!=key||out.world_epoch!=expected.epoch||out.world_generation!=expected.origin_generation||
        found->second.revoked||found->second.unknown) {
         error="native UI record lookup resolved a different snapshot binding";out={};return false;
     }
     return true;
+}
+bool resolve_ordered_placement(const action_session::Binding& binding,const action_session::Request& request,LocalTarget& out,std::string& error){
+    out={};
+    if(!ordered_placement_owner(binding,request,error)||
+       !resolve_record_target_impl(request.snapshot_uuid,request.canonical_record_key,out,error,true))return false;
+    if(!ordered_placement_owner(binding,request,error)){out={};return false;}
+    return true;
+}
+bool resolve_ordered_move(const action_session::Binding& binding,const action_session::Request& request,LocalTarget& out,std::string& error){
+    out={};
+    if(request.action!=action_session::Action::MoveBuilding||request.dungeon_building||request.canonical_record_key.empty()){
+        error="Ordered Move target requires exact Root MoveBuilding identity";return false;}
+    const auto owner=[&]{return action_session::tick_commands::authority::matches(binding,request,error)&&
+        current_registry_world(request.snapshot_uuid,binding.native_epoch,binding.native_generation,error);};
+    if(!owner()||!resolve_record_target_impl(request.snapshot_uuid,request.canonical_record_key,out,error,true))return false;
+    if(!owner()){out={};return false;}
+    return true;
+}
+bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error){
+    return resolve_record_target_impl(snapshot,key,out,error,false);
 }
 bool retire_region_scenery(const std::string& snapshot,const std::string& token,
     const std::vector<uint64_t>& removed,std::vector<std::string>& keys,std::string& error) {
@@ -823,6 +943,8 @@ bool remove(const json& args,json& out,std::string& error) {
                             if(actual_building.prop.uid!=binding.uid||!scenery_kiss::metadata_matches(binding.metadata,actual_building)||
                                (binding.object&&binding.object!=uintptr_t(object))||(binding.class_addresspoint&&binding.class_addresspoint!=prop.class_addresspoint))
                                 throw std::runtime_error("snapshot remove current type/coordinates differ from immutable binding");
+                            // Retain the exact pre-Remove pose for strict native history restoration.
+                            binding.metadata=building_metadata(actual_building);
                             binding.object=reinterpret_cast<uintptr_t>(object);binding.class_addresspoint=prop.class_addresspoint;
                             rt::PrivateRequest request{sequence,reinterpret_cast<uintptr_t>(object),binding.uid,actual,binding_id(snapshot,key)};
                             const auto result=runtime.execute(request);receipt["result"]=result_json(result);

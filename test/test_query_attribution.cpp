@@ -61,6 +61,7 @@ void partition(){
 #include "release_scalar_scope_cases.inc"
 #include "monster_code_scope_cases.inc"
 #include "actor_code_scope_cases.inc"
+#include "party_owner_scope_cases.inc"
 #include "gm_census_scope_cases.inc"
 #include "region_identity_scope_cases.inc"
 #include "saved_root_index_scope_cases.inc"
@@ -209,7 +210,7 @@ int main(){void* owned=nullptr;try{
     pure_reader_followup_cases();
     release_scalar_scope_fixture::run();
     monster_code_scope_fixture::run();
-    actor_code_scope_fixture::run();
+    actor_code_scope_fixture::run();party_owner_fixture::run();
     gm_census_scope_fixture::run();
     region_identity_scope_cases();
     saved_root_index_scope_cases();

@@ -35,14 +35,16 @@ MUTATIONS.add("resync_world")
 MUTATIONS.add("insert_marketing_record_probe")
 OPS.add("tutorial_welcome_ok")
 OPS.add("tutorial_leveltwo_message_ok")
+OPS.add("tutorial_initial_message_ok")
 OPS.add("tutorial_finish_ok")
 OPS.add("tutorial_network_tab")
-OPS.update({"tutorial_movement", "read_tutorial_movement"})
-MUTATIONS.add("tutorial_movement")
+OPS.update({"tutorial_movement", "tutorial_movement_complete", "read_tutorial_movement", "tutorial_camera_complete", "read_tutorial_camera"})
+MUTATIONS.update({"tutorial_movement", "tutorial_movement_complete", "tutorial_camera_complete"})
 OPS.update({"tutorial_movement_focus", "read_tutorial_movement_focus"})
 MUTATIONS.add("tutorial_movement_focus")
 MUTATIONS.add("tutorial_welcome_ok")
 MUTATIONS.add("tutorial_leveltwo_message_ok")
+MUTATIONS.add("tutorial_initial_message_ok")
 MUTATIONS.add("tutorial_finish_ok")
 MUTATIONS.add("tutorial_network_tab")
 OPS.add("tutorial_startingpoint")
@@ -69,6 +71,8 @@ OPS.update({"enable_ui_move", "request_building_move"})
 MUTATIONS.update({"enable_ui_move", "request_building_move"})
 OPS.update({"enable_ui_path", "read_path", "native_path_segment", "native_path_delete"})
 OPS.update({"enable_ui_network", "read_network_placement", "native_network_node", "native_network_pipe"})
+OPS.update({"native_network_tab", "read_network_tab"})
+MUTATIONS.add("native_network_tab")
 MUTATIONS.update({"enable_ui_network", "native_network_node", "native_network_pipe"})
 MUTATIONS.update({"enable_ui_path", "native_path_segment", "native_path_delete"})
 OPS.update({"enable_ui_terrain", "read_terrain", "native_terrain_stroke", "native_terrain_height"})
@@ -828,7 +832,8 @@ class Runtime:
             self._response_absence_count = 0
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
-        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "read_live_host_state", "focus_test_camera", "probe_remove_ui", "read_remove_bindings"} else MAX_JSON
+        # A completed snapshot includes the full before/after world witness.
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "read_live_host_state", "focus_test_camera", "probe_remove_ui", "read_remove_bindings", "capture_local_snapshot"} else MAX_JSON
         if response_bytes > max_bytes:
             raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:
@@ -1005,3 +1010,17 @@ OPS.add("native_npc_quest_list_ui")
 OPS.add("native_npc_quest_edit_ui")
 MUTATIONS.add("native_npc_quest_edit_ui")
 MUTATIONS.add("native_npc_quest_list_ui")
+
+OPS.update({"native_scenery_gesture", "read_scenery_gesture"})
+MUTATIONS.add("native_scenery_gesture")
+OPS.update({"native_scenery_tab", "read_scenery_tab"})
+MUTATIONS.add("native_scenery_tab")
+
+OPS.update({"native_terrain_tab", "read_terrain_tab"})
+MUTATIONS.add("native_terrain_tab")
+
+OPS.update({"read_world_path", "native_world_path"})
+MUTATIONS.add("native_world_path")
+
+OPS.update({"native_interact_tab", "read_interact_tab"})
+MUTATIONS.add("native_interact_tab")

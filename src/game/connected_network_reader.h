@@ -1,5 +1,6 @@
 #pragma once
 #include "topology_fields.h"
+#include "mixed_path_reader.h"
 #include "typed_action/network_pipe_action.h"
 namespace mt2mp::game::connected_network_native {
 namespace read=network_node_native::read;
@@ -28,9 +29,15 @@ template<class M>bool node(M& m,uintptr_t image,uintptr_t root,uintptr_t object,
     if(!fields::finite(n.transform,e)||!fields::finite(n.definition_values,e)||!fields::finite(n.state,e))return false;
     n.row=json::array({n.type,n.key,n.transform,n.definition_values,n.cost,n.state,n.flags,json::array(),json::array()});return true;
 }
-template<class M>bool graph(M& m,uintptr_t image,uintptr_t root,Graph& out,std::string& e){
+template<class M>bool graph(M& m,uintptr_t image,uintptr_t root,Graph& out,std::string& e,bool saved_regions=false){
     namespace r=read;out={};uintptr_t map=0;std::vector<uintptr_t> regions;
     if(!r::at(m,image,0x13df8c0,map,e)||!r::ap(m,map,image,0x1742860,e)||map+0x1c0!=root||!r::array(m,map,0x358,0x360,0x364,16384,regions,e))return false;
+    // Ownership changes remove Regions from the owned subset without deleting their Network members.
+    if(saved_regions){
+        std::vector<mixed_path_native::Region> saved;
+        if(!mixed_path_native::saved_regions(m,image,map,root,saved,e))return false;
+        regions.clear();for(const auto& region:saved)regions.push_back(region.object);
+    }
     std::map<int32_t,json> rows;std::map<uintptr_t,int32_t> region_ids;
     std::map<int32_t,std::vector<uintptr_t>> local_pipes;
     std::set<uintptr_t> managers,objects;std::set<uint64_t> uids;

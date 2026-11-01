@@ -48,11 +48,13 @@ template<class Hash>Json copy(const fs::path& write,const std::string& selected,
         if(!f.bytes||f.bytes>maximum||(i==2&&f.bytes>monster_snapshot_companion::maximum_bytes))
             throw std::runtime_error("selected snapshot source exceeds existing byte contract");
     }
+    uint32_t region_rng_mode=1;
     if(files[2].present){
         std::ifstream stream(files[2].input,std::ios::binary);std::string text(size_t(files[2].bytes),'\0');
         stream.read(text.data(),std::streamsize(text.size()));monster_snapshot_companion::Manifest companion;
         if(!stream||!monster_snapshot_companion::decode(text,files[0].sha,files[0].bytes,companion,error))
             throw std::runtime_error("selected snapshot companion rejected: "+error);
+        region_rng_mode=companion.region_rng.present?2u:1u;
     }
     // A new UUID is published only after all copied files and original inputs still match.
     for(auto& f:files)if(f.present&&!fs::copy_file(f.input,f.output,fs::copy_options::none))
@@ -68,7 +70,7 @@ template<class Hash>Json copy(const fs::path& write,const std::string& selected,
     }
     for(auto& pin:source_pins)if(!pin.close(&error))throw std::runtime_error("selected snapshot source unpin failed: "+error);
     return {{"snapshot_id",id},{"world_name",world},{"path",net::snapshot_world_path::utf8(output)},
-        {"bytes",files[0].bytes},{"sha256",files[0].sha},{"selected_file",selected},
+        {"bytes",files[0].bytes},{"sha256",files[0].sha},{"selected_file",selected},{"region_rng_mode",region_rng_mode},
         {"selected_meta_present",files[1].present},{"selected_meta_sha256",files[1].sha},
         {"selected_monster_companion_present",files[2].present},{"selected_monster_companion_sha256",files[2].sha}};
 }

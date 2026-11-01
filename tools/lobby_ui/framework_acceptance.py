@@ -4,10 +4,17 @@ import time
 import uuid
 from pathlib import Path
 
-from local_acceptance import AcceptanceError, log, read_json, write_json
-from runtime import Runtime, FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind
+from local_acceptance import AcceptanceError, log, write_json
+from runtime import Runtime, FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind, shared_open
 
 OWNER = 'doodesch.multiplayer'
+
+
+def read_json(path):
+    # The native writer replaces this exact file while SDK observations poll it.
+    with shared_open(Path(path)) as stream:
+        return json.loads(stream.read().decode('utf-8'))
+
 
 
 class _SdkReadTimeout(AcceptanceError):

@@ -8,6 +8,7 @@
 #include "network_history_action.h"
 #include "logo_action.h"
 #include "general_project_action.h"
+#include "tutorial_action.h"
 #include "release_edit_action.h"
 #include "release_cycle_action.h"
 #include "gm_policy_action.h"
@@ -63,16 +64,19 @@
 #include <deque>
 #include <functional>
 #include <map>
+#include <memory>
+#include "../time_session.h"
 #include <optional>
 #include <string>
 #include <thread>
 #include <vector>
 
 namespace mt2mp::action_session {
+nlohmann::json region_property_observation(const RegionPropertyState&);
 constexpr uint8_t channel=9;
 constexpr size_t max_payload=60000, max_transport_payload=65536, history_limit=64;
 enum class Role:uint8_t { Host,Client };
-enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27,PlaceMonster=28,MoveMonster=29,RemoveMonster=30,SetNpcQuestDestination=31,EditNpcProperty=40,EditPropText=41,ReorderBossPhase=42,EditServiceMembership=43,MoveSelection=44,EditDistrictText=45,MoveDistrictTitle=46,EditGroup=47,DuplicateSelection=48,SceneryBrushStroke=49,SceneryEraseStroke=50,MoveGroup=51,RemoveGroup=52,PlaceBoss=53,PlaceWall=54,PlacePass=55,RemoveWorldPath=56,DungeonInput=66,EditDistrict=57,EditZone=58,DistrictStroke=60,EditModularBuilding=59,ManagementCommand=128,RemoveNetworkObject=129,SetLogo=130,GeneralProject=133,ReleaseEdit=134,ReleaseCycle=135,GmPolicy=136,GameRules=137,Intervention=138,SetNpcQuestList=32,EditNpcQuest=33,RenameCharacter=80,SetCharacterHealth=81,SetCharacterMana=82,SetCharacterRage=83,SetCharacterSpeed=84,EditCharacterAbility=85,EditCharacterCostume=86,EditCharacterMembership=87,EditAbilityMembership=88,SetBuildingStatus=100,ConfigureDungeonInstances=101,SetDungeonAtmosphere=103,SetDungeonPalette=104,EditDungeonGizmo=105,SetDungeonLighting=102 };
+enum class Action:uint8_t { RemoveSnapshotBuilding=1,PlaceBuilding,MoveBuilding,SetRegionPreset,TerrainStroke,SetRegionStyles=6,PlacePath=7,PlaceNetworkNode=8,PlaceNetworkPipe=9,UndoBuilding=10,RedoBuilding=11,EditRegionProperty=12,RemovePath=13,SetPrices=14,PlaceNPC=15,RemoveNPC=16,MoveNPC=17,CommitStartingpoint=18,StartStartingpoint=19,SetStartingpointWorkers=20,HireDeveloper=21,FireDeveloper=22,PlaceMonsterZone=23,SetBugFix=24,StartResearch=25,SetResearchWorkers=26,CommitResearch=27,PlaceMonster=28,MoveMonster=29,RemoveMonster=30,SetNpcQuestDestination=31,EditNpcProperty=40,EditPropText=41,ReorderBossPhase=42,EditServiceMembership=43,MoveSelection=44,EditDistrictText=45,MoveDistrictTitle=46,EditGroup=47,DuplicateSelection=48,SceneryBrushStroke=49,SceneryEraseStroke=50,MoveGroup=51,RemoveGroup=52,PlaceBoss=53,PlaceWall=54,PlacePass=55,RemoveWorldPath=56,DungeonInput=66,EditDistrict=57,EditZone=58,DistrictStroke=60,EditModularBuilding=59,ManagementCommand=128,RemoveNetworkObject=129,SetLogo=130,GeneralProject=133,TutorialAcknowledge=139,ReleaseEdit=134,ReleaseCycle=135,GmPolicy=136,GameRules=137,Intervention=138,SetNpcQuestList=32,EditNpcQuest=33,RenameCharacter=80,SetCharacterHealth=81,SetCharacterMana=82,SetCharacterRage=83,SetCharacterSpeed=84,EditCharacterAbility=85,EditCharacterCostume=86,EditCharacterMembership=87,EditAbilityMembership=88,SetBuildingStatus=100,ConfigureDungeonInstances=101,SetDungeonAtmosphere=103,SetDungeonPalette=104,EditDungeonGizmo=105,SetDungeonLighting=102 };
 enum class Kind:uint8_t { Request=1,HostResult,ApplyAck,Completion,RequestRejected };
 enum class Outcome:uint8_t { Pending,Confirmed,RejectedNoEffect,Unknown };
 enum class AuthorityReadiness:uint8_t {Ready,Wait,Rejected};
@@ -107,6 +111,7 @@ struct Request {
     NetworkRemoveIntent network_remove;
     LogoIntent logo;
     GeneralProjectIntent general_project;
+    TutorialIntent tutorial;
     ReleaseEditIntent release_edit;
     ReleaseCycleIntent release_cycle;
     GmPolicyIntent gm_policy;
@@ -174,6 +179,7 @@ struct Evidence {
     std::optional<NetworkHistoryProof> network_history;
     std::optional<LogoState> logo_before,logo_after;
     std::optional<GeneralProjectProof> general_project_before,general_project_after;
+    std::optional<TutorialProof> tutorial_before,tutorial_after;
     std::optional<ReleaseEditProof> release_edit_before,release_edit_after;
     std::optional<ReleaseCycleProof> release_cycle_before,release_cycle_after;
     std::optional<GmPolicyProof> gm_policy_before,gm_policy_after;
@@ -337,6 +343,7 @@ bool valid_group_object_effect(const Request&,const Evidence&);
 bool group_object_wire_fits(const Request&,const Evidence&,std::string&);
 bool valid_scenery_stroke(const SceneryStrokeIntent&);
 bool valid_scenery_stroke_effect(const Request&,const Evidence&);
+bool check_scenery_stroke_effect(const Request&,const Evidence&,std::string&);
 bool scenery_stroke_wire_fits(const Request&,const Evidence&,std::string&);
 bool valid_duplicate(const DuplicateIntent&);
 bool valid_duplicate_effect(const Request&,const Evidence&);
@@ -379,6 +386,7 @@ bool valid_npc_quest_removal(const NpcQuestRemovalProof&,const std::string&);
 bool npc_quest_removal_wire_fits(const Request&,const NpcState&,const Ledger&,const NpcQuestRemovalProof&,std::string&);
 bool valid_modular(const ModularIntent&);
 bool valid_modular_effect(const Request&,const Evidence&);
+namespace tick_commands { namespace wire {struct SnapshotControl;} class Queue; struct Config; struct Input; struct Assigned; struct Batch; struct Receipt; struct State; struct CompletedAction; }
 class Controller {
 public:
     bool submit_dungeon_building(const std::string& id,Action,const std::string& key,const std::string& scene,
@@ -388,6 +396,7 @@ public:
     bool submit_game_rules(const std::string&,const GameRulesIntent&,uint64_t,std::string&);
     bool submit_gm_policy(const std::string&,const GmPolicyIntent&,uint64_t,std::string&);
     bool submit_release_cycle(const std::string&,const ReleaseCycleIntent&,uint64_t,std::string&);
+    bool submit_tutorial(const std::string&,const TutorialIntent&,uint64_t,std::string&);
     bool submit_general_project(const std::string&,const GeneralProjectIntent&,uint64_t,std::string&);
     bool submit_logo(const std::string&,const LogoIntent&,uint64_t,std::string&);
     bool submit_network_remove(const std::string&,const std::string&,const NetworkRemoveIntent&,uint64_t,std::string&);
@@ -402,6 +411,27 @@ public:
     bool submit_start_startingpoint(const std::string& action_uuid,uint64_t now,std::string&);
     using Clock=std::function<uint64_t()>;
     Controller(Session&,Engine&,Transport&,Logger,uint64_t ack_timeout_ms=10000,Clock clock={});
+    ~Controller();
+    using OrderedValidate=std::function<bool(const tick_commands::Input&,std::string&)>;
+    using OrderedExecute=std::function<Outcome(tick_commands::Queue&,const tick_commands::Assigned&,std::string&)>;
+    using OrderedCaptureAdmission=std::function<bool(bool&,std::string&)>;
+    using OrderedAdvance=std::function<Outcome(uint64_t,std::string&)>;
+    bool start_ordered(const tick_commands::Config&,OrderedValidate,OrderedExecute,OrderedAdvance,uint64_t,std::string&,OrderedCaptureAdmission = {});
+    bool ordered_mode() const noexcept;
+    uint64_t ordered_time_sequence() const noexcept;
+    tick_commands::State ordered_state() const;
+    std::vector<tick_commands::CompletedAction> ordered_completed_actions() const;
+    bool ordered_seal(tick_commands::Batch&,uint64_t,std::string&);
+    bool ordered_seal_held(tick_commands::Batch&,uint64_t,std::string&,const std::function<bool(std::string&)>&,bool& interrupted);
+    bool ordered_consume(uint64_t,tick_commands::Receipt&,uint64_t,std::string&);
+    bool submit_ordered_time(game::time_session::Intent,uint64_t,std::string&);
+    using OrderedSnapshotReceive=std::function<bool(uint64_t,const tick_commands::wire::SnapshotControl&,std::string&)>;
+    bool bind_ordered_snapshot(OrderedSnapshotReceive,std::string&);
+    bool submit_ordered_snapshot(const std::string&,uint64_t,std::string&);
+    bool send_ordered_snapshot(uint64_t,const tick_commands::wire::SnapshotControl&,std::string&);
+    void hold_ordered_snapshot(bool);
+    uint64_t ack_timeout_ms()const{return timeout_;}
+
     Controller(const Controller&)=delete;
     Controller& operator=(const Controller&)=delete;
     bool start(uint64_t now_ms,std::string& cause);
@@ -459,13 +489,24 @@ public:
     bool submit_move_npc(const std::string& action_uuid,const std::string& target,const BuildingState& transform,uint64_t now_ms,std::string& cause);
     bool receive(uint64_t authenticated_sender,const uint8_t*,size_t,uint64_t now_ms,std::string& cause);
     bool tick(uint64_t now_ms,std::string& cause);
+    bool tick_held_service(uint64_t now_ms,std::string& cause,const std::function<bool(std::string&)>& interruption);
     Status status() const {return status_;}
     const Status& status_view() const noexcept {return status_;}
     bool can_retire_lobby() const;
+    bool can_retire_recovery(uint64_t completed_tick) const;
+    std::string retirement_diagnostic() const;
     Context bound_context() const {return context_;}
     const Context& bound_context_view() const noexcept {return context_;}
     Binding bound_binding() const {return binding_;}
 private:
+    struct Ordered;
+    std::unique_ptr<Ordered> ordered_;
+    bool ordered_submit(tick_commands::Input,uint64_t,std::string&);
+    bool ordered_receive(uint64_t,const uint8_t*,size_t,std::string&);
+    bool ordered_send(uint64_t,const std::vector<uint8_t>&,std::string&);
+    bool ordered_tick(std::string&);
+    void ordered_status();
+    bool ordered_capture(Request,uint64_t,std::string&);
     struct Cached {
         Message request,result,completion,ack;
         bool has_result=false,has_completion=false,has_ack=false;
@@ -485,7 +526,8 @@ private:
     std::string last_logged_error_;
     bool update_time(uint64_t,std::string&);
     bool arm_deadline(uint64_t&,std::string&);
-    bool guard(std::string&);
+    bool ordered_seal_after_guard(tick_commands::Batch&,uint64_t,std::string&);
+    bool guard(std::string&,const std::function<bool(std::string&)>* interruption=nullptr,bool* interrupted=nullptr);
     bool invoke(const std::function<bool()>&,std::string&);
     bool fail(const std::string&,std::string&,bool lock=false,bool session_loss=false);
     bool send(uint64_t,const Message&,std::string&);

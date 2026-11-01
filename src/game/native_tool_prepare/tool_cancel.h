@@ -16,5 +16,9 @@ bool prepare_network_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool read_network_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool prepare_scenery_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool read_scenery_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool prepare_terrain_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_terrain_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool prepare_interact_tab(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_interact_tab(const nlohmann::json&,nlohmann::json&,std::string&);
 bool unresolved() noexcept;
 }

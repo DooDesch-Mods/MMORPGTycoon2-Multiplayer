@@ -9,7 +9,8 @@ using Row=scene_buildings::Row;
 bool registered(const std::string& snapshot,const std::string& key,uint64_t uid);
 bool owner(uintptr_t object,uint64_t uid,Row&,dungeon_scene_identity_runtime::World&,std::string&);
 bool resolve(const dungeon_scene_identity_runtime::World&,uintptr_t object,uint64_t uid,std::string& key,std::string&);
-bool prepare_saved(const dungeon_scene_identity_runtime::Census&,const scenery_scene_snapshot_alias::Manifest&,std::string&);
+bool prepare_saved(const dungeon_scene_identity_runtime::Census&,const scenery_scene_snapshot_alias::Manifest&,std::string&,bool publish=true);
 bool capture_saved(const dungeon_scene_identity_runtime::Census&,scenery_scene_snapshot_alias::Manifest&,std::string&);
+bool saved_admission_pending();
 bool append_saved(nlohmann::json&,std::string&);
 }

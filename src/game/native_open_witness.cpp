@@ -36,6 +36,7 @@ std::filesystem::path configured_root,physical;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 framework_open_paths::Binding configured_paths;
 std::filesystem::path configured_write;
+framework_open_paths::WriteOrigin configured_write_origin;
 DWORD WINAPI timed_account_attributes(LPCWSTR path) {
     const auto incoming=GetLastError();
     DWORD attributes=0,error=0;
@@ -51,10 +52,7 @@ DWORD WINAPI timed_account_attributes(LPCWSTR path) {
 }
 bool framework_binding(std::string& error,framework_open_paths::AttributeReader& read_attributes=GetFileAttributesW) {
     try {
-        const auto actual=framework_open_paths::live_write(configured_paths,read_attributes);
-        if(configured_write.empty()||!private_profile::equal(actual,configured_write)) {
-            error="Framework native open actual write root changed during bound origin";return false;
-        }
+        configured_write_origin.live_validate(configured_paths,configured_write,read_attributes);
         return true;
     }
     catch(const std::exception& problem) {error=problem.what();return false;}
@@ -436,6 +434,7 @@ bool begin(const std::filesystem::path& runtime_root,const std::string& steam_id
         const auto expected_write=steam_id.empty()?configured_paths.data:configured_paths.data/std::wstring(steam_id.begin(),steam_id.end());
         if(!private_profile::equal(measured,expected_write))return fail(error,"Framework native open measured write root changed before begin");
         configured_write=measured;
+        configured_write_origin.clear();
         const auto route_name=measured.lexically_relative(configured_root)/L"save"/net::snapshot_world_path::utf8_path(world_name)/name;
 #else
         const auto route_name=std::filesystem::path(L"data")/std::wstring(steam_id.begin(),steam_id.end())/L"save"/net::snapshot_world_path::utf8_path(world_name)/name;

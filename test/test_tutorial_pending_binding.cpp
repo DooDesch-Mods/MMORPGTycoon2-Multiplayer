@@ -8,6 +8,7 @@ namespace {
 using json=nlohmann::json;
 uint32_t GetCurrentThreadId(){return 7;}
 struct Controller{action::Status s;action::Context c;action::Binding b;
+    bool ordered=false;bool ordered_mode(){return ordered;}
     action::Status status(){return s;}action::Context bound_context(){return c;}action::Binding bound_binding(){return b;}};
 struct Session:action::Session{action::Context c;bool current(action::Context& out,std::string&)override{out=c;return true;}};
 struct Engine{int reads=0;bool available=true;bool current(const action::Binding&,const std::string&,std::string& e){++reads;if(!available){e="original NativeEngine current owner mismatch";return false;}return true;}};
@@ -15,12 +16,13 @@ struct Receipt{bool unknown=false;std::string cause;};
 struct Live{bool blocked=false;Receipt value;bool locked(){return blocked;}Receipt receipt(){return value;}};
 struct Fence{bool blocked=false;std::string reason;bool locked()const{return blocked;}std::string cause()const{return reason;}}fixture_fence;
 namespace live_host_state{const Fence& economic_fence(){return fixture_fence;}}
-struct Runtime{uint32_t thread=7;Controller controller;Session session;Engine engine;Live* live_state=nullptr;bool lobby_retiring=false;std::string live_error;}fixture_runtime;
+struct Runtime{uint32_t thread=7;Controller controller;Session session;Engine engine;Live* live_state=nullptr;void* live_port=nullptr;bool lobby_retiring=false;std::string live_error;}fixture_runtime;
 std::atomic<Runtime*> published_runtime;
 namespace typed_action_runtime {
+bool network_binding_with_mode(const std::string&,action::Binding&,std::string&,bool*);
 #include "binding_providers.inc"
 }
-struct World{uint64_t world_epoch=8,generation=9;};struct Pin{World world;};
+struct World{uint64_t world_epoch=8,generation=9;};struct Pin{World world;bool ordered=false;};
 bool fail(std::string& e,const std::string& why){e=why;return false;}
 }
 namespace mt2mp::action_session {Session& selected_session(){return ::fixture_runtime.session;}}
@@ -36,7 +38,12 @@ const std::string id="1ff2cd3c-05a4-4ae4-94a9-c7e97d82cef9";
 void reset(){fixture_runtime={};live={};fixture_fence={};fixture_runtime.live_state=&live;fixture_runtime.controller.c={4,2,1,3,action::Role::Client,"common"};
     fixture_runtime.session.c=fixture_runtime.controller.c;fixture_runtime.controller.b={8,9};fixture_runtime.controller.s.started=true;published_runtime=&fixture_runtime;}
 void need(bool yes,const char* why){if(!yes)throw std::runtime_error(why);}
-void run(){std::string e;action::Binding binding;Pin p;const json controller={{"initialized",true}};
+void run(){std::string e;
+    reset();fixture_runtime.controller.ordered=true;bool ordered=false;action::Binding ordered_binding;
+    need(!typed_action_runtime::network_binding_with_mode("common",ordered_binding,e,&ordered)&&!ordered&&e=="Ordered input requires inactive state-copy bridge","ordered input accepted live bridge");
+    fixture_runtime.live_state=nullptr;need(typed_action_runtime::network_binding_with_mode("common",ordered_binding,e,&ordered)&&ordered,"ordered binding not reported");
+    fixture_runtime.live_port=&fixture_runtime;need(!typed_action_runtime::network_binding_with_mode("common",ordered_binding,e,&ordered)&&!ordered,"ordered input accepted live port");
+action::Binding binding;Pin p;const json controller={{"initialized",true}};
     reset();const auto context=fixture_runtime.controller.c;const auto original=fixture_runtime.controller.b;
     need(typed_action_runtime::network_binding("common",binding,e)&&binding==original,"idle original binding rejected");
     fixture_runtime.controller.s.pending=true;fixture_runtime.controller.s.action_uuid=id;

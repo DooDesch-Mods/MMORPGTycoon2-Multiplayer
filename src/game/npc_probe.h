@@ -9,12 +9,16 @@
 #include <vector>
 namespace mt2mp::action_session::ui_capture {struct LocalBinding;struct Replay;}
 namespace mt2mp::move_kiss {struct Intent;}
+namespace mt2mp::npc_census {struct Row;}
 
 namespace mt2mp::game::npc_probe {
 bool query(int32_t region_id, nlohmann::json& result, std::string& error);
+// The held snapshot reader supplies its freshly read root NPC and pinned image.
+bool snapshot_quests(uintptr_t image,int32_t region,const npc_census::Row&,nlohmann::json&,std::string&);
 bool tool_ui(const std::string& token, int32_t region_id, const std::string& tool,
              const std::string& phase, int32_t character_slot, int32_t character_type,
              nlohmann::json& result, std::string& error);
+void tick_original_monster_zone_ui();
 bool monster_zone_ui(const nlohmann::json&, nlohmann::json&, std::string&);
 bool monster_zone_probe(const nlohmann::json&, nlohmann::json&, std::string&);
 bool place_probe(const nlohmann::json& args, nlohmann::json& result, std::string& error);

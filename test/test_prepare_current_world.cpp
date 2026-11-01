@@ -5,10 +5,13 @@
 #include <string>
 #include <vector>
 #include "vendor/nlohmann/json.hpp"
+#include "src/game/prepare_flow.h"
+#include "src/game/startup_calendar_normalization.h"
+#include "mt2mp/net/snapshot_world_path.h"
 
 using Json=nlohmann::json;
 namespace fixture {
-bool host=true,executor=true,ingame=true,connected=true,wire_ok=true,submit_ok=true,response_ready=false,load_ok=true;
+bool host=true,executor=true,ingame=true,connected=true,wire_ok=true,submit_ok=true,response_ready=false,load_ok=true,title_world_present=false;
 std::string wire_error,transport_error,submit_error="original capture submit failure",load_error="original selected load failure";
 unsigned wire_calls=0,load_calls=0,title_calls=0,take_calls=0,runtime_calls=0,simulation_reads=0;
 bool simulation_ok=true;std::string simulation_error="original ledger read failure";
@@ -28,6 +31,9 @@ namespace net {
 constexpr int snapshot_native_load_timeout_seconds=900;
 namespace session_wire {
 bool connected(){return fixture::connected;}
+bool membership_pending(){return false;}
+uint8_t peer_mask(){return 3;}
+bool read_binding(std::array<uint64_t,5>&,uint64_t&,uint64_t&,std::string& error){error="unexpected Ordered membership in legacy preparation fixture";return false;}
 std::string failure_reason(){return fixture::transport_error;}
 bool prepare(std::string& error){++fixture::wire_calls;error=fixture::wire_error;return fixture::wire_ok;}
 }
@@ -35,10 +41,20 @@ Json snapshot_progress(){return {{"phase","active"}};}
 std::string snapshot_sync_status(){return "fixture snapshot failure";}
 }
 namespace game {
+namespace ordered_startup {
+bool selected(){return false;}
+bool current(std::string& error){error="unexpected Ordered startup in legacy preparation fixture";return false;}
+bool retain_resume_scale(float,std::string& error){error="unexpected Ordered resume scale in legacy preparation fixture";return false;}
+}
+namespace startup_calendar {
+Result normalization=Result::Unsupported;
+Result normalize_loaded(std::string& error){if(normalization==Result::Failed)error="original native normalization failure";return normalization;}
+}
 namespace native {
-struct WorldStatus{int active_mode_index=2;bool title_transition_pending=false;};
+struct WorldStatus{int active_mode_index=2;bool title_transition_pending=false,world_present=true;int saves_in_progress=0,edit_operations=0;};
 struct ClockState{float time_scale=0;int32_t flat_day=1;bool paused=true;};
 struct SimulationState{ClockState clock;int32_t cash=0;bool record_present=false;int32_t record_day=-1,record_cash=0;};
+bool read_clock(ClockState& out,std::string&){out={fixture::clock_scale,fixture::flat_day,fixture::clock_paused};return true;}
 bool read_simulation_state(SimulationState& out,std::string& error){
     ++fixture::simulation_reads;if(!fixture::simulation_ok){error=fixture::simulation_error;return false;}
     out.clock={fixture::clock_scale,fixture::flat_day,fixture::clock_paused};out.cash=fixture::cash;
@@ -47,11 +63,12 @@ bool read_simulation_state(SimulationState& out,std::string& error){
 bool in_game(){return fixture::ingame;}
 bool request_load(const std::string& path,std::string& error){++fixture::load_calls;fixture::loaded=path;if(!fixture::load_ok)error=fixture::load_error;return fixture::load_ok;}
 bool request_return_to_title(std::string&){++fixture::title_calls;return true;}
-bool read_world_status(WorldStatus& world,std::string&){world=WorldStatus{};return true;}
+bool read_world_status(WorldStatus& world,std::string&){world=WorldStatus{};world.world_present=fixture::title_world_present;return true;}
 }
 namespace native_lobby {bool admitted(){return false;}}
 namespace lobby_operations {
 bool available(){return fixture::executor;}
+bool executor_idle(){return fixture::executor;}
 bool submit(const char* op,const Json& args,std::string& operation,std::string& error){
     fixture::arguments.push_back(args);
     fixture::operations.emplace_back(op);operation="fixture-operation";
@@ -72,6 +89,7 @@ namespace lobby_prepare {
 #define LOG_ERROR(...) ((void)0)
 #define LOG_INFO(...) ((void)0)
 #include "prepare_current_state_body.inc"
+#include "prepare_current_selection_body.inc"
 #include "prepare_current_completed_body.inc"
 bool captures_ready(){return true;}
 bool all_ack(std::string& error){error="unrelated runtime ACK intentionally unavailable in fixture";return false;}
@@ -86,7 +104,7 @@ namespace prepare=mt2mp::game::lobby_prepare;
 using fixture::check;
 void reset(){
     using namespace fixture;
-    host=executor=ingame=connected=wire_ok=submit_ok=load_ok=true;response_ready=false;
+    host=executor=ingame=connected=wire_ok=submit_ok=load_ok=true,title_world_present=false;response_ready=false;
     wire_error.clear();transport_error.clear();wire_calls=load_calls=title_calls=take_calls=runtime_calls=simulation_reads=0;
     simulation_ok=true;simulation_error="original ledger read failure";flat_day=record_day=1;cash=record_cash=100000;
     clock_paused=record_present=true;clock_scale=0;
@@ -94,9 +112,11 @@ void reset(){
     mt2mp::Config::instance().is_host=true;mt2mp::Config::instance().local_test=false;
     prepare::step=prepare::Step::Idle;prepare::operation.clear();prepare::snapshot.clear();prepare::failure.clear();prepare::selected_path.clear();
     prepare::start_requested=false;prepare::source_current_world=false;prepare::zero_day_reload_attempted=false;
+    prepare::ordered_selector=nullptr;prepare::ordered_waiting_current=prepare::current_resume_known=false;prepare::current_resume_scale=0;
+    mt2mp::game::startup_calendar::normalization=mt2mp::game::startup_calendar::Result::Unsupported;
     prepare::began=std::chrono::steady_clock::now();prepare::leave_confirmed=0;
 }
-int main(){
+int main()try{
     std::string error;
     reset();prepare::selected_path="save/stale/missing.vrz";
     check(prepare::prepare_current(error),"connected current world failed admission");
@@ -148,6 +168,13 @@ int main(){
     fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","captured"},{"building_bindings_confirmed",true}}}};
     check(prepare::tick(error)&&fixture::title_calls==1&&prepare::step==prepare::Step::ReturnTitle&&prepare::snapshot=="captured","capture ACK did not enter common snapshot flow");
     check(fixture::load_calls==0,"current path requested a missing source save");
+    fixture::title_world_present=true;
+    check(prepare::tick(error)&&prepare::step==prepare::Step::ReturnTitle&&fixture::operations.size()==1,
+        "Title mode alone released the still-present native world");
+    fixture::title_world_present=false;
+    check(prepare::tick(error)&&prepare::step==prepare::Step::LoadOrigin&&fixture::operations.size()==2,
+        "actual native world retirement did not permit the original load");
+
 
     reset();check(prepare::prepare_current(error),"zero-day setup failed");
     fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","first-local"},{"building_bindings_confirmed",true}}}};
@@ -239,5 +266,20 @@ int main(){
     reset();fixture::connected=false;check(prepare::prepare_current(error),"timeout setup failed");
     prepare::began-=std::chrono::seconds(901);
     check(!prepare::tick(error)&&error.find("timed out")!=std::string::npos&&fixture::operations.empty()&&fixture::load_calls==0,"timeout mutated world or was hidden");
+    for(const auto normalized:{mt2mp::game::startup_calendar::Result::Normalized,mt2mp::game::startup_calendar::Result::Failed}){
+        reset();check(prepare::prepare_current(error),"normalization decision setup failed");
+        fixture::response_ready=true;fixture::response={{"ok",true},{"result",{{"snapshot_id","local"},{"building_bindings_confirmed",true}}}};
+        check(prepare::tick(error)&&prepare::tick(error),"normalization decision did not reach original load");
+        fixture::flat_day=fixture::record_day=0;fixture::response_ready=true;fixture::response={{"ok",true},{"result",Json::object()}};
+        mt2mp::game::startup_calendar::normalization=normalized;
+        const bool accepted=prepare::tick(error);
+        if(normalized==mt2mp::game::startup_calendar::Result::Normalized)
+            check(accepted&&prepare::step==prepare::Step::CaptureShared&&!prepare::zero_day_reload_attempted&&fixture::operations.size()==3,
+                  "confirmed native calendar normalization repeated the fallback reload");
+        else check(!accepted&&prepare::step==prepare::Step::Failed&&fixture::operations.size()==2&&error.find("original native normalization failure")!=std::string::npos,
+                   "failed native normalization retried or lost the original cause");
+    }
     std::cout<<"PASS actual prepare_current/prepare/start/tick bodies: handshake, no missing-save load, capture once, source reset, failure causes and common capture continuation\n";
 }
+
+catch(const std::exception& cause){std::cerr<<"error: prepare-current fixture: "<<cause.what()<<'\n';return 1;}

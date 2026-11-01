@@ -6,7 +6,7 @@
 namespace mt2mp::game::tutorial_replication::startingpoint {
 namespace {
 bool fail(std::string& e,const char* cause){e=cause;return false;}
-bool zero_bugs(const Row& r){return r.bugs_total==0&&r.bugs_known==0;}
+bool digest(const std::string& s){return s.size()==64&&s.find_first_not_of("0123456789abcdef")==std::string::npos;}
 int32_t number(const nlohmann::json& j){
     if(!j.is_number_integer()||(j.is_number_unsigned()?j.get<uint64_t>()>uint64_t(INT32_MAX):j.get<int64_t>()<0||j.get<int64_t>()>INT32_MAX))
         throw std::runtime_error("startingpoint integer outside0..INT32_MAX");
@@ -14,6 +14,8 @@ int32_t number(const nlohmann::json& j){
 }
 }
 bool valid(const Row& r,std::string& e){
+    if(r.commit_bugs&&((r.commit_bugs->map_before.empty()!=r.commit_bugs->map_after.empty())||
+        (!r.commit_bugs->map_before.empty()&&(!digest(r.commit_bugs->map_before)||!digest(r.commit_bugs->map_after)))))return fail(e,"startingpoint Map receipt digest invalid");
     if(r.commit_bugs&&(!r.deployed||r.project_present||r.commit_bugs->total<0||r.commit_bugs->known<0||r.commit_bugs->known>r.commit_bugs->total))return fail(e,"startingpoint native Commit receipt invalid");
     if(!std::isfinite(r.work)||r.work<0||r.lines<0||(r.desired_workers<0&&(!r.project_present||r.desired_workers!=-1))||r.bugs_total<0||r.bugs_known<0||r.bugs_known>r.bugs_total||
        r.inventory_count<0||r.inventory_count>200||r.release_change_count<0||r.release_change_count>4096||
@@ -32,7 +34,7 @@ nlohmann::json encode(const Row& r){
         {"work",r.work},{"lines",r.lines},{"desired_workers",r.desired_workers},{"bugs_total",r.bugs_total},{"bugs_known",r.bugs_known},
         {"inventory_count",r.inventory_count},{"release_change_count",r.release_change_count},
         {"release_feature_count",r.release_feature_count},{"release_counter",r.release_counter},
-        {"commit_bugs",r.commit_bugs?nlohmann::json{{"total",r.commit_bugs->total},{"known",r.commit_bugs->known}}:nlohmann::json(nullptr)}};
+        {"commit_bugs",r.commit_bugs?(r.commit_bugs->map_before.empty()?nlohmann::json{{"total",r.commit_bugs->total},{"known",r.commit_bugs->known}}:nlohmann::json{{"total",r.commit_bugs->total},{"known",r.commit_bugs->known},{"map_before",r.commit_bugs->map_before},{"map_after",r.commit_bugs->map_after}}):nlohmann::json(nullptr)}};
 }
 bool decode(const nlohmann::json& j,Row& out,std::string& e){
     out={};try{
@@ -47,8 +49,9 @@ bool decode(const nlohmann::json& j,Row& out,std::string& e){
         if(!counter.is_number_integer()||(counter.is_number_unsigned()?counter.get<uint64_t>()>UINT32_MAX:counter.get<int64_t>()<0||uint64_t(counter.get<int64_t>())>UINT32_MAX))throw std::runtime_error("startingpoint release counter outside uint32");
         r.release_counter=counter.get<uint32_t>();
         const auto& bugs=j.at("commit_bugs");if(!bugs.is_null()){
-            if(!bugs.is_object()||bugs.size()!=2)throw std::runtime_error("startingpoint Commit receipt exact2 fields required");
+            if(!bugs.is_object()||(bugs.size()!=2&&bugs.size()!=4))throw std::runtime_error("startingpoint Commit receipt exact2 fields required");
             r.commit_bugs=CommitBugs{number(bugs.at("total")),number(bugs.at("known"))};
+            if(bugs.size()==4){r.commit_bugs->map_before=bugs.at("map_before").get<std::string>();r.commit_bugs->map_after=bugs.at("map_after").get<std::string>();}
         }
         if(!valid(r,e))return false;out=r;return true;
     }catch(const std::exception& x){e=std::string("startingpoint decode: ")+x.what();return false;}
@@ -73,8 +76,10 @@ bool plan(const std::optional<Row>& local,const std::optional<Row>& target,Plan&
         out=Plan::Project;
     }else{
         if(a.release_change_count!=0||a.release_counter!=0)return fail(e,"startingpoint Deploy requires empty first Release with counter0; existing owner references unsupported");
-        if(!b.commit_bugs||b.commit_bugs->total||b.commit_bugs->known)return fail(e,"startingpoint Deploy requires original Host Commit receipt with zero bugs");
-        if(!zero_bugs(a)||!zero_bugs(b))return fail(e,"startingpoint Deploy requires zero actual bug counters; nonzero Map effects unsupported");
+        if(!b.deployed||!b.purchased||!b.commit_bugs||b.commit_bugs->total!=a.bugs_total||b.commit_bugs->known!=a.bugs_known)
+            return fail(e,"startingpoint Deploy requires exact original Commit bug receipt");
+        if((a.bugs_total||a.bugs_known)&&(!digest(b.commit_bugs->map_before)||!digest(b.commit_bugs->map_after)))
+            return fail(e,"startingpoint nonzero Commit requires complete Map/RNG readback");
         if(b.inventory_count!=1||b.release_feature_count!=1||a.release_change_count==4096||b.release_change_count!=a.release_change_count+1||
            a.release_counter==UINT32_MAX||b.release_counter!=a.release_counter+1)
             return fail(e,"startingpoint deployment requires exact one native item/Release feature/counter increment");

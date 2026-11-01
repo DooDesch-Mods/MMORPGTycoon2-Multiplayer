@@ -20,5 +20,7 @@ bool retire(const action_session::Binding&,const action_session::Request&,std::s
 bool query(int32_t,nlohmann::json&,std::string&);
 bool region_members(int32_t,std::vector<uint64_t>&,std::vector<uint64_t>&,std::string&);
 bool native_delete(const nlohmann::json&,nlohmann::json&,std::string&);
+bool world_path_query(const nlohmann::json&,nlohmann::json&,std::string&);
+bool native_world_path(const nlohmann::json&,nlohmann::json&,std::string&);
 bool native_segment(const nlohmann::json&,nlohmann::json&,std::string&);
 }

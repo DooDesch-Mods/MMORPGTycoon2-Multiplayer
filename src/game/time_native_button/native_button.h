@@ -9,6 +9,7 @@ struct Request {
     std::string token,snapshot_uuid;
     uint64_t epoch=0,generation=0,revision=0;
     float scale=0;
+    bool ordered=false;
 };
 struct Binding {
     uintptr_t image=0,world=0,panel=0,slot=0,button=0,item=0,type=0;
@@ -17,6 +18,7 @@ struct Binding {
     uint32_t game_thread=0;
     Role role=Role::Client;
     float scale=0;
+    bool ordered=false;
     bool button_enabled=false;
     int32_t native_item_state=-1;
     bool operator==(const Binding&)const=default;

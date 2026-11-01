@@ -1,6 +1,21 @@
 namespace quest_bridge {
 namespace quest = mt2mp::npc_quest_records;
 namespace targets = mt2mp::game::npc_quest_target_runtime;
+struct ReadCost {
+    uint64_t pools=0,pool_us=0,records=0,record_us=0,bindings=0,binding_us=0;
+};
+template<class Call>bool measured(ReadCost* cost,uint64_t ReadCost::* count,
+                                  uint64_t ReadCost::* duration,Call&& call) {
+    if(!cost)return call();
+    ++(cost->*count);
+    const auto started=std::chrono::steady_clock::now();
+    struct Elapsed {
+        uint64_t& total;std::chrono::steady_clock::time_point started;
+        ~Elapsed(){total+=uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(
+            std::chrono::steady_clock::now()-started).count());}
+    } elapsed{cost->*duration,started};
+    return call();
+}
 int32_t tool_type(const std::string& name) {
     return name=="QuestGiver"?0:name=="Guard"?1:name=="ClassTrainer"?2:-1;
 }
@@ -39,14 +54,15 @@ bool pool(int32_t saved_region,std::string& digest,std::string& error) {
     return targets::read_current(saved_region,current,error)&&pool(saved_region,current,digest,error);
 }
 bool records(Memory& memory,uintptr_t image,int32_t saved_region,const npc_census::Row& row,
-             quest::State& output,std::string& error) {
+             quest::State& output,std::string& error,ReadCost* cost=nullptr) {
     output={};
     if(row.type!=0)return row.quest_count==0||fail(error,"NPC non-QuestGiver has Quest records");
     targets::CurrentTargets current;
-    if(!targets::read_current(saved_region,current,error)||
+    if(!measured(cost,&ReadCost::pools,&ReadCost::pool_us,[&]{return targets::read_current(saved_region,current,error);})||
        current.saved_region!=saved_region||current.snapshot_uuid!=net::current_snapshot_id())
         return fail(error,error.empty()?"NPC Quest destination pool snapshot differs":error);
-    const auto destination=[&current,&memory,image](uintptr_t pointer,std::string& key,std::string& cause){
+    const auto destination=[&current,&memory,image,cost](uintptr_t pointer,std::string& key,std::string& cause){
+        return measured(cost,&ReadCost::bindings,&ReadCost::binding_us,[&]{
         uintptr_t ap=0;if(!field(memory,pointer,0,ap,cause))return false;
         if(ap==image+0x16c0770)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
         if(ap==image+0x1742980)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
@@ -57,12 +73,13 @@ bool records(Memory& memory,uintptr_t image,int32_t saved_region,const npc_censu
         const auto zone=std::find(current.monster_zone_keys.begin(),current.monster_zone_keys.end(),key);
         return building!=current.building_keys.end()||zone!=current.monster_zone_keys.end()||
             fail(cause,"NPC Quest destination absent from original ordered target pools");
+        });
     };
-    if(!quest::read(memory,image,row.local_pointer,destination,output,error))return false;
+    if(!measured(cost,&ReadCost::records,&ReadCost::record_us,[&]{return quest::read(memory,image,row.local_pointer,destination,output,error);}))return false;
     if(output.records.size()!=size_t(row.quest_count))
         return fail(error,"NPC QuestGiver Quest count differs from reader");
     targets::CurrentTargets after;
-    if(!targets::read_current(saved_region,after,error))return false;
+    if(!measured(cost,&ReadCost::pools,&ReadCost::pool_us,[&]{return targets::read_current(saved_region,after,error);}))return false;
     return (after.snapshot_uuid==current.snapshot_uuid&&
             after.saved_region==current.saved_region&&
             after.building_keys==current.building_keys&&
@@ -107,15 +124,15 @@ action_session::NpcActor actor(const npc_census::Row& row,const quest::State& qu
 }
 bool effect_rows(Memory& memory,uintptr_t image,int32_t saved_region,uint64_t created_uid,
                  const npc_census::State& census,uint64_t undo_count,bool quest_pool,
-                 action_session::NpcState& output,json* task_receipt,std::string& error) {
+                 action_session::NpcState& output,json* task_receipt,std::string& error,ReadCost* cost=nullptr) {
     output={};output.count=census.rows.size();output.undo_count=undo_count;
     output.global_random=census.global_random;
-    if(quest_pool&&!pool(saved_region,output.quest_targets_sha256,error))return false;
+    if(quest_pool&&!measured(cost,&ReadCost::pools,&ReadCost::pool_us,[&]{return pool(saved_region,output.quest_targets_sha256,error);}))return false;
     if(task_receipt)*task_receipt=json::array();
     std::vector<std::string> canonical;canonical.reserve(census.rows.size());bool found=!created_uid;
     for(const auto& row:census.rows) {
         quest::State quests;
-        if(!records(memory,image,saved_region,row,quests,error))return false;
+        if(!records(memory,image,saved_region,row,quests,error,cost))return false;
         const auto value=actor(row,quests);
         canonical.push_back(json{{"name",value.name},{"type",value.type},{"character_slot",value.character_slot},
             {"character_type",value.character_type},{"level",value.level},{"quest_count",value.quest_count},

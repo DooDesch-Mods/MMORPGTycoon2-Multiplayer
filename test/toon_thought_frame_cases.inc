@@ -1,3 +1,42 @@
+namespace thought_code_fixture {
+struct Body {uintptr_t rva;size_t bytes;const char* sha;};
+constexpr Body bodies[]={
+#include "toon_thought_codes.inc"
+};
+inline size_t copies=0,hashes=0,owner_checks=0;
+inline bool body_valid=true,owner_valid=true;
+inline std::string current_hash;
+bool fail(std::string& error,const std::string& cause){error=cause;return false;}
+struct Memory {
+    bool copy(uintptr_t address,void* out,size_t bytes,std::string& error){
+        ++copies;
+        for(const auto& body:bodies)if(address==0x100000+body.rva&&bytes==body.bytes){
+            std::memset(out,0,bytes);current_hash=body.sha;return true;
+        }
+        return fail(error,"fixture unexpected mutation body read");
+    }
+};
+struct Runtime {uintptr_t image=0x100000;Memory memory;};
+namespace mt2mp {std::string sha256(const std::vector<unsigned char>&){++hashes;return body_valid?current_hash:"fixture changed body";}}
+namespace thought_native {inline bool enabled=true;inline std::string fault;inline int destroy_owner=1;}
+namespace release_ui_owner {
+template<class Copy,class Hash>bool verify(int owner,Copy&&,Hash&&,const char*,std::string& error){
+    ++owner_checks;return (owner_valid&&owner==1)||fail(error,"fixture destructor owner changed");
+}
+}
+#include "thought_frame_code_actual.inc"
+void reset(){copies=hashes=owner_checks=0;body_valid=owner_valid=thought_native::enabled=true;thought_native::fault.clear();current_hash.clear();}
+void run(){Runtime runtime;std::string error;
+    reset();::need(code(runtime,error,false)&&!copies&&!hashes&&owner_checks==1,"unchanged Thoughts still prove lifetime owner without mutation hashes");
+    reset();::need(code(runtime,error,true)&&copies==std::size(bodies)&&hashes==std::size(bodies)&&owner_checks==1,"changed Thoughts prove every mutation body and lifetime owner");
+    reset();body_valid=false;::need(!code(runtime,error,true)&&copies==1&&hashes==1&&!owner_checks&&error.starts_with("Thought original constructor/bookkeeping body differs RVA="),"changed Thought body fails before owner or mutation");
+    reset();body_valid=false;::need(code(runtime,error,false)&&!copies&&owner_checks==1,"unchanged Thoughts do not require unused original bodies");
+    reset();thought_native::enabled=false;error.clear();::need(!code(runtime,error,false)&&error=="Thought lifetime bridge is not enabled"&&!owner_checks,"unchanged Thoughts require active lifetime bridge");
+    reset();thought_native::fault="fixture lifetime failure";error.clear();::need(!code(runtime,error,false)&&error==thought_native::fault&&!owner_checks,"unchanged Thoughts preserve lifetime failure cause");
+    reset();owner_valid=false;error.clear();::need(!code(runtime,error,false)&&error=="fixture destructor owner changed"&&owner_checks==1,"unchanged Thoughts reject changed destructor owner");
+    reset();
+}
+}
 namespace thought_frame_fixture {
 namespace values=mt2mp::game::toon_thought;
 namespace a=mt2mp::action_session;
@@ -19,7 +58,7 @@ bool sample(Runtime& r,const a::Context&,const a::Binding&,Snapshot& out,std::st
     auto read=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(r,object,offset,value,cause);};
     values::Owners first;values::State before;if(!values::read(read,image,out.bound.bindings,first,before,e)||!values::read(read,image,out.bound.bindings,out.owners,out.value,e))return false;
     return (first==out.owners&&before==out.value)||fail(e,"fixture complete double read changed");}
-bool code(Runtime&,std::string&){return true;}
+bool code(Runtime&,std::string& error,bool mutation_required=true){thought_code_fixture::Runtime runtime;return thought_code_fixture::code(runtime,error,mutation_required);}
 #include "thought_frame_calls.inc"
 values::Array array_at(uintptr_t owner,size_t offset){return {owner,memory.get<uintptr_t>(owner+offset),memory.get<int32_t>(owner+offset+8),memory.get<int32_t>(owner+offset+12)};}
 void link(uintptr_t target,int32_t kind,uintptr_t object){const size_t base=kind?0x580:0xce0;const auto array=array_at(target,base+0x20);if(array.count>=array.capacity)throw std::runtime_error("fixture original reverse list capacity exhausted");memory.put(array.data+size_t(array.count)*8,object);memory.put(target+base+0x28,array.count+1);}
@@ -59,10 +98,17 @@ values::State empty(){return {{{"toon:1",{}},{"toon:2",{}}},{{0,"building",{}},{
 values::State target(){auto value=empty();values::Row first;first.type=12;first.time={17,3,2,1};first.position={0x3f800000,0x40000000,0x40400000};first.targets[0]="building";first.registered=true;
     auto second=first;second.type=49;second.targets={};second.targets[1]="zone";second.registered=false;auto third=first;third.type=3;third.targets={};third.targets[2]="toon:2";auto fourth=first;fourth.type=0;fourth.targets={};fourth.registered=false;
     value.toons[0].thoughts={first,second,third,fourth};value.toons[1].thoughts={first};value.links[0].members={"toon:2/thought/0","toon:1/thought/0"};value.links[1].members={"toon:1/thought/1"};return value;}
-void reset(){memory=Memory{};calls=writes=fail_call=fail_write=0;world_valid=true;drift=false;registrations.clear();constructed.clear();last=nullptr;
+void reset(){memory=Memory{};calls=writes=fail_call=fail_write=0;world_valid=true;drift=false;registrations.clear();constructed.clear();last=nullptr;thought_code_fixture::reset();
     for(const auto toon:{toon_a,toon_b}){memory.put(toon,image+0x1744e90);memory.put(toon+0x8a8,uintptr_t{0x1234});memory.put(toon+0x8c0,image+0x16eaae0);memory.put(toon+0x8c8,uintptr_t{0});memory.put(toon+0x8d0,std::array<int32_t,2>{0,0});}
     for(const auto& [object,base]:std::array<std::pair<uintptr_t,size_t>,2>{{{building,0xce0},{zone,0x580}}}){memory.put(object+base,image+0x1717220);const auto data=memory.allocate(128);memory.put(object+base+0x20,data);memory.put(object+base+0x28,std::array<int32_t,2>{0,16});}}
 void run(){Runtime runtime;a::Context context;context.role=a::Role::Client;a::Binding binding;live::ManagementReceipt receipt;std::string e;Snapshot actual;const auto desired=target();
+    thought_code_fixture::run();
+    reset();receipt={};thought_code_fixture::body_valid=false;need(adopt(runtime,context,binding,empty(),receipt,e)&&!receipt.attempted&&!calls&&!writes&&!thought_code_fixture::hashes&&thought_code_fixture::owner_checks==1,"actual unchanged adoption keeps lifetime proof without hashing unused bodies");
+    reset();receipt={};thought_code_fixture::body_valid=false;e.clear();need(!adopt(runtime,context,binding,desired,receipt,e)&&!receipt.attempted&&!calls&&!writes&&thought_code_fixture::hashes==1&&e.starts_with("Thought original constructor/bookkeeping body differs RVA="),"actual changed adoption rejects bad body before any effects");
+    reset();receipt={};thought_code_fixture::thought_native::fault="fixture lifetime failure";e.clear();need(!adopt(runtime,context,binding,empty(),receipt,e)&&!receipt.attempted&&!calls&&!writes&&e=="fixture lifetime failure","actual unchanged adoption preserves lifetime fault");
+    reset();receipt={};thought_code_fixture::owner_valid=false;e.clear();need(!adopt(runtime,context,binding,empty(),receipt,e)&&!receipt.attempted&&!calls&&!writes&&e=="fixture destructor owner changed","actual unchanged adoption rejects changed destructor owner");
+    reset();receipt={};world_valid=false;e.clear();need(!adopt(runtime,context,binding,empty(),receipt,e)&&!receipt.attempted&&!calls&&!writes&&!thought_code_fixture::owner_checks&&e=="fixture fresh World changed","actual unchanged adoption still requires fresh world evidence");
+    receipt={};e.clear();
     reset();need(adopt(runtime,context,binding,desired,receipt,e)&&last.at("confirmed")==true,"actual complete Thought adoption: "+e);need(sample(runtime,context,binding,actual,e)&&actual.value==desired,"actual full Thought owner/value/reverse order readback: "+e);const auto successful_calls=calls,successful_writes=writes;
     need(constructed.size()==5&&registrations[12]==2&&registrations[49]==0&&registrations[3]==1,"Thought original constructors/statistics bookkeeping differ");need(memory.get<uintptr_t>(toon_a+0x8a8)==0x1234,"Thought projection touched prior memory array");
     receipt={};const auto prior_calls=calls,prior_writes=writes;need(adopt(runtime,context,binding,desired,receipt,e)&&!receipt.attempted&&calls==prior_calls&&writes==prior_writes,"unchanged Thoughts repeated original effects");

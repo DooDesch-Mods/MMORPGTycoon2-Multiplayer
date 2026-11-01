@@ -60,7 +60,7 @@ void check_archive(bool meta){
 void cases(){
     for(const bool meta:{false,true}){
         reset(true,meta);std::string error;
-        const bool returned=request_return_to_title(error);
+        const bool returned=request_return_to_title(error,false);
         need(returned&&error.empty()&&quit_calls==1&&archive_calls==1,"original Quit is called once after complete archival; cause="+error);
         check_archive(meta);
         need(!fs::exists(companion_file)&&fixture::read(native_file)=="new bytes from original native autosave","native autosave writes normally without stale companion");
@@ -69,7 +69,7 @@ void cases(){
     }
     {
         reset(false);std::string error;
-        need(request_return_to_title(error)&&quit_calls==1&&archive_calls==1,"absent companion leaves original Quit intact");
+        need(request_return_to_title(error,false)&&quit_calls==1&&archive_calls==1,"absent companion leaves original Quit intact");
         need(receipt.at("state")=="no_companion"&&!fs::exists(archive_root),"absent companion creates no archive or fabricated alias record");
     }
     for(int bad=0;bad<3;++bad){
@@ -78,36 +78,36 @@ void cases(){
         if(bad==1)altered["native_bytes"]=1;
         fixture::write(companion_file,bad==2?"malformed original companion":altered.dump());
         const auto before=fixture::read(companion_file);std::string error;
-        need(!request_return_to_title(error)&&error.find("retirement refused")!=std::string::npos,"invalid companion remains a visible fail-closed rejection");
+        need(!request_return_to_title(error,false)&&error.find("retirement refused")!=std::string::npos,"invalid companion remains a visible fail-closed rejection");
         need(quit_calls==0&&archive_calls==1&&!fs::exists(archive_root)&&fixture::read(companion_file)==before&&
              fixture::read(native_file)=="old exact native save","corrupt/mismatched pair is neither moved, rewritten nor overwritten");
     }
     {
         reset();net::SnapshotFileHandle held;std::string error;need(held.open(companion_file,GENERIC_READ,OPEN_EXISTING,error),error);
-        need(!request_return_to_title(error)&&error.find("snapshot file open")!=std::string::npos&&quit_calls==0,
+        need(!request_return_to_title(error,false)&&error.find("snapshot file open")!=std::string::npos&&quit_calls==0,
              "competing pinned reader prevents retirement rather than reopening or ignoring the companion");
         need(fs::exists(companion_file)&&!fs::exists(archive_root),"failed exclusive identity pin leaves original pair untouched");
         need(held.close(&error),error);
     }
     {
         reset();fixture::write(archive_root,"archive root is a file");std::string error;
-        need(!request_return_to_title(error)&&!error.empty()&&quit_calls==0&&fs::exists(companion_file),"unavailable owned archive blocks original overwrite");
+        need(!request_return_to_title(error,false)&&!error.empty()&&quit_calls==0&&fs::exists(companion_file),"unavailable owned archive blocks original overwrite");
     }
     for(int guard=0;guard<4;++guard){
         reset();if(guard==0)thread_ok=false;if(guard==1)active=false;if(guard==2)save_read_ok=false;if(guard==3)saves_value=1;
-        std::string error;need(!request_return_to_title(error)&&!error.empty()&&quit_calls==0&&archive_calls==0&&fs::exists(companion_file),
+        std::string error;need(!request_return_to_title(error,false)&&!error.empty()&&quit_calls==0&&archive_calls==0&&fs::exists(companion_file),
                                "existing thread/world/save guards precede any archival effect");
     }
     for(int failure=0;failure<3;++failure){
         reset();if(failure==0)native_exception=5;if(failure==1)quit_flag=false;if(failure==2)desktop=true;
-        std::string error;const bool result=request_return_to_title(error);
+        std::string error;const bool result=request_return_to_title(error,false);
         need(!result&&error.find(failure==0?"native call failed":"acknowledgement failed")!=std::string::npos&&quit_calls==1,
              "original native exception/acknowledgement failure remains visible with no retry; mode="+std::to_string(failure)+
              " returned="+std::to_string(result)+" quit_calls="+std::to_string(quit_calls)+" archive_calls="+std::to_string(archive_calls)+" cause="+error);
         check_archive(true);
     }
     for(size_t padding=0;padding<4;++padding){
-        reset(true,true,padding);std::string error;const bool returned=request_return_to_title(error);
+        reset(true,true,padding);std::string error;const bool returned=request_return_to_title(error,false);
         need(returned&&quit_calls==1&&archive_calls==1,"terminated rename failed; padding="+std::to_string(padding)+" cause="+error);
         check_archive(true);
     }

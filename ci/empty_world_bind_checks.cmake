@@ -42,6 +42,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/object_identity/remove_runtime/copy/native_origin.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/root_scenery_snapshot.inc"
     "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"
+    "${MT2MP_SOURCE_ROOT}/test/ordered_identity_source_boundary.py"
     "${MT2MP_SOURCE_ROOT}/src/game/root_scenery_metadata.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/service_building_census.h"
     "${MT2MP_SOURCE_ROOT}/test/identity_refund_split_cases.inc"
@@ -51,6 +52,8 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/construction_native.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/party_frame_native.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/building_identity_census.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/scenery_scene_identity.h"
+    "${MT2MP_SOURCE_ROOT}/src/game/scenery_scene_identity.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/service_live_native.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/toon_thought_frame.inc")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_identity_refund_split.py"

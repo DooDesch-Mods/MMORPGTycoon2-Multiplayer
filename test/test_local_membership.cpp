@@ -1,4 +1,5 @@
 #include "mt2mp/net/local_membership.h"
+#include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/core/config.h"
 #include "typed_action/action_session.h"
 #include <iostream>
@@ -14,6 +15,9 @@ namespace mt2mp {
 Config& Config::instance(){static Config value;return value;}
 }
 namespace mt2mp::net {
+bool ordered_snapshot_selected(){return false;}
+bool read_ordered_snapshot(OrderedSnapshotIdentity&,std::string& e){e="unexpected ordered snapshot in legacy membership fixture";return false;}
+nlohmann::json snapshot_progress(){return nlohmann::json::object();}
 struct SidecarClient {
     static SidecarClient& instance(){static SidecarClient value;return value;}
     bool connected()const{return context_fixture::physical;}

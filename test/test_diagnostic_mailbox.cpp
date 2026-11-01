@@ -4,6 +4,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <random>
 #include "vendor/nlohmann/json.hpp"
 
 using json=nlohmann::json;
@@ -16,6 +17,12 @@ bool receive(const json& result){if(active.empty()||result.at("id")!=active)retu
 }
 struct Config {bool diagnostic_mailbox_enabled=true;static Config& instance(){static Config value;return value;}};
 std::string run_id="fixture-run",last_request,last_mailbox_request;
+std::string ordinary_save_id;
+namespace game::typed_action_runtime {
+bool held=false;std::string failure;
+json ordered_snapshot_status(){return {{"runtime_failure",failure}};}
+bool ordered_snapshot_active(){return held;}
+}
 json external_request;
 unsigned reads=0,writes=0;bool write_fails=false;
 std::vector<std::string> attempts;
@@ -104,5 +111,9 @@ int main() try {
     external_request=request(first);external_request["run_id"]="old-run";poll();check(attempts.size()==3,"foreign run executed");
     check(last_mailbox_request==first,"foreign mailbox identity not retained");
     last_request=internal;poll();check(attempts.size()==3,"foreign mailbox replayed after internal ID change");
+    game::typed_action_runtime::held=true;last_mailbox_request.clear();external_request=request(next);
+    bool blocked=false;try{poll();}catch(const std::runtime_error& error){blocked=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
+    check(blocked&&attempts.size()==3,"held snapshot admitted a mutation through diagnostics");
+    external_request["op"]="read_ordered_world";poll();check(attempts.size()==4,"held snapshot blocked current read-only evidence");
     std::cout<<"PASS actual broker selection/response and idle bodies: internal completion cannot replay external mutation, failure response retained, pending operations defer adoption\n";
 } catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

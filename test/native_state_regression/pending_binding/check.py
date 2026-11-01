@@ -24,8 +24,10 @@ def function(text,signature):
 runtime=read('src/game/typed_action_runtime.cpp')
 query=function(runtime,'bool read_binding(')
 admission=function(runtime,'bool network_binding(')
+mode_admission=function(runtime,'bool network_binding_with_mode(')
 assert 'state.pending' not in query
-assert 'state.pending' in admission and 'return read_binding(snapshot,out,error);' in admission
+assert 'return network_binding_with_mode(snapshot,out,error,nullptr);' in admission
+assert 'state.pending' in mode_admission and 'if(!read_binding(snapshot,out,error))return false;' in mode_admission
 for needle in ('runtime->thread!=GetCurrentThreadId()', '!state.started||state.locked||runtime->lobby_retiring',
                'context!=runtime->controller.bound_context()', 'context.snapshot_uuid!=snapshot',
                'runtime->engine.current(binding,snapshot,error)', 'out=binding;error.clear();return true;'):
@@ -40,7 +42,7 @@ assert 'typed_action_runtime::network_binding(' in function(read('src/game/ui_bu
 request=function(read('src/game/typed_action/action_session.cpp'),'bool Controller::request(')
 assert request.index('status_.pending=true')<request.index('engine_.capture_host_authority_before')<request.index('++status_.attempted')
 a.output.mkdir(parents=True,exist_ok=True)
-(a.output/'binding_queries.inc').write_text(query+admission)
+(a.output/'binding_queries.inc').write_text(query+mode_admission+admission)
 (a.output/'binding_native_current.inc').write_text(function(runtime,'bool current(const action::Binding&'))
 (a.output/'binding_authority_capture.inc').write_text(function(runtime,'bool capture_host_authority_before('))
 (a.output/'source-check.json').write_text(json.dumps({'status':'PASS','production_bodies':4,'retained_owner_callers':6,'compiler_executed':False},indent=2)+'\n')

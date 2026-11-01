@@ -10,7 +10,7 @@ json monster_history_json(const MonsterHistoryProof& value){
 MonsterHistoryProof monster_history_read(const json& source){
     exact(source,{"origin","quests_before","quests_after","references_before","references_after","count_before","count_after","completed_before","completed_after"});
     const auto& origin=source.at("origin");exact(origin,{"action","key","scene","region","before","after"});
-    const auto action=u64(origin.at("action"));if(action!=29&&action!=30)throw std::runtime_error("Monster history original action is not Move/Remove");
+    const auto action=u64(origin.at("action"));if(action!=28&&action!=29&&action!=30)throw std::runtime_error("Monster history original action is not Place/Move/Remove");
     MonsterHistoryProof out;out.origin={uint8_t(action),origin.at("key").get<std::string>(),origin.at("scene").get<std::string>(),
         i32(origin.at("region")),monster_actor_read(origin.at("before")),monster_actor_read(origin.at("after"))};
     out.quests_before=source.at("quests_before").get<std::string>();out.quests_after=source.at("quests_after").get<std::string>();

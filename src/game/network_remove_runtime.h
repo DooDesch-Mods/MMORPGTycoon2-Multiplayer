@@ -8,6 +8,10 @@ bool authorize(const action_session::ui_capture::Replay&,std::string&);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
+bool probe(const nlohmann::json&,nlohmann::json&,std::string&);
+bool original_ui(const nlohmann::json&,nlohmann::json&,std::string&);
+void tick();
+nlohmann::json capture_status();
 bool unresolved();
 nlohmann::json status();
 }

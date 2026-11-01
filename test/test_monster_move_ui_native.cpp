@@ -7,6 +7,7 @@ namespace monster_move_key=mt2mp::game::monster_move_key;
 #include <map>
 #include <regex>
 #include <type_traits>
+#include <optional>
 #include "monster_move_destination.h"
 namespace monster_ui_fixture {
 namespace a=mt2mp::action_session;
@@ -58,7 +59,14 @@ bool info_window(Memory&,const a::ui_capture::LocalBinding&,a::ui_diagnostic::Wi
  out.window=6000;out.target=5000;receipt={{"window_matches",mode!=8}};return mode!=8||fail(e,"wrong live Monster window owner");}
 bool effect(Memory&,const Pin&,d::Sample&,a::MonsterState& out,std::string&,uint64_t){out.actor.name="Deathblood";return true;}
 bool no_gameplay_change(const d::Sample&,const d::Sample&){return mode!=9;}
-namespace move_kiss{enum class Family{DirectMonster,Other};struct Intent{Family family=Family::DirectMonster;std::string object_key;struct{float x=0,y=0,z=0;std::array<float,4> rotation{};std::array<float,3> scale{};}after;};}
+namespace move_kiss{enum class Family{DirectMonster,Other};struct Intent{Family family=Family::DirectMonster;std::string object_key;struct{float x=0,y=0,z=0;std::array<float,4> rotation{};std::array<float,3> scale{};}after;struct{std::string snapshot_uuid="snapshot";}origin;};}
+std::optional<a::Context> move_context;
+bool capture_binding(const std::string& snapshot,a::Binding& out,std::string& e){
+    if(snapshot!="snapshot")return fail(e,"fixture capture snapshot differs");out={3,4};return true;
+}
+bool capture_context(const std::string& snapshot,const a::Binding& binding,std::optional<a::Context>& out,std::string& e){
+    out.reset();return (snapshot=="snapshot"&&binding==a::Binding{3,4})||fail(e,"fixture capture Context/Binding differs");
+}
 void move_ui_failed(const std::string&);
 #include "monster_move_ui_callbacks_body.inc"
 namespace action_runtime{uint32_t move_input(uintptr_t,uintptr_t,uintptr_t,const std::array<float,3>&,uintptr_t){++inputs;return mode==12?5:0;}}

@@ -11,7 +11,8 @@ struct Request {
     bool leveltwo=false;
 };
 // Call only from the existing guarded native mutation mailbox on Mainthread.
-// This hides only Initial welcome/allDone or one of the seven fixed LevelTwo messages. Normal Update owns progression.
+// Only fixed authored message windows can close. Normal Update owns progression.
+const char* initial_message(int32_t index);
 const char* leveltwo_message(int32_t index);
 bool close(const Request&,nlohmann::json& receipt,std::string& error);
 bool network_tab(const Request&,nlohmann::json& receipt,std::string& error);

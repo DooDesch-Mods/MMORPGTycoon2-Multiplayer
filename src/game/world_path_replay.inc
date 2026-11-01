@@ -8,7 +8,9 @@ struct Operation {
     uintptr_t inverse_graph=0;
     unsigned purchases=0,successful_purchases=0;
     wall_private_native::Receipt wall_receipt;
-    bool attempted=false,confirmed=false,retired=false;
+    wall_history_owner::Receipt wall_owners;
+    json terrain_settlement;
+    bool attempted=false,confirmed=false,retired=false,ordered=false;
     std::string cause;
 };
 std::map<std::string,Operation> operations;
@@ -94,7 +96,9 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        (request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemoveWorldPath)){
         if(error.empty())error="Wall/Pass original native runtime or intent unavailable";
         return action::Outcome::RejectedNoEffect;}
-    if(GetCurrentThreadId()!=r->thread||bool(authority)==Config::instance().is_host){
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
+    const bool ordered=action::tick_commands::authority::active();
+    if(GetCurrentThreadId()!=r->thread||(!ordered&&bool(authority)==Config::instance().is_host)){
         error="Wall/Pass Mainthread or authority role differs";return action::Outcome::RejectedNoEffect;}
     uint64_t revision=0;
     if(!ui_move_runtime::contract::pending(typed_action_runtime::controller_status(),request,revision,error))
@@ -131,7 +135,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
             return action::Outcome::RejectedNoEffect;
     }
     auto& operation=operations[request.action_uuid];
-    operation.binding=binding;operation.request=request;operation.before=before;
+    operation.ordered=ordered;operation.binding=binding;operation.request=request;operation.before=before;
     operation.evidence.before=money;operation.evidence.world_path_before=before.wire;
     operation.attempted=true;
     if(intent.kind==action::WorldPathKind::Remove){
@@ -173,6 +177,11 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         if(seh){error=operation.cause="Pass original private Finish SEH="+std::to_string(seh);
             return action::Outcome::Unknown;}
     }
+    // Pass Finish queues terrain publication. Its original node/scenery height
+    // updates must finish inside this command before the complete proof is sealed.
+    if(intent.kind==action::WorldPathKind::Pass&&operation.ordered&&
+       !terrain_settlement::run(*r,request.action_uuid,true,operation.terrain_settlement,error)){
+        operation.cause=error;return action::Outcome::Unknown;}
     uintptr_t map=0;
     if(!region::at(*r,r->image,0x13df8c0,map,error)){
         operation.cause=error;return action::Outcome::Unknown;}
@@ -183,6 +192,9 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if((intent.kind!=action::WorldPathKind::Remove&&!world_path_births(request.action_uuid,before,after_census,births,error))||
        !world_path_sample(*r,request.snapshot_uuid,intent.start_region,intent.end_region,operation.after,error)||
        !region::ledger(operation.evidence.after,error)){
+        operation.cause=error;return action::Outcome::Unknown;}
+    if(operation.ordered&&intent.kind==action::WorldPathKind::Wall&&
+       !capture_wall_owners(*r,view.world.root,request.action_uuid,operation.after,operation.wall_owners,error)){
         operation.cause=error;return action::Outcome::Unknown;}
     undo::UndoWitness undo_after;undo::GraphWitness graph;
     if(!undo::read_undo(r->memory,r->image,undo_after,error)||undo_after.undo.empty()||
@@ -219,6 +231,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
        found->second.binding!=binding||found->second.request!=request||!found->second.confirmed){
         error="Wall/Pass observation lacks matching confirmed original action";return false;}
     auto& operation=found->second;
+    if(operation.ordered&&!ordered_scope(binding,request,error))return false;
     Sample current;action::Ledger money;
     if(!world_path_sample(*r,request.snapshot_uuid,request.world_path.start_region,
                           request.world_path.end_region,current,error)||!region::ledger(money,error))return false;

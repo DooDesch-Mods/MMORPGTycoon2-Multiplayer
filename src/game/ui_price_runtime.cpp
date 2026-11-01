@@ -2,6 +2,8 @@
 #include "typed_action_runtime.h"
 #include "live_host_state/native_port.h"
 #include "session_provider.h"
+#include "typed_action/tick_authority.h"
+#include "mt2mp/core/config.h"
 #include "placement_ui_probe/ui_probe.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/hooks/hook_engine.h"
@@ -31,13 +33,14 @@ struct Pending {
     action::Binding binding;
     std::string snapshot;
     uint64_t epoch=0;
+    std::optional<action::Context> context;
 };
 struct Operation {
     action::Binding binding;
     action::Request request;
     action::Evidence evidence;
     uint8_t attempted=0,returned=0;
-    bool confirmed=false,retired=false;
+    bool confirmed=false,retired=false,ordered=false;
     std::string cause;
 };
 struct UiAttempt {
@@ -63,6 +66,44 @@ struct Runtime {
 };
 std::atomic<Runtime*> published{nullptr};
 bool fail(std::string& e,const std::string& why){e=why;return false;}
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& e){
+    if(request.action!=action::Action::SetPrices)return fail(e,"Ordered price scope requires SetPrices");
+    action::Context context;if(!action::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(e,"Ordered price actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
+    if(action::tick_commands::authority::active()){
+        if(authority)return fail(e,"Ordered price execution forbids Host evidence adoption");
+        return ordered_scope(binding,request,e);
+    }
+    return !ordered_mode()||fail(e,"Ordered price execution requires consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,action::Binding& binding,std::optional<action::Context>& context,std::string& e){
+    context.reset();
+    if(!ordered_mode())return typed_action_runtime::network_binding(snapshot,binding,e);
+    action::Context actual;
+    if(!action::selected_session().current(actual,e)||actual.snapshot_uuid!=snapshot||
+       Config::instance().is_host!=(actual.role==action::Role::Host)||!typed_action_runtime::read_binding(snapshot,binding,e))
+        return fail(e,e.empty()?"Ordered price captured Session/Binding/role differs":e);
+    context=actual;return true;
+}
+bool current_pending(const Pending& pending,std::string& e){
+    if(pending.snapshot!=net::current_snapshot_id()||pending.epoch!=net::current_world_epoch())return fail(e,"price pending UI command World or snapshot changed");
+    action::Binding binding;std::optional<action::Context> context;
+    if(!capture_binding(pending.snapshot,binding,context,e))return false;
+    return (binding==pending.binding&&context==pending.context)||fail(e,"price pending UI command Session/Binding changed");
+}
+bool input_admission(std::string& e){
+    const auto controller=typed_action_runtime::controller_status();
+    if(!controller.value("started",false)||controller.value("locked",true))return fail(e,"price UI requires ready bound Controller");
+    if(!ordered_mode())return !controller.value("pending",true)||fail(e,"price UI requires idle legacy Controller");
+    bool inside=false;
+    if(!typed_action_runtime::original_go_admission(inside,e))return false;
+    return inside||fail(e,"Ordered price capture requires actual OriginalGo");
+}
+
 template<class T>bool at(Runtime& r,uintptr_t object,size_t offset,T& value,std::string& e){
     if(!object||object>UINTPTR_MAX-offset)return fail(e,"price native UI address invalid");
     return r.memory.copy(object+offset,&value,sizeof value,e);
@@ -180,21 +221,25 @@ void capture(uint8_t field,void* receiver,int32_t value,uintptr_t caller) {
     auto* r=published.load(std::memory_order_acquire);
     const auto original=(field==1?r->purchase:r->subscription).load(std::memory_order_acquire);
     const uintptr_t expected=r->image+(field==1?0x76c085:0x76c101);
-    if(caller!=expected||!net::session_wire::connected()){++r->forwarded;original(receiver,value);return;}
-    std::string e;const auto controller=typed_action_runtime::status();
-    if(GetCurrentThreadId()!=r->thread||!r->ready.load(std::memory_order_acquire)||
-       !controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)) {
-        reject(*r,"price UI requires ready idle bound Controller");return;
+    if(caller!=expected){++r->forwarded;original(receiver,value);return;}
+    if(!net::session_wire::connected()){
+        if(ordered_mode()||(r->pending&&r->pending->context)){reject(*r,"Ordered price capture lost connected Session");return;}
+        ++r->forwarded;original(receiver,value);return;
     }
-    action::Binding binding;const auto snapshot=net::current_snapshot_id();
-    if(!typed_action_runtime::network_binding(snapshot,binding,e)){reject(*r,e);return;}
+    std::string e;
+    if(GetCurrentThreadId()!=r->thread||!r->ready.load(std::memory_order_acquire)){
+        reject(*r,"price UI requires installed Mainthread owner");return;
+    }
+    if(!input_admission(e)){reject(*r,e);return;}
+    action::Binding binding;std::optional<action::Context> captured_context;const auto snapshot=net::current_snapshot_id();
+    if(!capture_binding(snapshot,binding,captured_context,e)){reject(*r,e);return;}
     action::Context context;
     if(!action::selected_session().current(context,e)){reject(*r,e);return;}
     live_host_state::NativePort reader(context,binding,nullptr);live_host_state::Pin owner;
     if(!reader.read(owner,e)||uintptr_t(receiver)!=owner.business){reject(*r,e.empty()?"price UI Business receiver differs from bound owner":e);return;}
-    if(!r->pending)r->pending=Pending{{},binding,snapshot,net::current_world_epoch()};
+    if(!r->pending)r->pending=Pending{{},binding,snapshot,net::current_world_epoch(),captured_context};
     auto& pending=*r->pending;
-    if(pending.binding!=binding||pending.snapshot!=snapshot||pending.epoch!=net::current_world_epoch()){
+    if(pending.binding!=binding||pending.snapshot!=snapshot||pending.epoch!=net::current_world_epoch()||pending.context!=captured_context){
         reject(*r,"price pending UI command changed bound World or snapshot");return;
     }
     // The original setter only stores the value, so later UI input in this frame replaces an unsent value.
@@ -255,14 +300,22 @@ bool enable(std::string& e) {
 void tick() {
     auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready||!r->pending)return;
-    auto pending=std::move(*r->pending);r->pending.reset();std::string e;
+    std::string e;
+    if(r->pending->context){
+        const auto controller=typed_action_runtime::controller_status();bool inside=false;
+        if(current_pending(*r->pending,e)){
+            if(!controller.value("started",false)||controller.value("locked",true))e="Ordered price pending capture lost ready Controller";
+            else if(!typed_action_runtime::original_go_admission(inside,e)){
+                if(e.empty())e="Ordered price pending capture OriginalGo owner unavailable";
+            }else if(inside||controller.value("pending",true))return;
+        }
+    }
+    auto pending=std::move(*r->pending);r->pending.reset();
     UiAttempt* ui=nullptr;
     if(!r->diagnostic_pending.empty()){
         ui=&r->ui_attempts.at(r->diagnostic_pending);r->diagnostic_pending.clear();
     }
-    if(pending.snapshot!=net::current_snapshot_id()||pending.epoch!=net::current_world_epoch()){
-        e="price pending UI command World or snapshot changed";if(ui)ui->cause=e;reject(*r,e);return;
-    }
+    if(!e.empty()||!current_pending(pending,e)){if(ui)ui->cause=e;reject(*r,e);return;}
     action::PriceState before;action::Ledger money;
     if(!read(pending.binding,pending.snapshot,before,money,e)){if(ui)ui->cause=e;reject(*r,e);return;}
     const auto desired=action::PriceState{(pending.intent.fields&1)?pending.intent.purchase:before.purchase,
@@ -278,7 +331,8 @@ void tick() {
 action::Outcome perform(const action::Binding& binding,const action::Request& request,
                         const action::Evidence* authority,std::string& e) {
     auto* r=published.load(std::memory_order_acquire);
-    if(!r||!r->ready||request.action!=action::Action::SetPrices){e="price native runtime unavailable or action differs";return action::Outcome::RejectedNoEffect;}
+    if(!r||!r->ready||GetCurrentThreadId()!=r->thread||request.action!=action::Action::SetPrices){e="price native runtime unavailable or action differs";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return action::Outcome::RejectedNoEffect;
     if(r->operations.contains(request.action_uuid)){e="price action token already attempted; no replay";return action::Outcome::Unknown;}
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
@@ -298,6 +352,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     live_host_state::NativePort reader(context,binding,nullptr);live_host_state::Pin owner;
     if(!reader.read(owner,e))return action::Outcome::RejectedNoEffect;
     auto& operation=r->operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    operation.ordered=action::tick_commands::authority::active();
     operation.evidence.before=money;operation.evidence.price_before=before;
     if(request.price.fields&1){operation.attempted|=1;
         const auto seh=call(r->purchase.load(std::memory_order_acquire),reinterpret_cast<void*>(owner.business),request.price.purchase);
@@ -324,6 +379,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     const auto found=r->operations.find(request.action_uuid);
     if(found==r->operations.end()||found->second.binding!=binding||found->second.request!=request||
        !found->second.confirmed)return fail(e,"price observation lacks exact confirmed operation");
+    if(found->second.ordered&&!ordered_scope(binding,request,e))return false;
     action::PriceState price;action::Ledger money;
     if(!read(binding,request.snapshot_uuid,price,money,e))return false;
     if(price!=found->second.evidence.price_after||money!=found->second.evidence.after)
@@ -338,7 +394,7 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
 }
 bool query(nlohmann::json& out,std::string& e) {
     const auto snapshot=net::current_snapshot_id();action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,e))return false;
+    std::optional<action::Context> context;if(!capture_binding(snapshot,binding,context,e))return false;
     action::PriceState price;action::Ledger money;
     if(!read(binding,snapshot,price,money,e))return false;
     out={{"purchase_fee",price.purchase},{"subscription_fee",price.subscription},
@@ -361,11 +417,10 @@ bool native_ui(const std::string& token,int32_t purchase_fee,int32_t subscriptio
     if(r->ui_attempts.contains(token))return fail(e,"price native UI token already attempted; inspect receipt before retry");
     if(r->ui_attempts.size()>=64)return fail(e,"price native UI token capacity reached");
     out["diagnostic_uuid"]=token;out["attempted"]=false;
-    const auto controller=typed_action_runtime::status();
-    if(!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||r->pending||
-       !r->diagnostic_pending.empty())return fail(e,"price native UI requires idle bound Controller");
-    const auto snapshot=net::current_snapshot_id();action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,e))return false;
+    if(r->pending||!r->diagnostic_pending.empty())return fail(e,"price native UI already owns a pending capture");
+    if(!input_admission(e))return false;
+    const auto snapshot=net::current_snapshot_id();action::Binding binding;std::optional<action::Context> context;
+    if(!capture_binding(snapshot,binding,context,e))return false;
     action::PriceState before;action::Ledger ledger;
     if(!read(binding,snapshot,before,ledger,e))return false;
     if(before.purchase==purchase_fee&&before.subscription==subscription_fee)
@@ -472,6 +527,10 @@ bool native_ui(const std::string& token,int32_t purchase_fee,int32_t subscriptio
         r->pending.reset();
         attempt.cause="price Overview changed fees or Ledger before Host authority";out["cause"]=attempt.cause;return fail(e,attempt.cause);
     }
+    if(!r->pending||!current_pending(*r->pending,e)){
+        r->pending.reset();attempt.cause=e.empty()?"price original UI lost its pending capture owner":e;
+        out["cause"]=attempt.cause;return fail(e,attempt.cause);
+    }
     r->diagnostic_pending=token;out["pending_intent"]=true;e.clear();return true;
 }
 nlohmann::json status() {
@@ -481,7 +540,11 @@ nlohmann::json status() {
     for(const auto& [id,operation]:r->operations)operations.push_back({
         {"action_uuid",id},{"fields",operation.request.price.fields},
         {"attempted",operation.attempted},{"returned",operation.returned},
-        {"confirmed",operation.confirmed},{"retired",operation.retired},
+        {"confirmed",operation.confirmed},{"retired",operation.retired},{"ordered",operation.ordered},
+        {"snapshot_uuid",operation.request.snapshot_uuid},{"origin_peer",operation.request.peer},
+        {"request_sequence",operation.request.sequence},{"observed_revision",operation.request.host_revision},
+        {"ledger_before",action::management_ledger_observation(operation.evidence.before)},
+        {"ledger_after",action::management_ledger_observation(operation.evidence.after)},
         {"before_purchase",operation.evidence.price_before.purchase},
         {"after_purchase",operation.evidence.price_after.purchase},
         {"before_subscription",operation.evidence.price_before.subscription},

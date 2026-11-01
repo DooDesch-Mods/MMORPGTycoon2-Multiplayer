@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "native_monetary.h"
 #include "toon_weapon_visual/visual.h"
 #include "state_difference.h"
@@ -253,7 +254,7 @@ bool NativePort::capture_subscriber(int32_t id,nlohmann::json& graph,std::string
             constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};
             std::array<unsigned char,10> actual{};
             if(!memory.copy(pin.image+0x259b70,actual.data(),actual.size(),error))return false;
-            if(actual!=expected)return fail(error,"Subscriber capture pause original setter bytes differ");
+            if(!hooks::framework::verify_original_bytes(pin.image+0x259b70,actual.data(),expected.data(),expected.size(),error))return fail(error,"Subscriber capture pause original setter bytes differ: "+error);
             const auto exception=call_capture_pause(pin.image+0x259b70,pin.clock,pin.pause);
             if(exception)return fail(error,"Subscriber capture pause restore original setter exception="+std::to_string(exception)+"; no replay");
             return true;

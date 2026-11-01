@@ -13,7 +13,10 @@ bool same_owner(const Snapshot& a,const Snapshot& b){return a.origin==b.origin&&
 struct Busy {bool& flag;explicit Busy(bool& value):flag(value){flag=true;}~Busy(){flag=false;}};
 }
 bool Fixture::thread(std::string& e){return initialized_&&services_.thread(services_.user)==thread_||reject(e,"tutorial movement Mainthread/initialization differs");}
-bool Fixture::snapshot(Snapshot& out,std::string& e){try{return services_.snapshot(services_.user,out,e);}catch(const std::exception& cause){return reject(e,cause.what());}}
+bool Fixture::snapshot(Snapshot& out,std::string& e,bool threshold){try{
+    const auto read=threshold?services_.threshold_snapshot:services_.snapshot;
+    return read?read(services_.user,out,e):reject(e,"tutorial threshold snapshot service missing");
+}catch(const std::exception& cause){return reject(e,cause.what());}}
 bool Fixture::fail(const std::string& cause,std::string& e){if(receipt_.error.empty())receipt_.error=cause.empty()?"tutorial movement operation failed without cause":cause;receipt_.phase=Phase::Failed;return reject(e,receipt_.error);}
 bool Fixture::initialize(uint32_t thread_id,const Services& io,std::string& e){
     if(initialized_)return reject(e,"tutorial movement already initialized");
@@ -29,15 +32,19 @@ bool Fixture::release(uint64_t frame_id,std::string& e){
     if(receipt_.phase!=Phase::Failed)receipt_.phase=Phase::UpQueued;
     e.clear();return true;
 }
-bool Fixture::start(const std::string& token,const std::string& origin,uint64_t frame_id,std::string& e){
+bool Fixture::start(const std::string& token,const std::string& origin,uint64_t frame_id,std::string& e,bool threshold){
     if(!thread(e))return false;if(busy_)return reject(e,"tutorial movement reentrant");Busy busy(busy_);
     if(used_)return reject(e,"tutorial movement token already consumed; no replay");
     if(!uuid(token)||!uuid(origin))return reject(e,"tutorial movement token/origin requires lowercase UUID");
-    Snapshot before,after;if(!snapshot(before,e)||!snapshot(after,e))return false;
+    if(threshold&&(!services_.threshold_snapshot||!services_.release_snapshot))return reject(e,"tutorial threshold services missing");
+    Snapshot before,after;if(!snapshot(before,e,threshold)||!snapshot(after,e,threshold))return false;
+    if(threshold&&(before.tutorial_index!=6||before.threshold_reached||before.ordered_release))
+        return reject(e,"tutorial threshold requires unfinished current WASD index6");
     if(before!=after||before.origin!=origin||!before.epoch||!before.generation||!before.window||!before.hwnd||!before.window_id)return reject(e,"tutorial movement exact native origin/window changed");
     if(!before.keyboard_focus||!before.input_enabled)return reject(e,"tutorial movement actual SDL focus/native keyboard admission not ready");
     if(before.key_down||before.axis!=0||!std::isfinite(before.progress)||before.progress<0||before.progress>=90)return reject(e,"tutorial movement input already held or progress outside0..90");
-    used_=true;receipt_={};receipt_.token=token;receipt_.before=before;receipt_.after=before;start_frame_=frame_id;deadline_=services_.milliseconds(services_.user)+1000;
+    used_=true;receipt_={};receipt_.token=token;receipt_.before=before;receipt_.after=before;receipt_.threshold=threshold;
+    start_frame_=frame_id;deadline_=services_.milliseconds(services_.user)+(threshold?15000:1000);
     receipt_.down_attempted=true;receipt_.down_frame=frame_id;
     try{receipt_.down_queued=services_.post(services_.user,before,true,e);}
     catch(const std::exception& cause){receipt_.down_unknown=true;e=cause.what();fail(e,e);std::string release_error;release(frame_id,release_error);return false;}
@@ -52,7 +59,9 @@ bool Fixture::poll(uint32_t window_id,uint32_t keyboard_id,uint32_t scancode,uin
     if(down)receipt_.down_polled=true;else receipt_.up_polled=true;
     e.clear();return true;
 }
+#include "movement_threshold.inc"
 bool Fixture::frame(uint64_t frame_id,std::string& e){
+    if(receipt_.threshold)return frame_threshold(frame_id,e);
     if(!thread(e))return false;if(busy_)return reject(e,"tutorial movement reentrant");Busy busy(busy_);
     if(!used_||(!receipt_.down_queued&&!receipt_.up_queued)||receipt_.phase==Phase::Confirmed)return true;
     Snapshot current;std::string cause;const bool read=snapshot(current,cause);

@@ -37,6 +37,17 @@ lookup_helper = function(catalog, 'bool require_registry(')
 for anchor, stage, digest in [('bool bind(uint64_t uid,Binding& b,std::string& e)override', 'ActualRoot.bind', 'e477dc075c7dc9e055f3d68f06cd1dd753bb0c0bd7584b050754a6ca3ddd9263'), ('bool read_action_prop(', 'read_action_prop', '127e71b3581dbe64886aef443626cc212ffd1ff5b95b42f7e2edf152d7ba7994')]:
     actual = function(catalog, anchor)
     if stage == 'ActualRoot.bind':
+        # The saved Region id now shares the same bounded owner-field read
+        # scope. Keep its exact read and failure edge in the historical guard.
+        moved = (
+            ('uintptr_t shard=0,region=0;int32_t saved_id=-1;', 'uintptr_t shard=0,region=0;'),
+            ('            if(shard==world.root&&!memory.copy(region+0x834,&saved_id,sizeof saved_id,e))return false;\n', ''),
+            ('        if(shard==world.root){\n            if(!reader.saved_root_scenery',
+             '        if(shard==world.root){int32_t saved_id=-1;\n            if(!memory.copy(region+0x834,&saved_id,sizeof saved_id,e)||!reader.saved_root_scenery'),
+        )
+        for current, prior in moved:
+            assert actual.count(current)==1, 'Saved Region owner read boundary changed'
+            actual=actual.replace(current,prior,1)
         added = '        {\n            mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;\n            if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;\n        }'
         assert actual.count(added) == 1
         actual = actual.replace(added, '        if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;', 1)

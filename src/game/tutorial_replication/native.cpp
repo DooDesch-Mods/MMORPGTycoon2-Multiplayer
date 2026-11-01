@@ -1,9 +1,18 @@
+#include "mt2mp/core/config.h"
+#include "typed_action/tick_authority.h"
 #include "live_host_state/memory_query_timing.h"
 #include "developer_staff/action_native.h"
 #include "native.h"
+#include "held_admission.h"
+#include "typed_action/held_service_interruption.h"
+#include "ordered_message_gate.h"
+#include "ordered_message_receipts.h"
 #include "../release_ui_owner.h"
 #include "general_project_runtime.h"
 #include "bug_authority/codec.h"
+#include "scenery_stroke_bugs.h"
+#include "region_saved_identity.h"
+#include "commit_map_effect.h"
 #include "lifecycle.h"
 #include "owned_scenario_start_entry.h"
 #include "owned_advance_entry.h"
@@ -70,6 +79,7 @@ bool submit_client_commit(void* lounge,std::string&);
 bool submit_client_research_commit(void*,std::string&);
 bool research_capture(const action_session::Context&,const action_session::Binding&,const World&,State&,std::string&);
 void commit_current(void* lounge);
+bool ordered_commit_route(void* lounge);
 bool same_world(const World&,const World&);
 struct Load {std::string uuid;uint64_t generation=0;bool armed=false,ready=false;std::set<uintptr_t> sequences;bool waiting_postload=false;std::set<uintptr_t> quarantined;} load;
 std::string fault;
@@ -77,6 +87,7 @@ thread_local uintptr_t scoped_sequence=0;
 thread_local bool restoring=false;
 thread_local uintptr_t scoped_startingpoint_step=0,scoped_version_step=0;
 namespace lifecycle_native {void remember_terminal(uintptr_t);}
+namespace ordered_message_native {bool frame(void*,float);}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 void block(const std::string& cause){if(fault.empty()){fault=cause;LOG_ERROR("[Tutorial] native operation blocked cause={}",cause);}}
 template<class T>bool at(uintptr_t p,size_t offset,T& value,std::string& e){if(!p||p>UINTPTR_MAX-offset)return fail(e,"tutorial native address overflow");return memory.copy(p+offset,&value,sizeof(value),e);}
@@ -115,6 +126,7 @@ void sequence_update(void* sequence,float delta){
         // Native Instance Update still owns completion/history bookkeeping.
         return;
     }
+    if(ordered_message_native::frame(sequence,delta))return;
     original_update(sequence,delta);
     lifecycle_native::remember_terminal(p);
 }
@@ -127,12 +139,24 @@ void postload(void* instance){
     load.sequences.insert(sequence);Scope scope(sequence,true);original_postload(instance);
 }
 struct NativeCursor {uintptr_t instance=0,sequence=0,steps=0;Cursor value;};
-bool origin(const action_session::Context& c,const action_session::Binding& b,World& w,std::string& e){
+bool origin(const action_session::Context& c,const action_session::Binding& b,World& w,std::string& e,const action_session::Request* developer=nullptr){
     action_session::Context actual;if(!action_session::selected_session().current(actual,e)||actual!=c)return fail(e,e.empty()?"tutorial actual common Context differs":e);
     if(!native_open_runtime::read_current_world(w,e))return false;
-    if(GetCurrentThreadId()!=mainthread||w.world_epoch!=b.native_epoch||w.generation!=b.native_generation)return fail(e,"tutorial local Mainthread/native binding differs");
-    if(c.role==action_session::Role::Client&&(!load.armed||!load.ready||load.uuid!=w.uuid||load.generation!=w.generation))return fail(e,"tutorial Client joined-load scope differs from local origin");
-    if(!fault.empty())return fail(e,fault);return true;
+    bool ordered=false;
+    if(developer&&action_session::tick_commands::authority::active()){
+        if(load.armed){return fail(e,"Ordered Developer display invalidation requires inactive tutorial state-copy load");}
+        if((developer->action!=action_session::Action::HireDeveloper&&developer->action!=action_session::Action::FireDeveloper)||
+           !action_session::tick_commands::authority::matches(c,b,*developer,e))return fail(e,e.empty()?"Developer display invalidation requires exact consumed Hire/Fire":e);
+        ordered=true;
+    }
+    if(!ordered&&c.role==action_session::Role::Client&&(!load.armed||!load.ready||load.uuid!=w.uuid||load.generation!=w.generation))return fail(e,"tutorial Client joined-load scope differs from local origin");
+    if(!fault.empty())return fail(e,fault);
+    if(w.world_epoch!=b.native_epoch||w.generation!=b.native_generation)return fail(e,"tutorial local native binding differs");
+    // Ordered startup does not initialize the legacy tutorial capture owner.
+    // The consumed native command claim authorizes this first local cache owner.
+    if(ordered&&!mainthread)mainthread=GetCurrentThreadId();
+    if(GetCurrentThreadId()!=mainthread)return fail(e,"tutorial local Mainthread differs");
+    return true;
 }
 bool current_project_key(void* receiver,std::string& key,std::string& e){
     const auto lounge=reinterpret_cast<uintptr_t>(receiver);uintptr_t project=0;
@@ -226,9 +250,12 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 #include "start_action_native.inc"
 #include "start_capture_native.inc"
 #include "staff_native.inc"
+#include "ordered_completion_native.inc"
 #include "research_native.inc"
 #include "lifecycle_apply.inc"
 #include "intro_native.inc"
+#include "ordered_message_native.inc"
+#include "ordered_message_code.inc"
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
@@ -243,7 +270,7 @@ bool initialize(uintptr_t base,std::string& e){
         {0xc4f300,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0x89}},
         {0x11bfce0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x30,0x48,0x89}}};
     for(const auto& expected:entries){std::array<unsigned char,12> actual{};if(!memory.copy(image+expected.rva,actual.data(),actual.size(),e))return false;if(actual!=expected.bytes)return fail(e,"tutorial native entry guard differs RVA="+std::to_string(expected.rva));}
-    if(!message_progress::verify_code(memory,image,e))return false;
+    if(!message_progress::verify_code(memory,image,e)||!ordered_message_native::prepare(e))return false;
     std::array<unsigned char,16> commit_bytes{};
     if(!memory.copy(image+0x25fb10,commit_bytes.data(),commit_bytes.size(),e))return false;
     if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
@@ -262,6 +289,7 @@ bool initialize(uintptr_t base,std::string& e){
     owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
+        {0x53a240,reinterpret_cast<void*>(&ordered_message_native::clear),reinterpret_cast<void**>(&ordered_message_native::original_clear)},
         {0x4f2330,reinterpret_cast<void*>(&intro_native::update),reinterpret_cast<void**>(&intro_native::original_update)},
         {0x4f1940,reinterpret_cast<void*>(&intro_native::event),reinterpret_cast<void**>(&intro_native::original_event)},
         {0x4f3b00,reinterpret_cast<void*>(&lifecycle_native::scenario_start),reinterpret_cast<void**>(&original_scenario_start)},
@@ -276,6 +304,7 @@ bool initialize(uintptr_t base,std::string& e){
         {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
         {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
+    ordered_message_native::clear_owner.trampoline=reinterpret_cast<uintptr_t>(ordered_message_native::original_clear);
     intro_native::update_owner.trampoline=reinterpret_cast<uintptr_t>(intro_native::original_update);
     intro_native::event_owner.trampoline=reinterpret_cast<uintptr_t>(intro_native::original_event);
     owned_scenario_start.trampoline=reinterpret_cast<uintptr_t>(original_scenario_start);
@@ -289,7 +318,7 @@ bool hooks_enabled(std::string& e){
     owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=true;
     if(!tutorial_sync::verify_owned_scenario_start_entry(owned_scenario_start,owned_scenario_start.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!tutorial_sync::verify_owned_advance_entry(owned_advance,owned_advance.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff_display::verify_owned_display_entry(owned_display,owned_display.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!start_intent::verify_pay(&owned_pay,owned_pay.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!verify_sequence_entry(owned.target,e)||!tutorial_sync::verify_owned_commit_entry(owned_commit,owned_commit.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)){
         owned.enabled=owned_commit.enabled=owned_pay.enabled=owned_staff.enabled=owned_display.enabled=owned_scenario_start.enabled=owned_advance.enabled=false;return false;
-    }return intro_native::verify_owned(e);
+    }return intro_native::verify_owned(e)&&ordered_message_native::enabled(e);
 }
 bool verify_pay_entry(uintptr_t address,std::string& e){
     uintptr_t base=0;uint32_t thread=0;std::string sha;
@@ -352,11 +381,17 @@ bool finish_client_load(bool& pending,std::string& e){
     load.waiting_postload=false;load.ready=true;e.clear();return true;
 }
 void invalidate(const std::string& cause){if(load.ready)LOG_INFO("[Tutorial] Client admission invalidated; native fence retained cause={}",cause);load.ready=false;display_native::clear();lifecycle_native::clear();}
-void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
+void retire(const std::string& cause){if(load.armed)LOG_INFO("[Tutorial] Client scope retired cause={}",cause);load={};fault.clear();ordered_message_native::reset();display_native::clear();lifecycle_native::clear();pending_start_presentation.reset();client_start_receipt={};client_start_presentation_cause.clear();client_staff_receipt={};commit_receipt={};research_commit_receipt={};research_commit_proof=nullptr;research_proof_origin={};client_commit_suppressed=false;client_commit_action.clear();client_commit_cause.clear();client_commit_submitted=false;}
 bool capture_intro(const action_session::Context& c,const action_session::Binding& b,scenario_intro::State& out,std::string& e){World world;intro_native::Owners owners;if(!mainthread)mainthread=GetCurrentThreadId();return intro_native::sample(c,b,world,owners,out,e);}
 bool apply_intro(const action_session::Context& c,const action_session::Binding& b,const scenario_intro::State& target,bool& attempted,std::string& e){return intro_native::adopt(c,b,target,attempted,e);}
 bool capture(const action_session::Context& c,const action_session::Binding& b,State& out,std::string& e){if(c.role!=action_session::Role::Host)return fail(e,"tutorial capture requires Host");if(!mainthread)mainthread=GetCurrentThreadId();std::vector<NativeCursor> cursors;return native_state(c,b,out,cursors,e);}
 bool read_progress(nlohmann::json& out,std::string& e){
+    if(typed_action_runtime::ordered_mode_selected()){
+        nlohmann::json observed;
+        if(!tutorial_observer::read(observed,e))return false;
+        out={{"schema",2},{"ordered_message",ordered_message_native::status()},{"tutorial_observer",std::move(observed)}};
+        e.clear();return true;
+    }
     out=nullptr;
     try{
         action_session::Context context;if(!action_session::selected_session().current(context,e))return false;
@@ -464,6 +499,60 @@ bool set_startingpoint_workers(const action_session::Context& c,const action_ses
     const startingpoint::Row& expected,int32_t desired,bool& attempted,std::string& e){
     StaffCalls calls{c,b};return staff::apply(expected,desired,calls,attempted,e);
 }
+bool submit_ordered_startingpoint_ui(const action_session::Context& c,const action_session::Binding& b,
+    const std::string& id,uintptr_t window,uintptr_t tabs,std::string& e){
+    bool inside=false,ordered=false;action_session::Binding current;
+    if(!typed_action_runtime::original_go_admission(inside,e)||inside||
+       !typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,current,e,&ordered)||!ordered||current!=b)
+        return fail(e,e.empty()?"Startingpoint retained UI submission requires held ordered Binding":e);
+    uintptr_t source=0;if(!at(window,0x610,source,e))return false;
+    StartCaptureCalls calls{reinterpret_cast<void*>(source)};
+    if(!calls.capture(e))return false;
+    if(calls.context!=c||calls.binding!=b||calls.key!="startingpoint"||calls.window.address!=window||calls.window.tabs!=tabs)
+        return fail(e,"Startingpoint retained UI source/window/Context/Binding changed");
+    return calls.submit(id,e);
+}
+bool ordered_lifecycle_health(std::string& e){
+    if(!fault.empty())return fail(e,fault);
+    return true;
+}
+bool set_startingpoint_workers_ordered(const action_session::Context& c,const action_session::Binding& b,
+    const action_session::Request& request,const startingpoint::Row& expected,bool& attempted,std::string& e){
+    StaffCalls calls{c,b};calls.request=&request;return staff::apply(expected,request.desired_workers,calls,attempted,e);
+}
+bool commit_startingpoint_ordered(const action_session::Context& c,const action_session::Binding& b,
+    const action_session::Request& request,const startingpoint::Row& expected,bool& attempted,std::string& e){
+    if(request.action!=action_session::Action::CommitStartingpoint){attempted=false;return fail(e,"Startingpoint original Commit requires exact Commit command");}
+    return run_ordered_completion(c,b,&request,expected,attempted,e);
+}
+bool read_ordered_startingpoint_row(const action_session::Context& c,const action_session::Binding& b,
+    const action_session::Request& request,startingpoint::Row& out,std::string& e){
+    StartActionCalls reader{c,b};reader.request=&request;
+    tutorial_development::StartingpointSnapshot value;live_host_state::Pin pin;
+    if(!reader.snapshot(value,pin,e))return false;
+    nlohmann::json scenarios;if(!tutorial_observer::read(scenarios,e))return false;
+    size_t initial=0;for(const auto& scenario:scenarios.at("tutorials"))if(scenario.at("scenario_id")=="initial_tutorial")++initial;
+    if(initial!=1||!value.row)return fail(e,"Ordered Startingpoint requires current initial tutorial and exact native project row");
+    bool ordered=false;World after;
+    if(!start_origin(c,b,"startingpoint",&request,false,after,ordered,e)||!same_world(value.origin,after))
+        return fail(e,e.empty()?"Ordered Startingpoint row NativeOpen changed":e);
+    out=*value.row;
+    if(out.deployed&&commit_receipt.bugs&&same_world(value.origin,commit_receipt.origin)&&value.tech==commit_receipt.tech&&value.record==commit_receipt.record)
+        out.commit_bugs=commit_receipt.bugs;
+    return startingpoint::valid(out,e);
+}
+bool start_startingpoint_ordered(const action_session::Context& c,const action_session::Binding& b,
+    const action_session::Request& request,const action_session::Ledger& before,const startingpoint::Row& row,
+    action_session::Ledger& after,startingpoint::Row& result,bool& attempted,bool& unknown,std::string& e){
+    if(!run_start_action(c,b,before,row,nullptr,nullptr,after,result,attempted,unknown,e,"startingpoint",&request))return false;
+    bool presentation_attempted=false;std::string cause;
+    if(!finish_start_presentation(request.action_uuid,c,b,presentation_attempted,cause,&request)){
+        client_start_presentation_cause=cause;
+        if(presentation_attempted){unknown=true;e=cause;return false;}
+        LOG_WARN("[Tutorial] Ordered Startingpoint presentation skipped cause={}",cause);
+    }else client_start_presentation_cause.clear();
+    return true;
+}
 bool start_startingpoint(const action_session::Context& c,const action_session::Binding& b,
     const action_session::Ledger& before,const startingpoint::Row& row,
     action_session::Ledger& after,startingpoint::Row& result,bool& attempted,std::string& e){
@@ -485,8 +574,16 @@ bool apply_startingpoint_start(const action_session::Context& c,const action_ses
 }
 
 namespace mt2mp::game::tutorial_replication {
-bool invalidate_developer_pool(const action_session::Context& c,const action_session::Binding& b,std::string& e){
-    World world;if(!origin(c,b,world,e))return false;
+bool invalidate_developer_pool(const action_session::Context& c,const action_session::Binding& b,std::string& e,const action_session::Request* request){
+    World world;if(!origin(c,b,world,e,request))return false;
     display_native::clear();e.clear();return true;
 }
+}
+
+namespace mt2mp::game::tutorial_replication {
+void tick_ordered_tutorial(){ordered_message_native::tick(false);}
+void tick_ordered_tutorial_held(){ordered_message_native::tick(true);}
+action_session::Outcome perform_ordered_tutorial(const action_session::Binding& b,const action_session::Request& r,std::string& e){return ordered_message_native::perform(b,r,e);}
+bool observe_ordered_tutorial(const action_session::Binding& b,const action_session::Request& r,action_session::Evidence& out,std::string& e){return ordered_message_native::observe(b,r,out,e);}
+bool retire_ordered_tutorial(const action_session::Binding& b,const action_session::Request& r,std::string& e){return ordered_message_native::retire(b,r,e);}
 }

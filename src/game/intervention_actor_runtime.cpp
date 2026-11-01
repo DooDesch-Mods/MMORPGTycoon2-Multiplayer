@@ -29,6 +29,10 @@ bool same(const Census& a,const Census& b){
     for(size_t i=0;i<a.bosses.pools.size();++i)if(a.bosses.pools[i].scope!=b.bosses.pools[i].scope||a.bosses.pools[i].native!=b.bosses.pools[i].native)return false;return true;
 }
 }
+struct EmptyReadWitness {Census census;};
+bool same_empty_read(const EmptyRead& before,const EmptyRead& after,std::string& error){
+    return (before&&after&&same(before->census,after->census))||fail(error,"Actor Frame complete canonical owner census changed during read");
+}
 bool read_bound(const Local& owner,Row& row,Local& local,std::string& error){
     Read at;const auto image=uintptr_t(GetModuleHandleW(nullptr));uintptr_t registered=0;const auto lookup=native::registered(image,owner.uid,registered);
     if(lookup||registered!=owner.object)return fail(error,"Actor point current full UID no longer resolves its confirmed native object SEH="+std::to_string(lookup));
@@ -38,7 +42,8 @@ bool read_bound(const Local& owner,Row& row,Local& local,std::string& error){
     auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){const auto code=native::registered(image,uid,pointer);return !code||fail(cause,"Actor point original saved link/item UID lookup SEH="+std::to_string(code));};
     return read_row(at,copy,maximum,clip,image,owner,row,local,error)&&read_saved(at,copy,find,image,owner,row,local,error);
 }
-bool read_current(const action_session::Context& context,const action_session::Binding& binding,State& out,Locals& locals,std::string& error){
+bool read_current(const action_session::Context& context,const action_session::Binding& binding,State& out,Locals& locals,std::string& error,EmptyRead* empty_pair){
+    if(empty_pair)empty_pair->reset();
     out.clear();locals.clear();Census before;if(!interventions::actor_census(context,binding,before,error))return false;
     State values;Locals native_rows;Read at;const auto image=uintptr_t(GetModuleHandleW(nullptr));if(!code(image,error))return false;
     auto links=std::make_shared<Links>();
@@ -66,6 +71,11 @@ bool read_current(const action_session::Context& context,const action_session::B
         if(!read_row(at,copy,maximum,clip,image,owner,first,first_local,error)||!read_saved(at,copy,find,image,owner,first,first_local,error)||!read_row(at,copy,maximum,clip,image,owner,second,second_local,error)||!read_saved(at,copy,find,image,owner,second,second_local,error))return false;
         if(first!=second||first_local!=second_local)return fail(error,"Actor Frame complete current row changed during native read key="+actor.target.key);
         if(!native_rows.emplace(actor.target.key,std::move(second_local)).second)return fail(error,"Actor Frame complete canonical identity repeats");values.push_back(std::move(second));
+    }
+    if(empty_pair&&before.actors.empty()){
+        if(!valid(values,error))return false;
+        *empty_pair=std::make_shared<EmptyReadWitness>(EmptyReadWitness{std::move(before)});
+        error.clear();return true;
     }
     Census after;if(!interventions::actor_census(context,binding,after,error)||!same(before,after))return fail(error,error.empty()?"Actor Frame complete canonical owner census changed during read":error);
     std::sort(values.begin(),values.end(),[](const auto& a,const auto& b){return a.target.key<b.target.key;});if(!valid(values,error))return false;

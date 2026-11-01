@@ -14,9 +14,11 @@ namespace mt2mp::game::live_host_state::apply_timing {struct PageReadScope {~Pag
 #include <iostream>
 #include <stdexcept>
 #include <regex>
+#include "developer_ordered_scope_fixture.h"
 namespace action=mt2mp::action_session;
 namespace staff=mt2mp::game::developer_staff;
 namespace fixture {
+bool change_job_census=false;
 unsigned checks=0,ui_calls=0,count_calls=0,reads=0;
 unsigned construction_preflights=0,construction_applies=0;bool jobs_ok=true,construction_ok=true,construction_partial=false;
 bool code_ok=true,window_ok=true,before_ok=true,after_ok=true,immediate_ok=true;
@@ -45,7 +47,7 @@ bool network_binding(const std::string&,action::Binding& out,std::string& e){if(
 }
 namespace mt2mp::game::hud_time_runtime {bool verify_window_show_hook(uintptr_t,std::string&){return true;}}
 namespace mt2mp::game::tutorial_replication {
-bool invalidate_developer_pool(const action::Context&,const action::Binding&,std::string& e){++fixture::display_calls;if(!fixture::display_ok)e="actual display Origin changed";return fixture::display_ok;}
+bool invalidate_developer_pool(const action::Context&,const action::Binding&,std::string& e,const action::Request* =nullptr){++fixture::display_calls;if(!fixture::display_ok)e="actual display Origin changed";return fixture::display_ok;}
 }
 namespace mt2mp::game::developer_staff {
 uint32_t original_show(uintptr_t,uintptr_t){++fixture::ui_calls;fixture::show_visible=true;return 0;}
@@ -74,9 +76,9 @@ using json=nlohmann::json;
 struct Memory {bool copy(uintptr_t,void* out,size_t n,std::string&){if(n==sizeof(uintptr_t))*static_cast<uintptr_t*>(out)=fixture::carried?1:0;if(n==1)*static_cast<uint8_t*>(out)=fixture::show_visible?1:0;return true;}};
 struct Runtime {bool ready=true;uintptr_t image=0x140000000;uint32_t thread=1;Memory memory;std::map<std::string,Operation> operations;std::atomic<initial_release::UiCommand> original{nullptr};bool frame_locked=false;std::string frame_cause;uint64_t frame_fields=0;std::map<std::string,nlohmann::json> ui_proofs;bool ui_proof_locked=false;std::string ui_proof_cause;std::optional<Pending> pending;uint64_t captured=0;UiEntryOwner owner;IntentReceipt intent;};
 std::atomic<Runtime*> published{nullptr};
-bool read(Runtime&,const action::Context&,const action::Binding&,Capture& out,PoolState& state,std::string& e){
+bool read(Runtime&,const action::Context&,const action::Binding&,Capture& out,PoolState& state,std::string& e,const action::Request* =nullptr,bool=false,bool=false,job_census::Census* jobs=nullptr){
     ++fixture::reads;if((fixture::reads==1&&!fixture::before_ok)||(fixture::reads>1&&!fixture::after_ok)){e="actual pool read failed";return false;}
-    out=fixture::current;state=fixture::pool;return true;
+    out=fixture::current;state=fixture::pool;if(jobs){*jobs={};jobs->queue=1;if(fixture::change_job_census&&fixture::reads>1)jobs->queue=2;}return true;
 }
 bool full_code(Runtime&,std::string& e){if(!fixture::code_ok)e="actual code owner differs";return fixture::code_ok;}
 bool fail(std::string& e,const std::string& why){e=why;return false;}
@@ -114,7 +116,7 @@ namespace runtime=staff::action_runtime;
 constexpr const char* fixture_action_id="11111111-1111-4111-8111-111111111111";
 constexpr const char* snapshot="22222222-2222-4222-8222-222222222222";
 void reset(runtime::Runtime& owner,bool hire=true){
-    using namespace fixture;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
+    using namespace fixture;ordered_test::enabled=false;change_job_census=false;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
     ui_accepted=ui_returned=ui_clean=ui_label=ui_effect=true;wrong_owner=wrong_immediate_actor=wrong_final_actor=count_fault=false;
     session_ok=role_ok=display_ok=true;carried=scalar_ledger_change=false;scalar_calls=fail_scalar=display_calls=0;cause.clear();context={};context.role=action::Role::Host;context.snapshot_uuid=snapshot;
     controller={{"pending",true},{"action_uuid",fixture_action_id}};current={};pool={};pool.count=hire?1:2;
@@ -138,6 +140,14 @@ void unknown_once(runtime::Runtime& owner,bool hire=true,const action::Evidence*
 int main(){try{
     using namespace fixture;runtime::Runtime owner;
     for(bool hire:{true,false}){
+        reset(owner,hire);context.role=action::Role::Client;ordered_test::bind(context,binding,request(hire));
+        need(run(hire)==action::Outcome::Confirmed&&ui_calls==1&&count_calls==1&&owner.operations.at(fixture_action_id).ordered,"ordered Client Hire/Fire did not execute its original body");
+        reset(owner,hire);ordered_test::bind(context,binding,request(hire));ordered_test::request.action_uuid="foreign";
+        need(run(hire)==action::Outcome::RejectedNoEffect&&!ui_calls&&!count_calls,"ordered Developer foreign command reached native effect");
+        reset(owner,hire);controller["ordered"]=true;need(run(hire)==action::Outcome::RejectedNoEffect&&!ui_calls,"ordered Developer missing scope accepted");
+        reset(owner,hire);ordered_test::bind(context,binding,request(hire));action::Evidence forbidden;
+        need(run(hire,&forbidden)==action::Outcome::RejectedNoEffect&&!ui_calls,"ordered Developer adopted Host state");
+
         reset(owner,hire);need(run(hire)==action::Outcome::Confirmed&&ui_calls==1&&count_calls==1,"native original Hire/Fire body did not confirm exact once");
         const auto evidence=owner.operations.at(fixture_action_id).evidence;need(evidence.developers_before&&evidence.developers_after,"confirmed action lost full native pools");
         need(hire?evidence.after.cash==93140:evidence.after.cash==93640,"native action payment differs");
@@ -160,6 +170,9 @@ int main(){try{
         unknown_once(owner);if(failure<8)need(!count_calls,"unconfirmed original UI effect was force-projected by SetDevCount");}
     reset(owner);after_ok=false;unknown_once(owner);need(count_calls==1,"post-effect read failure did not retain original count attempt");
     reset(owner);display_ok=false;unknown_once(owner);need(count_calls==1&&display_calls==1,"action cache ownership failure lost original effect/Unknown");
+    reset(owner);ordered_test::bind(context,binding,request());change_job_census=true;
+    need(run()==action::Outcome::Unknown&&ui_calls==1&&count_calls==1&&cause=="Ordered Hire changed the complete native Job census","ordered Hire lost Job census mismatch");
+    const auto census_cause=cause;need(run()==action::Outcome::Unknown&&ui_calls==1&&!census_cause.empty(),"ordered partial Hire replayed original work");
     bool attempted=false,unknown=false;
     reset(owner);context.role=action::Role::Client;auto target=pool;target.rows[0].state=6;target.rows[1].active=true;
     need(runtime::preflight_frame(context,binding,target,cause)&&!scalar_calls,"frame preflight performed a native property");

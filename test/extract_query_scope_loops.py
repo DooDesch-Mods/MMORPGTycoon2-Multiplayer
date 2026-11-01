@@ -223,7 +223,8 @@ for relative,route in [('src/game/remove_diagnostics.cpp','host::RootSceneryRead
 
 
 actual_world_prop=world_prop
-world_prop=batch_normalize('src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp',world_prop)
+from ordered_world_reader_source_boundary import normalize as ordered_world_normalize
+world_prop=batch_normalize('src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp',ordered_world_normalize(world_prop))
 
 # Reverse only the bounded array read; all historical whole-source guards remain.
 array_slot_loop = '    // Read each physical slot before growing storage; a corrupt count cannot reserve gigabytes.\n    for(int32_t i=0;i<count;++i){uintptr_t value=0;if(!m.copy(data+static_cast<size_t>(i)*sizeof(value),&value,sizeof(value),e))return false;\n        if(!value||!unique.insert(value).second)return fail(e,"remove_reader_array_null_or_duplicate");out.push_back(value);}'
@@ -290,7 +291,7 @@ array_helpers=[body(world_prop,anchor) for anchor in ('bool fail(', 'template<cl
 array_baseline=body(world_prop,'bool array(').replace(array_chunk_loop,array_slot_loop,1).replace('bool array(', 'bool original_array(',1)
 (a.output/'world_prop_array_bodies.inc').write_text('\n'.join(array_helpers+[array_baseline])+'\n',encoding='utf-8')
 
-# Metadata reuse ends before the Character user reader's original Find calls.
+# The pinned FindUID leaf preserves metadata inside the Character user reader.
 character=(a.root/'src/game/character_actor_records_runtime.inc').read_text(encoding='utf-8')
 pure_call='([&]{live_host_state::apply_timing::PageReadScope definition_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return character_definition_identity::read(at,owner.image,uintptr_t(before.origin.state),manager,current,error);}())'
 assert character.count(pure_call)==1
@@ -300,8 +301,8 @@ definitions=(a.root/'src/game/character_definition_identity.h').read_bytes()
 assert hashlib.sha256(definitions).hexdigest()=='13183364fc57c67c734f1d6d5bd576710caf80801381bffa33ec5d365c38f9ea', 'Pure Character reader changed; recheck callback-free extent'
 (a.output/'character_definition_pure_call.inc').write_text('return '+pure_call+';\n',encoding='utf-8')
 
-# Each extent reads live bytes. The callback-bearing users reader resets page
-# metadata around its actual original Find lambda on entry, return and unwind.
+# Each extent reads live bytes. The exact FindUID getter has no mutation
+# boundary; unknown native operations retain their explicit boundary.
 subscriber=(a.root/'src/game/intervention_subscriber_live.inc').read_text(encoding='utf-8')
 subscriber_call='([&]{live::apply_timing::PageReadScope subscriber_pages;return subscriber_intervention::read_all(read,copy,r.image,values,owners,error);}())'
 assert subscriber.count(subscriber_call)==1
@@ -319,10 +320,10 @@ assert release_sample.count(release_scalar_call)==1
 assert release_sample.index('context(r,c,b,pin,e)')<release_sample.index(release_scalar_call)<release_sample.index('if(before!=out||first!=state)')<release_sample.index('native_open_runtime::read_current_world(')
 (a.output/'release_scalar_pair_actual.inc').write_text(release_scalar_call+'\n'+release_sample[release_sample.index('    if(before!=out||first!=state)'):release_sample.index('    building_mixed_identity::')],encoding='utf-8')
 (a.output/'pure_release_string_bodies.inc').write_text(body(release_runtime,'template<class T>bool at(Runtime&')+'\n'+body(release_runtime,'bool string(Runtime&')+'\n',encoding='utf-8')
-find_call='    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){live_host_state::apply_timing::PageReadScope original_lookup(live_host_state::apply_timing::PageBoundary::OriginalCall);const auto seh=lookup(api.find,uid,pointer);\n        return !seh||fail(cause,"Character complete census current FindUID failed SEH="+std::to_string(seh));};'
+find_call='    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){const auto seh=lookup(api.find,uid,pointer);\n        return !seh||fail(cause,"Character complete census current FindUID failed SEH="+std::to_string(seh));};'
 users_call='([&]{live_host_state::apply_timing::PageReadScope user_pages(!live_host_state::apply_timing::PageReadScope::reader_active());return character_membership_reader::users(at,find,owner.image,current,current_users,error);}())'
 assert character.count(find_call)==1 and character.count(users_call)==1
-assert 'PageBoundary::OriginalCall);const auto seh=lookup(api.find,uid,pointer);' in find_call
+assert 'const auto seh=lookup(api.find,uid,pointer);' in find_call and 'PageReadScope' not in find_call
 assert current.index(find_call)<current.index(users_call)<current.index('!reader.current(after,true,error)')
 (a.output/'pure_users_find.inc').write_text(find_call+'\n',encoding='utf-8')
 (a.output/'pure_users_call.inc').write_text('return '+users_call+';\n',encoding='utf-8')
@@ -432,13 +433,12 @@ assert intervention.count(edge)==1, 'Intervention must consume the actual first 
 # These concrete adapters have already admitted Origin; generic callbacks stay unchanged.
 assert actual_world_prop.index('if(batch&&!batch->admit(before,image_,thread_,api_,e))return false;')<actual_world_prop.index('PageReadScope fields(batch&&')
 assert actual_world_prop.count('PageReadScope fields(batch&&')==1
-saved_call=body(actual_world_prop,'if(!([&]{')
-# body() begins at the lambda, so take only its exact lambda expression.
-saved_call=saved_call[saved_call.index('[&]{'):]
-assert saved_call.endswith('}')
+saved_method=body(actual_world_prop,'bool Reader::saved_root_scenery_impl(')
+saved_scope='mt2mp::game::live_host_state::apply_timing::PageReadScope fields(batch&&!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());'
 saved_dependency='read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member)'
-assert saved_call.count(saved_dependency)==1
-(a.output/'saved_root_field_scope.inc').write_text(saved_call.replace(saved_dependency,'port()',1)+'()\n',encoding='utf-8')
+assert saved_method.count(saved_scope)==1 and saved_method.count(saved_dependency)==1
+assert saved_method.index(saved_scope)<saved_method.index(saved_dependency)<saved_method.index('if(!read_current(after,e))return false;')
+(a.output/'saved_root_field_scope.inc').write_text('[&]{'+saved_scope+'return port();}()\n',encoding='utf-8')
 region_start=batch_runtime.index('            mt2mp::game::live_host_state::apply_timing::PageReadScope fields(')
 region_end=batch_runtime.index('            return place::read_scenery(memory,owner,image,out,cause);',region_start)
 region_scope=batch_runtime[region_start:region_end]
@@ -474,9 +474,9 @@ helpers.append(body(state_baseline,'bool read_state(').replace('bool read_state(
 
 # Complete local World context is admitted only after the full successful saved member proof.
 ready='        if(batch)batch->world_ready=true;'
-actual_saved=body(actual_world_prop,'bool Reader::saved_root_scenery(')
+actual_saved=body(actual_world_prop,'bool Reader::saved_root_scenery_impl(')
 assert actual_saved.count(ready)==1
-assert actual_saved.index('if(!current(after,true,e))return false;')<actual_saved.index(ready)<actual_saved.index('out=std::move(value);return true;')
+assert actual_saved.index('if(!read_current(after,e))return false;')<actual_saved.index(ready)<actual_saved.index('out=std::move(value);return true;')
 (a.output/'saved_root_world_ready.inc').write_text(ready+'\n',encoding='utf-8')
 (a.output/'saved_root_world_reuse.inc').write_text(body(batch_runtime,'bool RootSceneryReadBatch::reuse_world(')+'\n',encoding='utf-8')
 (a.output/'saved_root_world_admit.inc').write_text(body(batch_runtime,'bool same(const WorldState&')+'\n'+body(batch_runtime,'bool admit(const WorldState&')+'\n',encoding='utf-8')
@@ -484,14 +484,14 @@ fresh=body(batch_runtime,'struct FreshWorld ')
 assert batch_runtime.count(fresh+' fresh(fresh_world);')==1
 (a.output/'saved_root_world_fresh.inc').write_text(fresh+' fresh(fresh_world);\n',encoding='utf-8')
 
-# Retain the complete production World Zone manager body and original-call
-# boundary. The comparison removes metadata scopes only, never field reads.
+# Retain the complete production World Zone manager body and read-only FindUID.
+# The comparison removes metadata scopes only, never field reads.
 world_zone=(a.root/'src/game/world_zone_current.inc').read_text()
 zone_reader='#ifdef _WIN32\n        mt2mp::game::live_host_state::apply_timing::PageReadScope zone_pages(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n#endif\n'
 zone_original='#ifdef _WIN32\n        mt2mp::game::live_host_state::apply_timing::PageReadScope original_lookup(mt2mp::game::live_host_state::apply_timing::PageBoundary::OriginalCall);\n#endif\n'
 zone_find=body(world_zone,'    auto find=[&](uint64_t uid,uintptr_t& value,std::string& cause)')+';\n'
 zone_add=body(world_zone,'    const auto add=[&](uintptr_t manager,uintptr_t root,uintptr_t region,const std::string& scene,const q::SavedPool& monsters)')+';\n'
-assert zone_find.count(zone_original)==1 and zone_add.count(zone_reader)==1
+assert zone_find.count(zone_original)==0 and zone_add.count(zone_reader)==1
 assert 'dungeon_zone_roster::read(at,find,image,manager,root,region,actual,error)' in zone_add
 assert 'monster_count!=monsters.array.zones.size()' in zone_add
 assert 'World Zone current roster omitted a confirmed live member' in zone_add
@@ -507,3 +507,20 @@ assert zone_regions.count('region_saved_identity::verify(image,map,root,region_i
 assert 'exact_uid' not in zone_regions and 'native_open_runtime' not in zone_regions
 (a.output/'world_zone_regions_scoped.inc').write_text(zone_regions,encoding='utf-8')
 (a.output/'world_zone_regions_baseline.inc').write_text(zone_regions.replace(zone_region_scope,''),encoding='utf-8')
+
+# Party owner is a pure native read. Its extent ends before every SaveScope or
+# replay callback. Keep the complete status/clock/scheduler reads and all causes.
+party_source=(a.root/'src/game/party_live_native.cpp').read_text(encoding='utf-8')
+party_actual=body(party_source,'bool NativePort::owner(')
+party_scope='    live_host_state::apply_timing::PageReadScope owner_pages(!live_host_state::apply_timing::PageReadScope::reader_active());\n'
+assert party_actual.count(party_scope)==1
+party_prior=party_actual.replace(party_scope,'',1)
+assert hashlib.sha256(party_prior.encode()).hexdigest()=='982cebbc9ee458d83296d75d656f72a479478779a36a046a77b1da74f55db5c1', 'Party owner checks or read order changed'
+party_scheduler=body(party_source,'bool typed(')+'\n'+body(party_source,'bool scheduler(')
+assert hashlib.sha256(party_scheduler.encode()).hexdigest()=='2c1ebf0250858a4259056ac8af6403de493141c4594110e0c0fc0e27cf24f971', 'Party scheduler owner checks changed'
+engine_source=(a.root/'src/game/native_engine.cpp').read_text(encoding='utf-8')
+engine_bodies='\n'.join(body(engine_source,anchor) for anchor in ['bool readable(', 'template<class T> bool read_at(', 'bool has_vtable(', 'void* singleton(', 'bool check_thread(', 'bool ready()', 'bool in_game()', 'bool read_world_status(', 'bool read_clock('])
+assert hashlib.sha256(engine_bodies.encode()).hexdigest()=='501c7a4e78f6765e7739b4aeb3b42f9938541a6b78ef9af97b3072a3a9098793', 'Party pure Engine reader bodies changed'
+(a.output/'party_owner_engine.inc').write_text(engine_bodies+'\n',encoding='utf-8')
+(a.output/'party_owner_scheduler.inc').write_text(party_scheduler+'\n',encoding='utf-8')
+(a.output/'party_owner_actual.inc').write_text(party_actual.replace('NativePort::owner(', 'NativePort::actual(',1)+'\n'+party_prior.replace('NativePort::owner(', 'NativePort::prior(',1)+'\n',encoding='utf-8')

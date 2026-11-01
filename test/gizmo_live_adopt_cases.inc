@@ -43,6 +43,7 @@ namespace action=a;
 struct ControllerStatus {bool started=true,locked=false,pending=false;}fixture_status;
 bool fixture_foreign_controller=false;
 struct Controller {
+    bool ordered_mode()const{return false;}
     ControllerStatus status()const{return fixture_status;}
     a::Context bound_context()const{auto value=a::observed;if(fixture_foreign_controller)++value.session;return value;}
     a::Binding bound_binding()const{return a::admitted;}
@@ -53,8 +54,9 @@ struct Engine {
             fail(error,"fixture current shared network snapshot differs");
     }
 };
-struct Runtime {DWORD thread=GetCurrentThreadId();Controller controller;bool lobby_retiring=false;a::Session session;Engine engine;}fixture_runtime;
+struct Runtime {bool live_state=false,live_port=false;DWORD thread=GetCurrentThreadId();Controller controller;bool lobby_retiring=false;a::Session session;Engine engine;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
+bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 #include "controller_binding_actual.inc"
 }
 namespace native_open_runtime {

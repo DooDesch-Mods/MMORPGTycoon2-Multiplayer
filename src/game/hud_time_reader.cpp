@@ -150,6 +150,34 @@ bool Reader::classify_activation(uintptr_t type,uintptr_t item,ActivationBinding
     }
     e.clear();return true;
 }
+bool Reader::classify_inventory_activation(uintptr_t type,uintptr_t item,ActivationBinding& out,std::string& e) {
+    out={};State state;Witness hud;if(!read_bound(state,hud,e))return false;
+    uintptr_t player=0,inventory=0,array=0;int32_t count=0;
+    if(!at(config_.image,0x13df9f0,player,e)||!vtable(player,0x17873b0,"time_player",e)||
+       !at(player,0x1d0,inventory,e)||!vtable(inventory,0x16df0f0,"time_inventory",e)||
+       !at(inventory,8,array,e)||!at(inventory,0x10,count,e))return false;
+    if(!array||count<1||count>4096)return fail(e,"time_inventory_count_outside_1_4096");
+    std::array<uintptr_t,4> items{};ActivationBinding found;
+    for(int32_t slot=0;slot<count;++slot){
+        uintptr_t current=0,kind=0,proxy=0,live=0,ap=0;
+        if(!at(array,size_t(slot)*8,current,e))return false;if(!current)continue;
+        if(!vtable(current,0x17437f0,"time_inventory_item",e)||!at(current,0x68,kind,e)||!at(current,0x70,proxy,e)||!at(proxy,0,live,e)||!at(kind,0,ap,e))return false;
+        if(!live)return fail(e,"time_inventory_type_weak_reference_not_live");
+        if(ap!=config_.image+0x1723f50)continue;
+        float scale=0;int32_t native_state=0;if(!at(kind,0x15c,scale,e)||!at(current,0x38,native_state,e))return false;
+        const auto position=std::find(scales.begin(),scales.end(),scale);if(position==scales.end())return fail(e,"time_inventory_scale_invalid");
+        const auto index=size_t(position-scales.begin());if(items[index]||!name(kind,0x48,names[index],e))return fail(e,e.empty()?"time_inventory_duplicate_scale":e);
+        items[index]=current;
+        if(current==item&&kind==type){found.matched=true;found.world=hud.roots[2];found.panel=hud.roots[4];found.slot=inventory;found.item=item;found.type=type;found.type_proxy=proxy;found.scale=scale;found.native_item_state=native_state;found.native_selected_scale=state.native_selected_scale;}
+    }
+    if(std::any_of(items.begin(),items.end(),[](uintptr_t value){return !value;}))return fail(e,"time_inventory_missing_scale");
+    uintptr_t current_player=0,current_inventory=0,current_array=0;int32_t current_count=0;
+    State after;Witness final;
+    if(!read_bound(after,final,e)||!at(config_.image,0x13df9f0,current_player,e)||!at(player,0x1d0,current_inventory,e)||!at(inventory,8,current_array,e)||!at(inventory,0x10,current_count,e))return false;
+    if(final!=hud||player!=current_player||inventory!=current_inventory||array!=current_array||count!=current_count)return fail(e,"time_inventory_owner_changed");
+    out=found;e.clear();return true;
+}
+
 bool Reader::button_binding(float scale,ActivationBinding& out,std::string& e) {
     out={};const auto found=std::find(scales.begin(),scales.end(),scale);
     if(found==scales.end())return fail(e,"hud_time_button_scale_invalid");

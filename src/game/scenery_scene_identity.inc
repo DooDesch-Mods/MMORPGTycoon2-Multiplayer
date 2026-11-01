@@ -9,7 +9,7 @@ bool registered(const std::string& snapshot,const std::string& key,uint64_t uid)
         found->second.uid==uid&&!found->second.unknown&&!found->second.scene_owner.empty()&&found->second.scene_owner!="retired"&&found->second.scene_owner!="world"&&
         found->second.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+0x16c1390;
 }
-bool prepare_saved(const dungeon_scene_identity_runtime::Census& census,const scenery_scene_snapshot_alias::Manifest& aliases,std::string& error){
+bool prepare_saved(const dungeon_scene_identity_runtime::Census& census,const scenery_scene_snapshot_alias::Manifest& aliases,std::string& error,bool publish){
     if(!census.snapshot_census||!aliases.present||!scenery_scene_snapshot_alias::valid(aliases,census.world.sha256,error)){
         if(error.empty())error="Scene Scenery alias admission requires its exact saved census/companion";return false;}
     auto complete=aliases;
@@ -26,7 +26,7 @@ bool prepare_saved(const dungeon_scene_identity_runtime::Census& census,const sc
        !records.insert(row.record).second||!pointers.insert(row.object).second||!uids.insert(row.uid).second){error="Scene Scenery complete saved census has an invalid or duplicate record/lifetime";return false;}
     if(records.size()!=complete.rows.size()){error="Scene Scenery companion omits or adds an original saved member";return false;}
     for(const auto& row:complete.rows)if(!records.contains(row.record)){error="Scene Scenery companion contains a foreign original record";return false;}
-    saved_admission=SavedAdmission{census.world,census.scenery_saved,std::move(complete),false};error.clear();return true;
+    if(publish)saved_admission=SavedAdmission{census.world,census.scenery_saved,std::move(complete),false};error.clear();return true;
 }
 bool capture_saved(const dungeon_scene_identity_runtime::Census& census,scenery_scene_snapshot_alias::Manifest& out,std::string& error){
     out={};if(!census.snapshot_census){error="Scene Scenery alias capture requires its exact original snapshot census";return false;}
@@ -64,6 +64,7 @@ bool capture_saved(const dungeon_scene_identity_runtime::Census& census,scenery_
     std::sort(next.rows.begin(),next.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
     if(!scenery_scene_snapshot_alias::valid(next,census.world.sha256,error))return false;out=std::move(next);error.clear();return true;
 }
+bool saved_admission_pending(){return saved_admission&&!saved_admission->consumed;}
 bool append_saved(json& list,std::string& error){
     if(!saved_admission||saved_admission->consumed)return true;auto& saved=*saved_admission;
     host::opened::CurrentWorld opened;if(!current(opened,error))return false;

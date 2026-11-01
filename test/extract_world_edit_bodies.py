@@ -48,7 +48,7 @@ body('src/game/group_history_runtime.inc','bool history_ready(','action::Outcome
 body('src/game/group_history_runtime.inc','action::Outcome perform_history(','EOF','group_history_perform_actual.inc')
 body('src/game/group_object_sample.inc','struct Sample {','bool same_binding(','group_object_sample_actual.inc')
 body('src/game/group_object_sample.inc','void trim(','bool native_target(','group_object_trim_actual.inc')
-body('src/game/duplicate_sample.inc','struct Sample {','bool external_owner(','duplicate_sample_type_actual.inc')
+body('src/game/duplicate_sample.inc','struct SampleTiming {','bool external_owner(','duplicate_sample_type_actual.inc')
 body('src/game/duplicate_sample.inc','bool external_owner(','namespace child_npc=','duplicate_sample_owner_actual.inc')
 body('src/game/duplicate_sample.inc','bool sample(Runtime&','EOF_TWO_NAMESPACES','duplicate_sample_actual.inc')
 body('src/game/duplicate_runtime.inc','bool same_binding(','bool cash_position(','duplicate_sample_binding_actual.inc')
@@ -83,4 +83,13 @@ capture=(a.source/'src/game/modular_capture.inc').read_text()
 mode_begin=capture.index('    int32_t mode=-1;',capture.index('bool capture_input('))
 mode_end=capture.index('    out.snapshot=',mode_begin)
 (a.output/'modular_capture_mode_actual.inc').write_text(capture[mode_begin:mode_end])
+body('src/game/ui_path_runtime.inc','bool ordered_scope(','bool input_admission(','ordered_path_scope_actual.inc')
+# Exercise the production family router without copying its predicates into the fixture.
+execute_begin=runtime.index('    action::Outcome execute_action(')
+route_begin=runtime.index('        if(action::tick_commands::authority::active()) {',execute_begin)
+route_end=runtime.index('        if(live_state_&&live_host_state::economic_fence()',route_begin)
+route=runtime[route_begin:route_end]
+assert route.count('action::tick_commands::ordered_building_family(')==1, 'Ordered family router extraction changed'
+(a.output/'ordered_path_route_actual.inc').write_text(route)
+receipt['ordered_path_route_actual.inc']={'source':'src/game/typed_action_runtime.cpp','sha256':hashlib.sha256(route.encode()).hexdigest()}
 (a.output/'body-hashes.json').write_text(json.dumps(receipt,indent=2)+'\n')

@@ -1,4 +1,6 @@
 #include "typed_action/action_session.h"
+#include "typed_action/tick_authority.h"
+namespace mt2mp::action_session::tick_commands::authority {bool ordered=false;bool active(){return ordered;}}
 #include "path_history_graph.h"
 #include "move_contract.h"
 #include "live_host_state/economic_fence.h"
@@ -17,7 +19,7 @@ struct Config {bool is_host=true;static Config& instance(){static Config value;r
 unsigned GetCurrentThreadId(){return 7;}
 struct Graph {action::PathState state;std::vector<uint64_t> path_uids,node_uids;json rows;};
 struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;
-    bool confirmed=true,retired=true;std::optional<path_history_graph::Snapshot> history_before,history_after;uintptr_t history_graph=100;};
+    bool ordered=false,confirmed=true,retired=true;std::optional<path_history_graph::Snapshot> history_before,history_after;uintptr_t history_graph=100;};
 struct Path {bool ready=true;std::map<std::string,Operation> operations;} path;
 namespace region {
 struct Runtime {unsigned thread=7;};
@@ -74,10 +76,20 @@ action::Outcome perform_history(const action::Binding&,const action::Request&,co
 bool observe_history(const action::Binding&,const action::Request&,action::Evidence&,std::string& e){e="unexpected World Path history observation";return false;}
 bool retire_history(const action::Binding&,const action::Request&,std::string& e){e="unexpected World Path history retirement";return false;}
 }
+bool execution_admission(const action::Binding&,const action::Request&,const action::Evidence* authority,std::string& e){
+    if(action::tick_commands::authority::active()){
+        if(authority){e="Ordered path execution forbids Host result and RNG adoption";return false;}
+        return true;
+    }
+    if(controller.value("ordered",false)){e="Ordered path execution requires consumed command scope";return false;}return true;
+}
+namespace terrain_settlement {
+bool run(region::Runtime&,const std::string&,bool,json&,std::string&){return true;}
+}
 #include "path_history_runtime.inc"
 
 action::Request reset(action::Action direction,bool source_remove=false){
-    native_runtime={};path={};history_operations.clear();Config::instance().is_host=true;
+    action::tick_commands::authority::ordered=false;native_runtime={};path={};history_operations.clear();Config::instance().is_host=true;
     calls=seeds=0;native_reject=bad_effect=bad_cash=bad_inverse=false;
     const path_history_graph::Snapshot empty{{},{},{{"paths",json::array()},{"nodes",json::array()}}};
     const path_history_graph::Snapshot road{{11},{21,22},{{"paths",json::array({json::array({0,1,json::array({{0,0,0},{1,0,0}}),json::array({0,1}),json::array(),json::array()})})},
@@ -133,5 +145,23 @@ int main(){try{
     action::Evidence authority;need(observe_history({2,3},request,authority,error),error);
     request=reset(action::Action::UndoBuilding);Config::instance().is_host=false;native_reject=true;
     need(perform_history({2,3},request,&authority,error)==action::Outcome::Unknown&&calls==1&&seeds==1,"Client seed then native reject was disguised as no effect");++cases;
+    for(auto direction:{action::Action::UndoBuilding,action::Action::RedoBuilding})for(bool removed:{false,true})for(bool host:{false,true}){
+        request=reset(direction,removed);Config::instance().is_host=host;action::tick_commands::authority::ordered=true;
+        path.operations.at(source_id).ordered=true;
+        need(perform_history({2,3},request,nullptr,error)==action::Outcome::Confirmed&&calls==1&&seeds==0,error);++cases;
+        need(observe_history({2,3},request,authority,error)&&retire_history({2,3},request,error),error);++cases;
+        need(observe_history({2,3},request,authority,error)&&authority.retirement_confirmed,error);++cases;
+        need(!retire_history({2,3},request,error)&&perform_history({2,3},request,nullptr,error)==action::Outcome::Unknown&&calls==1&&seeds==0,"Ordered Path history replayed after retirement");++cases;
+        request=reset(direction,removed);Config::instance().is_host=host;action::tick_commands::authority::ordered=true;
+        need(perform_history({2,3},request,nullptr,error)==action::Outcome::RejectedNoEffect&&calls==0&&error=="Path history execution mode differs from retained source",error);++cases;
+        path.operations.at(source_id).ordered=true;
+        need(perform_history({2,3},request,&authority,error)==action::Outcome::RejectedNoEffect&&calls==0&&seeds==0,error);++cases;
+    }
+    request=reset(action::Action::UndoBuilding);action::tick_commands::authority::ordered=true;
+    path.operations.at(source_id).ordered=true;path.operations.at(source_id).binding={9,3};
+    need(perform_history({2,3},request,nullptr,error)==action::Outcome::RejectedNoEffect&&calls==0&&seeds==0,"Ordered Path accepted wrong source binding");++cases;
+    request=reset(action::Action::RedoBuilding);action::tick_commands::authority::ordered=true;
+    path.operations.at(source_id).ordered=true;path.operations.at(source_id).request.snapshot_uuid="wrong";
+    need(perform_history({2,3},request,nullptr,error)==action::Outcome::RejectedNoEffect&&calls==0&&seeds==0,"Ordered Path accepted wrong source snapshot");++cases;
     std::cout<<cases<<" actual Path history orchestration comparisons passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -21,6 +21,7 @@ mt2mp_auto_world_body(auto_world_text "bool lobby_host()" "bool admit_local(" au
 mt2mp_auto_world_body(auto_world_text "    if(cmd==\"MT2MPStart\"||cmd==\"MT2MPPrepare\") {" "    if(cmd==\"MT2MPLeave\") {" auto_world_start_body.inc)
 mt2mp_auto_world_body(prepare_world_text "enum class Step" "bool terrain_ready()" prepare_current_state_body.inc)
 mt2mp_auto_world_body(prepare_world_text "bool completed(" "bool all_ack(" prepare_current_completed_body.inc)
+mt2mp_auto_world_body(prepare_world_text "bool select_paired_world(" "bool completed(" prepare_current_selection_body.inc)
 mt2mp_auto_world_body(prepare_world_text "bool prepare(const std::string& path" "bool leave(" prepare_current_entry_body.inc)
 mt2mp_auto_world_body(prepare_world_text "bool tick(std::string& error)" "nlohmann::json status()" prepare_current_tick_body.inc)
 

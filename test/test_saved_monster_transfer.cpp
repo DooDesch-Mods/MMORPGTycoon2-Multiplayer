@@ -42,6 +42,14 @@ namespace native{bool arm_software_replica(uint64_t,std::string&,const std::stri
 namespace normal_load_identity{bool begin(const std::string&,const std::string&,std::string&){++arms;return true;}void cancel(const std::string&) {}}
 namespace network_identity{void invalidate_world(const std::string&){}bool begin_client_load(const std::string&,const std::string&,uint32_t,std::string&){return true;}}
 }
+bool ordered_snapshot=false;
+bool snapshot_host(){return Config::instance().is_host;}
+bool receive_save_export_chunk(uint64_t,const uint8_t*,uint32_t){return false;}
+struct SaveExport{void failed(const char*){throw std::runtime_error("unexpected export owner in snapshot fixture");}};
+SaveExport* save_export=nullptr;
+bool ordered_fresh(std::string& e){e="unexpected ordered import in legacy snapshot fixture";return false;}
+void ordered_attach_ack(json&){need(!ordered_snapshot,"legacy ACK unexpectedly selected ordered transport");}
+void ordered_prepare_received(const std::filesystem::path&){throw std::runtime_error("unexpected ordered preparation in legacy snapshot fixture");}
 #include "saved_monster_receive_actual.inc"
 std::string digest(const std::string& bytes){SnapshotSha256 h;h.add(reinterpret_cast<const uint8_t*>(bytes.data()),bytes.size());return h.finish();}
 const std::string native_bytes="native snapshot bytes",side_bytes="hash-bound identity companion";

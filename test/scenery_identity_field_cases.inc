@@ -10,13 +10,14 @@ bool resolve_lookup(Adapter& memory,uintptr_t image,const std::string&,int& out,
     out=int(first+second);return true;
 }
 }
-bool owners(Adapter& memory,uintptr_t object,uintptr_t& shard,uintptr_t& region,bool scoped,std::string& e){
+bool owners(Adapter& memory,uintptr_t object,uintptr_t& shard,uintptr_t& region,bool scoped,std::string& e,uintptr_t root=0,int32_t* saved=nullptr){
+    struct World{uintptr_t root;};const World world{root};int32_t saved_id=-1;
     if(scoped){
 #include "scenery_owner_fields.inc"
     }else{
 #include "scenery_owner_fields_baseline.inc"
     }
-    return true;
+    if(saved)*saved=saved_id;return true;
 }
 bool resolver(Adapter& memory,uintptr_t image,int& api,bool scoped,std::string& e){
     const std::string hash="pinned";
@@ -50,6 +51,10 @@ void run(){
     allocation.put(allocation.base+0x170,uintptr_t(31));allocation.put(allocation.base,uint64_t(25));
     need(owners(reader,allocation.base,shard,region,true,error)&&shard==31&&region==18,"next identity read reused stale owner fields");
     need(resolver(reader,allocation.base,api,true,error)&&api==37,"next identity read reused stale resolver bytes");
+    allocation.put(allocation.base+0x178,allocation.base+4096);allocation.put(allocation.base+4096+0x834,int32_t(63));
+    int32_t saved=-1;reader.memory.reads.clear();const auto before=queries();
+    need(owners(reader,allocation.base,shard,region,true,error,31,&saved)&&saved==63&&reader.memory.reads.size()==3&&queries()-before==1,
+         "saved root Region ID shares only the pure field scope and is read fresh");
     std::cout<<"Scenery identity pure fields: same bytes/rejections; owner and resolver OS queries 2 -> 1; native boundaries retained\n";
 }
 }

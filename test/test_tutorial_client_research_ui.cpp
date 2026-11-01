@@ -1,3 +1,5 @@
+#include "tutorial_startingpoint_fixture/queued_project_expected.h"
+#include "tutorial_startingpoint_fixture/queued_project_admission.h"
 #include "tutorial_startingpoint_fixture/client_admission.h"
 #include "tutorial_startingpoint_fixture/begin_guards.h"
 #include "tutorial_development.h"
@@ -14,7 +16,7 @@ using DWORD=unsigned long;
 using World=building_mixed_identity::opened_file::CurrentWorld;
 constexpr uintptr_t win=0x2000,tabs=0x3000,view=0x4000,grid=0x5000,button=0x6000,rows=0x7000,fixture_pane=0x8000,tech=0x9000;
 const std::string action="11111111-1111-1111-1111-111111111111";
-struct Pin{World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
+struct Pin{bool ordered=false;World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
 struct Request{std::string token="token",origin_uuid="local",operation="client_research";uint64_t epoch=1,generation=1;json expected_development;};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;
@@ -37,7 +39,7 @@ bool text(uintptr_t p,size_t off,std::string& out,std::string& e){auto it=string
 bool same(const World& a,const World& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.uuid==b.uuid&&a.sha256==b.sha256&&a.bytes==b.bytes&&a.world_epoch==b.world_epoch&&a.generation==b.generation;}
 bool same_inventory_owner(const Pin& a,const Pin& b){return a.inventory==b.inventory&&a.player==b.player&&a.slots==b.slots;}
 namespace action_session {
-enum class Role{Host,Client};struct Context{Role role=Role::Client;std::string snapshot_uuid="common";bool operator==(const Context&)const=default;};struct Binding{int owner=7;};
+enum class Role{Host,Client};struct Context{Role role=Role::Client;std::string snapshot_uuid="common";bool operator==(const Context&)const=default;};struct Binding{int owner=7;bool operator==(const Binding&)const=default;};
 struct Session{bool current(Context& c,std::string&){c={};if(activation_calls&&changed_context)c.snapshot_uuid="foreign";return true;}}fixture_session;
 Session& selected_session(){return fixture_session;}
 }
@@ -46,11 +48,12 @@ bool network_binding(const std::string&,action_session::Binding&,std::string& e)
 bool observe_startingpoint_submission(const action_session::Context& c,const action_session::Binding& b,const std::string& id,std::string& e){
     ++pending_observations;return (c.snapshot_uuid=="common"&&b.owner==7&&client_controller_admission(controller,id,e))||fail(e,e.empty()?"bound Context changed":e);}
 }
+#include "tutorial_project_queue_fixture.h"
 bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending={},const action_session::Context* context=nullptr,const action_session::Binding* binding=nullptr){
     if(!client||!client_controller_admission(controller,pending,e))return false;
     if(pending.empty()){action_session::Binding b;if(!typed_action_runtime::network_binding("common",b,e))return false;}
     else if(!context||!binding||!typed_action_runtime::observe_startingpoint_submission(*context,*binding,pending,e))return false;
-    p={};p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
+    p={};p.ordered=fixture_ordered;p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
     if(activation_calls&&change_origin)++p.world.world_epoch;
     return true;
 }
@@ -87,6 +90,7 @@ DWORD research_page(uintptr_t,uintptr_t){++page_calls;strings[view+0x3e8]="{dev_
 DWORD research_select(uintptr_t,uintptr_t,int32_t row){++select_calls;if(selection_exception)return selection_exception;put<int32_t>(grid,0x3e8,row);put<uint8_t>(grid,0x3ec,1);put<uint8_t>(rows,size_t(row)*12+9,1);put<uintptr_t>(win,0x610,native_snapshot.creation->source);if(selection_enables)put<uint8_t>(button,0x46d,0);return 0;}
 DWORD activate(uintptr_t,uintptr_t){
     ++activation_calls;if(change_ledger)++ledger_value;
+    if(fixture_ordered){capture_project(general_project::Command::Start,"startingpoint");return 0;}
     progress_state={{"client_start_submitted",!send_failed},{"client_start_suppressed",true},{"client_start_action_uuid",action},{"client_start_cause",send_failed?"original send failure":""}};
     controller["pending"]=true;controller["action_uuid"]=wrong_pending?"foreign":action;
     if(unknown_pending)controller["outcome"]=3;return 0;
@@ -96,7 +100,7 @@ DWORD activate(uintptr_t,uintptr_t){
 #include "client_research_fixture.inc"
 unsigned checks_completed=0;
 void need(bool yes,const char* cause){if(!yes)throw std::runtime_error(cause);++checks_completed;}
-void reset(){worlds.clear();receipts.clear();fixture_bytes.clear();strings.clear();controller=idle();progress_state=json::object();
+void reset(){reset_project_queue();worlds.clear();receipts.clear();fixture_bytes.clear();strings.clear();controller=idle();progress_state=json::object();
     activation_calls=show_calls=page_calls=select_calls=idle_binding_calls=pending_observations=0;ledger_value=10;
     changed_row=change_ledger=change_origin=send_failed=wrong_pending=unknown_pending=stale_receipt=changed_context=false;selection_exception=0;layout_binds=selection_enables=true;
     development={{"project",{{"present",false},{"work",0},{"lines",0},{"desired_workers",0},{"bugs_total",0},{"bugs_known",0}}},
@@ -150,6 +154,13 @@ void check_bridges(){std::string e;json out;
     reset();bridges();development["research"]["rows"][0]["cost"]=9999;need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("getters")!=std::string::npos,"Bridges wrong original price reached selection");
     reset();bridges();development["research"]["rows"].push_back(development["research"]["rows"][0]);need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("duplicated")!=std::string::npos,"duplicate Bridges catalogue reached UI");
 }
+void check_ordered_queue(){std::string e;json out;
+    reset();fixture_ordered=true;need(run(out,e)&&activation_calls==1&&out["queued"]==true&&out["submitted"]==false&&out["host_completion_confirmed"]==false,"ordered research queue confused with Host completion");
+    need(!run(out,e)&&activation_calls==1,"ordered research replayed consumed phase");
+    reset();fixture_ordered=true;queue_missing=true;need(!run(out,e)&&activation_calls==1&&out["unknown"]==true&&!e.empty(),"ordered research missing capture hidden");
+    reset();fixture_ordered=true;queue_wrong_intent=true;need(!run(out,e)&&out["unknown"]==true&&e.find("intent differs")!=std::string::npos,"ordered research foreign intent accepted");
+    reset();fixture_ordered=true;change_ledger=true;need(!run(out,e)&&out["unknown"]==true&&e.find("ledger")!=std::string::npos,"ordered research local ledger mutation accepted");
+}
 void check(){std::string e;json out;
     reset();unlaid_out();staff_page();
     need(run(out,e,"client_research_show")&&show_calls==1&&page_calls==1&&select_calls==0&&activation_calls==0&&out["page_requested"]==true&&out["selection_confirmed"]==false,"Show must request deferred Tech page without selecting inactive Grid");
@@ -202,4 +213,4 @@ void check(){std::string e;json out;
 }
 
 }
-int main(){try{check();check_bridges();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{check_ordered_queue();check();check_bridges();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

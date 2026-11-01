@@ -12,13 +12,20 @@ enum class PageBoundary {OriginalCall};struct PageReadScope {explicit PageReadSc
 }
 }
 namespace management {
-struct LiveState {int intro=0,thoughts=0,gizmos=0,character_calendar=0,subscriber_demands=0,analytics=0,services=0,project=0,other=0;bool operator==(const LiveState&)const=default;};
+struct LiveState {int intro=0,thoughts=0,gizmos=0,analytics=0,services=0,project=0,other=0;std::optional<int> character_calendar,subscriber_demands;bool operator==(const LiveState&)const=default;};
 bool valid(const LiveState&,std::string&){return true;}
 }
 struct Local {live::Pin pin;int software=0,release=0,current_release=0,lounge=0,gm_rows=0,gm_uids=0,services=0,service_destinations=0;};
 namespace subscriber_demand {using State=int;}
 inline int calendar_reads=0,calendar_failure=0,calendar_drift=0,analytics_reads=0,service_reads=0,project_reads=0;
-namespace character_calendar {using State=int;bool capture_demands(const a::Context&,const a::Binding&,const live::Pin&,State& out,subscriber_demand::State& demands,std::string& error){++calendar_reads;if(calendar_reads==calendar_failure){error="original Calendar/Demand reciprocal failure";return false;}out=4;demands=5+(calendar_reads==2?calendar_drift:0);return true;}}
+namespace character_calendar {using State=int;struct DemandReadWitness {int identity=0;};using DemandRead=std::shared_ptr<const DemandReadWitness>;inline int witness_drift=0;bool capture_demands(const a::Context&,const a::Binding&,const live::Pin&,State& out,subscriber_demand::State& demands,std::string& error){++calendar_reads;if(calendar_reads==calendar_failure){error="original Calendar/Demand reciprocal failure";return false;}out=4;demands=5+(calendar_reads==2?calendar_drift:0);return true;}}
+namespace character_calendar {
+bool capture_demands_once(const a::Context& c,const a::Binding& b,const live::Pin& pin,State& out,subscriber_demand::State& demands,DemandRead& witness,std::string& error){
+    witness.reset();if(!capture_demands(c,b,pin,out,demands,error))return false;
+    witness=std::make_shared<DemandReadWitness>(DemandReadWitness{calendar_reads==2?witness_drift:0});return true;
+}
+bool same_demand_read(const DemandRead& a,const State&,const subscriber_demand::State&,const DemandRead& b,const State&,const subscriber_demand::State&,std::string& error){if(!a||!b||a->identity!=b->identity){error="fixture Calendar physical owners changed";return false;}return true;}
+}
 namespace scenario_intro {using State=int;}
 inline int fail_reader=0;
 namespace tutorial_replication {bool capture_intro(const a::Context&,const a::Binding&,int& out,std::string& error){if(live::apply_timing::take_depth)need(live::apply_timing::active==live::apply_timing::Part::ClientManagementIntroRead,"actual Intro read lies inside child timer");if(fail_reader==1){error="original Intro failure";return false;}out=6;return true;}}
@@ -44,11 +51,13 @@ namespace analytics_state {using State=int;using Owners=int;}
 namespace analytics_native {bool sample(Runtime&,const a::Context&,const a::Binding&,int&,int& out,live::Pin& pin,std::string& error){++analytics_reads;if(fail_reader==3)return fail(error,"original Analytics failure");out=9;pin={};return true;}}
 bool services_read(Runtime&,const a::Context&,const a::Binding&,Local& local,int& out,std::string& error){++service_reads;if(fail_reader==4)return fail(error,"original Service failure");local.services=1;local.service_destinations=2;out=3;return true;}
 namespace general_project_runtime {bool capture_progress(const a::Context&,const a::Binding&,int& out,std::string& error){++project_reads;if(fail_reader==5)return fail(error,"original Project failure");out=6;return true;}}
-inline int primary_calls=0,local_drift=0,value_drift=0;
-bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,thought_frame_native::Snapshot& thoughts,std::string& e,bool planning){
+inline int primary_calls=0,local_drift=0,value_drift=0,missing_component=0;
+bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,thought_frame_native::Snapshot& thoughts,character_calendar::DemandRead& calendar,std::string& e,bool planning){
     ++primary_calls;local={};out={};if(primary_calls==2){local.software=local_drift;out.other=value_drift;}
 #include "management_planning_analytics_actual.inc"
-    if(!calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning))return false;
+    if(!calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning,&calendar))return false;
+    if(missing_component==primary_calls*2-1)out.character_calendar.reset();
+    if(missing_component==primary_calls*2)out.subscriber_demands.reset();
 #include "management_planning_tail_actual.inc"
 }
 #include "management_primary_actual.inc"
@@ -63,7 +72,9 @@ struct FailureFixture {
 };
 void run(){
     Runtime r;a::Context context;a::Binding binding;Local local;management::LiveState out;std::string error;
-    auto reset=[&](){thought_frame_native::reads=0;thought_frame_native::samples=0;thought_frame_native::drift=0;thought_frame_native::fail_at=0;primary_calls=0;local_drift=0;value_drift=0;calendar_reads=calendar_failure=calendar_drift=analytics_reads=service_reads=project_reads=0;fail_reader=0;error.clear();};
+    auto reset=[&](){thought_frame_native::reads=0;thought_frame_native::samples=0;thought_frame_native::drift=0;thought_frame_native::fail_at=0;primary_calls=0;local_drift=0;value_drift=0;missing_component=0;calendar_reads=calendar_failure=calendar_drift=analytics_reads=service_reads=project_reads=0;fail_reader=0;character_calendar::witness_drift=0;error.clear();};
+    for(int missing:{1,2,3,4}){reset();missing_component=missing;need(!primary_read(r,context,binding,local,out,error)&&error=="Management Calendar/Demand paired values are absent","Management rejects absent optional Calendar/Demand values before dereference");}
+    reset();character_calendar::witness_drift=1;need(!primary_read(r,context,binding,local,out,error)&&error=="fixture Calendar physical owners changed","Management outer pair rejects Calendar physical owner drift");
     reset();need(primary_read(r,context,binding,local,out,error),"Management stable full outer pair");
     need(thought_frame_native::reads==2&&thought_frame_native::samples==0&&out.thoughts==8,"Management two fresh Thought reads, complete value retained");
     for(int drift:{1,2,3}){reset();thought_frame_native::drift=drift;need(!primary_read(r,context,binding,local,out,error)&&error=="Thought complete current owners/values changed during double read","Management rejects Bound, Owners or value drift");}

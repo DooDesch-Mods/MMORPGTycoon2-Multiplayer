@@ -23,7 +23,7 @@ bool services_read(Runtime& r,const a::Context& c,const a::Binding& b,Local& loc
     local.services.clear();local.service_destinations.clear();out.clear();if(!uptime_native::fault.empty())return fail(e,uptime_native::fault);
     std::vector<remove_diagnostics::LocalTarget> census;
     {std::optional<live::apply_timing::Scope> measured_identity;if(live::apply_timing::host_capture_depth)measured_identity.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishIdentityBuildings:live::apply_timing::Part::HostManagementIdentityBuildings);
-    if(!remove_diagnostics::identity_building_targets(census,e,&local.service_destinations))return false;}
+    if(!remove_diagnostics::identity_building_targets(census,e,&local.service_destinations,true))return false;}
     std::set<uintptr_t> proved_buildings;
     for(const auto& target:census){
         const auto destination=local.service_destinations.find(target.object);
@@ -101,7 +101,7 @@ bool services_apply(Runtime& r,const a::Context& c,const a::Binding& b,Local& lo
     entered=false;if(!guard(e))return false;
     float pause=0;if(!at(r,local.pin.clock,0x5c,pause,e))return false;
     if(pause!=old_pause){constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};std::array<unsigned char,10> code{};
-        if(pause!=0.0f||old_pause!=1.0f||!r.memory.copy(r.image+0x259b70,code.data(),code.size(),e)||code!=expected)return fail(e,e.empty()?"Service Frame pause restore original/transition differs":e);
+        if(pause!=0.0f||old_pause!=1.0f||!r.memory.copy(r.image+0x259b70,code.data(),code.size(),e)||!hooks::framework::verify_original_bytes(r.image+0x259b70,code.data(),expected.data(),expected.size(),e))return fail(e,e.empty()?"Service Frame pause restore original/transition differs":e);
         ++receipt.attempted_stores;const auto seh=service_pause_once(r.image,local.pin.clock,old_pause);if(seh)return fail(e,"Service Frame original pause restore exception="+std::to_string(seh)+"; no replay");
         if(!at(r,local.pin.clock,0x5c,pause,e)||pause!=old_pause)return fail(e,e.empty()?"Service Frame original pause restore readback differs":e);
     }return true;

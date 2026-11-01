@@ -5,7 +5,10 @@ struct PropertyOperation {
     action::Binding binding;
     action::Request request;
     action::Evidence evidence;
-    bool attempted=false,returned=false,confirmed=false,retired=false,removed_lookup_absent=false;
+    bool attempted=false,returned=false,confirmed=false,retired=false,removed_lookup_absent=false,ordered=false;
+    std::optional<action::Context> context;
+    uintptr_t global_owner=0;
+    std::array<uint64_t,4> global_before{},global_after{};
     uintptr_t level_brush=0,level_graph=0;
     uintptr_t ownership_graph=0;
     std::optional<action::RegionPropertyState> ownership_before,ownership_after;
@@ -21,7 +24,8 @@ struct PropertyRuntime {
     bool ready=false,replaying=false;
     std::optional<action::RegionPropertyIntent> pending;
     action::Binding pending_binding;
-    std::string pending_snapshot,last_action,cause;
+    std::optional<action::Context> pending_context;
+    std::string pending_snapshot,last_action,cause,last_ordered;
     uint64_t captured=0,submitted=0,rejected=0;
     std::map<std::string,PropertyOperation> operations;
     std::set<std::string> ui_attempts;
@@ -82,7 +86,7 @@ bool property_clear_members(Runtime& r,LocalView& view,action::RegionPropertySta
     if(!ui_path_runtime::region_members(view.state.id,view.path_uids,view.path_node_uids,e))return false;
     state.path_count=view.path_uids.size();state.path_node_count=view.path_node_uids.size();
     connected_network_native::Graph network;
-    if(!connected_network_native::graph(r.memory,r.image,view.world.root,network,e))return false;
+    if(!connected_network_native::graph(r.memory,r.image,view.world.root,network,e,true))return false;
     for(const auto& node:network.nodes)if(node.region_id==view.state.id)view.network_uids.push_back(node.uid);
     for(const auto& pipe:network.pipe_values)if(pipe.region_id==view.state.id)view.network_uids.push_back(pipe.uid);
     state.network_node_count=std::count_if(network.nodes.begin(),network.nodes.end(),[&](const auto& node){return node.region_id==view.state.id;});
@@ -115,16 +119,64 @@ bool property_admit(Runtime& r,std::string& e) {
        controller.value("pending",true)||r.pending||properties.pending){e="region property UI requires idle bound Controller";return false;}
     return true;
 }
-bool property_capture(Runtime& r,const action::RegionPropertyIntent& intent,uintptr_t expected,std::string& e) {
-    if(!property_admit(r,e))return false;
-    LocalView view;if(!identity(r,intent.id,expected,view,e))return false;
-    properties.pending=intent;properties.pending_binding={view.world.origin.world_epoch,view.world.origin.generation};
-    properties.pending_snapshot=net::current_snapshot_id();++properties.captured;return true;
+bool property_ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool property_scope(const action::Binding& binding,const action::Request& request,std::string& e){
+    if(request.action!=action::Action::EditRegionProperty||request.region_property.kind<action::RegionPropertyKind::Name||
+       request.region_property.kind>action::RegionPropertyKind::Sale)
+        return fail(e,"Ordered Region property scope requires a supported EditRegionProperty kind");
+    action::Context context;if(!action::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))
+        return fail(e,"Ordered Region property actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,e);
 }
+bool property_execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
+    if(action::tick_commands::authority::active()){
+        if(authority)return fail(e,"Ordered Region property execution forbids Host evidence adoption");
+        return property_scope(binding,request,e);
+    }
+    return !property_ordered_mode()||fail(e,"Ordered Region property execution requires current consumed command scope");
+}
+bool property_capture_admit(Runtime& r,std::string& e){
+    const auto controller=typed_action_runtime::controller_status();
+    if(GetCurrentThreadId()!=r.thread||!controller.value("started",false)||controller.value("locked",true)||
+       r.pending||properties.pending)return fail(e,"Region property capture requires ready bound Controller and empty capture");
+    if(!controller.value("ordered",false))
+        return !controller.value("pending",true)||fail(e,"Region property legacy capture requires idle Controller");
+    bool inside=false;if(!typed_action_runtime::original_go_admission(inside,e))return false;
+    return inside||fail(e,"Ordered Region property capture requires actual OriginalGo");
+}
+bool property_capture_binding(const std::string& snapshot,action::Binding& binding,std::optional<action::Context>& context,std::string& e){
+    context.reset();
+    if(!property_ordered_mode())return typed_action_runtime::network_binding(snapshot,binding,e);
+    action::Context actual;
+    if(!action::selected_session().current(actual,e)||actual.snapshot_uuid!=snapshot||
+       Config::instance().is_host!=(actual.role==action::Role::Host)||!typed_action_runtime::read_binding(snapshot,binding,e))
+        return fail(e,e.empty()?"Ordered Region property captured Session/Binding/role differs":e);
+    context=actual;return true;
+}
+bool property_current_pending(std::string& e){
+    if(properties.pending_snapshot!=net::current_snapshot_id())return fail(e,"Region property pending snapshot changed");
+    action::Binding binding;std::optional<action::Context> context;
+    if(!property_capture_binding(properties.pending_snapshot,binding,context,e))return false;
+    return (binding==properties.pending_binding&&context==properties.pending_context)||
+        fail(e,"Region property captured Context/Binding changed");
+}
+
+bool property_capture(Runtime& r,const action::RegionPropertyIntent& intent,uintptr_t expected,std::string& e) {
+    if(!property_capture_admit(r,e))return false;
+    LocalView view;if(!identity(r,intent.id,expected,view,e))return false;
+    const auto snapshot=net::current_snapshot_id();action::Binding binding;std::optional<action::Context> context;
+    if(!property_capture_binding(snapshot,binding,context,e)||!bound(view,binding,snapshot,e))return false;
+    properties.pending_context=std::move(context);properties.pending=intent;properties.pending_binding=binding;
+    properties.pending_snapshot=snapshot;++properties.captured;return true;
+}
+
 void property_rename_entry(void* widget,const NativeString* value) {
     auto* r=published.load(std::memory_order_acquire);
     auto original=properties.rename.load(std::memory_order_acquire);
-    if(!r||!properties.ready||properties.replaying||!net::session_wire::connected()){
+    if(!r||!properties.ready||properties.replaying){original(widget,value);return;}
+    if(!net::session_wire::connected()){
+        if(property_ordered_mode()){property_rejected("Ordered Region rename Session disconnected");return;}
         original(widget,value);return;
     }
     std::string e;uintptr_t region=0,owner=0,ap=0;action::RegionPropertyIntent intent;
@@ -137,7 +189,9 @@ void property_rename_entry(void* widget,const NativeString* value) {
 void property_cursor_entry(action::RegionPropertyKind kind,void* behavior,void* cursor,const float* hit) {
     auto* r=published.load(std::memory_order_acquire);
     auto original=(kind==action::RegionPropertyKind::Purchase?properties.buy:properties.lift).load(std::memory_order_acquire);
-    if(!r||!properties.ready||properties.replaying||!net::session_wire::connected()){
+    if(!r||!properties.ready||properties.replaying){original(behavior,cursor,hit);return;}
+    if(!net::session_wire::connected()){
+        if(property_ordered_mode()){property_rejected("Ordered Region cursor Session disconnected");return;}
         original(behavior,cursor,hit);return;
     }
     std::string e;uintptr_t region=0,ap=0;uint8_t valid=0,mode=0;action::RegionPropertyIntent intent;
@@ -185,7 +239,17 @@ bool install_properties(Runtime& r,std::string& e) {
 }
 void property_tick() {
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!properties.pending)return;
-    std::string e;const auto intent=*properties.pending;properties.pending.reset();LocalView view;
+    std::string e;
+    if(GetCurrentThreadId()!=r->thread){property_rejected("Region property flush requires Mainthread");return;}
+    if(!property_current_pending(e)){properties.pending.reset();properties.pending_context.reset();property_rejected(e);return;}
+    if(properties.pending_context){
+        bool inside=false;
+        if(!typed_action_runtime::original_go_admission(inside,e)){
+            properties.pending.reset();properties.pending_context.reset();property_rejected(e);return;
+        }
+        if(inside||typed_action_runtime::controller_status().value("pending",true))return;
+    }
+    const auto intent=*properties.pending;properties.pending.reset();properties.pending_context.reset();LocalView view;
     if(!identity(*r,intent.id,0,view,e)||!bound(view,properties.pending_binding,properties.pending_snapshot,e)){
         property_rejected(e);return;
     }
@@ -226,15 +290,62 @@ bool property_same_before(action::RegionPropertyState left,action::RegionPropert
 }
 #include "region_sale_runtime.inc"
 #include "region_ownership_native.inc"
+bool property_receipt_begin(Runtime& r,PropertyOperation& op,std::string& e){
+    if(!op.ordered)return true;
+    action::Context current;
+    if(!action::selected_session().current(current,e)||!property_scope(op.binding,op.request,e))return false;
+    if(!at(r,r.image,0x164b250,op.global_owner,e)||!op.global_owner)
+        return fail(e,e.empty()?"Region property receipt global RNG singleton absent":e);
+    if(!at(r,op.global_owner,0,op.global_before,e))return false;
+    op.context=current;return true;
+}
+bool property_receipt_end(Runtime& r,PropertyOperation& op,std::string& e){
+    if(!op.ordered)return true;
+    action::Context current;uintptr_t global=0;
+    if(!op.context||!action::selected_session().current(current,e)||current!=*op.context||
+       !property_scope(op.binding,op.request,e))return fail(e,e.empty()?"Region property receipt Context changed":e);
+    if(!at(r,r.image,0x164b250,global,e)||global!=op.global_owner)
+        return fail(e,e.empty()?"Region property receipt global RNG owner changed":e);
+    if(!at(r,global,0,op.global_after,e))return false;
+    properties.last_ordered=op.request.action_uuid;return true;
+}
+json property_last_receipt(){
+    const auto found=properties.operations.find(properties.last_ordered);
+    if(found==properties.operations.end())return nullptr;
+    const auto& op=found->second;const auto& request=op.request;const auto& intent=request.region_property;
+    if(!op.ordered||!op.context||!op.confirmed)return nullptr;
+    const auto& context=*op.context;
+    return {{"action_uuid",request.action_uuid},{"snapshot_uuid",request.snapshot_uuid},{"action",uint32_t(request.action)},
+        {"origin_peer",request.peer},{"request_sequence",request.sequence},{"observed_revision",request.host_revision},
+        {"context",{{"session",context.session},{"host_peer",context.host_peer},{"peer_mask",context.peer_mask},
+            {"snapshot_uuid",context.snapshot_uuid},{"world_epoch",op.binding.native_epoch},{"generation",op.binding.native_generation}}},
+        {"intent",{{"kind",uint8_t(intent.kind)},{"region_id",intent.id},{"name",intent.name},{"type",intent.type},
+            {"hit",intent.hit},{"levels",intent.levels},{"appearance_value",intent.appearance_value}}},
+        {"ordered",op.ordered},{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},
+        {"before",action::region_property_observation(op.evidence.property_before)},
+        {"after",action::region_property_observation(op.evidence.property_after)},
+        {"ownership_before",op.ownership_before?action::region_property_observation(*op.ownership_before):json(nullptr)},
+        {"ownership_after",op.ownership_after?action::region_property_observation(*op.ownership_after):json(nullptr)},
+        {"ledger_before",action::management_ledger_observation(op.evidence.before)},
+        {"ledger_after",action::management_ledger_observation(op.evidence.after)},
+        {"global_before",op.global_before},{"global_after",op.global_after},
+        {"undo_confirmed",op.evidence.undo_confirmed},{"level_constructed",op.level_constructed},{"level_destroyed",op.level_destroyed},
+        {"removed_count",op.removed_uids.size()},{"removed_lookup_absent",op.removed_lookup_absent},
+        {"retired_shared_keys",op.retired_keys},{"retired_keys_sha256",op.evidence.region_retired_sha256},{"cause",op.cause}};
+}
+
+
 action::Outcome property_perform(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& e) {
     auto* r=published.load(std::memory_order_acquire);
-    if(!r||!r->ready||!properties.ready){e="region property runtime unavailable";return action::Outcome::RejectedNoEffect;}
+    if(!r||!r->ready||!properties.ready||GetCurrentThreadId()!=r->thread){e="region property runtime unavailable or off Mainthread";return action::Outcome::RejectedNoEffect;}
     if(properties.operations.contains(request.action_uuid)){e="region property native action already attempted; no replay";return action::Outcome::Unknown;}
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
         e="region property operation lacks exact Controller request";return action::Outcome::RejectedNoEffect;
     }
+    const bool ordered=action::tick_commands::authority::active();
+    if(!property_execution_admission(binding,request,authority,e))return action::Outcome::RejectedNoEffect;
     if(request.region_property.kind==action::RegionPropertyKind::LevelRange)return level_perform(*r,binding,request,authority,e);
     action::RegionPropertyState before;LocalView view;
     const bool sale=request.region_property.kind==action::RegionPropertyKind::Sale;
@@ -271,7 +382,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         const auto seh=property_hit_region(r->image,map,intent.hit.data(),found);
         if(seh||found!=view.region){e="region hit position resolves to another native region SEH="+std::to_string(seh);return action::Outcome::RejectedNoEffect;}
     }
-    PropertyOperation operation;operation.binding=binding;operation.request=request;operation.evidence.before=money;
+    PropertyOperation operation;operation.binding=binding;operation.request=request;operation.ordered=ordered;operation.evidence.before=money;
     operation.evidence.property_before=authority?authority->property_before:before;
     sale_native::UndoWitness ownership_undo;action::RegionPropertyState ownership_before;LocalView ownership_view;uintptr_t ownership_global=0;
     const std::array<int32_t,2> ownership_range=sale?std::array<int32_t,2>{0,0}:std::array<int32_t,2>{1,1};
@@ -281,6 +392,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
         if(ownership_undo.active_graph){e="Region ownership requires idle original Undo";return action::Outcome::RejectedNoEffect;}
         operation.ownership_before=ownership_before;
     }
+    if(!property_receipt_begin(*r,operation,e))return action::Outcome::RejectedNoEffect;
     auto& saved=properties.operations.emplace(request.action_uuid,std::move(operation)).first->second;
     const auto unknown=[&](const std::string& cause){e=saved.cause=cause;return action::Outcome::Unknown;};
     if(clear_members&&!sha256(json(view.building_uids).dump(),saved.building_uids_sha256_before,e))
@@ -399,14 +511,17 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
     if(authority&&(saved.evidence.property_after!=authority->property_after||saved.evidence.after!=authority->after||
                    saved.evidence.region_retired_sha256!=authority->region_retired_sha256))
         return unknown("region property result differs from Host authority");
+    if(!property_receipt_end(*r,saved,e))return unknown(e);
     saved.confirmed=true;return action::Outcome::Confirmed;
 }
 bool property_observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e) {
-    auto* r=published.load(std::memory_order_acquire);if(!r)return fail(e,"region property observation runtime absent");
+    auto* r=published.load(std::memory_order_acquire);if(!r||GetCurrentThreadId()!=r->thread)return fail(e,"region property observation runtime absent or off Mainthread");
     const auto found=properties.operations.find(request.action_uuid);
     if(found==properties.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)
         return fail(e,"region property observation lacks exact confirmed operation");
-    const auto& op=found->second;action::RegionPropertyState actual;LocalView view;action::Ledger money;
+    const auto& op=found->second;
+    if(op.ordered&&!property_scope(binding,request,e))return false;
+    action::RegionPropertyState actual;LocalView view;action::Ledger money;
     if(!property_read(*r,request.region_property.id,0,actual,view,e,
         (request.region_property.kind==action::RegionPropertyKind::Type||request.region_property.kind==action::RegionPropertyKind::Sale))||!bound(view,binding,request.snapshot_uuid,e)||!ledger(money,e))return false;
     if(request.region_property.kind==action::RegionPropertyKind::LevelRange||request.region_property.kind==action::RegionPropertyKind::Sale){action::RegionLevelState state;uintptr_t global=0;
@@ -441,11 +556,13 @@ bool property_retired_keys(const action::Binding& binding,const action::Request&
     action::Evidence actual;if(!property_observe(binding,request,actual,e))return false;
     keys=properties.operations.at(request.action_uuid).retired_keys;return true;
 }
+bool appearance_ui(Runtime&,const std::string&,const action::RegionPropertyIntent&,json&,std::string&);
 bool property_ui_impl(const std::string& token,const action::RegionPropertyIntent& intent,json& out,std::string& e) {
     out=json::object();auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready||!properties.ready||!net::session_wire::connected()||GetCurrentThreadId()!=r->thread)
         return fail(e,"region property UI diagnostic requires connected Mainthread");
-    if(token.empty()||token.size()>64||intent.id<0||!property_admit(*r,e))return fail(e,e.empty()?"region property UI diagnostic token or region ID invalid":e);
+    if(token.empty()||token.size()>64||intent.id<0||!property_capture_admit(*r,e))return fail(e,e.empty()?"region property UI diagnostic token or region ID invalid":e);
+    if(action::appearance_kind(intent.kind))return appearance_ui(*r,token,intent,out,e);
     if(intent.kind==action::RegionPropertyKind::LevelRange)return level_ui(*r,token,intent,out,e);
     if(properties.ui_attempts.contains(token))return fail(e,"region property UI diagnostic token already attempted; inspect receipt before retry");
     action::RegionPropertyState before;LocalView view;
@@ -508,6 +625,7 @@ bool property_ui_impl(const std::string& token,const action::RegionPropertyInten
     out["pending_intent"]=true;return true;
 }
 #include "region_appearance_runtime.inc"
+#include "region_appearance_ui.inc"
 #include "region_level_runtime.inc"
 #include "region_history_runtime.inc"
 }

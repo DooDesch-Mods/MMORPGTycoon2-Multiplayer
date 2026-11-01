@@ -4,6 +4,8 @@
 namespace mt2mp::game::lobby_operations {
 // The caller and existing native executor share the bound game thread.
 bool submit(const std::string& operation,const nlohmann::json& args,std::string& id,std::string& error);
+std::string fresh_id();
+bool submit_export_save(const nlohmann::json& args,const std::string& id,std::string& error);
 bool take_response(const std::string& id,nlohmann::json& response);
 bool take_request(nlohmann::json& request);
 bool receive(const nlohmann::json& response);

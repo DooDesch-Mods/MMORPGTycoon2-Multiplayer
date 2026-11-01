@@ -256,6 +256,7 @@ namespace time_integration {
 struct Status{struct {time_runtime::Phase phase=time_runtime::Phase::Waiting;uint64_t epoch=0;} runtime;};
 struct Adapter {
     bool status(Status& out,std::string& e){if(!fixture::time_initialized){e="time_integration_not_initialized";return false;}if(fixture::time_active){out.runtime.phase=time_runtime::Phase::Active;out.runtime.epoch=42;}return true;}
+    bool finish_retirement(std::string& e){if(!fixture::time_ok)e="time retirement failed";return fixture::time_ok;}
     bool suspend(const char*,std::string& e){if(!fixture::time_ok)e="time retirement failed";return fixture::time_ok;}
 };
 Adapter& instance(){static Adapter value;return value;}
@@ -282,7 +283,9 @@ struct Vip {
         ++fixture::vip_retired;
     }
 };
+struct OrderedSteps{bool unbind(std::string& e){e="unexpected ordered owner in legacy Leave fixture";return false;}};
 struct Runtime {
+    std::unique_ptr<OrderedSteps> ordered_steps;
     action_session::Controller& controller;
     uint32_t thread=7;bool lobby_retiring=false;
     std::unique_ptr<Live> live_state;bool live_port=false;
@@ -316,7 +319,7 @@ void software_retirement_delta(){
     fixture::transition=false;fixture::saving=true;
     require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"native save cleared replica");
     fixture::saving=false;fixture::time_initialized=fixture::time_active=true;
-    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0,"active Time owner cleared replica");
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::software_armed&&fixture::native_retired==0&&error.find("Time retirement lacks Waiting/epoch0 readback")!=std::string::npos,"active Time owner cleared replica");
     fixture::time_active=false;
     require(runtime::finish_lobby_leave(ready,error)&&ready,error);
     require(!fixture::software_armed&&fixture::native_retired==1&&fixture::deleted==1&&fixture::membership_left==1&&fixture::wire_retired==1&&fixture::dungeon_invalidated==1,"settled Leave did not retire exactly once");
@@ -344,7 +347,7 @@ void tutorial_lifetime_delta(){
     fixture::transition=false;fixture::saving=true;
     require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"native save released tutorial fence");
     fixture::saving=false;fixture::time_initialized=fixture::time_active=true;
-    require(runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0,"active Time owner released tutorial fence");
+    require(!runtime::finish_lobby_leave(ready,error)&&!ready&&fixture::tutorial_fenced&&fixture::tutorial_retired==0&&error.find("Time retirement lacks Waiting/epoch0 readback")!=std::string::npos,"active Time owner released tutorial fence");
     fixture::time_active=false;
     require(runtime::finish_lobby_leave(ready,error)&&ready,error);
     require(fixture::tutorial_retired==1&&!fixture::tutorial_fenced&&!fixture::tutorial_fenced_at_delete&&fixture::deleted==1&&!runtime::published_runtime.load()&&fixture::tutorial_cause=="confirmed native Title after lobby Leave","settled Leave did not retire tutorial once before owner storage ended");

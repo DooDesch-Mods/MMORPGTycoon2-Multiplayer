@@ -88,8 +88,10 @@ template<class Key>bool effect(const a::SceneryStrokeIntent& intent,const a::Sce
     if(before.props_sha==after.props_sha)return fail("Scenery stroke complete prop state did not change");
     for(size_t i=0;i<8;++i)if(int64_t(after.release[i])-before.release[i]!=(brush&&i==2?1:0))
         return fail("Scenery stroke original Release edit differs");
-    if(!brush&&(before.random!=after.random||before.region_random!=after.region_random||before.bugs_sha!=after.bugs_sha||before.bug_count!=after.bug_count))
-        return fail("Scenery eraser changed RNG or bug state");
+    // Erasing rebuilds obstruction navigation. Entrance accessibility samples
+    // consume global RNG; replay seeds and compares the complete Host states.
+    if(!brush&&(before.region_random!=after.region_random||before.bugs_sha!=after.bugs_sha||before.bug_count!=after.bug_count))
+        return fail("Scenery eraser changed Region RNG or bug state");
     return true;
 }
 }

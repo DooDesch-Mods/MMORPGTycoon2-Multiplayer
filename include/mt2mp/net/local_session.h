@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <array>
 #include <cstddef>
 #include <cstdint>
 namespace mt2mp::net {
@@ -14,6 +15,9 @@ std::string local_session_status();
 bool publish_local_host_leave(std::string& error);
 bool local_host_left(const std::string& snapshot);
 bool prepare_local_membership(std::string& error);
+// Read the committed physical process roster without preparing or refreshing it.
+bool read_local_session_binding(std::array<uint64_t,5>& members,uint64_t& transport_session,uint64_t& local,std::string& error,bool retain_original=false);
+bool read_local_process_cohort(std::array<uint64_t,5>& observed,uint64_t& generation,uint64_t& transport_session,uint64_t& local,std::string& error);
 uint64_t local_membership_generation();
 bool local_membership_pending();
 uint8_t local_membership_retirement_mask();

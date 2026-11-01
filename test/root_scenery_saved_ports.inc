@@ -57,6 +57,7 @@ inline json building_metadata(const native::BuildingState& value){
     return {{"type","cactus"},{"variant",std::to_string(value.uid)},{"x",1},{"y",2},{"z",3},{"rotation",{0,0,0,1}},{"scale",{1,1,1}}};
 }
 inline std::string registry_id(const std::string& snapshot,const std::string& key){return snapshot+":"+key;}
+bool prepare_saved(const dungeon_scene_identity_runtime::Census&,const scenery_scene_snapshot_alias::Manifest&,std::string&,bool=true);
 #include "root_scenery_admission_body.inc"
 inline dungeon_scene_identity_runtime::Census census(){
     dungeon_scene_identity_runtime::Census result;result.snapshot_census=true;

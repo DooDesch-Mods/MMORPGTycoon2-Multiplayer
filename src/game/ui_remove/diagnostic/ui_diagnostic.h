@@ -6,7 +6,7 @@
 namespace mt2mp::action_session::ui_diagnostic {
 namespace ui=mt2mp::action_session::ui_capture;
 struct Request {std::string diagnostic_uuid,snapshot_uuid,canonical_record_key;};
-enum class Family:uint8_t {Building,Scenery};
+enum class Family:uint8_t {Building,Scenery,NetworkNode,NetworkPipe};
 struct Context {uintptr_t image=0,manager=0,target=0;uint64_t uid=0,epoch=0,generation=0;std::string exe_sha256;Family family=Family::Building;};
 struct Window {uintptr_t handler=0,window=0,proxy=0,target=0;};
 using SelectProp=void(*)(void*,void*);

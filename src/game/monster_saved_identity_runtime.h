@@ -4,6 +4,7 @@
 #include <vector>
 #include <filesystem>
 #include "monster_saved_identity.h"
+#include "region_rng_snapshot.h"
 #include "dungeon_scene_identity_runtime.h"
 
 namespace mt2mp::game::monster_saved_identity_runtime {
@@ -19,12 +20,13 @@ struct CaptureWorld {
     void* game = nullptr; void* mode = nullptr; void* state = nullptr;
     void* world = nullptr; void* map = nullptr;
 };
-bool arm_host(const std::string& uuid, const CaptureWorld&, std::string& error);
+bool arm_host(const std::string& uuid, const CaptureWorld&, std::string& error,bool isolated=false);
 bool seal_host(const std::string& uuid, const std::string& sha, const CaptureWorld&, std::string& error);
 bool arm_client(const std::string& uuid, const std::string& sha, std::string& error);
 bool seal_client(std::string& error);
 void cancel(const std::string& cause);
 bool prepare_load(const std::filesystem::path& native_path,const std::string& id,const std::string& sha,uint64_t bytes,std::string& error);
+bool read_prepared_region_rng(const std::string& id,const std::string& sha,uint64_t bytes,uint32_t mode,uint32_t index,region_rng_snapshot::Proof&,std::string& error);
 bool write_companion(const std::string& id,const std::string& sha,uint64_t bytes,const std::filesystem::path& native_path,std::string& error);
 Ticket save_before(const void* property, void* manager, void* writer, void* context) noexcept;
 void save_after(Ticket, const void* property, void* manager, void* writer, void* context, bool original_result) noexcept;
@@ -34,4 +36,5 @@ void children_before(uintptr_t caller_rva, void* reader) noexcept;
 void children_after(uintptr_t caller_rva, void* reader, int32_t count) noexcept;
 void registered(uintptr_t caller_rva, void* context, int32_t id, void* object) noexcept;
 void original_failed(Ticket, const std::string& cause) noexcept;
+bool finish_export(std::string&);
 }

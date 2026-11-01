@@ -21,8 +21,9 @@ std::mutex state_mutex;
 std::map<uint64_t, clock::time_point> peers;
 local_membership::Registry membership;
 bool connected = false, ended = false, is_host = false, session_started = false;
-bool participating=true,membership_refresh=false;
+bool participating=false,membership_refresh=false;
 uint64_t local_peer = 0, session_id = 0, sequence = 0;
+uint64_t announced_host_generation=0;
 clock::time_point started{}, last_send{};
 std::string status = "Relay wird verbunden";
 std::atomic<bool> end_notice{false};
@@ -98,7 +99,9 @@ void receive(uint64_t sender, const uint8_t* bytes, uint32_t length) {
                 if(!message.at("slots").at(i).is_number_unsigned())throw std::runtime_error("local Host roster slot is not an unsigned process identity");
                 slots[i]=message.at("slots").at(i).get<uint64_t>();
             }
-            if(!membership.stage(message.at("generation").get<uint64_t>(),slots,error))throw std::runtime_error(error);
+            const auto announced=message.at("generation").get<uint64_t>();
+            if(!membership.stage(announced,slots,error))throw std::runtime_error(error);
+            if(announced>announced_host_generation)announced_host_generation=announced;
             if(!membership.generation()||membership_refresh){
                 if(membership.adopt_client(error))membership_refresh=false;
                 else if(!error.starts_with("info:"))throw std::runtime_error(error);
@@ -129,6 +132,14 @@ void maintain() {
     auto& transport = SidecarClient::instance();
     if (!transport.connected()) { end_session("Sitzung beendet: " + transport.failure_reason()); return; }
     const auto now = clock::now();
+    if (!connected && is_host && transport.ready()) {
+        if (!session_started || !session_id || local_peer != 1 || !membership.instance() ||
+            membership.host_instance() != membership.instance()) {
+            end_session("Local Host readiness requires its authenticated process identity"); return;
+        }
+        connected = true; status = "Lokale Sitzung verbunden";
+        LOG_NET_INFO("[LOCAL] SESSION_CONNECTED peer={} host=1 relay_authenticated=1; remote membership remains observed only", local_peer);
+    }
     if (transport.ready() && now - last_send >= std::chrono::seconds(1)) {
         last_send = now;
         if (!transmit(control_message(connected ? "heartbeat" : "hello"), is_host ? 0 : 1)) {
@@ -153,7 +164,7 @@ bool start_local_session() {
         if (session_started) { LOG_NET_ERROR("[LOCAL] Session start refused: existing session cannot be implicitly reset; no reconnect"); return false; }
         session_started = true;
         peers.clear(); connected = ended = false; end_notice = false;
-        local_peer = config.peer_id; session_id = config.session_id; is_host = config.is_host; sequence = 0;
+        local_peer = config.peer_id; session_id = config.session_id; is_host = config.is_host; sequence = 0;announced_host_generation=0;
         uint64_t instance=0;
         const auto result=BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&instance),sizeof instance,BCRYPT_USE_SYSTEM_PREFERRED_RNG);
         std::string error;
@@ -161,7 +172,7 @@ bool start_local_session() {
             status=result<0?"local process identity generation failed NTSTATUS="+std::to_string(result):error;
             ended=true;LOG_NET_ERROR("[LOCAL] {}",status);return false;
         }
-        participating=true;membership_refresh=false;
+        participating=false;membership_refresh=false;
         started = clock::now(); last_send = {}; status = "Relay wird verbunden";
         host_left_snapshot.clear();published_leave_snapshot.clear();publish_leave_error.clear();
     }
@@ -212,9 +223,52 @@ bool local_host_left(const std::string& snapshot) {
 bool prepare_local_membership(std::string& error){
     std::lock_guard lock(state_mutex);
     if(!connected||ended){error="info: awaiting physical local handshake";return false;}
+    if(!participating){error="info: awaiting actual local lobby admission";return false;}
     if(membership.generation()){error.clear();return true;}
     if(is_host)return publish_membership(error);
     return membership.adopt_client(error);
+}
+bool read_local_session_binding(std::array<uint64_t,5>& out,uint64_t& id,uint64_t& mine,std::string& error,bool retain_original){
+    out={};id=mine=0;
+    std::lock_guard lock(state_mutex);
+    const auto& config=Config::instance();auto& transport=SidecarClient::instance();
+    if(!session_started||!connected||ended||!transport.connected()||!transport.ready()){
+        error="Local physical binding requires started acknowledged transport: "+status;return false;
+    }
+    if(!config.local_test||!session_id||local_peer<1||local_peer>4||is_host!=(local_peer==1)||
+       config.session_id!=session_id||config.peer_id!=local_peer||config.is_host!=is_host){
+        error="Local physical binding transport session, local slot or role changed";return false;
+    }
+    if(!participating||membership_refresh){error="Local physical binding is retired or awaiting explicit membership refresh";return false;}
+    const auto generation=membership.generation();
+    if(!generation){error="info: awaiting explicit local membership preparation and Host roster";return false;}
+    if((membership.changed()&&!(retain_original&&membership.retirement_mask()==membership.mask()))||
+       (!is_host&&announced_host_generation!=generation)){
+        error="Local physical binding has uncommitted membership changes";return false;
+    }
+    const auto& slots=membership.bound();
+    if(!session_binding::valid(slots)||!membership.instance()||slots[local_peer]!=membership.instance()||
+       !membership.host_instance()||slots[1]!=membership.host_instance()||membership.mask()!=session_binding::mask(slots)){
+        error="Local physical binding committed roster differs from actual process identities";return false;
+    }
+    out=slots;id=session_id;mine=local_peer;error.clear();return true;
+}
+bool read_local_process_cohort(std::array<uint64_t,5>& out,uint64_t& generation,uint64_t& id,uint64_t& mine,std::string& error){
+    out={};generation=id=mine=0;std::lock_guard lock(state_mutex);
+    const auto& config=Config::instance();auto& transport=SidecarClient::instance();
+    if(!session_started||!connected||ended||!transport.connected()||!transport.ready()||
+       !config.local_test||!session_id||local_peer<1||local_peer>4||is_host!=(local_peer==1)||
+       config.session_id!=session_id||config.peer_id!=local_peer||config.is_host!=is_host||
+       !participating||!membership.generation()){
+        error="Recovery process observation requires its original local transport owner";return false;
+    }
+    const auto& original=membership.bound();const auto& observed=membership.observed();
+    if(!session_binding::valid(original)||!observed[local_peer]||original[local_peer]!=observed[local_peer]||
+       !observed[1]||original[1]!=observed[1]){
+        error="Recovery process observation lost its original Host or local process";return false;
+    }
+    for(size_t slot=1;slot<out.size();++slot)if(original[slot])out[slot]=observed[slot];
+    generation=membership.generation();id=session_id;mine=local_peer;error.clear();return true;
 }
 bool local_membership_pending(){std::lock_guard lock(state_mutex);return membership.changed();}
 uint64_t local_membership_generation(){std::lock_guard lock(state_mutex);return membership.generation();}
@@ -229,8 +283,8 @@ bool refresh_local_membership(std::string& error){
 bool join_local_lobby(std::string& error){
     std::lock_guard lock(state_mutex);
     if(!connected||ended){error="local lobby join requires the physical Host connection";return false;}
-    participating=true;
-    if(!transmit(control_message("hello"),is_host?0:1)){error="local lobby join queue failed";return false;}
+    const bool prior=participating;participating=true;
+    if(!transmit(control_message("hello"),is_host?0:1)){participating=prior;error="local lobby join queue failed: "+SidecarClient::instance().failure_reason();return false;}
     error.clear();return true;
 }
 bool leave_local_lobby(std::string& error){

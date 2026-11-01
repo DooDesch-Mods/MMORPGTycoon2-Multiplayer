@@ -10,7 +10,12 @@ struct Snapshot {
     uint32_t window_id=0;
     float axis=0,progress=0;
     bool key_down=false;
+    bool mouse_relative=false,mouse_focus=false,mouse_capture=false,mouse_auto_capture=true;
     bool keyboard_focus=false,input_enabled=false;
+    int32_t tutorial_index=-1;
+    uint32_t history_count=0;
+    uint64_t granted=0,released=0;
+    bool threshold_reached=false,ordered_release=false;
     bool operator==(const Snapshot&)const=default;
 };
 struct Services {
@@ -19,6 +24,8 @@ struct Services {
     uint64_t(*milliseconds)(void*)=nullptr;
     bool(*snapshot)(void*,Snapshot&,std::string&)=nullptr;
     bool(*post)(void*,const Snapshot&,bool down,std::string&)=nullptr;
+    bool(*threshold_snapshot)(void*,Snapshot&,std::string&)=nullptr;
+    bool(*release_snapshot)(void*,const Snapshot&,Snapshot&,std::string&)=nullptr;
 };
 enum class Phase {Idle,DownQueued,UpQueued,Confirmed,Failed};
 struct Receipt {
@@ -27,14 +34,15 @@ struct Receipt {
     Snapshot before{},after{};
     bool down_attempted=false,down_queued=false,down_unknown=false,down_polled=false,axis_down=false;
     bool up_attempted=false,up_queued=false,up_polled=false,axis_released=false;
-    bool progress_changed=false;
+    bool progress_changed=false,threshold=false,completion_confirmed=false;
+    Snapshot completion{};
     uint32_t down_events=0,up_events=0;
     uint64_t down_frame=0,up_frame=0;
 };
 class Fixture {
 public:
     bool initialize(uint32_t thread,const Services&,std::string&);
-    bool start(const std::string& token,const std::string& origin,uint64_t frame,std::string&);
+    bool start(const std::string& token,const std::string& origin,uint64_t frame,std::string&,bool threshold=false);
     bool poll(uint32_t window_id,uint32_t keyboard_id,uint32_t scancode,uint32_t keycode,bool down,bool repeat,uint64_t frame,std::string&);
     bool frame(uint64_t completed_frame,std::string&);
     bool suspend(const std::string& cause,std::string&);
@@ -46,13 +54,15 @@ private:
     uint64_t deadline_=0,start_frame_=0,release_deadline_=0;
     Receipt receipt_{};
     bool thread(std::string&);
-    bool snapshot(Snapshot&,std::string&);
+    bool snapshot(Snapshot&,std::string&,bool threshold=false);
+    bool frame_threshold(uint64_t frame,std::string&);
     bool release(uint64_t frame,std::string&);
     bool fail(const std::string& cause,std::string&);
 };
 // Initialize only for an admitted native test profile.
 bool initialize(uintptr_t image,uint32_t thread,const std::string& run_id,const std::string& dll_sha,std::string&);
 bool start(const std::string& token,const std::string& native_origin_uuid,uint64_t frame,std::string&);
+bool complete(const std::string& token,const std::string& native_origin_uuid,uint64_t frame,std::string&);
 void poll(void* event,uint64_t next_frame);
 void frame(uint64_t completed_frame);
 void suspend(const std::string& cause);

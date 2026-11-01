@@ -1,4 +1,5 @@
 #include "read.h"
+#include "initial_read.h"
 #include <algorithm>
 #include <cmath>
 #include <climits>
@@ -19,7 +20,7 @@ bool array(Port& p,uintptr_t owner,size_t offset,std::vector<uintptr_t>& rows,in
     for(int32_t i=0;i<count;++i){uintptr_t value=0;if(!at(p,data,size_t(i)*8,value,e))return false;if(!value||!unique.insert(value).second)return fail(e,"Developer owned array contains null/duplicate receiver");rows.push_back(value);}
     return true;
 }
-bool observe(Port& p,const Pin& pin,uintptr_t image,State& out,Local& local,std::string& e){
+bool observe(Port& p,const Pin& pin,uintptr_t image,State& out,Local& local,std::string& e,bool require_prefix){
     out={};local={};uintptr_t singleton=0;const auto state=reinterpret_cast<uintptr_t>(pin.origin.state);
     if(!at(p,state,0x180,local.lounge,e)||!at(p,state,0x1c0,local.business,e)||
        !type(p,local.lounge,image+0x16de6c0,e)||!type(p,local.business,image+0x16d97e0,e)||
@@ -44,8 +45,11 @@ bool observe(Port& p,const Pin& pin,uintptr_t image,State& out,Local& local,std:
             if(!at(p,address,0x110+i*4,row.position[i],e))return false;
             if(!std::isfinite(row.position[i]))return fail(e,"Developer native position is not finite");
         }
-        if(row.id<0||row.id>49||!ids.insert(row.id).second||row.state<0||row.state>7||employed>1||active>1||on_map>1||bool(employed)!=(row.slot<out.lounge_count))
-            return fail(e,"Developer persisted ID/state/employment prefix differs");
+        if(row.id<0||row.id>49||!ids.insert(row.id).second||row.state<0||row.state>7||employed>1||active>1||on_map>1||(require_prefix&&bool(employed)!=(row.slot<out.lounge_count)))
+            return fail(e,"Developer persisted ID/state/employment prefix differs slot="+std::to_string(row.slot)+
+                " id="+std::to_string(row.id)+" state="+std::to_string(row.state)+" employed="+std::to_string(employed)+
+                " active="+std::to_string(active)+" on_map="+std::to_string(on_map)+" lounge_count="+std::to_string(out.lounge_count)+
+                " business_count="+std::to_string(out.business_count)+" expected_employed="+std::to_string(row.slot<out.lounge_count));
         if(bool(on_map)!=(std::find(local.outside.begin(),local.outside.end(),address)!=local.outside.end()))return fail(e,"Developer map flag and actual manager membership differ");
         row.employed=employed!=0;row.active=active!=0;row.on_map=on_map!=0;row.job_link=job!=0;out.rows.push_back(row);
     }
@@ -53,19 +57,21 @@ bool observe(Port& p,const Pin& pin,uintptr_t image,State& out,Local& local,std:
 }
 }
 bool same_origin(const Origin& a,const Origin& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.bytes==b.bytes&&a.uuid==b.uuid&&a.sha256==b.sha256;}
-bool read(Port& p,Capture& out,std::string& e){
+static bool read_census(Port& p,Capture& out,std::string& e,bool require_prefix){
     out={};e.clear();Capture first,second;
     if(!p.resolver(first.image,first.thread,e)||!first.image||first.image>UINTPTR_MAX-0x1800000||!first.thread)return fail(e,e.empty()?"Developer actual resolver image/thread unavailable":e);
-    if(!p.pin(first.pin,e)||!observe(p,first.pin,first.image,first.state,first.local,e)||!p.pin(second.pin,e))return false;
+    if(!p.pin(first.pin,e)||!observe(p,first.pin,first.image,first.state,first.local,e,require_prefix)||!p.pin(second.pin,e))return false;
     if(!same_origin(first.pin.origin,second.pin.origin)||first.pin.ledger!=second.pin.ledger||first.pin.time_scale!=second.pin.time_scale||first.pin.pause_scale!=second.pin.pause_scale)
         return fail(e,"Developer full native Origin/ledger/Clock changed during census");
-    if(!observe(p,second.pin,first.image,second.state,second.local,e))return false;
+    if(!observe(p,second.pin,first.image,second.state,second.local,e,require_prefix))return false;
     if(first.local!=second.local||first.state!=second.state)return fail(e,"Developer owned pool changed during second census");
     Pin final;if(!p.pin(final,e))return false;
     if(!same_origin(second.pin.origin,final.origin)||second.pin.ledger!=final.ledger||second.pin.time_scale!=final.time_scale||second.pin.pause_scale!=final.pause_scale)
         return fail(e,"Developer full native Origin/ledger/Clock changed after second census");
     out=std::move(first);e.clear();return true;
 }
+bool read(Port& p,Capture& out,std::string& e){return read_census(p,out,e,true);}
+bool initial_detail::read(Port& p,Capture& out,std::string& e){return read_census(p,out,e,false);}
 nlohmann::json encode(const Capture& c){
     auto rows=nlohmann::json::array();for(const auto& r:c.state.rows)rows.push_back({{"id",r.id},{"slot",r.slot},{"state",r.state},{"employed",r.employed},{"active",r.active},{"on_map",r.on_map},{"job_link",r.job_link},{"position",r.position}});
     const auto& l=c.pin.ledger;

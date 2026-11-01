@@ -4,6 +4,7 @@ struct Pending {
     action::WorldPathIntent intent;
     action::Binding binding;
     std::string snapshot;
+    std::optional<action::Context> context;
 };
 struct Capture {
     bool attempted=false,ready=false;
@@ -12,7 +13,7 @@ struct Capture {
     std::optional<Sample> before;
     std::optional<Pending> captured,pending;
     uint64_t accepted=0,rejected_count=0;
-    std::string cause,last_action;
+    std::string cause,last_action,pending_action;
 };
 Capture capture;
 bool capturing_wall(){return capture.local_wall!=0;}
@@ -25,10 +26,17 @@ bool idle(region::Runtime& r,std::string& error){
     const auto controller=typed_action_runtime::status();
     if(GetCurrentThreadId()!=r.thread||!net::session_wire::connected()||
        !controller.value("started",false)||controller.value("locked",true)||
-       controller.value("pending",true)||pending()||
+       !input_admission(error)||pending()||
        path.pending||path.captured||path.delete_pending||path.replay||path.ui_receiver)
-        return fail(error,"Wall/Pass UI requires an idle bound Mainthread Controller");
+        return fail(error,error.empty()?"Wall/Pass UI requires an idle bound Mainthread Controller":error);
     return true;
+}
+bool original_input_admission(region::Runtime& r,std::string& error){
+    if(!idle(r,error))return false;
+    if(!typed_action_runtime::controller_status().value("ordered",false))return true;
+    bool inside=false;
+    return typed_action_runtime::original_go_admission(inside,error)&&
+        (inside||fail(error,"Wall/Pass capture requires actual OriginalGo"));
 }
 bool wall_purchase(region::Runtime& r,int32_t type,float length,const void* position,
                    uintptr_t caller,std::string& error){
@@ -46,8 +54,10 @@ bool wall_purchase(region::Runtime& r,int32_t type,float length,const void* posi
         return fail(error,"Wall original Purchase arguments or complete semantic intent differ");
     region::LocalView view;
     if(!region::identity(r,source.intent.region,source.region,view,error))return false;
+    std::optional<action::Context> context;
+    if(!capture_context(net::current_snapshot_id(),{view.world.origin.world_epoch,view.world.origin.generation},context,error))return false;
     capture.captured=Pending{portable(source.intent,capture.before->wire.complete_sha256),
-        {view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id()};
+        {view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),std::move(context)};
     return true;
 }
 uint32_t call_press(NativePress original,void* receiver,void* cursor,const void* point){
@@ -69,15 +79,27 @@ bool unchanged(region::Runtime& r,const action::Ledger& money,const undo::UndoWi
         return fail(error,"Wall/Pass local capture changed native World, cash or Undo");
     return true;
 }
+bool wall_capture_region(region::Runtime& r,uintptr_t receiver,uintptr_t& pointer,int32_t& id,std::string& error){
+    if(!region::at(r,receiver,0x288,pointer,error))return false;
+    if(!pointer){
+        // Activate clears Region. The first Press resolves it from the snapped point.
+        uint8_t drawing=0;action::PathPoint point{};region::LocalView view;
+        if(!region::at(r,receiver,0x2c0,drawing,error)||drawing||
+           !region::at(r,receiver,0x268,point,error)||!mixed_path_native::finite(point)||!region::world(r,view.world,error))
+            return fail(error,error.empty()?"Wall first Press lacks idle finite snapped point":error);
+        const auto seh=terrain::point_region(r.image,view.world.root,point,pointer);
+        if(seh)return fail(error,"Wall first Press original Region lookup SEH="+std::to_string(seh));
+    }
+    return pointer&&region::at(r,pointer,0x834,id,error)||fail(error,error.empty()?"Wall current Region absent":error);
+}
 void wall_press_entry(void* receiver,void* cursor,const void* point){
     if(!capture.ready||!net::session_wire::connected()){
         capture.wall(receiver,cursor,point);return;
     }
     std::string error;auto* r=runtime(error);
-    if(!r||!idle(*r,error)){rejected(error);return;}
+    if(!r||!original_input_admission(*r,error)){rejected(error);return;}
     int32_t id=-1;uintptr_t region_pointer=0;
-    if(!region::at(*r,uintptr_t(receiver),0x288,region_pointer,error)||
-       !region_pointer||!region::at(*r,region_pointer,0x834,id,error)){
+    if(!wall_capture_region(*r,uintptr_t(receiver),region_pointer,id,error)){
         rejected(error.empty()?"Wall current Region absent":error);return;}
     action::Ledger money;undo::UndoWitness undo_before;Sample before;
     if(!region::ledger(money,error)||!undo::read_undo(r->memory,r->image,undo_before,error)||
@@ -102,7 +124,7 @@ void pass_press_entry(void* receiver,void* cursor,const void* point){
         capture.pass(receiver,cursor,point);return;
     }
     std::string error;auto* r=runtime(error);
-    if(!r||!idle(*r,error)){rejected(error);return;}
+    if(!r||!original_input_admission(*r,error)){rejected(error);return;}
     uintptr_t start=0,end=0;int32_t start_id=-1,end_id=-1;
     if(!region::at(*r,uintptr_t(receiver),0x1c0,start,error)||
        !region::at(*r,uintptr_t(receiver),0x1c8,end,error)||!start||!end||
@@ -121,7 +143,9 @@ void pass_press_entry(void* receiver,void* cursor,const void* point){
     if(!action::world_path_valid(intent)){rejected("Pass complete semantic intent invalid");return;}
     region::LocalView view;
     if(!region::identity(*r,start_id,start,view,error)){rejected(error);return;}
-    Pending pending{std::move(intent),{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id()};
+    std::optional<action::Context> context;
+    if(!capture_context(net::current_snapshot_id(),{view.world.origin.world_epoch,view.world.origin.generation},context,error)){rejected(error);return;}
+    Pending pending{std::move(intent),{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),std::move(context)};
     capture.before=std::move(before);
     const auto cleanup_seh=cleanup(r->image,false,receiver);
     if(cleanup_seh||!unchanged(*r,money,undo_before,pending,error)){
@@ -153,14 +177,16 @@ bool enable(region::Runtime& r,std::string& error){
 void tick(){
     if(!capture.pending)return;
     auto pending=std::move(*capture.pending);capture.pending.reset();
+    const auto retained=std::move(capture.pending_action);capture.pending_action.clear();
     std::string error;auto* r=runtime(error);
     if(!r||!capture.ready||!net::session_wire::connected()){
         rejected(error.empty()?"Wall/Pass submit lacks bound native runtime":error);return;}
     region::LocalView view;
     if(!region::identity(*r,pending.intent.start_region,0,view,error)||
-       !region::bound(view,pending.binding,pending.snapshot,error)){
+       !region::bound(view,pending.binding,pending.snapshot,error)||
+       !current_capture(pending.context,pending.snapshot,pending.binding,error)){
         rejected(error);return;}
-    const auto id=region::uuid(error);
+    const auto id=retained.empty()?region::uuid(error):retained;
     if(id.empty()||!typed_action_runtime::submit_world_path(id,pending.intent,error)){
         rejected(error.empty()?"Wall/Pass typed Controller rejected captured action":error);return;}
     capture.last_action=id;

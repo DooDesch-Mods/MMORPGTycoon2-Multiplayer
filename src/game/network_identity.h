@@ -13,7 +13,7 @@ using CaptureSaveFn=bool(*)(const void* property,const void* manager,void* write
 bool initialize(std::string& error);
 void* capture_entrypoint();
 // Mainthread only. The capture SHA is unknown until the owned file is complete.
-bool begin_host_capture(const std::string& capture_uuid,uint32_t expected_nodes,std::string& error,const std::string& world_name="MPTestSession");
+bool begin_host_capture(const std::string& capture_uuid,uint32_t expected_nodes,std::string& error,const std::string& world_name="MPTestSession",bool isolated=false,const std::string& native_filename={});
 // Parent calls its original CaptureSaveFn exactly once between these observations, even for ticket 0.
 uint64_t capture_before(const void* property,const void* manager,void* writer,void* save_context) noexcept;
 void capture_after(uint64_t ticket,const void* property,const void* manager,void* writer,void* save_context,bool original_result) noexcept;
@@ -52,4 +52,5 @@ using SelectorBarrier=void(*)();
 void selector_barrier(SelectorBarrier callback);
 }
 #endif
+bool finish_export(std::string&);
 }

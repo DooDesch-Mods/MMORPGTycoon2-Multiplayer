@@ -5,7 +5,7 @@
 
 namespace mt2mp::game::session_reload {
 inline constexpr uint8_t channel=14;
-enum class Kind:uint8_t {Begin=1,Ready,Failed,Request};
+enum class Kind:uint8_t {Begin=1,Ready,Failed,Request,OrderedBegin,CaptureReady,Captured};
 struct Packet {
     Kind kind=Kind::Begin;
     uint64_t session=0;
@@ -24,13 +24,13 @@ inline bool uuid(const std::string& value){
 inline bool valid(const Packet& value){
     if(!value.session||!uuid(value.token)||value.required>15||!(value.required&1)||value.cause.size()>512)return false;
     switch(value.kind){
-    case Kind::Begin:case Kind::Ready:case Kind::Request:return value.cause.empty();
+    case Kind::Begin:case Kind::Ready:case Kind::Request:case Kind::OrderedBegin:case Kind::CaptureReady:case Kind::Captured:return value.cause.empty();
     case Kind::Failed:return !value.cause.empty();
     }
     return false;
 }
 inline nlohmann::json encode(const Packet& value){
-    return {{"revision",1},{"kind",uint64_t(value.kind)},{"session",value.session},
+    return {{"revision",uint64_t(value.kind)>=5?2:1},{"kind",uint64_t(value.kind)},{"session",value.session},
         {"required",value.required},{"token",value.token},{"cause",value.cause}};
 }
 inline bool decode(const uint8_t* bytes,uint32_t size,Packet& out,std::string& error){
@@ -45,7 +45,7 @@ inline bool decode(const uint8_t* bytes,uint32_t size,Packet& out,std::string& e
             result=v.get<uint64_t>();return true;
         };
         uint64_t revision=0,kind=0,session=0,required=0;
-        if(!integer(value.at("revision"),revision)||revision!=1||!integer(value.at("kind"),kind)||kind<1||kind>4||
+        if(!integer(value.at("revision"),revision)||(revision!=1&&revision!=2)||!integer(value.at("kind"),kind)||kind<1||kind>7||revision!=(kind>=5?2:1)||
            !integer(value.at("session"),session)||!integer(value.at("required"),required)||required>15){
             error="world reload packet numeric field invalid";return false;
         }
@@ -57,7 +57,7 @@ inline bool decode(const uint8_t* bytes,uint32_t size,Packet& out,std::string& e
 class Barrier {
 public:
     bool begin(const Packet& packet,uint8_t local,std::string& error){
-        if(!valid(packet)||packet.kind!=Kind::Begin||local<1||local>4||!(packet.required&(1u<<(local-1)))){
+        if(!valid(packet)||(packet.kind!=Kind::Begin&&packet.kind!=Kind::OrderedBegin)||local<1||local>4||!(packet.required&(1u<<(local-1)))){
             error="world reload barrier requires current Host begin and local membership";return false;
         }
         if(active_){
@@ -73,7 +73,20 @@ public:
         }
         ready_|=uint8_t(1u<<(sender-1));error.clear();return true;
     }
+    bool capture_ready(uint64_t sender,const Packet& packet,std::string& error){
+        if(!active_||begin_.kind!=Kind::OrderedBegin||!valid(packet)||packet.kind!=Kind::CaptureReady||
+           packet.session!=begin_.session||packet.token!=begin_.token||packet.required!=begin_.required||
+           sender<1||sender>4||!(required_&(1u<<(sender-1)))){
+            error="Ordered reload CaptureReady differs from its full original cohort";return false;
+        }
+        capture_ready_|=uint8_t(1u<<(sender-1));error.clear();return true;
+    }
+    bool capture_complete()const{return active_&&capture_ready_==required_;}
+    Packet capture_ready_packet()const{auto result=begin_;result.kind=Kind::CaptureReady;return result;}
     bool retain_members(uint8_t still_present,std::string& error){
+        if(active_&&begin_.kind==Kind::OrderedBegin&&still_present!=required_){
+            error="Ordered reload cannot reduce its original process cohort";return false;
+        }
         if(!active_||!(still_present&1)||still_present>15){error="world reload original Host no longer present";return false;}
         required_&=still_present;ready_&=required_;error.clear();return true;
     }
@@ -82,10 +95,10 @@ public:
     const Packet& packet()const{return begin_;}
     Packet ready_packet()const{auto result=begin_;result.kind=Kind::Ready;return result;}
     uint8_t pending()const{return uint8_t(required_&~ready_);}
-    void clear(){begin_={};local_=required_=ready_=0;active_=false;}
+    void clear(){begin_={};local_=required_=ready_=capture_ready_=0;active_=false;}
 private:
     Packet begin_;
-    uint8_t local_=0,required_=0,ready_=0;
+    uint8_t local_=0,required_=0,ready_=0,capture_ready_=0;
     bool active_=false;
 };
 }

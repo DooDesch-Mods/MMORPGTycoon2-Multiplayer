@@ -65,11 +65,13 @@ json framework_request(const std::string& command,const json& input){
     return launch_reply;
 }
 #include "lobby_handoff_bodies.inc"
+bool framework_ordered_selected=false;
 bool render_edge(std::string& error){
 #include "lobby_handoff_render_edge.inc"
     return true;
 }
 void reset(){
+    framework_ordered_selected=false;
     phase=Phase::Action;ui_owner=&owner_a;ui_mode=2;generation=7;
     pending=false;load_attempted=false;framework_creating_world=false;framework_new_world_requested=false;
     framework_new_world_owner=nullptr;framework_new_world_generation=0;
@@ -91,6 +93,9 @@ void queue(){
     phase=Phase::Render;
 }
 void cases(){
+    {reset();queue();framework_ordered_selected=true;std::string error;
+     need(render_edge(error)&&sdk_calls==0&&observation_calls==0&&framework_new_world_requested,
+          "ordered Desktop owner excludes legacy render handoff without consuming its request");}
     for(const char* status:{"opened","already_open"}){
         reset();launch_reply["status"]=status;queue();std::string error;
         need(render_native_new_world(error),"confirmed original wizard handoff succeeds");

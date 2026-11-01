@@ -1,5 +1,6 @@
 #include "logo_runtime.h"
 #include "logo_native.h"
+#include "logo_execution_admission.h"
 #include "typed_action_runtime.h"
 #include "session_provider.h"
 #include "live_host_state/native_port.h"
@@ -114,8 +115,8 @@ void tick(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* host,std::string& e){
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||r->unknown||r->replay||r->view||r->operations.contains(request.action_uuid)||request.action!=a::Action::SetLogo){e="Logo original execution requires ready fresh Mainthread owner";return a::Outcome::RejectedNoEffect;}
     a::Context context;const auto controller=typed_action_runtime::controller_status();
-    if(!a::selected_session().current(context,e)||context.snapshot_uuid!=request.snapshot_uuid||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||
-       (host!=nullptr)!=(context.role==a::Role::Client)){e="Logo exact Controller/session/role differs";return a::Outcome::RejectedNoEffect;}
+    if(!a::selected_session().current(context,e))return a::Outcome::RejectedNoEffect;
+    if(!execution_admitted(context,binding,request,host,controller.value("pending",false),controller.value("action_uuid",std::string{}),e))return a::Outcome::RejectedNoEffect;
     uintptr_t software=0,old=0;a::LogoState before;a::Ledger ledger;
     if(!read(*r,context,binding,software,old,before,ledger,e))return a::Outcome::RejectedNoEffect;
     if(before.sha256!=request.logo.before_sha256){e="Logo captured before value differs actual="+before.sha256+" required="+request.logo.before_sha256;return a::Outcome::RejectedNoEffect;}

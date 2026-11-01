@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "party_frame_native.h"
 #include "party_capture_references.h"
 #include "live_host_state/apply_timing.h"
@@ -166,7 +167,8 @@ class Native final:public live_host_state::PartyPort {
         if(before.pause==1&&after.pause==0){auto compared=before;compared.pause=0;
             if(compared!=after)return fail(error,"original Party capture changed native Clock/ledger/owners before pause restore");
             constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};std::array<unsigned char,10> actual{};
-            if(!read(before.image,0x259b70,actual.data(),actual.size(),error)||actual!=expected)return fail(error,error.empty()?"original pause setter changed":error);
+            if(!read(before.image,0x259b70,actual.data(),actual.size(),error)||
+                !hooks::framework::verify_original_bytes(before.image+0x259b70,actual.data(),expected.data(),expected.size(),error))return fail(error,error.empty()?"original pause setter changed":error);
             const auto code=restore_pause(before);if(code)return fail(error,"original pause restoration SEH="+std::to_string(code));
             if(!authority_.read(after,error)||after!=before)return fail(error,error.empty()?"original pause restoration readback differs":error);
         }

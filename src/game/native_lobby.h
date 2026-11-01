@@ -12,7 +12,8 @@ void request_panel_toggle();
 bool tick(std::string& error);
 std::string status();
 bool admitted();
-bool observe(nlohmann::json& result,std::string& error);
+// A held snapshot read must not tick the UI or dispatch queued button actions.
+bool observe(nlohmann::json& result,std::string& error,bool refresh=true);
 bool activate(const nlohmann::json& args,nlohmann::json& result,std::string& error);
 }
 

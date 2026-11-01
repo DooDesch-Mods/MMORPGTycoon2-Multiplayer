@@ -1,6 +1,9 @@
 # These state and codec sources are used unchanged by several source-only test binaries.
 # Keep one compiled copy while retaining every executable and test registration.
 set(shared_codec_sources
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/tick_commands.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/tick_wire.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/time_session.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp"

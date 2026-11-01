@@ -56,7 +56,7 @@ struct Engine final:action::Engine {
 namespace mt2mp::game::typed_action_runtime {
 struct Runtime {
     fixture::Session session;fixture::Engine engine;fixture::Transport transport;action::Controller controller;
-    fixture::Live live;uint32_t thread=7;bool lobby_retiring=false;
+    fixture::Live live;uint32_t thread=7;bool lobby_retiring=false,live_state=false,live_port=false;
     Runtime(uint64_t peer,std::deque<fixture::Packet>& packets):session(peer),transport(peer,packets),controller(session,engine,transport,{}){engine.live_state_=&live;}
 };
 std::atomic<Runtime*> published_runtime{nullptr};

@@ -10,14 +10,14 @@ using Press=void(*)(void*,void*,const float*);using GetSelection=void*(*)(void*)
 struct Pin {host::WorldState world;q::World region;uintptr_t window=0;selection::Catalogue catalogue;int32_t min_level=0,max_level=0;};
 struct Capture {
     uintptr_t brush=0,cursor=0,graph=0;Pin pin;a::Binding binding;std::string snapshot,cause;
-    a::ZoneIntent intent;d::Sample before;bool cleanup_attempted=false;std::string ui_token;
+    a::ZoneIntent intent;d::Sample before;bool cleanup_attempted=false;std::string ui_token;std::optional<a::Context> context;
 };
 struct alignas(16) Brush {std::array<unsigned char,0x750> bytes{};};
 struct Operation {
     a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;
     std::unique_ptr<Brush> brush=std::make_unique<Brush>();
     uintptr_t graph=0,created=0;uint64_t uid=0;
-    bool constructed=false,attempted=false,returned=false,confirmed=false,retired=false;
+    bool constructed=false,attempted=false,returned=false,confirmed=false,retired=false,ordered=false;
     unsigned stamps=0;std::string cause;
 };
 struct Runtime {
@@ -30,6 +30,43 @@ struct Runtime {
 };
 Runtime state;
 void reject(const std::string& e){++state.rejections;if(state.cause!=e){state.cause=e;LOG_ERROR("[UIMonsterZone] {}",e);}}
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& e){
+    if(request.action!=a::Action::PlaceMonsterZone)return fail(e,"Ordered Zone scope requires PlaceMonsterZone");
+    a::Context context;if(!a::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(e,"Ordered Zone actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(e,"Ordered Zone execution forbids Host evidence and RNG adoption");
+        return ordered_scope(binding,request,e);
+    }
+    return !ordered_mode()||fail(e,"Ordered Zone execution requires consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,a::Binding& binding,std::optional<a::Context>& context,std::string& e){
+    context.reset();
+    if(!ordered_mode())return typed_action_runtime::network_binding(snapshot,binding,e);
+    a::Context actual;
+    if(!a::selected_session().current(actual,e)||actual.snapshot_uuid!=snapshot||
+       !typed_action_runtime::read_binding(snapshot,binding,e))return fail(e,e.empty()?"Ordered Zone captured Session/Binding differs":e);
+    context=actual;return true;
+}
+bool current_capture(const Capture& expected,std::string& e){
+    a::Binding binding;std::optional<a::Context> context;
+    if(!capture_binding(expected.snapshot,binding,context,e))return false;
+    return (binding==expected.binding&&context==expected.context)||fail(e,"Zone captured Session/Binding changed");
+}
+bool input_admission(std::string& e){
+    const auto controller=typed_action_runtime::controller_status();
+    if(!controller.value("started",false)||controller.value("locked",true))return fail(e,"Zone Press requires ready Controller");
+    if(!ordered_mode())return !controller.value("pending",true)||fail(e,"Zone Press requires idle legacy Controller");
+    bool inside=false;a::Binding binding;
+    if(!typed_action_runtime::original_go_admission(inside,e))return false;
+    if(!inside)return fail(e,"Ordered Zone capture requires actual OriginalGo");
+    return typed_action_runtime::read_binding(net::current_snapshot_id(),binding,e);
+}
+
 bool same_origin(const Pin& x,const Pin& y){return action_runtime::same_world(x.world,y.world)&&
     x.region.region==y.region.region&&x.region.saved_region==y.region.saved_region&&
     x.window==y.window&&x.catalogue==y.catalogue&&x.min_level==y.min_level&&x.max_level==y.max_level;}
@@ -164,6 +201,7 @@ uint32_t stamp_call(Operation& op,const a::ZoneStamp& stamp,const poly::Storage&
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool paint_private(Operation& op,const a::ZoneStamp& stamp,std::string& e){
+    if(op.ordered&&!ordered_scope(op.binding,op.request,e))return false;
     Memory m;Pin actual;if(!pin(m,op.binding,op.request.snapshot_uuid,op.request.zone.region,op.request.zone.character_type,actual,e)||!same_origin(actual,op.pin))return fail(e,e.empty()?"Zone private paint full owner changed":e);
     selection::Binding bound{uintptr_t(op.brush->bytes.data()),op.pin.window,op.pin.catalogue.character,state.image,state.thread};
     uintptr_t ap=0,region=0,window=0,graph=0;int32_t kind=-1,level=0;
@@ -185,16 +223,16 @@ bool paint_private(Operation& op,const a::ZoneStamp& stamp,std::string& e){
     return okay||fail(e,e.empty()?"Zone original stamp shape differs":e);
 }
 bool capture_unchanged(Memory& m,const Capture& c,const d::Sample& before,std::string& e){
-    Pin current;if(!pin(m,c.binding,c.snapshot,c.intent.region,c.intent.character_type,current,e)||!same_origin(current,c.pin))return fail(e,e.empty()?"Zone capture full owner changed":e);
+    Pin current;if(!current_capture(c,e)||!pin(m,c.binding,c.snapshot,c.intent.region,c.intent.character_type,current,e)||!same_origin(current,c.pin))return fail(e,e.empty()?"Zone capture full owner changed":e);
     d::Sample after;if(!d::sample(m,current.region,after,e))return false;
     return d::sample_json(after)==d::sample_json(before)||fail(e,"Zone suppressed callback changed native state/ledger/RNG/Undo");
 }
 void press_entry(void* brush,void* cursor,const float* point)try{
-    bool handled=false;if(!zone_edit_runtime::capture_press(brush,cursor,point,handled)||handled)return;
-    if(!net::session_wire::connected()){state.press(brush,cursor,point);return;}
-    const auto controller=typed_action_runtime::controller_status();std::string e;
+    if(!ordered_mode()){bool handled=false;if(!zone_edit_runtime::capture_press(brush,cursor,point,handled)||handled)return;}
+    if(!net::session_wire::connected()){if((state.capture&&state.capture->context)||(state.pending&&state.pending->context)){reject("Zone disconnected press retains an ordered capture");return;}state.press(brush,cursor,point);return;}
+    std::string e;
     if(!state.ready||GetCurrentThreadId()!=state.thread||state.capture||state.pending||state.capture_fault||
-       !controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)){reject("Zone Press requires idle bound Controller/capture");return;}
+       !input_admission(e)){reject(e.empty()?"Zone Press requires idle bound Controller/capture":e);return;}
     Memory m;uintptr_t owned_brush=0,owned_cursor=0,region=0,window=0,collision=0,zone=0,graph=0;int32_t painting=0;
     if(!d::tool(m,state.image,owned_brush,owned_cursor,e)||owned_brush!=uintptr_t(brush)||owned_cursor!=uintptr_t(cursor)||
        !field(m,owned_brush,0x170,region,e)||!field(m,owned_brush,0x6fc,painting,e)||painting||
@@ -206,7 +244,7 @@ void press_entry(void* brush,void* cursor,const float* point)try{
     std::vector<Option> choices;json selected;
     if(!d::options(m,state.image,c.brush,window,choices,selected,e)||!selected.is_array()||selected.size()!=2||selected[0]!=1||
        !field(m,region,0x834,c.intent.region,e)||!field(m,c.brush,0x17c,c.intent.level,e)||
-       !typed_action_runtime::network_binding(c.snapshot,c.binding,e)){reject(e.empty()?"Zone Press Monster selection/Region/level differs":e);return;}
+       !capture_binding(c.snapshot,c.binding,c.context,e)){reject(e.empty()?"Zone Press Monster selection/Region/level differs":e);return;}
     c.intent.character_type=selected[1].get<int32_t>();
     if(!pin(m,c.binding,c.snapshot,c.intent.region,c.intent.character_type,c.pin,e,window)||c.pin.window!=window||
        !d::sample(m,c.pin.region,c.before,e)||c.before.undo.active_graph){reject(e.empty()?"Zone Press full owner/Undo differs":e);return;}
@@ -219,20 +257,20 @@ void press_entry(void* brush,void* cursor,const float* point)try{
 }catch(const std::exception& x){const auto e=std::string("Zone Press boundary: ")+x.what();if(state.capture){state.capture_fault=true;state.capture->cause=e;}reject(e);}
  catch(...){if(state.capture){state.capture_fault=true;state.capture->cause="Zone Press non-standard boundary exception";}reject("Zone Press non-standard boundary exception");}
 void paint_entry(void* brush,const void* shape)try{
-    bool handled=false;if(!zone_edit_runtime::capture_paint(brush,shape,handled)||handled)return;
-    if(!net::session_wire::connected()){state.paint(brush,shape);return;}
+    if(!ordered_mode()){bool handled=false;if(!zone_edit_runtime::capture_paint(brush,shape,handled)||handled)return;}
+    if(!net::session_wire::connected()){if((state.capture&&state.capture->context)||(state.pending&&state.pending->context)){reject("Zone disconnected paint retains an ordered capture");return;}state.paint(brush,shape);return;}
     if(!state.capture||state.capture->brush!=uintptr_t(brush)){reject("Zone AddPaint lacks owned suppressed capture");return;}
     auto& c=*state.capture;if(!c.cause.empty())return;Memory m;a::ZoneStamp stamp;std::string e;
-    if(GetCurrentThreadId()!=state.thread||!field(m,c.brush,0x5cc,stamp.position,e)||!poly::read(m,uintptr_t(shape),stamp.shape,e)){
+    if(GetCurrentThreadId()!=state.thread||!current_capture(c,e)||(c.context&&!input_admission(e))||!field(m,c.brush,0x5cc,stamp.position,e)||!poly::read(m,uintptr_t(shape),stamp.shape,e)){
         c.cause=e.empty()?"Zone AddPaint thread/shape differs":e;reject(c.cause);return;}
     c.intent.stamps.push_back(std::move(stamp));if(!a::valid_zone_intent(c.intent)){c.cause="Zone captured geometry exceeds typed action domain";reject(c.cause);}
 }catch(const std::exception& x){if(state.capture)state.capture->cause=std::string("Zone AddPaint boundary: ")+x.what();reject(state.capture?state.capture->cause:"Zone AddPaint boundary without capture");}catch(...){if(state.capture)state.capture->cause="Zone AddPaint non-standard boundary exception";reject("Zone AddPaint non-standard boundary exception");}
 void finished_entry(void* brush,const void* shape)try{
-    bool handled=false;if(!zone_edit_runtime::capture_finished(brush,shape,handled)||handled)return;
-    if(!net::session_wire::connected()){state.finished(brush,shape);return;}
+    if(!ordered_mode()){bool handled=false;if(!zone_edit_runtime::capture_finished(brush,shape,handled)||handled)return;}
+    if(!net::session_wire::connected()){if((state.capture&&state.capture->context)||(state.pending&&state.pending->context)){reject("Zone disconnected finished retains an ordered capture");return;}state.finished(brush,shape);return;}
     if(!state.capture||state.capture->brush!=uintptr_t(brush)){reject("Zone Finish lacks owned capture");return;}
     auto& c=*state.capture;Memory m;std::string e;uintptr_t graph=0;int32_t operations=-1;
-    if(state.capture_fault||c.cleanup_attempted||GetCurrentThreadId()!=state.thread||!field(m,c.brush,0x740,graph,e)||!graph||graph!=c.graph||
+    if(state.capture_fault||c.cleanup_attempted||GetCurrentThreadId()!=state.thread||!current_capture(c,e)||(c.context&&!input_admission(e))||!field(m,c.brush,0x740,graph,e)||!graph||graph!=c.graph||
        !field(m,graph,0x28,operations,e)||operations!=0){reject(e.empty()?"Zone capture empty graph ownership differs; no cleanup replay":e);return;}
     // Host simulation may advance between mouse callbacks. The empty native
     // Finish must preserve the immediate state, not the old Press-time economy.
@@ -280,13 +318,22 @@ void tick(){
             job["terminal"]=true;job["outcome"]=controller.value("outcome",0);job["confirmed"]=controller.value("outcome",0)==int(a::Outcome::Confirmed);
             job["cause"]=controller.value("cause",std::string{});}}
     if(!state.pending)return;
-    auto c=std::move(*state.pending);state.pending.reset();std::string e;a::Binding binding;Memory m;Pin current;
+    std::string e;
+    if(state.ready&&GetCurrentThreadId()==state.thread&&controller.value("started",false)&&!controller.value("locked",true)&&current_capture(*state.pending,e)){
+        if(controller.value("pending",true))return;
+        bool inside=false;
+        if(ordered_mode()){
+            if(!typed_action_runtime::original_go_admission(inside,e)){if(e.empty())e="Zone pending capture OriginalGo owner unavailable";}
+            else if(inside)return;
+        }
+    }
+    auto c=std::move(*state.pending);state.pending.reset();Memory m;Pin current;
     const auto rejected=[&](const std::string& cause){
         reject(cause);if(!c.ui_token.empty()){auto& job=state.ui_jobs.at(c.ui_token);job["terminal"]=true;
             job["confirmed"]=false;job["cause"]=cause;job["outcome"]=int(a::Outcome::RejectedNoEffect);}};
     if(!state.ready||GetCurrentThreadId()!=state.thread){rejected("Zone pending capture lost Mainthread");return;}
-    if(!typed_action_runtime::network_binding(c.snapshot,binding,e)||binding!=c.binding||
-       !pin(m,binding,c.snapshot,c.intent.region,c.intent.character_type,current,e)||!same_origin(current,c.pin)){
+    if(!e.empty()||!controller.value("started",false)||controller.value("locked",true)||!current_capture(c,e)||
+       !pin(m,c.binding,c.snapshot,c.intent.region,c.intent.character_type,current,e)||!same_origin(current,c.pin)){
         rejected(e.empty()?"Zone pending capture changed full owner":e);return;}
     const auto id=action_runtime::uuid(e);
     if(id.empty()||!typed_action_runtime::submit_zone(id,c.intent,e)){rejected(e.empty()?"Zone Controller submit failed":e);return;}
@@ -301,18 +348,38 @@ bool begin_ui_capture(const std::string& token,std::string& e){
 void end_ui_capture(){state.ui_token.clear();}
 json ui_receipt(const std::string& token){const auto found=state.ui_jobs.find(token);return found==state.ui_jobs.end()?json(nullptr):found->second;}
 json status(){
+    const auto intent=[](const a::ZoneIntent& value){json stamps=json::array();
+        for(const auto& stamp:value.stamps){json shape=json::array();
+            for(const auto& path:stamp.shape){json points=json::array();for(const auto& p:path)points.push_back({p.x,p.z});shape.push_back(std::move(points));}
+            stamps.push_back({{"position",stamp.position},{"shape",std::move(shape)}});}
+        return json{{"region",value.region},{"character_type",value.character_type},{"level",value.level},{"stamps",std::move(stamps)}};
+    };
     json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={
         {"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},
+        {"ordered",op.ordered},{"snapshot_uuid",op.request.snapshot_uuid},{"origin_peer",op.request.peer},{"request_sequence",op.request.sequence},{"observed_revision",op.request.host_revision},
+        {"global_before",op.evidence.zone_before.global_random},{"global_after",op.evidence.zone_after.global_random},
+        {"region_before",op.evidence.zone_before.region_random},{"region_after",op.evidence.zone_after.region_random},
+        {"next_tag_before",op.evidence.zone_before.next_tag},{"next_tag_after",op.evidence.zone_after.next_tag},
+        {"created_monsters_before",op.evidence.zone_before.created_monsters},{"created_monsters_after",op.evidence.zone_after.created_monsters},
+        {"release_before",op.evidence.zone_before.release_edits},{"release_after",op.evidence.zone_after.release_edits},
+        {"undo_confirmed",op.evidence.undo_confirmed},{"private_brush_destroyed",op.returned&&!op.constructed},
         {"original_stamps",op.stamps},{"local_zone_uid",op.uid},{"zone_key",op.request.canonical_record_key},
         {"zones_before",op.evidence.zone_before.zones},{"zones_after",op.evidence.zone_after.zones},
         {"monsters_before",op.evidence.zone_before.monsters},{"monsters_after",op.evidence.zone_after.monsters},
         {"content_before",op.evidence.zone_before.content_sha256},{"content_after",op.evidence.zone_after.content_sha256},{"cause",op.cause}};
-    return {{"enabled",state.ready},{"pending_ui",pending_ui()},{"capture_active",bool(state.capture)},{"capture_fault",state.capture_fault},{"captured",state.captures},{"submitted",state.submits},
+    json receipt=nullptr;const Operation* latest=nullptr;
+    if(Config::instance().local_test)for(const auto& [id,op]:state.operations){(void)id;
+        if(op.ordered&&op.confirmed&&(!latest||op.request.host_revision>latest->request.host_revision))latest=&op;}
+    if(latest){receipt=operations.at(latest->request.action_uuid);receipt["action_uuid"]=latest->request.action_uuid;
+        receipt["ledger_before"]=a::management_ledger_observation(latest->evidence.before);
+        receipt["ledger_after"]=a::management_ledger_observation(latest->evidence.after);receipt["intent"]=intent(latest->request.zone);}
+    return {{"last_ordered_receipt",receipt},{"enabled",state.ready},{"pending_ui",pending_ui()},{"capture_active",bool(state.capture)},{"capture_fault",state.capture_fault},{"captured",state.captures},{"submitted",state.submits},
         {"rejected",state.rejections},{"last_action",state.last_action},{"cause",state.cause},{"operations",std::move(operations)},{"ui_jobs",state.ui_jobs}};
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e)try{
     if(request.action!=a::Action::PlaceMonsterZone||!a::valid_zone_intent(request.zone)||
        !state.ready||state.thread!=GetCurrentThreadId()){e="Zone runtime/Mainthread/typed intent unavailable";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return a::Outcome::RejectedNoEffect;
     if(state.operations.contains(request.action_uuid)){e="Zone action already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="Zone lacks exact pending Controller request";return a::Outcome::RejectedNoEffect;}
@@ -335,7 +402,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(authority&&(!a::zone_shared_content(value,authority->zone_before)||ledger(sample.money)!=authority->before)){
         e="Zone Client before native census/shape/Undo/Release/counters/full Ledger differs from Host";return a::Outcome::RejectedNoEffect;}
     if(!npc_quest_target_runtime::begin_zone_append(request.zone.region,request.action_uuid,e))return a::Outcome::RejectedNoEffect;
-    auto& op=state.operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=before;
+    auto& op=state.operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=before;op.ordered=a::tick_commands::authority::active();
     const auto unknown=[&](const std::string& cause){e=op.cause=cause;return a::Outcome::Unknown;};
     if(authority){const auto seh=action_runtime::seed(state.image,authority->zone_before.global_random);
         if(!native_ok(seh,"Host global RNG adoption",e))return unknown(e);
@@ -347,6 +414,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     for(const auto& stamp:request.zone.stamps)if(!paint_private(op,stamp,e))return unknown(e);
     if(!field(m,uintptr_t(op.brush->bytes.data()),0x710,op.created,e)||!op.created||!field(m,op.created,0x18,op.uid,e)||!op.uid)
         return unknown(e.empty()?"Zone original AddPaint created no owned Zone":e);
+    if(op.ordered&&!ordered_scope(binding,request,e))return unknown(e);
     const auto finish=binary(state.finished,op.brush->bytes.data(),nullptr);
     if(!native_ok(finish,"PaintingFinished",e))return unknown(e);op.returned=true;
     uintptr_t graph=0;if(!field(m,uintptr_t(op.brush->bytes.data()),0x740,graph,e)||graph)return unknown(e.empty()?"Zone original Finish retained private graph":e);
@@ -371,7 +439,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
 bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& out,std::string& e){
     const auto found=state.operations.find(request.action_uuid);
     if(found==state.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"Zone observe lacks confirmed exact original action");
-    const auto& op=found->second;Memory m;Pin current;d::Sample sample;a::ZoneState value;
+    const auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;Memory m;Pin current;d::Sample sample;a::ZoneState value;
     if(!pin(m,binding,request.snapshot_uuid,request.zone.region,request.zone.character_type,current,e)||!same_origin(current,op.pin)||
        !effect(m,current,sample,value,e))return false;
     if(value!=op.evidence.zone_after||ledger(sample.money)!=op.evidence.after||sample.undo.active_graph)return fail(e,"Zone confirmed original state/ledger changed before ACK");

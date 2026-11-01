@@ -21,7 +21,7 @@ bool initialize(std::string&);
 void* entrypoint(bool save);
 bool confirm_hooks(std::string&);
 bool stage_scenes(dungeon_scene_identity_runtime::Census,std::string&);
-bool arm_host(const std::string&,const CaptureWorld&,std::string&);
+bool arm_host(const std::string&,const CaptureWorld&,std::string&,bool isolated=false);
 bool seal_host(const std::string&,const std::string&,const CaptureWorld&,std::string&);
 bool prepare_aliases(const std::string&,const std::string&,uint64_t,const party_snapshot_alias::Manifest&,std::string&);
 bool aliases(const std::string&,const std::string&,party_snapshot_alias::Manifest&,std::string&);
@@ -36,4 +36,5 @@ void children_before(uintptr_t,void*)noexcept;
 void children_after(uintptr_t,void*,int32_t)noexcept;
 void registered(uintptr_t,void*,int32_t,void*)noexcept;
 void original_failed(Ticket,const std::string&)noexcept;
+bool finish_export(std::string&);
 }

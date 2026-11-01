@@ -142,7 +142,7 @@ bool pass(Memory& memory,uintptr_t image,uintptr_t receiver,uintptr_t cursor,
        !path_native::field(memory,value.ghost,0x21c,value.intent.type,error)||
        !path_native::field(memory,value.start_region,0x834,value.intent.start_region,error)||
        !path_native::field(memory,value.end_region,0x834,value.intent.end_region,error)||
-       !name(memory,value.ghost,0x190,value.intent.name,error))return false;
+       !name(memory,value.ghost,0x220,value.intent.name,error))return false;
     if(valid!=1||preview!=1||preview_valid!=1||owner!=value.start_region||
        value.start_region==value.end_region||value.intent.start_region<0||value.intent.end_region<0||
        value.intent.type!=2||!finite(start)||!finite(end)||start==end)

@@ -89,7 +89,8 @@ void run(Callback candidate,const char* name){
 #include "scenery_identity_field_cases.inc"
 #include "character_catalogue_manifest_cases.inc"
 #include "management_record_scope_cases.inc"
+#include "release_record_scope_cases.inc"
 #include "world_zone_scope_cases.inc"
 #include "dungeon_census_scope_cases.inc"
-int main()try{run(membership::inspect,"character definition");run(actor::inspect,"character actor");region_owners_cases();prop_owners_fixture::run();scenery_identity_field_fixture::run();catalogue_manifest_fixture::run();project_progress_fixture::run();gm_record_fixture::run();world_zone_scope_fixture::run();dungeon_census_scope_fixture::run();return 0;}
+int main()try{run(membership::inspect,"character definition");run(actor::inspect,"character actor");region_owners_cases();prop_owners_fixture::run();scenery_identity_field_fixture::run();catalogue_manifest_fixture::run();project_progress_fixture::run();gm_record_fixture::run();release_record_fixture::run();world_zone_scope_fixture::run();dungeon_census_scope_fixture::run();return 0;}
 catch(const std::exception& problem){std::cerr<<problem.what()<<'\n';return 1;}

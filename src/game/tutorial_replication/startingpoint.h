@@ -5,7 +5,7 @@
 #include <string>
 
 namespace mt2mp::game::tutorial_replication::startingpoint {
-struct CommitBugs {int32_t total=0,known=0;bool operator==(const CommitBugs&)const=default;};
+struct CommitBugs {int32_t total=0,known=0;std::string map_before,map_after;bool operator==(const CommitBugs&)const=default;};
 struct Row {
     bool project_present=false,purchased=false,deployed=false,custom=false;
     float work=0;
@@ -29,6 +29,9 @@ bool apply(const std::optional<Row>& local,const std::optional<Row>& target,Call
            bool& attempted,bool& unknown,std::string& error){
     Plan operation;if(!plan(local,target,operation,error))return false;
     if(operation==Plan::None)return true;
+    if(operation==Plan::Deploy&&(local->bugs_total||local->bugs_known)){
+        error="Startingpoint nonzero Map effects require ordered original Commit on every peer";return false;
+    }
     if(!calls.pin(*local,operation==Plan::Deploy,error))return false;
     attempted=true;unknown=true;
     if(operation==Plan::Deploy){

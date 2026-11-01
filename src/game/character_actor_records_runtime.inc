@@ -63,7 +63,8 @@ bool read_current(const action_session::Context& expected,const action_session::
     host::Reader reader(memory.process,origin,owner.image,owner.thread,api);
     if(!reader.current(before,true,error)||!action_runtime::bound(before,binding,context.snapshot_uuid,error))return false;
     auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return field(memory,base,offset,value,cause);};
-    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){live_host_state::apply_timing::PageReadScope original_lookup(live_host_state::apply_timing::PageBoundary::OriginalCall);const auto seh=lookup(api.find,uid,pointer);
+    // The pinned FindUID leaf reads its table without writes or callbacks.
+    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){const auto seh=lookup(api.find,uid,pointer);
         return !seh||fail(cause,"Character complete census current FindUID failed SEH="+std::to_string(seh));};
     uintptr_t manager=0;character_definition_identity::Census current;character_membership_reader::Users current_users;
     if(!at(uintptr_t(before.origin.state),0x168,manager,error)||

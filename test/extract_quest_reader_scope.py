@@ -27,10 +27,25 @@ scope_line='        mt2mp::game::live_host_state::apply_timing::PageReadScope pa
 root_timing_line='        mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropRootRegion);\n'
 assert candidate_lambda.count(root_timing_line)==1, 'Expected exactly the root-region diagnostic scope'
 pure_lambda=candidate_lambda.replace(root_timing_line,'',1)
+# Preserve the original scope-only guard around the accepted saved-Region path.
+# Both compiled variants still use the current production lambda below.
+saved_region='''        if(std::find(a.begin(),a.end(),r)==a.end()){
+            // Sale removes ownership, not the saved Region or its existing objects.
+            mt2mp::game::region_saved_identity::Index saved;
+            const auto read=[&](uintptr_t address,size_t offset,auto& value,std::string& error){return at(memory_,address,offset,value,error);};
+            const auto map=reinterpret_cast<uintptr_t>(world.origin.map);
+            if(!mt2mp::game::region_saved_identity::capture(image_,map,world.root,saved,read,e))return false;
+            if(std::none_of(saved.saved.begin(),saved.saved.end(),[&](const auto& row){return row.second==r;}))
+                return fail(e,"remove_region_absent_root_map");
+            if(!mt2mp::game::region_saved_identity::verify(image_,map,world.root,saved,read,e))return false;
+        }'''
+original_region='        if(std::find(a.begin(),a.end(),r)==a.end())return fail(e,"remove_region_absent_root_map");'
+assert pure_lambda.count(saved_region)==1
+pure_lambda=pure_lambda.replace(saved_region,original_region,1)
 assert candidate_lambda.count(scope_line)==1, 'Expected the exact scoped root-region lambda'
 assert hashlib.sha256(pure_lambda.encode()).hexdigest()=='4425dd3469cf53498d2595c3588a38dfa6b8fea780d53b7da0a3c1e58ccb3c8f', 'Scoped root-region reader changed beyond its diagnostic scope'
 baseline_lambda=candidate_lambda.replace(scope_line,'',1)
-assert hashlib.sha256(baseline_lambda.replace(root_timing_line,'',1).encode()).hexdigest()=='8b2fb74424b372da0c4be167cf35bd87f88f8b2fe83ca6e97a58135b0ba61b24', 'Unscoped reference must differ only by its metadata and diagnostic scope lines'
+assert hashlib.sha256(pure_lambda.replace(scope_line,'',1).encode()).hexdigest()=='8b2fb74424b372da0c4be167cf35bd87f88f8b2fe83ca6e97a58135b0ba61b24', 'Unscoped reference must differ only by its metadata and diagnostic scope lines'
 assert all(word not in candidate_lambda for word in ('lookup(', 'typed(', 'compare_fixed', 'current(', 'VirtualProtect', 'store(')), 'Pure root lambda boundary changed'
 anchors=('bool fail(', 'template<class T>bool at(', 'bool vt(', 'bool array(', 'bool list(')
 copy_anchors=('uint32_t copy_native(', 'bool ProcessMemory::copy(')

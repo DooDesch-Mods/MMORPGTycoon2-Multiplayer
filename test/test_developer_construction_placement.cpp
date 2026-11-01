@@ -22,6 +22,8 @@ namespace mt2mp::action_session {
 #include <memory>
 #include "placement_kiss/placement_adapter.h"
 #include "object_identity/remove_runtime/copy/undo_witness.h"
+#include "typed_action/place_trace.h"
+#include "developer_ordered_scope_fixture.h"
 namespace action=mt2mp::action_session;
 namespace developer_staff=mt2mp::game::developer_staff;
 namespace world_state=mt2mp::world_state;
@@ -50,6 +52,16 @@ bool admit_created_dungeon_building(const std::string&,const std::string&,uint64
 bool admit_created_building(const std::string&,const std::string&,uint64_t,std::string&){fixture::calls.push_back("admit");return true;}
 bool resolve_record_target(const std::string&,const std::string&,LocalTarget& out,std::string&){fixture::calls.push_back("resolve");out.normal_scenery=fixture::actual_scenery;out.normal_building=!out.normal_scenery;return true;}
 }
+namespace remove_diagnostics {
+bool admit_ordered_created_building(const action::Binding& b,const action::Request& r,uint64_t uid,std::string& e){
+    fixture::need(b==fixture::binding&&r==fixture::request,"ordered admission changed native command owner");
+    fixture::calls.push_back("ordered-admit");return admit_created_building(r.snapshot_uuid,r.canonical_record_key,uid,e);
+}
+bool resolve_ordered_placement(const action::Binding& b,const action::Request& r,LocalTarget& out,std::string& e){
+    fixture::need(b==fixture::binding&&r==fixture::request,"ordered resolution changed native command owner");
+    fixture::calls.push_back("ordered-resolve");return resolve_record_target(r.snapshot_uuid,r.canonical_record_key,out,e);
+}
+}
 namespace mt2mp::world_state {
 bool bind_root_readback(const Origin&,const std::string& key,const remove_diagnostics::LocalTarget&,const native::BuildingState& in,LocalBinding& out,std::string&){out.state=in;out.object_key=key;out.local_uid=500;return true;}
 }
@@ -75,8 +87,20 @@ out=fixture::building;receipt={{"confirmed",true},{"attempted",true},{"native_ui
 namespace mt2mp::game::developer_staff::construction {
 bool capture_placement(PlacementBefore&,std::string& e){++fixture::captures;fixture::calls.push_back("capture");if(!fixture::capture_ok)e="actual before Job census failure";return fixture::capture_ok;}
 bool finish_placement(const PlacementBefore&,const std::string&,const std::string& key,uint64_t uid,LocalJob& out,std::string& e){++fixture::finishes;fixture::calls.push_back("finish");if(!fixture::finish_ok){e="actual after Job census failure";return false;}if(!fixture::no_job)out={key,0x1234,uid};return true;}
+bool finish_ordered_placement(const PlacementBefore& before,const action::Binding& b,const action::Request& r,const ::remove_diagnostics::LocalTarget& target,LocalJob& out,std::string& e){
+    fixture::need(b==fixture::binding&&r==fixture::request,"ordered construction changed exact binding/request");
+    fixture::calls.push_back("ordered-finish");return finish_placement(before,r.snapshot_uuid,r.canonical_record_key,target.uid,out,e);
+}
+
 }
 #include "construction_clearance_ports.inc"
+namespace mt2mp::game::ui_move_runtime::building_clearance {
+bool run_original(const Snapshot& before,const std::function<bool()>& call,std::string& e){
+    if(!call){e="fixture original placement callback absent";return false;}
+    if(before.local)fixture::need(before.local->binding==fixture::binding&&before.local->request==fixture::request,"original clearance scope borrowed foreign command");
+    return call();
+}
+}
 #include "duplicate_construction_engine_ports.inc"
 namespace typed_action_runtime {json status(){return {{"pending",true},{"action_uuid",fixture::request.action_uuid},{"host_revision",uint64_t(1)}};}}
 struct World {
@@ -118,13 +142,19 @@ struct Runtime {uint32_t thread=1;bool lobby_retiring=false;Session session;Cont
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "construction_runtime_jobs.inc"
 #include "construction_runtime_bug_parent.inc"
-void reset(Runtime& r){clearance_placement_fixture::clear();using namespace fixture;places=finishes=captures=currents=0;capture_ok=finish_ok=commit_ok=current_ok=true;no_job=false;calls.clear();request={};request.action=action::Action::PlaceBuilding;request.action_uuid="11111111-1111-4111-8111-111111111111";request.snapshot_uuid="22222222-2222-4222-8222-222222222222";request.canonical_record_key="action:"+request.action_uuid;context={};context.snapshot_uuid=request.snapshot_uuid;context.session=3;context.role=action::Role::Client;r={};r.controller.context=context;r.controller.binding=binding;published_runtime=&r;}
+void reset(Runtime& r){ordered_test::enabled=false;clearance_placement_fixture::clear();using namespace fixture;places=finishes=captures=currents=0;capture_ok=finish_ok=commit_ok=current_ok=true;no_job=false;calls.clear();request={};request.action=action::Action::PlaceBuilding;request.action_uuid="11111111-1111-4111-8111-111111111111";request.snapshot_uuid="22222222-2222-4222-8222-222222222222";request.canonical_record_key="action:"+request.action_uuid;context={};context.snapshot_uuid=request.snapshot_uuid;context.session=3;context.role=action::Role::Client;r={};r.controller.context=context;r.controller.binding=binding;published_runtime=&r;}
 #include "scenery_placement_receipt_cases.inc"
 #include "loaded_construction_engine_cases.inc"
 #include "duplicate_construction_engine_cases.inc"
 #include "construction_clearance_cases.inc"
 #include "modular_construction_cases.inc"
 int main(){try{using namespace fixture;Runtime runtime;std::string e;std::vector<developer_staff::construction::LocalJob> jobs;
+reset(runtime);ordered_test::bind(context,binding,request);
+need(runtime.engine.perform_place(binding,request,nullptr,e)==action::Outcome::Confirmed,"ordered construction placement failed: "+e);
+need(calls==std::vector<std::string>{"capture","place","remember","ordered-admit","admit","ordered-resolve","resolve","ordered-finish","finish","commit"},"ordered construction bypassed exact admission/resolution/Job route");
+reset(runtime);ordered_test::bind(context,binding,request);finish_ok=false;
+need(runtime.engine.perform_place(binding,request,nullptr,e)==action::Outcome::Unknown&&places==1&&e=="actual after Job census failure","ordered construction lost post-effect failure");
+need(runtime.engine.perform_place(binding,request,nullptr,e)==action::Outcome::Unknown&&places==1,"ordered construction replayed failed native effect");
 loaded_engine_cases();
 duplicate_engine_cases(runtime);
 clearance_placement_cases(runtime);

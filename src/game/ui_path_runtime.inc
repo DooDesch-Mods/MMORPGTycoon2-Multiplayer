@@ -1,6 +1,11 @@
 // Uses the existing Region identity and Terrain side-effect readers in this TU.
 #include "ui_path_runtime.h"
+#include "typed_action/tick_authority.h"
 #include "path_reader.h"
+#include "path_delete_tool.h"
+#include "native_tool_prepare/codeguards.h"
+#include "native_tool_prepare/buy_region.h"
+#include "mt2mp/hooks/original_body.h"
 #include "path_codeguards.h"
 #include "path_history_graph.h"
 #include "mixed_path_state.h"
@@ -9,6 +14,7 @@
 #include "wall_pass_cursor.h"
 #include "wall_private_lifecycle.h"
 #include "wall_private_codes.h"
+#include "wall_history_owner.h"
 #include "building_history_slice/cash_effect.h"
 #include "move_contract.h"
 namespace mt2mp::game::typed_action_runtime {bool submit_path_delete(const std::string&,const action_session::PathDeleteIntent&,std::string&);bool submit_path(const std::string&,const action_session::PathIntent&,std::string&);bool submit_world_path(const std::string&,const action_session::WorldPathIntent&,std::string&);}
@@ -33,10 +39,10 @@ using Press=void(*)(void*,void*,const void*);
 using Purchase=bool(*)(int32_t,float,const void*);
 using Unary=void(*)(void*);
 using RemoveUI=bool(*)(void*,void*);
-struct PendingDelete {action::PathDeleteIntent intent;action::Binding binding;std::string snapshot,token;};
+struct PendingDelete {action::PathDeleteIntent intent;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;};
 struct Graph {action::PathState state;std::vector<uintptr_t> paths,nodes;std::vector<uint64_t> path_uids,node_uids;json rows;};
-struct Pending {native::Preview preview;action::Binding binding;std::string snapshot,token;};
-struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t receiver=0;bool attempted=false,confirmed=false,retired=false,constructed=false;unsigned purchases=0;uint32_t exception=0;std::string cause;std::vector<uint64_t> uids;std::optional<path_history_graph::Snapshot> history_before,history_after;uintptr_t history_graph=0;};
+struct Pending {native::Preview preview;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;};
+struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t receiver=0;bool attempted=false,confirmed=false,retired=false,constructed=false,ordered=false;unsigned purchases=0;uint32_t exception=0;std::string cause;std::vector<uint64_t> uids;std::optional<path_history_graph::Snapshot> history_before,history_after;uintptr_t history_graph=0;};
 struct Runtime {
     bool attempted=false,ready=false;Press press=nullptr;Purchase purchase=nullptr;RemoveUI remove_ui=nullptr;
     uintptr_t ui_receiver=0;Operation* replay=nullptr;
@@ -49,6 +55,46 @@ Runtime path;
 bool fail(std::string& e,const std::string& why){e=why;return false;}
 region::Runtime* runtime(std::string& e){return terrain::runtime(e);}
 void rejected(const std::string& e){++path.rejected;if(path.cause!=e){path.cause=e;LOG_ERROR("[UIPath] Rejected cause={}",e);}}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& error) {
+    if(request.action!=action::Action::PlacePath&&request.action!=action::Action::RemovePath&&request.action!=action::Action::RemoveWorldPath&&request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&
+       !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+                  !request.target_action_uuid.empty()&&request.canonical_record_key=="path:"+request.target_action_uuid))
+        return fail(error,"Ordered path scope requires Road, Wall, Pass, exact Path removal or matching Path history");
+    action::Context context;if(!action::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(error,"Ordered path actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& error) {
+    if(action::tick_commands::authority::active()){
+        if(authority)return fail(error,"Ordered path execution forbids Host result and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !typed_action_runtime::controller_status().value("ordered",false)||fail(error,"Ordered path execution requires consumed command scope");
+}
+bool input_admission(std::string& error) {
+    const auto controller=typed_action_runtime::controller_status();
+    if(!controller.value("started",false)||controller.value("locked",true))return fail(error,"Path input requires started unlocked Controller");
+    if(!controller.value("ordered",false))return !controller.value("pending",true)||fail(error,"Path input requires idle legacy Controller");
+    bool inside=false;action::Binding binding;
+    if(!typed_action_runtime::original_go_admission(inside,error))return false;
+    return inside?typed_action_runtime::read_binding(net::current_snapshot_id(),binding,error):
+        typed_action_runtime::network_binding(net::current_snapshot_id(),binding,error);
+}
+bool capture_context(const std::string& snapshot,const action::Binding& binding,std::optional<action::Context>& out,std::string& error) {
+    out.reset();if(!typed_action_runtime::controller_status().value("ordered",false))return true;
+    action::Context context;action::Binding current;
+    if(!input_admission(error)||!action::selected_session().current(context,error)||
+       context.snapshot_uuid!=snapshot||!typed_action_runtime::read_binding(snapshot,current,error)||current!=binding){
+        if(error.empty())error="Ordered path captured Session/Binding differs";return false;
+    }
+    out=context;return true;
+}
+bool current_capture(const std::optional<action::Context>& expected,const std::string& snapshot,const action::Binding& binding,std::string& error) {
+    if(!expected)return !typed_action_runtime::controller_status().value("ordered",false)||fail(error,"Ordered path captured Session is absent");
+    std::optional<action::Context> actual;
+    if(!capture_context(snapshot,binding,actual,error))return false;
+    return actual==expected||fail(error,"Ordered path captured Session changed");
+}
 bool native_error(uint32_t seh,const char* operation,std::string& e){return !seh||fail(e,std::string("path original ")+operation+" SEH="+std::to_string(seh));}
 uint32_t enums(uintptr_t image,int32_t& road,int32_t& node) {
     const region::NativeString a{"Road",4,{}},b{"RoadNode",8,{}};
@@ -102,6 +148,19 @@ bool graph(region::Runtime& r,const region::LocalView& view,Graph& out,std::stri
     }
     out.rows={{"paths",rows},{"nodes",node_rows}};out.state.paths=out.paths.size();out.state.nodes=out.nodes.size();
     return region::sha256(out.rows.dump(),out.state.graph_sha256,e);
+}
+bool settled_geometry(const Graph& immediate,const Graph& settled,std::string& e){
+        if(settled.path_uids!=immediate.path_uids||settled.node_uids!=immediate.node_uids){e="Path terrain settlement changed committed identities";return false;}
+        for(size_t i=0;i<settled.paths.size();++i)for(size_t endpoint=0;endpoint<2;++endpoint)
+            if(settled.rows["paths"][i][endpoint]!=immediate.rows["paths"][i][endpoint]){e="Path terrain settlement changed endpoint topology";return false;}
+        for(size_t i=0;i<settled.nodes.size();++i)if(settled.rows["nodes"][i][1]!=immediate.rows["nodes"][i][1]){e="Path terrain settlement changed reciprocal topology";return false;}
+        for(size_t i=0;i<settled.paths.size();++i){const auto& old=immediate.rows["paths"][i][2];const auto& now=settled.rows["paths"][i][2];
+            if(old.size()!=now.size()){e="Path terrain settlement changed waypoint count";return false;}
+            for(size_t j=0;j<now.size();++j)if(old[j][0]!=now[j][0]||old[j][2]!=now[j][2]){e="Path terrain settlement changed waypoint XZ";return false;}
+        }
+        for(size_t i=0;i<settled.nodes.size();++i)for(auto axis:{0,2})
+            if(settled.rows["nodes"][i][0][axis]!=immediate.rows["nodes"][i][0][axis]){e="Path terrain settlement changed node XZ";return false;}
+    return true;
 }
 bool endpoint_binding(const Graph& graph,const action::PathIntent& intent,std::string& e) {
     if(!action::valid_path(intent))return fail(e,"path endpoint intent invalid");
@@ -169,7 +228,9 @@ bool capture(region::Runtime& r,int32_t type,float length,const void* position,s
     if(type!=preview.type||length!=preview.intent.quoted_length||point!=preview.intent.end)return fail(e,"path actual Purchase parameters differ from preview");
     region::LocalView view;if(!region::identity(r,preview.intent.region,preview.region,view,e))return false;
     Graph actual;if(!graph(r,view,actual,e)||!bind_preview(actual,preview,e))return false;
-    path.captured=Pending{preview,{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),path.token};return true;
+    std::optional<action::Context> context;
+    if(!capture_context(net::current_snapshot_id(),{view.world.origin.world_epoch,view.world.origin.generation},context,e))return false;
+    path.captured=Pending{preview,{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),path.token,std::move(context)};return true;
 }
 bool purchase_entry(int32_t type,float length,const void* point) {
     std::string e;auto* r=runtime(e);const auto caller=uintptr_t(_ReturnAddress());
@@ -196,7 +257,7 @@ bool purchase_entry(int32_t type,float length,const void* point) {
 void press_entry(void* receiver,void* cursor,const void* point) {
     if(!path.ready||!net::session_wire::connected()||path.replay){path.press(receiver,cursor,point);return;}
     std::string e;auto* r=runtime(e);const auto controller=typed_action_runtime::status();
-    if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||path.pending||path.captured||path.delete_pending||path.ui_receiver||world_path_runtime::pending()){rejected(e.empty()?"path UI requires idle bound Controller":e);return;}
+    if(!r||!input_admission(e)||path.pending||path.captured||path.delete_pending||path.ui_receiver||world_path_runtime::pending()){rejected(e.empty()?"path UI requires idle bound Controller":e);return;}
     action::Ledger before,after;undo::UndoWitness undo_before,undo_after;
     if(!region::ledger(before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||undo_before.active_graph){rejected(e.empty()?"path UI requires idle Undo":e);return;}
     action::PathPoint actual_point{};if(!r->memory.copy(uintptr_t(point),actual_point.data(),sizeof(actual_point),e)){rejected(e);return;}
@@ -214,9 +275,11 @@ void press_entry(void* receiver,void* cursor,const void* point) {
 #include "world_path_sample.inc"
 #include "world_path_capture.inc"
 #include "world_path_wall_native.inc"
+#include "world_path_wall_owner.inc"
 #include "world_path_remove.inc"
 #include "world_path_remove_ui.inc"
 #include "world_path_replay.inc"
+#include "world_path_diagnostics.inc"
 #include "path_delete_execution.inc"
 #include "path_execution.inc"
 #include "world_path_history.inc"

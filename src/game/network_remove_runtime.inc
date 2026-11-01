@@ -6,10 +6,32 @@ namespace region=ui_region_runtime;namespace graph_reader=connected_network_nati
 using json=nlohmann::json;
 struct Operation {a::Binding binding;a::Request request;a::Evidence evidence;ui::LocalBinding target;
     std::map<std::string,network_identity::ObjectEntry> before;std::vector<std::string> removed;
-    bool attempted=false,returned=false,confirmed=false,retired=false;uint64_t original_calls=0;std::string cause;};
+    bool attempted=false,returned=false,confirmed=false,retired=false,ordered=false;uint64_t original_calls=0;std::string cause;};
 std::map<std::string,Operation> operations;
 const ui::Replay* active_replay=nullptr;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
+struct Pending {ui::Intent intent;a::NetworkRemoveIntent payload;a::Binding binding;std::string snapshot;std::optional<a::Context> context;network_identity::ObjectEntry target;};
+std::optional<Pending> pending;
+bool capture_fault=false;uint64_t captured=0,submitted=0;std::string capture_cause;
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& e){
+    a::Context context;if(request.action!=a::Action::RemoveNetworkObject)return fail(e,"Ordered Network Remove scope action differs");
+    if(!a::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(e,"Ordered Network Remove actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* host,bool& ordered,std::string& e){
+    ordered=a::tick_commands::authority::active();
+    if(ordered){if(host)return fail(e,"Ordered Network Remove forbids Host result adoption");return ordered_scope(binding,request,e);}
+    return !typed_action_runtime::controller_status().value("ordered",false)||fail(e,"Ordered Network Remove requires consumed command scope");
+}
+bool input_binding(const std::string& snapshot,a::Binding& binding,std::string& e){
+    if(!typed_action_runtime::controller_status().value("ordered",false))return typed_action_runtime::network_binding(snapshot,binding,e);
+    return nr::input_admission(e)&&typed_action_runtime::read_binding(snapshot,binding,e);
+}
+void capture_failed(const std::string& e){
+    capture_fault=true;if(capture_cause!=e){capture_cause=e;LOG_ERROR("[NetworkRemove] retained input cause={}; no replay",e);}
+}
+
 bool current(region::Runtime& r,const a::Binding& binding,const std::string& snapshot,int32_t id,region::LocalView& view,std::string& e){
     return GetCurrentThreadId()==r.thread&&region::identity(r,id,0,view,e)&&region::bound(view,binding,snapshot,e);
 }
@@ -79,26 +101,37 @@ bool local_binding(uintptr_t manager,uintptr_t object,ui::LocalBinding& out,std:
         if(!authorize(*active_replay,e))return false;out=active_replay->binding;return true;}
     auto* r=nr::runtime(e);if(!r)return false;uint64_t uid=0;std::string key;network_identity::ObjectEntry entry;
     if(!region::at(*r,object,0x18,uid,e)||!network_identity::object_key(object,uid,key,entry,e))return false;
-    const auto snapshot=net::current_snapshot_id();a::Binding binding;if(!typed_action_runtime::network_binding(snapshot,binding,e))return false;
+    const auto snapshot=net::current_snapshot_id();a::Binding binding;if(!input_binding(snapshot,binding,e))return false;
     return bound_target(binding,snapshot,manager,key,out,e);
 }
 bool submit(const ui::Intent& intent,std::string& e){
+    if(pending||capture_fault)return fail(e,"Network Remove has retained or failed input - no replay");
     auto* r=nr::runtime(e);if(!r)return false;a::Binding binding;network_identity::ObjectEntry target;
-    if(!typed_action_runtime::network_binding(intent.snapshot_uuid,binding,e)||!network_identity::object_target(intent.canonical_record_key,target,e))return false;
+    if(!input_binding(intent.snapshot_uuid,binding,e)||!network_identity::object_target(intent.canonical_record_key,target,e))return false;
     region::LocalView view;a::NetworkRemoval before;std::map<std::string,network_identity::ObjectEntry> entries;int32_t refund=0;
     if(!current(*r,binding,intent.snapshot_uuid,target.region_id,view,e)||!census(*r,view,before,entries,e)||!cost(*r,target,refund,e))return false;
+    std::optional<a::Context> context;
+    if(!nr::capture_context(intent.snapshot_uuid,binding,context,e))return false;
+    if(context){pending=Pending{intent,{target.region_id,before.graph.graph_sha256,refund},binding,intent.snapshot_uuid,context,target};++captured;return true;}
     return typed_action_runtime::submit_network_remove(intent.action_uuid,intent.canonical_record_key,{target.region_id,before.graph.graph_sha256,refund},e);
 }
 bool authorize(const ui::Replay& replay,std::string& e){
     const auto it=operations.find(replay.intent.action_uuid);const auto controller=typed_action_runtime::controller_status();
     if(!active_replay||it==operations.end()||active_replay->binding!=replay.binding||active_replay->intent.action_uuid!=replay.intent.action_uuid||
        active_replay->purpose!=replay.purpose||!replay.binding.supported_network||!it->second.attempted||it->second.returned||
-       !controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=replay.intent.action_uuid||
-       (replay.purpose==ui::ReplayPurpose::HostExecution)!=Config::instance().is_host)return fail(e,"Network Remove private original authority differs");
+       replay.intent.snapshot_uuid!=it->second.request.snapshot_uuid||replay.intent.canonical_record_key!=it->second.request.canonical_record_key||
+       !controller.value("started",false)||controller.value("locked",true))return fail(e,"Network Remove private original owner differs");
+    if(it->second.ordered){
+        if(replay.purpose!=ui::ReplayPurpose::OrderedExecution||!ordered_scope(it->second.binding,it->second.request,e))
+            return fail(e,e.empty()?"Ordered Network Remove private replay lacks consumed authority":e);
+    }else if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=replay.intent.action_uuid||
+             replay.purpose==ui::ReplayPurpose::OrderedExecution||(replay.purpose==ui::ReplayPurpose::HostExecution)!=Config::instance().is_host)
+        return fail(e,"Network Remove legacy private original authority differs");
     ui::LocalBinding current;
     return bound_target(it->second.binding,it->second.request.snapshot_uuid,replay.binding.manager,it->second.request.canonical_record_key,current,e)&&current==replay.binding;
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* host,std::string& e){
+    bool ordered=false;if(!execution_admission(binding,request,host,ordered,e))return a::Outcome::RejectedNoEffect;
     auto* r=nr::runtime(e);if(!r)return a::Outcome::RejectedNoEffect;
     if(request.action!=a::Action::RemoveNetworkObject||operations.contains(request.action_uuid)||active_replay||!ui_remove_runtime::enabled()){
         e="Network Remove requires fresh action and enabled original DestroyProps route";return a::Outcome::RejectedNoEffect;}
@@ -111,9 +144,9 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     ui::LocalBinding local;if(!bound_target(binding,request.snapshot_uuid,view.world.selection,request.canonical_record_key,local,e))return a::Outcome::RejectedNoEffect;
     connected_network_native::Graph original_graph;a::NetworkState original_state;network_history_runtime::Snapshot history_before;
     if(!nr::graph(*r,view,original_graph,original_state,e)||!network_history_runtime::capture(original_graph,{},history_before,e))return a::Outcome::RejectedNoEffect;
-    auto& op=operations[request.action_uuid];op.binding=binding;op.request=request;op.before=entries;op.target=local;op.evidence.before=money;op.evidence.network_removal_before=before;
+    auto& op=operations[request.action_uuid];op.binding=binding;op.request=request;op.ordered=ordered;op.before=entries;op.target=local;op.evidence.before=money;op.evidence.network_removal_before=before;
     auto unknown=[&](){if(e.empty())e="Network Remove native result is Unknown";op.cause=e;LOG_ERROR("[NetworkRemove] action={} cause={}",request.action_uuid,e);return a::Outcome::Unknown;};
-    ui::Replay replay{host?ui::ReplayPurpose::ConfirmedHostApplication:ui::ReplayPurpose::HostExecution,{request.action_uuid,request.snapshot_uuid,request.canonical_record_key},local};
+    ui::Replay replay{ordered?ui::ReplayPurpose::OrderedExecution:(host?ui::ReplayPurpose::ConfirmedHostApplication:ui::ReplayPurpose::HostExecution),{request.action_uuid,request.snapshot_uuid,request.canonical_record_key},local};
     const auto calls=ui_remove_runtime::status().value("replay_originals",uint64_t{});op.attempted=true;bool ok=false;
     {active_replay=&replay;struct Reset{~Reset(){active_replay=nullptr;}} reset;
         ok=ui_remove_runtime::with_replay(replay,[&](std::string& cause){const auto seh=destroy(r->image,local.manager,local.object);return !seh||fail(cause,"Network original DestroyProp SEH="+std::to_string(seh));},e);}
@@ -133,17 +166,34 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
 }
 bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& out,std::string& e){
     const auto it=operations.find(request.action_uuid);if(it==operations.end()||it->second.binding!=binding||it->second.request!=request||!it->second.confirmed)return fail(e,"Network Remove observation lacks confirmed exact request");
+    if(it->second.ordered&&!ordered_scope(binding,request,e))return false;
     auto* r=nr::runtime(e);if(!r||!actual_after(*r,it->second,it->second.retired,e))return false;out=it->second.evidence;return true;
 }
 bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
     const auto it=operations.find(request.action_uuid);if(it==operations.end()||it->second.binding!=binding||it->second.request!=request||!it->second.confirmed||it->second.retired)return fail(e,"Network Remove retirement lacks fresh confirmed exact request");
+    if(it->second.ordered&&!ordered_scope(binding,request,e))return false;
     auto* r=nr::runtime(e);if(!r||!actual_after(*r,it->second,false,e))return false;
     for(const auto& key:it->second.removed){const auto& old=it->second.before.at(key);if(!network_identity::retire_object(key,old.pointer,old.uid,e))return false;}
     if(!network_history_runtime::retire_source(binding,request,e))return false;
     it->second.retired=true;it->second.evidence.retirement_confirmed=true;return true;
 }
-bool unresolved(){for(const auto& [key,op]:operations){(void)key;if(!op.retired)return true;}return false;}
-json status(){json out=json::object();for(const auto& [id,op]:operations)out[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"original_calls",op.original_calls},{"local_uid",op.target.uid},{"removed",op.removed},{"cause",op.cause},
+void tick(){
+    if(!pending||capture_fault)return;std::string e;bool ready=false;
+    if(!nr::capture_ready(*pending,ready,e)){capture_failed(e);return;}if(!ready)return;
+    auto* r=nr::runtime(e);network_identity::ObjectEntry target;region::LocalView view;
+    a::NetworkRemoval actual;std::map<std::string,network_identity::ObjectEntry> entries;int32_t refund=0;
+    if(!r||!network_identity::object_target(pending->intent.canonical_record_key,target,e)||target!=pending->target||
+       !current(*r,pending->binding,pending->snapshot,target.region_id,view,e)||!census(*r,view,actual,entries,e)||
+       !cost(*r,target,refund,e)||actual.graph.graph_sha256!=pending->payload.graph_before_sha256||refund!=pending->payload.quoted_refund){
+        capture_failed(e.empty()?"Network Remove held target/full graph/refund changed":e);return;}
+    const auto value=*pending;pending.reset();
+    if(!typed_action_runtime::submit_network_remove(value.intent.action_uuid,value.intent.canonical_record_key,value.payload,e)){
+        capture_failed(e.empty()?"Network Remove held submission failed":e);return;}
+    ++submitted;
+}
+json capture_status(){return {{"pending",bool(pending)},{"captured",captured},{"submitted",submitted},{"failed",capture_fault},{"cause",capture_cause}};}
+bool unresolved(){if(pending||capture_fault)return true;for(const auto& [key,op]:operations){(void)key;if(!op.retired)return true;}return false;}
+json status(){json out=json::object();for(const auto& [id,op]:operations)out[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"original_calls",op.original_calls},{"ordered",op.ordered},{"canonical_record_key",op.request.canonical_record_key},{"quoted_refund",op.request.network_remove.quoted_refund},{"ledger_before",a::management_ledger_observation(op.evidence.before)},{"ledger_after",a::management_ledger_observation(op.evidence.after)},{"undo_confirmed",op.evidence.undo_confirmed},{"selection_confirmed",op.evidence.selection_confirmed},{"target_retired",op.evidence.target_retired},{"retirement_confirmed",op.evidence.retirement_confirmed},{"local_uid",op.target.uid},{"removed",op.removed},{"cause",op.cause},
     {"before",op.evidence.network_removal_before?json{{"graph_sha256",op.evidence.network_removal_before->graph.graph_sha256},{"identities_sha256",op.evidence.network_removal_before->identities_sha256}}:json(nullptr)},
     {"after",op.evidence.network_removal_after?json{{"graph_sha256",op.evidence.network_removal_after->graph.graph_sha256},{"identities_sha256",op.evidence.network_removal_after->identities_sha256}}:json(nullptr)}};return out;}
 }

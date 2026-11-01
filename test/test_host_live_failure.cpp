@@ -28,6 +28,7 @@ namespace mt2mp {
 struct Config {bool is_host=true;static Config& instance(){static Config config;return config;}};
 namespace game::network_identity {void invalidate_world(const std::string&){++fixture::invalidations;}}
 namespace net {
+static bool ordered_snapshot=false;static std::string ordered_failure;
 static bool snapshot_failed=false,snapshot_world_valid=true,receiving=false,load_pending=false,outbound_active=false;
 static uint64_t discarded_after_failure=0;
 static std::string snapshot_failure,status,incoming_id=fixture::id,last_loaded=fixture::id,outbound_id=fixture::id;
@@ -41,6 +42,7 @@ bool send(uint8_t channel,const uint8_t* bytes,uint32_t size,uint64_t target){
 }
 std::string failure_reason(){return fixture::queue_ok?"":"original queue failure";}
 }
+bool snapshot_host(){return Config::instance().is_host;}
 #include "host_failure_snapshot.inc"
 uint64_t current_world_epoch(){return snapshot_world_valid&&!snapshot_failed?77:0;}
 json snapshot_progress(){return {{"first_failure",snapshot_failure}};}
@@ -49,6 +51,12 @@ json snapshot_progress(){return {{"first_failure",snapshot_failure}};}
 namespace action=mt2mp::action_session;
 namespace mt2mp::action_session {
 #include "host_failure_callback.inc"
+struct Controller::Ordered {
+    struct Queue {struct State{unsigned queued=0,in_flight=0;};State state()const{return {};}}queue;
+    std::optional<Request> captured;uint64_t capture_deadline=0;std::deque<int> waiting;
+};
+Controller::~Controller()=default;
+bool Controller::ordered_tick(std::string& e){e="unexpected ordered controller in legacy failure fixture";return false;}
 #include "host_failure_controller.inc"
 bool Controller::result(const Message&,std::string&){throw std::runtime_error("unexpected pending native result");}
 bool Controller::finish(Outcome,const std::string&,std::string&){throw std::runtime_error("unexpected pending native finish");}
@@ -90,6 +98,7 @@ struct Live {unsigned captures=0;bool okay=false;std::string failure=fixture::or
     const std::string& publication_wait(){return wait;}
 };
 struct Runtime {
+    bool ordered_steps=false;
     fixture::Session session;fixture::Engine engine;fixture::Transport transport;action::Controller controller;
     std::unique_ptr<Live> live_state=std::make_unique<Live>();
     bool lobby_retiring=false,live_failure_terminal=false;std::string live_error,live_publication_wait;
@@ -99,6 +108,8 @@ struct Runtime {
     }
 };
 std::atomic<Runtime*> published_runtime{nullptr};
+bool ordered_mode_selected(){return false;}
+void tick_ordered_time_input(){}
 void weapon_bootstrap(Runtime&){++fixture::action_ticks;}
 #define IDLE_TICK(name) namespace name {void tick(){++fixture::action_ticks;}}
 IDLE_TICK(ui_move_runtime) IDLE_TICK(ui_region_runtime) IDLE_TICK(ui_price_runtime)

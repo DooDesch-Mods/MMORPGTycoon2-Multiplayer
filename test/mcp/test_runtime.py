@@ -169,6 +169,30 @@ class RuntimeTests(unittest.TestCase):
         self.assertFalse((self.diagnostics / "request.lock").exists())
         self.assertEqual(read_json(self.diagnostics / "request.json"), request)
 
+    def test_large_snapshot_response_keeps_identity_schema_and_no_replay(self):
+        request, response = self.large_pending_response("capture_local_snapshot")
+        for field in ("id", "run_id"):
+            wrong = {**response, field: str(uuid.uuid4())}
+            atomic_json(self.diagnostics / "response.json", wrong, max_bytes=20 * 1024 * 1024)
+            self.assertIs(self.runtime.observe_pending()["pending"], True)
+            self.assertTrue((self.diagnostics / "request.lock").exists())
+        atomic_json(self.diagnostics / "response.json", {**response, "ok": 1}, max_bytes=20 * 1024 * 1024)
+        self.assert_error("invalid_response", self.runtime.observe_pending)
+        atomic_json(self.diagnostics / "response.json", response, max_bytes=20 * 1024 * 1024)
+        observed = self.runtime.observe_pending()
+        self.assertFalse(observed["pending"])
+        self.assertEqual(observed["response"], response)
+        self.assertEqual(read_json(self.diagnostics / "request.json"), request)
+        self.assertFalse((self.diagnostics / "request.lock").exists())
+
+    def test_snapshot_response_still_bounded_to_twenty_megabytes(self):
+        request, response = self.large_pending_response("capture_local_snapshot")
+        response["result"]["native_economy"]["rows"] = "x" * (20 * 1024 * 1024)
+        atomic_json(self.diagnostics / "response.json", response, max_bytes=21 * 1024 * 1024)
+        self.assert_error("oversize_json", self.runtime.observe_pending)
+        self.assertTrue((self.diagnostics / "request.lock").exists())
+        self.assertEqual(read_json(self.diagnostics / "request.json"), request)
+
     def test_large_mutation_response_still_rejected_with_lock_retained(self):
         request, response = self.large_pending_response("set_time_scale")
         atomic_json(self.diagnostics / "response.json", response, max_bytes=20 * 1024 * 1024)

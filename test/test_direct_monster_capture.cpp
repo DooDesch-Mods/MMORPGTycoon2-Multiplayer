@@ -8,7 +8,7 @@ struct Origin{uintptr_t mode=99;};struct World{Origin origin;};struct Region{uin
 struct ToolPin{uintptr_t behaviour=100,cursor=200;std::array<int32_t,2> character_id{1,0};int rank=1,level=1;uint8_t loose=0;};
 struct LevelState{json output={{"ready",true}};};
 namespace d{struct Sample{int state=0;struct{uintptr_t active_graph=0;}undo;};json sample_json(const Sample& s){return s.state;}}
-struct Pending{a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;};
+struct Pending{a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;std::optional<a::Context> context;};
 struct Runtime{uintptr_t image=0x140000000;uint32_t thread=7;bool replaying=false,ready=true,fault=false;
  std::optional<Pending> pending;uint64_t captures=0;std::string cause,ui_token;std::map<std::string,json> ui_jobs;void(*release)(void*,void*,const float*)=nullptr;}state;
 bool connected=true;unsigned thread=7,original_calls=0,read_count=0;std::string fault;
@@ -18,9 +18,18 @@ void* test_return_address(){return reinterpret_cast<void*>(state.image+0x587e6c+
 #define _ReturnAddress test_return_address
 bool reject(const std::string& e){state.cause=e;return false;}
 bool gate(const char* name,std::string& e){if(fault==name){e=std::string(name)+" failed";return false;}return true;}
+bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 namespace typed_action_runtime{
 json controller_status(){return {{"started",true},{"locked",fault=="locked"},{"pending",false}};}
-bool network_binding(const std::string&,a::Binding& b,std::string& e){b={3,4};return gate("binding",e);}}
+bool network_binding(const std::string&,a::Binding& b,std::string& e){b={3,4};return gate("binding",e);}
+bool read_binding(const std::string&,a::Binding&,std::string& e){return fail(e,"unexpected ordered binding in legacy capture");}
+bool original_go_admission(bool&,std::string& e){return fail(e,"unexpected ordered original Go in legacy capture");}}
+namespace mt2mp::action_session {
+Session& selected_session(){struct Missing final:Session{
+    bool current(Context&,std::string& e)override{return fail(e,"unexpected ordered Session in legacy capture");}
+};static Missing missing;return missing;}
+}
+#include "monster_capture_helpers.inc"
 bool code(Memory&,bool,std::string& e){return gate("code",e);}
 bool tools(Memory&,uintptr_t,ToolPin& t,json&,std::string& e){t={};return gate("tool",e);}
 template<class T>bool field(Memory&,uintptr_t,size_t offset,T& out,std::string& e){

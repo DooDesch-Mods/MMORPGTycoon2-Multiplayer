@@ -15,7 +15,7 @@ for source, begin, end, output in [
     ('src/game/npc_quest_target_runtime.cpp', 'bool validate_scene(', '\nbool current(', 'dungeon_quest_seal_actual.inc'),
     ('src/game/monster_saved_identity_runtime.cpp', 'void reset(', '\nbool context(', 'saved_monster_reset_actual.inc'),
     ('src/game/monster_saved_identity_runtime.cpp', 'bool arm_client(', '\nvoid cancel(', 'saved_monster_load_finish_actual.inc'),
-    ('src/game/monster_saved_identity_runtime.cpp', 'bool prepare_load(', '\nbool write_companion(', 'saved_monster_prepare_actual.inc'),
+    ('src/game/monster_saved_identity_runtime.cpp', 'bool prepare_load(', '\nbool read_prepared_region_rng(', 'saved_monster_prepare_actual.inc'),
     ('src/game/network_object_identity_runtime.inc', 'bool prepare_aliases(', '\nbool snapshot_aliases(', 'saved_network_original_load_actual.inc'),
     ('src/game/network_identity.cpp', 'bool begin_client_load(', '\nvoid observe_client_registered(', 'saved_network_begin_load_actual.inc'),
     ('src/game/network_identity.cpp', 'void invalidate_world(', '\nnlohmann::json status_json(', 'saved_network_invalidate_actual.inc'),

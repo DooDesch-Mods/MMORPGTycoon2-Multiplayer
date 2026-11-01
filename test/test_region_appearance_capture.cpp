@@ -30,6 +30,7 @@ struct Runtime {Memory memory;uintptr_t image=0x140000000;bool admitted=true;uns
 struct LocalView {struct {uintptr_t selection=0x4000;} world;};
 bool fail(std::string& e,const std::string& text){e=text;return false;}
 template<class T>bool at(Runtime& r,uintptr_t p,size_t off,T& out,std::string& e){return r.memory.copy(p+off,&out,sizeof out,e);}
+bool property_capture_admit(Runtime& r,std::string& e){return r.admitted||fail(e,"Controller pending");}
 bool property_admit(Runtime& r,std::string& e){return r.admitted||fail(e,"Controller pending");}
 bool identity(Runtime&,int32_t id,uintptr_t region,LocalView&,std::string& e){return (id==67&&region==0x2000)||fail(e,"current Region differs");}
 bool property_capture(Runtime& r,const action::RegionPropertyIntent& value,uintptr_t region,std::string& e){

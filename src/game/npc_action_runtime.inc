@@ -6,11 +6,11 @@ namespace ui=action::ui_capture;
 using Release=void(__fastcall*)(void*,void*,const float*);
 struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string snapshot,key;};
 std::optional<PropertyPending> property_pending;
-struct Pending {action::NpcIntent intent;action::Binding binding;std::string snapshot,token;};
+struct Pending {action::NpcIntent intent;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;};
 struct Operation {
     action::Binding binding;action::Request request;action::Evidence evidence;
     uint64_t local_uid=0;uintptr_t local_pointer=0;
-    unsigned attempted=0,returned=0;bool confirmed=false,retired=false;
+    unsigned attempted=0,returned=0;bool confirmed=false,retired=false,ordered=false;
     std::string target_action_uuid;
     int32_t target_region=-1,target_type=-1;
     uint32_t destroyprops_original_calls=0;
@@ -33,11 +33,49 @@ struct Runtime {
     const ui::Replay* remove_replay=nullptr;
     std::map<std::string,json> ui_jobs;std::string diagnostic_token;
     std::string move_ui_token;
+    std::optional<action::Context> move_context;
     uint64_t captures=0,submits=0,rejections=0;std::string last_action,cause,install_cause;
 };
 Runtime state;
 void rejected(const std::string& cause) {
     ++state.rejections;if(state.cause!=cause){state.cause=cause;LOG_ERROR("[UINPC] {}",cause);}
+}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& error) {
+    if(request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC)
+        return fail(error,"Ordered NPC scope requires Place, Move or Remove");
+    action::Context context;if(!action::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(error,"Ordered NPC actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& error) {
+    if(action::tick_commands::authority::active()){
+        if(authority)return fail(error,"Ordered NPC execution forbids Host result state and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !typed_action_runtime::controller_status().value("ordered",false)||
+        fail(error,"Ordered NPC execution requires current consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,action::Binding& binding,std::string& error) {
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,error))return false;
+        if(inside)return typed_action_runtime::read_binding(snapshot,binding,error);
+    }
+    return typed_action_runtime::network_binding(snapshot,binding,error);
+}
+bool capture_context(const std::string& snapshot,const action::Binding& binding,std::optional<action::Context>& out,std::string& error) {
+    out.reset();if(!typed_action_runtime::controller_status().value("ordered",false))return true;
+    action::Context context;action::Binding actual;
+    if(!action::selected_session().current(context,error)||context.snapshot_uuid!=snapshot||
+       !capture_binding(snapshot,actual,error)||actual!=binding){
+        if(error.empty())error="Ordered NPC input Context/Binding differs";return false;
+    }
+    out=context;return true;
+}
+bool current_capture(const std::optional<action::Context>& expected,const std::string& snapshot,const action::Binding& binding,std::string& error) {
+    if(!expected)return true;
+    std::optional<action::Context> actual;
+    if(!capture_context(snapshot,binding,actual,error))return false;
+    return actual==expected||fail(error,"Ordered NPC captured Session changed");
 }
 bool same_world(const host::WorldState& a,const host::WorldState& b) {
     return host::same_world(a.origin,b.origin)&&a.root==b.root&&a.saves==b.saves&&
@@ -49,18 +87,29 @@ action::NpcActor actor(const npc_census::Row& row) {
 bool read_effect(Memory& memory,uintptr_t image,uintptr_t region,uint64_t created_uid,
                  action::NpcState& output,action::Ledger& ledger,undo::UndoWitness& witness,
                  npc_census::State& census,std::string& error,bool quest_pool=false,
-                 json* task_receipt=nullptr) {
-    if(!npc_census::read(memory,image,region,census,error)||
-       !undo::read_undo(memory.process,image,witness,error))return false;
+                 json* task_receipt=nullptr,const std::string& trace={},const char* phase="npc.effect") {
+    return action::place_trace::run(trace,phase,error,[&] {
+    if(!action::place_trace::run(trace,"npc.effect.census",error,[&]{return npc_census::read(memory,image,region,census,error);})||
+       !action::place_trace::run(trace,"npc.effect.undo",error,[&]{return undo::read_undo(memory.process,image,witness,error);}))return false;
     native::SimulationState money;
-    if(!native::read_simulation_state(money,error))return false;
+    if(!action::place_trace::run(trace,"npc.effect.ledger",error,[&]{return native::read_simulation_state(money,error);}))return false;
     ledger={money.cash,money.clock.flat_day,int32_t(money.record_present),money.record_day,
         money.record_cash,money.record_income,money.record_expense,money.line_counts,money.line_income};
     int32_t saved_region=-1;
     if(!field(memory,region,0x834,saved_region,error)||saved_region<0)return fail(error,
         error.empty()?"NPC effect saved Region ID invalid":error);
-    return quest_bridge::effect_rows(memory,image,saved_region,created_uid,census,witness.undo.size(),
-                                     quest_pool,output,task_receipt,error);
+    quest_bridge::ReadCost cost;
+    const bool result=action::place_trace::run(trace,"npc.effect.quests",error,[&]{
+        return quest_bridge::effect_rows(memory,image,saved_region,created_uid,census,witness.undo.size(),
+                                        quest_pool,output,task_receipt,error,trace.empty()?nullptr:&cost);});
+    if(!trace.empty()){
+        const auto details="pools="+std::to_string(cost.pools)+" pool_us="+std::to_string(cost.pool_us)+
+            " records="+std::to_string(cost.records)+" record_us="+std::to_string(cost.record_us)+
+            " bindings="+std::to_string(cost.bindings)+" binding_us="+std::to_string(cost.binding_us);
+        action::place_trace::event(trace,"npc.effect.quest_cost","counts",int(result),0,details);
+    }
+    return result;
+    });
 }
 bool bound(const host::WorldState& world,const action::Binding& binding,
            const std::string& snapshot,std::string& error) {
@@ -93,10 +142,10 @@ void release_entry(void* receiver,void* cursor,const float* point) {
     }
     std::string error;const auto controller=typed_action_runtime::controller_status();
     if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x587e6c||
-       !controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||
+       !controller.value("started",false)||controller.value("locked",true)||
        state.pending||state.capture_failed){rejected("NPC original Release requires ready idle Controller and exact cursor caller");return;}
     const auto snapshot=net::current_snapshot_id();action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,error)){rejected(error);return;}
+    if(!capture_binding(snapshot,binding,error)){rejected(error);return;}
     Memory memory;host::LookupApi api;
     if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error)){rejected(error);return;}
     host::NativeOrigin origin;host::Reader reader(memory.process,origin,state.image,state.thread,api);
@@ -153,9 +202,11 @@ void release_entry(void* receiver,void* cursor,const float* point) {
         intent.region,region,resolved,read_field,error)||resolved!=region){
         rejected(error.empty()?"NPC Release saved Region identity differs":error);return;}
     npc_census::State census;undo::UndoWitness undo_before;action::Ledger money;action::NpcState before;
-    if(!read_effect(memory,state.image,region,0,before,money,undo_before,census,error,intent.type==0)||undo_before.active_graph){
+    if(!read_effect(memory,state.image,region,0,before,money,undo_before,census,error,intent.type==0,nullptr,state.diagnostic_token,"npc.capture.effect")||undo_before.active_graph){
         rejected(error.empty()?"NPC Release requires idle native Undo":error);return;}
-    state.pending=Pending{intent,binding,snapshot,state.diagnostic_token};++state.captures;
+    std::optional<action::Context> context;
+    if(!capture_context(snapshot,binding,context,error)){rejected(error);return;}
+    state.pending=Pending{intent,binding,snapshot,state.diagnostic_token,std::move(context)};++state.captures;
     if(!state.diagnostic_token.empty()){
         auto& job=state.ui_jobs.at(state.diagnostic_token);job["captured"]=true;
         job["capture_count"]=state.captures;job["intent"]={{"region",intent.region},
@@ -204,7 +255,7 @@ bool enable(std::string& error) {
         if(!state.release||state.pending)return fail(error,"NPC ready Release trampoline/pending state invalid");
         for(const auto& [id,op]:state.operations)if(!op.retired)
             return fail(error,"NPC previous session has unretired action="+id);
-        state.operations.clear();state.ui_jobs.clear();state.move_ui_token.clear();state.capture_failed=false;
+        state.operations.clear();state.ui_jobs.clear();state.move_ui_token.clear();state.move_context.reset();state.capture_failed=false;
         state.cause.clear();state.last_action.clear();error.clear();return property_enable(error);
     }
     if(state.install_attempted)return fail(error,"NPC Release hook prior installation failed: "+state.install_cause);
@@ -222,6 +273,13 @@ bool enable(std::string& error) {
     state.ready=true;state.install_cause.clear();error.clear();return property_enable(error);
 }
 void tick() {
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        bool inside=false;std::string error;
+        if(!typed_action_runtime::original_go_admission(inside,error)){
+            state.pending.reset();state.capture_failed=true;rejected(error);return;
+        }
+        if(inside)return;
+    }
     property_tick();
     const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:state.ui_jobs){
@@ -236,11 +294,12 @@ void tick() {
     if(!state.pending)return;const auto pending=*state.pending;state.pending.reset();
     std::string error;action::Binding binding;
     if(pending.snapshot!=net::current_snapshot_id()||
-       !typed_action_runtime::network_binding(pending.snapshot,binding,error)||binding!=pending.binding){
+       !typed_action_runtime::network_binding(pending.snapshot,binding,error)||binding!=pending.binding||
+       !current_capture(pending.context,pending.snapshot,binding,error)){
         state.capture_failed=true;rejected(error.empty()?"NPC pending UI World or Controller changed":error);
         if(!pending.token.empty())state.ui_jobs.at(pending.token)["cause"]=state.cause;return;}
     const auto id=uuid(error);
-    if(id.empty()||!typed_action_runtime::submit_npc(id,pending.intent,error)){
+    if(id.empty()||!action::place_trace::run(id,"npc.submit",error,[&]{return typed_action_runtime::submit_npc(id,pending.intent,error);})){
         state.capture_failed=true;rejected(error.empty()?"NPC Controller submit failed":error);
         if(!pending.token.empty())state.ui_jobs.at(pending.token)["cause"]=state.cause;return;}
     state.last_action=id;++state.submits;
@@ -350,7 +409,7 @@ bool native_ui(const json& args,json& result,std::string& error) {
         return fail(error,error.empty()?"NPC native UI active cursor or ThemeWindow selection differs":error);
     npc_census::State before,hover;undo::UndoWitness undo_before,undo_hover;
     action::NpcState before_state,hover_state;action::Ledger before_money,hover_money;
-    if(!read_effect(memory,state.image,region,0,before_state,before_money,undo_before,before,error,tool=="QuestGiver")||
+    if(!read_effect(memory,state.image,region,0,before_state,before_money,undo_before,before,error,tool=="QuestGiver",nullptr,token,"npc.fixture.before")||
        undo_before.active_graph)return fail(error,error.empty()?"NPC native UI requires idle Undo":error);
     state.ui_jobs.emplace(token,result);auto& job=state.ui_jobs.at(token);
     job["attempted"]=true;job["requested_position"]=point;result=job;
@@ -378,14 +437,41 @@ bool native_ui(const json& args,json& result,std::string& error) {
         job["cause"]=error.empty()?"NPC original Cursor ray missed target Region hovered="+
             std::to_string(calculated_hover)+" finite="+std::to_string(finite_hit):error;
         job["unknown"]=true;result=job;return fail(error,job.at("cause").get<std::string>());}
+    std::array<uint64_t,4> random_before_hover{},random_after_hover{};
+    if(!npc_census::read_global_random(memory,state.image,random_before_hover,error)){
+        job["cause"]=error;job["unknown"]=true;result=job;return false;}
+    job["hover_observation"]={{"random_before_cursor",before_state.global_random},
+        {"random_before_mouseover",random_before_hover}};
     const auto hover_seh=npc_input(state.image,item.behaviour,cursor,hit,false);
     if(hover_seh){job["cause"]="NPC native UI MouseOver SEH="+std::to_string(hover_seh);job["unknown"]=true;
         result=job;return fail(error,job.at("cause").get<std::string>());}
-    if(!field(memory,item.behaviour,0x358,preview,error)||!preview||
-       !read_effect(memory,state.image,region,0,hover_state,hover_money,undo_hover,hover,error,tool=="QuestGiver")||
-       before.rows!=hover.rows||before.next_local_tag!=hover.next_local_tag||
+    if(!npc_census::read_global_random(memory,state.image,random_after_hover,error)){
+        job["cause"]=error;job["unknown"]=true;result=job;return false;}
+    auto& observation=job["hover_observation"];
+    observation["random_after_mouseover"]=random_after_hover;
+    observation["cursor_rng_changed"]=before_state.global_random!=random_before_hover;
+    observation["mouseover_rng_changed"]=random_before_hover!=random_after_hover;
+    if(!field(memory,item.behaviour,0x358,preview,error)){
+        job["cause"]=error;job["unknown"]=true;result=job;return false;}
+    observation["preview_present"]=preview!=0;
+    if(!preview){job["cause"]="NPC native UI MouseOver preview absent";job["unknown"]=true;
+        result=job;return fail(error,job.at("cause").get<std::string>());}
+    if(!read_effect(memory,state.image,region,0,hover_state,hover_money,undo_hover,hover,error,tool=="QuestGiver",nullptr,token,"npc.fixture.hover")){
+        job["cause"]=error;job["unknown"]=true;result=job;return false;}
+    observation["readback_complete"]=true;
+    observation["random_after_readback"]=hover_state.global_random;
+    observation["rows_changed"]=before.rows!=hover.rows;
+    observation["next_local_tag_changed"]=before.next_local_tag!=hover.next_local_tag;
+    observation["rng_changed"]=before_state.global_random!=hover_state.global_random;
+    observation["ledger_changed"]=before_money!=hover_money;
+    observation["undo_changed"]=undo_before!=undo_hover;
+    observation["next_local_tag_before"]=before.next_local_tag;
+    observation["next_local_tag_after"]=hover.next_local_tag;
+    if(before.rows!=hover.rows||before.next_local_tag!=hover.next_local_tag||
+       (controller.value("ordered",false)&&before_state.global_random!=hover_state.global_random)||
        before_money!=hover_money||undo_before!=undo_hover){
-        job["cause"]=error.empty()?"NPC native UI MouseOver changed world, roster, Ledger or Undo":error;
+        job["cause"]="NPC native UI MouseOver changed world, roster, RNG, Ledger or Undo: "+
+            observation.dump();
         job["unknown"]=true;result=job;return fail(error,job.at("cause").get<std::string>());}
     int32_t pressed=1;uint8_t released=1,hovered=0,enabled=0,behavior_active=0;
     bool modal=true;const auto seh_modal=modal_window(state.image,modal);
@@ -403,7 +489,7 @@ bool native_ui(const json& args,json& result,std::string& error) {
     const std::array<float,2> screen{sx,sy};const auto captures=state.captures;
     const auto rejections=state.rejections;
     state.diagnostic_token=token;
-    const auto release_seh=generic_release(state.image,cursor,screen,hit);
+    const auto release_seh=action::place_trace::run(token,"npc.fixture.release",error,[&]{return generic_release(state.image,cursor,screen,hit);});
     state.diagnostic_token.clear();
     if(release_seh){state.pending.reset();state.capture_failed=true;
         job["cause"]="NPC native Cursor Release SEH="+std::to_string(release_seh);
@@ -418,7 +504,7 @@ bool native_ui(const json& args,json& result,std::string& error) {
         job["unknown"]=true;
         result=job;return fail(error,job.at("cause").get<std::string>());}
     action::NpcState after_state;action::Ledger after_money;undo::UndoWitness undo_after;npc_census::State after;
-    if(!read_effect(memory,state.image,region,0,after_state,after_money,undo_after,after,error,tool=="QuestGiver")||
+    if(!read_effect(memory,state.image,region,0,after_state,after_money,undo_after,after,error,tool=="QuestGiver",nullptr,token,"npc.fixture.captured")||
        after_state!=hover_state||after.rows!=hover.rows||after.next_local_tag!=hover.next_local_tag||
        after_money!=hover_money||undo_after!=undo_hover){
         state.pending.reset();state.capture_failed=true;
@@ -431,6 +517,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(request.action==action::Action::EditNpcProperty)return property_perform(binding,request,authority,error);
     if(request.action==action::Action::RemoveNPC)return remove_perform(binding,request,authority,error);
     if(request.action==action::Action::MoveNPC)return move_perform(binding,request,authority,error);
+    return action::place_trace::run(request.action_uuid,"npc.perform",error,[&]() -> action::Outcome {
     if(!state.ready||GetCurrentThreadId()!=state.thread||request.action!=action::Action::PlaceNPC||
        !action::valid_npc(request.npc)){
         error="NPC action runtime, Mainthread or typed intent invalid";return action::Outcome::RejectedNoEffect;}
@@ -439,6 +526,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){
         error="NPC action lacks exact pending Controller request";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
     Memory memory;host::LookupApi api;
     if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return action::Outcome::RejectedNoEffect;
     host::NativeOrigin origin;host::Reader reader(memory.process,origin,state.image,state.thread,api);
@@ -471,7 +559,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     npc_census::State original,hover,after;undo::UndoWitness undo_original,undo_hover,undo_after;
     action::NpcState original_state,hover_state,after_state;action::Ledger original_money,hover_money,after_money;
     if(!read_effect(memory,state.image,region,0,original_state,original_money,undo_original,original,error,
-                    request.npc.type==0)||
+                    request.npc.type==0,nullptr,request.action_uuid,"npc.perform.before")||
        undo_original.active_graph||original_state.count>=100000||original_state.undo_count>=100000){
         if(error.empty())error="NPC action requires idle Undo and available census/Codec count";
         return action::Outcome::RejectedNoEffect;}
@@ -481,6 +569,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         original_money!=authority->before)){
         error="NPC Client before roster/Undo/full Ledger differs from Host";return action::Outcome::RejectedNoEffect;}
     auto& op=state.operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     auto unknown=[&](const std::string& cause){error=op.cause=cause;return action::Outcome::Unknown;};
     uintptr_t active=0;if(!field(memory,cursor,0x190,active,error))return unknown(error);
     if(active!=item.behaviour){
@@ -509,19 +598,20 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         if(seh)return unknown("NPC original Select SEH="+std::to_string(seh));op.returned|=8;
     }
     op.attempted|=2;state.replaying=true;
-    const auto hover_seh=npc_input(state.image,item.behaviour,cursor,request.npc.position,false);
+    const auto hover_seh=action::place_trace::run(request.action_uuid,"npc.perform.mouseover",error,[&]{return npc_input(state.image,item.behaviour,cursor,request.npc.position,false);});
     state.replaying=false;
     if(hover_seh)return unknown("NPC original MouseOver SEH="+std::to_string(hover_seh));op.returned|=2;
     if(!field(memory,item.behaviour,0x358,preview,error)||!preview||
        !field(memory,item.behaviour,0x360,selected_ptr,error)||selected_ptr!=choice->character||
        !read_effect(memory,state.image,region,0,hover_state,hover_money,undo_hover,hover,error,
-                    request.npc.type==0)||
+                    request.npc.type==0,nullptr,request.action_uuid,"npc.perform.hover")||
        !reader.current(after_world,true,error)||!same_world(world,after_world)||
        original.rows!=hover.rows||original.next_local_tag!=hover.next_local_tag||
        original_state.roster_sha256!=hover_state.roster_sha256||
        original_state.quest_targets_sha256!=hover_state.quest_targets_sha256||
+       (op.ordered&&original_state.global_random!=hover_state.global_random)||
        original_money!=hover_money||undo_original!=undo_hover)
-        return unknown(error.empty()?"NPC original MouseOver changed world, roster, Ledger or Undo":error);
+        return unknown(error.empty()?"NPC original MouseOver changed world, roster, RNG, Ledger or Undo":error);
     const auto transform_seh=transform(state.image,item.behaviour,request.npc);
     if(transform_seh)return unknown("NPC original Transform constructor SEH="+std::to_string(transform_seh));
     std::array<float,4> quaternion{};std::array<float,3> position{},scale{};uint8_t dirty=0;
@@ -533,24 +623,25 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        scale!=request.npc.scale||!dirty)return unknown(error.empty()?"NPC original Transform readback differs":error);
     npc_census::State pre_release;undo::UndoWitness pre_release_undo;action::Ledger pre_release_money;
     if(!read_effect(memory,state.image,region,0,hover_state,pre_release_money,pre_release_undo,pre_release,error,
-                    request.npc.type==0,&op.quest_tasks_before)||
+                    request.npc.type==0,&op.quest_tasks_before,request.action_uuid,"npc.perform.pre_release")||
        pre_release.rows!=hover.rows||pre_release.next_local_tag!=hover.next_local_tag||
+       (op.ordered&&hover_state.global_random!=original_state.global_random)||
        pre_release_money!=original_money||pre_release_undo!=undo_hover)
         return unknown(error.empty()?"NPC original Transform changed NPC, Ledger or Undo before Release":error);
     if(authority){const auto seh=seed(state.image,authority->npc_before.global_random);
         if(seh)return unknown("NPC Client global RNG adoption SEH="+std::to_string(seh));
         if(!read_effect(memory,state.image,region,0,hover_state,hover_money,pre_release_undo,pre_release,error,
-                        request.npc.type==0)||
+                        request.npc.type==0,nullptr,request.action_uuid,"npc.perform.legacy_adoption")||
            hover_state!=authority->npc_before||hover_money!=authority->before||
            pre_release_undo!=undo_hover)
             return unknown(error.empty()?"NPC Client post-hover Host RNG/roster differs":error);}
     op.evidence.before=hover_money;op.evidence.npc_before=hover_state;
     op.attempted|=4;state.replaying=true;
-    const auto release_seh=npc_input(state.image,item.behaviour,cursor,request.npc.position,true);
+    const auto release_seh=action::place_trace::run(request.action_uuid,"npc.perform.release",error,[&]{return npc_input(state.image,item.behaviour,cursor,request.npc.position,true);});
     state.replaying=false;
     if(release_seh)return unknown("NPC original Release SEH="+std::to_string(release_seh));op.returned|=4;
     if(!read_effect(memory,state.image,region,0,after_state,after_money,undo_after,after,error,
-                    request.npc.type==0)||
+                    request.npc.type==0,nullptr,request.action_uuid,"npc.perform.post_release")||
        !reader.current(after_world,false,error)||!host::same_world(world.origin,after_world.origin)||
        world.root!=after_world.root||after_world.saves||after_world.edits||after_world.active_graph)
         return unknown(error.empty()?"NPC original Release world/readback differs":error);
@@ -567,7 +658,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     action::NpcState verified_after;action::Ledger verified_money;
     undo::UndoWitness verified_undo;npc_census::State verified_census;
     if(!read_effect(memory,state.image,region,created.local_uid,verified_after,verified_money,
-                    verified_undo,verified_census,error,request.npc.type==0,&op.quest_tasks_after))return unknown(error);
+                    verified_undo,verified_census,error,request.npc.type==0,&op.quest_tasks_after,request.action_uuid,"npc.perform.verify_created"))return unknown(error);
     if(verified_after.count!=after_state.count||verified_after.undo_count!=after_state.undo_count||
        verified_after.roster_sha256!=after_state.roster_sha256||
        verified_after.global_random!=after_state.global_random||
@@ -583,16 +674,20 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
                     op.evidence.before!=authority->before||op.evidence.after!=authority->after)))
         return unknown("NPC original result, Host actor/RNG or full Ledger differs");
     op.confirmed=true;error.clear();return action::Outcome::Confirmed;
+    });
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& error) {
     if(request.action==action::Action::EditNpcProperty)return property_observe(binding,request,out,error);
     if(request.action==action::Action::RemoveNPC)return remove_observe(binding,request,out,error);
     if(request.action==action::Action::MoveNPC)return move_observe(binding,request,out,error);
+    return action::place_trace::run(request.action_uuid,"npc.observe",error,[&] {
     const auto found=state.operations.find(request.action_uuid);
     if(found==state.operations.end()||found->second.binding!=binding||
        found->second.request!=request||!found->second.confirmed)
         return fail(error,"NPC observation lacks exact confirmed action");
-    const auto& op=found->second;Memory memory;host::LookupApi api;
+    const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(binding,request,error))return false;
+    Memory memory;host::LookupApi api;
     if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;
     host::NativeOrigin origin;host::Reader reader(memory.process,origin,state.image,state.thread,api);
     host::WorldState world;uintptr_t region=0;
@@ -603,7 +698,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     npc_census::State census;undo::UndoWitness witness;action::Ledger ledger;action::NpcState current;
     json current_tasks=json::array();
     if(!read_effect(memory,state.image,region,op.local_uid,current,ledger,witness,census,error,
-                    request.npc.type==0,&current_tasks))return false;
+                    request.npc.type==0,&current_tasks,request.action_uuid,"npc.observe.effect"))return false;
     uintptr_t registered=0;const auto seh=lookup(api.find,op.local_uid,registered);
     if(seh||registered!=op.local_pointer)
         return fail(error,"NPC local UID membership changed SEH="+std::to_string(seh));
@@ -613,6 +708,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
                 std::to_string(current_tasks!=op.quest_tasks_after):
             "NPC canonical actor, RNG or full Ledger changed");
     out=op.evidence;out.retirement_confirmed=op.retired;error.clear();return true;
+    });
 }
 bool retire(const action::Binding& binding,const action::Request& request,std::string& error) {
     if(request.action==action::Action::RemoveNPC)return remove_retire(binding,request,error)&&history::remember(binding,request,error);

@@ -8,8 +8,9 @@ namespace mt2mp::game::mixed_path_records {
 namespace records=subscriber_lifecycle;
 struct Witness {std::map<std::string,duplicate_records::Witness> objects;};
 inline bool reject(std::string& error,const std::string& cause){error="mixed Path original Record: "+cause;return false;}
-inline std::string canonical(uintptr_t pointer,const mixed_path_native::Census& census,
+inline std::string canonical(uintptr_t pointer,uintptr_t root_shard,const mixed_path_native::Census& census,
                              const std::map<uint64_t,std::string>& keys){
+    if(root_shard&&pointer==root_shard)return "root_shard";
     for(const auto& region:census.regions)if(region.object==pointer)return "region:"+std::to_string(region.id);
     for(const auto& path:census.paths)if(path.member.object==pointer){const auto found=keys.find(path.member.uid);return found==keys.end()?std::string{}:found->second;}
     for(const auto& node:census.nodes)if(node.member.object==pointer){const auto found=keys.find(node.member.uid);return found==keys.end()?std::string{}:found->second;}
@@ -32,9 +33,10 @@ template<class NativeMemory>struct Capture {
     }
 };
 template<class NativeMemory>
-bool read_one(NativeMemory& memory,uintptr_t image,uintptr_t object,bool path,
+bool read_one(NativeMemory& memory,uintptr_t image,uintptr_t root_shard,uintptr_t object,bool path,
               const mixed_path_native::Census& census,const std::map<uint64_t,std::string>& keys,
-              duplicate_records::Witness& out,std::string& error){
+              duplicate_records::Witness& out,std::string& error,nlohmann::json* diagnostic=nullptr){
+    if(!root_shard)return reject(error,"bound root shard is absent");
     const uintptr_t prepare=path?0x10f51c0:0xf40e50,save=path?0x10f5220:0xf40eb0;
     Capture<NativeMemory> value(memory);records::CaptureReceipt cleanup;
     const records::CaptureApi api{
@@ -46,19 +48,20 @@ bool read_one(NativeMemory& memory,uintptr_t image,uintptr_t object,bool path,
         reinterpret_cast<records::SaveRecord>(image+save)};
     if(!records::capture_original(api,reinterpret_cast<const void*>(object),Capture<NativeMemory>::inspect,&value,cleanup,error))return false;
     auto owner=[&](uintptr_t pointer,std::string& key,std::string& cause){
-        key=canonical(pointer,census,keys);
-        return !key.empty()||reject(cause,"external SaveContext owner lacks canonical Region/Path/Intersection identity");};
-    return duplicate_records::summarize(value.graph,object,owner,out,error);
+        key=canonical(pointer,root_shard,census,keys);
+        return !key.empty()||reject(cause,"external SaveContext owner lacks canonical root shard/Region/Path/Intersection identity");};
+    return duplicate_records::summarize(value.graph,object,owner,out,error,diagnostic);
 }
 template<class NativeMemory>
-bool read_all(NativeMemory& memory,uintptr_t image,const mixed_path_native::Census& census,
+bool read_all(NativeMemory& memory,uintptr_t image,uintptr_t root_shard,const mixed_path_native::Census& census,
               const std::map<uint64_t,std::string>& keys,Witness& out,std::string& error){
+    if(!root_shard)return reject(error,"bound root shard is absent");
     Witness value;
     auto record=[&](const mixed_path_native::Member& member,bool path){
         const auto found=keys.find(member.uid);
         if(found==keys.end()||found->second.empty())return reject(error,"owned native object lacks canonical key");
         duplicate_records::Witness row;
-        if(!read_one(memory,image,member.object,path,census,keys,row,error))return false;
+        if(!read_one(memory,image,root_shard,member.object,path,census,keys,row,error))return false;
         return value.objects.emplace(found->second,std::move(row)).second||reject(error,"canonical Record key repeated");};
     for(const auto& row:census.paths)if(!record(row.member,true))return false;
     for(const auto& row:census.nodes)if(!record(row.member,false))return false;

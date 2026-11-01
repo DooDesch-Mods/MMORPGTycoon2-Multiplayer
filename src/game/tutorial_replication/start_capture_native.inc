@@ -10,11 +10,12 @@ struct StartCaptureCalls {
     bool original(){return original_pay(receiver);}
     bool capture(std::string& e){
         if(!action_session::selected_session().current(context,e))return false;
-        if(context.role!=action_session::Role::Client)return fail(e,"Startingpoint StartTech intent requires joined Client");
-        if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
+        bool ordered=false;
+        if(!typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&ordered))return false;
+        if(!ordered&&context.role!=action_session::Role::Client)return fail(e,"Startingpoint StartTech intent requires joined Client");
         if(!str(reinterpret_cast<uintptr_t>(receiver),0x20,key,e))return false;
         if(key!="startingpoint"&&key!="bridges")return fail(e,"Research selected UI project key unsupported");
-        StartActionCalls reader{context,binding};reader.key=key;live_host_state::Pin pin;
+        StartActionCalls reader{context,binding};reader.key=key;reader.input=true;live_host_state::Pin pin;
         if(!reader.snapshot(snapshot,pin,e)||!reader.preflight(e))return false;
         if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
         return start_intent::window(memory,snapshot,reinterpret_cast<uintptr_t>(receiver),window,e);
@@ -28,7 +29,8 @@ struct StartCaptureCalls {
 bool pay_current(void* source){
     bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x262ec0,source,0,project_handled);
     if(project_handled)return project_allowed?original_pay(source):false;
-    const auto selected=start_intent::route(load.armed,GetCurrentThreadId()==mainthread,image,
+    const bool ordered=typed_action_runtime::controller_status().value("ordered",false);
+    const auto selected=start_intent::route(load.armed||ordered,GetCurrentThreadId()==mainthread,image,
         reinterpret_cast<uintptr_t>(_ReturnAddress()));
     StartCaptureCalls calls{source};start_intent::Receipt receipt;
     const bool returned=start_intent::dispatch(selected,calls,receipt);
@@ -40,11 +42,11 @@ bool pay_current(void* source){
     return returned;
 }
 bool finish_start_presentation(const std::string& action,const action_session::Context& context,
-    const action_session::Binding& binding,bool& attempted,std::string& e){
+    const action_session::Binding& binding,bool& attempted,std::string& e,const action_session::Request* request=nullptr){
     attempted=false;
     if(!pending_start_presentation||pending_start_presentation->action!=action)return true;
     const auto pending=*pending_start_presentation;pending_start_presentation.reset();
-    StartActionCalls reader{context,binding};reader.key=pending.key;tutorial_development::StartingpointSnapshot snapshot;
+    StartActionCalls reader{context,binding};reader.key=pending.key;reader.request=request;tutorial_development::StartingpointSnapshot snapshot;
     live_host_state::Pin before,after;start_intent::Window window;
     if(!reader.snapshot(snapshot,before,e))return false;
     if(!same_world(pending.origin,snapshot.origin)||

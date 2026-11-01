@@ -15,12 +15,59 @@ namespace {
 namespace action=action_session;namespace region=ui_region_runtime;namespace terrain=ui_terrain_runtime;
 namespace reader=connected_network_native;namespace undo=build_actions::private_native;
 using json=nlohmann::json;using Press=void(*)(void*,void*,const void*);using Purchase=bool(*)(void*,const void*);
-struct Pending{action::NetworkIntent intent;action::Binding binding;std::string snapshot,token;};
-struct Operation{action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t created=0;uint64_t uid=0;unsigned calls=0;bool attempted=false,returned=false,confirmed=false,retired=false;std::string cause;};
+struct Pending{action::NetworkIntent intent;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;action::NetworkState graph_before;};
+struct Operation{action::Binding binding;action::Request request;action::Evidence evidence;uintptr_t created=0;uint64_t uid=0;unsigned calls=0;bool attempted=false,returned=false,confirmed=false,retired=false,ordered=false;std::string cause;};
 struct Runtime{bool attempted=false,ready=false,capture_failed=false;Press press=nullptr;Purchase purchase=nullptr;uintptr_t capture_receiver=0;std::optional<Pending> captured,pending;std::map<std::string,Operation> operations;std::map<std::string,json> jobs;uint64_t captures=0,submits=0,rejections=0;std::string token,cause,last_action;};
 Runtime state;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 region::Runtime* runtime(std::string& e){return terrain::runtime(e);}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& error){
+    if(request.action!=action::Action::PlaceNetworkNode&&request.action!=action::Action::PlaceNetworkPipe)
+        return fail(error,"Ordered Network scope requires Node or Pipe construction");
+    action::Context context;if(!action::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(error,"Ordered Network actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,bool& ordered,std::string& error){
+    ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(authority)return fail(error,"Ordered Network execution forbids Host result and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !typed_action_runtime::controller_status().value("ordered",false)||fail(error,"Ordered Network execution requires consumed command scope");
+}
+bool input_admission(std::string& error){
+    const auto controller=typed_action_runtime::controller_status();
+    if(!controller.value("started",false)||controller.value("locked",true))return fail(error,"Network input requires started unlocked Controller");
+    if(!controller.value("ordered",false))return !controller.value("pending",true)||fail(error,"Network input requires idle legacy Controller");
+    bool inside=false;action::Binding binding;
+    if(!typed_action_runtime::original_go_admission(inside,error))return false;
+    return (inside&&typed_action_runtime::read_binding(net::current_snapshot_id(),binding,error))||
+        fail(error,error.empty()?"Ordered Network input requires actual OriginalGo":error);
+}
+bool capture_context(const std::string& snapshot,const action::Binding& binding,std::optional<action::Context>& out,std::string& error){
+    out.reset();if(!typed_action_runtime::controller_status().value("ordered",false))return true;
+    action::Context context;action::Binding current;
+    if(!input_admission(error)||!action::selected_session().current(context,error)||context.snapshot_uuid!=snapshot||
+       Config::instance().is_host!=(context.role==action::Role::Host)||!typed_action_runtime::read_binding(snapshot,current,error)||current!=binding)
+        return fail(error,error.empty()?"Ordered Network capture Session/Binding/role differs":error);
+    out=context;return true;
+}
+template<class Pending>bool capture_ready(const Pending& pending,bool& ready,std::string& error){
+    ready=false;const auto controller=typed_action_runtime::controller_status();
+    if(!pending.context){
+        if(controller.value("ordered",false))return fail(error,"Network capture changed from legacy to ordered mode");
+        ready=true;return true;
+    }
+    bool inside=false;action::Context current;action::Binding binding;
+    if(!controller.value("ordered",false)||!controller.value("started",false)||controller.value("locked",true)||
+       !typed_action_runtime::original_go_admission(inside,error)||!action::selected_session().current(current,error)||
+       current!=*pending.context||net::current_snapshot_id()!=pending.snapshot||
+       Config::instance().is_host!=(current.role==action::Role::Host)||!typed_action_runtime::read_binding(pending.snapshot,binding,error)||binding!=pending.binding)
+        return fail(error,error.empty()?"Ordered Network retained Context/Binding/role changed":error);
+    ready=!inside&&!controller.value("pending",true);return true;
+}
+
 void rejected(const std::string& e){++state.rejections;if(e!=state.cause){state.cause=e;LOG_ERROR("[UINetwork] Rejected cause={}",e);}}
 bool native_error(uint32_t value,const char* name,std::string& e){return !value||fail(e,std::string("network original ")+name+" SEH="+std::to_string(value));}
 bool graph(region::Runtime& r,const region::LocalView& view,reader::Graph& graph,action::NetworkState& out,std::string& e){
@@ -101,12 +148,19 @@ bool purchase_entry(void* def,const void* point){
         rejected(e.empty()?"network capture scalar invalid":e);return false;}
     reader::Graph graph_before;action::NetworkState before;
     if(!graph(*r,view,graph_before,before,e)){rejected(e);return false;}
-    state.captured=Pending{intent,{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),state.token};return false;
+    const action::Binding binding{view.world.origin.world_epoch,view.world.origin.generation};
+    const auto snapshot=net::current_snapshot_id();std::optional<action::Context> context;
+    if(!capture_context(snapshot,binding,context,e)){rejected(e);return false;}
+    state.captured=Pending{intent,binding,snapshot,state.token,context,before};return false;
 }
 void press_entry(void* receiver,void* cursor,const void* point){
-    if(!state.ready||!net::session_wire::connected()){state.press(receiver,cursor,point);return;}
-    std::string e;auto* r=runtime(e);const auto controller=typed_action_runtime::status();
-    if(!r||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||state.pending||state.captured||state.capture_receiver){rejected(e.empty()?"network UI requires idle bound Controller":e);return;}
+    if(!state.ready||!net::session_wire::connected()){
+        if(typed_action_runtime::controller_status().value("ordered",false)||(state.pending&&state.pending->context)||(state.captured&&state.captured->context)){
+            rejected("Ordered Network input lost ready connected Session");return;}
+        state.press(receiver,cursor,point);return;
+    }
+    std::string e;auto* r=runtime(e);
+    if(!r||!input_admission(e)||state.pending||state.captured||state.capture_receiver){rejected(e.empty()?"network UI requires idle bound Controller":e);return;}
     uintptr_t active=0;if(!region::at(*r,uintptr_t(cursor),0x190,active,e)||active!=uintptr_t(receiver)){rejected(e.empty()?"network Press receiver is not active UI tool":e);return;}
     action::Ledger before,after;undo::UndoWitness undo_before,undo_after;std::array<float,3> position{};
     if(!region::ledger(before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||undo_before.active_graph||!r->memory.copy(uintptr_t(point),position.data(),sizeof position,e)){rejected(e.empty()?"network UI requires idle Undo":e);return;}
@@ -114,6 +168,12 @@ void press_entry(void* receiver,void* cursor,const void* point){
     if(!native_error(seh,"UI Press",e)){rejected(e);return;}if(!state.captured)return;
     if(!native_error(ui_call(r->image,3,0,uintptr_t(cursor),{}),"UI completion",e)||!region::ledger(after,e)||!undo::read_undo(r->memory,r->image,undo_after,e)||before!=after||undo_before!=undo_after){rejected(e.empty()?"network UI capture changed native cash/Undo":e);return;}
     uintptr_t preview=1;if(!region::at(*r,uintptr_t(receiver),0x170,preview,e)||preview){rejected(e.empty()?"network original Deactivate retained preview":e);return;}
+    std::optional<action::Context> final_context;
+    if(!capture_context(state.captured->snapshot,state.captured->binding,final_context,e)||final_context!=state.captured->context){
+        state.capture_failed=true;rejected(e.empty()?"Network capture Context changed during original completion":e);return;}
+    region::LocalView captured_view;reader::Graph captured_graph;action::NetworkState captured_state;
+    if(!region::identity(*r,state.captured->intent.region,0,captured_view,e)||!graph(*r,captured_view,captured_graph,captured_state,e)||captured_state!=state.captured->graph_before){
+        state.capture_failed=true;rejected(e.empty()?"Network Node capture changed complete native graph":e);return;}
     state.pending=std::move(state.captured);state.captured.reset();++state.captures;
 }
 }
@@ -170,10 +230,11 @@ bool enable(std::string& e){
 bool enabled()noexcept{return state.ready;}
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
     if(request.action==action::Action::PlaceNetworkPipe)return pipe::perform(binding,request,authority,e);
+    bool ordered=false;if(!execution_admission(binding,request,authority,ordered,e))return action::Outcome::RejectedNoEffect;
     auto* r=runtime(e);if(!r||!state.ready||request.action!=action::Action::PlaceNetworkNode||!action::valid_network(request.network)){e="network runtime/intent unavailable: "+e;return action::Outcome::RejectedNoEffect;}
     if(state.operations.contains(request.action_uuid)){e="network original action already attempted; no replay";return action::Outcome::Unknown;}
     const auto controller=typed_action_runtime::status();
-    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="network requires exact Controller request";return action::Outcome::RejectedNoEffect;}
+    if(!ordered&&(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid)){e="network requires exact Controller request";return action::Outcome::RejectedNoEffect;}
     region::LocalView before;reader::Graph before_graph;action::NetworkState network;action::Ledger money;undo::UndoWitness before_undo;
     uintptr_t tool=0,def=0,cursor=0,manager=0,actual_region=0;float height=0;bool legal=false;uint8_t owned=0;
     if(!code(*r,true,e)||!region::identity(*r,request.network.region,0,before,e)||!region::bound(before,binding,request.snapshot_uuid,e)||
@@ -187,7 +248,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!native_error(preflight(r->image,tool,cursor,request.network,actual_region,height,legal),"position preflight",e)||!legal||actual_region!=before.region||!std::isfinite(height)){if(e.empty())e="network original position/region preflight rejected";return action::Outcome::RejectedNoEffect;}
     if(authority&&(money!=authority->before||network!=authority->network_before)){e="network client before differs from Host";return action::Outcome::RejectedNoEffect;}
     network_history_runtime::Snapshot history_before;if(!network_history_runtime::capture(before_graph,{},history_before,e))return action::Outcome::RejectedNoEffect;
-    auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.evidence.before=money;op.evidence.network_before=network;op.attempted=true;
+    auto& op=state.operations[request.action_uuid];op.binding=binding;op.request=request;op.ordered=ordered;op.evidence.before=money;op.evidence.network_before=network;op.attempted=true;
     auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};auto surface=request.network.position;surface[1]=height;CommitStorage storage;
     const auto called=commit(*r,tool,manager,def,op,surface,storage);const auto cleaned=cleanup(r->image,storage);
     if(called||cleaned){e="network original commit failed SEH="+std::to_string(called)+" cleanup="+std::to_string(cleaned)+" completed calls="+std::to_string(op.calls);return unknown();}
@@ -208,7 +269,7 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     if(request.action==action::Action::PlaceNetworkPipe)return pipe::observe(binding,request,out,e);
     auto* r=runtime(e);if(!r)return false;const auto it=state.operations.find(request.action_uuid);
     if(it==state.operations.end()||it->second.binding!=binding||it->second.request!=request||!it->second.confirmed)return fail(e,"network observation lacks exact confirmed operation");
-    const auto& op=it->second;region::LocalView view;reader::Graph graph_now;action::NetworkState network;action::Ledger money;
+    const auto& op=it->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;region::LocalView view;reader::Graph graph_now;action::NetworkState network;action::Ledger money;
     if(!region::identity(*r,request.network.region,0,view,e)||!region::bound(view,binding,request.snapshot_uuid,e)||!graph(*r,view,graph_now,network,e)||!region::ledger(money,e))return false;
     if(network!=op.evidence.network_after||money!=op.evidence.after||std::none_of(graph_now.nodes.begin(),graph_now.nodes.end(),[&](const auto& n){return n.object==op.created&&n.uid==op.uid;}))return fail(e,"network actual state changed after original return");
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
@@ -248,26 +309,36 @@ bool refresh_snapshot_node(const Admission& pin,Admission& out,std::string& e){
 }
 bool unresolved(){if(network_remove_runtime::unresolved())return true;if(pipe::unresolved())return true;if(state.capture_failed||state.pending||state.captured)return true;for(const auto& [id,op]:state.operations){(void)id;if(!op.retired)return true;}for(const auto& [token,job]:state.jobs){(void)token;if(!job.value("terminal",false))return true;}return false;}
 void tick(){
-    if(!state.ready)return;pipe::tick();const auto controller=typed_action_runtime::controller_status();
+    if(!state.ready)return;network_remove_runtime::tick();pipe::tick();const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:state.jobs){(void)token;const auto id=job.value("action_uuid",std::string{});if(id.empty()||job.value("terminal",false))continue;
         if(controller.value("action_uuid",std::string{})==id&&!controller.value("pending",true)){const auto outcome=controller.value("outcome",0);if(outcome==1||outcome==2){job["terminal"]=true;job["confirmed"]=outcome==1;job["outcome"]=outcome;job["cause"]=controller.value("cause",std::string{});}}}
-    if(!state.pending)return;auto pending=*state.pending;state.pending.reset();std::string e;auto* r=runtime(e);region::LocalView view;
+    if(!state.pending)return;std::string e;bool ready=false;
+    if(!capture_ready(*state.pending,ready,e)){state.capture_failed=true;rejected(e);if(!state.pending->token.empty())state.jobs[state.pending->token]["cause"]=e;return;}
+    if(!ready)return;
+    auto pending=*state.pending;state.pending.reset();auto* r=runtime(e);region::LocalView view;
     if(!r||!region::identity(*r,pending.intent.region,0,view,e)||!region::bound(view,pending.binding,pending.snapshot,e)){state.capture_failed=true;rejected(e);if(!pending.token.empty())state.jobs[pending.token]["cause"]=e;return;}
     const auto id=region::uuid(e);if(id.empty()||!typed_action_runtime::submit_network(id,pending.intent,e)){state.capture_failed=true;rejected(e.empty()?"network Controller submit failed":e);if(!pending.token.empty())state.jobs[pending.token]["cause"]=state.cause;return;}
     ++state.submits;state.last_action=id;if(!pending.token.empty()){state.jobs[pending.token]["action_uuid"]=id;state.jobs[pending.token]["submitted"]=true;}
 }
-json status(){json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"native_calls",op.calls},{"cause",op.cause},{"before",op.evidence.network_before.graph_sha256},{"after",op.evidence.network_after.graph_sha256}};
-    return {{"remove",network_remove_runtime::status()},{"pipe",pipe::status()},{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},{"rejected",state.rejections},{"pending",bool(state.pending)||bool(state.captured)},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.jobs}};}
+namespace ordered_ui {json status();}
+json status(){json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"native_calls",op.calls},{"ordered",op.ordered},{"cause",op.cause},{"before",op.evidence.network_before.graph_sha256},{"after",op.evidence.network_after.graph_sha256},{"ledger_before",action::management_ledger_observation(op.evidence.before)},{"ledger_after",action::management_ledger_observation(op.evidence.after)},{"undo_confirmed",op.evidence.undo_confirmed},{"local_uid",op.uid}};
+    return {{"ordered_inputs",ordered_ui::status()},{"remove_capture",network_remove_runtime::capture_status()},{"remove",network_remove_runtime::status()},{"history",network_history_runtime::status()},{"pipe",pipe::status()},{"enabled",state.ready},{"capture_count",state.captures},{"submitted",state.submits},{"rejected",state.rejections},{"pending",bool(state.pending)||bool(state.captured)},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.jobs}};}
 bool query(const json& args,json& out,std::string& e){
     if(!args.is_object()||args.size()!=1||!args.contains("id")||!args.at("id").is_number_integer())return fail(e,"read network placement requires exact region id");
     const auto id=args.at("id").get<int64_t>();if(id<0||id>INT32_MAX)return fail(e,"network region ID outside int32");auto* r=runtime(e);if(!r)return false;
     region::LocalView view;reader::Graph actual;action::NetworkState network;if(!region::identity(*r,int32_t(id),0,view,e)||!graph(*r,view,actual,network,e))return false;
-    out={{"nodes",network.nodes},{"pipes",network.pipes},{"connections",network.connections},{"graph_sha256",network.graph_sha256},{"rows",actual.rows},{"ui_network",status()}};return true;
+    json identities=json::array();
+    auto identity=[&](uintptr_t object,uint64_t uid,const json& index,const char* kind){std::string key;network_identity::ObjectEntry entry;
+        if(!network_identity::object_key(object,uid,key,entry,e))return false;
+        identities.push_back({{"record_key",key},{"kind",kind},{"region_id",index[0]},{"index",index[1]},{"local_uid",uid}});return true;};
+    for(const auto& node:actual.nodes)if(!identity(node.object,node.uid,actual.node_keys.at(node.object),"node"))return false;
+    for(const auto& pipe:actual.pipe_values)if(!identity(pipe.object,pipe.uid,actual.pipe_keys.at(pipe.object),"pipe"))return false;
+    out={{"nodes",network.nodes},{"pipes",network.pipes},{"connections",network.connections},{"graph_sha256",network.graph_sha256},{"rows",actual.rows},{"identities",identities},{"ui_network",status()}};return true;
 }
-bool native_pipe(const json& args,json& out,std::string& e){return pipe::native_ui(args,out,e);}
-bool native_place(const json& args,json& out,std::string& e){
-    out=json::object();auto* r=runtime(e);if(!r)return false;const auto controller=typed_action_runtime::status();
-    if(!state.ready||unresolved()||!net::session_wire::connected()||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true))return fail(e,"network UI requires ready idle connected Controller");
+bool execute_native_place(const json& args,json& out,std::string& e){
+    out=json::object();auto* r=runtime(e);if(!r)return false;
+    if(!state.ready||unresolved()||!net::session_wire::connected())return fail(e,"network UI requires ready idle connected Controller");
+    if(!input_admission(e))return false;
     if(!args.is_object()||args.size()!=5||!args.contains("token")||!args.contains("id")||!args.contains("type")||!args.contains("key")||!args.contains("position")||
        !args.at("token").is_string()||!args.at("id").is_number_integer()||!args.at("type").is_string()||!args.at("key").is_string())return fail(e,"network native UI requires token, id, type, key, position");
     const auto token=args.at("token").get<std::string>();const auto id=args.at("id").get<int64_t>();action::NetworkIntent intent;
@@ -290,7 +361,55 @@ bool native_place(const json& args,json& out,std::string& e){
     if(!ok){if(e.empty())e="network genuine UI returned without one captured intent: "+state.cause;job["cause"]=e;out=job;return false;}
     job["captured"]=true;job["type"]=intent.type;job["key"]=intent.key;job["position"]=intent.position;job["cost"]=intent.quoted_cost;out=job;return true;
 }
+namespace ordered_ui {
+struct Input {json args,native=json::object();action::Context context;action::Binding binding;bool pipe=false,remove=false,attempted=false,returned=false;std::string cause;};
+std::map<std::string,Input> jobs;std::optional<std::string> pending;
+bool current(const Input& job,std::string& e){
+    action::Context context;action::Binding binding;
+    if(!action::selected_session().current(context,e)||!typed_action_runtime::read_binding(job.context.snapshot_uuid,binding,e))return false;
+    return (context==job.context&&binding==job.binding&&net::current_snapshot_id()==job.context.snapshot_uuid&&
+        Config::instance().is_host==(context.role==action::Role::Host))||fail(e,"Ordered Network input Context/Binding/role changed");
+}
+json job_json(const std::string& token,const Input& job){return {{"token",token},{"pipe",job.pipe},{"remove",job.remove},{"ordered",true},
+    {"queued",!job.attempted&&job.cause.empty()},{"input_attempted",job.attempted},{"input_returned",job.returned},
+    {"session",job.context.session},{"snapshot_uuid",job.context.snapshot_uuid},{"peer_mask",job.context.peer_mask},
+    {"local_peer",job.context.local_peer},{"host_peer",job.context.host_peer},{"native",job.native},{"cause",job.cause}};}
+json status(){json out=json::object();for(const auto& [token,job]:jobs)out[token]=job_json(token,job);return out;}
+bool enqueue(const json& args,bool pipe,json& out,std::string& e,bool remove=false){
+    const auto controller=typed_action_runtime::controller_status();bool inside=false;
+    if(!Config::instance().local_test||!controller.value("ordered",false)||!controller.value("started",false)||controller.value("locked",true)||
+       pending||unresolved()||jobs.size()>=64||!typed_action_runtime::original_go_admission(inside,e))
+        return fail(e,e.empty()?"Ordered Network enqueue requires ready owned Controller":e);
+    if(controller.value("pending",true)&&!inside)return fail(e,"Ordered Network enqueue outside OriginalGo requires idle Controller");
+    const char* token_key=remove?"diagnostic_uuid":"token";
+    if(!args.is_object()||!args.contains(token_key)||!args.at(token_key).is_string())return fail(e,"Ordered Network input requires native token");
+    const auto token=args.at(token_key).get<std::string>();
+    if(token.empty()||token.size()>128||token.find('\0')!=std::string::npos||jobs.contains(token))return fail(e,"Ordered Network input token invalid or already reserved - no replay");
+    for(const auto& [id,prior]:jobs){(void)id;if(!prior.returned)return fail(e,"Prior ordered Network input failed or uncertain - no new input");}
+    Input job;job.args=args;job.pipe=pipe;job.remove=remove;
+    if(!action::selected_session().current(job.context,e)||!typed_action_runtime::read_binding(job.context.snapshot_uuid,job.binding,e)||!current(job,e))return false;
+    jobs.emplace(token,std::move(job));pending=token;out=job_json(token,jobs.at(token));return true;
+}
+}
+void tick_original_input(){
+    namespace u=ordered_ui;if(!u::pending)return;bool inside=false;std::string e;
+    if(!typed_action_runtime::original_go_admission(inside,e)||!inside){if(e.empty())return;}
+    const auto token=*u::pending;auto& job=u::jobs.at(token);u::pending.reset();
+    if(e.empty()&&!u::current(job,e)&&e.empty())e="Ordered Network queued owner retired";
+    try{if(e.empty()){job.attempted=true;job.returned=job.remove?network_remove_runtime::original_ui(job.args,job.native,e):job.pipe?pipe::native_ui(job.args,job.native,e):execute_native_place(job.args,job.native,e);}}
+    catch(const std::exception& ex){e=std::string("Ordered Network original input exception: ")+ex.what();}
+    catch(...){e="Ordered Network original input non-standard exception";}
+    job.cause=e;if(!job.returned){if(job.cause.empty())job.cause="Ordered Network original input unconfirmed";LOG_ERROR("[NetworkUI] token={} cause={}; no replay",token,job.cause);}
+}
+bool native_pipe(const json& args,json& out,std::string& e){
+    return typed_action_runtime::controller_status().value("ordered",false)?ordered_ui::enqueue(args,true,out,e):pipe::native_ui(args,out,e);
+}
+bool native_place(const json& args,json& out,std::string& e){
+    return typed_action_runtime::controller_status().value("ordered",false)?ordered_ui::enqueue(args,false,out,e):execute_native_place(args,out,e);
+}
+
 }
 
 #include "network_remove_runtime.inc"
+#include "network_remove_ui.inc"
 #include "network_history_runtime.inc"

@@ -7,7 +7,15 @@ bool client_ui(const Request& request,json& result,Progress*& phase,std::string&
        !typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return fail(e,e.empty()?"startingpoint Client fixture current session differs":e);
     live_host_state::NativePort economy(context,binding,nullptr);live_host_state::Pin ledger_before,ledger_after;
     if(!economy.read(ledger_before,e))return false;
-    json progress_before;if(!tutorial_replication::read_progress(progress_before,e))return false;
+    native::SimulationState simulation_before,simulation_after;
+    if(!native::read_simulation_state(simulation_before,e))return false;
+    json progress_before;if(!p.ordered&&!tutorial_replication::read_progress(progress_before,e))return false;
+    const auto project_before=general_project_runtime::status().value("captures",uint64_t{});
+    general_project::Intent project_intent;
+    if(p.ordered&&!is_show){
+        tutorial_development::StartingpointSnapshot snapshot;json diagnostic;
+        if(!begin_snapshot(p,snapshot,diagnostic,e)||!expected_project_intent(snapshot,p.tech_key,general_project::Command::Commit,project_intent,e))return false;
+    }
     key=request.origin_uuid+":"+std::to_string(request.epoch)+":"+std::to_string(request.generation)+":client:"+p.tech_key;
     phase=&worlds[key];if(phase->locked)return fail(e,phase->cause);
     if((is_show&&phase->shown)||(!is_show&&phase->committed))return fail(e,"startingpoint Client fixture phase consumed; no replay");
@@ -26,18 +34,21 @@ bool client_ui(const Request& request,json& result,Progress*& phase,std::string&
     if(!economy.read(ledger_after,e)||ledger_after!=ledger_before)return fail(e,e.empty()?"startingpoint Client ledger changed before UI call":e);
     action_session::Context current;if(!action_session::selected_session().current(current,e)||current!=context)return fail(e,e.empty()?"startingpoint Client common Context changed":e);
     result["operation"]=request.operation;result["token"]=request.token;result["before"]=p.development;
+    result["ledger_before"]=begin_ledger(simulation_before);
     result["tutorial_before"]=p.tutorial;result["host_completion_confirmed"]=false;result["submission_confirmed"]=false;result["submitted"]=false;
     result["attempted"]=true;result["unknown"]=true;phase->locked=true;phase->cause="startingpoint Client UI attempt outstanding; no replay";receipts[request.token]=result;
     const auto code=is_show?show(p.image,p.window):activate(p.image,p.button);
     result["exception_code"]=code;result["returned"]=code==0;
     json progress;std::string id;Pin after;
     if(code)e="startingpoint Client original UI exception="+std::to_string(code);
-    else if(!tutorial_replication::read_progress(progress,e)){result["progress_readback_failed"]=true;}
-    else if(!is_show&&!client_submission(progress_before,progress,id,e)){result["submission_readback_failed"]=true;}
-    else if(!pin(request,after,e,true,id,&context,&binding)){result["readback_failed"]=true;}
+    else if(!p.ordered&&!tutorial_replication::read_progress(progress,e)){result["progress_readback_failed"]=true;}
+    else if(!is_show&&!(p.ordered?
+        general_project_runtime::observe_pending_ui(context,binding,project_intent,project_before,id,e):
+        client_submission(progress_before,progress,id,e))){result["submission_readback_failed"]=true;}
+    else if(!pin(request,after,e,true,p.ordered?std::string{}:id,&context,&binding)){result["readback_failed"]=true;}
     else if(!same(p.world,after.world)||p.lounge!=after.lounge||p.project!=after.project||p.development!=after.development||
             p.tutorial!=after.tutorial||!same_inventory_owner(p,after)||p.items!=after.items)e="startingpoint Client UI changed local project/inventory/tutorial before Host order";
-    else if(!economy.read(ledger_after,e)||ledger_after!=ledger_before){if(e.empty())e="startingpoint Client UI changed full native ledger";}
+    else if(!economy.read(ledger_after,e)||ledger_after!=ledger_before||!native::read_simulation_state(simulation_after,e)||begin_ledger(simulation_after)!=begin_ledger(simulation_before)){if(e.empty())e="startingpoint Client UI changed full native ledger";}
     else if(!action_session::selected_session().current(current,e)||current!=context){if(e.empty())e="startingpoint Client UI changed common Context";}
     else if(is_show){
         uint8_t visible=0;
@@ -45,12 +56,13 @@ bool client_ui(const Request& request,json& result,Progress*& phase,std::string&
         else if(after.window!=p.window||visible!=1)e="startingpoint Client Development Show not visible on same owner";
         else phase->shown=true;
     }else{
-        phase->committed=true;result["submission_confirmed"]=true;result["submitted"]=true;result["action_uuid"]=id;
-        result["confirmation"]="intent_submission";
+        phase->committed=true;result["submission_confirmed"]=!p.ordered;result["submitted"]=!p.ordered;result["action_uuid"]=id;
+        result["queued"]=p.ordered;result["route"]=p.ordered?"general_project":"tutorial";
+        result["confirmation"]=p.ordered?"intent_queued":"intent_submission";
     }
     if(e.empty()){
         phase->locked=false;phase->cause.clear();result["confirmed"]=true;result["unknown"]=false;
-        result["after"]=after.development;result["tutorial_after"]=after.tutorial;
+        result["after"]=after.development;result["tutorial_after"]=after.tutorial;result["ledger_after"]=begin_ledger(simulation_after);
     }else{phase->cause=e;result["cause"]=e;}
     receipts[request.token]=result;return e.empty();
 }

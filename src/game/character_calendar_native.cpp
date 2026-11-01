@@ -262,20 +262,7 @@ struct Port {
             rating(object+0x5f8,before.rating,target.rating,receipt,error);
     }
 };
-}
-bool capture(const a::Context& context,const a::Binding& binding,State& out,std::string& error)try{
-    Memory memory;Bound first,second;State before,after;
-    if(!once(memory,context,binding,first,before,error,true)||!once(memory,context,binding,second,after,error,true))return false;
-    if(!same_bound(first,second,error))return false;
-    if(before!=after)return fail(error,"Character/Zone calendar complete current state changed during double read");out=std::move(after);error.clear();return true;
-}catch(const std::exception& exception){return fail(error,std::string("Character calendar capture: ")+exception.what());}
-bool capture_demands(const a::Context& context,const a::Binding& binding,const live::Pin& expected,
-                     State& out,subscriber_demand::State& demands,std::string& error)try{
-    Memory memory;Bound first,second;State before,after;
-    subscriber_demand::Owners first_owners,second_owners;subscriber_demand::State first_values,second_values;
-    // Each pointer sample uses the complete owners admitted by its adjacent
-    // calendar read. No owner set survives this synchronous pair of reads.
-    const auto read_demands=[&](const Bound& local,subscriber_demand::Owners& owners,subscriber_demand::State& values){
+bool read_demands(Memory& memory,const Bound& local,const live::Pin& expected,subscriber_demand::Owners& owners,subscriber_demand::State& values,std::string& error){
         if(local.pin!=expected)return fail(error,"Management Character/Subscriber Demand complete Clock/Ledger origin differs");
         std::map<uintptr_t,std::string> keys;
         for(const auto& [object,row]:local.demands)keys.emplace(object,row.key);
@@ -293,9 +280,40 @@ bool capture_demands(const a::Context& context,const a::Binding& binding,const l
             if(found==admitted_ids.end()||found->second!=row.object)
                 return fail(error,"Subscriber Demand current allocation/ID differs from the admitted Calendar owners");}
         return true;
-    };
-    if(!once(memory,context,binding,first,before,error,true)||!read_demands(first,first_owners,first_values)||
-       !once(memory,context,binding,second,after,error,true)||!read_demands(second,second_owners,second_values))return false;
+    }
+}
+struct DemandReadWitness {Bound calendar;subscriber_demand::Owners subscribers;};
+bool same_demand_read(const DemandRead& before,const State& before_calendar,const subscriber_demand::State& before_values,
+                      const DemandRead& after,const State& after_calendar,const subscriber_demand::State& after_values,std::string& error){
+    if(!before||!after)return fail(error,"Calendar/Demand paired physical witness is absent");
+    if(!same_bound(before->calendar,after->calendar,error))return false;
+    if(before_calendar!=after_calendar)return fail(error,"Character/Zone calendar complete current state changed during double read");
+    return (before->subscribers==after->subscribers&&before_values==after_values)||fail(error,"Subscriber Demand complete current values/owners changed during double read");
+}
+bool capture_demands_once(const a::Context& context,const a::Binding& binding,const live::Pin& expected,
+                          State& out,subscriber_demand::State& demands,DemandRead& witness,std::string& error)try{
+    witness.reset();Memory memory;auto next=std::make_shared<DemandReadWitness>();State calendar;subscriber_demand::State values;
+    if(!once(memory,context,binding,next->calendar,calendar,error,true)||
+       !read_demands(memory,next->calendar,expected,next->subscribers,values,error))return false;
+    if(!subscriber_demand::reciprocal(values,calendar,error))return false;
+    live::NativePort port(context,binding,nullptr);if(!port.current_owners(next->calendar.pin,error))return false;
+    out=std::move(calendar);demands=std::move(values);witness=std::move(next);error.clear();return true;
+}catch(const std::exception& exception){return fail(error,std::string("Character/Subscriber Demand capture: ")+exception.what());}
+bool capture(const a::Context& context,const a::Binding& binding,State& out,std::string& error)try{
+    Memory memory;Bound first,second;State before,after;
+    if(!once(memory,context,binding,first,before,error,true)||!once(memory,context,binding,second,after,error,true))return false;
+    if(!same_bound(first,second,error))return false;
+    if(before!=after)return fail(error,"Character/Zone calendar complete current state changed during double read");out=std::move(after);error.clear();return true;
+}catch(const std::exception& exception){return fail(error,std::string("Character calendar capture: ")+exception.what());}
+bool capture_demands(const a::Context& context,const a::Binding& binding,const live::Pin& expected,
+                     State& out,subscriber_demand::State& demands,std::string& error)try{
+    Memory memory;Bound first,second;State before,after;
+    subscriber_demand::Owners first_owners,second_owners;subscriber_demand::State first_values,second_values;
+    // Each pointer sample uses the complete owners admitted by its adjacent
+    // calendar read. No owner set survives this synchronous pair of reads.
+
+    if(!once(memory,context,binding,first,before,error,true)||!read_demands(memory,first,expected,first_owners,first_values,error)||
+       !once(memory,context,binding,second,after,error,true)||!read_demands(memory,second,expected,second_owners,second_values,error))return false;
     if(!same_bound(first,second,error))return false;
     if(before!=after)return fail(error,"Character/Zone calendar complete current state changed during double read");
     if(first_owners!=second_owners||first_values!=second_values)

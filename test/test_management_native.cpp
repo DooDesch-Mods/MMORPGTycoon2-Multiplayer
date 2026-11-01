@@ -8,6 +8,7 @@
 #include <map>
 #include <set>
 #include <optional>
+#include <memory>
 #include <cstring>
 #include <atomic>
 #include "analytics_state.h"

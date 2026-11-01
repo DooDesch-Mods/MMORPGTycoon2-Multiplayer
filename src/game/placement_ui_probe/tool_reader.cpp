@@ -84,6 +84,9 @@ bool network_pipe_type(Memory& m,const Context& c,std::uintptr_t behaviour,const
        !text(m,definition+0x18,definition_type,e)||!text(m,definition+0x38,definition_key,e))return false;
     return type==r.type&&key==r.variant&&type==definition_type&&key==definition_key&&node=="Junction";
 }
+bool wall_type(Memory& m,std::uintptr_t behaviour,const Request& r,std::string& e){
+    std::int32_t type=-1;return at(m,behaviour,0x148,type,e)&&type==r.category;
+}
 bool path_type(Memory& m,std::uintptr_t behaviour,const Request& r,std::string& e){std::string type,node;if(!text(m,behaviour+0x148,type,e)||!text(m,behaviour+0x168,node,e))return false;return type==r.type&&node==r.variant;}
 bool terrain_style(Memory& m,std::uintptr_t behaviour,const Request& r,std::string& e){
     std::int32_t style=-1;return at(m,behaviour,0x150,style,e)&&style==r.terrain_style;
@@ -102,6 +105,7 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
     if(!at(m,c.image,0x13df8f0,game,e)||!ap(m,c,game,0x1743740,e)||!at(m,c.image,0x13df320,mode,e)||!ap(m,c,mode,0x16e6730,e)||!at(m,game,0x28,active,e)||!at(m,mode,0x58,world,e)||!at(m,mode,0x2c4,state,e)||!at(m,mode,0x304,quitting,e))return false;
     if(active!=mode||world!=c.world||state!=4||quitting)return fail(e,"error: native placement UI world is not current mode state4");
     if(r.family==Family::Building){if(!normal_definition(m,c,r,e))return false;}
+    else if(r.family==Family::SceneryErase){if(!r.type.empty()||!r.variant.empty())return fail(e,"error: Scenery eraser takes no catalog selection");}
     else if(r.family==Family::RegionLevel){}
     else if(r.family==Family::MonsterZone){if(r.type!="MonsterZone")return fail(e,"error: zone UI requires exact MonsterZone type");}
     else if(r.family==Family::NPC){if(r.type!="QuestGiver"&&r.type!="Guard"&&r.type!="ClassTrainer")return fail(e,"error: NPC native UI requires QuestGiver, Guard or ClassTrainer");}
@@ -109,6 +113,8 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
     else if(r.family==Family::Terrain){if(r.terrain_style<0||r.terrain_style>3)return fail(e,"error: native Terrain style outside 0..3");}
     else if(r.family==Family::NetworkPipe){if(r.type!="Cable"||r.variant!="item_cable")return fail(e,"error: NetworkPipe requires canonical Cable/item_cable");}
     else if(r.family==Family::NetworkNode){if(r.type.empty()||r.variant.empty())return fail(e,"error: NetworkNode requires canonical type/key");}
+    else if(r.family==Family::Wall){if(r.type!="Wall"||!r.variant.empty()||r.category<0||r.category>=11)return fail(e,"error: Wall requires original type and no forced model");}
+    else if(r.family==Family::Pass){if(r.type!="Pass"||!r.variant.empty())return fail(e,"error: Pass requires original Pass tool");}
     else if(r.family==Family::Path){if(r.type!="Road"||r.variant!="RoadNode")return fail(e,"error: first path action requires canonical Road/RoadNode");}
     else if(r.family!=Family::Scenery||r.category<0||r.category>=47)return fail(e,"error: native Scenery catalog binding invalid");
     if(!at(m,c.image,0x13df9f0,b.player,e)||!ap(m,c,b.player,0x17873b0,e)||!at(m,b.player,0x1d0,b.inventory,e)||!ap(m,c,b.inventory,0x16df0f0,e)||!at(m,c.image,0x13df9d0,b.cursor,e)||!ap(m,c,b.cursor,0x1786dd0,e))return false;
@@ -116,7 +122,7 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
     // The inventory is itself the vsArray pointer header (no independent capacity field).
     if(!at(m,b.inventory,8,items,e)||!at(m,b.inventory,16,count,e))return false;
     if(!items||count<=0||count>4096)return fail(e,"error: actual native inventory count outside diagnostic bound");
-    for(int i=0;i<count;++i){std::uintptr_t item=0,type=0,table=0,behaviour=0,proxy=0;if(!at(m,items,std::size_t(i)*8,item,e))return false;if(!item)continue;if(!ap(m,c,item,0x17437f0,e)||!at(m,item,0x68,type,e)||!weak_type(m,item,type,proxy,e)||!at(m,type,0,table,e))return false;if(table!=c.image+0x173b7b0)continue;if(!at(m,type,0x160,behaviour,e)||!behaviour)continue;if(!at(m,behaviour,0,table,e))return false;if(table!=c.image+(r.family==Family::MonsterZone?0x172fa80:r.family==Family::NPC?0x172b450:r.family==Family::RegionLevel?0x1741210:r.family==Family::Scenery?0x17396b0:(r.family==Family::NetworkPipe?0x173ed80:r.family==Family::NetworkNode?0x173ebd0:r.family==Family::Path?0x172f570:(r.family==Family::TerrainHeight?0x1740010:(r.family==Family::Terrain?0x173f580:0x17327d0)))))continue;int index=-1;std::string cause;if(!(r.family==Family::MonsterZone?monster_zone_type(m,behaviour,cause):r.family==Family::NPC?npc_type(m,behaviour,r,cause):r.family==Family::RegionLevel?true:r.family==Family::Scenery?scene_directory(m,behaviour,r,cause):(r.family==Family::NetworkPipe?network_pipe_type(m,c,behaviour,r,cause):r.family==Family::NetworkNode?network_type(m,c,behaviour,r,cause):r.family==Family::Path?path_type(m,behaviour,r,cause):(r.family==Family::TerrainHeight?terrain_height_up(m,behaviour,r,cause):(r.family==Family::Terrain?terrain_style(m,behaviour,r,cause):identifier(m,behaviour,r,index,cause,0x188)))))){if(!cause.empty()){e=cause;return false;}continue;}if(b.type&&b.type!=type)return fail(e,"error: actual placement tool type is ambiguous");b.inventory_item=item;b.type=type;b.behaviour=behaviour;}
+    for(int i=0;i<count;++i){std::uintptr_t item=0,type=0,table=0,behaviour=0,proxy=0;if(!at(m,items,std::size_t(i)*8,item,e))return false;if(!item)continue;if(!ap(m,c,item,0x17437f0,e)||!at(m,item,0x68,type,e)||!weak_type(m,item,type,proxy,e)||!at(m,type,0,table,e))return false;if(table!=c.image+0x173b7b0)continue;if(!at(m,type,0x160,behaviour,e)||!behaviour)continue;if(!at(m,behaviour,0,table,e))return false;if(table!=c.image+(r.family==Family::Wall?0x172f8d0:r.family==Family::Pass?0x172f3c0:r.family==Family::SceneryErase?0x173fc60:r.family==Family::MonsterZone?0x172fa80:r.family==Family::NPC?0x172b450:r.family==Family::RegionLevel?0x1741210:r.family==Family::Scenery?0x17396b0:(r.family==Family::NetworkPipe?0x173ed80:r.family==Family::NetworkNode?0x173ebd0:r.family==Family::Path?0x172f570:(r.family==Family::TerrainHeight?0x1740010:(r.family==Family::Terrain?0x173f580:0x17327d0)))))continue;int index=-1;std::string cause;if(!(r.family==Family::Wall?wall_type(m,behaviour,r,cause):r.family==Family::Pass?true:r.family==Family::SceneryErase?true:r.family==Family::MonsterZone?monster_zone_type(m,behaviour,cause):r.family==Family::NPC?npc_type(m,behaviour,r,cause):r.family==Family::RegionLevel?true:r.family==Family::Scenery?scene_directory(m,behaviour,r,cause):(r.family==Family::NetworkPipe?network_pipe_type(m,c,behaviour,r,cause):r.family==Family::NetworkNode?network_type(m,c,behaviour,r,cause):r.family==Family::Path?path_type(m,behaviour,r,cause):(r.family==Family::TerrainHeight?terrain_height_up(m,behaviour,r,cause):(r.family==Family::Terrain?terrain_style(m,behaviour,r,cause):identifier(m,behaviour,r,index,cause,0x188)))))){if(!cause.empty()){e=cause;return false;}continue;}if(b.type&&b.type!=type)return fail(e,"error: actual placement tool type is ambiguous");b.inventory_item=item;b.type=type;b.behaviour=behaviour;}
     if(!b.type)return fail(e,"error: actual inventory has no matching enabled placement tool");
     std::uintptr_t bars=0;std::int32_t bar_count=0;
     if(!at(m,c.image,0x1a3af18,bars,e)||!at(m,c.image,0x1a3af20,bar_count,e))return false;
@@ -170,12 +176,13 @@ bool read_scenery_mode_window(Memory& m,const Binding& b,std::uintptr_t& window,
     if(flags!=std::array<unsigned char,3>{}||painting||graph||edit)return fail(e,"error: Scenery mode selector requires idle original tool");
     return true;
 }
-bool read_scenery_mode_button(Memory& m,const Binding& b,std::uintptr_t window,std::uintptr_t button,std::string& e){
+bool read_scenery_mode_button(Memory& m,const Binding& b,std::uintptr_t window,std::uintptr_t button,std::string& e,const char* requested){
+    if(!requested||(std::strcmp(requested,"single")&&std::strcmp(requested,"paint")))return fail(e,"error: Scenery mode request differs");
     std::uintptr_t current=0,options=0,value=0;std::string id,mode,property;
     if(!read_scenery_mode_window(m,b,current,e)||current!=window)return fail(e,"error: Scenery mode selector window changed during lookup");
-    if(!button||!ap(m,b.context,button,0x1713de0,e)||!text(m,button+0x1b0,id,e)||id!="mode_single")return fail(e,"error: original Scenery mode_single lookup returned wrong pane");
+    if(!button||!ap(m,b.context,button,0x1713de0,e)||!text(m,button+0x1b0,id,e)||id!=std::string("mode_")+requested)return fail(e,"error: original Scenery mode lookup returned wrong pane");
     if(!at(m,b.behaviour,0xb68,options,e)||!text(m,button+0x5a8,mode,e)||!text(m,button+0x5e0,property,e)||!at(m,button,0x600,value,e))return false;
-    return mode=="single"&&property=="mode"&&value==options+0x88||fail(e,"error: Scenery mode_single native property binding differs");
+    return mode==requested&&property=="mode"&&value==options+0x88||fail(e,"error: Scenery mode native property binding differs");
 }
 
 bool read_palette_index(Memory& m,const Binding& b,const Request& r,std::int32_t& index,std::uintptr_t& list,std::string& e){

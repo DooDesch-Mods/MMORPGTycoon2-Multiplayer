@@ -14,6 +14,7 @@
 #include <charconv>
 #include "mt2mp/hooks/original_body.h"
 #include "npc_probe.h"
+#include "typed_action/tick_authority.h"
 #include "npc_history_graph.h"
 #include "npc_history_quests.h"
 #include "npc_history_budget.h"
@@ -167,6 +168,7 @@
 #include "prop_text_runtime.h"
 #include "move_ui_probe/native_guards.h"
 #include "typed_action_runtime.h"
+#include "typed_action/place_trace.h"
 #include "ui_remove_runtime.h"
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include "ui_remove/diagnostic/native_contract_bytes.h"
@@ -316,6 +318,15 @@ uint32_t lookup(host::FindUid find,uint64_t uid,uintptr_t& pointer) noexcept {
 
 #include "npc_quest_bridge.inc"
 #include "npc_quest_visitors.inc"
+
+bool snapshot_quests(uintptr_t image,int32_t region,const npc_census::Row& row,json& output,std::string& error){
+    output=json::object();Memory memory;quest_bridge::quest::State quests;
+    if(!quest_bridge::records(memory,image,region,row,quests,error))return false;
+    if(quests.records.size()!=quests.local.size())return fail(error,"Snapshot Quest records and ownership rows differ");
+    output={{"records",quest_bridge::records_json(quests.records)},{"tasks",quest_bridge::tasks_json(quests)}};
+    return true;
+}
+
 
 bool query(int32_t region_id,json& result,std::string& error) {
     result=json::object();

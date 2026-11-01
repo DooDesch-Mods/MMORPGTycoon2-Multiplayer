@@ -15,6 +15,7 @@
 #include "scenery_kiss/ui_native_gate.h"
 #include "placement_kiss/native_build.h"
 #include "typed_action_runtime.h"
+#include "session_provider.h"
 #include "scenery_stroke_runtime.h"
 #include "building_history_slice/native_bridge.h"
 #include "placement_ui_diagnostics/placement_ui_diagnostics.h"
@@ -221,7 +222,21 @@ void* scene_add_entry(void* manager,int32_t category,int32_t variant,const void*
 bool scene_authority(Runtime&,std::string& e) {
     if(!net::session_wire::connected()){e="scenery cooperative session disconnected";return false;}
     const auto current=typed_action_runtime::status();
-    if(!current.value("started",false)||current.value("locked",true)||current.value("pending",true)){e="scenery Controller unavailable, locked or pending";return false;}return true;
+    if(!current.value("started",false)||current.value("locked",true)){e="scenery Controller unavailable or locked";return false;}
+    if(typed_action_runtime::ordered_mode_selected()){
+        bool inside=false;
+        if(!typed_action_runtime::original_go_admission(inside,e))return false;
+        if(!inside){e="Ordered scenery capture requires the exact original Go scope";return false;}
+        action::Context context;action::Binding binding;
+        if(!action::selected_session().current(context,e)||context.snapshot_uuid!=net::current_snapshot_id()||
+           !typed_action_runtime::read_binding(context.snapshot_uuid,binding,e)){
+            if(e.empty())e="Ordered scenery capture actual Session or native Binding differs";return false;
+        }
+        // Controller::ordered_capture retains at most one input and submits it
+        // outside Go. Its pending flag can still describe this tick's command.
+        return true;
+    }
+    if(current.value("pending",true)){e="scenery Controller pending";return false;}return true;
 }
 bool submit_scene_intent(Runtime& r,uintptr_t receiver,const void* purchase_position,std::string& e) {
     host::ProcessMemory memory;bool own=false;

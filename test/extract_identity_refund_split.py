@@ -8,6 +8,17 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 source = (args.root / 'src/game/remove_diagnostics.cpp').read_text(encoding='utf-8')
 
+compact_collector_delta = [('bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr) {', 'bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr,const std::vector<uint64_t>* sorted_omissions=nullptr) {'), ('        retained_present=true;\n        if(!saved.revoked&&!saved.unknown&&(!omit_metadata||!omit_metadata->contains(saved.uid))) {', '        retained_present=true;\n        const bool omitted=sorted_omissions?std::binary_search(sorted_omissions->begin(),sorted_omissions->end(),saved.uid):\n            omit_metadata&&omit_metadata->contains(saved.uid);\n        if(!saved.revoked&&!saved.unknown&&!omitted) {'), ('        if(details==BindingDetails::BuildingTargets&&omit_metadata&&omit_metadata->contains(saved.uid)&&!saved.revoked&&!saved.unknown){', '        if(details==BindingDetails::BuildingTargets&&omitted&&!saved.revoked&&!saved.unknown){')]
+compact_index_delta = [('template<class Index>\nbool building_identity_index(', 'template<class Index,class Omissions>\nbool building_identity_index('), ('                            std::set<uint64_t>& omitted,std::string& error){', '                            Omissions& omitted,std::string& error){'), ('    constexpr char scenery_suffix[]=":world:scenery:inline:";', '    if constexpr(requires{omitted.reserve(registry.size());})omitted.reserve(registry.size());\n    constexpr char scenery_suffix[]=":world:scenery:inline:";'), ('           binding.class_addresspoint==image+0x16c1390)omitted.insert(binding.uid);\n    }\n    return true;', '           binding.class_addresspoint==image+0x16c1390){\n            if constexpr(requires{omitted.push_back(binding.uid);})omitted.push_back(binding.uid);\n            else omitted.insert(binding.uid);\n        }\n    }\n    // The UID index already rejects duplicates. Sort compact exclusions once\n    // so membership and destination publication retain their canonical order.\n    if constexpr(requires{omitted.push_back(uint64_t{});})std::sort(omitted.begin(),omitted.end());\n    return true;')]
+compact_targets_delta = [('std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());std::set<uint64_t> omitted;', 'std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());std::vector<uint64_t> omitted;'), ('collect_bindings_body(sources,error,BindingDetails::BuildingTargets,&omitted)', 'collect_bindings_body(sources,error,BindingDetails::BuildingTargets,nullptr,&omitted)'), ('!omitted.contains(row.at("local_uid").get<uint64_t>())', '!std::binary_search(omitted.begin(),omitted.end(),row.at("local_uid").get<uint64_t>())')]
+retained_helper = '// A retained-only read needs uniqueness, not UID-to-Bound lookup. Keep this\n// proof local; any ineligible row uses the full index and its original errors.\nbool building_retained_scenery_index(const host::WorldState& world,uintptr_t image,\n                                     std::vector<uint64_t>& omitted){\n    omitted.clear();\n    if(unknown_locked||scene_scenery::saved_admission_pending())return false;\n    const prop_lease::World expected{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map};\n    if(admitted_world.epoch&&admitted_world!=expected)return false;\n    const auto snapshot=net::current_snapshot_id();const auto prefix=registry_id(snapshot,{});\n    std::vector<uintptr_t> objects;\n    constexpr char scenery_suffix[]=":world:scenery:inline:";\n    for(const auto& [id,binding]:registry){\n        if(binding.generation!=registry_generation||binding.snapshot!=snapshot||binding.scene_owner=="retired")continue;\n        // Revoked/Unknown rows can still appear in the collector\'s output.\n        if(binding.revoked||binding.unknown||binding.world!=expected||!binding.uid||!binding.entry||\n           binding.key.empty()||!id.starts_with(prefix)||id.compare(prefix.size(),std::string::npos,binding.key)!=0||\n           !binding.object||binding.scene_owner!="world"||!binding.scene_manager||!binding.scene_region||\n           binding.scene_shard!=world.root||!binding.scene_record.starts_with(binding.sha)||\n           binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)!=0||\n           binding.class_addresspoint!=image+0x16c1390)return false;\n        if(omitted.empty()){omitted.reserve(registry.size());objects.reserve(registry.size());}\n        omitted.push_back(binding.uid);objects.push_back(binding.object);\n    }\n    if(omitted.empty())return false;\n    std::sort(omitted.begin(),omitted.end());std::sort(objects.begin(),objects.end());\n    return std::adjacent_find(omitted.begin(),omitted.end())==omitted.end()&&\n           std::adjacent_find(objects.begin(),objects.end())==objects.end();\n}\n'
+compact_retained_delta = [('    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());std::vector<uint64_t> omitted;\n    if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;\n    const bool retained_scenery_only=!indexed.empty()&&indexed.size()==omitted.size()&&\n        !scene_scenery::saved_admission_pending();', '    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};std::vector<uint64_t> omitted;\n    const bool compact_retained=(!destinations||destinations_for_targets_only)&&\n        building_retained_scenery_index(world,heap.image,omitted);\n    if(!compact_retained){\n        indexed.reserve(registry.size());\n        if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;\n    }\n    const bool retained_scenery_only=compact_retained||(!indexed.empty()&&indexed.size()==omitted.size()&&\n        !scene_scenery::saved_admission_pending());'), ('    const auto prior_omitted=std::move(omitted);\n    if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;', '    const auto prior_omitted=std::move(omitted);indexed.reserve(registry.size());\n    if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;')]
+def before_compact(text, changes):
+    for old, new in changes:
+        assert text.count(new)==1, 'Compact census production boundary changed'
+        text=text.replace(new,old,1)
+    return text
+
 def body(anchor, text=source):
     source = text
     start = source.index(anchor)
@@ -25,7 +36,9 @@ from scene_scenery_source_boundary import normalize
 metadata_delta = [('#include "dungeon_building_identity.inc"\n#include "root_scenery_metadata.inc"', '#include "dungeon_building_identity.inc"'), ('    if(!(readonly?read_metadata_prop(memory,reader,heap.image,before,actual,uid,prop,error):reader.prop(actual,uid,prop,error))||\n       !scenery_kiss::read_action_prop(uid,building,error))return false;', '    if(!reader.prop(actual,uid,prop,error)||!scenery_kiss::read_action_prop(uid,building,error))return false;'), ('                               const host::opened::CurrentWorld* admitted,bool metadata_only=false) {', '                               const host::opened::CurrentWorld* admitted) {'), ('    if(!(metadata_only?read_metadata_prop(memory,reader,heap.image,world,reinterpret_cast<void*>(object),uid,prop,error):\n         reader.prop(reinterpret_cast<void*>(object),uid,prop,error)))return false;', '    if(!reader.prop(reinterpret_cast<void*>(object),uid,prop,error))return false;'), ('        return resolve_local_target_impl(world.selection,uintptr_t(object),target,cause,&world.origin,true);', '        return resolve_local_target_impl(world.selection,uintptr_t(object),target,cause,&world.origin);')]
 from saved_scenery_batch_source_boundary import normalize as batch_normalize, verify as batch_verify
 batch_verify(args.root)
-metadata_source=batch_normalize('src/game/remove_diagnostics.cpp',source)
+from ordered_identity_source_boundary import normalize as ordered_normalize
+historical_source=ordered_normalize(source)
+metadata_source=batch_normalize('src/game/remove_diagnostics.cpp',before_compact(historical_source,compact_collector_delta))
 for added,prior in metadata_delta:
     assert metadata_source.count(added)==1, 'Saved Scenery readonly boundary differs'
     metadata_source=metadata_source.replace(added,prior,1)
@@ -69,7 +82,7 @@ modular_admission_delta = (
 for modular_addition, prior_admission in modular_admission_delta:
     assert original.count(modular_addition) == 1, "Modular admission boundary differs"
     original = original.replace(modular_addition, prior_admission, 1)
-identity_wrapper = body('bool identity_bindings(') + '\n'
+identity_wrapper = body('bool identity_bindings(', original) + '\n'
 assert original.count(identity_wrapper) == 1
 original = original.replace(identity_wrapper, '', 1)
 # Character retirement is an independent include-only extension. Keep the
@@ -125,7 +138,8 @@ assert original.count(wrapper) == 1
 original = original.replace(wrapper, '', 1)
 edge = 'collect_bindings(sources,error,BindingDetails::Identity)'
 assert original.count(edge) == 2
-for anchor in ('bool resolve_local_target_impl(', 'bool resolve_record_target('):
+assert 'return resolve_record_target_impl(snapshot,key,out,error,false);' in body('bool resolve_record_target(')
+for anchor in ('bool resolve_local_target_impl(', 'static bool resolve_record_target_impl('):
     assert body(anchor).count(edge) == 1
 original = original.replace(edge, 'bindings(sources,error)')
 assert hashlib.sha256(original.encode()).hexdigest() == '6aa33a7d60b77f636002b1f0eb3086f71c7f1c94994559acf70b8a61a0d2fde2', 'Identity/refund split changed an unrelated guard or consumer'
@@ -134,7 +148,7 @@ pieces = [body('std::string binding_id('), body('std::string registry_id('),
           body('template<class Binding>bool import_bindings('),
           body('enum class BindingDetails ') + ';', body('bool collect_bindings_body('), body('bool collect_bindings('),
           body('bool bindings(json& out,'), body('bool identity_bindings('), body('bool attach_refunds(const host::opened::CurrentWorld& origin,'),
-          body('bool resolve_local_target_impl('), body('bool resolve_local_target('), body('bool resolve_record_target(')]
+          body('bool resolve_local_target_impl('), body('bool resolve_local_target('), body('static bool resolve_record_target_impl('), body('bool resolve_record_target(')]
 pieces.append(body('bool identity_targets('))
 args.output.mkdir(parents=True, exist_ok=True)
 metadata=(args.root/'src/game/root_scenery_metadata.inc').read_text(encoding='utf-8')
@@ -149,7 +163,10 @@ print('Extracted complete collector, public report, refund enrichment, both reso
 # New owner-only consumers use the same actual known-Bound resolver.
 owner=(args.root/'src/game/building_identity_census.inc').read_text(encoding='utf-8')
 (args.output/'building_identity_census_actual.inc').write_text(owner,encoding='utf-8')
-index_body=body('bool building_identity_index(',owner)
+assert owner.count(retained_helper)==1, 'Retained compact proof boundary changed'
+prior_compact_owner=before_compact(owner.replace(retained_helper,'',1),compact_retained_delta)
+prior_compact_owner=before_compact(prior_compact_owner,compact_index_delta+compact_targets_delta)
+index_body=body('bool building_identity_index(',prior_compact_owner)
 object_index=('    using ObjectIndex=std::conditional_t<requires{indexed.bucket_count();},std::pmr::unordered_set<uintptr_t>,std::pmr::set<uintptr_t>>;\n'
               '    ObjectIndex objects{storage};\n'
               '    if constexpr(requires{objects.reserve(registry.size());})objects.reserve(registry.size());')
@@ -204,7 +221,7 @@ assert callback.endswith('}')
     'bool service_destination_actual(const std::map<uintptr_t,std::string>& destinations,const std::set<uintptr_t>* proved_buildings,uintptr_t pointer,std::string& key,std::string& error){'+callback+';return destination(pointer,key,error);}',encoding='utf-8')
 thought=(args.root/'src/game/toon_thought_frame.inc').read_text(encoding='utf-8')
 assert thought.count('identity_building_targets(buildings,e)')==1
-assert service.count('identity_building_targets(census,e,&local.service_destinations)')==1
+assert service.count('identity_building_targets(census,e,&local.service_destinations,true)')==1
 assert service.count('service_sample(r,local.service_destinations,owner,value,e,&proved_buildings)')==1
 assert service.count('service_sample(r,local.service_destinations,sampled,actual,cause)')==2, 'SaveScope destination samples must remain lookup-only'
 
@@ -227,8 +244,28 @@ assert 'resolve_record_target' not in target and 'resolve_local_target' not in t
 (args.output/'construction_target_actual.inc').write_text(target+'\n',encoding='utf-8')
 
 # Preserve the complete source census without copying its discarded binding array.
-building_targets=body('bool identity_building_targets(',owner)
-ordered_targets=building_targets
+building_targets=body('bool identity_building_targets(',prior_compact_owner)
+scene=(args.root/'src/game/scenery_scene_identity.inc').read_text(encoding='utf-8')
+(args.output/'saved_admission_pending_actual.inc').write_text(body('bool saved_admission_pending(',scene)+'\n',encoding='utf-8')
+assert 'if(!saved_admission||saved_admission->consumed)return true;' in body('bool append_saved(',scene)
+empty_retained_delta=('    const bool retained_scenery_only=!indexed.empty()&&indexed.size()==omitted.size()&&\n        !scene_scenery::saved_admission_pending();\n', '    // An empty retained census has no native target reads or pending alias\n    // admission. Its checked registry cannot change during collection.\n    if(retained_scenery_only&&sources.at("bindings").empty()&&(!destinations||destinations_for_targets_only))\n        return batch.finish(error);\n')
+prior_double_index=building_targets
+for added in empty_retained_delta:
+    assert prior_double_index.count(added)==1, 'Retained empty census boundary changed'
+    prior_double_index=prior_double_index.replace(added,'',1)
+(args.output/'building_targets_double_index.inc').write_text(prior_double_index.replace('bool identity_building_targets(', 'bool identity_building_targets_double_index(',1)+'\n',encoding='utf-8')
+# Retain the historical full collision index only in comparison baselines.
+# The actual body still validates both registry scans and the complete census.
+empty_collision_delta = (
+    ('bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,std::map<uintptr_t,std::string>* destinations,bool destinations_for_targets_only){', 'bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,std::map<uintptr_t,std::string>* destinations){'),
+    ('    // Empty Service censuses have no consumer for unrelated Scenery destinations.\n    if(destinations_for_targets_only&&sampled.empty())return batch.finish(error);\n', ''),
+    ('    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};\n    if(!service_building_census::read(selected,resolve,sampled,error))return false;\n    if(!destinations&&!sampled.empty())candidate_objects.reserve(indexed.size());', '    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};if(!destinations)candidate_objects.reserve(indexed.size());\n    if(!service_building_census::read(selected,resolve,sampled,error))return false;'),
+    ('    if(destinations||!sampled.empty())for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}', '    for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}'),
+)
+ordered_targets=prior_double_index
+for added, prior in empty_collision_delta:
+    assert ordered_targets.count(added)==1, 'Empty Building collision index boundary changed'
+    ordered_targets=ordered_targets.replace(added,prior,1)
 unordered_delta=(
     ('// Both fresh indexes share local storage;', '// Both fresh ordered indexes share local storage;'),
     ('std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());',
@@ -267,7 +304,7 @@ candidate_new=('    // Thought callers need the pointer collision proof, but not
 candidate_prior='    for(const auto& [uid,binding]:indexed)if(omitted.contains(uid))candidates.emplace(binding->object,binding->key);'
 assert ordered_targets.count(candidate_new)==1, 'Omitted destination allocation boundary changed'
 prior_targets=pre_arena_targets.replace(candidate_new,candidate_prior,1)
-assert hashlib.sha256(prior_targets.encode()).hexdigest()=='b1068edb1279cf130da6a2f2913c57acf1607e50d65fe441a775defd6780a416', 'Original Building target census body changed'
+assert hashlib.sha256(prior_targets.replace('collect_bindings_body(sources,error,BindingDetails::BuildingTargets,&omitted)','collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted)',1).encode()).hexdigest()=='b1068edb1279cf130da6a2f2913c57acf1607e50d65fe441a775defd6780a416', 'Original Building target census body changed'
 for name,actual,key in [('baseline',prior_targets,'binding->key'),('tracked',building_targets,'binding->key')]:
     if name=='baseline':actual=actual.replace('building_identity_index(', 'building_identity_index_pre_arena(')
     # Count bytes supplied to the omitted candidate map while executing the
@@ -284,5 +321,25 @@ for name,actual,key in [('baseline',prior_targets,'binding->key'),('tracked',bui
 assert building_targets.count('building_identity_index(world,heap.image,indexed,omitted,error)')==2, 'Both fresh Building identity scans must remain'
 assert 'json selected=sources' not in building_targets
 assert 'json selected={{"world_epoch",sources.at("world_epoch")},{"world_generation",sources.at("world_generation")},{"bindings",json::array()}};' in building_targets
-assert building_targets.index('collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted)')<building_targets.index('json selected=')
+assert building_targets.index('collect_bindings_body(sources,error,BindingDetails::BuildingTargets,&omitted)')<building_targets.index('json selected=')
 assert building_targets.index('for(const auto& row:sources.at("bindings"))')<building_targets.index('service_building_census::read(selected,resolve,sampled,error)')
+
+assert building_targets.count('collect_bindings_body(sources,error,BindingDetails::BuildingTargets,&omitted)')==1
+assert 'collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted)' not in building_targets
+assert building_targets.count('batch.finish(error)')==3, 'Empty and nonempty publication must retain final proof'
+
+# Count complete actual index invocations without replacing their guards.
+for name,actual in [('single',building_targets),('double',prior_double_index)]:
+    actual=actual.replace('bool identity_building_targets(', 'bool identity_building_targets_'+name+'_measured(',1)
+    actual=actual.replace('!building_identity_index(world,heap.image,indexed,omitted,error)', '!(++identity_index_calls,building_identity_index(world,heap.image,indexed,omitted,error))')
+    (args.output/('building_targets_'+name+'_measured.inc')).write_text(actual+'\n',encoding='utf-8')
+
+# Compare the complete immediate prior collector, index and census against the
+# current extracted production body, rather than a mock algorithm.
+prior_collector=body('bool collect_bindings_body(',before_compact(source,compact_collector_delta))
+prior_index=body('bool building_identity_index(',prior_compact_owner)
+prior_targets=body('bool identity_building_targets(',prior_compact_owner)
+prior_collector=prior_collector.replace('bool collect_bindings_body(', 'bool collect_bindings_body_before_compact(',1)
+prior_index=prior_index.replace('bool building_identity_index(', 'bool building_identity_index_before_compact(',1)
+prior_targets=prior_targets.replace('bool identity_building_targets(', 'bool identity_building_targets_before_compact(',1).replace('building_identity_index(', 'building_identity_index_before_compact(').replace('collect_bindings_body(', 'collect_bindings_body_before_compact(')
+(args.output/'compact_census_baseline.inc').write_text(prior_collector+'\n'+'template<class Index>\n'+prior_index+'\n'+prior_targets+'\n',encoding='utf-8')

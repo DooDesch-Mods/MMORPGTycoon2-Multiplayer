@@ -9,10 +9,16 @@
 #include "../src/game/live_host_state/frame_apply_acks.h"
 #include "../src/game/live_host_state/apply_timing.h"
 #include "../src/game/tutorial_replication/state.h"
+#include "../src/game/party_frame_state.h"
+#include "../src/game/release_cycle_state.h"
+namespace party_frame=mt2mp::game::party_frame;
+namespace release_cycle=mt2mp::game::release_cycle;
 namespace apply_timing=mt2mp::game::live_host_state::apply_timing;
 namespace tutorial_replication=mt2mp::game::tutorial_replication;
 #include "autosave_tutorial_publication.inc"
 using mt2mp::game::live_host_state::FrameApplyAcks;
+#define GetCurrentThreadId fixture_current_thread_id
+#define GetModuleHandleW fixture_module_handle
 
 int assertions=0;
 void check(bool v,const char* label){++assertions;if(!v)throw std::runtime_error(label);}
@@ -43,7 +49,7 @@ struct NativePort {Context context_;Binding binding_;EconomicBoundary* boundary_
 
 constexpr size_t scalar_count=52;
 Pin owner_sample;bool owner_read_ok=true;int owner_reads=0,scalar_stores=0;
-bool once(const Context&,const Binding&,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){
+bool owner_once(const Context&,const Binding&,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){
     ++owner_reads;if(!owner_read_ok)return fail(e,"original scalar owner read failed");
     if(!native_activity(world_fixture.saves,world_fixture.edits,expected_edits,e))return false;
     p=owner_sample;pause=p.pause;return true;
@@ -81,7 +87,7 @@ void scalar_owner_cases(){
 
 
 enum class Admission {Wait,Rejected,New,Duplicate};
-struct Frame {int management=0,monsters=0,marketing=0,vips=0,bugs=0,developers=0,network=0,values=0,selected=0,pause=0;std::optional<tutorial_replication::State> tutorial;uint64_t base_action_revision=0,time_revision=1;std::string for_action;};
+struct Frame {std::optional<party_frame::State> party;std::optional<release_cycle::Publication> release;int control=0,management=0,monsters=0,marketing=0,vips=0,bugs=0,developers=0,network=0,values=0,selected=0,pause=0;std::optional<tutorial_replication::State> tutorial;uint64_t base_action_revision=0,time_revision=1;std::string for_action;};
 struct Economy {int subscribers=0,loans=0,offers=0,npcs=0,additions=0;};
 struct Day {uint64_t current=1;uint64_t sequence(){return current;}};
 struct Time {bool okay=true;uint64_t revision=1;explicit operator bool()const{return true;}bool operator()(uint64_t& n,std::string& e){n=revision;return okay?true:fail(e,"original time failure");}};
@@ -136,12 +142,77 @@ struct Bridge {
 
 void publication_payload_cases(std::chrono::steady_clock::time_point now){
     world_fixture={};std::string e;
-    for(auto field:{&Frame::management,&Frame::monsters,&Frame::marketing,&Frame::vips,&Frame::bugs,&Frame::developers,&Frame::network,&Frame::values,&Frame::selected,&Frame::pause}){
+    for(auto field:{&Frame::control,&Frame::management,&Frame::monsters,&Frame::marketing,&Frame::vips,&Frame::bugs,&Frame::developers,&Frame::network,&Frame::values,&Frame::selected,&Frame::pause}){
         Bridge bridge;
         check(bridge.tick(0,false,e,now)&&bridge.sends==1,"initial payload publishes");
         ++(bridge.captured_frame.*field);
         check(bridge.tick(0,false,e,now+std::chrono::milliseconds(250))&&bridge.sends==2,"changed compared payload publishes at ordinary cadence");
         check(bridge.tick(0,false,e,now+std::chrono::milliseconds(500))&&bridge.sends==2,"identical compared payload suppresses duplicate publication");
+    }
+    // Use the actual Party/Scene payload: its capture operation UUID changes
+    // even for an empty paused world, unlike an integer test component.
+    party_frame::State party;
+    party.scenes=mt2mp::game::scene_clone::Mapping{};
+    party.scenes->operation="11111111-1111-4111-8111-111111111111";
+    auto recaptured=party;recaptured.scenes->operation="22222222-2222-4222-8222-222222222222";
+    check(party!=recaptured&&same_party_publication(party,recaptured),"only publication equality excludes Scene capture operation UUID");
+    check(same_party_publication(std::nullopt,std::nullopt)&&!same_party_publication(party,std::nullopt)&&!same_party_publication(std::nullopt,party),"Party presence remains a publication change");
+    const std::function<void(party_frame::State&)> mutations[]={
+        [](auto& value){value.parties.push_back("changed original record");},
+        [](auto& value){value.pools.push_back({"owner",1,{}});},
+        [](auto& value){value.instances.emplace_back();},
+        [](auto& value){value.lifecycle.rows.emplace_back();},
+        [](auto& value){++value.lifecycle.after;},
+        [](auto& value){value.scenes.reset();},
+        [](auto& value){value.scenes->scenes.emplace_back();},
+        [](auto& value){value.scenes->members.emplace_back();},
+        [](auto& value){value.scenes->retired.emplace_back();}
+    };
+    for(const auto& mutate:mutations){auto changed=recaptured;mutate(changed);check(!same_party_publication(party,changed),"every actual Party field and Scene roster remains a publication input");}
+    Bridge party_bridge;party_bridge.captured_frame.party=party;
+    check(party_bridge.tick(0,false,e,now)&&party_bridge.sends==1,"initial actual empty Party mapping publishes");
+    party_bridge.captured_frame.party=recaptured;
+    check(party_bridge.tick(0,false,e,now+std::chrono::milliseconds(250))&&party_bridge.sends==1&&party_bridge.paused_idle_equal_,"new capture UUID alone preserves paused idle publication");
+    check(party_bridge.last_->party==party&&party_bridge.captured_frame.party==recaptured,"publication comparison never rewrites retained protocol payloads");
+    party_bridge.captured_frame.party->scenes->operation="33333333-3333-4333-8333-333333333333";
+    check(party_bridge.tick(0,false,e,now+std::chrono::milliseconds(1250))&&party_bridge.sends==1,"finite paused recheck does not publish another empty operation UUID");
+    party_bridge.captured_frame.party->scenes->retired.emplace_back();
+    check(party_bridge.tick(0,false,e,now+std::chrono::milliseconds(2250))&&party_bridge.sends==2,"Scene retirement still publishes at the next complete paused recheck");
+    party_bridge.captured_frame.party.reset();
+    check(party_bridge.tick(0,false,e,now+std::chrono::milliseconds(2500))&&party_bridge.sends==3,"Party component removal still publishes");
+    release_cycle::Publication idle_release;
+    idle_release.prepared.kind=mt2mp::game::release_graph::Kind::PreparedDemands;
+    for(auto* graph:{&idle_release.graph,&idle_release.prepared}){
+        mt2mp::subscriber_lifecycle::Record root;root.parent=SIZE_MAX;root.label.type=1;
+        root.label.text=mt2mp::subscriber_lifecycle::release_record_root(graph->kind);graph->records.push_back(root);
+    }
+    idle_release.random={1,2,3,4};std::string release_error;
+    check(release_cycle::valid(idle_release,release_error),"actual idle Release fixture is a valid publication");
+    auto next_release=idle_release;next_release.random={5,6,7,8};
+    check(idle_release!=next_release&&same_release_publication(idle_release,next_release),"idle global RNG does not create a publication but strict Release identity differs");
+    check(release_cycle::encode(idle_release)!=release_cycle::encode(next_release),"exact Release wire payload still carries changed global RNG");
+    check(!same_release_publication(idle_release,std::nullopt)&&!same_release_publication(std::nullopt,idle_release)&&same_release_publication(std::nullopt,std::nullopt),"Release component presence remains a publication input");
+    Bridge idle;idle.captured_frame.release=idle_release;
+    check(idle.tick(0,false,e,now)&&idle.sends==1,"initial actual Release payload publishes");
+    idle.captured_frame.release=next_release;
+    check(idle.tick(0,false,e,now+std::chrono::milliseconds(250))&&idle.sends==1&&idle.paused_idle_equal_,"idle RNG-only capture does not keep paused publication running");
+    check(idle.last_->release==idle_release&&idle.captured_frame.release==next_release,"Release publication comparison never overwrites captured or retained RNG");
+    const std::function<void(release_cycle::Publication&)> release_mutations[]={
+        [](auto& value){value.cycle="11111111-1111-4111-8111-111111111111";},
+        [](auto& value){value.phase=release_cycle::Phase::Announcement;value.cycle="11111111-1111-4111-8111-111111111111";},
+        [](auto& value){mt2mp::subscriber_lifecycle::Token token;token.type=4;token.bits=1;value.graph.records[0].tokens.push_back(token);},
+        [](auto& value){mt2mp::subscriber_lifecycle::Token token;token.type=4;token.bits=1;value.prepared.records[0].tokens.push_back(token);}
+    };
+    for(const auto& mutate:release_mutations){Bridge changed;changed.captured_frame.release=idle_release;
+        check(changed.tick(0,false,e,now)&&changed.sends==1,"Release component change setup");
+        mutate(*changed.captured_frame.release);
+        check(changed.tick(0,false,e,now+std::chrono::milliseconds(250))&&changed.sends==2,"Idle Release cycle/phase/graph/prepared change still publishes");}
+    for(auto phase:{release_cycle::Phase::Announcement,release_cycle::Phase::Playing,release_cycle::Phase::AwaitPublish}){
+        Bridge active;active.captured_frame.release=idle_release;active.captured_frame.release->phase=phase;
+        active.captured_frame.release->cycle="11111111-1111-4111-8111-111111111111";
+        check(active.tick(0,false,e,now)&&active.sends==1,"active Release setup");
+        active.captured_frame.release->random=next_release.random;
+        check(active.tick(0,false,e,now+std::chrono::milliseconds(250))&&active.sends==2,"all active Release phases still publish RNG-only changes");
     }
     Bridge tutorial;
     tutorial.captured_frame.selected=tutorial.captured_frame.pause=1;

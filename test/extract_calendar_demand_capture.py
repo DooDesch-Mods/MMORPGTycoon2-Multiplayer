@@ -10,6 +10,8 @@ def section(start,end):
     assert native.count(start)==1 and native.count(end)==1,(start,end)
     return native[native.index(start):native.index(end)]
 outputs={
+    'calendar_demand_reader_actual.inc':section('bool read_demands(Memory&','}\nstruct DemandReadWitness'),
+    'calendar_demand_once_actual.inc':section('struct DemandReadWitness','bool capture(const a::Context&'),
     'calendar_demand_owners_actual.inc':section('struct DemandOwner {','struct Memory {'),
     'calendar_demand_capture_actual.inc':section('bool capture_demands(','bool apply(const a::Context& context,')}
 for name,body in outputs.items():(a.output/name).write_text(body,encoding='utf-8')
@@ -23,6 +25,7 @@ assert 'demand_keys(' not in capture and 'static ' not in capture and 'thread_lo
 management=(a.root/'src/game/management_live_port.inc').read_text(encoding='utf-8')
 sample=management[management.index('bool calendar_sample('):management.index('bool primary_once(')]
 assert sample.count('character_calendar::capture_demands(')==1
+assert sample.count('character_calendar::capture_demands_once(')==1
 assert 'subscriber_demand_native::sample(' not in sample and 'character_calendar::capture(' not in sample
 assert 'PageBoundary::OriginalCall' in sample
 assert 'subscriber_demand_native::apply(' in management and 'character_calendar::apply(' in management

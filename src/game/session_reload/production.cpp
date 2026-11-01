@@ -3,8 +3,13 @@
 #endif
 #include "production.h"
 #include "protocol.h"
+#include "recovery_wire.h"
+#include "monster_snapshot_companion.h"
+#include "mt2mp/net/snapshot_buffer.h"
+namespace mt2mp { void ordered_snapshot_diagnostics(); }
 #include "typed_action_runtime.h"
 #include "prepare_flow.h"
+#include "ordered_startup.h"
 #include "lobby_operations.h"
 #include "time_integration.h"
 #include "mt2mp/core/config.h"
@@ -20,18 +25,20 @@
 namespace mt2mp::game::session_reload {
 namespace {
 using json=nlohmann::json;
-enum class Phase {Idle,Capture,ReturnTitle,Retire,Peers,Handshake,Prepare,Playing,Failed};
+enum class Phase {Idle,Capture,ReturnTitle,Retire,Peers,Handshake,Prepare,Playing,Failed,CaptureReady,CaptureWait};
 Phase phase=Phase::Idle;
 Barrier barrier;
 DWORD thread=0;
 bool initialized=false,manual_requested=false,was_host=false,had_world=false,title_requested=false;
-bool client_request_pending=false;
+bool client_request_pending=false,ordered_reload=false;
+uint64_t retirement_before=0;
 uint64_t client_request_began=0;
-uint64_t began=0,request_count=0,completed_count=0,rejected_count=0;
+uint64_t began=0,request_count=0,completed_count=0,rejected_count=0,ordered_handoffs=0;
 uint64_t old_session=0;
 float resume_scale=0;
-std::string operation,saved_snapshot,first_failure,last_wait;
+std::string operation,saved_snapshot,saved_world_name,first_failure,last_wait;
 std::string last_failure;
+json last_ordered_handoff=json::object();
 bool bind_thread(std::string& error){
     if(thread){
         if(thread==GetCurrentThreadId())return true;
@@ -48,7 +55,7 @@ bool bind_thread(std::string& error){
 const char* label(){
     switch(phase){
     case Phase::Idle:return "Connected";
-    case Phase::Capture:return "Saving shared world";
+    case Phase::Capture:case Phase::CaptureReady:case Phase::CaptureWait:return "Saving shared world";
     case Phase::ReturnTitle:case Phase::Retire:case Phase::Peers:return "Preparing shared world";
     case Phase::Handshake:return "Connecting players";
     case Phase::Prepare:return "Loading shared world";
@@ -114,20 +121,32 @@ bool host_begin(std::string& error){
         error="initial shared world preparation is still active";return false;
     }
     const auto id=token(error);if(id.empty()){fail(error);return false;}
-    Packet packet{Kind::Begin,net::session_wire::session_id(),net::session_wire::membership_retirement_mask(),id,{}};
+    ordered_reload=ordered_startup::selected();
+    const auto required=net::session_wire::peer_mask();
+    if(ordered_reload&&(!ordered_startup::started()||net::session_wire::membership_retirement_mask()!=required)){
+        error="Ordered reload requires every original process before shared capture";fail(error);return false;
+    }
+    Packet packet{ordered_reload?Kind::OrderedBegin:Kind::Begin,net::session_wire::session_id(),
+        ordered_reload?required:net::session_wire::membership_retirement_mask(),id,{}};
     if(!barrier.begin(packet,1,error)){fail(error);return false;}
     old_session=packet.session;was_host=true;had_world=native::in_game();resume_scale=0;title_requested=false;
-    if(had_world){native::ClockState clock;if(!native::read_clock(clock,error)){fail(error);return false;}resume_scale=clock.paused?0:clock.time_scale;}
-    if(!freeze(error)){fail(error);return false;}
+    if(had_world){native::ClockState clock;if(!native::read_clock(clock,error)){fail(error);return false;}resume_scale=ordered_reload?clock.time_scale:(clock.paused?0:clock.time_scale);}
+    if(ordered_reload){
+        if(!had_world||!typed_action_runtime::hold_ordered_snapshot_for_reload(id,error)||
+           !barrier.capture_ready(1,barrier.capture_ready_packet(),error)){fail(error);return false;}
+    }else if(!freeze(error)){fail(error);return false;}
     if(!send_required(packet,error)){fail(error);return false;}
     manual_requested=false;++request_count;
+    if(ordered_reload){last_ordered_handoff=json::object();enter(Phase::CaptureReady);return true;}
     if(had_world){
         if(!lobby_operations::submit("capture_local_snapshot",json::object(),operation,error)){fail(error);return false;}
         enter(Phase::Capture);
     }else enter(Phase::ReturnTitle);
     return true;
 }
+#include "recovery_runtime.inc"
 void receive(uint64_t sender,const uint8_t* bytes,uint32_t size){
+    if(bytes&&size&&size<=4096&&recovery_receive(sender,bytes,size))return;
     Packet packet;std::string error;
     if(!bind_thread(error)){fail(error,false);return;}
     if(!decode(bytes,size,packet,error)){++rejected_count;LOG_WARN("[WorldReload] Packet rejected sender={} cause={}",sender,error);return;}
@@ -139,7 +158,7 @@ void receive(uint64_t sender,const uint8_t* bytes,uint32_t size){
         if(local!=1||phase!=Phase::Idle||packet.required!=mask){++rejected_count;return;}
         manual_requested=true;return;
     }
-    if(packet.kind==Kind::Begin){
+    if(packet.kind==Kind::Begin||packet.kind==Kind::OrderedBegin){
         if(sender!=1||local==1||!(packet.required&(1u<<(local-1)))||(packet.required&~mask)){
             ++rejected_count;LOG_WARN("[WorldReload] Begin requires current physical Host/quorum");return;
         }
@@ -147,22 +166,109 @@ void receive(uint64_t sender,const uint8_t* bytes,uint32_t size){
             if(barrier.packet()!=packet){++rejected_count;LOG_WARN("[WorldReload] Conflicting Begin while world retirement active");}
             return;
         }
+        if((packet.kind==Kind::OrderedBegin)!=ordered_startup::selected()||
+           (packet.kind==Kind::OrderedBegin&&(!ordered_startup::started()||packet.required!=mask))){
+            fail("Reload Begin mode or full ordered cohort differs");return;
+        }
         if(phase!=Phase::Idle||!barrier.begin(packet,uint8_t(local),error)){fail(error.empty()?"world reload Begin while native operation active":error);return;}
         old_session=packet.session;was_host=false;had_world=native::in_game();title_requested=false;++request_count;
         client_request_pending=false;
+        ordered_reload=packet.kind==Kind::OrderedBegin;
+        if(ordered_reload){
+            if(!had_world||!typed_action_runtime::hold_ordered_snapshot_for_reload(packet.token,error)||
+               !send(1,barrier.capture_ready_packet(),error)){fail(error);return;}
+            last_ordered_handoff=json::object();enter(Phase::CaptureWait);return;
+        }
         if(!freeze(error)){fail(error);return;}
         enter(Phase::ReturnTitle);return;
     }
     if(!barrier.active()||packet.token!=barrier.packet().token||packet.required!=barrier.packet().required){++rejected_count;return;}
+    if(packet.kind==Kind::CaptureReady){
+        if(!ordered_reload||local!=1||!barrier.capture_ready(sender,packet,error)){
+            fail(error.empty()?"Unexpected ordered reload CaptureReady":error);return;
+        }
+        return;
+    }
+    if(packet.kind==Kind::Captured){
+        if(ordered_reload&&sender==1&&local!=1&&(phase==Phase::ReturnTitle||phase==Phase::Retire||phase==Phase::Handshake))return;
+        if(!ordered_reload||sender!=1||local==1||phase!=Phase::CaptureWait||
+           !typed_action_runtime::ordered_snapshot_reload_held(packet.token,error)){
+            fail(error.empty()?"Ordered reload Captured lacks exact released hold":error);return;
+        }
+        enter(Phase::ReturnTitle);return;
+    }
     if(packet.kind==Kind::Failed){fail("peer="+std::to_string(sender)+" world reload: "+packet.cause,false);return;}
     if(packet.kind!=Kind::Ready||local!=1||!barrier.acknowledge(sender,packet,error)){
         ++rejected_count;LOG_WARN("[WorldReload] Ready rejected: {}",error);return;
     }
 }
 void clear(){
+    recovery_state={};
     barrier.clear();phase=Phase::Idle;manual_requested=was_host=had_world=title_requested=client_request_pending=false;old_session=began=client_request_began=0;
-    operation.clear();saved_snapshot.clear();first_failure.clear();last_wait.clear();
+    ordered_reload=false;retirement_before=0;operation.clear();saved_snapshot.clear();saved_world_name.clear();first_failure.clear();last_wait.clear();
 }
+}
+bool bind_recovery(recovery::Owner& owner,ordered_session::ProofOwner& proof,const MT2FW_MT2_StepRecoveryDraftV1& api,
+                   const MT2FW_MT2_StepReceipt& armed,uint8_t mask,std::string& error){
+    if(recovery_state.owner||phase!=Phase::Idle){error="Recovery binding conflicts with an existing reload owner";return false;}
+    recovery_state.owner=&owner;
+    return owner.bind(api,armed,mask,proof,[](auto& cohort,std::string& cause){
+        if(Config::instance().local_test)net::tick_local_session();
+        else if(!net::session_wire::tick(cause))return false;
+        return net::session_wire::read_process_cohort(cohort,cause);
+    },[](auto& current,const auto& receipt,std::string& cause){
+        if(recovery_service(current,receipt,cause))return true;
+        fail(cause,false);
+        if(recovery_state.active){
+            auto packet=recovery_packet(recovery::Kind::Failed);packet.cause=first_failure.substr(0,512);
+            if(recovery::valid(packet)){
+                std::string notification;
+                if(!(was_host?recovery_send_survivors(packet,notification):recovery_send(packet,1,notification)))
+                    LOG_ERROR("[WorldReload] Recovery failure notification failed: {}",notification);
+            }
+        }
+        return false;
+    },&typed_action_runtime::recovery_witness,[](const auto&,const auto& expected,std::string& cause){
+        MT2FW_MT2_RecoveryPublication actual{};if(!recovery_file(actual,cause))return false;
+        if(expected.size!=sizeof(expected)||expected.reserved||expected.file_bytes!=actual.file_bytes||expected.companion_bytes!=actual.companion_bytes||
+           std::memcmp(expected.file_sha256,actual.file_sha256,32)||std::memcmp(expected.companion_sha256,actual.companion_sha256,32)){
+            cause="Recovery publication changed during actual complete file/companion readback";return false;
+        }
+        cause.clear();return true;
+    },error);
+}
+bool recovery_capture_pending(const std::string& id){
+    return phase!=Phase::Failed&&first_failure.empty()&&recovery_state.active&&was_host&&recovery_state.owner&&recovery_state.owner->cause().empty()&&recovery_state.prepared&&!recovery_state.published&&
+        !id.empty()&&id==recovery_state.capture_id&&id==operation;
+}
+bool retire_recovery_owner(const recovery::Owner& owner,std::string& error){
+    if(recovery_state.owner&&recovery_state.owner!=&owner){error="Recovery retirement owner differs from the actual unbound Step";return false;}
+    recovery_state.owner=nullptr;error.clear();return true;
+}
+bool recovery_capture_consumed(const std::string& id,std::string& error){
+    if(!recovery_capture_pending(id)){error="Recovery capture lacks its retained Host request";return false;}
+    MT2FW_MT2_RecoveryReceipt receipt{};if(!recovery_state.owner->read(receipt,error))return false;
+    if(receipt.phase!=MT2FW_MT2_RECOVERY_CONSUMED||receipt.capture_attempted!=1||receipt.capture_returned!=0){
+        error="Recovery capture requires the exact consumed receipt before its original Save";return false;
+    }
+    error.clear();return true;
+}
+bool recovery_capture_completed(const std::string& id){
+    return recovery_capture_pending(id)&&recovery_state.last.phase==MT2FW_MT2_RECOVERY_CAPTURED&&recovery_state.last.capture_returned==1;
+}
+bool recovery_active(){
+    return ordered_startup::selected()&&recovery_state.owner&&
+        recovery_state.owner->receipt().phase>=MT2FW_MT2_RECOVERY_INTERRUPTED;
+}
+bool retain_recovery_capture(const std::string& id,recovery::Owner::Capture capture,std::string& error){
+    if(!recovery_capture_pending(id)||recovery_state.captured||recovery_state.capture||!capture||
+       recovery_state.last.phase!=MT2FW_MT2_RECOVERY_SEALED){error="Recovery capture callback lacks its single sealed Host request";return false;}
+    recovery_state.capture=std::move(capture);error.clear();return true;
+}
+bool recovery_read(const std::string& id,const std::function<bool(std::string&)>& read,std::string& error){
+    if(!recovery_capture_pending(id)||!recovery_state.owner){error="Recovery completion read lacks its owned capture request";return false;}
+    MT2FW_MT2_RecoveryReceipt receipt{};if(!recovery_state.owner->read(receipt,error))return false;
+    return typed_action_runtime::read_recovery_snapshot(receipt,read,error);
 }
 bool initialize(std::string& error){
     if(initialized){error.clear();return true;}
@@ -170,7 +276,14 @@ bool initialize(std::string& error){
     initialized=true;error.clear();return true;
 }
 bool busy(){return phase!=Phase::Idle;}
+void admit_refreshed_ordered_client(){
+    if(ordered_reload&&!was_host&&phase==Phase::Handshake&&GetCurrentThreadId()==thread&&
+       !ordered_startup::selected()&&net::session_wire::connected()&&net::session_wire::session_id()!=old_session){
+        ++ordered_handoffs;clear();
+    }
+}
 bool release_for_leave(std::string& error){
+    if(recovery_state.active){error="Original-peer recovery still owns its native export and survivor retirement";return false;}
     if(GetCurrentThreadId()!=thread||lobby_operations::pending()){
         error="world reload Leave waits for the current native operation; it was not cancelled";return false;
     }
@@ -188,7 +301,14 @@ bool request_resync(std::string& error){
 void tick()try{
     if(!initialized)return;
     std::string thread_error;if(!bind_thread(thread_error)){fail(thread_error);return;}
+    std::string recovery_error;
+    if(recovery_tick(recovery_error))return;
     if(phase==Phase::Idle){
+        if(recovery_state.owner&&ordered_startup::started()&&net::session_wire::membership_pending()){
+            bool interrupted=false;
+            if(!recovery_state.owner->transport_interrupted(interrupted,recovery_error)){fail(recovery_error,false);return;}
+            if(interrupted){wait("awaiting original-peer recovery admission at the held Step boundary");return;}
+        }
         if(client_request_pending&&GetTickCount64()-client_request_began>=uint64_t(net::snapshot_native_load_timeout_seconds)*1000){
             fail("world reload request timed out waiting for the Host begin; request was not replayed");return;
         }
@@ -206,14 +326,49 @@ void tick()try{
         fail("world reload lost original transport: "+net::session_wire::failure_reason());return;
     }
     std::string error;
+    if(ordered_reload&&phase!=Phase::Handshake&&phase!=Phase::Prepare&&phase!=Phase::Playing&&
+       net::session_wire::membership_retirement_mask()!=barrier.packet().required){
+        fail("Ordered reload lost an original process; cohort cannot shrink");return;
+    }
+    if(phase==Phase::CaptureWait)return;
+    if(phase==Phase::CaptureReady){
+        if(!barrier.capture_complete())return;
+        if(!lobby_operations::submit("capture_local_snapshot",json::object(),operation,error)){fail(error);return;}
+        enter(Phase::Capture);
+    }
     if(phase==Phase::Capture){
         json response;if(!lobby_operations::take_response(operation,response))return;
         if(!response.value("ok",false)){fail(response.value("error",json::object()).value("message",std::string("shared capture failed")));return;}
         const auto& result=response.at("result");
+        if(ordered_reload){
+            if(result.value("state",std::string{})!="snapshot_file_complete"||!result.value("export_only",false)||
+               !result.value("companion_complete",false)||result.value("distribution_requested",true)||
+               result.value("snapshot_identities_published",true)){
+                fail("Ordered reload capture lacks isolated completed native file and companion");return;
+            }
+            for(const char* field:{"snapshot_id","sha256","bytes","path","world_name","companion_complete"})
+                last_ordered_handoff["capture"][field]=result.at(field);
+        }
         if(!result.value("building_bindings_confirmed",false)){fail("world reload capture identity incomplete: "+result.value("building_identity_error",std::string{}));return;}
         saved_snapshot=result.at("snapshot_id").get<std::string>();
+        saved_world_name=result.value("world_name",std::string{});
+        if(!net::snapshot_world_path::valid_folder(saved_world_name)){fail("world reload capture native world folder invalid");return;}
         if(!uuid(saved_snapshot)){fail("world reload capture snapshot ID invalid");return;}
-        operation.clear();enter(Phase::ReturnTitle);
+        operation.clear();
+        if(ordered_reload){
+            if(!typed_action_runtime::ordered_snapshot_reload_held(barrier.packet().token,error)){fail(error);return;}
+            auto captured=barrier.packet();captured.kind=Kind::Captured;
+            if(!send_required(captured,error)){fail(error);return;}
+        }
+        enter(Phase::ReturnTitle);
+    }
+    if(phase==Phase::ReturnTitle&&ordered_reload){
+        last_ordered_handoff["session"]=old_session;last_ordered_handoff["token"]=barrier.packet().token;
+        last_ordered_handoff["required_mask"]=barrier.packet().required;
+        last_ordered_handoff["snapshot_barrier"]=typed_action_runtime::ordered_snapshot_status();
+        retirement_before=ordered_startup::reload_confirmed;
+        if(!ordered_startup::request_reload_retirement(barrier.packet().token,error)){fail(error);return;}
+        title_requested=true;enter(Phase::Retire);return;
     }
     if(phase==Phase::ReturnTitle){
         native::WorldStatus actual;if(!native::read_world_status(actual,error)){fail(error);return;}
@@ -228,7 +383,11 @@ void tick()try{
     }
     if(phase==Phase::Retire){
         bool done=false;
-        if(!typed_action_runtime::finish_world_reload(done,error)){fail(error);return;}
+        if(ordered_reload){
+            if(ordered_startup::selected())return;
+            if(ordered_startup::reload_confirmed!=retirement_before+1){fail("Ordered reload lost exact Title retirement acknowledgement");return;}
+            done=true;
+        }else if(!typed_action_runtime::finish_world_reload(done,error)){fail(error);return;}
         if(!done)return;
         if(!lobby_prepare::reset_after_world_reload(error)){fail(error);return;}
         if(was_host){
@@ -252,10 +411,19 @@ void tick()try{
         if(!net::session_wire::connected())return;
         if(net::session_wire::session_id()==old_session)return;
         if(was_host&&had_world){
-            if(!lobby_prepare::prepare_snapshot(saved_snapshot,error)||!lobby_prepare::start(error)){fail(error);return;}
+            if(!lobby_prepare::prepare_snapshot(saved_snapshot,error,saved_world_name)||!lobby_prepare::start(error)){fail(error);return;}
+            if(ordered_startup::selected()){
+                if(!ordered_startup::retain_resume_scale(resume_scale,error)){fail(error);return;}
+                // The common ordered startup now owns the shared load and its
+                // subsequent clock command; this retired reload must not tick it.
+                ++ordered_handoffs;clear();return;
+            }
             enter(Phase::Prepare);
         }else if(was_host){++completed_count;clear();return;}
-        else enter(Phase::Playing);
+        else if(ordered_reload){
+            // The incoming current-epoch manifest uses the existing idle selector.
+            ++ordered_handoffs;clear();return;
+        }else enter(Phase::Playing);
     }
     if(phase==Phase::Prepare){
         if(!lobby_prepare::tick(error)){fail(error);return;}
@@ -282,9 +450,10 @@ void tick()try{
         ++completed_count;LOG_INFO("[WorldReload] Shared reload completed session={} snapshot={}",net::session_wire::session_id(),net::current_snapshot_id());clear();
     }
 }catch(const std::exception& cause){fail(std::string("world reload: ")+cause.what());}
+const std::string& failure_reason(){return first_failure;}
 json status(){return {{"active",busy()},{"state",int(phase)},{"label",label()},{"session",old_session},
     {"token",barrier.active()?barrier.packet().token:std::string{}},{"pending_peer_mask",barrier.pending()},
-    {"queued",manual_requested||client_request_pending},
-    {"operation_id",operation},{"snapshot_id",saved_snapshot},{"requested",request_count},{"completed",completed_count},
-    {"rejected_packets",rejected_count},{"wait",last_wait},{"error",first_failure},{"last_failure",last_failure}};}
+    {"queued",manual_requested||client_request_pending},{"ordered",ordered_reload},{"capture_ready",barrier.capture_complete()},
+    {"operation_id",operation},{"snapshot_id",saved_snapshot},{"requested",request_count},{"completed",completed_count},{"ordered_handoffs",ordered_handoffs},
+    {"last_ordered_handoff",last_ordered_handoff},{"rejected_packets",rejected_count},{"wait",last_wait},{"error",first_failure},{"last_failure",last_failure}};}
 }

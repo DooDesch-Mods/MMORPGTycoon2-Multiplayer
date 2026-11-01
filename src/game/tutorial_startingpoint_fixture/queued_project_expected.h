@@ -5,7 +5,7 @@
 namespace mt2mp::game::tutorial_startingpoint_fixture {
 inline bool expected_project_intent(const tutorial_development::StartingpointSnapshot& snapshot,
     const std::string& tech,general_project::Command command,general_project::Intent& out,std::string& error){
-    if(!snapshot.creation||(command!=general_project::Command::Start&&command!=general_project::Command::Workers)){
+    if(!snapshot.creation||(command!=general_project::Command::Start&&command!=general_project::Command::Workers&&command!=general_project::Command::Cancel&&command!=general_project::Command::Commit)){
         error="General project fixture native creation/command absent";return false;
     }
     const auto& owners=*snapshot.creation;

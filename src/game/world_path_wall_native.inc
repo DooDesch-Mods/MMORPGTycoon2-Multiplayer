@@ -1,10 +1,10 @@
 namespace world_path_runtime {
 bool wall_private_ready(region::Runtime& runtime,std::string& error){
     for(const auto& pin:wall_private_native::codes){
-        std::string bytes(pin.size,'\0'),actual;
-        if(!runtime.memory.copy(runtime.image+pin.rva,bytes.data(),bytes.size(),error)||
-           !region::sha256(bytes,actual,error))return false;
-        if(actual!=pin.sha256){error="Wall private original body differs RVA="+std::to_string(pin.rva);return false;}
+        std::string bytes(pin.size,'\0');
+        if(!runtime.memory.copy(runtime.image+pin.rva,bytes.data(),bytes.size(),error))return false;
+        if(!hooks::framework::verify_original_hash(runtime.image+pin.rva,bytes.data(),bytes.size(),pin.sha256,error)){
+            error="Wall private original body differs RVA="+std::to_string(pin.rva)+" original="+error;return false;}
     }
     return true;
 }

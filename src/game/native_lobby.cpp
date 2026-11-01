@@ -48,6 +48,8 @@
 #include "lobby_layout.h"
 #include "lobby_assets.h"
 #include "initial_release/release_mode_bytes.h"
+#include "native_open_witness.h"
+#include "ordered_lobby_view.h"
 #include "native_lobby_framework.inc"
 #else
 namespace mt2mp::game::native_lobby {
@@ -1074,10 +1076,10 @@ bool tick(std::string& error) {
 }
 bool admitted(){return Config::instance().local_test?local_admitted&&net::session_wire::connected():net::SteamMatchmaking::instance().in_lobby();}
 std::string status(){return cause.empty()?ui_status:cause;}
-bool observe(nlohmann::json& result,std::string& error) {
+bool observe(nlohmann::json& result,std::string& error,bool refresh) {
     if(!image||!thread||GetCurrentThreadId()!=thread){error="native lobby observation requires initialized bound game thread";return false;}
     native::WorldStatus world;if(!native::read_world_status(world,error))return false;
-    if(!tick(error)){result["panel_toggle"]=panel_toggle_status();return false;}
+    if(refresh&&!tick(error)){result["panel_toggle"]=panel_toggle_status();return false;}
     result={{"title_active",world.active_mode_index==2&&!world.title_transition_pending},{"state",status()},
         {"transport",Config::instance().local_test?"local":"steam"},{"admission_source",Config::instance().local_test?"launcher_loopback":"steam_callback"},{"admitted",admitted()},{"host_permission",lobby_host()},
         {"local_admitted",Config::instance().local_test&&local_admitted},{"local_role",Config::instance().local_test?(net::session_wire::local_peer()==1?"host":"client"):"none"},{"local_session_id",Config::instance().local_test?net::session_wire::session_id():0},

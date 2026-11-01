@@ -23,7 +23,8 @@ namespace mt2mp::game::remove_diagnostics {
 static LocalTarget quest_target;
 static bool quest_resolve=true,quest_modular_proven=true;
 static unsigned quest_modular_reads=0;
-bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget& out,std::string& e){
+bool resolve_identity_destination(uintptr_t pointer,LocalTarget& out,std::string& e,bool settle_native_height){
+    if(pointer!=0x500||!settle_native_height){e="Quest destination requires its exact pointer and native height settlement";return false;}
     if(!quest_resolve){e="original target resolution failed";return false;}out=quest_target;return true;
 }
 bool is_modular_target(const LocalTarget&,std::string& e){

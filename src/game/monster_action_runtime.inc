@@ -8,11 +8,11 @@ using Release=void(*)(void*,void*,const float*);
 #include "monster_tool_read.inc"
 struct Pin {host::WorldState world;q::World region;host::LookupApi api;a::Binding binding;std::string snapshot,scene="world";};
 bool direct_sample(Memory&,const Pin&,d::Sample&,std::string&);
-struct Pending {a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;};
+struct Pending {a::MonsterIntent intent;a::Binding binding;std::string snapshot,token;std::optional<a::Context> context;};
 struct Operation {
     a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;
     uintptr_t pointer=0;uint64_t uid=0;unsigned attempted=0,returned=0;
-    bool confirmed=false,retired=false;std::string cause;json preparation=json::object();
+    bool confirmed=false,retired=false,ordered=false;std::string cause;json preparation=json::object();
 };
 struct Runtime {
     uintptr_t image=0;uint32_t thread=0;Release release=nullptr;
@@ -25,7 +25,9 @@ bool move_reset(std::string&);
 json move_status();
 bool remove_reset(std::string&);
 bool monster_history_reset(std::string&);
+bool remember_place_history(Memory&,uintptr_t,uint64_t,const std::string&,std::string&);
 json remove_status();
+json history_status();
 json remove_quest_preflight_status();
 a::Ledger ledger(const native::SimulationState& m){return {m.cash,m.clock.flat_day,int32_t(m.record_present),
     m.record_day,m.record_cash,m.record_income,m.record_expense,m.line_counts,m.line_income};}
@@ -80,6 +82,46 @@ bool pin(Memory& m,const a::Binding& binding,const std::string& snapshot,int32_t
        !field(m,p.region.region,0x850,owned,e)||owned!=1||!field(m,p.world.root,0x18,dungeon,e)||dungeon)
         return fail(e,e.empty()?"Monster action requires the current owned surface Region":e);
     return true;
+}
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& e){
+    if(request.action!=a::Action::PlaceMonster&&request.action!=a::Action::MoveMonster&&request.action!=a::Action::RemoveMonster&&!a::monster_history(request))
+        return fail(e,"Ordered Monster scope requires Place, Move, Remove or exact Monster history");
+    a::Context context;if(!a::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(e,"Ordered Monster actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(e,"Ordered Monster execution forbids Host result state and RNG adoption");
+        return ordered_scope(binding,request,e);
+    }
+    return !ordered_mode()||fail(e,"Ordered Monster execution requires current consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,a::Binding& binding,std::string& e){
+    if(ordered_mode()){
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,e))return false;
+        if(inside)return typed_action_runtime::read_binding(snapshot,binding,e);
+    }
+    return typed_action_runtime::network_binding(snapshot,binding,e);
+}
+bool capture_context(const std::string& snapshot,const a::Binding& binding,std::optional<a::Context>& out,std::string& e){
+    out.reset();if(!ordered_mode())return true;
+    a::Context context;a::Binding current;
+    if(!a::selected_session().current(context,e)||context.snapshot_uuid!=snapshot||
+       !capture_binding(snapshot,current,e)||current!=binding)return fail(e,e.empty()?"Ordered Monster input Context/Binding differs":e);
+    out=context;return true;
+}
+bool current_capture(const std::optional<a::Context>& expected,const std::string& snapshot,const a::Binding& binding,std::string& e){
+    if(!expected)return !ordered_mode()||fail(e,"Ordered Monster capture lacks its retained Context");
+    std::optional<a::Context> current;
+    return capture_context(snapshot,binding,current,e)&&(current==expected||fail(e,"Ordered Monster captured Session changed"));
+}
+bool capture_idle(const json& controller,std::string& e){
+    if(!controller.value("pending",true))return true;
+    if(!ordered_mode())return fail(e,"Monster capture requires idle legacy Controller");
+    bool inside=false;
+    return typed_action_runtime::original_go_admission(inside,e)&&(inside||fail(e,"Pending Monster capture requires exact original Go scope"));
 }
 bool full_uid(Memory& m,const Pin& p,const monster_zone_read::Monster& row,std::string& e){
     uintptr_t found=0,ap=0,proxy=0;uint64_t actual=0;const auto seh=lookup(p.api.find,row.uid,found);
@@ -146,7 +188,8 @@ uint32_t set_transform(const ToolPin& tool,const a::MonsterIntent& intent)noexce
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool no_gameplay_change(const d::Sample& before,const d::Sample& after){
-    auto x=d::sample_json(before),y=d::sample_json(after);x["state"].erase("global_random");y["state"].erase("global_random");
+    auto x=d::sample_json(before),y=d::sample_json(after);
+    if(!ordered_mode()){x["state"].erase("global_random");y["state"].erase("global_random");}
     return x==y&&before.state.monsters==after.state.monsters&&before.state.zones==after.state.zones&&
         before.state.manager==after.state.manager&&before.state.monster_manager==after.state.monster_manager;
 }
@@ -233,11 +276,11 @@ void release_entry(void* receiver,void* cursor,const float* point)try{
     if(state.replaying||!net::session_wire::connected()){state.release(receiver,cursor,point);return;}
     const auto controller=typed_action_runtime::controller_status();std::string e;
     if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x587e6c||
-       state.pending||state.fault||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)){
+       state.pending||state.fault||!controller.value("started",false)||controller.value("locked",true)||!capture_idle(controller,e)){
         reject("Monster Release requires exact native Cursor caller and idle bound Controller; original suppressed");return;}
     Memory m;ToolPin tool;json inventory,options;uintptr_t region=0;uint8_t pressed=0;
     a::MonsterIntent intent;intent.tool="item_elitemonster";const auto snapshot=net::current_snapshot_id();a::Binding binding;
-    if(!code(m,true,e)||!typed_action_runtime::network_binding(snapshot,binding,e)||!tools(m,state.image,tool,inventory,e)||
+    if(!code(m,true,e)||!capture_binding(snapshot,binding,e)||!tools(m,state.image,tool,inventory,e)||
        tool.behaviour!=uintptr_t(receiver)||tool.cursor!=uintptr_t(cursor)||!point||
        !m.copy(uintptr_t(point),intent.position.data(),12,e)||!field(m,tool.behaviour,0x36c,intent.rotation,e)||
        !field(m,tool.behaviour,0x388,intent.scale,e)||!field(m,tool.behaviour,0x350,region,e)||
@@ -255,7 +298,8 @@ void release_entry(void* receiver,void* cursor,const float* point)try{
         reject(e.empty()?"Monster capture current census/RNG/ledger/Undo changed":e);return;}
     // The original Release owns clearing its pressed byte. It is deferred with
     // creation until Host ordering; no guessed field cleanup runs here.
-    state.pending=Pending{intent,binding,snapshot,state.ui_token};++state.captures;
+    std::optional<a::Context> context;if(!capture_context(snapshot,binding,context,e)){reject(e);return;}
+    state.pending=Pending{intent,binding,snapshot,state.ui_token,std::move(context)};++state.captures;
     if(!state.ui_token.empty()){auto& job=state.ui_jobs.at(state.ui_token);job["captured"]=true;job["normal_dispatcher_return_rva"]="0x587e6c";}
 }catch(const std::exception& x){state.fault=true;reject(std::string("Monster capture boundary: ")+x.what());}
  catch(...){state.fault=true;reject("Monster capture non-standard boundary exception");}
@@ -286,6 +330,10 @@ bool enable(std::string& e){
     if(!code(m,true,e))return false;state.ready=true;return true;
 }
 void tick(){
+    if(ordered_mode()){bool inside=false;std::string e;
+        if(!typed_action_runtime::original_go_admission(inside,e)){state.fault=true;reject(e);return;}
+        if(inside)return;
+    }
     const auto controller=typed_action_runtime::controller_status();
     for(auto& [token,job]:state.ui_jobs){(void)token;if(!job.value("submitted",false)||job.value("terminal",false))continue;
         if(controller.value("action_uuid",std::string{})==job.value("action_uuid",std::string{})&&!controller.value("pending",true)){
@@ -295,34 +343,34 @@ void tick(){
     const auto failed=[&](const std::string& cause){state.fault=true;reject(cause);if(!pending.token.empty()){
         auto& job=state.ui_jobs.at(pending.token);job["unknown"]=true;job["terminal"]=true;job["cause"]=cause;}};
     if(!state.ready||state.fault||GetCurrentThreadId()!=state.thread||pending.snapshot!=net::current_snapshot_id()||
-       !typed_action_runtime::network_binding(pending.snapshot,binding,e)||binding!=pending.binding){failed(e.empty()?"Monster pending capture world/Mainthread changed":e);return;}
+       !capture_binding(pending.snapshot,binding,e)||binding!=pending.binding||!current_capture(pending.context,pending.snapshot,binding,e)){failed(e.empty()?"Monster pending capture world/Mainthread changed":e);return;}
     const auto id=action_runtime::uuid(e);if(id.empty()||!typed_action_runtime::submit_monster(id,pending.intent,e)){failed(e.empty()?"Monster Controller submit failed":e);return;}
     state.last_action=id;++state.submitted;
     if(!pending.token.empty()){auto& job=state.ui_jobs.at(pending.token);job["submitted"]=true;job["action_uuid"]=id;}
 }
 bool pending_ui(){return state.pending.has_value();}
-json status(){
-    const auto value=[](const a::MonsterState& v){const auto& r=v.roster;const auto& p=v.actor;
+json monster_status_state(const a::MonsterState& v){const auto& r=v.roster;const auto& p=v.actor;
         return json{{"roster",{{"zones",r.zones},{"monsters",r.monsters},{"undo_count",r.undo_count},{"next_tag",r.next_tag},
             {"created_monsters",r.created_monsters},{"global_random",r.global_random},{"region_random",r.region_random},
             {"release_edits",r.release_edits},{"content_sha256",r.content_sha256}}},
             {"actor",{{"tag",p.tag},{"status",p.status},{"rank",p.rank},{"character_id",{p.character_slot,p.character_type}},
-                {"level",p.level},{"name",p.name},{"position",p.position},{"rotation",p.rotation},{"scale",p.scale}}}};};
-    const auto money=[](const a::Ledger& v){return json{{"cash",v.cash},{"flat_day",v.flat_day},{"record_present",v.record_present},
+                {"level",p.level},{"name",p.name},{"position",p.position},{"rotation",p.rotation},{"scale",p.scale}}}};}
+json monster_status_ledger(const a::Ledger& v){return json{{"cash",v.cash},{"flat_day",v.flat_day},{"record_present",v.record_present},
         {"record_day",v.record_day},{"record_cash",v.record_cash},{"record_income",v.record_income},{"record_expense",v.record_expense},
-        {"line_counts",v.line_counts},{"line_income",v.line_income}};};
+        {"line_counts",v.line_counts},{"line_income",v.line_income}};}
+json status(){
     json operations=json::object();for(const auto& [id,op]:state.operations)operations[id]={{"attempted",op.attempted},{"returned",op.returned},
         {"confirmed",op.confirmed},{"retired",op.retired},{"local_uid",op.uid},{"object_key","action:"+id},{"cause",op.cause},{"preparation",op.preparation},
         {"intent",{{"region",op.request.monster.region},{"tool",op.request.monster.tool},
             {"character_id",{op.request.monster.character_slot,op.request.monster.character_type}},
             {"level",op.request.monster.level},{"rank",op.request.monster.rank},{"loose",op.request.monster.loose},
             {"position",op.request.monster.position},{"rotation",op.request.monster.rotation},{"scale",op.request.monster.scale}}},
-        {"evidence",{{"before",money(op.evidence.before)},{"after",money(op.evidence.after)},
-            {"monster_before",value(op.evidence.monster_before)},{"monster_after",value(op.evidence.monster_after)},
+        {"evidence",{{"before",monster_status_ledger(op.evidence.before)},{"after",monster_status_ledger(op.evidence.after)},
+            {"monster_before",monster_status_state(op.evidence.monster_before)},{"monster_after",monster_status_state(op.evidence.monster_after)},
             {"undo_confirmed",op.evidence.undo_confirmed},{"retirement_confirmed",op.retired}}}};
     return {{"enabled",state.ready},{"pending_ui",pending_ui()},{"capture_fault",state.fault},{"captures",state.captures},{"submitted",state.submitted},
         {"rejected",state.rejected},{"last_action",state.last_action},{"cause",state.cause},{"operations",operations},{"ui_jobs",state.ui_jobs},
-        {"move",move_status()},{"remove",remove_status()},{ "remove_quest_preflight",remove_quest_preflight_status()},{"unproved",{"complete generated combat/loadout state","ongoing Monster simulation","saved direct Monster identity"}}};}
+        {"move",move_status()},{"remove",remove_status()},{"history",history_status()},{ "remove_quest_preflight",remove_quest_preflight_status()},{"unproved",{"complete generated combat/loadout state","ongoing Monster simulation","saved direct Monster identity"}}};}
 
 bool native_ui(const json& args,json& result,std::string& e)try{
     result=json::object();
@@ -397,6 +445,7 @@ bool native_ui(const json& args,json& result,std::string& e)try{
 }
 
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e)try{
+    if(!execution_admission(binding,request,authority,e))return a::Outcome::RejectedNoEffect;
     if(request.action!=a::Action::PlaceMonster||!a::valid_monster_intent(request.monster)||!state.ready||GetCurrentThreadId()!=state.thread){e="Monster runtime/Mainthread/typed intent unavailable";return a::Outcome::RejectedNoEffect;}
     if(state.operations.contains(request.action_uuid)){e="Monster action already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
@@ -406,7 +455,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
         return a::Outcome::RejectedNoEffect;
     uintptr_t target_region=0;const auto region_seh=shard_region(state.image,p.world.root,request.monster.position,target_region);
     if(region_seh||target_region!=p.region.region){e="Monster original target point Region differs SEH="+std::to_string(region_seh);return a::Outcome::RejectedNoEffect;}
-    auto& op=state.operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;
+    auto& op=state.operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;op.ordered=a::tick_commands::authority::active();
     const auto unknown=[&](const std::string& cause){e=op.cause=cause.empty()?"Monster effect failed without cause":cause;return a::Outcome::Unknown;};
     ToolPin tool;if(!prepare(m,p,request.monster,tool,op,e))return unknown(e);
     d::Sample prepared;a::MonsterState prepared_state;
@@ -456,14 +505,15 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(op.evidence.before!=op.evidence.after)return unknown("Monster original ledger changed");
     if(authority&&!a::monster_shared_state(final,authority->monster_after))return unknown("Monster Client final actor/census/RNG differs from Host");
     if(authority&&op.evidence.after!=authority->after)return unknown("Monster Client final ledger differs from Host");
-    if(!identity::registry.confirm(request.action_uuid,e))return unknown(e);
+    if(!identity::registry.confirm(request.action_uuid,e)||
+       !remember_place_history(m,result.undo.undo.back(),op.uid,request.action_uuid,e))return unknown(e);
     op.confirmed=true;e.clear();return a::Outcome::Confirmed;
 }catch(const std::exception& x){state.replaying=false;e=std::string("Monster perform boundary: ")+x.what();const auto found=state.operations.find(request.action_uuid);if(found!=state.operations.end())found->second.cause=e;return a::Outcome::Unknown;}
  catch(...){state.replaying=false;e="Monster perform non-standard boundary exception";return a::Outcome::Unknown;}
 bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& out,std::string& e){
     const auto found=state.operations.find(request.action_uuid);
     if(found==state.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"Monster observe lacks exact confirmed action");
-    const auto& op=found->second;Memory m;Pin p;d::Sample sample;a::MonsterState value;
+    const auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;Memory m;Pin p;d::Sample sample;a::MonsterState value;
     if(!code(m,true,e)||!pin(m,binding,request.snapshot_uuid,request.monster.region,p,e)||!same_world(p.world,op.pin.world)||
        p.region.region!=op.pin.region.region||!effect(m,p,sample,value,e,op.uid)||
        value!=op.evidence.monster_after||ledger(sample.money)!=op.evidence.after)

@@ -30,7 +30,7 @@ constexpr uintptr_t map_slot=0x13df8c0,map_vtable=0x1742860,region_vtable=0x1787
 constexpr uintptr_t manager_vtable=0x17141e0,array_vtable=0x172db20,node_vtable=0x16fc700,shard_vtable=0x174ad20;
 constexpr uintptr_t contains_rva=0x89e690,lookup_rva=0x47ce20,owns_rva=0x2a4730,context_lookup_rva=0x89e0f0;
 std::atomic<uintptr_t> image{0};
-std::atomic<bool> capture_active{false},client_active{false};
+std::atomic<bool> capture_active{false},client_active{false},export_mode{false};
 std::atomic<uint64_t> selector_reads{0},non_node_callbacks{0},client_generation{0};
 #ifdef MT2MP_NETWORK_IDENTITY_TEST
 std::atomic<uint64_t> test_read_queries{0};
@@ -74,12 +74,16 @@ struct Shared {
     uint64_t capture_origin_generation=0,capture_world_epoch=0;
     std::map<uint64_t,Pending> pending;
     std::map<int32_t,Binding> bindings,pipe_bindings;
-    bool original_load=false;
+    bool original_load=false,export_only=false;
+    network_snapshot_alias::Manifest captured_aliases;
+    std::string captured_alias_uuid,captured_alias_sha;
     std::map<std::pair<void*,int32_t>,void*> shards;
     std::set<void*> contexts;
 };
 // Save callbacks can outlive orderly DLL shutdown; no destructor runs under process-detach loader lock.
 Shared& shared() { static auto* value=new Shared; return *value; }
+Shared& export_shared() { static auto* value=new Shared; return *value; }
+Shared& capture_shared() { return export_mode?export_shared():shared(); }
 bool valid_sha(const std::string& value) { return value.size()==64&&value.find_first_not_of("0123456789abcdef")==std::string::npos; }
 bool valid_uuid(const std::string& value) { return value.size()==36&&value[8]=='-'&&value[13]=='-'&&value[18]=='-'&&value[23]=='-'&&value.find_first_not_of("0123456789abcdef-")==std::string::npos; }
 bool fail_locked(Shared& s,const std::string& cause,std::string* error=nullptr) {
@@ -280,11 +284,11 @@ WriterScope writer_scope(const Shared& s,void* writer,WriterBinding& binding,std
 }
 void reset(Shared& s,const std::string& uuid,const std::string& sha,uint32_t expected,const std::string& role,const std::string& world_name="MPTestSession") {
     s.uuid=uuid; s.sha=sha; s.expected=expected; s.role=role; s.error.clear(); s.keys_digest.clear(); s.invalidation_reason.clear(); s.discarded=0;
-    ++client_generation; s.first_context_probe={}; s.last_context_probe={}; s.context_owners.clear(); s.observer_threads.clear(); s.client_load_mode=nullptr; s.first_observer_thread=s.last_observer_thread=0; s.obsolete_callbacks=s.typed_worker_callbacks=s.typed_main_callbacks=s.duplicate_callbacks=0;
+    if(!s.export_only)++client_generation; s.first_context_probe={}; s.last_context_probe={}; s.context_owners.clear(); s.observer_threads.clear(); s.client_load_mode=nullptr; s.first_observer_thread=s.last_observer_thread=0; s.obsolete_callbacks=s.typed_worker_callbacks=s.typed_main_callbacks=s.duplicate_callbacks=0;
     s.pending.clear(); s.pending_nodes=0; s.bindings.clear(); s.pipe_bindings.clear();s.original_load=false; s.shards.clear(); s.contexts.clear(); s.completed_arrays=0; s.roots={};
     s.capture_origin={};s.capture_origin_generation=s.capture_world_epoch=0;
     s.filename=net::snapshot_world_path::capture(world_name,uuid); s.foreign_writers=0; s.foreign_reason.clear();
-    selector_reads=0; non_node_callbacks=0;
+    if(!s.export_only){selector_reads=0; non_node_callbacks=0;}
 }
 #include "network_pipe_identity.inc"
 bool publish(Shared& s,const Roots& roots,std::string& error) {
@@ -342,11 +346,15 @@ bool initialize(std::string& error) {
     image=base; s.state="idle"; s.error.clear(); error.clear(); return true;
 }
 void* capture_entrypoint() { return image.load()?reinterpret_cast<void*>(image.load()+capture_rva):nullptr; }
-bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& error,const std::string& world_name) {
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& error,const std::string& world_name,bool isolated,const std::string& native_filename) {
+    if(capture_active||client_active){error="Network export cannot replace an active original observer";return false;}
+    export_mode=isolated;
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);s.export_only=isolated;
     if(capture_active||client_active||!s.pending.empty()) return fail_locked(s,"identity operation or original callback still active",&error);
     if(!valid_uuid(uuid)||expected>maximum_nodes||!net::snapshot_world_path::valid_folder(world_name)) return fail_locked(s,"host capture UUID/count invalid",&error);
-    reset(s,uuid,"",expected,"host",world_name); s.state="capturing";
+    if(!native_filename.empty()&&(!isolated||native_filename.find('\0')!=std::string::npos||native_filename.size()>511))
+        return fail_locked(s,"original Save target requires export-owned bounded filename",&error);
+    reset(s,uuid,"",expected,"host",world_name);if(!native_filename.empty())s.filename=native_filename;s.state="capturing";
     if(!main_gate(s,true,error,true)) return false;
     std::string cause; std::map<uint64_t,Binding> live;
     if(!roots_read(s.roots,cause)||!census(s.roots,live,cause)) return fail_locked(s,"host capture root baseline: "+cause,&error);
@@ -358,7 +366,7 @@ bool begin_host_capture(const std::string& uuid,uint32_t expected,std::string& e
 }
 uint64_t capture_before(const void* property,const void* manager,void* writer,void* context) noexcept {
     if(!capture_active.load()) return 0;
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);
     uint64_t ticket=0;
     try {
         if(!capture_active.load()) return 0;
@@ -394,7 +402,7 @@ uint64_t capture_before(const void* property,const void* manager,void* writer,vo
 }
 void capture_after(uint64_t ticket,const void* property,const void* manager,void* writer,void* context,bool original_result) noexcept {
     if(!ticket) return;
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);
     try {
         const auto found=s.pending.find(ticket);
         if(found==s.pending.end()) { fail_locked(s,"host capture_after unknown/repeated ticket"); return; }
@@ -424,14 +432,14 @@ void capture_after(uint64_t ticket,const void* property,const void* manager,void
 }
 void original_failed(uint64_t ticket,const std::string& cause) noexcept {
     if(!ticket) return;
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);
     const auto found=s.pending.find(ticket);
     if(found==s.pending.end()) { fail_locked(s,"original failure references unknown/repeated ticket: "+cause); return; }
     s.pending_nodes-=found->second.nodes.size(); s.pending.erase(found);
     fail_locked(s,"native save original exception: "+cause);
 }
 bool seal_host_capture(const std::string& uuid,const std::string& sha,std::string& error) {
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);
     if(s.state=="failed") { error=s.error; return false; }
     if(!main_gate(s,true,error,true)) return false;
     if(!capture_active||s.role!="host"||s.uuid!=uuid||!valid_sha(sha)||!s.pending.empty()) return fail_locked(s,"host file seal UUID/SHA/phase/inflight differs",&error);
@@ -531,9 +539,14 @@ bool finalize_client_load(std::string& error) {
     return publish(s,roots,error);
 }
 void cancel_pending(const std::string& reason) {
-    auto& s=shared(); std::lock_guard lock(s.mutex);
+    auto& s=capture_shared(); std::lock_guard lock(s.mutex);
     if(capture_active||client_active||!s.pending.empty()) fail_locked(s,"pending identity cancelled: "+reason);
     else LOG_INFO("[NetworkIdentity] Cancellation skipped: no pending identity operation");
+}
+bool finish_export(std::string& error){
+    auto& s=export_shared();std::lock_guard lock(s.mutex);
+    if(export_mode&&(capture_active||!s.pending.empty())){error="Network export still owns original serialization callbacks";return false;}
+    export_mode=false;error.clear();return true;
 }
 void invalidate_world(const std::string& reason) {
     auto& s=shared(); std::lock_guard lock(s.mutex);

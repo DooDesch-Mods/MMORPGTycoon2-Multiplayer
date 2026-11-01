@@ -280,6 +280,15 @@ class AcceptanceRunner:
         self.summary["runtime_run_id"] = identities["host"]["run_id"]
         self.checked("instance-manifest-identity", identities)
 
+    def enable_lobby_read_sessions(self):
+        from run_job import PersistentLobbyReads
+        self._lobby_read_sessions = PersistentLobbyReads(self.workspace, self.directory, self.args.step_timeout)
+
+    def close_lobby_read_sessions(self):
+        sessions = getattr(self, "_lobby_read_sessions", None)
+        if sessions is not None:
+            sessions.close()
+
     def job(self, name, peer, calls, remaining=None):
         self.checkpoint(name)
         index = len(self.summary["jobs"])
@@ -296,8 +305,12 @@ class AcceptanceRunner:
         self.persist()
         try:
             with stdout_path.open("w", encoding="utf-8") as stream:
-                result = subprocess.run(command, cwd=self.workspace, stdout=stream, stderr=subprocess.STDOUT,
-                                        timeout=wait, check=False)
+                sessions = getattr(self, "_lobby_read_sessions", None)
+                if sessions is not None and len(calls) == 1 and calls[0]["tool"] == "game_read_native_lobby":
+                    result = sessions.run(self.manifests[peer], spec_path, label, wait, stream)
+                else:
+                    result = subprocess.run(command, cwd=self.workspace, stdout=stream, stderr=subprocess.STDOUT,
+                                            timeout=wait, check=False)
             record["exit_code"] = result.returncode
         except subprocess.TimeoutExpired as error:
             record["state"], record["cause"] = "observation-timeout", str(error)

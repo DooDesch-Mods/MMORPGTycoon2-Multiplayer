@@ -257,12 +257,58 @@ def game_readiness(status, record, expected_data, expected_account=None):
     return None
 
 
+def framework_initialization_failure(record):
+    runtime = Path(record["runtime_root"])
+    profile = safe_path(runtime / "profile", runtime)
+    if record.get("role") != "game" or not legacy.same_path(profile, Path(record["framework_profile"])):
+        raise ValueError("Framework status profile differs from launched game identity")
+    path = safe_path(profile / "status.json", runtime)
+    status = read_status_json(path)
+    if not isinstance(status, dict) or type(status.get("pid")) is not int or status["pid"] != record["pid"]:
+        raise ValueError("Framework status pid differs from launched game identity")
+    if (not isinstance(status.get("process_start_time"), str) or not status["process_start_time"]
+            or status["process_start_time"] != str(record["process_start_time"])):
+        raise ValueError("Framework status process creation time differs from launched game identity")
+    rows = status.get("logs", [])
+    if not isinstance(rows, list):
+        raise ValueError("Framework status logs must be a list")
+    for row in rows:
+        if (isinstance(row, dict) and row.get("mod") == "doodesch.multiplayer" and row.get("level") == "error"
+                and isinstance(row.get("message"), str) and row["message"].startswith("initialization:")):
+            runtime_log = safe_path(profile / "data/doodesch.multiplayer/mt2mp.log", runtime)
+            try:
+                tail = log_tail(runtime_log)
+                errors = [line for line in tail.splitlines() if "[ERROR]" in line]
+                detail = "\n".join(errors[-8:])[-4096:] if errors else tail[-4096:]
+            except OSError as error:
+                detail = f"Original runtime log unavailable: {error}"
+            return (f"Framework Multiplayer initialization failed peer={record['peer_id']} pid={record['pid']} "
+                    f"status={path}: {row['message']}; runtime_log={runtime_log}\n{detail}")
+    return None
+
+
 def wait_games(games, started, timeout, expected_account=None):
     deadline, previous, failures = time.monotonic() + timeout, {}, {}
+    framework_failures = {}
     while True:
         check_processes(started)
         waiting = []
         for record in games:
+            try:
+                fatal = framework_initialization_failure(record)
+            except (OSError, ValueError) as error:
+                count, last = framework_failures.get(record["pid"], (0, 0))
+                now = time.monotonic()
+                if not count or now - last >= 5:
+                    log("warn", f"Framework status read peer={record['peer_id']} count={count + 1} profile={record['framework_profile']}: {error}")
+                    last = now
+                framework_failures[record["pid"]] = count + 1, last
+            else:
+                if fatal:
+                    raise LaunchError(fatal)
+                recovered = framework_failures.pop(record["pid"], None)
+                if recovered:
+                    log("info", f"Framework status read recovered pid={record['pid']} failures={recovered[0]}")
             path = safe_path(Path(record["runtime_root"]) / "profile/diagnostics/multiplayer/status.json", Path(record["runtime_root"]))
             try:
                 status = read_status_json(path)
@@ -287,6 +333,19 @@ def wait_games(games, started, timeout, expected_account=None):
         if time.monotonic() >= deadline:
             raise LaunchError(f"game readiness timed out required={timeout}s; " + "; ".join(waiting))
         time.sleep(0.1)
+
+
+def game_environment(peer, force_host_window_focus=False, owned_host_camera_input=False):
+    env = {key: value for key, value in os.environ.items() if not key.upper().startswith("MT2MP_")}
+    env.update(SteamAppId=STEAM_APP_ID, SteamGameId=STEAM_APP_ID)
+    # Only the owned Host input fixture opts into SDL's original focus route.
+    # The launcher environment and other applications remain unchanged.
+    if force_host_window_focus and peer == 1:
+        env["SDL_FORCE_RAISEWINDOW"] = "1"
+    if owned_host_camera_input and peer == 1:
+        # Windows capture polls physical buttons and would release the owned SDL test gesture.
+        env["SDL_MOUSE_AUTO_CAPTURE"] = "0"
+    return env
 
 
 def launch(args, processes):
@@ -369,8 +428,7 @@ def launch(args, processes):
             wait_marker(Path(bridge["log_path"]), "CONTROL_READY", started, args.ready_timeout)
             atomic_json(safe_path(runtime / "profile/data/doodesch.multiplayer/local-test.json", root),
                         local_config(runtime, run_id, peer, session, token, control, args.transport))
-            env = {key: value for key, value in os.environ.items() if not key.upper().startswith("MT2MP_")}
-            env.update(SteamAppId=STEAM_APP_ID, SteamGameId=STEAM_APP_ID)
+            env = game_environment(peer, getattr(args, "force_host_window_focus", False), getattr(args, "owned_host_camera_input", False))
             games.append(start(runtime, "game", [str(runtime / "game" / "MT2.exe")], peer, env))
         if metagame is not None:
             wait_games(games, started, args.ready_timeout, metagame["account_id"])
@@ -414,8 +472,12 @@ def launch(args, processes):
 
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
-    result.add_argument("--stop", action="store_true", help="Stop only exact owned process identities in this root")
+    mode = result.add_mutually_exclusive_group()
+    mode.add_argument("--stop", action="store_true", help="Stop only exact owned process identities in this root")
+    mode.add_argument("--restart-client", action="store_true", help="Replace only the exact owned Client game and bridge, retaining Host and profiles")
+    result.add_argument("--expected-run-id", help="Exact existing run required for Client restart")
     result.add_argument("--players", type=int, choices=(2,), default=2)
+    result.add_argument("--force-host-window-focus", action="store_true", help="Enable SDL original force-raise only in the owned Host test process; actual focus readback is still required")
     result.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
     result.add_argument("--test-root", type=Path, default=ROOT / "_MPTest/framework-local")
     result.add_argument("--candidate-binary", type=Path)
@@ -434,7 +496,7 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if not args.stop and (not all((args.candidate_binary, args.multiplayer_package, args.framework_runtime, args.sidecar))
+    if not args.stop and not args.restart_client and (not all((args.candidate_binary, args.multiplayer_package, args.framework_runtime, args.sidecar))
                           or not re.fullmatch(r"[0-9a-f]{64}", args.stock_steam_sha256 or "")):
         log("error", "launch requires explicit candidate binary, Multiplayer package, Framework runtime, sidecar and stock Steam SHA256")
         return 2
@@ -449,6 +511,9 @@ def main(argv=None):
         with RuntimeLock(args.test_root):
             if args.stop:
                 return stop_manifest(Path(os.path.abspath(args.test_root)), processes)
+            if args.restart_client:
+                from framework_client_restart import restart_client
+                return restart_client(args, processes, sys.modules[__name__])
             return launch(args, processes)
     except (LaunchError, OSError, ValueError, KeyError, TypeError) as error:
         log("error", str(error))

@@ -1,5 +1,7 @@
+#include "initial_read.h"
 #include "live_host_state/memory_query_timing.h"
 #include "construction_native.h"
+#include "typed_action/tick_authority.h"
 #include "object_identity/native_free_runtime/native_free_runtime.h"
 #include "bug_authority/work_runtime.h"
 #include "bug_authority/job_calls.h"
@@ -329,7 +331,7 @@ bool capture_placement(PlacementBefore& out,std::string& e){
     Capture after;if(!read_process(after,e)||!owners(out.capture,after,e))return false;
     return (out.capture.state==after.state&&out.capture.local==after.local)||fail(e,"Construction placement before graph changed");
 }
-bool finish_placement(const PlacementBefore& before,const std::string& snapshot,const std::string& key,uint64_t uid,LocalJob& out,std::string& e){
+static bool finish_placement_impl(const PlacementBefore& before,const std::string& snapshot,const std::string& key,uint64_t uid,const remove_diagnostics::LocalTarget* retained,LocalJob& out,std::string& e){
     out={};Capture after;job_census::Census queue;
     if(!read_process(after,e)||!read_jobs(after,queue,e))return false;
     if(!same_origin(before.capture.pin.origin,after.pin.origin)||before.capture.state!=after.state||before.capture.local!=after.local||
@@ -342,7 +344,8 @@ bool finish_placement(const PlacementBefore& before,const std::string& snapshot,
     for(size_t i=0;i<before.queue.jobs.size();++i)if(before.queue.jobs[i]!=queue.jobs[i])return fail(e,"Construction original placement changed a previous Job");
     if(queue.jobs.size()==before.queue.jobs.size()){e.clear();return true;}
     remove_diagnostics::LocalTarget target;
-    if(!remove_diagnostics::resolve_record_target(snapshot,key,target,e))return false;
+    if(retained)target=*retained;
+    else if(!remove_diagnostics::resolve_record_target(snapshot,key,target,e))return false;
     const auto& job=queue.jobs.back();uintptr_t region=0;
     if(!at(target.object,0x178,region,e))return false;
     if(target.normal_scenery)return fail(e,"Construction original new Job target is native Scenery");
@@ -355,6 +358,20 @@ bool finish_placement(const PlacementBefore& before,const std::string& snapshot,
     out={key,job.pointer,uid,true,false,job.building,job.building_proxy,job.region};
     if(!occurrence(out,job,target.object,region,copy,e))return false;
     return true;
+}
+bool finish_placement(const PlacementBefore& before,const std::string& snapshot,const std::string& key,uint64_t uid,LocalJob& out,std::string& e){
+    return finish_placement_impl(before,snapshot,key,uid,nullptr,out,e);
+}
+bool finish_ordered_placement(const PlacementBefore& before,const action_session::Binding& binding,const action_session::Request& request,
+                              const remove_diagnostics::LocalTarget& target,LocalJob& out,std::string& e){
+    out={};
+    if(request.action!=action_session::Action::PlaceBuilding||request.dungeon_building||request.canonical_record_key!="action:"+request.action_uuid||
+       !target.object||!target.uid||target.snapshot_id!=request.snapshot_uuid||target.record_key!=request.canonical_record_key||
+       target.world_epoch!=binding.native_epoch||target.world_generation!=binding.native_generation)
+        return fail(e,"Construction ordered placement retained target identity differs");
+    if(!action_session::tick_commands::authority::matches(binding,request,e))return false;
+    if(!finish_placement_impl(before,request.snapshot_uuid,request.canonical_record_key,target.uid,&target,out,e))return false;
+    return action_session::tick_commands::authority::matches(binding,request,e);
 }
 #include "construction_duplicate.inc"
 bool capture(const Capture& c,const std::vector<LocalJob>& links,State& out,std::string& e){

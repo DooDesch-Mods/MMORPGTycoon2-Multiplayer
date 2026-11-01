@@ -12,7 +12,7 @@ body=text[text.index('namespace mt2mp::game::lobby_operations {'):]
 (out/'selected_snapshot_lobby_actual.inc').write_text(body,encoding='utf-8')
 (out/'lobby-body.json').write_text(json.dumps({'source':'src/game/lobby_operations.cpp','sha256':hashlib.sha256(body.encode()).hexdigest()},indent=2)+'\n')
 text=(root/'src/game/native_engine.cpp').read_text(encoding='utf-8-sig')
-begin='bool request_return_to_title(std::string& error) {'
+begin='bool request_return_to_title(std::string& error,bool managed_autosave) {'
 end='bool request_exit_game(std::string& error) {'
 assert text.count(begin)==1 and text.count(end)==1
 body=text[text.index(begin):text.index(end)]

@@ -17,7 +17,7 @@ namespace typed_action_runtime {nlohmann::json controller={{"pending",true},{"ac
 namespace building_mixed_identity::opened_file {struct CurrentWorld{uint64_t world_epoch=31,generation=39;};}
 namespace native_open_runtime {building_mixed_identity::opened_file::CurrentWorld world;bool read_current_world(building_mixed_identity::opened_file::CurrentWorld& out,std::string&){out=world;return true;}}
 namespace test {
-struct Replay {std::string id;a::Context context;a::Binding binding;p::Intent intent;uintptr_t source=0,lounge=0,software=0;uint32_t entered=0;std::string cause;};
+struct Replay {std::string id;a::Context context;a::Binding binding;p::Intent intent;uintptr_t source=0,lounge=0,software=0;uint32_t entered=0;std::string cause;const a::Request* ordered_request=nullptr;bool natural=false;};
 struct Runtime {DWORD thread=17;uintptr_t image=0x100000;bool ready=true;std::optional<Replay> replay;};Runtime runtime;std::atomic<Runtime*> published{&runtime};
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 p::Progress native;uintptr_t owner=0x200000,clone=0x300000;int writes=0,fail_at=0,reads=0,change_owner_at=0;
@@ -25,6 +25,7 @@ bool progress_once(Runtime&,const a::Context&,const a::Binding&,p::Progress& out
 namespace live {bool compare_fixed_i32(uintptr_t address,int32_t before,int32_t after,std::string& e){++writes;if(writes==fail_at)return fail(e,"fixture actual CAS interrupted");
     int32_t actual=0;switch(address-owner){case 0xb0:actual=std::bit_cast<int32_t>(native.work);break;case 0xb4:actual=native.lines;break;case 0xb8:actual=native.bugs_total;break;case 0xbc:actual=native.bugs_known;break;case 0xc4:actual=native.workers;break;default:return fail(e,"fixture unexpected offset");}
     if(actual!=before)return fail(e,"fixture actual CAS before differs");switch(address-owner){case 0xb0:native.work=std::bit_cast<uint32_t>(after);break;case 0xb4:native.lines=after;break;case 0xb8:native.bugs_total=after;break;case 0xbc:native.bugs_known=after;break;case 0xc4:native.workers=after;break;}return true;}}
+bool ordered_current(const a::Context&,const a::Binding&,const a::Request*,bool,std::string& e){return fail(e,"unexpected ordered route in legacy project fixture");}
 #include "general_project_actual.inc"
 void reset(p::Command command){runtime.replay=Replay{id,context,binding,{command,{2,1,"",""},0},10,20,30};typed_action_runtime::controller={{"pending",true},{"action_uuid",id}};thread=17;native_open_runtime::world={31,39};}
 void routes(){std::string e;bool handled=false,owned=false;reset(p::Command::Start);

@@ -69,7 +69,41 @@ void run(){
 }
 }
 
-int main(){try{scenery_adapter_fixture::run();std::string e;t::Pin p;t::Status status;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.edit==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::status(m,p,status,e)&&status.ready,"owned selected request");
+
+namespace interact_fixture {
+namespace st=mt2mp::game::scenery_tab;
+Memory baseline(){auto m=::baseline();m.str(image+0x1a36520,"Map");m.str(tab_address+0x2c8,"Interact");
+    m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Interact\"");m.str(content_address+0x1b0,"Interact");
+    m.put(content_address+0x348,int32_t(0));m.put(content_address+0x34c,int32_t(0));return m;}
+void interact_choose(Memory& m){::choose(m);m.put(world+0x1f8,int32_t(0));m.put(world+0x1fc,int32_t(0));
+    m.put(request,int32_t(0));m.array(world+0x180,{request});}
+struct Calls {Memory m=baseline();int presses=0;bool fail_press=false,bad_ledger=false;
+    bool pin(st::Pin& p,std::string& e){return st::inspect(m,image,world,p,e,"Interact");}
+    bool reserve(const st::Pin&,std::string&){return true;}
+    bool press(const st::Pin&,std::string& e){++presses;if(fail_press){e="original Interact failure";return false;}interact_choose(m);return true;}
+    bool status(const st::Pin& p,st::Status& out,std::string& e){return st::status(m,p,out,e,"Interact");}
+    bool unchanged(std::string& e){if(bad_ledger)e="full ledger changed";return !bad_ledger;}
+};
+void run(){std::string e;st::Pin p;st::Status out;
+    {auto m=baseline();check(st::inspect(m,image,world,p,e,"Interact")&&p.edit==0,"Interact requires actual Map enum");
+      interact_choose(m);check(st::inspect(m,image,world,p,e,"Interact")&&st::status(m,p,out,e,"Interact")&&out.ready,"Interact original Map request/subtype ready");
+      m.put(world+0x1fc,int32_t(1));check(st::inspect(m,image,world,p,e,"Interact")&&st::status(m,p,out,e,"Interact")&&!out.ready,"Map subtype remains exact");}
+    for(int kind=0;kind<6;++kind){auto m=baseline();
+      if(kind==0)m.str(image+0x1a36520,"Wrong");
+      if(kind==1)m.put(content_address+0x348,int32_t(3));
+      if(kind==2)m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Terrain\"");
+      if(kind==3)m.put(tab_address+0x280,bar+8);
+      if(kind==4)m.put(tab_address+0x174,uint8_t(0));
+      if(kind==5)m.str(image+0x1a36520+32,"Map");
+      e.clear();check(!st::inspect(m,image,world,p,e,"Interact")&&!e.empty(),"Interact rejects foreign enum/view/command/owner/input");}
+    {Calls c;st::Receipt r;check(st::prepare(c,r,e,"Interact")&&r.confirmed&&r.state.ready&&c.presses==1,"Interact original once");
+      check(!st::prepare(c,r,e,"Interact")&&c.presses==1,"Interact active no replay");}
+    {Calls c;c.fail_press=true;st::Receipt r;check(!st::prepare(c,r,e,"Interact")&&r.unknown&&c.presses==1&&e=="original Interact failure","Interact retains original failure");}
+    {Calls c;c.bad_ledger=true;st::Receipt r;check(!st::prepare(c,r,e,"Interact")&&r.unknown&&c.presses==1,"Interact full ledger guard");}
+}
+}
+
+int main(){try{interact_fixture::run();scenery_adapter_fixture::run();std::string e;t::Pin p;t::Status status;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.edit==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::status(m,p,status,e)&&status.ready,"owned selected request");
  auto reject=[&](auto mutate,const char* label){auto x=baseline();mutate(x);e.clear();check(!t::inspect(x,image,world,p,e)&&!e.empty(),label);};
  reject([](Memory& x){x.put(image+0x13df650,world+0x188);},"foreign manager");
  reject([](Memory& x){x.str(image+0x1a36520+32,"Edit");},"duplicate enum");

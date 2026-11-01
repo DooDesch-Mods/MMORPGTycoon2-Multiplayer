@@ -36,6 +36,7 @@ bool refresh(uintptr_t,Receipt& receipt,std::string&){++fixture::refresh_calls;r
 }
 namespace mt2mp::game::typed_action_runtime {
 struct Runtime {
+    bool ordered_steps=false;
     fixture::Controller controller;fixture::Session session;fixture::Engine engine;
     uint32_t thread=GetCurrentThreadId();bool lobby_retiring=false;
     std::unique_ptr<fixture::Bridge> live_state=std::make_unique<fixture::Bridge>();std::string live_error;

@@ -43,6 +43,33 @@ int main()try{
         result.removed[0].key=mt2mp::game::scenery_scene_key::root_record(std::string(64,'c'),67,47,0);
         need(!encode(erase,bytes,e),"eraser accepted an invalid original root category");++count;
     }
+    {
+        auto held_owner=message(false);auto& held=*held_owner;
+        held.request.scenery_stroke.stamps.push_back(held.request.scenery_stroke.stamps.front());
+        auto& result=*held.evidence.scenery_stroke_result;
+        result.removed={object(old(1)),object(old(2))};result.changed.clear();
+        auto& b=held.evidence.before;auto& a=held.evidence.after;
+        b.cash=b.record_cash=92550;b.record_income=150000;b.record_expense=7450;
+        b.line_counts[6]=7;b.line_income[6]=-2450;a=b;
+        a.cash=a.record_cash=92570;a.record_income=150020;a.line_counts[6]=9;a.line_income[6]=-2430;
+        need(check_scenery_stroke_effect(held.request,held.evidence,e),e);
+        need(valid_scenery_stroke_effect(held.request,held.evidence)&&encode(held,bytes,e),e);count+=2;
+        held.evidence.scenery_stroke_before->random={8487252550702836581ULL,7585400474474100862ULL,10595337142958833496ULL,14771566183531828414ULL};
+        held.evidence.scenery_stroke_after->random={11758294232202611969ULL,8976155944833374578ULL,3128874721075138203ULL,8859515156383895942ULL};
+        need(check_scenery_stroke_effect(held.request,held.evidence,e),e);
+        need(encode(held,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==held,e);count+=2;
+        auto changed=held.evidence.scenery_stroke_after.value();
+        held.evidence.scenery_stroke_after->region_random[0]++;
+        need(!check_scenery_stroke_effect(held.request,held.evidence,e)&&e=="Scenery eraser changed Region RNG or bug state","eraser Region RNG cause lost");++count;
+        held.evidence.scenery_stroke_after=changed;held.evidence.scenery_stroke_after->release[2]++;
+        need(!check_scenery_stroke_effect(held.request,held.evidence,e)&&e=="Scenery stroke original Release edit differs","eraser Release cause lost");++count;
+        held.evidence.scenery_stroke_after=changed;held.evidence.scenery_stroke_after->bugs_sha=std::string(64,'8');
+        need(!check_scenery_stroke_effect(held.request,held.evidence,e)&&e=="Scenery eraser changed Region RNG or bug state","eraser Bug hash guard lost");++count;
+        held.evidence.scenery_stroke_after=changed;held.evidence.scenery_stroke_after->bug_count++;
+        need(!check_scenery_stroke_effect(held.request,held.evidence,e)&&e=="Scenery eraser changed Region RNG or bug state","eraser Bug count guard lost");++count;
+        held.evidence.scenery_stroke_after=changed;held.evidence.after.line_counts[19]++;
+        need(!check_scenery_stroke_effect(held.request,held.evidence,e)&&e=="Scenery changed unrelated Ledger category=19","eraser Ledger cause lost");++count;
+    }
     const auto source_owner=message();const auto& source=*source_owner;
     auto bad=[&](auto change){auto owned=std::make_unique<Message>(source);auto& m=*owned;change(m);need(!encode(m,bytes,e),"invalid Scenery stroke accepted");++count;};
     bad([](auto& m){m.request.action=Action::SceneryEraseStroke;});
@@ -67,7 +94,7 @@ int main()try{
     bad([](auto& m){m.evidence.retirement_confirmed=false;});
     auto erase_owner=message(false);auto& erase=*erase_owner;erase.evidence.scenery_stroke_result->changed[0].after.members={};
     need(!encode(erase,bytes,e),"Group removed a member not destroyed by the original eraser");++count;
-    erase=*message(false);erase.evidence.scenery_stroke_after->random[0]=1;need(!encode(erase,bytes,e),"eraser changed world RNG");++count;
+    erase=*message(false);erase.evidence.scenery_stroke_after->region_random[0]=1;need(!encode(erase,bytes,e),"eraser changed Region RNG");++count;
     erase=*message(false);erase.evidence.scenery_stroke_result->changed[0].before.members={old(1)};
     erase.evidence.scenery_stroke_result->changed[0].after.members={};need(encode(erase,bytes,e),e);++count;
     auto random_owner=std::make_unique<Message>(source);auto& random=*random_owner;random.request.scenery_stroke.variant.clear();random.request.scenery_stroke.random_variant=true;need(encode(random,bytes,e),e);++count;

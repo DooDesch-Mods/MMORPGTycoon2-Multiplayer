@@ -18,6 +18,13 @@ mt2mp::action_session::Outcome perform_history(const mt2mp::action_session::Bind
 #include <stdexcept>
 using json=nlohmann::json;
 namespace action=mt2mp::action_session;
+namespace mt2mp::action_session::tick_commands::authority {bool active(){return false;}}
+namespace ui_region_runtime {
+bool settle_building_move(const action::Binding&,const action::Request&,uint64_t,const action::BuildingState&,action::BuildingState&,json&,std::string&){
+    throw std::runtime_error("Legacy history fixture entered ordered terrain settlement");
+}
+}
+
 namespace world_state=mt2mp::world_state;
 namespace native=mt2mp::game::native;
 namespace remove_diagnostics=mt2mp::game::remove_diagnostics;

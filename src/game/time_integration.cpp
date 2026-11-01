@@ -197,6 +197,15 @@ bool Adapter::suspend(const std::string& reason,std::string& e){
     catch(const std::exception& exception){return x.fail("suspend",exception.what(),e);}
     catch(...){return x.fail("suspend","non-standard suspend exception",e);}
 }
+bool Adapter::finish_retirement(std::string& e){
+    auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Operation operation(x,"finish_retirement",e);if(!operation)return false;
+    try{
+        if(!x.thread("finish_retirement",e))return false;
+        if(!x.engine.finish_retirement(e))return x.fail("finish_retirement",e,e);
+        x.recovered("finish_retirement");e.clear();return true;
+    }catch(const std::exception& exception){return x.fail("finish_retirement",exception.what(),e);}
+    catch(...){return x.fail("finish_retirement","non-standard time retirement exception",e);}
+}
 bool Adapter::status(Status& out,std::string& e){
     auto& x=*impl_;std::lock_guard lock(x.mutex);Impl::Operation operation(x,"status",e);out=x.state;if(!operation)return false;
     if(!x.state.initialized){e="time_integration_not_initialized";return false;}

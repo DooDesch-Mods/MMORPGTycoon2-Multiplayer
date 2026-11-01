@@ -165,9 +165,14 @@ bool claim_handler(uint8_t channel,SidecarHandler handler,std::string& error) {
     handlers.emplace(channel,std::move(handler));if(channel==9)actions_suspended=false;error.clear();return true;
 }
 std::string failure_reason(){return local()?SidecarClient::instance().failure_reason():failure;}
-bool read_binding(std::array<uint64_t,5>& out,uint64_t& id,uint64_t& mine,std::string& error) {
-    if(local()){error="Steam binding requested for local Sidecar adapter";return false;}
-    try {if(!binding(error,false)||!connected()){if(error.empty())error="Steam physical handshake incomplete";return false;}out=ids;id=lobby;mine=own;error.clear();return true;}
+#include "session_process_cohort.inc"
+bool read_binding(std::array<uint64_t,5>& out,uint64_t& id,uint64_t& mine,std::string& error,bool retain_original) {
+    if(local())return read_local_session_binding(out,id,mine,error,retain_original);
+    try {if(!binding(error,false)||!connected()){if(error.empty())error="Steam physical handshake incomplete";return false;}
+        if(retain_original&&(restart_pending||membership_retirement_mask()!=mask)){
+            error="Ordered original Steam cohort has a missing or restarted member";return false;
+        }
+        out=ids;id=lobby;mine=own;error.clear();return true;}
     catch(const std::exception& e){return fail(e.what(),error);}
 }
 }

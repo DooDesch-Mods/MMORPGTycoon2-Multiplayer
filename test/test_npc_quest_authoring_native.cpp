@@ -27,15 +27,16 @@ uint32_t seed(uintptr_t,const std::array<uint64_t,4>&);
 namespace typed_action_runtime{
 namespace action=a;
 struct Status{bool started=true,locked=false,pending=false;std::string action_uuid=action_id;};
-struct Controller{Status value;Status status()const{return value;}a::Context bound_context()const{a::Context c;c.snapshot_uuid=snapshot_id;return c;}a::Binding bound_binding()const{return {3,4};}};
+struct Controller{bool ordered_mode()const{return false;}Status value;Status status()const{return value;}a::Context bound_context()const{a::Context c;c.snapshot_uuid=snapshot_id;return c;}a::Binding bound_binding()const{return {3,4};}};
 struct Session{bool failed=false;unsigned reads=0;std::string snapshot=snapshot_id;
  bool current(a::Context& out,std::string& e){++reads;if(failed)return fail(e,"retained Session current failure");out.snapshot_uuid=snapshot;return true;}};
 struct Engine{bool failed=false;unsigned reads=0;
  bool current(const a::Binding& binding,const std::string& snapshot,std::string& e){++reads;
   if(failed)return fail(e,"retained native Engine current failure");
   return (binding==a::Binding{3,4}&&snapshot==snapshot_id)||fail(e,"native Engine exact binding differs");}};
-struct Runtime{unsigned thread=1;bool lobby_retiring=false;Controller controller;Session session;Engine engine;}fixture;
+struct Runtime{bool live_state=false,live_port=false;unsigned thread=1;bool lobby_retiring=false;Controller controller;Session session;Engine engine;}fixture;
 std::atomic<Runtime*> published_runtime{&fixture};
+bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 #include "quest_network_binding_body.inc"
 json controller_status(){auto v=fixture.controller.value;return{{"started",v.started},{"locked",v.locked},{"pending",v.pending},{"action_uuid",v.action_uuid}};}
 }

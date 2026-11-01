@@ -5,11 +5,12 @@ namespace management=management_simulation;
 #include "analytics_native.inc"
 #include "subscriber_demand_native.inc"
 #include "toon_thought_frame.inc"
-bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& binding,const live::Pin& pin,management::LiveState& out,std::string& e,thought_frame_native::Snapshot* primary_thoughts=nullptr,bool planning=false){
+bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& binding,const live::Pin& pin,management::LiveState& out,std::string& e,thought_frame_native::Snapshot* primary_thoughts=nullptr,bool planning=false,character_calendar::DemandRead* primary_calendar=nullptr){
     character_calendar::State calendar;subscriber_demand::State demands;
     {std::optional<live::apply_timing::Scope> measured_calendar;if(live::apply_timing::host_capture_depth)measured_calendar.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishCalendar:live::apply_timing::Part::HostManagementCalendar);else if(live::apply_timing::take_depth)measured_calendar.emplace(live::apply_timing::Part::ClientManagementCalendarRead);
         live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);
-        if(!character_calendar::capture_demands(context,binding,pin,calendar,demands,e))return false;}
+        const bool read=primary_calendar?character_calendar::capture_demands_once(context,binding,pin,calendar,demands,*primary_calendar,e):character_calendar::capture_demands(context,binding,pin,calendar,demands,e);
+        if(!read)return false;}
     if(!planning){
     scenario_intro::State intro;
     {std::optional<live::apply_timing::Scope> measured_intro;if(live::apply_timing::take_depth)measured_intro.emplace(live::apply_timing::Part::ClientManagementIntroRead);
@@ -25,7 +26,7 @@ bool calendar_sample(Runtime& r,const a::Context& context,const a::Binding& bind
     out.character_calendar=std::move(calendar);out.subscriber_demands=std::move(demands);return true;
 }
 
-bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,thought_frame_native::Snapshot& thoughts,std::string& e,bool planning){
+bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,management::LiveState& out,thought_frame_native::Snapshot& thoughts,character_calendar::DemandRead& calendar,std::string& e,bool planning){
     {std::optional<live::apply_timing::Scope> measured_roots;if(live::apply_timing::take_depth)measured_roots.emplace(live::apply_timing::Part::ClientManagementPrimaryRoots);
     local={};out={};if(!thought_native::fault.empty())return fail(e,thought_native::fault);a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Management live Session/Mainthread differs":e);
     live::NativePort port(context,binding,nullptr);if(!port.read(local.pin,e)||local.pin.image!=r.image)return false;
@@ -44,7 +45,7 @@ bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding
         if(!analytics_native::sample(r,context,binding,analytics_owners,analytics,analytics_pin,e)||analytics_pin!=local.pin)return fail(e,e.empty()?"Management Analytics complete Clock/Ledger origin differs":e);}
     out.analytics=std::move(analytics);
     }
-    if(!calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning))return false;
+    if(!calendar_sample(r,context,binding,local.pin,out,e,&thoughts,planning,&calendar))return false;
     {std::optional<live::apply_timing::Scope> measured_services;if(live::apply_timing::take_depth)measured_services.emplace(live::apply_timing::Part::ClientManagementServiceRead);
         if(!services_read(r,context,binding,local,out.services,e))return false;}
     {std::optional<live::apply_timing::Scope> measured_project;if(live::apply_timing::take_depth)measured_project.emplace(live::apply_timing::Part::ClientManagementProjectRead);
@@ -56,8 +57,10 @@ bool primary_read(Runtime& r,const a::Context& context,const a::Binding& binding
     if(planning&&context.role!=a::Role::Client)return fail(e,"Management planning read requires Client role");
     // Planning needs scalar, Service, Project and reciprocal Calendar/Demand state.
     // Other children validate freshly at adoption; the final read remains complete.
-    Local first;management::LiveState before;thought_frame_native::Snapshot first_thoughts,last_thoughts;
-    if(!primary_once(r,context,binding,first,before,first_thoughts,e,planning)||!primary_once(r,context,binding,local,out,last_thoughts,e,planning))return false;
+    Local first;management::LiveState before;thought_frame_native::Snapshot first_thoughts,last_thoughts;character_calendar::DemandRead first_calendar,last_calendar;
+    if(!primary_once(r,context,binding,first,before,first_thoughts,first_calendar,e,planning)||!primary_once(r,context,binding,local,out,last_thoughts,last_calendar,e,planning))return false;
+    if(!before.character_calendar||!before.subscriber_demands||!out.character_calendar||!out.subscriber_demands)return fail(e,"Management Calendar/Demand paired values are absent");
+    if(!character_calendar::same_demand_read(first_calendar,*before.character_calendar,*before.subscriber_demands,last_calendar,*out.character_calendar,*out.subscriber_demands,e))return false;
     if(!planning&&(first_thoughts.bound!=last_thoughts.bound||first_thoughts.owners!=last_thoughts.owners||first_thoughts.value!=last_thoughts.value))return fail(e,"Thought complete current owners/values changed during double read");
     if(first.pin!=local.pin||first.software!=local.software||first.release!=local.release||first.current_release!=local.current_release||first.lounge!=local.lounge||first.gm_rows!=local.gm_rows||first.gm_uids!=local.gm_uids||first.services!=local.services||first.service_destinations!=local.service_destinations||before!=out)return fail(e,"Management live roots/scalars changed during double read");return true;
 }

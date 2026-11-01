@@ -1,5 +1,8 @@
 #include "movement_input.h"
 #include "input_contract.h"
+#include "threshold_projection.h"
+#include "camera_projection.h"
+#include <algorithm>
 #include "tutorial_replication/native.h"
 #include "native_open_runtime.h"
 #include "session_provider.h"
@@ -52,19 +55,27 @@ bool keyboard_admission(uint32_t mods,uint32_t event_key,bool text,bool string_m
     if(event_key!='w')return reject(e,"tutorial movement event key is not W;"+measured);
     return true;
 }
-bool observe(void*,Snapshot& out,std::string& e){
+bool camera_active();
+void report(const std::string& error);
+bool observe_native(Snapshot& out,std::string& e,bool threshold,int32_t camera_index=0){
     out={};if(GetCurrentThreadId()!=mainthread)return reject(e,"tutorial movement Mainthread differs");
     action_session::Context context;if(!action_session::selected_session().current(context,e))return false;
     if(context.role!=action_session::Role::Host||!Config::instance().is_host)return reject(e,"tutorial movement requires actual Host");
     const auto controller=typed_action_runtime::controller_status();
-    if(!controller.value("initialized",false)||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!controller.value("cause",std::string{}).empty())return reject(e,"tutorial movement Controller is not active idle Host");
+    if(!controller.value("initialized",false)||!controller.value("started",false)||controller.value("locked",true)||(controller.value("pending",true)&&!(threshold&&(camera_index?camera_active():fixture.receipt().down_attempted)))||!controller.value("cause",std::string{}).empty())return reject(e,"tutorial movement Controller is not active idle Host");
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(!idle_world(status,e))return false;
+    out.origin=world.uuid;out.epoch=world.world_epoch;out.generation=world.generation;
+    if(threshold){
+        nlohmann::json progress;if(!tutorial_replication::read_progress(progress,e)||!(camera_index?camera_projection(progress,camera_index,out,e):threshold_projection(progress,out,e)))return false;
+    }else{
     tutorial_replication::State state;if(!tutorial_replication::capture(context,{world.world_epoch,world.generation},state,e))return false;
     if(state.initial_complete||state.active.size()!=1)return reject(e,"tutorial movement requires one active initial tutorial");
     const auto& step=state.active[0];
     if(step.scenario!="initial_tutorial"||step.next!=7||step.complete||!step.message_progress||step.message_progress->minimum!=0||step.message_progress->maximum!=100)return reject(e,"tutorial movement requires current initial WASD index6/next7/Meter");
+        out.progress=step.message_progress->value;
+    }
     if(!verify_contract(memory,image,sdl,e))return false;
     bool modal=false;const auto exception=modal_call(&modal);if(exception)return reject(e,"tutorial movement modal read SEH="+std::to_string(exception));
     if(modal)return reject(e,"tutorial movement modal Window blocks native progress");
@@ -111,8 +122,11 @@ bool observe(void*,Snapshot& out,std::string& e){
     Array after_axes;if(!at(input,0x48,after_axes,e)||after_axes!=axes)return reject(e,e.empty()?"tutorial movement axes changed":e);
     building_mixed_identity::opened_file::CurrentWorld after;if(!native_open_runtime::read_current_world(after,e))return false;
     if(world.game!=after.game||world.mode!=after.mode||world.state!=after.state||world.world!=after.world||world.uuid!=after.uuid||world.world_epoch!=after.world_epoch||world.generation!=after.generation)return reject(e,"tutorial movement actual origin changed during read");
-    out.origin=world.uuid;out.epoch=world.world_epoch;out.generation=world.generation;out.progress=step.message_progress->value;out.key_down=keys[SDL_SCANCODE_W];e.clear();return true;
+    out.origin=world.uuid;out.epoch=world.world_epoch;out.generation=world.generation;out.key_down=keys[SDL_SCANCODE_W];e.clear();return true;
 }
+bool observe(void*,Snapshot& out,std::string& e){return observe_native(out,e,false);}
+bool observe_threshold(void*,Snapshot& out,std::string& e){return observe_native(out,e,true);}
+#include "movement_release_observer.inc"
 bool post(void*,const Snapshot& owner,bool down,std::string& e){
     if(GetCurrentThreadId()!=mainthread)return reject(e,"tutorial movement post Mainthread differs");
     const auto window=reinterpret_cast<SDL_Window*>(owner.window);const auto hwnd=reinterpret_cast<HWND>(owner.hwnd);
@@ -124,6 +138,7 @@ bool post(void*,const Snapshot& owner,bool down,std::string& e){
     if(!PostMessageW(hwnd,down?WM_KEYDOWN:WM_KEYUP,'W',down?LPARAM(1):LPARAM(0xc0000001)))return reject(e,"tutorial movement PostMessage failed error="+std::to_string(GetLastError()));
     e.clear();return true;
 }
+#include "camera_native.inc"
 void report(const std::string& error){if(!error.empty()&&last_error!=error){last_error=error;LOG_ERROR("[TutorialMovement] cause={}; no replay",error);}}
 }
 bool initialize(uintptr_t base,uint32_t thread,const std::string& run,const std::string& sha,std::string& e){
@@ -139,19 +154,44 @@ bool initialize(uintptr_t base,uint32_t thread,const std::string& run,const std:
     if(input.bad())return reject(e,"tutorial movement SDL file read failed during hash");
     try{if(mt2mp::sha256(bytes)!=sdl_sha256)return reject(e,"tutorial movement exact SDL build differs");}
     catch(const std::exception& cause){return reject(e,cause.what());}
-    if(!verify_contract(memory,image,sdl,e))return false;
-    return fixture.initialize(thread,{nullptr,[](void*){return uint32_t(GetCurrentThreadId());},[](void*){return uint64_t(GetTickCount64());},observe,post},e);
+    if(!verify_contract(memory,image,sdl,e)||!camera_pin(e))return false;
+    return fixture.initialize(thread,{nullptr,[](void*){return uint32_t(GetCurrentThreadId());},[](void*){return uint64_t(GetTickCount64());},observe,post,observe_threshold,observe_release},e);
 }
 bool start(const std::string& token,const std::string& origin,uint64_t frame_id,std::string& e){
+    if(camera_active())return reject(e,"tutorial camera input is active");
     if(GetAsyncKeyState('W')&0x8000)return reject(e,"tutorial movement physical W is already held");
     return fixture.start(token,origin,frame_id,e);
 }
+bool complete(const std::string& token,const std::string& origin,uint64_t frame_id,std::string& e){
+    if(camera_active())return reject(e,"tutorial camera input is active");
+    if(!typed_action_runtime::ordered_mode_selected())return reject(e,"tutorial threshold requires ordered mode");
+    if(GetAsyncKeyState('W')&0x8000)return reject(e,"tutorial movement physical W is already held");
+    return fixture.start(token,origin,frame_id,e,true);
+}
 void poll(void* raw,uint64_t frame_id){
-    const auto event=static_cast<const SDL_Event*>(raw);if(!event||(event->type!=SDL_EVENT_KEY_DOWN&&event->type!=SDL_EVENT_KEY_UP))return;
+    const auto event=static_cast<const SDL_Event*>(raw);if(event)camera_poll(*event);if(!event||(event->type!=SDL_EVENT_KEY_DOWN&&event->type!=SDL_EVENT_KEY_UP))return;
     std::string e;if(!fixture.poll(event->key.windowID,event->key.which,uint32_t(event->key.scancode),event->key.key,event->type==SDL_EVENT_KEY_DOWN,event->key.repeat,frame_id,e))report(e);
 }
-void frame(uint64_t frame_id){std::string e;if(!fixture.frame(frame_id,e))report(e);}
-void suspend(const std::string& cause){std::string e;if(!fixture.suspend(cause,e))report(e);}
+void frame(uint64_t frame_id){std::string e;if(!fixture.frame(frame_id,e))report(e);if(!camera_fixture.frame(frame_id,e))report(e);}
+void suspend(const std::string& cause){std::string e;if(!fixture.suspend(cause,e))report(e);if(!camera_fixture.suspend(cause,e))report(e);}
+bool camera_start(int32_t index,const std::string& token,const std::string& origin,uint64_t frame,std::string& error){
+    if(!typed_action_runtime::ordered_mode_selected()||GetCurrentThreadId()!=mainthread||fixture.unresolved())return reject(error,"tutorial camera requires current ordered idle input owner");
+    if(GetAsyncKeyState(VK_RBUTTON)&0x8000||GetAsyncKeyState(VK_LBUTTON)&0x8000||GetAsyncKeyState(VK_MBUTTON)&0x8000||GetAsyncKeyState('W')&0x8000)
+        return reject(error,"tutorial camera physical input is already held");
+    return camera_fixture.start(index,token,origin,frame,error);
+}
+bool camera_unresolved(){const auto& r=camera_fixture.receipt();return r.active||!r.cause.empty()||(r.button_attempted&&!r.button_released);}
+nlohmann::json camera_status(){
+    const auto& r=camera_fixture.receipt();
+    const auto snapshot=[](const Snapshot& s){return nlohmann::json{{"origin",s.origin},{"epoch",s.epoch},{"generation",s.generation},
+        {"index",s.tutorial_index},{"history_count",s.history_count},{"granted",s.granted},{"released",s.released},{"threshold_reached",s.threshold_reached},{"ordered_release",s.ordered_release},
+        {"button_down",s.key_down},{"axis",s.axis},{"mouse_relative",s.mouse_relative},{"mouse_focus",s.mouse_focus},
+        {"mouse_capture",s.mouse_capture},{"mouse_auto_capture",s.mouse_auto_capture}};};
+    return {{"schema",1},{"token",r.token},{"index",r.index},{"active",r.active},{"confirmed",r.confirmed},{"cause",r.cause},{"release_cause",r.release_cause},
+        {"button_attempted",r.button_attempted},{"button_returned",r.button_returned},{"button_polled",r.button_polled},{"up_attempted",r.up_attempted},{"up_returned",r.up_returned},
+        {"up_polled",r.up_polled},{"button_released",r.button_released},{"pulses_attempted",r.pulses_attempted},{"pulses_returned",r.pulses_returned},{"pulses_polled",r.pulses_polled},
+        {"before",snapshot(r.before)},{"after",snapshot(r.after)},{"completion",snapshot(r.completion)}};
+}
 const Receipt& receipt(){return fixture.receipt();}
 FocusWindowState observe_focus_window(const Snapshot& owner){
     const auto window=reinterpret_cast<SDL_Window*>(owner.window);

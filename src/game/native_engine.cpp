@@ -4,6 +4,8 @@
 #include "save_companion_retirement.h"
 #endif
 #include "mt2mp/game/native_engine.h"
+#include "mt2mp/hooks/original_body.h"
+#include "initial_release/release_entry.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/core/logger.h"
 #include "live_host_state/economic_fence.h"
@@ -211,6 +213,32 @@ DWORD call_string(uintptr_t method, void* receiver, const char* text) {
         reinterpret_cast<ConstructString>(base + string_construct)(&value, text);
         constructed = true;
         reinterpret_cast<StringMethod>(base + method)(receiver, &value);
+    } __except (EXCEPTION_EXECUTE_HANDLER) { exception = GetExceptionCode(); }
+    if (constructed) {
+        __try { reinterpret_cast<DisposeString>(base + string_dispose)(&value); }
+        __except (EXCEPTION_EXECUTE_HANDLER) { if (!exception) exception = GetExceptionCode(); }
+    }
+    return exception;
+}
+
+DWORD invoke_owned_save(uintptr_t base,void* receiver,const void* value,uintptr_t method,bool option,std::string& cause){
+    cause.clear();
+    try{if(method==0x4a0580)reinterpret_cast<void(*)(void*)>(base+method)(receiver);
+        else reinterpret_cast<void(*)(void*,const void*,bool)>(base+method)(receiver,value,option);return 0;}
+    catch(const std::exception& error){cause=error.what();return 0xe06d7363;}
+    catch(...){cause="unknown C++ exception in original Save";return 0xe06d7363;}
+}
+
+DWORD call_owned_save(void* receiver,const char* text,uintptr_t method,bool option,std::string& cause) {
+    cause.clear();
+    GameString value{};
+    bool constructed = false;
+    DWORD exception = 0;
+    const auto base = image.load();
+    __try {
+        reinterpret_cast<ConstructString>(base + string_construct)(&value, text);
+        constructed = true;
+        exception=invoke_owned_save(base,receiver,&value,method,option,cause);
     } __except (EXCEPTION_EXECUTE_HANDLER) { exception = GetExceptionCode(); }
     if (constructed) {
         __try { reinterpret_cast<DisposeString>(base + string_dispose)(&value); }
@@ -2143,7 +2171,10 @@ static bool placement_operation(const std::string& type, const std::string& vari
     float x, float z, bool apply, bool purchase, float expected_y, BuildingState& created, std::string& error) {
     if (!check_thread(error)) return false;
     std::string folder;
-    if (!in_game() || !read_game_string(singleton(game_slot), 0x470, folder) || !valid_test_name(folder))
+    if (!in_game() || !read_game_string(singleton(game_slot), 0x470, folder))
+        return fail(error, "diagnostic placement rejected: active native world required");
+    // Probes only inspect native placement; diagnostic writes remain restricted to test worlds.
+    if ((apply || purchase) && !valid_test_name(folder))
         return fail(error, "diagnostic placement rejected: active MPTest world required");
     if (type.empty() || type.size() > 256 || variant.size() > 256 ||
         type.find('\0') != std::string::npos || variant.find('\0') != std::string::npos ||
@@ -2325,7 +2356,9 @@ bool read_active_world_folder(std::string& folder, std::string& error) {
     return true;
 }
 
-bool capture_snapshot(const std::string& filename, std::string& error) {
+#include "native_save_request.inc"
+
+bool capture_snapshot(const std::string& filename, std::string& error, bool blocking_held) {
     if (!check_thread(error)) return false;
     const std::filesystem::path path(filename);
     if (path.is_absolute() || filename.rfind("user/save/", 0) != 0 ||
@@ -2337,11 +2370,26 @@ bool capture_snapshot(const std::string& filename, std::string& error) {
     int saves = -1;
     if (!read_at(mode, 0x30c, saves) || saves != 0)
         return fail(error, "snapshot rejected: saves in progress=" + std::to_string(saves) + " required=0");
-    LOG_INFO("[Native] Snapshot task dispatch attempted path={}", filename);
-    const std::string stem = filename.substr(0, filename.size() - 4);
-    const DWORD exception = call_string(save_absolute, mode, stem.c_str());
-    if (exception) return fail(error, "snapshot dispatch failed: native exception=" + std::to_string(exception));
-    LOG_INFO("[Native] Snapshot task dispatched path={}; persistence awaits file acknowledgement", filename);
+    std::string stem = filename.substr(0, filename.size() - 4);
+    if(blocking_held){
+        ClockState clock;if(!read_clock(clock,error))return false;
+        if(!clock.paused||clock.time_scale!=0)return fail(error,"held snapshot requires paused native Clock");
+        std::string folder,directory;
+        if(!read_active_world_folder(folder,error))return false;
+        if(!read_game_string(mode,0x2e0,directory)||directory!="user/save/"+folder)
+            return fail(error,"held snapshot native save directory differs from active world");
+        const std::string prefix=directory+"/";
+        if(filename.rfind(prefix,0)!=0||filename.find('/',prefix.size())!=std::string::npos||filename.size()<=prefix.size()+4)
+            return fail(error,"held snapshot target must be one filename in the active world directory");
+        // The blocking entry forces relative mode in its common Save call.
+        stem=filename.substr(prefix.size(),filename.size()-prefix.size()-4);
+    }
+    LOG_INFO("[Native] Snapshot original attempted path={} blocking_held={}", filename,blocking_held);
+    const DWORD exception = blocking_held?call_owned_save(mode,stem.c_str(),0x4a1b40,true,error):call_string(save_absolute, mode, stem.c_str());
+    if (exception) return fail(error, "snapshot original failed: native exception=" + std::to_string(exception)+(blocking_held&&!error.empty()?" cause="+error:std::string{}));
+    if(blocking_held&&(!read_at(mode,0x30c,saves)||saves!=0))
+        return fail(error,"held snapshot returned with saves in progress="+std::to_string(saves)+" required=0; no retry");
+    LOG_INFO("[Native] Snapshot original returned path={} blocking_held={}; persistence awaits file acknowledgement", filename,blocking_held);
     return true;
 }
 
@@ -2410,22 +2458,22 @@ bool retire_autosave_companion(std::string& error) {
     error.clear();return true;
 }
 
-bool request_return_to_title(std::string& error) {
+bool request_return_to_title(std::string& error,bool managed_autosave) {
     if (!check_thread(error)) return false;
     if (!in_game()) return fail(error, "return to title rejected: no active world");
     int32_t saves = -1;
     if (!read_saves_in_progress(saves, error)) return false;
     if (saves != 0) return fail(error, "return to title rejected: saves in progress=" + std::to_string(saves) + " required=0");
     auto* mode = singleton(mode_slot);
-    if (!retire_autosave_companion(error)) return false;
-    LOG_INFO("[Native] Return to title attempted; native autosave enabled");
+    if (!managed_autosave&&!retire_autosave_companion(error)) return false;
+    LOG_INFO("[Native] Return to title attempted; managed autosave completed={}",managed_autosave);
     const DWORD exception = call_string(0x4a2f90, mode, "Quit");
     if (exception) return fail(error, "return to title native call failed: exception=" + std::to_string(exception));
     unsigned char quitting = 0;
     unsigned char desktop_exit = 1;
     if (!read_at(mode, 0x304, quitting) || !quitting || !read_at(mode, 0x305, desktop_exit) || desktop_exit)
         return fail(error, "return to title acknowledgement failed: quit flags differ");
-    LOG_INFO("[Native] Return to title acknowledged; autosave and title activation pending");
+    LOG_INFO("[Native] Return to title acknowledged; original title activation pending");
     return true;
 }
 

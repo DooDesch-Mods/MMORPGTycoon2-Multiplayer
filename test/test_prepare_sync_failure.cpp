@@ -1,4 +1,6 @@
 #include <atomic>
+#include "prepare_flow.h"
+#include "startup_calendar_normalization.h"
 #include <chrono>
 #include <cstdint>
 #include <iostream>
@@ -18,7 +20,9 @@ namespace mt2mp {
 struct Config{bool is_host=true,local_test=false;static Config& instance(){static Config config;return config;}};
 namespace net {
 constexpr int snapshot_native_load_timeout_seconds=900;
+std::string current_snapshot_id(){throw std::runtime_error("unexpected ordered snapshot read in legacy failure fixture");}
 namespace session_wire {bool connected(){return true;}std::string failure_reason(){return {};}
+bool membership_pending(){return false;}uint8_t peer_mask(){return 3;}
 bool prepare(std::string&){return true;}}
 json snapshot_progress(){return {{"phase","active"}};}
 std::string snapshot_sync_status(){return "unexpected snapshot failure";}
@@ -28,13 +32,24 @@ struct Runtime {static Runtime& instance(){static Runtime value;return value;}
 void set_lobby_admitted(bool admitted){if(admitted)throw std::runtime_error("Leave admitted chat instead of retiring it");++fixture::chat_retirements;}};
 }
 namespace game {
+namespace ordered_startup {
+uint64_t leave_confirmed=0;
+struct State {std::string failure;} state;
+bool started(){throw std::runtime_error("unexpected ordered state read in legacy failure fixture");}
+bool selected(){return false;}bool leaving(){return false;}
+bool current(std::string& e){e="unexpected ordered startup in legacy failure fixture";return false;}
+bool request_leave(std::string& e){e="unexpected ordered Leave in legacy failure fixture";return false;}
+bool retain_resume_scale(float,std::string& e){e="unexpected ordered resume in legacy failure fixture";return false;}
+}
+namespace startup_calendar {Result normalize_loaded(std::string& e){e="unexpected calendar normalization in failure fixture";return Result::Failed;}}
+
 namespace session_reload {
 bool busy(){return fixture::reload_busy;}
 json status(){return {{"label","fixture reload in progress"},{"error","original reload state cause"}};}
 bool release_for_leave(std::string& error){++fixture::reload_releases;if(!fixture::reload_release_ok){error="original reload release failed";return false;}fixture::reload_busy=false;return true;}
 }
 namespace native {
-struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0;};
+struct WorldStatus{int active_mode_index=3;bool title_transition_pending=false;int saves_in_progress=0,edit_operations=0;bool world_present=false;};
 struct SimulationState{struct{bool paused=true;float time_scale=0;int32_t flat_day=1;}clock;
 bool record_present=true;int32_t record_day=1,record_cash=1,cash=1;};
 bool in_game(){return fixture::ingame;}
@@ -62,7 +77,7 @@ CAPTURE_SERVICE(ui_region_runtime)
 namespace typed_action_runtime {
 struct ControllerStatus{bool started=true,locked=false,pending=false;uint64_t host_revision=1;
 std::string action_uuid,cause;int outcome=0;};
-struct Controller{ControllerStatus value;ControllerStatus status(){++fixture::controller_reads;return value;}};
+struct Controller{bool ordered_mode()const{return false;}uint64_t ack_timeout_ms()const{return 10000;}ControllerStatus value;ControllerStatus status(){++fixture::controller_reads;return value;}};
 struct Runtime{uint32_t thread=7;bool lobby_retiring=false,live_failure_terminal=false;Controller controller;std::string live_error;};
 std::atomic<Runtime*> published_runtime{nullptr};
 #include "sync_failure_controller.inc"
@@ -79,6 +94,11 @@ namespace lobby_prepare {
 bool captures_ready(){return fixture::captures;}
 bool all_ack(std::string&){throw std::runtime_error("unexpected preparation ACK scan");}
 bool start_runtime(std::string&){++fixture::starts;return true;}
+bool select_or_load_solo(std::string& e){e="unexpected solo load in terminal failure fixture";return false;}
+bool wait_current_peer(std::string& e){e="unexpected peer wait in terminal failure fixture";return false;}
+bool capture_current_world(std::string& e){e="unexpected world capture in terminal failure fixture";return false;}
+bool captured_source(const json&,std::string& e){e="unexpected captured source in terminal failure fixture";return false;}
+bool select_paired_world(const std::string&,bool& handled,std::string& e){handled=false;e="unexpected paired world in terminal failure fixture";return false;}
 #include "sync_failure_entry.inc"
 #include "sync_failure_leave.inc"
 #include "sync_failure_tick.inc"

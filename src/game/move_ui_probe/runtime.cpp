@@ -118,7 +118,13 @@ bool read(const json& args,json& out,std::string& e){
     if(GetCurrentThreadId()!=thread)return fail(e,"move_ui_receipt_wrong_actual_mainthread");auto it=jobs.find(token);if(it==jobs.end())return fail(e,"move_ui_token_unknown");auto& j=it->second;
     if(j.bound.receipt.phase!=Phase::Confirmed&&j.bound.receipt.phase!=Phase::Unknown&&j.bound.receipt.phase!=Phase::Rejected){
         j.native_stage="authoritative_completion_read";if(!context(j,e)||!confirmation(j.bound,typed_action_runtime::status(),ui_move_runtime::status().value("last_native",json::object()),Config::instance().is_host,e))unknown(j,e);
-        else if(j.bound.receipt.phase!=Phase::Confirmed&&GetTickCount64()-j.bound.armed_at>10000)unknown(j,"move_ui_observation_timeout_ms>10000_no_replay");
+        else if(j.bound.receipt.phase!=Phase::Confirmed&&!j.bound.submitted){
+            // Submitted requests use the Controller's phase deadlines and native execution accounting.
+            const auto budget=typed_action_runtime::controller_status().value("ack_timeout_ms",uint64_t{});
+            const auto now=GetTickCount64();
+            if(!budget||now<j.bound.armed_at)unknown(j,"move_ui_capture_wait_clock_or_Controller_budget_invalid_no_replay");
+            else if(now-j.bound.armed_at>budget)unknown(j,"move_ui_capture_timeout elapsed_ms="+std::to_string(now-j.bound.armed_at)+" required_ms="+std::to_string(budget)+"; no replay");
+        }
     }
     if(j.bound.receipt.phase==Phase::Confirmed&&active==&j)active=nullptr;
     out=format(j);e.clear();return true;

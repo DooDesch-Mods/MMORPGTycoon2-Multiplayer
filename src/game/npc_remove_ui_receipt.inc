@@ -1,4 +1,4 @@
-    if(Config::instance().is_host){
+    if(Config::instance().is_host&&!typed_action_runtime::controller_status().value("ordered",false)){
         const auto id=job.value("action_uuid",std::string{});const auto found=state.operations.find(id);
         const auto ordered=typed_action_runtime::controller_status();
         const auto unknown=[&](const std::string& cause){job["cause"]=cause;job["unknown"]=true;result=job;return fail(error,cause);};

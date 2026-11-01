@@ -20,8 +20,8 @@ bool current_graph(Runtime& r,Port& port,const Sample& current,std::string& e){
 bool pending(){return bool(capture)||bool(queued);}
 void tick(){
     if(!net::session_wire::connected()){retire_session();return;}
-    if(!queued)return;auto* r=published.load(std::memory_order_acquire);std::string e;action::Binding binding;
-    if(!r||queued->snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(queued->snapshot,binding,e)||binding!=queued->binding){
+    if(!queued)return;auto* r=published.load(std::memory_order_acquire);std::string e;
+    if(!r||queued->snapshot!=net::current_snapshot_id()||!current_capture(queued->context,queued->snapshot,queued->binding,e)){
         reject(e.empty()?"Scenery captured stroke World/snapshot retired before submission":e);queued.reset();return;
     }
     const auto controller=typed_action_runtime::controller_status();
@@ -34,13 +34,14 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;
     if(!r||!installed||!r->ready||r->thread!=GetCurrentThreadId()||!forward_action(request.action)||!action::valid_scenery_stroke(request.scenery_stroke)||
        request.snapshot_uuid!=net::current_snapshot_id()||!contract::pending(typed_action_runtime::controller_status(),request,revision,e)||
-       bool(authority)==Config::instance().is_host){if(e.empty())e="Scenery exact pending action/role is unavailable";return action::Outcome::RejectedNoEffect;}
+       !execution_admission(binding,request,authority,e)){if(e.empty())e="Scenery exact pending action/role is unavailable";return action::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)||quarantined.contains(request.action_uuid)){e="Scenery stroke already attempted; no replay";return action::Outcome::Unknown;}
     if(authority&&!action::valid_scenery_stroke_effect(request,*authority)){e="Scenery Host complete evidence is invalid";return action::Outcome::RejectedNoEffect;}
     Sample before;if(!sample(*r,binding,request.scenery_stroke.region,{},before,e))return action::Outcome::RejectedNoEffect;
     if(authority&&(!content_equal(before.state,*authority->scenery_stroke_before)||before.props.money!=authority->before)){
         e="Scenery Client complete objects/bugs/Release/Ledger differ from Host";return action::Outcome::RejectedNoEffect;}
     auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     op.port=std::make_shared<Port>(Port{*r,binding,request,std::move(before),{},op.native});auto& port=*op.port;
     if(authority)port.authority_before=authority->scenery_stroke_before;
     const bool returned=scenery_stroke_native::execute(port,request.scenery_stroke,op.native,e);
@@ -52,7 +53,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     }
     auto unknown=[&](){op.cause=e;return action::Outcome::Unknown;};
     port.evidence.selection_confirmed=op.native.selection_restored;op.evidence=port.evidence;
-    if(!action::valid_scenery_stroke_effect(request,op.evidence)||!action::scenery_stroke_wire_fits(request,op.evidence,e)){
+    if(!action::check_scenery_stroke_effect(request,op.evidence,e)||!action::scenery_stroke_wire_fits(request,op.evidence,e)){
         if(e.empty())e="Scenery complete native result fails its action contract";return unknown();}
     if(authority&&(op.evidence.before!=authority->before||op.evidence.after!=authority->after||op.evidence.scenery_stroke_before!=authority->scenery_stroke_before||
        op.evidence.scenery_stroke_after!=authority->scenery_stroke_after||op.evidence.scenery_stroke_result!=authority->scenery_stroke_result)){
@@ -67,7 +68,8 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     auto* r=published.load(std::memory_order_acquire);const auto found=operations.find(request.action_uuid);
     if(!r||r->thread!=GetCurrentThreadId()||found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.port)
         return q::fail(e,"Scenery observation lacks an exact confirmed operation");
-    auto& op=found->second;auto& port=*op.port;Sample current;
+    auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;
+    auto& port=*op.port;Sample current;
     if(!sample(*r,binding,request.scenery_stroke.region,port.aliases,current,e)||!current_graph(*r,port,current,e))return false;
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }
@@ -75,6 +77,7 @@ bool publication(const action::Binding& binding,const action::Request& request,a
     const auto found=operations.find(request.action_uuid);
     if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.evidence.scenery_stroke_result)
         return q::fail(e,"Scenery publication lacks an exact confirmed native operation");
+    if(found->second.ordered&&!ordered_scope(binding,request,e))return false;
     out=*found->second.evidence.scenery_stroke_result;return true;
 }
 bool retire(const action::Binding& binding,const action::Request& request,std::string& e){
@@ -84,6 +87,7 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
     op.retired=true;return true;
 }
 void retire_session(){
+    retire_ordered_gesture();
     if(capture||queued)reject("Scenery captured stroke cancelled after session retirement");capture.reset();queued.reset();
     retire_histories();
     for(auto it=operations.begin();it!=operations.end();){
@@ -98,7 +102,27 @@ json status(){
         {"stamp_returns",op.native.stamp_returns},{"graph",op.native.graph},{"graph_committed",op.native.graph_committed},
         {"context_restored",op.native.context_restored},{"selection_restored",op.native.selection_restored},{"cursor_destroyed",op.native.cursor_destroyed},
         {"resources_released",op.native.resources_released},{"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"cleanup_cause",op.native.cleanup_cause}};
+    if(Config::instance().local_test)for(const auto& [id,op]:operations){
+        if(op.confirmed||op.cause.empty())continue;
+        const auto& evidence=op.evidence;
+        if(!evidence.scenery_stroke_before||!evidence.scenery_stroke_after||!evidence.scenery_stroke_result)continue;
+        auto state=[](const action::SceneryStrokeState& value){return json{{"props_sha",value.props_sha},{"bugs_sha",value.bugs_sha},
+            {"bug_count",value.bug_count},{"random",value.random},{"region_random",value.region_random},{"release",value.release}};};
+        auto owner=[](const action::DuplicateObject& value){json members=json::array();size_t count=0;
+            for(const auto& member:value.members){if(count++==32)break;members.push_back(member);}
+            return json{{"key",value.key},{"parent",value.parent},{"record_sha",value.record_sha},{"family",uint8_t(value.family)},
+                {"region",value.region},{"pose",value.pose},{"members",std::move(members)},{"member_count",value.members.size()}};};
+        auto owners=[&](const auto& values){json result=json::array();size_t count=0;
+            for(const auto& value:values){if(count++==32)break;result.push_back(owner(value));}return result;};
+        const auto& effect=*evidence.scenery_stroke_result;json changed=json::array();size_t count=0;
+        for(const auto& value:effect.changed){if(count++==32)break;changed.push_back(json::array({owner(value.before),owner(value.after)}));}
+        rows[id]["failure_evidence"]={{"before",state(*evidence.scenery_stroke_before)},{"after",state(*evidence.scenery_stroke_after)},
+            {"created_count",effect.created.size()},{"removed_count",effect.removed.size()},{"changed_count",effect.changed.size()},
+            {"created",owners(effect.created)},{"removed",owners(effect.removed)},{"changed",std::move(changed)},
+            {"truncated",effect.created.size()>32||effect.removed.size()>32||effect.changed.size()>32},
+            {"untouched_sha",effect.untouched_sha}};
+    }
     return {{"enabled",installed},{"pending",pending()},{"captures",captures},{"submitted",submissions},{"rejected",rejections},{"cause",cause},
-        {"quarantined",quarantined.size()},{"operations",std::move(rows)},{"history",history_status()}};
+        {"quarantined",quarantined.size()},{"last_ordered_receipt",ordered_receipt()},{"operations",std::move(rows)},{"history",history_status()}};
 }
 }

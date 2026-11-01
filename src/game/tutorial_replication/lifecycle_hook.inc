@@ -12,7 +12,7 @@ void observe_terminal_receipt(const std::string& cause){
     observed={cause,0};
 }
 bool host(World& w,action_session::Context& c,action_session::Binding& b,std::string& e){
-    if(load.armed||!action_session::selected_session().current(c,e)||c.role!=action_session::Role::Host)return false;
+    if(typed_action_runtime::ordered_mode_selected()||load.armed||!action_session::selected_session().current(c,e)||c.role!=action_session::Role::Host)return false;
     if(!native_open_runtime::read_current_world(w,e))return false;
     uintptr_t base=0;uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(base,thread,sha,e)||base!=image||thread!=GetCurrentThreadId())return fail(e,e.empty()?"tutorial lifecycle Host receipt requires bound Mainthread/image":e);

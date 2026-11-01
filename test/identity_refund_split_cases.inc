@@ -29,7 +29,7 @@ struct World {
     uint64_t epoch=0,origin_generation=0;void* world=nullptr;void* map=nullptr;
     bool operator==(const World&)const=default;
 };
-struct Prop {uint64_t uid=0;void* registry_object=nullptr;uintptr_t class_addresspoint=0;};
+struct Prop {uint64_t uid=0;void* registry_object=nullptr;uintptr_t class_addresspoint=0;bool typed_prop=false,complete_ownership=false;};
 }
 namespace native {
 struct BuildingState {
@@ -51,7 +51,7 @@ prop_lease::World admitted_world;
 World live_world;
 std::map<uint64_t,native::BuildingState> live;
 std::map<uint64_t,unsigned> settlement_reads;
-unsigned refund_calls=0,registered_reads=0,prop_reads=0,world_reads=0,logs=0,seals=0;
+unsigned refund_calls=0,registered_reads=0,prop_reads=0,world_reads=0,logs=0,seals=0,uid_lookup_calls=0;
 std::vector<uint64_t> refund_uids;
 uint64_t refund_failure=0,identity_failure=0;
 bool world_failure=false,heap_failure=false,lookup_failure=false,class_failure=false,prop_failure=false;
@@ -91,9 +91,11 @@ struct ProcessMemory {
     }
 };
 inline std::string batch_final_failure;
+inline unsigned batch_finish_calls=0;
 struct RootSceneryReadBatch {
     opened::CurrentWorld expected=live_world;
     bool finish(std::string& error){
+        ++batch_finish_calls;
         if(!batch_final_failure.empty()){error=batch_final_failure;return false;}
         if(expected!=live_world){error="fixture readonly batch complete World changed";return false;}
         return true;
@@ -112,7 +114,7 @@ struct Reader {
         if(saved_only&&uid==101)return fail(e,"remove_region_absent_root_map");
         if(prop_failure)return fail(e,"fixture current target membership failed");
         if(!live.contains(uid)||receiver!=reinterpret_cast<void*>(object(uid)))return fail(e,"fixture target full UID mismatch");
-        out={uid,receiver,scene_target&&uid==101?fixture_image+0x16c1390:fixture_addresspoint};return true;
+        out={uid,receiver,scene_target&&uid==101?fixture_image+0x16c1390:fixture_addresspoint,true,true};return true;
     }
     bool saved_root_scenery(void* receiver,uint64_t uid,int32_t id,uintptr_t region,prop_lease::Prop& out,std::string& e){
         ++saved_prop_reads;
@@ -120,7 +122,7 @@ struct Reader {
         if(prop_failure)return fail(e,"fixture current target membership failed");
         if(!scene_target||uid!=101||!live.contains(uid)||receiver!=reinterpret_cast<void*>(object(uid))||id!=59||region!=fixture_saved_region)
             return fail(e,"fixture saved Root Scenery exact context differs");
-        out={uid,receiver,fixture_image+0x16c1390};return true;
+        out={uid,receiver,fixture_image+0x16c1390,true,true};return true;
     }
 };
 }
@@ -142,6 +144,11 @@ namespace native {
 bool read_resolver_receipt(uintptr_t& out_image,uint32_t& thread,std::string& hash,std::string&){out_image=fixture_image;thread=7;hash=executable;return true;}
 }
 namespace scenery_kiss {
+std::string catalog_final_failure;
+unsigned catalog_finishes=0;
+struct CatalogCodeReadBatch {
+    bool finish(std::string& e){++catalog_finishes;if(!catalog_final_failure.empty()){e=catalog_final_failure;return false;}return true;}
+};
 bool read_action_prop(uint64_t uid,native::BuildingState& out,std::string& e){
     ++settlement_reads[uid];
     if(uid==identity_failure||!live.contains(uid))return fail(e,"fixture live building identity failed");
@@ -154,7 +161,9 @@ bool metadata_matches(const json& m,const native::BuildingState& b){
         (!m.contains("rotation")||m.at("rotation")==b.rotation)&&(!m.contains("scale")||m.at("scale")==b.scale);
 }
 }
+namespace native {bool read_building(uint64_t uid,BuildingState& out,std::string& e){return scenery_kiss::read_action_prop(uid,out,e);}}
 bool lookup(host::LookupApi,uint64_t uid,void*& out,uint32_t& seh){
+    ++uid_lookup_calls;
     if(change_world_on_lookup)++live_world.generation;
     seh=0;out=live.contains(uid)?reinterpret_cast<void*>(lookup_override?lookup_override:object(uid)):nullptr;return true;
 }
@@ -202,6 +211,8 @@ namespace dungeon_scene_identity_runtime {using World=identity_refund_fixture::W
 namespace scene_scenery {
 struct Row{std::string scene;};
 unsigned append_calls=0;std::function<bool(json&,std::string&)> append_fixture;
+struct SavedAdmission {bool consumed=false;};std::optional<SavedAdmission> saved_admission;
+#include "saved_admission_pending_actual.inc"
 bool append_saved(json& rows,std::string& error){++append_calls;return !append_fixture||append_fixture(rows,error);}
 bool owner(uintptr_t pointer,uint64_t uid,Row& row,dungeon_scene_identity_runtime::World& world,std::string& error){
     if(scene_owner_failure)return fail(error,"original Scene Scenery reciprocal owner failure");
@@ -215,8 +226,11 @@ namespace service_building_census {
 }
 bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);
 bool resolve_local_target(uintptr_t,uintptr_t,LocalTarget&,std::string&);
+bool current_registry_world(const std::string&,uint64_t,uint64_t,std::string& e){return fail(e,"unexpected Ordered target-only registry query in legacy fixture");}
 #include "identity_refund_split_bodies.inc"
 bool is_modular_target(const LocalTarget& target,std::string& e){++fixture_modular_proofs;return (fixture_modular&&fixture_modular_valid&&target.uid==101&&target.object==object(101))||fail(e,"original Modular Layout/Plan proof failed");}
+bool identity_building_targets(std::vector<LocalTarget>&,std::string&,std::map<uintptr_t,std::string>*,bool=false);
+bool resolve_identity_destination(uintptr_t,LocalTarget&,std::string&,bool=false);
 #include "building_identity_census_actual.inc"
 namespace remove_diagnostics {
 bool resolve_identity_destination(uintptr_t p,LocalTarget& out,std::string& e){return identity_refund_fixture::resolve_identity_destination(p,out,e);}
@@ -233,11 +247,12 @@ bool service_owners_actual(const std::vector<LocalTarget>& census,ServiceLocalFi
 #undef LOG_ERROR
 
 void reset(){
-    scene_scenery::append_calls=0;scene_scenery::append_fixture={};
+    scenery_kiss::catalog_final_failure.clear();scenery_kiss::catalog_finishes=0;
+    scene_scenery::append_calls=0;scene_scenery::append_fixture={};scene_scenery::saved_admission.reset();
     fixture_modular=fixture_modular_art=false;fixture_modular_layout=fixture_modular_valid=fixture_modular_memory=fixture_modular_root=true;fixture_modular_proofs=0;
     saved_only=saved_owner_failure=false;saved_prop_reads=0;fixture_saves=0;
     registry.clear();live.clear();settlement_reads.clear();registry_generation=1;next_entry=0;unknown_locked=false;
-    admitted_world={};live_world={};refund_calls=registered_reads=prop_reads=world_reads=logs=seals=0;refund_uids.clear();
+    admitted_world={};live_world={};refund_calls=registered_reads=prop_reads=world_reads=logs=seals=uid_lookup_calls=0;refund_uids.clear();
     refund_failure=identity_failure=0;world_failure=heap_failure=lookup_failure=class_failure=prop_failure=false;
     change_world_on_target=change_world_on_lookup=false;scene_target=scene_owner_failure=scene_owner_changed=false;lookup_override=0;fixture_session_snapshot=::uuid;
     captured={};fixture_loaded={};sealed={};building_capture_identity::seal_result=building_capture_identity::SealResult::Confirmed;
@@ -260,6 +275,9 @@ bool target(LocalTarget& out,std::string& e,bool by_key){
 
 void checks(){
     std::string e;LocalTarget out;json report;
+    reset();scenery_kiss::catalog_final_failure="original Catalog final code proof failed";
+    need(!identity_bindings(report,e)&&e==scenery_kiss::catalog_final_failure&&scenery_kiss::catalog_finishes==1&&report==json::object(),
+         "identity collector cannot publish after Catalog code finalization failure");
     reset();host::batch_final_failure="original final complete Root census failed";
     need(!bindings(report,e)&&e==host::batch_final_failure&&report==json::object(),"complete collector cannot publish when the batch final census fails");
     host::batch_final_failure.clear();reset();

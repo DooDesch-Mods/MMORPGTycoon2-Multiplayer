@@ -72,6 +72,7 @@ size_t seal_cursor = 0;
 bool armed = false;
 // Undistributed diagnostic saves must not replace the active shared NPC/Quest keys.
 bool capture_snapshot_identities = true;
+bool capture_export_only=false;
 std::atomic<bool> emergency_failure = false;
 struct WorldWitness {
     void* game = nullptr;
@@ -333,7 +334,7 @@ bool initialize(std::string& error) {
     error.clear(); return true;
 }
 void* capture_entrypoint() { std::lock_guard lock(mutex); return image ? reinterpret_cast<void*>(image + entry_rva) : nullptr; }
-bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const std::string& world_name, bool bind_snapshot_identities) {
+bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const std::string& world_name, bool bind_snapshot_identities,bool export_only,const std::string& native_filename) {
     std::lock_guard lock(mutex);
     if (!image || armed || !valid_uuid(uuid) || !net::snapshot_world_path::valid_folder(world_name)) { error = "begin requires ready resolver, valid UUID and no active capture"; LOG_ERROR("[BuildingCapture] {}", error); return false; }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
@@ -354,41 +355,44 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const st
         LOG_ERROR("[BuildingCapture] {}", error); return false;
     }
 #endif
+    if(!native_filename.empty()&&(!export_only||native_filename.find('\0')!=std::string::npos||native_filename.size()>511)){
+        error="original Save target requires export-owned bounded filename";return false;
+    }
     WorldWitness candidate_world;
     if (!read_world_witness(candidate_world, error)) { LOG_ERROR("[BuildingCapture] begin world witness rejected: {}", error); return false; }
     clear_private(); current = {}; emergency_failure = false; current.state = "armed"; current.capture_uuid = uuid; current.session_epoch = epoch;
-    capture_snapshot_identities = bind_snapshot_identities;
+    capture_snapshot_identities = bind_snapshot_identities;capture_export_only=export_only;
     bound_world = candidate_world; current.world_witness_bound = true; current.world_witness_current = true;
-    current.game_thread_id = GetCurrentThreadId(); filename = net::snapshot_world_path::capture(world_name, uuid); armed = true;
+    current.game_thread_id = GetCurrentThreadId(); filename = native_filename.empty()?net::snapshot_world_path::capture(world_name,uuid):native_filename; armed = true;
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if (capture_snapshot_identities) {
+    if (capture_snapshot_identities&&!capture_export_only) {
         if (!npc_quest_target_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; return fail(error,"Quest target capture arm failed: "+error); }
-        if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }
-        if (!bug_authority::arm_snapshot(uuid,{},true,error)) { armed=false; npc_saved_identity_runtime::cancel(error); npc_quest_target_runtime::cancel(error); return fail(error,"Bug capture arm failed: "+error); }
+        if (!npc_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) { armed=false; if(!capture_export_only)npc_quest_target_runtime::cancel(error); return fail(error,"NPC identity capture arm failed: "+error); }
+        if (!bug_authority::arm_snapshot(uuid,{},true,error)) { armed=false; if(!capture_export_only)npc_saved_identity_runtime::cancel(error); if(!capture_export_only)npc_quest_target_runtime::cancel(error); return fail(error,"Bug capture arm failed: "+error); }
     }
 #endif
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if(capture_snapshot_identities&&!monster_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
-        armed=false;npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+    if(capture_snapshot_identities&&!monster_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error,capture_export_only)) {
+        armed=false;if(!capture_export_only)npc_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_quest_target_runtime::cancel(error);if(!capture_export_only)bug_authority::cancel_snapshot(error);
         return fail(error,"Monster identity capture arm failed: "+error);
     }
 #endif
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if(capture_snapshot_identities&&!boss_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
-        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+    if(capture_snapshot_identities&&!boss_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error,capture_export_only)) {
+        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_quest_target_runtime::cancel(error);if(!capture_export_only)bug_authority::cancel_snapshot(error);
         return fail(error,"Boss identity capture arm failed: "+error);
     }
 #endif
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if(capture_snapshot_identities&&!district_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
-        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+    if(capture_snapshot_identities&&!capture_export_only&&!district_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)) {
+        armed=false;monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_quest_target_runtime::cancel(error);if(!capture_export_only)bug_authority::cancel_snapshot(error);
         return fail(error,"District identity capture arm failed: "+error);
     }
 #endif
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if(capture_snapshot_identities&&!party_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error)){
-        armed=false;district_saved_identity_runtime::cancel(error);monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);
-        npc_saved_identity_runtime::cancel(error);npc_quest_target_runtime::cancel(error);bug_authority::cancel_snapshot(error);
+    if(capture_snapshot_identities&&!party_saved_identity_runtime::arm_host(uuid,{candidate_world.game,candidate_world.mode,candidate_world.state,candidate_world.world,candidate_world.map},error,capture_export_only)){
+        armed=false;if(!capture_export_only)district_saved_identity_runtime::cancel(error);monster_saved_identity_runtime::cancel(error);boss_saved_identity_runtime::cancel(error);
+        if(!capture_export_only)npc_saved_identity_runtime::cancel(error);if(!capture_export_only)npc_quest_target_runtime::cancel(error);if(!capture_export_only)bug_authority::cancel_snapshot(error);
         return fail(error,"Party identity capture arm failed: "+error);
     }
 #endif
@@ -536,7 +540,7 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
     for(const auto& row:sealed_readbacks)scene_exteriors.push_back({row.local_uid,row.record_key});
     if(capture_snapshot_identities&&!dungeon_scene_identity_runtime::classify_capture(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},scene_exteriors,dungeon_scenes,error))
         return rejected("Dungeon scene native snapshot classification failed: "+error);
-    if(capture_snapshot_identities&&!npc_quest_target_runtime::stage_scenes(dungeon_scenes,error))
+    if(capture_snapshot_identities&&!capture_export_only&&!npc_quest_target_runtime::stage_scenes(dungeon_scenes,error))
         return rejected("Dungeon Quest Zone native snapshot classification failed: "+error);
     if(capture_snapshot_identities&&!party_saved_identity_runtime::stage_scenes(dungeon_scenes,error))
         return rejected("Dungeon Party native snapshot classification failed: "+error);
@@ -544,7 +548,7 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
         return rejected("Dungeon Boss native snapshot classification failed: "+error);
     if(capture_snapshot_identities&&!monster_saved_identity_runtime::stage_scenes(std::move(dungeon_scenes),error))
         return rejected("Dungeon Monster native snapshot classification failed: "+error);
-    if (capture_snapshot_identities) {
+    if (capture_snapshot_identities&&!capture_export_only) {
         if (!npc_quest_target_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("Quest target snapshot seal failed: "+error);
         if (!npc_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error)) return rejected("NPC identity snapshot seal failed: "+error);
         if (!bug_authority::seal_snapshot(uuid,sha,error)) return rejected("Bug snapshot seal failed: "+error);
@@ -559,7 +563,7 @@ SealResult seal(const std::string& uuid, const std::string& sha, uint64_t bytes,
         return rejected("Monster identity snapshot seal failed: "+error);
 #endif
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
-    if(capture_snapshot_identities&&!district_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
+    if(capture_snapshot_identities&&!capture_export_only&&!district_saved_identity_runtime::seal_host(uuid,sha,{observed_world.game,observed_world.mode,observed_world.state,observed_world.world,observed_world.map},error))
         return rejected("District identity snapshot seal failed: "+error);
 #endif
     current.buildings = std::move(sealed_readbacks);
@@ -572,17 +576,23 @@ void cancel(const std::string& reason) {
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
     if(capture_snapshot_identities){
         party_saved_identity_runtime::cancel(reason);
-        district_saved_identity_runtime::cancel(reason);
+        if(!capture_export_only)district_saved_identity_runtime::cancel(reason);
         monster_saved_identity_runtime::cancel(reason);
         boss_saved_identity_runtime::cancel(reason);
     }
-    if (capture_snapshot_identities) {
-        npc_quest_target_runtime::cancel(reason);
-        npc_saved_identity_runtime::cancel(reason);
-        bug_authority::cancel_snapshot(reason);
+    if (capture_snapshot_identities&&!capture_export_only) {
+        if(!capture_export_only)npc_quest_target_runtime::cancel(reason);
+        if(!capture_export_only)npc_saved_identity_runtime::cancel(reason);
+        if(!capture_export_only)bug_authority::cancel_snapshot(reason);
     }
 #endif
     std::lock_guard lock(mutex); armed = false; clear_private(); bound_world = {}; current.world_witness_bound = false; current.world_witness_current = false; current.state = "cancelled"; current.error = reason; current.buildings.clear(); current.bindings_confirmed = false; LOG_INFO("[BuildingCapture] Cancelled capture={} reason={}", current.capture_uuid, reason); }
+bool finish_export(std::string& error){
+    if(!capture_export_only){error.clear();return true;}
+    if(!monster_saved_identity_runtime::finish_export(error)||!boss_saved_identity_runtime::finish_export(error)||
+       !party_saved_identity_runtime::finish_export(error))return false;
+    capture_export_only=false;error.clear();return true;
+}
 bool stream_owner(void* writer,StreamOwner& result,bool& own,std::string& error) {
     std::lock_guard lock(mutex); result={};own=false;
     if(!armed||!current.world_witness_bound||current.state=="failed"||emergency_failure) {

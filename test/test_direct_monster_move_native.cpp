@@ -1,4 +1,6 @@
 #include "direct_monster_fixture.h"
+#include "typed_action/tick_authority.h"
+namespace mt2mp::action_session::tick_commands::authority {bool active(){return false;}}
 #include "monster_target_key.h"
 namespace monster_target_key=mt2mp::game::monster_target_key;
 namespace monster_move_key=mt2mp::game::monster_move_key;
@@ -19,13 +21,16 @@ namespace monster_move_fixture {
 struct Memory{int process=0;};struct MonsterMoveMemory{explicit MonsterMoveMemory(Memory&){};};
 struct World{uintptr_t root=100;int saves=0,edits=0;uintptr_t active_graph=0;};
 struct Region{uintptr_t region=900,root=100;};struct Pin{World world;Region region;};
-struct MoveOperation{a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;uintptr_t pointer=0;uint64_t uid=0;move_kiss::Receipt receipt;mr::Actor actor_before,actor_after;bool confirmed=false,retired=false,seed_attempted=false;std::string cause;};
+struct MoveOperation{a::Binding binding;a::Request request;Pin pin;a::Evidence evidence;uintptr_t pointer=0;uint64_t uid=0;move_kiss::Receipt receipt;mr::Actor actor_before,actor_after;bool confirmed=false,retired=false,seed_attempted=false,ordered=false;std::string cause;};
 std::map<std::string,MoveOperation> moves;bool move_fault=false;json move_preflight=json::object();
 struct Runtime{bool ready=true;unsigned thread=7;uintptr_t image=0x140000000;}state;
 struct Model{d::Sample sample;a::MonsterState value;mr::Actor actor;std::string fault;unsigned calls=0,seeds=0;bool after=false,pending=true,cross_boundary=false;}model;
 unsigned GetCurrentThreadId(){return 7;}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 bool gate(const char* name,std::string& e){return model.fault!=name||fail(e,std::string(name)+" failed");}
+bool ordered_mode(){return false;}
+bool ordered_scope(const a::Binding&,const a::Request&,std::string& e){return fail(e,"unexpected Ordered scope in legacy Move fixture");}
+#include "monster_execution_admission.inc"
 namespace typed_action_runtime{json controller_status(){return {{"pending",model.pending},{"action_uuid",move_id}};}}
 bool move_code(Memory&,std::string& e){return gate("code",e);}
 bool same_world(const World&,const World&){return model.fault!="owner";}

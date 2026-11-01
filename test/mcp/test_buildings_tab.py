@@ -32,4 +32,20 @@ class BuildingsTabTests(unittest.TestCase):
         for args in ({},dict(acceptance_token=token,tab='Buildings'),dict(acceptance_token='invalid')):
             with self.assertRaises(RuntimeErrorDetail):ops.validate('read_buildings_tab',args)
 
+
+class InteractTabTests(unittest.TestCase):
+    def test_fixed_original_map_registration_and_guards(self):
+        token='11111111-2222-4333-8444-555555555555'
+        args=dict(acceptance_token=token,snapshot_uuid=token,expected_world_epoch=1,expected_generation=2)
+        for name in ('native_interact_tab','read_interact_tab'):
+            self.assertIn(name,runtime.OPS)
+            self.assertEqual(server.OP_SCHEMAS[name],ops.SCHEMAS[name])
+        self.assertIn('native_interact_tab',runtime.MUTATIONS)
+        self.assertNotIn('read_interact_tab',runtime.MUTATIONS)
+        ops.validate('native_interact_tab',args)
+        ops.validate('read_interact_tab',dict(acceptance_token=token))
+        for invalid in ({},dict(args,tab='Terrain'),dict(args,view='Edit'),dict(args,expected_generation=True),dict(args,expected_world_epoch=0),dict(args,snapshot_uuid='foreign')):
+            with self.subTest(invalid=invalid),self.assertRaises(RuntimeErrorDetail):ops.validate('native_interact_tab',invalid)
+        with self.assertRaises(RuntimeErrorDetail):ops.validate('read_interact_tab',dict(acceptance_token=token,repeat=True))
+
 if __name__=='__main__':unittest.main()

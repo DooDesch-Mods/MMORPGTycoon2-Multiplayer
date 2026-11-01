@@ -8,6 +8,8 @@ bool vip_owner(uintptr_t receiver,scenario_vip_authority::Receipt& receipt,std::
     receipt.receiver=receiver;
     if(!vip_client_active())return true;
     receipt.owned=true;
+    bool original_go=false;
+    if(!original_go_admission(original_go,error))return false;
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     const auto reject=[&](const char* cause){error=cause;return false;};
     if(runtime->thread!=GetCurrentThreadId())return reject("VIP Client update is not on bound Mainthread");
@@ -27,7 +29,7 @@ bool vip_owner(uintptr_t receiver,scenario_vip_authority::Receipt& receipt,std::
     receipt.snapshot=context.snapshot_uuid;receipt.origin=world.uuid;
     native::ClockState clock;
     if(!native::read_clock(clock,error))return false;
-    if(clock.time_scale!=0)return reject("VIP Client actual simulation Clock is not zero");
+    if(!original_go&&clock.time_scale!=0)return reject("VIP Client actual simulation Clock is not zero");
     const auto read=[&](uintptr_t base,size_t offset,auto& value){
         return toon_weapon_visual::visual_read(weapon_memory,base,offset,value,error);
     };
@@ -49,6 +51,10 @@ bool vip_owner(uintptr_t receiver,scenario_vip_authority::Receipt& receipt,std::
         if(item==receiver)++matches;
     }
     if(matches!=1)return reject("VIP receiver is not a unique current ScenarioLog member");
+    if(original_go){
+        if(!scenario_vip_authority::verify_hook(error))return false;
+        receipt.owned=false;
+    }
     return true;
 }
 void vip_publish(const scenario_vip_authority::Receipt& receipt){

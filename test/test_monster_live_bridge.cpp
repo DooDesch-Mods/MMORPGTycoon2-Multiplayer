@@ -1,4 +1,5 @@
 #include "monster_live_bridge.h"
+#include "live_host_state/apply_timing.h"
 #include <iostream>
 #include <stdexcept>
 namespace live=mt2mp::game::live_host_state;

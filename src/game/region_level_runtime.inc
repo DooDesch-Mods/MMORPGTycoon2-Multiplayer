@@ -34,7 +34,11 @@ bool level_domain(const std::array<int32_t,2>& requested,const std::array<int32_
 uint32_t level_cache(void* brush,uintptr_t region){__try{*reinterpret_cast<uintptr_t*>(uintptr_t(brush)+0x150)=region;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 void level_entry(void* brush,void* supplied_cursor,const float* hit,float dt){
     auto* r=published.load(std::memory_order_acquire);const auto original=level_drag.load(std::memory_order_acquire);
-    if(!r||!properties.ready||properties.replaying||!net::session_wire::connected()){original(brush,supplied_cursor,hit,dt);return;}
+    if(!r||!properties.ready||properties.replaying){original(brush,supplied_cursor,hit,dt);return;}
+    if(!net::session_wire::connected()){
+        if(property_ordered_mode()){property_rejected("Ordered Region level Session disconnected");return;}
+        original(brush,supplied_cursor,hit,dt);return;
+    }
     std::string e;uintptr_t cursor=0,collision=0,window=0,widget=0,ap=0,active=0,region=0,previous=0,borrowed_window=0;
     std::array<int32_t,3> range{},domain{};action::RegionPropertyIntent intent;intent.kind=action::RegionPropertyKind::LevelRange;uint8_t owned=0;
     if(!level_inputs(*r,uintptr_t(supplied_cursor),cursor,collision,window,widget,range,domain,e)||
@@ -107,7 +111,8 @@ action::Outcome level_perform(Runtime& r,const action::Binding& binding,const ac
     const auto hit=property_hit_region(r.image,map,intent.hit.data(),found);
     if(hit||found!=view.region){e="region level hit resolves another Region SEH="+std::to_string(hit);return action::Outcome::RejectedNoEffect;}
     if(authority&&(authority->before!=money||!property_same_before(before,authority->property_before))){e="region level Client actor roster/levels/Region/Ledger differs from Host before";return action::Outcome::RejectedNoEffect;}
-    PropertyOperation operation;operation.binding=binding;operation.request=request;operation.evidence.before=money;operation.evidence.property_before=authority?authority->property_before:before;
+    PropertyOperation operation;operation.binding=binding;operation.request=request;operation.ordered=action::tick_commands::authority::active();operation.evidence.before=money;operation.evidence.property_before=authority?authority->property_before:before;
+    if(!property_receipt_begin(r,operation,e))return action::Outcome::RejectedNoEffect;
     auto& saved=properties.operations.emplace(request.action_uuid,std::move(operation)).first->second;
     auto unknown=[&](const std::string& cause){e=saved.cause=cause;return action::Outcome::Unknown;};
     if(authority){std::memcpy(reinterpret_cast<void*>(view.random),authority->property_before.content.random.data(),32);
@@ -124,6 +129,7 @@ action::Outcome level_perform(Runtime& r,const action::Binding& binding,const ac
     if(after!=expected||actors.roster_sha256!=after_actors.roster_sha256||actors.counts!=after_actors.counts||actors.expected_sha256!=after_actors.levels_sha256||after_actors.expected_sha256!=after_actors.levels_sha256||money!=saved.evidence.after)
         return unknown("region level original actor clamp/roster/Region/Ledger differs");
     if(authority&&(saved.evidence.property_after!=authority->property_after||saved.evidence.after!=authority->after||saved.evidence.region_retired_sha256!=authority->region_retired_sha256))return unknown("region level original consequence differs from Host");
+    if(!property_receipt_end(r,saved,e))return unknown(e);
     saved.confirmed=true;return action::Outcome::Confirmed;
 }
 uint32_t level_ui_input(uintptr_t image,unsigned step,const placement_ui_probe::Binding& b,const action::RegionPropertyIntent& intent,uintptr_t widget){

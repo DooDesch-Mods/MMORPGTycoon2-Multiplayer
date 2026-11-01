@@ -57,9 +57,9 @@ inline bool build(const Census& census,const std::map<uint64_t,std::string>& key
         if(!row.member.object||!paths.contains(row.member.object)||!regions.contains(row.owner)||
            regions.at(row.owner)!=row.member.ref.region||row.member.ref.type<0||row.member.ref.type>=11)
             return reject(error,"owned Path identity/type/Region absent");
-        if(row.second){if(!regions.contains(row.second)||row.second==row.owner)
-                return reject(error,"second Region is foreign or equals owner");
-            expected_remote.emplace(regions.at(row.second),paths.at(row.member.object));}
+        if(row.second){if(!regions.contains(row.second))
+                return reject(error,"second Region is foreign");
+            if(row.second!=row.owner)expected_remote.emplace(regions.at(row.second),paths.at(row.member.object));}
         Json endpoints=Json::array();
         for(uintptr_t endpoint:{row.start,row.end}){
             if(!endpoint)endpoints.push_back(nullptr);

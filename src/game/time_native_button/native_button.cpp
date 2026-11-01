@@ -27,7 +27,7 @@ bool uuid(const std::string& text) {
 bool scale(float value){return value==0||value==1||value==3||value==9;}
 bool same_request(const Request& a,const Request& b) {
     return a.token==b.token&&a.snapshot_uuid==b.snapshot_uuid&&a.epoch==b.epoch&&
-        a.generation==b.generation&&a.revision==b.revision&&a.scale==b.scale;
+        a.generation==b.generation&&a.revision==b.revision&&a.scale==b.scale&&a.ordered==b.ordered;
 }
 #ifdef _WIN32
 using ButtonActivate=void(__fastcall*)(void*);
@@ -72,13 +72,13 @@ bool actual_entry(const Binding& b,std::string& error) {
 #endif
 }
 bool validate_binding(const Request& request,const Binding& b,std::string& error) {
-    if(!uuid(request.token)||!uuid(request.snapshot_uuid)||!request.epoch||!request.generation||!request.revision||!scale(request.scale))
+    if(!uuid(request.token)||!uuid(request.snapshot_uuid)||!request.epoch||!request.generation||(!request.ordered&&!request.revision)||!scale(request.scale))
         return reject(error,"native_button_request_identity_invalid");
     if(!b.image||b.image>UINTPTR_MAX-0x2000000||!b.world||!b.panel||!b.slot||!b.button||!b.item||!b.type||
        !b.item_proxy||!b.type_proxy||!b.game_thread||b.item>UINTPTR_MAX-0xc8||b.type>UINTPTR_MAX-0x160||
        b.button>UINTPTR_MAX-0x408)
         return reject(error,"native_button_private_binding_span_invalid");
-    if(b.epoch!=request.epoch||b.generation!=request.generation||b.revision!=request.revision||b.scale!=request.scale)
+    if(b.epoch!=request.epoch||b.generation!=request.generation||b.revision!=request.revision||b.scale!=request.scale||b.ordered!=request.ordered)
         return reject(error,"native_button_request_world_revision_scale_differs");
     if(b.item_proxy_target!=b.item+0x20||b.type_proxy_target!=b.type+0x38)
         return reject(error,"native_button_WeakTarget_subobject_differs");

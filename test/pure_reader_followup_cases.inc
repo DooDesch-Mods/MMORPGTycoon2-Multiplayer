@@ -106,23 +106,24 @@ void pure_reader_followup_cases(){
         character_membership_reader::Users baseline,scoped;fixture.events.clear();auto start=count(t::Part::HostMemoryVirtualQuery);
         need(character_membership_reader::users(read,baseline_find,runtime.image,census,baseline,error),"unscoped actual current user reader");const auto trace=fixture.events;const auto baseline_queries=count(t::Part::HostMemoryVirtualQuery)-start;
         need(trace.size()==19&&baseline_queries==19&&finds==1,"users baseline retains19 reads and one original Find");
-        setup();finds=0;start=count(t::Part::HostMemoryVirtualQuery);need(users_candidate(read,original,runtime.image,census,scoped,error),"extracted users scope and actual Find boundary");const auto scoped_queries=count(t::Part::HostMemoryVirtualQuery)-start;
-        need(fixture.events==trace&&baseline==scoped&&finds==1&&scoped_queries==2&&!t::page_read_scope,"users retain19 reads and one Find while metadata reloads after Find");
+        setup();finds=0;start=count(t::Part::HostMemoryVirtualQuery);need(users_candidate(read,original,runtime.image,census,scoped,error),"extracted users scope and actual read-only Find");const auto scoped_queries=count(t::Part::HostMemoryVirtualQuery)-start;
+        need(fixture.events==trace&&baseline==scoped&&finds==1&&scoped_queries==1&&!t::page_read_scope,"users retain19 reads and one Find without discarding reader metadata");
         setup();auto changed=[&](uint64_t uid,uintptr_t& pointer)->uint32_t{fixture.put(fixture.first+0x4d0,int32_t(0));return original(uid,pointer);};
         auto changed_baseline=[&](uint64_t uid,uintptr_t& pointer,std::string&)->bool{return changed(uid,pointer)==0;};
         need(!character_membership_reader::users(read,changed_baseline,runtime.image,census,baseline,error),"baseline users final array guard rejects callback change");const auto rejected=fixture.events;const auto cause=error;
         setup();need(!users_candidate(read,changed,runtime.image,census,scoped,error)&&fixture.events==rejected&&error==cause&&!t::page_read_scope,"users final array reread and cause survive callback barrier");
         setup();bool protected_page=false;DWORD protection=0;auto protect=[&](uint64_t uid,uintptr_t& pointer)->uint32_t{
+            t::PageReadScope unknown_native(t::PageBoundary::OriginalCall);
             MEMORY_BASIC_INFORMATION info{};const auto before=count(t::Part::HostMemoryVirtualQuery);
-            need(t::virtual_query(reinterpret_cast<void*>(fixture.first),&info,sizeof info)==sizeof info&&count(t::Part::HostMemoryVirtualQuery)==before+1,"Find entry cannot reuse caller metadata");
+            need(t::virtual_query(reinterpret_cast<void*>(fixture.first),&info,sizeof info)==sizeof info&&count(t::Part::HostMemoryVirtualQuery)==before+1,"unknown native operation cannot reuse caller metadata");
             protected_page=VirtualProtect(reinterpret_cast<void*>(fixture.first),4096,PAGE_NOACCESS,&protection)!=0;need(protected_page,"protect only owned user-array page inside original callback");return original(uid,pointer);};
         bool okay=false;uint64_t barriers=0;{t::Scope take(t::Part::Take);const auto before=count(t::Part::OriginalNestedReset);okay=users_candidate(read,protect,runtime.image,census,scoped,error);barriers=count(t::Part::OriginalNestedReset)-before;}
         DWORD replaced=0;need(protected_page&&VirtualProtect(reinterpret_cast<void*>(fixture.first),4096,protection,&replaced)!=0,"restore only owned user-array page after callback");
-        need(!okay&&error.find("unreadable")!=std::string::npos&&barriers==2&&!t::page_read_scope,"Find invalidates metadata on entry and return before actual final read");
+        need(!okay&&error.find("unreadable")!=std::string::npos&&barriers==2&&!t::page_read_scope,"unknown native operation invalidates metadata before the actual final read");
         setup();auto failed=[&](uint64_t,uintptr_t&)->uint32_t{return 123;};need(!users_candidate(read,failed,runtime.image,census,scoped,error)&&error=="Character complete census current FindUID failed SEH=123"&&!t::page_read_scope,"original Find failure remains visible after scope closes");
         auto throws=[&](uint64_t,uintptr_t&)->uint32_t{throw std::runtime_error("original Find exception");};bool caught=false;
         try{users_candidate(read,throws,runtime.image,census,scoped,error);}catch(const std::runtime_error& e){caught=std::string(e.what())=="original Find exception";}
-        need(caught&&!t::page_read_scope,"original Find exception unwinds both callback and reader metadata scopes");
+        need(caught&&!t::page_read_scope,"original Find exception unwinds the reader metadata scope");
         std::cout<<"users reader value reads="<<trace.size()<<" original Find calls=1 baseline OS queries="<<baseline_queries<<" scoped OS queries="<<scoped_queries<<'\n';
     }
     t::totals={};

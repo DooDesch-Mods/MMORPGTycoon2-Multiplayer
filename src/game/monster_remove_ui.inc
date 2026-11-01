@@ -37,7 +37,7 @@ bool native_remove_ui(const json& args,json& result,std::string& e)try{
     const auto capture=ui_remove_runtime::status();
     if(!returned||capture.value("captured",uint64_t{})!=captures+1||capture.value("last_origin",uint8_t{})!=uint8_t(ur::Origin::MonsterWindow)||
        !job.value("captured",false)||!job.value("submitted",false))return unknown(e.empty()?"Monster original Destroy command did not confirm exact Host-ordered capture":e);
-    if(Config::instance().is_host){
+    if(Config::instance().is_host&&!ordered_mode()){
         const auto id=job.value("action_uuid",std::string{});const auto found=removals.find(id);
         const auto ordered=typed_action_runtime::controller_status();
         if(found==removals.end()||!ordered.value("started",false)||ordered.value("locked",true)||ordered.value("action_uuid",std::string{})!=id)

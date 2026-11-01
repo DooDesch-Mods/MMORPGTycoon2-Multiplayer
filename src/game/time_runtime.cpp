@@ -349,6 +349,13 @@ ui::HookResult Runtime::on_update(void* type,void* item){
     return r;
 }
 bool Runtime::suspend(const std::string& reason,std::string& e){auto& x=*impl_;if(!x.thread(e))return false;Busy b(x.busy);return x.retire(reason,e);}
+bool Runtime::finish_retirement(std::string& e){
+    auto& x=*impl_;if(!x.thread(e))return false;Busy b(x.busy);
+    if(x.state.phase==Phase::Waiting&&!x.state.epoch){e.clear();return true;}
+    if(x.state.phase!=Phase::Retiring){e="time_retirement_requires_suspended_owner";return false;}
+    if(!x.finish_retire(e))return false;
+    e.clear();return true;
+}
 bool Runtime::observe_receipt(uint8_t peer,uint64_t seq,wire::Message& m,bool& found,std::string& e){
     auto& x=*impl_;found=false;if(!x.thread(e))return false;
     for(auto it=x.receipts.rbegin();it!=x.receipts.rend();++it)if(it->epoch==x.state.epoch&&it->peer==peer&&it->sequence==seq){m=*it;found=true;return true;}return true;

@@ -1,4 +1,6 @@
 #include "ui_region_runtime.h"
+#include "typed_action/tick_authority.h"
+#include "session_provider.h"
 #include "building_history_slice/native_bridge.h"
 #include "building_history_slice/cash_effect.h"
 #include "move_contract.h"
@@ -6,7 +8,9 @@
 #include "region_ui_readback.h"
 #include "region_binding.h"
 #include "region_saved_identity.h"
+#include "region_rng_capture.h"
 #include "typed_action_runtime.h"
+#include "typed_action/recovery_read_scope.h"
 #include "remove_diagnostics.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "object_identity/remove_runtime/copy/scenery_witness.h"
@@ -32,6 +36,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include "terrain_scenery_diagnostic.h"
 
 namespace mt2mp::game::typed_action_runtime {
 bool submit_region(const std::string&,const action_session::RegionIntent&,std::string&);
@@ -52,11 +57,12 @@ struct LocalView {
     uintptr_t region=0,random=0;
     action::RegionState state;
     std::vector<uint64_t> scenery_uids;
+    terrain_scenery_diagnostic::Snapshot scenery_diagnostic;
     std::vector<uint64_t> building_uids,path_uids,path_node_uids,network_uids;
 };
 struct Operation {
     action::Binding binding;action::Request request;action::Evidence evidence;
-    bool attempted=false,returned=false,confirmed=false,retired=false;
+    bool attempted=false,returned=false,confirmed=false,retired=false,ordered=false;
     bool edit_opened=false,edit_ended=false,edit_end_attempted=false;uint32_t style_calls=0,edit_cleanup_exception=0;int32_t edit_depth_before=0,edit_depth_after=0;
     std::vector<uint64_t> removed_scenery_uids;
     std::vector<std::string> retired_keys;
@@ -69,6 +75,7 @@ struct Runtime {
     std::atomic<SetPreset> original{nullptr};host::ProcessMemory memory;host::LookupApi api;
     std::optional<action::RegionIntent> pending;std::string pending_snapshot,last_action,cause;
     action::Binding pending_binding;
+    std::optional<action::Context> pending_context;
     uint64_t captured=0,rejected=0,submitted=0,forwarded=0;
     std::map<std::string,Operation> operations;
     std::set<std::string> ui_attempts;
@@ -133,7 +140,7 @@ struct SceneryPort final:place::SceneryHost {
         return !seh||fail(e,"region scenery UID lookup SEH="+std::to_string(seh));
     }
 };
-bool read(Runtime& r,int32_t id,uintptr_t expected,LocalView& out,std::string& e) {
+bool read(Runtime& r,int32_t id,uintptr_t expected,LocalView& out,std::string& e,bool capture_scenery=false,size_t scenery_limit=terrain_scenery_diagnostic::capture_limit) {
     LocalView v;if(!identity(r,id,expected,v,e))return false;
     uintptr_t styles=0,manager=0;int32_t count=0,capacity=0;
     if(!text(r,v.region+0x8b0,v.state.preset,e)||!at(r,v.region,0x860,styles,e)||!at(r,v.region,0x868,count,e)||!at(r,v.region,0x86c,capacity,e))return false;
@@ -156,6 +163,8 @@ bool read(Runtime& r,int32_t id,uintptr_t expected,LocalView& out,std::string& e
         const auto& t=member.transform;
         rows.push_back(json::array({member.category,variant,t.position.x,t.position.y,t.position.z,
             t.rotation[0],t.rotation[1],t.rotation[2],t.rotation[3],t.scale.x,t.scale.y,t.scale.z}).dump());
+        if(capture_scenery)terrain_scenery_diagnostic::capture(v.scenery_diagnostic,member.uid,member.category,variant,t,
+            [&](void* data,size_t bytes,std::string& error){return r.memory.copy(member.object+0x248,data,bytes,error);},scenery_limit);
         v.scenery_uids.push_back(member.uid);
     }
     std::sort(rows.begin(),rows.end());std::sort(v.scenery_uids.begin(),v.scenery_uids.end());
@@ -167,6 +176,26 @@ bool read(Runtime& r,int32_t id,uintptr_t expected,LocalView& out,std::string& e
 }
 bool bound(const LocalView& v,const action::Binding& binding,const std::string& snapshot,std::string& e) {
     return region_binding::validate(v.world.origin,binding,net::current_snapshot_id(),snapshot,e);
+}
+bool styles_capture(Runtime& r,const LocalView& view,const action::RegionIntent& intent,std::string& e) {
+    if(!typed_action_runtime::controller_status().value("ordered",false)){
+        r.pending_context.reset();r.pending=intent;r.pending_snapshot=net::current_snapshot_id();
+        r.pending_binding={view.world.origin.world_epoch,view.world.origin.generation};++r.captured;return true;
+    }
+    action::Context context;action::Binding binding;bool ordered=false;
+    if(!action::selected_session().current(context,e)||
+       !typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&ordered)||
+       !bound(view,binding,context.snapshot_uuid,e))return false;
+    if(!ordered)return fail(e,"Ordered Region styles capture mode changed");
+    r.pending_context=ordered?std::optional<action::Context>(context):std::nullopt;
+    r.pending=intent;r.pending_snapshot=context.snapshot_uuid;r.pending_binding=binding;++r.captured;return true;
+}
+bool styles_scope(const action::Binding& binding,const action::Request& request,std::string& e) {
+    action::Context context;
+    if(request.action!=action::Action::SetRegionStyles)return fail(e,"Ordered Region scope requires SetRegionStyles");
+    if(!action::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(e,"Ordered Region styles actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,e);
 }
 bool ledger(action::Ledger& out,std::string& e) {
     native::SimulationState s;if(!native::read_simulation_state(s,e))return false;
@@ -277,7 +306,21 @@ bool enabled()noexcept{auto* r=published.load(std::memory_order_acquire);return 
 void tick() {
     property_tick();
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!r->pending)return;
-    std::string e;LocalView before;const auto intent=*r->pending;r->pending.reset();
+    std::string e;
+    if(r->pending_context){
+        bool inside=false;
+        if(!typed_action_runtime::original_go_admission(inside,e)){r->pending.reset();r->pending_context.reset();rejected(*r,e);return;}
+        if(inside)return;
+    }
+    LocalView before;const auto intent=*r->pending;r->pending.reset();
+    const auto captured_context=r->pending_context;r->pending_context.reset();
+    if(captured_context){
+        action::Context actual;action::Binding binding;bool ordered=false;
+        if(!action::selected_session().current(actual,e)||actual!=*captured_context||
+           !typed_action_runtime::network_binding_with_mode(actual.snapshot_uuid,binding,e,&ordered)||!ordered||binding!=r->pending_binding){
+            rejected(*r,e.empty()?"Region styles captured Context/Binding changed":e);return;
+        }
+    }
     if(!identity(*r,intent.id,0,before,e)||!bound(before,r->pending_binding,r->pending_snapshot,e)){rejected(*r,e);return;}
     auto id=uuid(e);if(id.empty()){rejected(*r,e);return;}
     r->last_action=id;
@@ -290,6 +333,13 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(r->operations.contains(request.action_uuid)){e="region native action already attempted; no replay";return action::Outcome::Unknown;}
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="region operation lacks exact Controller request";return action::Outcome::RejectedNoEffect;}
+    const bool ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(authority){e="Ordered Region styles forbid Host result state";return action::Outcome::RejectedNoEffect;}
+        if(!styles_scope(binding,request,e))return action::Outcome::RejectedNoEffect;
+    }else if(typed_action_runtime::controller_status().value("ordered",false)){
+        e="Ordered Region styles require current consumed command scope";return action::Outcome::RejectedNoEffect;
+    }
     LocalView before;if(!read(*r,request.region.id,0,before,e)||!bound(before,binding,request.snapshot_uuid,e))return action::Outcome::RejectedNoEffect;
     action::Ledger money;if(!ledger(money,e))return action::Outcome::RejectedNoEffect;
     json known_bindings;if(!remove_diagnostics::bindings(known_bindings,e))return action::Outcome::RejectedNoEffect;
@@ -300,7 +350,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(styles_action){expected=request.region.styles;if(!validate_styles(*r,expected,e))return action::Outcome::RejectedNoEffect;}
     else if(!expected_styles(*r,request.region,before,expected,e))return action::Outcome::RejectedNoEffect;
     if(authority&&(authority->region_after.preset!=expected_preset||authority->region_after.styles!=expected)){e="region client preset catalog differs from Host";return action::Outcome::RejectedNoEffect;}
-    Operation operation;operation.binding=binding;operation.request=request;operation.evidence.before=money;
+    Operation operation;operation.binding=binding;operation.request=request;operation.ordered=ordered;operation.evidence.before=money;
     operation.evidence.region_before=authority?authority->region_before:before.state;
     auto& saved=r->operations.emplace(request.action_uuid,std::move(operation)).first->second;
     NativeString string{request.region.preset.data(),request.region.preset.size(),{}};
@@ -334,7 +384,9 @@ bool observe(const action::Binding& b,const action::Request& request,action::Evi
     auto* r=published.load(std::memory_order_acquire);if(!r)return fail(e,"region observation runtime absent");
     const auto found=r->operations.find(request.action_uuid);
     if(found==r->operations.end()||found->second.binding!=b||found->second.request!=request||!found->second.confirmed)return fail(e,"region observation lacks exact confirmed operation");
-    const auto& operation=found->second;LocalView actual;action::Ledger money;
+    const auto& operation=found->second;
+    if(operation.ordered&&!styles_scope(b,request,e))return false;
+    LocalView actual;action::Ledger money;
     if(!read(*r,request.region.id,0,actual,e)||!bound(actual,b,request.snapshot_uuid,e)||!ledger(money,e))return false;
     if(actual.state!=operation.evidence.region_after||money!=operation.evidence.after)return fail(e,"region observation changed after native result");
     out=operation.evidence;out.retirement_confirmed=operation.retired;return true;
@@ -385,7 +437,89 @@ json status() {
         {"captured",r->captured},{"submitted",r->submitted},{"rejected",r->rejected},{"forwarded",r->forwarded},
         {"last_action_uuid",r->last_action},{"cause",r->cause},{"operations",operations},{"last_ui",r->last_ui},
         {"property_captured",properties.captured},{"property_submitted",properties.submitted},{"property_rejected",properties.rejected},
-        {"property_last_action_uuid",properties.last_action},{"property_cause",properties.cause},{"property_operations",property_operations}};
+        {"property_last_action_uuid",properties.last_action},{"property_cause",properties.cause},{"property_operations",property_operations},{"property_last_ordered_receipt",property_last_receipt()}};
+}
+bool query_rng_census(json& out,std::string& e) {
+    out=json::object();auto* r=published.load(std::memory_order_acquire);
+    if(!r||!r->ready||!properties.ready||!property_admit(*r,e))return fail(e,e.empty()?"Region RNG census requires idle runtime":e);
+    action::Context context;action::Binding binding;bool ordered=false;
+    if(!action::selected_session().current(context,e)||
+       !typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&ordered))return false;
+    if(!ordered)return fail(e,"Region RNG census requires actual ordered session");
+    host::WorldState before;native::ClockState clock;net::OrderedSnapshotIdentity source;
+    if(!world(*r,before,e)||!native::read_clock(clock,e)||!action::recovery_read::source(source,e))return false;
+    if(clock.time_scale!=0||!clock.paused)return fail(e,"Region RNG census requires actual paused Clock");
+    if(!source.loaded||source.snapshot_uuid!=context.snapshot_uuid||source.world_epoch!=binding.native_epoch||
+       source.native_generation!=binding.native_generation||(source.region_rng_mode!=1&&source.region_rng_mode!=2))
+        return fail(e,"Region RNG census selected source differs from actual Context/Binding");
+    if(!region_binding::validate(before.origin,binding,net::current_snapshot_id(),context.snapshot_uuid,e))return false;
+    uintptr_t map=0;if(!at(*r,r->image,0x13df8c0,map,e))return false;
+    if(before.root!=map+0x1c0)return fail(e,"Region RNG census map/root owner differs");
+    const auto read_field=[&](uintptr_t p,size_t offset,auto& value,std::string& error){return at(*r,p,offset,value,error);};
+    region_rng_snapshot::Manifest rows;
+    if(!region_rng_capture::capture(r->image,map,rows,read_field,e))return false;
+    host::WorldState after;action::Context current;action::Binding actual;bool still_ordered=false;
+    if(!region_rng_capture::unchanged(r->image,map,rows,read_field,e)||!world(*r,after,e)||
+       !action::selected_session().current(current,e)||
+       !typed_action_runtime::network_binding_with_mode(current.snapshot_uuid,actual,e,&still_ordered))return false;
+    if(!still_ordered||current!=context||actual!=binding||!host::same_world(before.origin,after.origin))
+        return fail(e,"Region RNG census actual Context/Binding changed during read");
+    out={{"state","native_region_rng_census"},{"session",context.session},{"local_peer",context.local_peer},
+        {"peer_mask",context.peer_mask},{"snapshot_uuid",context.snapshot_uuid},{"world_epoch",binding.native_epoch},
+        {"generation",binding.native_generation},{"source_mode",source.region_rng_mode},
+        {"native_sha256",source.sha256},{"native_bytes",source.bytes},{"agreed_seed",source.seed},
+        {"paused",true},{"regions",region_rng_snapshot::encode(rows).at("rows")}};
+    e.clear();return true;
+}
+bool query_purchase_catalog(json& out,std::string& e) {
+    out=json::object();auto* r=published.load(std::memory_order_acquire);
+    if(!r||!r->ready||!properties.ready||!property_admit(*r,e))return fail(e,e.empty()?"Region purchase catalog requires idle runtime":e);
+    action::Context context;action::Binding binding;bool ordered=false;
+    if(!action::selected_session().current(context,e)||
+       !typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&ordered))return false;
+    if(!ordered)return fail(e,"Region purchase catalog requires actual ordered session");
+    host::WorldState before;native::ClockState clock;
+    if(!world(*r,before,e)||!native::read_clock(clock,e))return false;
+    if(clock.time_scale!=0||!clock.paused)return fail(e,"Region purchase catalog requires actual paused Clock");
+    if(!region_binding::validate(before.origin,binding,net::current_snapshot_id(),context.snapshot_uuid,e))return false;
+    uintptr_t map=0;if(!at(*r,r->image,0x13df8c0,map,e))return false;
+    const auto read_field=[&](uintptr_t p,size_t offset,auto& value,std::string& error){return at(*r,p,offset,value,error);};
+    region_saved_identity::Index index;
+    if(!region_saved_identity::capture(r->image,map,before.root,index,read_field,e))return false;
+    json rows=json::array();std::optional<native::RegionState> price;int32_t price_region=-1;
+    for(const auto& [id,region]:index.saved){
+        int32_t type=-1;uint8_t owned=0;std::array<float,3> position{};
+        if(!at(*r,region,0x830,type,e)||!at(*r,region,0x850,owned,e)||!at(*r,region,0x38,position,e))return false;
+        if(owned>1||
+           bool(owned)!=(std::find(index.owned_members.begin(),index.owned_members.end(),region)!=index.owned_members.end()))
+            return fail(e,"Region purchase catalog native owned subset differs id="+std::to_string(id));
+        for(const float value:position)if(!std::isfinite(value)||std::abs(value)>1000000.0f)
+            return fail(e,"Region purchase catalog native center is nonfinite or out of bounds");
+        uintptr_t hit=0;const auto seh=property_hit_region(r->image,map,position.data(),hit);
+        if(seh)return fail(e,"Region purchase catalog native center lookup SEH="+std::to_string(seh));
+        const bool resolves=hit==region;
+        if(resolves&&!price){
+            native::RegionState actual;if(!native::read_region_state(position[0],position[2],actual,e))return false;
+            if(actual.type!=type||actual.owned!=bool(owned)||actual.purchase_price<0)
+                return fail(e,"Region purchase catalog native price/owner readback differs");
+            price=actual;price_region=id;
+        }
+        rows.push_back({{"id",id},{"type",type},{"owned",bool(owned)},{"region_position",position},{"position_resolves_region",resolves}});
+    }
+    if(!price)return fail(e,"Region purchase catalog has no native center for price readback");
+    host::WorldState after;action::Context current;action::Binding actual;bool still_ordered=false;
+    if(!region_saved_identity::verify(r->image,map,before.root,index,read_field,e)||!world(*r,after,e)||
+       !action::selected_session().current(current,e)||
+       !typed_action_runtime::network_binding_with_mode(current.snapshot_uuid,actual,e,&still_ordered))return false;
+    if(!still_ordered||current!=context||actual!=binding||!host::same_world(before.origin,after.origin))
+        return fail(e,"Region purchase catalog actual Context/Binding changed during read");
+    std::sort(rows.begin(),rows.end(),[](const json& a,const json& b){return a.at("id").get<int32_t>()<b.at("id").get<int32_t>();});
+    out={{"state","native_region_purchase_catalog"},{"session",context.session},{"local_peer",context.local_peer},
+        {"peer_mask",context.peer_mask},{"snapshot_uuid",context.snapshot_uuid},{"world_epoch",binding.native_epoch},
+        {"generation",binding.native_generation},{"purchase_price",price->purchase_price},{"cash",price->cash},
+        {"price_region_id",price_region},{"regions",std::move(rows)},
+        {"validity","Original BuyRegion Press remains authoritative; center distance does not prove adjacency"}};
+    e.clear();return true;
 }
 bool query(int32_t region_id,json& out,std::string& e) {
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready)return fail(e,"region query runtime unavailable");
@@ -395,7 +529,10 @@ bool query(int32_t region_id,json& out,std::string& e) {
     out["name"]=property.name;out["type"]=property.type;out["owned"]=property.owned;
     out["status"]=property.status;out["level"]=property.level;out["max_level"]=property.max_level;
     out["type_random"]=property.type_random;
-    out["actors"]=nullptr;if(property.owned){action::RegionLevelState actors;uintptr_t global=0;
+    action::RegionAppearance appearance;if(!appearance_read_native(*r,view.region,appearance,e))return false;
+    property.appearance=appearance;out["appearance"]=action::region_property_observation(property).at("appearance");
+    // Unowned Regions retain actors after the original sale level clamp.
+    {action::RegionLevelState actors;uintptr_t global=0;
         if(!level_state(*r,view,{property.level,property.max_level},actors,global,e))return false;out["actors"]=level_json(actors);}
     std::array<float,3> position{};uintptr_t map=0,at_position=0;
     if(!at(*r,view.region,0x38,position,e)||!at(*r,r->image,0x13df8c0,map,e))return false;
@@ -451,6 +588,10 @@ bool preset_ui(const std::string& token,int32_t region_id,const std::string& pre
 }
 }
 
+#include "terrain_settlement.inc"
 #include "ui_terrain_runtime.inc"
 #include "ui_path_runtime.inc"
 #include "ui_network_runtime.inc"
+#include "building_move_settlement.inc"
+
+#include "snapshot_construction_runtime.inc"

@@ -5,6 +5,7 @@
 namespace mt2mp::game::general_project_runtime {
 bool enable(std::string&);
 bool capture_ui(void* window,void* record,bool& handled,bool& accepted);
+bool ordered_natural_commit(void* receiver,bool& handled,std::string&);
 bool original_route(uintptr_t entry,void* receiver,int32_t workers,bool& handled);
 bool admit_bug_birth(const action_session::Context&,const action_session::Binding&,const std::string& action,uintptr_t caller,bool& owned,std::string&);
 bool pending_ui();bool retire_lobby(std::string&);void tick();

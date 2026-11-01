@@ -1,7 +1,7 @@
 bool capture_loaded(const std::string& snapshot,const action_session::Binding& binding,
                     std::vector<LocalJob>& out,std::string& e){
     out.clear();Capture before;job_census::Census queue;
-    if(!read_process(before,e)||!read_jobs(before,queue,e))return false;
+    if(!read_process_loaded(snapshot,binding,before,e)||!read_jobs(before,queue,e))return false;
     if(snapshot.empty()||before.pin.origin.world_epoch!=binding.native_epoch||before.pin.origin.generation!=binding.native_generation)
         return fail(e,"Loaded construction snapshot/native Origin differs");
     // Snapshot refund reads do not install Free. Loaded target resolution
@@ -27,7 +27,7 @@ bool capture_loaded(const std::string& snapshot,const action_session::Binding& b
         admitted.push_back(std::move(link));targets.push_back(std::move(target));
     }
     Capture after;job_census::Census repeated;
-    if(!read_process(after,e)||!owners(before,after,e)||!read_jobs(after,repeated,e))return false;
+    if(!read_process_loaded(snapshot,binding,after,e)||!owners(before,after,e)||!read_jobs(after,repeated,e))return false;
     if(before.state!=after.state||before.local!=after.local||queue!=repeated)
         return fail(e,"Loaded construction complete pool/Job graph changed during admission");
     for(size_t index=0;index<admitted.size();++index){

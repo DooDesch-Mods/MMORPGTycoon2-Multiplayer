@@ -48,8 +48,8 @@ struct Fixture {
         f.put(region+0x968,m);f.put(region+0x70,shard);f.put(m,image+0x16fe170);f.put(m+0xf0,region);
         for(size_t type=0;type<4;++type)f.put(m+0x18+type*0x30,image+0x172e1e0);
     }
-    uint32_t exact_uid(uint64_t uid,uintptr_t& value){need(!t::PageReadScope::reader_active(),"World Zone FindUID did not invalidate reader metadata");++native_calls;
-        if(native_visit)native_visit();value=uid==7?zone:0;return native_error;}
+    uint32_t exact_uid(uint64_t uid,uintptr_t& value){need(t::PageReadScope::reader_active(),"read-only World Zone FindUID discarded reader metadata");++native_calls;
+        if(native_visit){t::PageReadScope unknown_native(t::PageBoundary::OriginalCall);native_visit();}value=uid==7?zone:0;return native_error;}
     bool baseline(std::vector<world_zone_runtime::Current>& out,std::string& error){
 #include "world_zone_scope_baseline.inc"
     }
@@ -80,12 +80,12 @@ void run(){
     check(false,[&]{f.member();f.native_visit=[&]{f.f.put(f.f.map+0x244,int32_t(122));};});
     check(false,[&]{native_open_runtime::current.revision=2;});
     check(false,[&]{native_open_runtime::accept=false;});
-    // A native UID lookup can change protection after a previous Region read.
+    // An unknown native operation can change protection after a Region read.
     f.reset();f.member();DWORD old_protection=0;bool changed=false;
     f.native_visit=[&]{if(!changed){need(VirtualProtect(reinterpret_cast<void*>(f.manager(0)),0x1000,PAGE_NOACCESS,&old_protection)!=0,"World Zone native protection change failed");changed=true;}};
     const bool accepted=f.actual(got,e);DWORD ignored=0;
     need(VirtualProtect(reinterpret_cast<void*>(f.manager(0)),0x1000,old_protection,&ignored)!=0,"World Zone native protection restore failed");
-    need(changed&&!accepted&&e=="record fixture unreadable","World Zone reused cached page permissions across FindUID");
+    need(changed&&!accepted&&e=="record fixture unreadable","World Zone reused cached permissions across an unknown native operation");
     f.native_visit={};e.clear();need(f.actual(got,e),"World Zone next read failed after restored native page");
     std::cout<<"World Zone owner traversal: identical121 Region censuses/errors, OS queries "<<counts.first<<" -> "<<counts.second<<"; native invalidation retained\n";
 }

@@ -35,9 +35,9 @@ bool finalize_original_load(const std::string& id,const std::string& digest,std:
     return publish(s,roots,e);
 }
 bool snapshot_aliases(const std::string& id,const std::string& digest,aliases::Manifest& out,std::string& e){
-    auto& s=shared();std::lock_guard lock(s.mutex);out={};
-    if(s.state!="host_ready"||s.uuid!=id||s.sha!=digest||captured_alias_uuid!=id||captured_alias_sha!=digest){e="Network companion requires exact sealed Host file mappings";return false;}
-    if(!aliases::valid(captured_aliases,e))return false;out=captured_aliases;e.clear();return true;
+    auto& s=capture_shared();std::lock_guard lock(s.mutex);out={};
+    if(s.state!="host_ready"||s.uuid!=id||s.sha!=digest||s.captured_alias_uuid!=id||s.captured_alias_sha!=digest){e="Network companion requires exact sealed Host file mappings";return false;}
+    if(!aliases::valid(s.captured_aliases,e))return false;out=s.captured_aliases;e.clear();return true;
 }
 bool object_key(uintptr_t object,uint64_t uid,std::string& key,ObjectEntry& out,std::string& e){
     auto& s=shared();std::lock_guard lock(s.mutex);key.clear();objects::Scope scope;objects::Entry actual;

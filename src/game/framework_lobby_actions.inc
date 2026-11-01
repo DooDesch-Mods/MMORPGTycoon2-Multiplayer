@@ -3,6 +3,8 @@ bool framework_process_action(std::string& error){
     const auto action=std::move(framework_actions.front());framework_actions.pop_front();++framework_processed;
     framework_last_action={{"sequence",action.sequence},{"widget",action.widget},{"attempted",false},{"handler_failed",false},{"callback_pending",false}};
     const auto reject=[&](const std::string& detail){++framework_rejected;framework_last_action["handler_failed"]=true;framework_last_action["error"]=detail;error=detail;return fail(detail);};
+    if(framework_ordered_selected&&!ordered_action_allowed(action.widget))
+        return framework_reject_unattempted(action.widget,action.sequence,"Ordered lobby rejected a legacy world/admission action; no replay",error);
     auto* widget=framework_widget(action.widget.c_str());
     if(action.mode!=ui_owner||action.admission!=generation||action.discovery!=list_generation||action.page!=list_page||action.choosing!=choosing)
         return framework_reject_unattempted(action.widget,action.sequence,"Framework lobby action owner/admission/list context changed before execution; no replay",error);

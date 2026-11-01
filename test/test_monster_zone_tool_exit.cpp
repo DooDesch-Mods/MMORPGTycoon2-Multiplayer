@@ -14,6 +14,7 @@ struct Memory{};
 struct Runtime{uintptr_t image=::image;unsigned thread=1;bool ready=true,pending=false,fault=false;}state;
 unsigned GetCurrentThreadId(){return 1;}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
+bool ordered_mode(){return false;}
 void need(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);}
 namespace a{struct Binding{};struct MonsterState{struct{std::string content_sha256="content";}roster;};}
 struct Pin{struct{unsigned version=1;}world;struct{uintptr_t region=::fixture_region;}region;};

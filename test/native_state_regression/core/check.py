@@ -26,7 +26,11 @@ positions = [after.index(line) for line in (bind, thread, owned, init, tick)]
 assert positions == sorted(positions)
 transport=next(line for line in after.splitlines() if 'if(Config::instance().local_test)net::tick_local_session();' in line)
 deadline=next(line for line in after.splitlines() if 'game::typed_action_runtime::tick_after_transport();' in line)
-assert after.index(tick)<after.index(transport)<after.index(deadline)<after.index('if(time_initialized)')<after.index('frame.live.close();')
+legacy_close='\n        frame.live.close();\n'
+assert after.count(legacy_close)==1
+assert after.index(tick)<after.index(transport)<after.index(deadline)<after.index('if(time_initialized)')<after.index(legacy_close)
+# Selected Ordered sessions close their own frame before entering legacy work.
+assert after.index('if(game::ordered_startup::selected()) {')<after.index(owned)
 runtime=(args.source/'src/game/typed_action_runtime.cpp').read_text(encoding='utf-8')
 start_tick=runtime[runtime.index('void tick() {'):runtime.index('void tick_after_transport() {')]
 after_tick=runtime[runtime.index('void tick_after_transport() {'):runtime.index('bool resolve_held_dungeon_destination(')]

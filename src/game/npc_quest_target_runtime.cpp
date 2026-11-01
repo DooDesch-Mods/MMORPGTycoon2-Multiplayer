@@ -1,4 +1,5 @@
 #include "npc_quest_target_runtime.h"
+#include "typed_action/recovery_read_scope.h"
 #include "world_zone_runtime.h"
 #include "world_zone_edit.h"
 #include "zone_edit_identity.h"
@@ -208,8 +209,12 @@ bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& e
 }
 bool current(int32_t id, q::World& world, const q::SavedPool*& saved, std::string& error) {
     if (!healthy(error)) return false;
-    if (GetCurrentThreadId() != main_thread || host_active || client_active || net::current_snapshot_id() != uuid || !net::current_world_epoch())
-        return q::fail(error, "Quest targets require current active snapshot on bound Mainthread");
+    const auto actual_thread=GetCurrentThreadId();const bool saving=host_active,loading=client_active;
+    if(actual_thread!=main_thread||saving||loading)
+        return q::fail(error,"Quest targets require idle bound Mainthread: actual_thread="+std::to_string(actual_thread)+
+            " required_thread="+std::to_string(main_thread)+" host_active="+std::to_string(saving)+" client_active="+std::to_string(loading));
+    if(!action_session::recovery_read::snapshot_current(uuid,origin.generation,origin.world_epoch,error))
+        return q::fail(error,"Quest targets snapshot admission: "+error);
     if (!origin.generation || !origin.world_epoch)
         return q::fail(error, "Quest targets require completed snapshot load after Host capture");
     opened::CurrentWorld actual;

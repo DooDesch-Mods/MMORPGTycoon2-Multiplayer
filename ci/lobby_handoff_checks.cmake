@@ -5,6 +5,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/native_lobby_framework.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/framework_lobby_view.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/framework_lobby_actions.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/prepare_flow.cpp"
     "${MT2MP_SOURCE_ROOT}/test/extract_lobby_handoff.py")
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_lobby_handoff.py"
     --root "${MT2MP_SOURCE_ROOT}" --output "${lobby_handoff_generated}"
@@ -19,6 +20,17 @@ else()
 endif()
 add_test(NAME lobby_handoff COMMAND test_lobby_handoff)
 set_tests_properties(lobby_handoff PROPERTIES TIMEOUT 30)
+
+add_executable(test_lobby_local_rejoin "${MT2MP_SOURCE_ROOT}/test/test_lobby_local_rejoin.cpp")
+target_compile_features(test_lobby_local_rejoin PRIVATE cxx_std_20)
+target_include_directories(test_lobby_local_rejoin PRIVATE "${lobby_handoff_generated}" "${MT2MP_SOURCE_ROOT}/include")
+if(MSVC)
+    target_compile_options(test_lobby_local_rejoin PRIVATE /W4 /WX /utf-8)
+else()
+    target_compile_options(test_lobby_local_rejoin PRIVATE -Wall -Wextra -Werror)
+endif()
+add_test(NAME lobby_local_rejoin COMMAND test_lobby_local_rejoin)
+set_tests_properties(lobby_local_rejoin PROPERTIES TIMEOUT 30)
 
 add_test(NAME lobby_wizard_automation
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8 -m unittest discover

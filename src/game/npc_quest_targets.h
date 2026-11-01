@@ -199,8 +199,8 @@ bool validate_saved(Memory& memory, const World& world, const SavedPool& saved, 
         return fail(error, "quest zone snapshot SHA/UUID/world/region binding differs");
     return validate_capture(memory, world, saved, budget, error);
 }
-// BuildingKey must call existing remove_diagnostics::resolve_local_target with
-// World.selection and compare its snapshot UUID, epoch and world generation.
+// BuildingKey must resolve the actual current canonical destination and compare
+// World.selection, snapshot UUID, epoch and world generation.
 template<class Memory, class BuildingKey>
 bool read(Memory& memory, const World& world, const SavedPool& saved, const Budget& budget,
           BuildingKey&& building_key, Pools& out, std::string& error) {

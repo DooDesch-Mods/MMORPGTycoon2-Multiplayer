@@ -217,7 +217,8 @@ bool apply(const a::Context& context,const a::Binding& binding,const live_host_s
     try{
     if(context.role!=a::Role::Client||!exact(context,binding,error)||!frame_bound(frame,error)||!routes(error)||state.ordered)return fail(error,error.empty()?"Actor24 apply requires complete bound Client Frame outside original action":error);
     const auto& journal=*frame.management->actor_lifecycle;std::vector<life::journal::Row> work;if(!life::valid(journal,error)||!state.client.prepare(*state.source,journal,work,error))return false;
-    State before;Locals locals;if(!read_current(context,binding,before,locals,error)||!install_cache(std::move(locals),error))return false;
+    EmptyRead first_empty,last_empty;const bool empty_candidate=work.empty()&&frame.management->intervention_actors->empty()&&state.locals.empty();
+    State before;Locals locals;if(!read_current(context,binding,before,locals,error,empty_candidate?&first_empty:nullptr)||!install_cache(std::move(locals),error))return false;
     std::vector<life::Event> consumed;
     for(const auto& row:work){const auto event=life::event(row);
         if(!event.action.empty()){
@@ -236,7 +237,8 @@ bool apply(const a::Context& context,const a::Binding& binding,const live_host_s
     if(!empty_adoption.active()){
         Receipt adoption;const auto adopted=adopt_current(context,binding,*frame.management->intervention_actors,adoption,error);receipt.attempted|=adoption.attempted;receipt.attempted_stores+=adoption.attempted_stores;receipt.stores+=adoption.stores;if(!adopted)return failed();
     }
-    State after;if(!read_current(context,binding,after,locals,error))return failed();if(after!=*frame.management->intervention_actors){error="Actor24 complete current Actor values differ after final Host adoption";return failed();}if(!install_cache(std::move(locals),error))return failed();
+    State after;if(!read_current(context,binding,after,locals,error,first_empty?&last_empty:nullptr))return failed();
+    if(first_empty&&!same_empty_read(first_empty,last_empty,error))return failed();if(after!=*frame.management->intervention_actors){error="Actor24 complete current Actor values differ after final Host adoption";return failed();}if(!install_cache(std::move(locals),error))return failed();
     if(!empty_adoption.finish(error))return failed();
     if(!state.client.confirm(*state.source,journal,work,error))return failed();
     for(const auto& event:consumed){auto found=state.local_events.find(event.action);if(found==state.local_events.end())continue;

@@ -9,7 +9,7 @@ parser.add_argument('--output', type=Path, required=True)
 args = parser.parse_args()
 source = (args.source_root / 'src/game/building_capture_identity.cpp').read_text()
 core = (args.source_root / 'src/core/dll_main.cpp').read_text()
-marker = 'if (capture_snapshot_identities) {'
+marker = 'if (capture_snapshot_identities&&!capture_export_only) {'
 if source.count(marker) != 3:
     raise RuntimeError('Expected exactly arm, seal and cancel snapshot identity boundaries')
 blocks = []
@@ -31,9 +31,9 @@ matches = re.findall(r'const bool bind_snapshot_identities=(.*);', core)
 if len(matches) != 1:
     raise RuntimeError('Expected one capture dispatch policy')
 if ('capture_snapshot_identities = bind_snapshot_identities;' not in source
-        or 'world_name,bind_snapshot_identities)' not in core):
+        or 'world_name,bind_snapshot_identities,export_only,native_target)' not in core):
     raise RuntimeError('Snapshot identity policy is not connected to the capture lifetime')
-text = 'bool routing(bool distribute) { return ' + matches[0] + '; }\n'
+text = 'bool routing(bool distribute,bool export_only=false) { return ' + matches[0] + '; }\n'
 for name, block in zip(('arm', 'seal', 'cancel'), blocks):
     text += ('void' if name == 'cancel' else 'bool') + ' actual_' + name + '() {\n' + block
     text += '\n}\n' if name == 'cancel' else '\nreturn true;\n}\n'
@@ -58,15 +58,16 @@ def guarded(text, anchor):
     return text[begin:end]
 
 for suffix, functions in [('arm', ['monster', 'boss', 'district', 'party']), ('seal', ['party', 'boss', 'monster', 'district'])]:
-    chunks = [guarded(source, 'if(capture_snapshot_identities&&!' + family + '_saved_identity_runtime::' + suffix + '_host(') for family in functions]
+    chunks = [guarded(source, 'if(capture_snapshot_identities&&' + ('!capture_export_only&&' if family=='district' else '') + '!' + family + '_saved_identity_runtime::' + suffix + '_host(') for family in functions]
     text += 'bool actual_other_' + suffix + '() {\n' + '\n'.join(chunks) + '\nreturn true;\n}\n'
 text += 'void actual_other_cancel() {\n' + guarded(source, 'if(capture_snapshot_identities){') + '\n}\n'
 stages = ['dungeon_scene_identity_runtime::classify_capture', 'party_saved_identity_runtime::stage_scenes',
           'boss_saved_identity_runtime::stage_scenes', 'monster_saved_identity_runtime::stage_scenes']
 text += 'bool actual_stage() {\n' + '\n'.join(guarded(source, 'if(capture_snapshot_identities&&!' + name + '(') for name in stages) + '\nreturn true;\n}\n'
-text += 'void actual_network_arm(bool bind_snapshot_identities) {\n' + guarded(core, 'if(bind_snapshot_identities){') + '\n}\n'
-text += 'void actual_network_seal(bool publish_snapshot_identities) {\n' + guarded(core, 'if(publish_snapshot_identities){') + '\n}\n'
+text += 'void actual_network_arm(bool bind_snapshot_identities,bool export_only=false) {\n' + guarded(core, 'if(bind_snapshot_identities){') + '\n}\n'
+text += 'void actual_network_seal(bool complete_companion) {\n' + guarded(core, 'if(complete_companion){') + '\n}\n'
 text += 'void actual_network_cancel(bool bind_snapshot_identities) {\n' + guarded(core, 'if(bind_snapshot_identities)game::network_identity::cancel_pending(error);') + '\n}\n'
+assert core.count('const bool publish_snapshot_identities=complete_companion&&!export_only;')==1
 for marker in ['{"bind_snapshot_identities",bind_snapshot_identities}', 'pending_snapshot.at("bind_snapshot_identities").get<bool>()',
                '{"snapshot_identities_published",publish_snapshot_identities}', 'if(distribute&&!net::distribute_snapshot(']:
     if marker not in core:

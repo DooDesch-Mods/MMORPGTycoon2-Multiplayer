@@ -453,3 +453,7 @@
 {"mp.character.view-select.689100",0x689100,false},
 {"mp.character.import-image.689510",0x689510,false},
 {"mp.building-uptime-add.859e30",0x859e30,false},
+{"mp.ordered-tutorial-undo-clear.53a240",0x53a240,false},
+{"mp.ordered-clearance-make-scenery.559ee0",0x559ee0,false},
+
+{"mp.terrain-settlement.map-data",0x32c1e0,false},

@@ -55,16 +55,19 @@ std::optional<SceneryStrokeEffect> scenery_stroke_result_read(const json& j,bool
         v.changed.push_back({scenery_stroke_object(pair[0]),scenery_stroke_object(pair[1])});}
     if(!scenery_stroke_result_valid(v,history))throw std::runtime_error("Scenery stroke complete effect domain differs");return v;
 }
-bool scenery_stroke_effect(const Request& r,const Evidence& e){
+bool scenery_stroke_effect(const Request& r,const Evidence& e,std::string* error=nullptr){
+    if(error)error->clear();
+    auto fail=[&](const std::string& cause){if(error)*error=cause;return false;};
     if(!scenery_stroke_action(r.action)||!e.scenery_stroke_before||!e.scenery_stroke_after||!e.scenery_stroke_result||
-       e.target_retired||!e.undo_confirmed||!e.selection_confirmed||e.object_before!=BuildingState{}||e.object_after!=BuildingState{})return false;
+       e.target_retired||!e.undo_confirmed||!e.selection_confirmed||e.object_before!=BuildingState{}||e.object_after!=BuildingState{})return fail("Scenery evidence fields/selection/Undo ownership invalid");
     const auto& b=e.before;const auto& a=e.after;
-    if(b.record_present!=1||a.record_present!=1||b.flat_day!=a.flat_day||b.record_day!=a.record_day)return false;
+    if(b.record_present!=1||a.record_present!=1||b.flat_day!=a.flat_day||b.record_day!=a.record_day)return fail("Scenery Ledger record/day changed");
     const int64_t income=int64_t(a.record_income)-b.record_income,expense=int64_t(a.record_expense)-b.record_expense,cash=int64_t(a.cash)-b.cash;
     if(income<0||expense<0||cash!=income-expense||int64_t(a.record_cash)-b.record_cash!=cash||
-       int64_t(a.line_income[6])-b.line_income[6]!=cash||a.line_counts[6]<b.line_counts[6])return false;
-    for(size_t i=0;i<b.line_counts.size();++i)if(i!=6&&(a.line_counts[i]!=b.line_counts[i]||a.line_income[i]!=b.line_income[i]))return false;
-    if(r.scenery_stroke.kind==SceneryStrokeKind::Erase&&expense)return false;
-    std::string cause;return game::scenery_stroke_transition::effect(r.scenery_stroke,*e.scenery_stroke_before,*e.scenery_stroke_after,*e.scenery_stroke_result,
+       int64_t(a.line_income[6])-b.line_income[6]!=cash||a.line_counts[6]<b.line_counts[6])return fail("Scenery signed Ledger cash/income/expense/category6 differs");
+    for(size_t i=0;i<b.line_counts.size();++i)if(i!=6&&(a.line_counts[i]!=b.line_counts[i]||a.line_income[i]!=b.line_income[i]))return fail("Scenery changed unrelated Ledger category="+std::to_string(i));
+    if(r.scenery_stroke.kind==SceneryStrokeKind::Erase&&expense)return fail("Scenery eraser added an expense");
+    std::string cause;const bool okay=game::scenery_stroke_transition::effect(r.scenery_stroke,*e.scenery_stroke_before,*e.scenery_stroke_after,*e.scenery_stroke_result,
         [](const auto& value){return key(value);},max_payload,cause);
+    return okay||fail(cause);
 }

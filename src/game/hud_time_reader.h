@@ -51,6 +51,7 @@ public:
     bool initialize(const Config&, const Services&, std::string&);
     bool read(State&, std::string&);
     bool classify_activation(uintptr_t type, uintptr_t item, ActivationBinding&, std::string&);
+    bool classify_inventory_activation(uintptr_t type,uintptr_t item,ActivationBinding&,std::string&);
     bool button_binding(float scale, ActivationBinding&, std::string&);
 private:
     friend class Writer;

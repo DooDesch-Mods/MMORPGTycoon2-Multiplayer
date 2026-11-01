@@ -48,6 +48,7 @@ bool NativePort::read(Pin& out,std::string& e){++cash_fixture::reads;
     if(!current_owners(cash_fixture::current,e,0))return false;out=cash_fixture::current;return true;}
 bool NativePort::store(const Pin&,size_t,int32_t,int32_t,std::string& e){return fail(e,"unexpected native store");}
 bool NativePort::publication_ready(uint64_t,bool&,std::string& e){return fail(e,"unexpected publication read");}
+bool NativePort::application_ready(uint64_t,bool&,std::string& e){return fail(e,"unexpected application readiness read");}
 #include "fence_cash.inc"
 }
 #undef GetCurrentThreadId
@@ -150,6 +151,35 @@ void eraser_cash_cases(){
         observed.record={expected.record_day,expected.record_cash,0,expected.record_income,expected.record_expense};
         for(size_t i=0;i<20;++i)observed.lines[i]={expected.line_counts[i],expected.line_income[i]};
     };
+    const auto erase=[&](){auto selected=brush({false,false});
+        selected.action_->request.action=action::Action::SceneryEraseStroke;return selected;};
+    value=erase();
+    fixture::check(leaf(value,false)&&value.action_cash_calls_==1&&
+        value.action_cash_ledger_.cash==value.action_->evidence.before.cash+10,
+        "Held Eraser first refund was compared to the entire Host stroke");
+    fixture::check(leaf(value,false)&&value.action_cash_calls_==2&&
+        value.action_cash_ledger_==value.action_->evidence.after,
+        "Held Eraser did not forward exactly two original category6 refunds");
+    actual_ledger(value.action_->evidence.after);cash_fixture::edits=0;
+    fixture::check(value.end_action(error)&&!value.locked_,"Held Eraser exact two-row completion rejected");
+    value=erase();fixture::need(leaf(value,false),"Held Eraser first refund rejected");cash_fixture::edits=0;
+    const auto erase_missing_reads=cash_fixture::reads;
+    fixture::check(!value.end_action(error)&&value.locked_&&cash_fixture::reads==erase_missing_reads&&
+        error.find("required=2")!=std::string::npos,"Held Eraser missing second refund passed completion");
+    value=erase();fixture::need(leaf(value,false)&&leaf(value,false),"Held Eraser two authorized refunds failed");
+    fixture::check(!leaf(value,false)&&value.action_cash_calls_==2&&value.locked_,"Held Eraser third refund exceeded Host result");
+    value=erase();fixture::need(leaf(value,false),"Held Eraser first refund failed");cash_fixture::owner=false;
+    fixture::check(!leaf(value,false)&&value.action_cash_calls_==1&&value.cause_=="actual World/owner changed",
+        "Held Eraser second refund omitted fresh ownership proof");
+    value=erase();fixture::need(leaf(value,false),"Held Eraser first refund failed");cash_fixture::edits=2;
+    fixture::check(!leaf(value,false)&&value.action_cash_calls_==1,"Held Eraser second refund ignored native edit depth");
+    value=erase();fixture::check(!leaf(value,true)&&!value.action_cash_calls_&&value.locked_,"Held Eraser admitted a purchase");
+    value=erase();fixture::check(!leaf(value,false,20)&&!value.action_cash_calls_,"Held Eraser merged two original calls into one");
+    value=erase();fixture::check(!leaf(value,false,10,5)&&!value.action_cash_calls_,"Held Eraser changed cash category");
+    value=erase();fixture::need(leaf(value,false)&&leaf(value,false),"Held Eraser authorized sequence failed");
+    actual_ledger(value.action_->evidence.after);++cash_fixture::current.values.lines[19][1];cash_fixture::edits=0;
+    fixture::check(!value.end_action(error)&&error=="live economic authoritative full Ledger after differs",
+        "Held Eraser predicted cash hid actual unrelated Ledger drift");
     value=brush({false,false,true});unsigned originals=0;
     for(bool expense:{false,false,true}){if(leaf(value,expense))++originals;else throw std::runtime_error(value.cause_);}
     fixture::check(originals==3&&value.action_cash_calls_==3&&value.action_cash_ledger_==value.action_->evidence.after,

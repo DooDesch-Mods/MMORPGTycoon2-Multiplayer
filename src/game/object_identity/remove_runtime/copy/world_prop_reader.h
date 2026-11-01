@@ -3,6 +3,7 @@
 #include "prop_lease.h"
 #include "native_open_witness.h"
 #include <memory>
+#include <functional>
 
 namespace mt2mp::build_actions::private_native::host {
 namespace opened=mt2mp::game::building_mixed_identity::opened_file;
@@ -47,10 +48,12 @@ public:
     bool current(WorldState&,bool require_idle,std::string&);
     bool prop(void*,uint64_t expected_uid,mt2mp::prop_lease::Prop&,std::string&);
     bool saved_root_scenery(void*,uint64_t expected_uid,int32_t saved_region_id,uintptr_t saved_region,mt2mp::prop_lease::Prop&,std::string&);
+    bool saved_root_scenery_in_original(void*,uint64_t,int32_t,uintptr_t,const WorldState&,const std::function<bool(std::string&)>&,mt2mp::prop_lease::Prop&,std::string&);
     uint32_t thread()const noexcept{return thread_;}
 private:
     Memory& memory_;Origin& origin_;uintptr_t image_;uint32_t thread_;LookupApi api_;
     bool busy_=false,world_busy_=false;
+    bool saved_root_scenery_impl(void*,uint64_t,int32_t,uintptr_t,const std::function<bool(WorldState&,std::string&)>&,mt2mp::prop_lease::Prop&,std::string&);
     bool region_member(const WorldState&,uintptr_t shard,uintptr_t region,std::string&);
     bool main_member(uintptr_t object,uintptr_t shard,uintptr_t region,std::string&);
     bool typed(uintptr_t object,uint64_t uid,uintptr_t type,std::string&);

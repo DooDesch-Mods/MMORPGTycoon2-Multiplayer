@@ -3,6 +3,7 @@
 #endif
 #include "mt2mp/core/runtime_paths.h"
 #include "mt2mp/net/snapshot_sync.h"
+#include "client_save_export_session.h"
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/software_snapshot.h"
@@ -31,6 +32,13 @@
 #include <chrono>
 #include <cmath>
 #include <map>
+#include <set>
+#include "native_steps_draft.h"
+#include "../game/ordered_proof_owner.h"
+#include "../game/typed_action_runtime.h"
+#if defined(MT2MP_ORDERED_PRELOAD_TEST)
+#include "../game/native_open_runtime.h"
+#endif
 
 namespace mt2mp::net {
 using json=nlohmann::json;
@@ -77,7 +85,7 @@ static SnapshotFileSender outbound;
 static uint32_t outbound_chunks(){return outbound.chunks()+monster_chunks(outbound_monsters);}
 static uint32_t outbound_next(){return outbound.next_index()+monster_outbound.next_index();}
 
-struct SnapshotPeer { uint32_t next=0; bool verified=false,loaded=false,network_verified=false; std::string network_error; json loaded_ack; SnapshotLoadWatch load; };
+struct SnapshotPeer { uint32_t next=0; bool verified=false,loaded=false,network_verified=false,ordered_loaded=false; std::string network_error; json loaded_ack; SnapshotLoadWatch load; };
 static std::map<uint64_t,SnapshotPeer> outbound_peers;
 static size_t outbound_expected_peers=0;
 static bool outbound_active=false;
@@ -113,6 +121,7 @@ static uint64_t software_epoch(const std::string& id) {
     return epoch;
 }
 static bool valid_id(const std::string& id) { return id.size()==36&&id.find_first_not_of("0123456789abcdef-")==std::string::npos; }
+#include "ordered_snapshot_preload.inc"
 static void message(const json& value,uint64_t target=0) {
     auto bytes=value.dump();
     if(!session_wire::send(4,reinterpret_cast<const uint8_t*>(bytes.data()),uint32_t(bytes.size()),target)) throw std::runtime_error("snapshot control queue rejected");
@@ -139,17 +148,20 @@ static void fail(const std::string& error) {
         return;
     }
     snapshot_failed=true; discarded_after_failure=0; snapshot_failure=error;
+    if(ordered_snapshot&&ordered_failure.empty())ordered_failure=error;
     snapshot_world_valid=false;
     game::network_identity::invalidate_world("snapshot transfer failed: "+error);
     receiving=false; load_pending=false; outbound_active=false; outbound.stop(); monster_outbound.stop(); buffer.stop(); monster_buffer.stop(); status="Snapshot fehlgeschlagen: "+error;
     LOG_NET_ERROR("[SNAPSHOT] {}",error);
-    if(!Config::instance().is_host) {
+    if(!snapshot_host()) {
         try { message({{"type","snapshot_error"},{"id",incoming_id},{"cause",error}},1); }
         catch(const std::exception& send_error) { LOG_NET_ERROR("[SNAPSHOT] Failure acknowledgement rejected: {}",send_error.what()); }
     }
 }
+#include "ordered_snapshot_load.inc"
+#include "ordered_snapshot_retirement.inc"
 static bool receive_host_world_failure(uint64_t sender,const json& value) {
-    if(Config::instance().is_host||value.at("type")!="snapshot_error")return false;
+    if(snapshot_host()||value.at("type")!="snapshot_error")return false;
     if(sender!=1||value.size()!=3||!value.at("id").is_string()||!value.at("cause").is_string())
         throw std::runtime_error("Host world failure requires exact current Host/id/cause fields");
     const auto id=value.at("id").get<std::string>();
@@ -159,7 +171,7 @@ static bool receive_host_world_failure(uint64_t sender,const json& value) {
     fail("Host synchronization failed: "+cause);return true;
 }
 bool fail_host_world(const std::string& expected_snapshot,const std::string& cause,std::string& error) {
-    if(!Config::instance().is_host||!valid_id(expected_snapshot)||expected_snapshot!=outbound_id||cause.empty()) {
+    if(!snapshot_host()||!valid_id(expected_snapshot)||expected_snapshot!=outbound_id||cause.empty()) {
         error="Host world failure requires exact bound Host snapshot and original cause";return false;
     }
     if(snapshot_failed){error=snapshot_failure;return false;}
@@ -179,14 +191,33 @@ bool fail_host_world(const std::string& expected_snapshot,const std::string& cau
         LOG_NET_ERROR("[SNAPSHOT] {} retained_failure={}",error,snapshot_failure);return false;
     }
 }
+static OrderedClientEntry ordered_client_entry=nullptr;
+void configure_ordered_client_entry(OrderedClientEntry entry){ordered_client_entry=entry;}
+static void admit_public_ordered_manifest(uint64_t sender,const json& value){
+    if(ordered_snapshot||value.at("transport_revision")!=3||!ordered_client_entry)return;
+    if(receiving||load_pending||outbound_active||snapshot_world_valid||snapshot_failed)
+        throw std::runtime_error("Ordered public entry cannot replace an existing snapshot transfer or world");
+    OrderedSnapshotIdentity owner;std::string error;
+    if(!ordered_owner(owner,error))throw std::runtime_error(error);
+    ordered_validate_manifest(value,sender,owner);
+    // An admission failure must acknowledge the verified offered snapshot ID.
+    incoming_id=value.at("id").get<std::string>();
+    if(!ordered_client_entry(error))throw std::runtime_error(error.empty()?"Ordered Client entry rejected without a cause":error);
+    if(!ordered_snapshot)throw std::runtime_error("Ordered Client entry did not retain its preload owner");
+}
+#include "client_save_export_session.inc"
 static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length) {
     try {
+        if(ordered_snapshot){std::string error;if(!ordered_fresh(error))throw std::runtime_error(error);}
         if(length>8192) throw std::runtime_error("control exceeds 8192 bytes");
         auto value=json::parse(data,data+length); auto type=value.at("type").get<std::string>();
+        if(receive_save_export_control(sender,value))return;
+        if(ordered_receive_bootstrap(sender,value))return;
         if(receive_host_world_failure(sender,value))return;
-        if(Config::instance().is_host) {
+        if(snapshot_host()) {
             if(type=="snapshot_ready"||type=="snapshot_chunk_ack"||type=="snapshot_verified"||type=="snapshot_load_progress"||type=="snapshot_loaded"||type=="snapshot_error") {
                 auto id=value.at("id").get<std::string>();
+                if(type=="snapshot_ready"||type=="snapshot_verified"||type=="snapshot_loaded")ordered_check_ack(value,sender);
                 if(!outbound_active&&id==outbound_id&&(type=="snapshot_verified"||type=="snapshot_loaded")) {
                     const auto completed=outbound_peers.find(sender);
                     if(completed!=outbound_peers.end()&&completed->second.loaded) {
@@ -237,7 +268,8 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
                     if(!peer.verified||peer.loaded) throw std::runtime_error("snapshot-loaded acknowledgement before verification or duplicate");
                     if(value.contains("network_identity")&&value.contains("network_identity_error")) throw std::runtime_error("native network acknowledgement contains conflicting success and failure");
                     std::string network_error;
-                    if(outbound_network&&value.contains("network_identity_error")&&!value.contains("network_identity")) {
+                    if(ordered_snapshot){ordered_validate_loaded_ack(value,sender);peer.ordered_loaded=true;}
+                    else if(outbound_network&&value.contains("network_identity_error")&&!value.contains("network_identity")) {
                         if(value.at("sha256")!=incoming_hash||!value.at("network_identity_error").is_string()) throw std::runtime_error("degraded native network acknowledgement shape/SHA invalid");
                         network_error=value.at("network_identity_error").get<std::string>();
                         if(network_error.empty()||network_error.size()>1024) throw std::runtime_error("degraded native network acknowledgement cause length invalid");
@@ -257,10 +289,16 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
             return;
         }
         if(sender!=1||type!="snapshot_begin") throw std::runtime_error("snapshot manifest must come from host");
+        admit_public_ordered_manifest(sender,value);
+        if(value.at("transport_revision")!=(ordered_snapshot?3:2))throw std::runtime_error("Snapshot transport revision differs from explicit selected mode");
+        if(ordered_snapshot)ordered_accept_manifest(value,sender);
+        else if(value.contains("ordered_simulation"))throw std::runtime_error("Legacy snapshot cannot accept ordered seed agreement");
         auto id=value.at("id").get<std::string>(); auto hash=value.at("sha256").get<std::string>();
         if(!valid_id(id)||hash.size()!=64||hash.find_first_not_of("0123456789abcdef")!=std::string::npos) throw std::runtime_error("invalid snapshot id or SHA256");
         std::optional<network_meta::Metadata> metadata; std::string metadata_error;
-        if(!network_meta::parse_begin(value,sender,metadata,metadata_error)) throw std::runtime_error(metadata_error);
+        if(ordered_snapshot){
+            if(value.contains("network_identity")||value.contains("software"))throw std::runtime_error("Ordered preload cannot mix legacy state-copy metadata");
+        }else if(!network_meta::parse_begin(value,sender,metadata,metadata_error)) throw std::runtime_error(metadata_error);
         const auto world_name=snapshot_world_path::from_manifest(value);
         const auto monsters=parse_monsters(value);
         if(id==last_loaded) {
@@ -276,11 +314,12 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
             message(last_loaded_ack,1); return;
         }
         if(receiving||load_pending) throw std::runtime_error("snapshot transfer already active");
-        if(value.at("transport_revision")!=2) throw std::runtime_error("snapshot stream requires transport revision 2");
+        if(value.at("transport_revision")!=(ordered_snapshot?3:2)) throw std::runtime_error("snapshot stream revision changed");
         if(!value.at("bytes").is_number_integer()||!value.at("chunks").is_number_integer()) throw std::runtime_error("snapshot size and chunks require integer fields");
         const auto chunks=value.at("chunks").get<uint64_t>();
         if(chunks>std::numeric_limits<uint32_t>::max()) throw std::runtime_error("snapshot chunk count exceeds uint32");
-        auto software=parse_initial_software_cache(value.at("software"));
+        game::native::SoftwareCache software;
+        if(!ordered_snapshot)software=parse_initial_software_cache(value.at("software"));
         std::string error;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
         const auto write=write_root();
@@ -302,12 +341,15 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         incoming_network=std::move(metadata); incoming_network_error.clear(); last_loaded_ack=nullptr;
         snapshot_world_valid=false;
         LOG_NET_INFO("[SNAPSHOT] Manifest accepted id={} bytes={}",id,buffer.size());
-        message({{"type","snapshot_ready"},{"id",id}},1);
+        json ready={{"type","snapshot_ready"},{"id",id}};ordered_attach_ack(ready);message(ready,1);
     } catch(const std::exception& error) { fail(error.what()); }
 }
 static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
-    if(Config::instance().is_host) return;
+    try{if(receive_save_export_chunk(sender,data,length))return;}
+    catch(const std::exception& error){if(save_export)save_export->failed(error.what());fail(error.what());return;}
+    if(snapshot_host()) return;
     try {
+        if(ordered_snapshot){std::string error;if(!ordered_fresh(error))throw std::runtime_error(error);}
         if(sender!=1||length<40||!receiving) throw std::runtime_error("unexpected snapshot chunk");
         std::string id(reinterpret_cast<const char*>(data),36); uint32_t index; memcpy(&index,data+36,4);
         if(id!=incoming_id) throw std::runtime_error("snapshot chunk identity differs");
@@ -334,7 +376,8 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);
         json verified={{"type","snapshot_verified"},{"id",id},{"sha256",incoming_hash}};
         if(!incoming_monsters.is_null())verified["monster_identity_sha256"]=incoming_monsters.at("sha256");
-        message(verified,1);
+        ordered_attach_ack(verified);message(verified,1);
+        if(ordered_snapshot){ordered_prepare_received(runtime);return;}
         incoming_load.begin(snapshot_now()); load_observation_sent=false;
 #ifndef MT2MP_SNAPSHOT_TEST
         incoming_origin_generation=0;
@@ -383,10 +426,11 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
 }
 void initialize_snapshot_sync() { session_wire::register_handler(4,receive_control); session_wire::register_handler(5,receive_chunk); }
 bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error,const std::string& world_name) {
-    if(!Config::instance().is_host||!valid_id(id)||outbound_active||!snapshot_world_path::valid_folder(world_name)) {
+    if(!snapshot_host()||!valid_id(id)||outbound_active||!snapshot_world_path::valid_folder(world_name)) {
         error="snapshot distribution requires idle host"; LOG_NET_ERROR("[SNAPSHOT] Distribution rejected: {}",error); return false;
     }
     try {
+        if(ordered_snapshot){std::string cause;if(!ordered_fresh(cause))throw std::runtime_error(cause);}
         host_failure_notice=nullptr;
         outbound_id=id; incoming_hash=digest; outbound_peers.clear(); outbound_expected_peers=0; outbound_queued_chunks=0;
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
@@ -395,26 +439,34 @@ bool distribute_snapshot(const std::string& id,const std::string& digest,const s
            (!peers&&session_wire::peer_mask()!=1)) throw std::runtime_error("snapshot distribution requires confirmed Host and0..3 physical peers");
         if(!outbound.begin(path,digest,error)) throw std::runtime_error(error);
         auto companion=path;companion+=".monsters.json";std::string companion_sha;uint64_t companion_bytes=0;
+        outbound_monsters=nullptr;
+        if(!ordered_snapshot||std::filesystem::exists(companion)){
         if(!hash_snapshot_file(companion,companion_sha,companion_bytes,error)||!companion_bytes||companion_bytes>32*1024*1024||
            !monster_outbound.begin(companion,companion_sha,error))throw std::runtime_error("Monster companion distribution rejected: "+error);
         outbound_monsters={{"revision",1},{"bytes",companion_bytes},{"chunks",monster_outbound.chunks()},{"sha256",companion_sha}};
+        }
         game::native::SoftwareState software;
-        if(!game::native::read_software_state(software,error)) throw std::runtime_error("host software state unavailable: "+error);
-        begin_software_sync(software_epoch(id),{software.rating,software.fun});
+        if(!ordered_snapshot){
+            if(!game::native::read_software_state(software,error)) throw std::runtime_error("host software state unavailable: "+error);
+            begin_software_sync(software_epoch(id),{software.rating,software.fun});
+        }
         snapshot_failed=false; discarded_after_failure=0; snapshot_failure.clear();
         outbound_id=id; incoming_hash=digest; outbound_expected_peers=peers; outbound_peers.clear(); outbound_active=true; outbound_progress=snapshot_now();
         json begin={{"type","snapshot_begin"},{"transport_revision",2},{"world_name",world_name},{"id",id},{"sha256",digest},{"bytes",outbound.size()},{"chunks",outbound.chunks()},
             {"software",{{"revision",1},{"rating",software.rating},{"fun",software.fun}}}};
-        begin["monster_identity"]=outbound_monsters;
+        if(!outbound_monsters.is_null())begin["monster_identity"]=outbound_monsters;
+        if(ordered_snapshot){begin.erase("software");ordered_host_manifest(begin,path);outbound_network.reset();}
+        else{
         outbound_network_receipt=network_receipt(); network_meta::Disposition disposition;
         if(!network_meta::attach_begin(begin,outbound_network_receipt,disposition,error)||!network_meta::parse_begin(begin,1,outbound_network,error)) throw std::runtime_error(error);
         if(disposition==network_meta::Disposition::LegacyFileOnly) LOG_NET_WARN("[SNAPSHOT] Native network writes disabled: host map unavailable id={}",id);
+        }
         if(peers)message(begin);
         else{
-            if(!outbound.release_unsent(error)||!monster_outbound.release_unsent(error))throw std::runtime_error("Host-only validated snapshot source release failed: "+error);
+            if(!outbound.release_unsent(error)||(!outbound_monsters.is_null()&&!monster_outbound.release_unsent(error)))throw std::runtime_error("Host-only validated snapshot source release failed: "+error);
             outbound_active=false;
         }
-        snapshot_world_valid=true;
+        snapshot_world_valid=!ordered_snapshot;
         status=peers?"Host-Snapshot wird übertragen":"Host world ready"; return true;
     } catch(const std::exception& failure) { error=failure.what(); fail(error); LOG_NET_ERROR("[SNAPSHOT] Distribution rejected: {}",error); return false; }
 }
@@ -433,6 +485,8 @@ static void observe_native_load(clock::time_point now) {
 }
 void tick_snapshot_sync() {
     try {
+        if(save_export)save_export->tick();
+        if(ordered_snapshot){std::string error;if(!ordered_fresh(error))throw std::runtime_error(error);}
         if((receiving||load_pending||outbound_active)&&!session_wire::connected()) throw std::runtime_error("snapshot transport ended: "+session_wire::failure_reason());
         uint32_t acknowledged=outbound_next();
         for(const auto& [peer,state]:outbound_peers) acknowledged=std::min(acknowledged,state.next);
@@ -445,7 +499,7 @@ void tick_snapshot_sync() {
             ++outbound_queued_chunks;
         }
         if(outbound_active&&(outbound.active()||monster_outbound.active())&&acknowledged==outbound_chunks()) {
-            std::string error; if(!outbound.finish(error)||!monster_outbound.finish(error)) throw std::runtime_error(error);
+            std::string error; if(!outbound.finish(error)||(!outbound_monsters.is_null()&&!monster_outbound.finish(error))) throw std::runtime_error(error);
             LOG_NET_INFO("[SNAPSHOT] Transfer byte-acknowledged id={} bytes={} chunks={}",outbound_id,outbound.size(),outbound_chunks());
         }
         if(outbound_active&&outbound_peers.size()==outbound_expected_peers) {
@@ -505,13 +559,17 @@ void tick_snapshot_sync() {
     } catch(const std::exception& error) { fail(error.what()); }
 }
 std::string snapshot_sync_status() { return status; }
-std::string current_snapshot_id() { return Config::instance().is_host?outbound_id:last_loaded; }
+std::string current_snapshot_id() { return snapshot_host()?outbound_id:last_loaded; }
 uint64_t current_world_epoch() {
     if(snapshot_failed||!snapshot_world_valid) return 0;
-    if(Config::instance().is_host) return valid_id(outbound_id)?software_epoch(outbound_id):0;
+    if(ordered_snapshot){OrderedSnapshotIdentity proof;std::string error;
+        return ordered_load_acknowledged&&read_ordered_snapshot(proof,error)&&proof.loaded?software_epoch(proof.snapshot_uuid):0;
+    }
+    if(snapshot_host()) return valid_id(outbound_id)?software_epoch(outbound_id):0;
     return !receiving&&!load_pending&&!last_loaded.empty()?incoming_epoch:0;
 }
 void invalidate_snapshot_world(const std::string& reason) {
+    if(ordered_snapshot&&ordered_failure.empty())ordered_failure="Ordered preload invalidated: "+reason;
 #ifndef MT2MP_SNAPSHOT_TEST
     game::tutorial_replication::invalidate(reason);
 #endif
@@ -530,7 +588,7 @@ static json load_watch_json(const SnapshotLoadWatch& watch,clock::time_point now
         {"requested_mode",watch.requested_mode},{"registrations",watch.registrations},{"progress_events",watch.progress_events}};
 }
 nlohmann::json snapshot_progress() {
-    const bool host=Config::instance().is_host;
+    const bool host=snapshot_host();
     const auto native_total=host?outbound.size():buffer.size();
     const auto& companion=host?outbound_monsters:incoming_monsters;
     const auto companion_total=companion.is_null()?0:companion.at("bytes").get<uint64_t>();
@@ -544,12 +602,16 @@ nlohmann::json snapshot_progress() {
     for(const auto& [peer,state]:outbound_peers) {
         acknowledged=std::min(acknowledged,state.next); verified+=state.verified; loaded+=state.loaded;
         auto observation=load_watch_json(state.load,now); observation["peer"]=peer; observation["verified"]=state.verified; observation["loaded"]=state.loaded;
-        observation["network_verified"]=state.network_verified; observation["network_error"]=state.network_error;
+        observation["network_verified"]=state.network_verified;observation["ordered_load_verified"]=state.ordered_loaded; observation["network_error"]=state.network_error;
         peer_loads.push_back(std::move(observation));
     }
     if(outbound_peers.size()!=outbound_expected_peers||!outbound_expected_peers) acknowledged=0;
     std::string phase="idle";
     if(snapshot_failed) phase="failed";
+    else if(ordered_snapshot&&ordered_snapshot->file_verified){
+        const bool peers_done=!host||loaded==outbound_expected_peers;
+        phase=ordered_load_acknowledged&&peers_done&&ordered_bootstrap_ready?"active":ordered_load_acknowledged?"ordered_bootstrap":ordered_load_requested?"awaiting_load":ordered_snapshot->native_prepared?"ordered_preload":"ordered_host_fresh_load_required";
+    }
     else if(host&&!outbound_id.empty()) {
         if(!outbound_expected_peers&&!outbound_active&&snapshot_world_valid) phase="active";
         else if(outbound_active&&outbound_peers.size()!=outbound_expected_peers) phase="awaiting_receivers";
@@ -564,7 +626,8 @@ nlohmann::json snapshot_progress() {
     }
     return {{"direction",host?"send":"receive"},{"id",host?outbound_id:incoming_id},{"phase",phase},{"state",status},
         {"bytes_total",total},{"chunks_total",chunks},{"bytes_queued",host?byte_offset(outbound_queued_chunks):0},
-        {"chunks_queued",host?outbound_queued_chunks:0},{"bytes_written",host?0:buffer.written_bytes()+(companion.is_null()?0:monster_buffer.written_bytes())},{"chunks_received",host?0:buffer.received_count()+(companion.is_null()?0:monster_buffer.received_count())},
+        {"initial_covered_witness",{{"attempted",ordered_covered_attempted},{"hashes",ordered_covered_hashes},{"ready_sha256",ordered_covered_ready_hash},{"evidence_path",ordered_covered_evidence_path},{"complete_world_state",false}}},
+        {"last_ordered_retirement",ordered_last_retirement},{"chunks_queued",host?outbound_queued_chunks:0},{"bytes_written",host?0:buffer.written_bytes()+(companion.is_null()?0:monster_buffer.written_bytes())},{"chunks_received",host?0:buffer.received_count()+(companion.is_null()?0:monster_buffer.received_count())},
         {"acknowledged_min",host?acknowledged:0},{"bytes_acknowledged_min",host?byte_offset(acknowledged):0},
         {"peers_expected",host?outbound_expected_peers:0},{"peers_ready",host?outbound_peers.size():0},{"peers_verified",host?verified:0},{"peers_loaded",host?loaded:0},
         {"data_idle_timeout_seconds",snapshot_data_idle_timeout_seconds},{"native_load_timeout_seconds",snapshot_native_load_timeout_seconds},

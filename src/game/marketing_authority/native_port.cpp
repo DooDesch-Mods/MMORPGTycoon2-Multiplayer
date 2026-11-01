@@ -1,3 +1,4 @@
+#include "mt2mp/hooks/original_body.h"
 #include "native_port.h"
 #include "notice_runtime.h"
 #include "notice_hook.h"
@@ -107,7 +108,8 @@ bool unchanged(Work& w,Pin& p,bool held,std::string& e){
     return same_guards(w.before,p,held?"held":"closed",true,e);
 }
 bool pins(uintptr_t image,std::string& e){
-    for(const auto& pin:native_pins){if(pin.rva==0x518290){if(!notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),e))return false;if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"body SHA differs RVA="+std::to_string(pin.rva));}
+    for(const auto& pin:native_pins){if(pin.rva==0x518290){if(!notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),e))return false;if(pin.rva==0x259b70){if(!hooks::framework::verify_original_hash(image+pin.rva,bytes.data(),bytes.size(),pin.sha,e))return fail(e,"body SHA differs RVA="+std::to_string(pin.rva)+" original="+e);}
+        else if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"body SHA differs RVA="+std::to_string(pin.rva));}
     for(const auto& row:{std::array<uintptr_t,2>{0x13cfe20,0x98},{0x13cfde0,0x9c}}){uintptr_t offset=0;if(!at(image+row[0],0x38,offset,e)||offset!=row[1])return fail(e,"buzz native descriptor offset differs");}
     for(const auto& pair:{std::pair<uintptr_t,uintptr_t>{0x1749880+0x70,0xceabb0},{0x1749880+0x80,0xb63070},{0x16e3d50+0x70,0xc7cf80},{0x16e3d50+0x80,0x5199e0}}){uintptr_t target=0;if(!at(image,pair.first,target,e)||target!=image+pair.second)return fail(e,"typed Load/Resolve slot differs");}
     return true;

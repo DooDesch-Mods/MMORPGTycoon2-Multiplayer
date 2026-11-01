@@ -60,6 +60,14 @@ int main(){try{
     put<uint8_t>(Fixture::ptr(f.window),0x377,1);require(!f.pin(error),"locked message accepted");put<uint8_t>(Fixture::ptr(f.window),0x377,0);
     current_world.world_epoch=9;require(!f.pin(error),"foreign world origin accepted");current_world.world_epoch=1;
     require(f.pin(error),"restored original owner was not accepted");
+    for(const auto& item:std::array<std::pair<int32_t,const char*>,5>{{{43,"postzone"},{48,"terrain"},{53,"respawn_02"},{66,"inn_2"},{79,"monsters"}}}){
+        f.select(item.first);put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>(item.second));put<uint64_t>(Fixture::ptr(f.step),0x28,std::strlen(item.second));
+        require(f.pin(error),"authored Initial fixed Initial popup rejected");
+        put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>("foreign"));put<uint64_t>(Fixture::ptr(f.step),0x28,7);
+        require(!f.pin(error),"fixed Initial popup accepted a foreign message");
+        put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>(item.second));put<uint64_t>(Fixture::ptr(f.step),0x28,std::strlen(item.second));
+        f.steps[size_t(item.first)]=0;require(!f.pin(error),"fixed Initial popup accepted another indexed owner");
+    }
     f.request.leveltwo=true;
     constexpr std::array<int32_t,7> indices={2,4,6,9,11,13,14};
     constexpr std::array<const char*,7> messages={"welcome","customise","trainers","new_region","mountain_pass","doitagain","readytogo"};

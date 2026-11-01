@@ -3,7 +3,7 @@
 #include <string>
 
 namespace mt2mp::game::tutorial_startingpoint_fixture {
-inline bool controller_admission(const nlohmann::json& state,std::string& error) {
+inline bool controller_admission(const nlohmann::json& state,std::string& error,bool ordered=false) {
     const auto reject=[&](const std::string& cause){error=cause;return false;};
     if(!state.contains("initialized")||!state.at("initialized").is_boolean())
         return reject("startingpoint fixture Controller initialization receipt absent");
@@ -30,8 +30,8 @@ inline bool controller_admission(const nlohmann::json& state,std::string& error)
         return reject("startingpoint fixture live authority cause receipt absent");
     if(!live.at("cause").get<std::string>().empty())
         return reject("startingpoint fixture live authority failed: "+live.at("cause").get<std::string>());
-    if(!live.at("active").get<bool>()||live.at("locked").get<bool>()||live.at("unknown").get<bool>())
-        return reject("startingpoint fixture requires active known live authority");
+    if(live.at("active").get<bool>()==ordered||live.at("locked").get<bool>()||live.at("unknown").get<bool>())
+        return reject(ordered?"startingpoint ordered fixture requires inactive known live authority":"startingpoint fixture requires active known live authority");
     error.clear();return true;
 }
 }

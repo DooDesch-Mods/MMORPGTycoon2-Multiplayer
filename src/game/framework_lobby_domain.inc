@@ -263,6 +263,36 @@ bool admit_local(bool host){
     local_admitted=true;Config::instance().is_host=peer==1;host_world_pick_requested=host&&selected_world.empty()&&!current_host_world;++generation;cause.clear();ui_status="Local lobby open";return true;
 }
 
+bool adopt_local_shared_world(bool ingame_active,const nlohmann::json& preparation,const nlohmann::json& shared,std::string& error){
+    // A fresh launcher Client can receive the current Host world before reaching
+    // the Title Join button. Admit that verified world through the normal local
+    // path; an explicit Leave or failed admission must never be undone here.
+    if(!Config::instance().local_test||Config::instance().is_host||local_admitted||!ingame_active||pending||
+       last_leave_confirmed||!cause.empty()||preparation.value("state",0)!=0||preparation.value("leaving",false)||
+       !preparation.value("error",std::string{}).empty()||shared.value("phase",std::string{})!="active"||
+       !shared.value("world_authority_valid",false)||!shared.value("first_failure",std::string{}).empty())return true;
+    const auto peer=net::session_wire::local_peer(),session=net::session_wire::session_id();
+    const auto mask=net::session_wire::peer_mask();
+    const auto snapshot=shared.value("id",std::string{});
+    if(!net::session_wire::connected()||peer<2||peer>4||!session||!(mask&1)||!(mask&(1u<<(peer-1)))||
+       snapshot.empty()||snapshot!=net::current_snapshot_id()||net::local_host_left(snapshot))return true;
+    const auto origin=building_mixed_identity::opened_file::status();
+    building_mixed_identity::opened_file::CurrentWorld world;
+    if(!origin.origin_confirmed||!origin.completed_origin||!origin.current_origin_available||
+       origin.uuid!=snapshot||!origin.generation||!origin.origin_world_epoch){
+        error="Local Client automatic admission requires its current confirmed snapshot origin";return fail(error);
+    }
+    if(!building_mixed_identity::opened_file::read_completed_world(origin.generation,world,error))return fail(error);
+    if(world.uuid!=snapshot||world.generation!=origin.generation||world.world_epoch!=origin.origin_world_epoch||
+       net::session_wire::session_id()!=session||net::session_wire::local_peer()!=peer||
+       net::session_wire::peer_mask()!=mask||!net::session_wire::connected()){
+        error="Local Client automatic admission origin or physical membership changed during confirmation";return fail(error);
+    }
+    if(!admit_local(false)){error=cause;return false;}
+    LOG_INFO("[NativeLobby] Fresh local Client admitted from verified shared snapshot={} session={}",snapshot,session);
+    return true;
+}
+
 void update_avatars(){
     if(!admitted()){
         framework_avatar_paths.fill({});
@@ -519,7 +549,7 @@ void dispatch_action(void* mode,std::string cmd) {
         if(ui_mode!=2||pending||admitted()){fail("lobby row Join requires idle Title and no pending admission or active lobby");return;}
         if(list_pending||index>=discovered.size()){fail("native selected lobby is not in completed current discovery");return;}
         const auto& row=discovered[index];
-        if(row.state!="open"||row.player_count<1||row.max_players<=row.player_count){fail("native selected lobby is not open or has no free slot");return;}
+        if(!joinable_lobby_state(row.state)||row.player_count<1||row.max_players<=row.player_count){fail("native selected lobby is not ready to join or has no free slot");return;}
         selected_lobby=row.lobby_id;
         if(!label("lobby_id",std::to_string(selected_lobby))||view_show(true,false)||view_show(false,true)){fail("native selected lobby field/visibility failed");return;}
         // Continue through the same callback-confirmed admission path as manual Join.

@@ -74,6 +74,10 @@ void original_scenario_start(void*,void*,void*){++scenario_starts;fixture_presen
 namespace intro_native {void start(void*,void*,void*){throw std::runtime_error("unexpected Intro in fixed Tutorial fixture");}}
 #include "lifecycle_start.inc"
 }
+namespace ordered_message_native {
+bool consumed=false;unsigned calls=0;
+bool frame(void*,float){++calls;return consumed;}
+}
 #include "lifecycle_update.inc"
 DWORD advance_call(uintptr_t p){if(advance_code)return advance_code;original_advance(reinterpret_cast<void*>(p));return 0;}
 bool interval(const NativeCursor&,const Cursor&,const std::optional<startingpoint::Row>&,std::string&){return true;}
@@ -125,7 +129,7 @@ void reset(const std::string& id="leveltwo_tutorial",int32_t next=0){
     memory_bytes.clear();memory_strings.clear();fault.clear();load={true,{},{}};scoped_sequence=0;return_address=image+0x4f61fe;thread_id=7;
     origin_ok=type_ok=append_ok=remove_ok=version_ok=true;owner_change=false;fixture_present=false;first_fence_seen=false;
     advances=starts=completes=version_sets=0;start_code=advance_code=complete_code=version_code=0;limit=id=="initial_tutorial"?107:17;
-    updates=terminals=scenario_starts=0;
+    updates=terminals=scenario_starts=0;ordered_message_native::consumed=false;ordered_message_native::calls=0;
     physical_state={};desired_state={};preflight_observed={};state_reads=fail_read=research_calls=0;
     code_ok=research_ok=prepare_ok=display_ok=research_effect_ok=true;display_fail_install=false;
     current_version={0,0,0};instances.clear();completed_ids=0;lifecycle_native::cache.reset();lifecycle_native::creation=nullptr;
@@ -137,6 +141,8 @@ void reset(const std::string& id="leveltwo_tutorial",int32_t next=0){
 }
 State target(const std::string& id="leveltwo_tutorial",bool terminal=false){State s;Cursor c{id,"",id=="initial_tutorial"?107:17,terminal?(id=="initial_tutorial"?107:17):1,terminal,{},{}};if(terminal){s.terminal.push_back(c);s.leveltwo_complete=id=="leveltwo_tutorial";s.initial_complete=!s.leveltwo_complete;s.lifecycle_order[lifecycle::slot(id)]={1,2};}else{s.active.push_back(c);s.lifecycle_order[lifecycle::slot(id)][0]=1;}return s;}
 void hooks(){using namespace lifecycle_native;
+    {reset();ordered_message_native::consumed=true;sequence_update(reinterpret_cast<void*>(fixture_sequence),1);need(ordered_message_native::calls==1&&!updates&&!terminals,"consumed ordered message repeated original Update");pass("ordered message ownership prevents duplicate native update");}
+
     {reset();Creation scope{{},{},{},1,3,0,"leveltwo_tutorial",false};creation=&scope;advance(reinterpret_cast<void*>(fixture_sequence));need(advances==1&&first_fence_seen&&scope.entered&&load.quarantined.contains(fixture_sequence),"constructor first_step Advance escaped early fence");creation=nullptr;pass("constructor is fenced before its first_step original Advance");}
     {reset();type_ok=false;Creation scope{{},{},{},1,3,0,"leveltwo_tutorial",false};creation=&scope;advance(reinterpret_cast<void*>(fixture_sequence));need(!advances&&load.quarantined.contains(fixture_sequence)&&!load.sequences.contains(fixture_sequence)&&fault=="original native type read failed","unconfirmed constructor type failure lost quarantine");creation=nullptr;pass("type failure retains quarantine without admitted fixture_sequence or effect");}
     {reset();memory_strings[first_step+0x40]="foreign";Creation scope{{},{},{},1,3,0,"leveltwo_tutorial",false};creation=&scope;advance(reinterpret_cast<void*>(fixture_sequence));need(!advances&&load.quarantined.contains(fixture_sequence)&&load.sequences.contains(fixture_sequence)&&!scope.entered&&!fault.empty(),"bad first_step Command was executed or lost fence");creation=nullptr;pass("wrong first_step Command remains fenced with visible original cause");}

@@ -30,6 +30,13 @@ def extract(root,output):
         'lifecycle_preflight.inc':part(native,'static bool preflight_local(', 'bool apply(const action_session::Context&'),
         'lifecycle_outer_apply.inc':part(native,'bool apply(const action_session::Context&','\n#include "startingpoint_commit_intent.inc"'),
     }
+    fixture=root/'src/game/tutorial_startingpoint_fixture'
+    for name,output_name in (('client_ui_fixture.inc','client_ui_body.inc'),('client_commit_state.inc','client_commit_state.inc')):
+        path=fixture/name;paths['fixture/'+name]=path
+        bodies[output_name]=path.read_text(encoding='utf-8-sig')
+    path=fixture/'startingpoint_fixture.cpp';paths['fixture/startingpoint_fixture.cpp']=path
+    bodies['clock_guard.inc']=part(path.read_text(encoding='utf-8-sig'),
+        '    const bool running_observation=', '\n    if(!native_open_runtime')
     output.mkdir(parents=True,exist_ok=True)
     for name,body in bodies.items():
         target=output/name;data=body.encode()

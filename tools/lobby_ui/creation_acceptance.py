@@ -66,6 +66,7 @@ def load_saved_fixture(host,client):
 
 try:
     runner.load_manifests()
+    if args.saved_world_setup:runner.enable_lobby_read_sessions()
     require(runner.summary['runtime_run_id']==args.expected_run_id,'Exact owned run differs')
     host,client=FrameworkUI(runner,'host'),FrameworkUI(runner,'client-1')
     for peer,ui in [('host',host),('client-1',client)]:
@@ -167,4 +168,10 @@ try:
 except Exception as error:
     runner.summary.update(passed=False,state='failed-no-replay',error={'step':runner.summary['step'],'cause':str(error)},finished_utc=utc())
     runner.persist();print(runner.summary_path);sys.exit(1)
+finally:
+    try:
+        runner.close_lobby_read_sessions()
+    except Exception as error:
+        runner.summary.update(passed=False,state='failed-session-cleanup',cleanup_error=str(error),finished_utc=utc())
+        runner.persist();print(runner.summary_path);sys.exit(1)
 print(runner.summary_path)

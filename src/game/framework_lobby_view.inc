@@ -96,9 +96,9 @@ bool framework_effectively_visible(const FrameworkWidget& widget){
     if(framework_report)return widget.group=="report";
     if(widget.group=="legacy"||widget.group=="report")return false;
     if(widget.group=="shell")return true;
-    if(widget.group=="party")return admitted()&&(!framework_browser||choosing);
+    if(widget.group=="party")return (framework_ordered_selected||admitted())&&(!framework_browser||choosing);
     if(framework_browser)return widget.group=="browser"||widget.group==(choosing?"picker":"find");
-    return widget.group==(admitted()?"session":"entry");
+    return widget.group==((framework_ordered_selected||admitted())?"session":"entry");
 }
 bool framework_reject_unattempted(const std::string& widget,uint64_t sequence,const std::string& detail,std::string& error){
     ++framework_rejected;

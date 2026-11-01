@@ -23,16 +23,25 @@ anchors=('bool open_native_new_world()', 'bool render_native_new_world(std::stri
 functions=[body(domain,anchor) for anchor in anchors]
 render=body(integration,'bool framework_render(std::string& error)')
 tick=body(integration,'bool tick(std::string& error)')
+rejoin_edge='if(!adopt_local_shared_world(ingame_active,preparation,shared,error))return false;'
+assert tick.count(rejoin_edge)==1, 'Current local snapshot admission must run once from Tick'
+assert tick.index('const bool ingame_active=')<tick.index(rejoin_edge)<tick.index('if(!title_active&&!ingame_active)'), 'Local admission must use the actual native mode before rendering'
+assert '!disable("join",!title_active||pending||admitted())' in tick, 'Title-only manual Join guard changed'
+assert 'if(ui_mode!=2||pending||admitted())' in domain, 'Manual admission must retain idle Title guard'
+prepare=(a.root/'src/game/prepare_flow.cpp').read_text(encoding='utf-8')
+assert '(!Config::instance().local_test||native_lobby::admitted())' in prepare, 'Runtime must retain local admission guard'
 calls=('render_native_new_world','observe_native_new_world')
 for name in calls:
     pattern=r'\b'+name+r'\s*\('
     assert len(re.findall(pattern,render))==1, name+' must run once from framework_render'
     assert not re.search(pattern,tick), name+' must not run from Tick'
 assert '"ui.new_world"' not in tick, 'Tick must not bypass the render handoff with a direct SDK call'
-edge='if(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,ui_mode==3,error))return false;'
+edge='if(!framework_ordered_selected&&(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,ui_mode==3,error)))return false;'
 assert render.count(edge)==1, 'Render handoff edge changed; update only the affected extraction'
 assert render.index(edge)<render.index('if(!framework_open&&!framework_observed_open)'), 'Passive observation must survive hidden Multiplayer panels'
 a.output.mkdir(parents=True,exist_ok=True)
+(a.output/'lobby_local_rejoin_bodies.inc').write_text('\n\n'.join(body(domain,anchor) for anchor in
+    ('bool admit_local(bool host)', 'bool adopt_local_shared_world('))+'\n',encoding='utf-8')
 view=(a.root/'src/game/framework_lobby_view.inc').read_text(encoding='utf-8')
 actions=(a.root/'src/game/framework_lobby_actions.inc').read_text(encoding='utf-8')
 input_functions=[body(view, anchor) for anchor in (

@@ -8,6 +8,23 @@
 #include "bug_authority/runtime.h"
 namespace mt2mp::game::live_host_state {
 namespace {bool fail(std::string& e,const std::string& cause){e=cause;return false;}
+bool same_release_publication(const std::optional<release_cycle::Publication>& a,
+                              const std::optional<release_cycle::Publication>& b){
+    if(!a||!b)return a==b;
+    if(a->cycle!=b->cycle||a->phase!=b->phase||a->graph!=b->graph||a->prepared!=b->prepared)return false;
+    // The global default RNG remains in every payload and exact replay proof.
+    // Its changes alone do not publish an otherwise unchanged idle Release.
+    return a->phase==release_cycle::Phase::Idle||a->random==b->random;
+}
+bool same_party_publication(const std::optional<party_frame::State>& a,
+                            const std::optional<party_frame::State>& b){
+    if(!a||!b)return a==b;
+    if(a->parties!=b->parties||a->pools!=b->pools||a->instances!=b->instances||a->lifecycle!=b->lifecycle)return false;
+    if(!a->scenes||!b->scenes)return a->scenes==b->scenes;
+    // Capture assigns a new operation UUID even when the complete mapping is
+    // unchanged. Birth and retirement identities remain in the compared rows.
+    return a->scenes->scenes==b->scenes->scenes&&a->scenes->members==b->scenes->members&&a->scenes->retired==b->scenes->retired;
+}
 // Only ordinary publication ignores the live Research scan stamp. Exact
 // Frame identity, retained receipts and action-before publication stay separate.
 bool same_tutorial_publication(const std::optional<tutorial_replication::State>& a,
@@ -210,7 +227,7 @@ bool Bridge::tick(uint64_t action,bool pending,std::string& e,std::chrono::stead
                captured_economy_->offers==last_economy_->offers&&
                captured_economy_->npcs==last_economy_->npcs&&
                captured_economy_->additions==last_economy_->additions))&&
-           last_->management==frame.management&&last_->monsters==frame.monsters&&last_->marketing==frame.marketing&&last_->vips==frame.vips&&last_->bugs==frame.bugs&&last_->developers==frame.developers&&same_tutorial_publication(last_->tutorial,frame.tutorial)&&last_->network==frame.network&&last_->values==frame.values&&last_->selected==frame.selected&&
+           same_release_publication(last_->release,frame.release)&&last_->control==frame.control&&same_party_publication(last_->party,frame.party)&&last_->management==frame.management&&last_->monsters==frame.monsters&&last_->marketing==frame.marketing&&last_->vips==frame.vips&&last_->bugs==frame.bugs&&last_->developers==frame.developers&&same_tutorial_publication(last_->tutorial,frame.tutorial)&&last_->network==frame.network&&last_->values==frame.values&&last_->selected==frame.selected&&
            last_->pause==frame.pause&&last_->base_action_revision==action&&last_->time_revision==frame.time_revision){
             paused_idle_equal_=last_->for_action.empty()&&(frame.selected==0||frame.pause==0);
             e.clear();return true;}

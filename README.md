@@ -12,14 +12,18 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 Shared edits can take several seconds or longer to finish. The game can occasionally crash during startup. This build adds modular building and includes experimental Dungeon, character-design and MMO-management tools. Some actions and combinations can still fail or desync.
 
-**Early Beta 23** reduces shared-world update overhead and fixes assigning developers and loading a new Host world twice. Low FPS, long pauses and desyncs can still occur. Both players need Beta 23; use MT2 Mod Framework Runtime 0.3.1. Close the game, update and enable the mod in Vortex, then deploy before starting through Steam.
+**Early Beta 24** introduces an ordered shared simulation and improves recovery after a Client restarts. Both players need Beta 24 and MT2 Mod Framework Runtime 0.5.0. Close the game, update and enable the mod in Vortex, then deploy before starting through Steam.
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
 <!-- roadmap:start -->
 ## What works in co-op?
 
-Play [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) with lower shared-world update overhead and fixes for developer assignment and duplicate Host world loading. Low FPS, long pauses and desyncs can still occur.
+Play [Early Beta 24](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.24) with the new ordered shared simulation. Low FPS, long pauses and desyncs can still occur.
+
+The table below records **Beta 23** coverage for its earlier synchronization system. It is not a Beta 24 compatibility list. Beta 24's new simulation has been tested locally with two players through rejoin, a recovered world and a subsequent Terrain paint action; broader gameplay coverage is still being established.
+
+The new simulation routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions. Source routing does not confirm every scenario in game. Groups, modular buildings, dungeons and management actions are not yet available. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
 
 <picture>
   <source media="(max-width: 600px)" srcset="https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/coverage-mobile.svg">
@@ -113,7 +117,7 @@ Each feature has its own status. Counts describe this list, not how close the wh
 | Move an Elite monster | Released - Early Beta 23 | Move an individual Elite monster while paused. |
 | Remove an Elite monster | Released - Early Beta 23 | Remove an individual Elite monster while paused. |
 | Edit a monster zone | Experimental - Early Beta 23 | Share zone shape, population settings and resets. |
-| Share moving monster state | Experimental - Early Beta 23 | Publish the Host's current moving actor state. This does not claim complete combat, respawn, Boss or visitor simulation. |
+| Share moving monster state | Experimental - Early Beta 23 | Beta 23 published the Host's current moving actor state. This did not establish complete combat, respawn, Boss or visitor simulation. |
 | Share the full running simulation | Planned | Cover interacting combat, quests, economy and lifecycle behavior together. |
 
 ### Quests
@@ -224,7 +228,7 @@ Each feature has its own status. Counts describe this list, not how close the wh
 
 ## Start playing
 
-You need Windows x64, the supported Steam build of MMORPG Tycoon 2, [MT2 Mod Framework Runtime 0.2.6](https://www.nexusmods.com/mmorpgtycoon2/mods/25) and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is optional.
+Early Beta 24 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.0 and [MMORPG Tycoon 2 Vortex Extension 0.1.2](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

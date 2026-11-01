@@ -11,7 +11,8 @@ void pass(const char* name){++tests;std::cout<<"PASS "<<name<<'\n';}
 struct Native {
     uint64_t now=10;bool read_failed=false,up_failed=false;
     std::vector<bool> posts;
-    Snapshot actual{origin,1,2,3,4,5,0,0,false,true,true};
+    Snapshot actual{.origin=origin,.epoch=1,.generation=2,.window=3,.hwnd=4,.window_id=5,
+        .keyboard_focus=true,.input_enabled=true};
     Services services(){return {this,[](void*){return uint32_t(7);},[](void* p){return static_cast<Native*>(p)->now;},
         [](void* p,Snapshot& out,std::string& error){auto& n=*static_cast<Native*>(p);if(n.read_failed){error="original native read failure";return false;}out=n.actual;return true;},
         [](void* p,const Snapshot& owner,bool down,std::string& error){auto& n=*static_cast<Native*>(p);require(owner.hwnd==4,"release retargeted");n.posts.push_back(down);if(!down&&n.up_failed){error="original Up failure";return false;}return true;}};}

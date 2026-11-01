@@ -20,11 +20,15 @@ struct StaffCalls {
     const action_session::Context& context;const action_session::Binding& binding;
     tutorial_development::StartingpointSnapshot before;live_host_state::Pin economy;
     int32_t available=0;std::string key="startingpoint";
+    const action_session::Request* request=nullptr;bool input=false;
     bool snapshot(tutorial_development::StartingpointSnapshot& value,live_host_state::Pin& pin,std::string& e){
-        StartActionCalls reader{context,binding};reader.key=key;return reader.snapshot(value,pin,e);
+        StartActionCalls reader{context,binding};reader.key=key;reader.request=request;reader.input=input;return reader.snapshot(value,pin,e);
     }
     bool admit(int32_t desired,std::string& e){
-        if((context.role==action_session::Role::Client)!=load.armed)return fail(e,"Startingpoint staff actual joined role differs");
+        bool ordered=false;if(!start_admission(context,binding,key,request,input,ordered,e))return false;
+        if(request&&(request->action!=action_session::Action::SetStartingpointWorkers||request->desired_workers!=desired))
+            return fail(e,"Startingpoint allocation requires exact consumed worker value");
+        if(!ordered&&(context.role==action_session::Role::Client)!=load.armed)return fail(e,"Startingpoint staff actual joined role differs");
         if(!staff_code(e)||!snapshot(before,economy,e))return false;
         if(!before.project||!before.row||!before.creation||!before.row->project_present||!before.row->purchased||before.row->deployed||before.row->custom)
             return fail(e,"Startingpoint staff requires actual current purchased project");
@@ -46,6 +50,9 @@ struct StaffCalls {
         row=*value.row;ledger=live_host_state::ledger(pin.values);return true;
     }
     bool allocate(int32_t desired,std::string& e){
+        if(input)return fail(e,"Startingpoint input reader cannot allocate workers");
+        if(request&&(request->action!=action_session::Action::SetStartingpointWorkers||request->desired_workers!=desired||
+            !action_session::tick_commands::authority::matches(context,binding,*request,e)))return fail(e,e.empty()?"Startingpoint consumed worker value changed":e);
         if(!staff_code(e))return false;
         const auto code=staff_allocate(before.lounge,desired);
         return !code||fail(e,"Startingpoint staff original AllocateTechWorkers exception="+std::to_string(code));
@@ -72,11 +79,11 @@ struct StaffCaptureCalls {
     void original(){original_allocate(receiver,desired);}
     bool pin(std::string& e){
         action_session::Context context;action_session::Binding binding;
-        if(!action_session::selected_session().current(context,e)||context.role!=action_session::Role::Client)
-            return fail(e,e.empty()?"Startingpoint staff intent requires joined Client":e);
-        if(!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
+        bool ordered=false;
+        if(!action_session::selected_session().current(context,e)||!typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&ordered))return false;
+        if(!ordered&&context.role!=action_session::Role::Client)return fail(e,"Startingpoint staff intent requires joined Client");
         if(!current_project_key(receiver,key,e))return false;
-        StaffCalls calls{context,binding};calls.key=key;
+        StaffCalls calls{context,binding};calls.key=key;calls.input=true;
         if(!calls.admit(desired,e)||calls.before.lounge!=reinterpret_cast<uintptr_t>(receiver))return fail(e,e.empty()?"Startingpoint staff UI receiver differs from current lounge":e);
         if(!start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry)||!staff_window(calls.before,desired,e))return false;
         startingpoint::Row row;action_session::Ledger ledger;
@@ -88,9 +95,10 @@ struct StaffCaptureCalls {
 void allocate_current(void* receiver,int32_t desired){
     bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25ec40,receiver,desired,project_handled);
     if(project_handled){if(project_allowed)original_allocate(receiver,desired);return;}
-    if(load.armed&&GetCurrentThreadId()!=mainthread){block("Client staff allocation thread differs");return;}
+    const bool ordered=typed_action_runtime::controller_status().value("ordered",false);
+    if((load.armed||ordered)&&GetCurrentThreadId()!=mainthread){block("Client staff allocation thread differs");return;}
     StaffCaptureCalls calls{receiver,desired};staff::Receipt receipt;
-    staff::capture(staff::capture_route(load.armed,GetCurrentThreadId()==mainthread,image,reinterpret_cast<uintptr_t>(_ReturnAddress())),desired,calls,receipt);
+    staff::capture(staff::capture_route(load.armed||ordered,GetCurrentThreadId()==mainthread,image,reinterpret_cast<uintptr_t>(_ReturnAddress())),desired,calls,receipt);
     if(receipt.suppressed){
         if(receipt.submitted)LOG_INFO("[Tutorial] Client Startingpoint staff submitted action={} desired={}",receipt.action_uuid,desired);
         else if(receipt.cause!=client_staff_receipt.cause)LOG_WARN("[Tutorial] Client Startingpoint staff not submitted cause={}",receipt.cause);

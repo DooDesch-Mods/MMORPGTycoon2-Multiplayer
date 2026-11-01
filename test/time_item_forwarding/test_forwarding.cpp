@@ -7,13 +7,16 @@ namespace mt2mp::game::time_integration {
 struct Adapter {shared_time::HookResult on_activate(void*,void*,uintptr_t){return {};}};
 Adapter& instance(){static Adapter value;return value;}
 }
+namespace mt2mp::game::typed_action_runtime {
+shared_time::HookResult capture_ordered_time(int,uintptr_t,uintptr_t,uintptr_t,bool& handled){handled=false;return {};}
+}
 namespace mt2mp::game::time_input_diagnostics {
 void leaf(uintptr_t,const shared_time::HookResult&,uint64_t){}
 }
 namespace {
 namespace game=mt2mp::game;
 namespace origin=game::item_activation_origin;
-HookFixture* forwarding_fixture=nullptr;
+HookFixture* forwarding_fixture=nullptr;int hud_time_reader=0;
 uintptr_t native_image_begin=image,native_image_end=image+0x2000000,physical_return=image+0x4000000;
 uintptr_t time_last_caller_rva=0;
 uint64_t time_activate_attempted=0,time_activate_matched=0,time_activate_suppressed=0,time_activate_original=0,completed_game_updates=0;

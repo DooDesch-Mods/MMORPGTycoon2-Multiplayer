@@ -44,8 +44,11 @@ void run(bool baseline_only){
     const WorldState world{{reinterpret_cast<void*>(base)},base+0x1c0};
     const auto reset=[&](){
         std::memset(owned.allocation,0,32768);
+        put(base,0,image+0x1742860);put(world.root,0,image+0x174ad20);put(world.root,0x48,int32_t(0));
+        put(base,0x230,image+0x16f04e0);put(base,0x238,base+2048);
+        put(base,0x240,int32_t(count));put(base,0x244,int32_t(count));
         put(base,0x358,array);put(base,0x360,int32_t(count));put(base,0x364,int32_t(count));
-        for(size_t i=0;i<count;++i){const auto region=first+i*128;put(array,i*8,region);put(region,0,image+0x1787930);put(region,0x70,world.root);}
+        for(size_t i=0;i<count;++i){const auto region=first+i*128;put(array,i*8,region);put(base+2048,i*8,region);put(region,0,image+0x1787930);put(region,0x70,world.root);put(region,0x834,int32_t(i));}
     };
     const auto memory=[&](Fault fault=Fault::None){CountingMemory value;value.map=base;value.first=first;value.slots=array;value.fault=fault;return value;};
     reset();std::string e;auto before=queries();auto baseline=memory();
@@ -79,6 +82,11 @@ void run(bool baseline_only){
     need(!scoped(changed,world,image,first,e)&&e.find("remove_reader_vtable expected_rva=")==0,"changed class field is read fresh between invocations");
     reset();auto missing=memory();e.clear();
     need(!scoped(missing,world,image,first+128*count,e)&&e=="remove_region_absent_root_map","membership guard is unchanged");
+    const auto sold=first+128*count;
+    put(sold,0,image+0x1787930);put(sold,0x70,world.root);put(sold,0x834,int32_t(count));
+    put(base+2048,count*8,sold);put(base,0x240,int32_t(count+1));put(base,0x244,int32_t(count+1));
+    auto saved_only=memory();e.clear();
+    need(scoped(saved_only,world,image,sold,e)&&!timing::page_read_scope,"saved unowned Region retains exact membership and closes its scope");
     reset();auto safe=memory();e.clear();need(scoped(safe,world,image,first,e),"prime completed census before mapping change");
     DWORD old=0,unused=0;
     need(timing::page_read_scope==nullptr,"no root metadata at caller native callback boundary");

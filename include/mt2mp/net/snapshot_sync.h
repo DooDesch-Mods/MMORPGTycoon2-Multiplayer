@@ -1,11 +1,17 @@
 #pragma once
 #include <cstdint>
+#include <array>
 #include <string>
 #include <filesystem>
 #include <chrono>
 #include <stdexcept>
 #include "vendor/nlohmann/json.hpp"
+struct MT2FW_MT2_StepServiceDraftV1;
+struct MT2FW_MT2_StepReceipt;
+namespace mt2mp::game::ordered_session {class ProofOwner;}
 namespace mt2mp::net {
+using OrderedClientEntry=bool(*)(std::string& error);
+void configure_ordered_client_entry(OrderedClientEntry);
 inline constexpr uint32_t snapshot_data_idle_timeout_seconds=60;
 inline constexpr uint32_t snapshot_native_load_timeout_seconds=900;
 inline constexpr uint32_t snapshot_native_capture_timeout_seconds=900;
@@ -43,6 +49,38 @@ struct SnapshotLoadWatch {
             " requested_mode="+std::to_string(requested_mode)+" registrations="+std::to_string(registrations);
     }
 };
+// Selection requires the explicit API or registered admitted-lobby entry; Config is not authority.
+struct OrderedSnapshotIdentity {
+    std::array<uint64_t,5> members{};
+    uint64_t lobby=0,session=0,local_peer=0;
+    uint8_t peer_mask=0;
+    uint32_t region_rng_mode=0;
+    std::string snapshot_uuid,sha256,world_name;
+    uint64_t bytes=0,seed=0,native_generation=0,world_epoch=0;
+    bool seed_present=false,file_verified=false,native_prepared=false,request_attempted=false,loaded=false;
+};
+bool select_ordered_snapshot(std::string&);
+bool ordered_snapshot_selected();
+bool retain_ordered_original_cohort(std::string&);
+// Only the exact selected native-save copy establishes first-import provenance.
+bool select_ordered_snapshot_source(const std::string& id,const std::string& sha,uint64_t bytes,uint32_t region_rng_mode,std::string&);
+// Root owns Step/provider unbind and retains both owners through BUSY.
+// Null proof is permitted only before either owner has been registered.
+bool retire_ordered_snapshot(const game::ordered_session::ProofOwner*,std::string&);
+bool prepare_ordered_host_snapshot(std::string&);
+// Read the live Framework v3 seed receipt before the one original request.
+bool request_ordered_snapshot_load(const MT2FW_MT2_StepServiceDraftV1&,uint64_t lease,std::string&);
+bool poll_ordered_snapshot_load(bool& pending,std::string&);
+using OrderedInitialWitness=bool(*)(std::array<uint8_t,32>&,nlohmann::json&,std::string&);
+bool acknowledge_ordered_bootstrap(const MT2FW_MT2_StepServiceDraftV1&,uint64_t lease,OrderedInitialWitness,bool& ready,std::string&);
+// Before a native request this reads the exact pinned file. Loaded=true requires
+// NativeOpen's completed local world proof; Host distribution alone cannot supply it.
+bool read_ordered_snapshot(OrderedSnapshotIdentity&,std::string&);
+// Recovery-local proof only. Normal Step and action readers keep read_ordered_snapshot.
+bool read_ordered_snapshot_local(OrderedSnapshotIdentity&,std::string&);
+// Read-only initial census admission. Reads the retained live service and exact
+// physical peer agreement; unavailable after activation or the first original Go.
+bool read_ordered_initial_bootstrap(OrderedSnapshotIdentity&,MT2FW_MT2_StepReceipt&,std::string&);
 void initialize_snapshot_sync();
 void tick_snapshot_sync();
 bool distribute_snapshot(const std::string& id,const std::string& digest,const std::filesystem::path& path,std::string& error,const std::string& world_name="MPTestSession");

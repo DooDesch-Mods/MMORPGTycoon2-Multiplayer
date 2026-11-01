@@ -19,7 +19,9 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     auto* r=runtime(e);uint64_t revision=0;
     if(!r||!path.ready){if(e.empty())e="Path history native runtime unavailable";return action::Outcome::RejectedNoEffect;}
     if(GetCurrentThreadId()!=r->thread){e="Path history Mainthread differs";return action::Outcome::RejectedNoEffect;}
-    if(bool(authority)==Config::instance().is_host){e="Path history authority/role differs";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return action::Outcome::RejectedNoEffect;
+    const bool ordered=action::tick_commands::authority::active();
+    if(!ordered&&bool(authority)==Config::instance().is_host){e="Path history authority/role differs";return action::Outcome::RejectedNoEffect;}
     if(!ui_move_runtime::contract::pending(typed_action_runtime::controller_status(),request,revision,e))return action::Outcome::RejectedNoEffect;
     if(history_operations.contains(request.action_uuid)){e="Path history already attempted; no replay";return action::Outcome::Unknown;}
     const auto found=path.operations.find(request.target_action_uuid);
@@ -27,6 +29,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
        request.canonical_record_key!="path:"+request.target_action_uuid||found==path.operations.end()){
         e="Path history original source/direction/key missing";return action::Outcome::RejectedNoEffect;}
     const auto& source=found->second;
+    if(source.ordered!=ordered){e="Path history execution mode differs from retained source";return action::Outcome::RejectedNoEffect;}
     if(source.binding!=binding||source.request.snapshot_uuid!=request.snapshot_uuid||!source.confirmed||!source.retired||
        !source.history_before||!source.history_after||!source.history_graph||
        (source.request.action!=action::Action::PlacePath&&source.request.action!=action::Action::RemovePath)){
@@ -61,6 +64,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     if(authority&&!native_error(terrain::seed(view.random,global,*authority),"Path history authority RNG seed",e))return unknown(e);
     const auto outcome=building_history_slice::perform(request.action,request.target_action_uuid,e);
     if(outcome!=action::Outcome::Confirmed){op.cause=e;return authority?unknown(e):outcome;}
+    json settlement;if(!terrain_settlement::run(*r,request.action_uuid,source.ordered,settlement,e))return unknown(e);
     const auto inverse=undo_direction?action::Action::RedoBuilding:action::Action::UndoBuilding;
     region::LocalView after;Graph result;uintptr_t after_global=0;
     if(!building_history_slice::graph_for(inverse,request.target_action_uuid,op.inverse_graph,e)||

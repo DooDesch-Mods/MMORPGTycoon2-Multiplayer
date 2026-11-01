@@ -12,7 +12,7 @@ namespace mt2mp::scenery_kiss {
 namespace host=native::host;
 namespace {
 constexpr const char* exe="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
-bool code(host::ProcessMemory& memory,uintptr_t image,std::string& e){
+bool code(native::Memory& memory,uintptr_t image,std::string& e){
     for(const auto& guard:catalog_guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(image+guard.rva,bytes.data(),bytes.size(),e))return false;
         if(std::memcmp(bytes.data(),guard.bytes,bytes.size())){e="scenery_catalog_code_differs RVA="+std::to_string(guard.rva);return false;}}
     return true;
@@ -58,13 +58,14 @@ struct ActualRoot final:Root {
         host::NativeOrigin origin;host::Reader reader(memory,origin,image,thread,api);host::WorldState world;prop_lease::Prop prop;
         uintptr_t object=0;const auto seh=find(api.find,uid,object);if(!require_registry(uid,object,seh,"ActualRoot.bind",e))return false;
         if(!reader.current(world,true,e))return false;
-        uintptr_t shard=0,region=0;
+        uintptr_t shard=0,region=0;int32_t saved_id=-1;
         {
             mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;
             if(!memory.copy(object+0x170,&shard,8,e)||!memory.copy(object+0x178,&region,8,e))return false;
+            if(shard==world.root&&!memory.copy(region+0x834,&saved_id,sizeof saved_id,e))return false;
         }
-        if(shard==world.root){int32_t saved_id=-1;
-            if(!memory.copy(region+0x834,&saved_id,sizeof saved_id,e)||!reader.saved_root_scenery(reinterpret_cast<void*>(object),uid,saved_id,region,prop,e))return false;
+        if(shard==world.root){
+            if(!reader.saved_root_scenery(reinterpret_cast<void*>(object),uid,saved_id,region,prop,e))return false;
         }else{
             if(!reader.prop(reinterpret_cast<void*>(object),uid,prop,e))return false;game::remove_diagnostics::scene_scenery::Row member;game::dungeon_scene_identity_runtime::World scene_world;
             if(!game::remove_diagnostics::scene_scenery::owner(object,uid,member,scene_world,e))return false;
@@ -75,13 +76,42 @@ struct ActualRoot final:Root {
     }
 };
 }
+thread_local CatalogCodeReadBatch* CatalogCodeReadBatch::current_=nullptr;
+CatalogCodeReadBatch::CatalogCodeReadBatch():previous_(current_),thread_(GetCurrentThreadId()),
+    revision_(mt2mp::game::live_host_state::apply_timing::original_call_revision){current_=this;}
+CatalogCodeReadBatch::~CatalogCodeReadBatch(){current_=previous_;}
+bool CatalogCodeReadBatch::context(uintptr_t image,std::string& e){
+    if(failed_||finished_||current_!=this||GetCurrentThreadId()!=thread_||
+        (image_&&image_!=image)||revision_==UINT64_MAX||
+        revision_!=mt2mp::game::live_host_state::apply_timing::original_call_revision){
+        failed_=true;e="scenery_catalog_code_batch_owner_or_original_boundary_changed";return false;
+    }
+    return true;
+}
+bool CatalogCodeReadBatch::verify(native::Memory& memory,uintptr_t image,std::string& e){
+    auto* batch=current_;
+    if(!batch)return code(memory,image,e);
+    if(!batch->context(image,e))return false;
+    if(batch->image_)return true;
+    mt2mp::game::live_host_state::apply_timing::PageReadScope fields;
+    if(!code(memory,image,e)){batch->failed_=true;return false;}
+    batch->image_=image;return true;
+}
+bool CatalogCodeReadBatch::finish(std::string& e){
+    if(!context(image_,e))return false;
+    finished_=true;
+    if(!image_)return true;
+    host::ProcessMemory memory;
+    mt2mp::game::live_host_state::apply_timing::PageReadScope fields;
+    return code(memory,image_,e);
+}
 bool NativeCatalog::identify(int32_t category,int32_t variant,std::string& directory_text,std::string& filename_text,std::string& e){
     directory_text.clear();filename_text.clear();if(GetCurrentThreadId()!=thread_||category<0||category>=47){e="scenery_catalog_actual_thread_or_category_invalid";return false;}
     uintptr_t actual_manager=0,after_manager=0,directory=0,filename=0;uint64_t roundtrip=0;
     {
         mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropCode);
         mt2mp::game::live_host_state::apply_timing::PageReadScope fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
-        if(!code(memory_,image_,e)||!manager(memory_,image_,actual_manager,e))return false;
+        if(!CatalogCodeReadBatch::verify(memory_,image_,e)||!manager(memory_,image_,actual_manager,e))return false;
     }
     const auto seh=([&]{mt2mp::game::character_catalogue_timing::Scope measured(mt2mp::game::character_catalogue_timing::Part::PropLookup);
         return lookup(image_,actual_manager,category,variant,directory,filename,roundtrip);}());

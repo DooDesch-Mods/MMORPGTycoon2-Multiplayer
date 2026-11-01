@@ -60,10 +60,8 @@ bool read_world_zones(const action_session::Binding& binding,const std::string& 
        !same_world_zone_origin(scene_world,world))
         return q::fail(error,error.empty()?"World Zone current roster requires its exact admitted snapshot/world binding":error);
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return q::at(memory,p,offset,value,cause);};
+    // The pinned FindUID leaf reads its table without writes or callbacks.
     auto find=[&](uint64_t uid,uintptr_t& value,std::string& cause){
-#ifdef _WIN32
-        mt2mp::game::live_host_state::apply_timing::PageReadScope original_lookup(mt2mp::game::live_host_state::apply_timing::PageBoundary::OriginalCall);
-#endif
         const auto exception=exact_uid(uid,value);
         return !exception||q::fail(cause,"World Zone current FindUID failed exception="+std::to_string(exception));};
     std::vector<world_zone_runtime::Current> next;std::set<std::string> keys;std::set<uintptr_t> managers,pointers;std::set<uint64_t> uids;

@@ -2,6 +2,8 @@ namespace {
 std::string move_ui_token;
 }
 bool move_ui_captured(const move_kiss::Intent& intent,const std::string& id,std::string& e){
+    a::Binding binding;if(!capture_binding(intent.origin.snapshot_uuid,binding,e)||
+       !capture_context(intent.origin.snapshot_uuid,binding,move_context,e))return false;
     if(move_ui_token.empty())return true;
     auto job=state.ui_jobs.find(move_ui_token);
     if(job==state.ui_jobs.end()||job->second.value("operation",std::string{})!="move"||
@@ -14,6 +16,7 @@ bool move_ui_captured(const move_kiss::Intent& intent,const std::string& id,std:
     return true;
 }
 void move_ui_submitted(const std::string& id){
+    move_context.reset();
     if(move_ui_token.empty())return;
     auto job=state.ui_jobs.find(move_ui_token);
     if(job==state.ui_jobs.end()||job->second.value("action_uuid",std::string{})!=id){move_ui_failed("Monster Move UI action differs after Controller submit");return;}

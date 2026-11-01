@@ -1,4 +1,8 @@
 #pragma once
+#include <native_step_recovery_draft.h>
+#include "ordered_time_input.h"
+#include "native_steps_draft.h"
+#include "typed_action/original_go_scope.h"
 #include "typed_action/general_project_action.h"
 #include "typed_action/release_edit_action.h"
 #include "typed_action/release_cycle_action.h"
@@ -9,8 +13,9 @@
 #include <string>
 #include <vector>
 #include <cstdint>
+namespace mt2mp::action_session::tick_commands {struct Config;}
 namespace mt2mp::action_session::ui_capture {struct Replay;}
-namespace mt2mp::action_session {struct SceneryStrokeIntent;}
+namespace mt2mp::action_session {struct SceneryStrokeIntent;struct TutorialIntent;}
 namespace mt2mp::action_session {struct DistrictStrokeIntent;struct ZoneEditIntent;}
 namespace mt2mp::action_session {struct DungeonInputIntent;}
 namespace mt2mp::action_session {struct GroupObjectIntent;struct BossPlacementIntent;struct WorldPathIntent;}
@@ -20,6 +25,54 @@ namespace mt2mp::game::developer_staff::construction {struct LocalJob;}
 namespace mt2mp::game::district_property {struct Value;}
 namespace mt2mp::game::typed_action_runtime {
 bool start(std::string&);
+// Bind before the selected load advances. The actual Framework service validates
+// the current provider token and immutable session; this API creates neither.
+// The real proof owner must retain callback/user storage until unbind succeeds,
+// including any BUSY return. The callback is read-only and cannot retire itself.
+bool bind_ordered_steps(const MT2FW_MT2_StepServiceDraftV1&,const action_session::Context&,
+    uint64_t session_provider_token,MT2FW_MT2_StepProofFn,void* proof_user,
+    std::function<bool(std::string&)>,std::string&);
+// Activation carries the real local bootstrap witness, after peer agreement.
+bool prepare_initial_witness(std::array<uint8_t,32>&,nlohmann::json&,std::string&);
+bool start_ordered(const action_session::tick_commands::Config&,const shared_time::Config&,
+    const MT2FW_MT2_StepActivation&,std::string&);
+bool ordered_mode_selected();
+bool read_recovery_snapshot(const MT2FW_MT2_RecoveryReceipt&,const std::function<bool(std::string&)>&,std::string&);
+bool recovery_witness(const MT2FW_MT2_RecoveryReceipt&,std::array<uint8_t,32>&,std::string&);
+bool recovery_idle(const MT2FW_MT2_RecoveryReceipt&,std::string&);
+bool recovery_retirement_ready(const MT2FW_MT2_RecoveryReceipt&,std::string&);
+bool ordered_quit_pending();
+bool ordered_quit_ready();
+bool prepare_ordered_quit(bool legacy,bool reload,std::string& error);
+bool request_ordered_leave_hold(std::string& error);
+bool hold_ordered_snapshot_for_reload(const std::string& token,std::string& error);
+bool ordered_snapshot_reload_held(const std::string& token,std::string& error);
+bool ordered_leave_ready(bool& ready,std::string&);
+bool unbind_ordered_steps(std::string&);
+struct OrderedRetirementState {bool present=false;action_session::Context context;std::string failure;};
+bool read_ordered_retirement(OrderedRetirementState&,std::string&);
+bool ordered_save_owner(uint64_t lease,uint64_t session,uint64_t world,std::string&);
+bool publish_ordered_save_cache(const std::string& nonce,std::string&);
+bool read_ordered_steps(MT2FW_MT2_StepReceipt&,std::string&);
+std::string ordered_step_failure();
+nlohmann::json ordered_execution_status();
+bool request_ordered_snapshot(const std::string& id,std::function<bool(std::string&)> capture,std::string& error,bool managed=false,bool asynchronous=false);
+nlohmann::json ordered_native_save_status();
+bool confirm_ordered_snapshot_file(const std::string&,std::string&);
+void fail_ordered_snapshot(const std::string&);
+nlohmann::json ordered_snapshot_status();
+bool ordered_snapshot_active();
+bool ordered_admission_ready();
+action_session::Outcome run_original_go(const action_session::tick_commands::OriginalGoBoundary&,
+    const action_session::tick_commands::OriginalGoScope::Read&,
+    const action_session::tick_commands::OriginalGoScope::Next&,std::string&);
+bool original_go_admission(bool& admitted,std::string&);
+shared_time::HookResult capture_ordered_time(hud_time::Reader&,uintptr_t type,uintptr_t item,uintptr_t caller,bool& handled);
+bool ordered_time_update(bool& handled,std::string&);
+bool read_ordered_time_input(ordered_time_input::Current&,uint64_t& sequence,uint64_t& revision,bool& captured,std::string&);
+bool submit_ordered_time(const action_session::Context&,const action_session::Binding&,time_session::Intent,std::string&);
+void tick_ordered_time_input();
+bool tick_ordered_ui_capture(std::string&,bool held_service=false);
 bool read_subscriber_weapon(int32_t serialized_id,nlohmann::json& out,std::string& error);
 void tick();
 void tick_after_transport();
@@ -48,6 +101,8 @@ bool submit_game_rules(const std::string&,const action_session::GameRulesIntent&
 bool submit_gm_policy(const std::string&,const action_session::GmPolicyIntent&,std::string&);
 bool submit_release_cycle(const std::string&,const action_session::ReleaseCycleIntent&,std::string&);
 bool submit_release_edit(const std::string&,const action_session::ReleaseEditIntent&,std::string&);
+bool read_ordered_tutorial_capture(action_session::Context&,action_session::Binding&,bool& ready,std::string&);
+bool submit_tutorial(const std::string&,const action_session::TutorialIntent&,bool& attempted,std::string&);
 bool submit_general_project(const std::string&,const action_session::GeneralProjectIntent&,std::string&);
 bool submit_logo(const std::string&,const action_session::LogoIntent&,std::string&);
 bool submit_network_remove(const std::string&,const std::string&,const action_session::NetworkRemoveIntent&,std::string&);
@@ -101,6 +156,7 @@ bool bug_context(action_session::Context&,action_session::Binding&,uint64_t& pub
 bool read_binding(const std::string& snapshot,action_session::Binding&,std::string&);
 // New native UI intents require the idle admission gate.
 bool network_binding(const std::string& snapshot,action_session::Binding&,std::string&);
+bool network_binding_with_mode(const std::string& snapshot,action_session::Binding&,std::string&,bool* ordered);
 bool construction_jobs(const action_session::Context&,const action_session::Binding&,
     std::vector<developer_staff::construction::LocalJob>&,std::string&);
 bool request_place(const nlohmann::json&,nlohmann::json&,std::string&);
@@ -112,6 +168,8 @@ bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& m
 bool submit_dungeon_building(const std::string& id,action_session::Action,const std::string& key,
     const std::string& scene,const action_session::BuildingState&,const std::string& target_action,std::string& error);
 nlohmann::json status();
+// Periodic diagnostics may report the labeled committed frame; explicit inspection stays fresh.
+nlohmann::json status(bool inspect_native_economy);
 bool authorize_ui_replay(const action_session::ui_capture::Replay&,std::string&);
 }
 
@@ -119,5 +177,6 @@ namespace mt2mp::game::typed_action_runtime { bool begin_lobby_leave(std::string
 
 namespace mt2mp::game::typed_action_runtime {
 bool begin_world_reload(std::string& error);
+bool begin_recovery_reload(const MT2FW_MT2_RecoveryReceipt&,std::string& error);
 bool finish_world_reload(bool& ready,std::string& error);
 }

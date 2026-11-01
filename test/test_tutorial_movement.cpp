@@ -14,7 +14,8 @@ void pass(const char* label){++count;std::cout<<"PASS "<<label<<'\n';}
 struct Native {
     uint32_t thread=7;uint64_t now=10;bool read_failure=false,empty_read_failure=false,read_throw=false,down_failure=false,up_failure=false,unknown_down=false;
     std::vector<bool> posted;
-    Snapshot actual{origin,1,2,3,4,5,0,0,false,true,true};
+    Snapshot actual{.origin=origin,.epoch=1,.generation=2,.window=3,.hwnd=4,.window_id=5,
+        .keyboard_focus=true,.input_enabled=true};
     Services services(){return {this,[](void* p){return static_cast<Native*>(p)->thread;},[](void* p){return static_cast<Native*>(p)->now;},
         [](void* p,Snapshot& out,std::string& error){auto& n=*static_cast<Native*>(p);if(n.read_throw)throw std::runtime_error("original native read exception");if(n.empty_read_failure){error.clear();return false;}if(n.read_failure){error="original native read failed";return false;}out=n.actual;return true;},
         [](void* p,const Snapshot& owner,bool down,std::string& error){auto& n=*static_cast<Native*>(p);require(owner.hwnd==4,"release followed changed window");n.posted.push_back(down);

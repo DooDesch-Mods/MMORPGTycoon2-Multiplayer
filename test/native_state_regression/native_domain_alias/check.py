@@ -59,6 +59,18 @@ restored=restored.replace(actor_order['new'],actor_order['old'],1)
 (args.output/'actor_order_comparators.inc').write_text('inline constexpr auto previous_actor_less='+actor_order['old']+';\ninline constexpr auto actual_actor_less='+actor_order['new']+';\n',encoding='utf-8')
 assert hashlib.sha256(restored.encode()).hexdigest()=='c57f27a03719083f8aa271162bb6243fa1e375fcd655405bab6dbbe5a40faaaf', 'Actor-only census changed another roster, native read, failure or final publication guard'
 actor_runtime=(args.source/'src/game/intervention_actor_runtime.cpp').read_text(encoding='utf-8')
+# The empty adoption bracket owns its complete census pair. Remove only that
+# separately exercised adapter before checking the original domain-only delta.
+empty_witness=actor_runtime[actor_runtime.index('struct EmptyReadWitness {'):actor_runtime.index('bool read_bound(')]
+assert actor_runtime.count(empty_witness)==1
+actor_runtime=actor_runtime.replace(empty_witness,'',1)
+assert actor_runtime.count('std::string& error,EmptyRead* empty_pair){')==1
+actor_runtime=actor_runtime.replace('std::string& error,EmptyRead* empty_pair){','std::string& error){',1)
+assert actor_runtime.count('    if(empty_pair)empty_pair->reset();\n')==1
+actor_runtime=actor_runtime.replace('    if(empty_pair)empty_pair->reset();\n','',1)
+empty_begin=actor_runtime.index('    if(empty_pair&&before.actors.empty()){')
+empty_end=actor_runtime.index('    Census after;',empty_begin)
+actor_runtime=actor_runtime[:empty_begin]+actor_runtime[empty_end:]
 actor_code_scope='    live_host_state::apply_timing::PageReadScope code_pages(!live_host_state::apply_timing::PageReadScope::reader_active());\n'
 assert actor_runtime.count('bool code(uintptr_t image,std::string& error){\n'+actor_code_scope)==1, 'Actor code metadata scope escaped its exact pure pin body'
 actor_runtime=actor_runtime.replace(actor_code_scope,'',1)

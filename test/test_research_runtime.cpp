@@ -1,4 +1,8 @@
 #include "tutorial_replication/native.h"
+#include "typed_action/tick_authority.h"
+namespace mt2mp::action_session::tick_commands::authority {
+bool matches(const Binding&,const Request&,std::string& e){e="unexpected ordered receipt in legacy Research fixture";return false;}
+}
 #include "tutorial_replication/start_ledger.h"
 #include "tutorial_replication/staff_action.h"
 #include <iostream>
@@ -50,6 +54,7 @@ bool capture(const action::Context& c,const action::Binding& b,uint64_t revision
 }
 }
 namespace mt2mp::game::tutorial_replication {
+bool read_ordered_startingpoint_row(const action::Context&,const action::Binding&,const action::Request&,startingpoint::Row&,std::string&){throw std::runtime_error("Research fixture entered ordered Startingpoint observation");}
 bool read_startingpoint_row(const action::Context&,const action::Binding&,startingpoint::Row&,std::string& e){e="unexpected Startingpoint observation";return false;}
 bool read_research_row(const action::Context& c,const action::Binding& b,const std::string& key,research::Row& out,std::string& e){
     fixture::bound(c,b);fixture::need(key=="bridges","native row read selected wrong Tech");auto& s=fixture::state;++s.row_reads;s.events.push_back("row");

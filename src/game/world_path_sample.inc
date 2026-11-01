@@ -45,7 +45,7 @@ bool world_path_sample(region::Runtime& r,const std::string& snapshot,int32_t st
     if(owner.snapshot!=snapshot)return fail(error,"Wall/Pass identity World changed without owner retirement");
     Sample value;value.mixed.native=std::move(census);
     if(!mixed_path_graph::build(value.mixed.native,owner.keys.keys(),value.mixed.graph,error)||
-       !mixed_path_records::read_all(r.memory,r.image,value.mixed.native,owner.keys.keys(),value.mixed.records,error)||
+       !mixed_path_records::read_all(r.memory,r.image,first.world.root,value.mixed.native,owner.keys.keys(),value.mixed.records,error)||
        !mixed::digest(value.mixed,value.mixed,value.wire.complete_sha256,error))return false;
     value.wire.paths=uint32_t(value.mixed.graph.paths.size());
     value.wire.nodes=uint32_t(value.mixed.graph.nodes.size());
@@ -61,6 +61,30 @@ bool world_path_sample(region::Runtime& r,const std::string& snapshot,int32_t st
     value.effects=std::move(regions);
     if(!region::sha256(value.effects.dump(),value.wire.world_effect_sha256,error))return false;
     out=std::move(value);return true;
+}
+// Retain one changed Wall Record only after history verification has failed.
+// Canonical owner hashes identify the lost link without exposing native pointers.
+json changed_wall_record(region::Runtime& r,uintptr_t root,const std::string& source,
+                         const Sample& actual,const Sample& expected){
+    const auto& keys=owner.keys.keys();
+    for(const auto& path:actual.mixed.native.paths){
+        const auto key=keys.find(path.member.uid);
+        if(path.member.ref.type!=5||key==keys.end()||!key->second.starts_with("action:"+source+":path:"))continue;
+        const auto current=actual.mixed.records.objects.find(key->second);
+        const auto original=expected.mixed.records.objects.find(key->second);
+        if(current==actual.mixed.records.objects.end()||original==expected.mixed.records.objects.end()||
+           current->second.sha==original->second.sha)continue;
+        json out={{"key",key->second},{"expected_sha",original->second.sha},{"expected_links",original->second.links}};
+        duplicate_records::Witness witness;json diagnostic;std::string error;
+        uintptr_t shard=0;
+        if(!r.memory.copy(path.member.object+0x170,&shard,sizeof(shard),error)||
+           !mixed_path_records::read_one(r.memory,r.image,root,path.member.object,true,actual.mixed.native,keys,witness,error,&diagnostic)){
+            out["state"]="failed";out["cause"]=error;return out;}
+        out["state"]=witness.sha==current->second.sha?"retained":"changed_during_diagnostic";
+        out["shard_owner"]=shard==0?"absent":shard==root?"root_shard":"foreign";
+        out["record"]=std::move(diagnostic);return out;
+    }
+    return {{"state","no_changed_source_wall"}};
 }
 bool world_path_births(const std::string& action_id,const Sample& before,const mixed_path_native::Census& after,
                        std::vector<identity::Birth>& out,std::string& error){

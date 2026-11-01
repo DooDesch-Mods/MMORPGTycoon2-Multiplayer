@@ -1,4 +1,5 @@
 import contextlib
+from contextlib import asynccontextmanager
 import copy
 import hashlib
 import importlib.util
@@ -6,14 +7,24 @@ import io
 import json
 from pathlib import Path
 import subprocess
+import sys
+from types import SimpleNamespace
 import tempfile
 import unittest
 from unittest.mock import patch
 import uuid
 
+import anyio
+from mcp import types
+
 SPEC = importlib.util.spec_from_file_location("local_acceptance", Path(__file__).resolve().parents[1] / "tools/local_acceptance.py")
 acceptance = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(acceptance)
+
+sys.path.insert(0, str(Path(acceptance.__file__).parent / 'mcp'))
+LOBBY_SPEC = importlib.util.spec_from_file_location('lobby_jobs', Path(acceptance.__file__).parent / 'mcp/run_job.py')
+lobby_jobs = importlib.util.module_from_spec(LOBBY_SPEC)
+LOBBY_SPEC.loader.exec_module(lobby_jobs)
 
 
 def engine_state(peer, run_id, ledger_cash=95000):
@@ -416,6 +427,120 @@ class AtomicSummaryTests(unittest.TestCase):
             self.assertIs(raised.exception, cause)
             self.assertEqual(replace.call_count, 1)
             wait.assert_not_called()
+
+
+class LobbyTransport:
+    def __init__(self):self.opened=[];self.closed=[];self.calls=[];self.failure=''
+    @asynccontextmanager
+    async def session(self,manifest,deadline):
+        self.opened.append(str(manifest));owner=self
+        class Client:
+            async def call_tool(self,name,arguments):
+                owner.calls.append(name)
+                if owner.failure=='disconnect':raise ConnectionError('original disconnected transport')
+                if owner.failure=='timeout' and name=='game_read_native_lobby':await anyio.sleep_forever()
+                failed=(owner.failure=='failed' and name=='game_read_native_lobby') or (owner.failure=='owner' and name=='bind_runtime')
+                bound=json.loads(manifest.read_text()) if manifest.exists() else {'peer':manifest.parent.name}
+                if owner.failure=='owner-value':bound['pid']=-1
+                return types.CallToolResult(content=[types.TextContent(type='text',text='owner changed' if failed else 'ack')],
+                    structuredContent={'process_identity_verified':True,'bound':bound} if name=='bind_runtime' else {'ok':True,'result':{'ready':True}},isError=failed)
+        try:yield Client(),SimpleNamespace(protocolVersion='2025-11-25')
+        finally:self.closed.append(str(manifest))
+
+class PersistentLobbyReadsTests(unittest.TestCase):
+    def setUp(self):
+        temporary=tempfile.TemporaryDirectory(prefix='persistent-lobby-', dir=Path(__file__).resolve().parent)
+        self.addCleanup(temporary.cleanup)
+        self.root=Path(temporary.name);(self.root/'test/mcp/evidence').mkdir(parents=True)
+        self.transport=LobbyTransport()
+        # Keep evidence on disk while isolating session lifetime and receipt checks
+        # from the separately tested platform-specific atomic writer.
+        writer=patch.object(lobby_jobs,'atomic_json',side_effect=lambda p,v,**k:p.write_text(json.dumps(v),encoding='utf-8'))
+        writer.start();self.addCleanup(writer.stop)
+        self.pool=lobby_jobs.PersistentLobbyReads(self.root,self.root,45,session_factory=self.transport.session)
+        self.addCleanup(self.pool.close)
+        self.spec=self.root/'read.json';self.spec.write_text(json.dumps({'timeout_seconds':45,'calls':[{'tool':'game_read_native_lobby','arguments':{}}]}))
+        self.manifest=self.root/'host/instance.json'
+    def run_job(self,label='read',wait=1):
+        return self.pool.run(self.manifest,self.spec,label,wait,io.StringIO())
+    def evidence(self,label):
+        paths=list((self.root/'test/mcp/evidence').glob(label+'_*.json'));self.assertEqual(len(paths),1)
+        return json.loads(paths[0].read_text())
+    def test_reuse_keeps_fresh_bind_and_separate_original_receipts(self):
+        self.assertEqual(self.run_job('first').returncode,0)
+        self.assertEqual(self.run_job('second').returncode,0)
+        self.assertEqual(len(self.transport.opened),1)
+        self.assertEqual(self.transport.calls,['bind_runtime','game_read_native_lobby']*2)
+        for label in ('first','second'):
+            receipt=self.evidence(label);self.assertTrue(receipt['passed']);self.assertEqual(receipt['retries'],0)
+            self.assertEqual([c['state'] for c in receipt['calls']],['confirmed','confirmed'])
+            self.assertIn('spec_sha256',receipt)
+        self.pool.close();self.pool.close()
+        self.assertEqual(self.transport.closed,self.transport.opened)
+    def test_each_peer_has_its_own_session_and_all_close(self):
+        self.run_job('host');self.manifest=self.root/'client-1/instance.json';self.run_job('client')
+        self.assertEqual(len(self.transport.opened),2);self.pool.close()
+        self.assertEqual(set(self.transport.closed),set(self.transport.opened))
+    def test_failed_disconnected_or_changed_owner_poison_without_replay(self):
+        for failure in ('failed','disconnect','owner'):
+            with self.subTest(failure=failure):
+                transport=LobbyTransport();transport.failure=failure
+                pool=lobby_jobs.PersistentLobbyReads(self.root,self.root,45,session_factory=transport.session)
+                self.addCleanup(pool.close)
+                result=pool.run(self.manifest,self.spec,failure,1,io.StringIO())
+                self.assertEqual(result.returncode,1);self.assertTrue(pool.closed)
+                with self.assertRaisesRegex(lobby_jobs.RuntimeErrorDetail,'closed'):
+                    pool.run(self.manifest,self.spec,failure+'-again',1,io.StringIO())
+                self.assertEqual(transport.calls,['bind_runtime','game_read_native_lobby'] if failure=='failed' else ['bind_runtime'])
+                self.assertEqual(transport.closed,transport.opened)
+                receipt=self.evidence(failure);self.assertFalse(receipt['passed']);self.assertIn('error',receipt)
+    def test_timeout_retains_attempt_and_closes_without_next_job(self):
+        self.transport.failure='timeout'
+        with self.assertRaises(subprocess.TimeoutExpired):self.run_job('timeout',wait=.2)
+        self.assertTrue(self.pool.closed);self.assertEqual(self.transport.closed,self.transport.opened)
+        receipt=self.evidence('timeout');self.assertFalse(receipt['passed']);self.assertEqual(receipt['calls'][1]['state'],'attempted')
+        self.assertIn('TimeoutError',receipt['error']['cause'])
+        with self.assertRaises(lobby_jobs.RuntimeErrorDetail):self.run_job('after-timeout')
+        self.assertEqual(self.transport.calls,['bind_runtime','game_read_native_lobby'])
+    def test_mutation_is_rejected_before_transport_opens(self):
+        self.spec.write_text(json.dumps({'calls':[{'tool':'game_capture_frame','arguments':{}}]}))
+        self.assertEqual(self.run_job('mutation').returncode,1)
+        self.assertFalse(self.transport.opened);self.assertTrue(self.pool.closed)
+
+    def runner(self):
+        def write(path,value):
+            path.parent.mkdir(parents=True,exist_ok=True);path.write_text(json.dumps(value))
+        writer=patch.object(acceptance,'write_json',side_effect=write)
+        writer.start();self.addCleanup(writer.stop)
+        runner=acceptance.AcceptanceRunner(SimpleNamespace(test_root=self.root,cleanup=False,step_timeout=45),workspace=self.root)
+        runner.manifests={'host':self.manifest};runner.summary['runtime_run_id']='owned'
+        self.manifest.parent.mkdir(exist_ok=True)
+        self.manifest.write_text(json.dumps({'run_id':'owned','pid':123,'runtime_root':str(self.manifest.parent.resolve()),'executable_path':str((self.manifest.parent/'game.exe').resolve())}))
+        runner._lobby_read_sessions=self.pool
+        return runner
+
+    def test_existing_runner_indexes_and_validates_each_receipt(self):
+        runner=self.runner()
+        receipt=runner.job('lobby','host',[{'tool':'game_read_native_lobby','arguments':{}}])
+        self.assertTrue(receipt['passed'])
+        record=runner.summary['jobs'][0]
+        self.assertEqual(record['state'],'confirmed')
+        self.assertEqual(len(record['evidence_sha256']),64)
+        self.transport.failure='owner-value'
+        try:
+            with self.assertRaisesRegex(acceptance.AcceptanceError,'bound identity differs'):
+                runner.job('changed-owner','host',[{'tool':'game_read_native_lobby','arguments':{}}])
+            self.assertEqual(runner.summary['jobs'][-1]['state'],'failed-identity-guard')
+        finally:runner.close_lobby_read_sessions()
+        self.assertEqual(self.transport.closed,self.transport.opened)
+
+    def test_existing_runner_keeps_mutations_on_original_subprocess_path(self):
+        runner=self.runner()
+        with patch.object(acceptance.subprocess,'run',side_effect=OSError('original subprocess path')) as execute:
+            with self.assertRaisesRegex(acceptance.AcceptanceError,'original subprocess path'):
+                runner.job('mutation','host',[{'tool':'game_capture_frame','arguments':{}}])
+        self.assertEqual(execute.call_count,1)
+        self.assertFalse(self.transport.opened)
 
 
 if __name__ == "__main__":

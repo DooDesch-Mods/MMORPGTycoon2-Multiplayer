@@ -6,6 +6,9 @@ endif()
 execute_process(COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_LIST_DIR}/../test/check_query_adapter_tags.py"
     --root "${CMAKE_CURRENT_LIST_DIR}/.." COMMAND_ERROR_IS_FATAL ANY)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/party_live_native.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../src/game/native_engine.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/../test/party_owner_scope_cases.inc"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/intervention_actor_runtime.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/../test/actor_code_scope_cases.inc"
     "${CMAKE_CURRENT_LIST_DIR}/../src/game/gm_ticket_live.inc"
@@ -84,3 +87,5 @@ target_include_directories(test_query_attribution PRIVATE "${QUERY_SCOPE_GENERAT
 target_compile_options(test_query_attribution PRIVATE /W4 /WX /permissive-)
 add_test(NAME query_attribution COMMAND test_query_attribution)
 endif()
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_LIST_DIR}/../test/ordered_world_reader_source_boundary.py")

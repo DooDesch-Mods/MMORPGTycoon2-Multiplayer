@@ -1,7 +1,35 @@
 namespace {
-template<class Index>
+// A retained-only read needs uniqueness, not UID-to-Bound lookup. Keep this
+// proof local; any ineligible row uses the full index and its original errors.
+bool building_retained_scenery_index(const host::WorldState& world,uintptr_t image,
+                                     std::vector<uint64_t>& omitted){
+    omitted.clear();
+    if(unknown_locked||scene_scenery::saved_admission_pending())return false;
+    const prop_lease::World expected{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map};
+    if(admitted_world.epoch&&admitted_world!=expected)return false;
+    const auto snapshot=net::current_snapshot_id();const auto prefix=registry_id(snapshot,{});
+    std::vector<uintptr_t> objects;
+    constexpr char scenery_suffix[]=":world:scenery:inline:";
+    for(const auto& [id,binding]:registry){
+        if(binding.generation!=registry_generation||binding.snapshot!=snapshot||binding.scene_owner=="retired")continue;
+        // Revoked/Unknown rows can still appear in the collector's output.
+        if(binding.revoked||binding.unknown||binding.world!=expected||!binding.uid||!binding.entry||
+           binding.key.empty()||!id.starts_with(prefix)||id.compare(prefix.size(),std::string::npos,binding.key)!=0||
+           !binding.object||binding.scene_owner!="world"||!binding.scene_manager||!binding.scene_region||
+           binding.scene_shard!=world.root||!binding.scene_record.starts_with(binding.sha)||
+           binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)!=0||
+           binding.class_addresspoint!=image+0x16c1390)return false;
+        if(omitted.empty()){omitted.reserve(registry.size());objects.reserve(registry.size());}
+        omitted.push_back(binding.uid);objects.push_back(binding.object);
+    }
+    if(omitted.empty())return false;
+    std::sort(omitted.begin(),omitted.end());std::sort(objects.begin(),objects.end());
+    return std::adjacent_find(omitted.begin(),omitted.end())==omitted.end()&&
+           std::adjacent_find(objects.begin(),objects.end())==objects.end();
+}
+template<class Index,class Omissions>
 bool building_identity_index(const host::WorldState& world,uintptr_t image,Index& indexed,
-                            std::set<uint64_t>& omitted,std::string& error){
+                            Omissions& omitted,std::string& error){
     indexed.clear();omitted.clear();
     if(unknown_locked){error="remove diagnostics are Unknown; no new binding admission";return false;}
     const prop_lease::World expected{world.origin.world_epoch,world.origin.generation,world.origin.world,world.origin.map};
@@ -11,6 +39,7 @@ bool building_identity_index(const host::WorldState& world,uintptr_t image,Index
     using ObjectIndex=std::conditional_t<requires{indexed.bucket_count();},std::pmr::unordered_set<uintptr_t>,std::pmr::set<uintptr_t>>;
     ObjectIndex objects{storage};
     if constexpr(requires{objects.reserve(registry.size());})objects.reserve(registry.size());
+    if constexpr(requires{omitted.reserve(registry.size());})omitted.reserve(registry.size());
     constexpr char scenery_suffix[]=":world:scenery:inline:";
     for(const auto& [id,binding]:registry){
         if(binding.generation!=registry_generation||binding.snapshot!=snapshot||binding.revoked||binding.scene_owner=="retired")continue;
@@ -28,8 +57,14 @@ bool building_identity_index(const host::WorldState& world,uintptr_t image,Index
         if(binding.object&&binding.scene_owner=="world"&&binding.scene_manager&&binding.scene_region&&
            binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha)&&
            binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)==0&&
-           binding.class_addresspoint==image+0x16c1390)omitted.insert(binding.uid);
+           binding.class_addresspoint==image+0x16c1390){
+            if constexpr(requires{omitted.push_back(binding.uid);})omitted.push_back(binding.uid);
+            else omitted.insert(binding.uid);
+        }
     }
+    // The UID index already rejects duplicates. Sort compact exclusions once
+    // so membership and destination publication retain their canonical order.
+    if constexpr(requires{omitted.push_back(uint64_t{});})std::sort(omitted.begin(),omitted.end());
     return true;
 }
 bool building_identity_resolve(const Bound& binding,const host::WorldState& world,const host::LookupApi& api,
@@ -60,7 +95,47 @@ bool building_uptime_target(const LocalTarget& target,bool& matched,std::string&
     if(!is_modular_target(target,error))return false;
     matched=true;return true;
 }
-bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,std::map<uintptr_t,std::string>* destinations){
+bool snapshot_building_targets(const std::vector<uint64_t>& uids,std::vector<LocalTarget>& out,std::string& error){
+    out.clear();host::RootSceneryReadBatch batch;
+    native_free_runtime::Receipt heap;
+    if(!native_free_runtime::Runtime::instance().read_actual_receipt(heap,error))return false;
+    host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
+    if(!reader.current(world,true,error))return false;
+    std::pmr::monotonic_buffer_resource storage;
+    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&storage};std::vector<uint64_t> omitted;
+    indexed.reserve(registry.size());
+    if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
+    std::vector<LocalTarget> pending;pending.reserve(uids.size());std::set<uint64_t> seen;
+    for(auto uid:uids){const auto found=indexed.find(uid);
+        if(!uid||!seen.insert(uid).second||found==indexed.end()){
+            error="Snapshot Building census has an absent or duplicate canonical UID";return false;
+        }
+        const auto& binding=*found->second;void* object=nullptr;uint32_t seh=0;
+        if(!lookup(api,uid,object,seh)||!object){error="Snapshot Building full UID lookup failed SEH="+std::to_string(seh);return false;}
+        prop_lease::Prop prop;if(!reader.prop(object,uid,prop,error))return false;
+        if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=object||
+           !prop.class_addresspoint||
+           (binding.object&&binding.object!=uintptr_t(object))||
+           (binding.class_addresspoint&&binding.class_addresspoint!=prop.class_addresspoint)){
+            error="Snapshot Building exact root class/owner/UID binding differs";return false;
+        }
+        native::BuildingState value;if(!native::read_building(uid,value,error))return false;
+        if(value.prop.uid!=uid){error="Snapshot Building typed readback UID differs";return false;}
+        LocalTarget target{world.selection,uintptr_t(object),uid,world.origin.world_epoch,world.origin.generation,
+            binding.snapshot,binding.key,value.type,value.variant,true,false,{}};
+        pending.push_back(std::move(target));
+    }
+    host::WorldState after;
+    if(!reader.current(after,true,error)||!host::same_world(world.origin,after.origin)||world.root!=after.root){
+        if(error.empty())error="Snapshot Building world changed during census";return false;
+    }
+    if(!batch.finish(error))return false;
+    out=std::move(pending);error.clear();return true;
+}
+
+bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,std::map<uintptr_t,std::string>* destinations,bool destinations_for_targets_only){
     out.clear();if(destinations)destinations->clear();host::RootSceneryReadBatch batch;
     auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
     if(!free.read_actual_receipt(heap,error))return false;
@@ -70,10 +145,21 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     if(!reader.current(world,true,error))return false;
     // Both fresh indexes share local storage; no binding survives this call.
     std::pmr::monotonic_buffer_resource index_storage;
-    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};indexed.reserve(registry.size());std::set<uint64_t> omitted;
-    if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
-    json sources;if(!collect_bindings(sources,error,BindingDetails::BuildingTargets,&omitted))return false;
-    const auto prior_omitted=std::move(omitted);
+    std::pmr::unordered_map<uint64_t,const Bound*> indexed{&index_storage};std::vector<uint64_t> omitted;
+    const bool compact_retained=(!destinations||destinations_for_targets_only)&&
+        building_retained_scenery_index(world,heap.image,omitted);
+    if(!compact_retained){
+        indexed.reserve(registry.size());
+        if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
+    }
+    const bool retained_scenery_only=compact_retained||(!indexed.empty()&&indexed.size()==omitted.size()&&
+        !scene_scenery::saved_admission_pending());
+    json sources;if(!collect_bindings_body(sources,error,BindingDetails::BuildingTargets,nullptr,&omitted))return false;
+    // An empty retained census has no native target reads or pending alias
+    // admission. Its checked registry cannot change during collection.
+    if(retained_scenery_only&&sources.at("bindings").empty()&&(!destinations||destinations_for_targets_only))
+        return batch.finish(error);
+    const auto prior_omitted=std::move(omitted);indexed.reserve(registry.size());
     if(!building_identity_index(world,heap.image,indexed,omitted,error))return false;
     if(!std::includes(omitted.begin(),omitted.end(),prior_omitted.begin(),prior_omitted.end())){
         error="Building owner census saved exclusion changed during collection";return false;
@@ -81,7 +167,7 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     json selected={{"world_epoch",sources.at("world_epoch")},{"world_generation",sources.at("world_generation")},{"bindings",json::array()}};
     for(const auto& row:sources.at("bindings")){
         if(row.at("unknown").get<bool>()){error="Service census includes Unknown native binding";return false;}
-        if(!row.at("revoked").get<bool>()&&!omitted.contains(row.at("local_uid").get<uint64_t>()))selected["bindings"].push_back(row);
+        if(!row.at("revoked").get<bool>()&&!std::binary_search(omitted.begin(),omitted.end(),row.at("local_uid").get<uint64_t>()))selected["bindings"].push_back(row);
     }
     const auto resolve=[&](const json& row,LocalTarget& target,std::string& cause){
         const auto found=indexed.find(row.at("local_uid").get<uint64_t>());
@@ -91,11 +177,14 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
         return building_identity_resolve(*found->second,world,api,target,cause);
     };
     std::vector<LocalTarget> sampled,pending;std::map<uintptr_t,std::string> candidates;
-    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};if(!destinations)candidate_objects.reserve(indexed.size());
+    std::pmr::unordered_set<uintptr_t> candidate_objects{&index_storage};
     if(!service_building_census::read(selected,resolve,sampled,error))return false;
+    // Empty Service censuses have no consumer for unrelated Scenery destinations.
+    if(destinations_for_targets_only&&sampled.empty())return batch.finish(error);
+    if(!destinations&&!sampled.empty())candidate_objects.reserve(indexed.size());
     // The ordered exclusions preserve canonical insertion order. Thought callers
     // only need pointer uniqueness, so their collision index stores no key strings.
-    for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}
+    if(destinations||!sampled.empty())for(const auto uid:omitted){const auto* binding=indexed.at(uid);if(destinations)candidates.emplace(binding->object,binding->key);else candidate_objects.emplace(binding->object);}
     for(auto& target:sampled){
         if(!(destinations?candidates.emplace(target.object,target.record_key).second:candidate_objects.emplace(target.object).second)){error="Building owner census current receiver is ambiguous";return false;}
         bool uptime_owner=false;if(!building_uptime_target(target,uptime_owner,error))return false;
@@ -104,7 +193,25 @@ bool identity_building_targets(std::vector<LocalTarget>& out,std::string& error,
     if(!batch.finish(error))return false;
     out=std::move(pending);if(destinations)*destinations=std::move(candidates);return true;
 }
-bool resolve_identity_destination(uintptr_t object,LocalTarget& out,std::string& error){
+namespace {
+bool settle_quest_destination_height(Bound& saved,std::string& error){
+    native::BuildingState settled;
+    if(!scenery_kiss::read_action_prop(saved.uid,settled,error))return false;
+    if(settled.prop.uid!=saved.uid||saved.metadata.at("type")!=settled.type||
+       saved.metadata.at("variant")!=settled.variant||saved.metadata.at("x")!=settled.prop.x||
+       saved.metadata.at("z")!=settled.prop.z||!std::isfinite(settled.prop.y)||
+       (saved.metadata.contains("rotation")&&saved.metadata.at("rotation")!=settled.rotation)||
+       (saved.metadata.contains("scale")&&saved.metadata.at("scale")!=settled.scale)){
+        error="shared building identity changed during native height readback";return false;
+    }
+    if(saved.metadata.at("y")!=settled.prop.y){
+        LOG_INFO("[Action] Native terrain height settled key={} before={} after={}",saved.key,saved.metadata.at("y").dump(),settled.prop.y);
+        saved.metadata["y"]=settled.prop.y;
+    }
+    return true;
+}
+}
+bool resolve_identity_destination(uintptr_t object,LocalTarget& out,std::string& error,bool settle_native_height){
     out={};host::RootSceneryReadBatch batch;
     auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
     if(!free.read_actual_receipt(heap,error))return false;
@@ -121,6 +228,11 @@ bool resolve_identity_destination(uintptr_t object,LocalTarget& out,std::string&
     // Saved Building bindings retain canonical full UIDs before a local pointer
     // hint exists. The original lookup and complete target proof remain fresh.
     if(!uid||matched==indexed.end()){error="Service referenced destination lacks complete current canonical identity";return false;}
+    if(settle_native_height){
+        const auto saved=registry.find(registry_id(matched->second->snapshot,matched->second->key));
+        if(saved==registry.end()||&saved->second!=matched->second){error="Quest destination current registry entry changed";return false;}
+        if(!settle_quest_destination_height(saved->second,error))return false;
+    }
     LocalTarget pending;
     if(!building_identity_resolve(*matched->second,world,api,pending,error))return false;
     if(pending.object!=object){error="Service referenced destination current full UID receiver changed";return false;}

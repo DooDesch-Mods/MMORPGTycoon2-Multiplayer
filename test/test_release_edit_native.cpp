@@ -28,7 +28,7 @@ mt2mp::game::native::WorldStatus world;
 struct Runtime {
     uint32_t thread=7;bool ready=true;uintptr_t image=10;
     std::optional<int> pending=42;std::vector<int> presentations{1},operations{2};
-    bool unknown=true,replay=false;std::string cause="retained original cause";
+    bool unknown=true,replay=false;std::string cause="retained original cause",natural_failure="retained natural cause";uint64_t natural_attempted=3,natural_confirmed=2;
     bool operator==(const Runtime&)const=default;
 };
 namespace cycle {enum class Phase {Idle,Waiting};}

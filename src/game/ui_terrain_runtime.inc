@@ -2,6 +2,11 @@
 // scenery/ledger readback are shared locally; wire types contain no native owner.
 #include "ui_terrain_runtime.h"
 #include "scenery_make_history.h"
+#include "terrain_history_height.h"
+#include "terrain_history_payload.h"
+#include "terrain_history_make.h"
+#include "terrain_history_contours.h"
+#include "terrain_transform_native.h"
 #include "group_reader.h"
 #include "duplicate_calls.h"
 #include "native_polyshape.h"
@@ -30,6 +35,7 @@ struct Stroke {
     bool cleanup_attempted=false;
     action::TerrainIntent intent;
     action::Binding binding;
+    std::optional<action::Context> context;
     std::string snapshot,cause;
     std::string ui_token;
     undo::UndoWitness before_undo;
@@ -38,13 +44,16 @@ struct NativeBrush {alignas(16) unsigned char bytes[0x680]{};};
 struct TerrainOperation {
     action::Binding binding;action::Request request;action::Evidence evidence;
     std::unique_ptr<NativeBrush> brush=std::make_unique<NativeBrush>();
-    bool constructed=false,attempted=false,returned=false,confirmed=false,retired=false;
+    bool constructed=false,attempted=false,returned=false,confirmed=false,retired=false,ordered=false;
     uintptr_t graph=0;int32_t native_cost=-1;float changed_area=0;
     std::vector<uint64_t> removed_scenery_uids;std::vector<std::string> keys;
     std::vector<uint64_t> history_before_uids,history_after_uids;
-    std::map<uint64_t,scenery_make_history::Saved> history_scenery;
+    terrain_scenery_diagnostic::Snapshot history_before_diagnostic,history_after_diagnostic,history_current_diagnostic;
+    action::RegionState history_current_region;
+    terrain_history_contours::State history_contours;
+    std::map<uint64_t,scenery_make_history::Saved> history_scenery,history_make_scenery;
     std::map<uint64_t,std::string> history_keys;
-    std::string cause;
+    json settlement,graph_at_finish;std::string cause;
 };
 struct TerrainRuntime {
     bool ready=false,attempted=false;
@@ -64,6 +73,35 @@ bool fail(std::string& e,const std::string& why){e=why;return false;}
 region::Runtime* runtime(std::string& e) {
     auto* r=region::published.load(std::memory_order_acquire);
     if(!r||!r->ready||GetCurrentThreadId()!=r->thread){e="terrain requires enabled Region readback on Mainthread";return nullptr;}return r;
+}
+bool capture_binding(Stroke& stroke,const region::LocalView& view,std::string& e){
+    if(!typed_action_runtime::controller_status().value("ordered",false)){
+        stroke.context.reset();stroke.binding={view.world.origin.world_epoch,view.world.origin.generation};
+        stroke.snapshot=net::current_snapshot_id();return true;
+    }
+    action::Context actual;action::Binding binding;bool ordered=false;
+    if(!action::selected_session().current(actual,e)||
+       !typed_action_runtime::network_binding_with_mode(actual.snapshot_uuid,binding,e,&ordered)||
+       !region::bound(view,binding,actual.snapshot_uuid,e))return false;
+    if(!ordered)return fail(e,"Ordered terrain capture mode changed");
+    stroke.context=actual;stroke.binding=binding;stroke.snapshot=actual.snapshot_uuid;return true;
+}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& e){
+    if(request.action!=action::Action::TerrainStroke&&
+       !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+         !request.target_action_uuid.empty()&&request.canonical_record_key=="terrain:"+request.target_action_uuid))
+        return fail(e,"Ordered terrain scope action or original history key differs");
+    action::Context actual;if(!action::selected_session().current(actual,e))return false;
+    if(Config::instance().is_host!=(actual.role==action::Role::Host))return fail(e,"Ordered terrain actual role differs");
+    return action::tick_commands::authority::matches(actual,binding,request,e);
+}
+bool command_scope(const action::Binding& binding,const action::Request& request,const action::Evidence* host,bool& ordered,std::string& e){
+    ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(host)return fail(e,"Ordered terrain forbids Host result or RNG adoption");
+        return ordered_scope(binding,request,e);
+    }
+    return !typed_action_runtime::controller_status().value("ordered",false)||fail(e,"Ordered terrain requires current consumed command authority");
 }
 uint32_t unary(Unary fn,void* receiver){__try{fn(receiver);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t binary(Binary fn,void* receiver,const void* parameter){__try{fn(receiver,parameter);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
@@ -224,7 +262,7 @@ void start_entry(void* brush,const void* label) {
     if(!r||!region::at(*r,stroke.brush,0x218,receiver,e)||!region::at(*r,receiver,0x834,stroke.intent.id,e)||
        !region::at(*r,stroke.brush,0x150,stroke.intent.style,e)||!region::at(*r,stroke.brush,0x664,stroke.intent.initial_area,e)||!region::text(*r,uintptr_t(label),stroke.intent.start_label,e)||
        !region::identity(*r,stroke.intent.id,receiver,before,e))stroke.cause=e.empty()?"terrain capture identity unavailable":e;
-    else{stroke.binding={before.world.origin.world_epoch,before.world.origin.generation};stroke.snapshot=net::current_snapshot_id();}
+    else if(!capture_binding(stroke,before,e))stroke.cause=e;
     terrain.start(brush,label);
     if(r&&(!region::at(*r,uintptr_t(brush),0x658,stroke.graph,e)||!stroke.graph))stroke.cause=e.empty()?"terrain capture has no original graph":e;
     if(!stroke.cause.empty())rejected(stroke.cause);
@@ -276,7 +314,7 @@ uint32_t seed(uintptr_t region_random,uintptr_t global_random,const action::Evid
 bool enable(std::string& e) {
     auto* r=runtime(e);if(!r)return false;
     if(terrain.attempted)return fail(e,"terrain hook installation already attempted");terrain.attempted=true;
-    if(!native_code(*r,false,e))return false;
+    if(!terrain_settlement::enable(*r,e)||!native_code(*r,false,e))return false;
     struct Hook{uintptr_t rva;void* replacement;void** original;};
     const Hook hooks[]{
         {0x5e0700,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&terrain.press)},
@@ -301,6 +339,25 @@ void tick() {
     }
     if(!terrain.pending)return;
     std::string e;auto* r=runtime(e);if(!r){rejected(e);return;}
+    const auto reject_pending=[&](const std::string& cause){
+        if(!terrain.pending->ui_token.empty())terrain.ui_jobs.at(terrain.pending->ui_token)["cause"]=cause;
+        terrain.pending.reset();rejected(cause);
+    };
+    if(terrain.pending->context){
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,e)){reject_pending(e);return;}
+        if(inside)return;
+        action::Context actual;action::Binding binding;
+        if(!action::selected_session().current(actual,e)||actual!=*terrain.pending->context||
+           !typed_action_runtime::read_binding(actual.snapshot_uuid,binding,e)||binding!=terrain.pending->binding||
+           !controller.value("ordered",false)){
+            reject_pending(e.empty()?"Ordered terrain captured Context/Binding changed":e);return;
+        }
+        // Another captured input can win the held boundary. Keep this untouched
+        // until the real Controller completes that command.
+        if(controller.value("pending",true))return;
+    }else if(controller.value("ordered",false)){
+        reject_pending("Terrain capture changed from legacy to ordered mode");return;
+    }
     auto stroke=std::move(*terrain.pending);terrain.pending.reset();region::LocalView before;
     if(!region::identity(*r,stroke.intent.id,0,before,e)||!region::bound(before,stroke.binding,stroke.snapshot,e)){rejected(e);return;}
     const auto id=region::uuid(e);if(id.empty()){rejected(e);return;}
@@ -318,14 +375,15 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!native_code(*r,true,e))return action::Outcome::RejectedNoEffect;
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="terrain lacks exact Controller request";return action::Outcome::RejectedNoEffect;}
+    bool ordered=false;if(!command_scope(binding,request,authority,ordered,e))return action::Outcome::RejectedNoEffect;
     region::LocalView before;action::TerrainState terrain_before;action::Ledger money;uintptr_t global=0;undo::UndoWitness undo_before;
-    if(!region::read(*r,request.terrain.id,0,before,e)||!region::bound(before,binding,request.snapshot_uuid,e)||!region::ledger(money,e)||
+    if(!region::read(*r,request.terrain.id,0,before,e,true,SIZE_MAX)||!region::bound(before,binding,request.snapshot_uuid,e)||!region::ledger(money,e)||
        !terrain_state(*r,before,terrain_before,global,e)||!undo::read_undo(r->memory,r->image,undo_before,e))return action::Outcome::RejectedNoEffect;
     if(undo_before.active_graph){e="terrain requires idle Undo graph";return action::Outcome::RejectedNoEffect;}
     if(!action::terrain_receipt_fits(request,money,before.state,e))return action::Outcome::RejectedNoEffect;
     json bindings;if(!remove_diagnostics::bindings(bindings,e))return action::Outcome::RejectedNoEffect;
     if(authority&&(money!=authority->before||!action::same_region_content(before.state,authority->region_before)||!action::same_terrain_content(terrain_before,authority->terrain_before))){e="terrain client before content differs from Host";return action::Outcome::RejectedNoEffect;}
-    auto& operation=terrain.operations[request.action_uuid];operation.binding=binding;operation.request=request;
+    auto& operation=terrain.operations[request.action_uuid];operation.binding=binding;operation.request=request;operation.ordered=ordered;
     operation.evidence.before=money;operation.evidence.region_before=authority?authority->region_before:before.state;
     operation.evidence.terrain_before=authority?authority->terrain_before:terrain_before;
     if(!history_capture(*r,before,bindings,operation,e))return action::Outcome::RejectedNoEffect;
@@ -353,8 +411,10 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
        !undo::validate_undo_commit(undo_before,undo_after,graph,e)||!inverse(*r,operation.graph,before.region,terrain_before.contours_sha256,e))return unknown();
     if(remaining_graph||remaining_edit){e="terrain original completion retained cursor graph/edit";return unknown();}
     operation.evidence.undo_confirmed=true;
+    operation.graph_at_finish=history_graph_counts(graph);
+    if(!terrain_settlement::run(*r,request.action_uuid,ordered,operation.settlement,e))return unknown();
     region::LocalView after;uintptr_t after_global=0;
-    if(!region::read(*r,request.terrain.id,before.region,after,e)||!region::bound(after,binding,request.snapshot_uuid,e)||!region::ledger(operation.evidence.after,e)||
+    if(!region::read(*r,request.terrain.id,before.region,after,e,true,SIZE_MAX)||!region::bound(after,binding,request.snapshot_uuid,e)||!region::ledger(operation.evidence.after,e)||
        !terrain_state(*r,after,operation.evidence.terrain_after,after_global,e))return unknown();
     operation.evidence.region_after=after.state;
     std::set_difference(before.scenery_uids.begin(),before.scenery_uids.end(),after.scenery_uids.begin(),after.scenery_uids.end(),std::back_inserter(operation.removed_scenery_uids));
@@ -371,7 +431,9 @@ bool observe(const action::Binding& b,const action::Request& request,action::Evi
     if(request.terrain.height)return height_observe(b,request,out,e);
     auto* r=runtime(e);if(!r)return false;const auto found=terrain.operations.find(request.action_uuid);
     if(found==terrain.operations.end()||found->second.binding!=b||found->second.request!=request||!found->second.confirmed)return fail(e,"terrain observation lacks confirmed exact operation");
-    const auto& operation=found->second;region::LocalView actual;action::TerrainState state;action::Ledger money;uintptr_t global=0;
+    const auto& operation=found->second;
+    if(operation.ordered&&!ordered_scope(b,request,e))return false;
+    region::LocalView actual;action::TerrainState state;action::Ledger money;uintptr_t global=0;
     if(!region::read(*r,request.terrain.id,0,actual,e)||!region::bound(actual,b,request.snapshot_uuid,e)||!terrain_state(*r,actual,state,global,e)||!region::ledger(money,e))return false;
     if(actual.state!=operation.evidence.region_after||state!=operation.evidence.terrain_after||money!=operation.evidence.after)return fail(e,"terrain observation changed after original return");
     out=operation.evidence;out.retirement_confirmed=operation.retired;return true;
@@ -388,9 +450,22 @@ bool retire(const action::Binding& b,const action::Request& request,std::string&
 bool retired_keys(const action::Binding& b,const action::Request& request,std::vector<std::string>& keys,std::string& e) {
     action::Evidence out;if(!observe(b,request,out,e))return false;keys=terrain.operations.at(request.action_uuid).keys;return true;
 }
+template<class Operation>json rng_receipt(const Operation& value){
+    const auto& request=value.request;
+    const auto kind=request.action==action::Action::TerrainStroke?"paint":request.action==action::Action::UndoBuilding?"undo":
+        request.action==action::Action::RedoBuilding?"redo":"other";
+    return {{"action_uuid",request.action_uuid},{"snapshot_uuid",request.snapshot_uuid},{"kind",kind},
+        {"target_action_uuid",request.target_action_uuid},{"origin_peer",request.peer},{"request_sequence",request.sequence},
+        {"observed_revision",request.host_revision},{"ordered",value.ordered},{"attempted",value.attempted},
+        {"confirmed",value.confirmed},{"retired",value.retired},
+        {"global_before",value.evidence.terrain_before.global_random},{"global_after",value.evidence.terrain_after.global_random},
+        {"region_before",value.evidence.region_before.random},{"region_after",value.evidence.region_after.random}};
+}
+
 json status() {
-    json operations=json::array();for(const auto& [id,o]:terrain.operations)operations.push_back({{"action_uuid",id},{"attempted",o.attempted},{"returned",o.returned},{"confirmed",o.confirmed},{"retired",o.retired},{"native_cost",o.native_cost},{"height",o.request.terrain.height?json{{"up",o.request.terrain.height->up},{"cell",o.request.terrain.height->cell},{"hit",o.request.terrain.height->hit},{"picked",o.request.terrain.height->picked},{"before_sha256",o.evidence.terrain_before.heights_sha256},{"after_sha256",o.evidence.terrain_after.heights_sha256},{"before_bits",o.evidence.terrain_before.height_bits},{"after_bits",o.evidence.terrain_after.height_bits},{"undo_unchanged",o.evidence.undo_confirmed}}:json(nullptr)},{"changed_area",o.changed_area},{"undo_confirmed",o.evidence.undo_confirmed},{"removed_scenery_uids",o.removed_scenery_uids},{"retired_keys",o.keys},{"release_before",o.evidence.terrain_before.release_edits},{"release_after",o.evidence.terrain_after.release_edits},{"bugs_before",o.evidence.terrain_before.bug_count},{"bugs_after",o.evidence.terrain_after.bug_count},{"cause",o.cause}});
-    return {{"enabled",terrain.ready},{"capturing",bool(terrain.capture)},{"pending",bool(terrain.pending)},{"captured",terrain.captured},{"submitted",terrain.submitted},{"rejected",terrain.rejected},{"last_action_uuid",terrain.last_action},{"cause",terrain.cause},{"operations",operations},{"ui_jobs",terrain.ui_jobs}};
+    json history=json::array();for(const auto& [id,value]:terrain_history_operations){(void)id;auto row=rng_receipt(value);row["derived_height"]=value.height_receipt;row["contours"]=value.contour_receipt;history.push_back(std::move(row));}
+    json operations=json::array();for(const auto& [id,o]:terrain.operations)operations.push_back({{"action_uuid",id},{"rng_receipt",rng_receipt(o)},{"attempted",o.attempted},{"returned",o.returned},{"confirmed",o.confirmed},{"retired",o.retired},{"native_cost",o.native_cost},{"height",o.request.terrain.height?json{{"up",o.request.terrain.height->up},{"cell",o.request.terrain.height->cell},{"hit",o.request.terrain.height->hit},{"picked",o.request.terrain.height->picked},{"before_sha256",o.evidence.terrain_before.heights_sha256},{"after_sha256",o.evidence.terrain_after.heights_sha256},{"before_bits",o.evidence.terrain_before.height_bits},{"after_bits",o.evidence.terrain_after.height_bits},{"undo_unchanged",o.evidence.undo_confirmed}}:json(nullptr)},{"changed_area",o.changed_area},{"undo_confirmed",o.evidence.undo_confirmed},{"removed_scenery_uids",o.removed_scenery_uids},{"retired_keys",o.keys},{"release_before",o.evidence.terrain_before.release_edits},{"release_after",o.evidence.terrain_after.release_edits},{"bugs_before",o.evidence.terrain_before.bug_count},{"bugs_after",o.evidence.terrain_after.bug_count},{"cause",o.cause}});
+    return {{"enabled",terrain.ready},{"capturing",bool(terrain.capture)},{"pending",bool(terrain.pending)},{"captured",terrain.captured},{"submitted",terrain.submitted},{"rejected",terrain.rejected},{"last_action_uuid",terrain.last_action},{"cause",terrain.cause},{"operations",operations},{"history_operations",history},{"terrain_settlement",terrain_settlement::last_receipt},{"ui_jobs",terrain.ui_jobs}};
 }
 bool query(int32_t id,json& out,std::string& e) {
     auto* r=runtime(e);if(!r)return false;region::LocalView view;action::TerrainState state;uintptr_t global=0;

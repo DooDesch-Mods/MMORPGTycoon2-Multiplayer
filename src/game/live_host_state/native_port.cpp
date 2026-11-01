@@ -44,6 +44,33 @@ bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std
     native::SimulationState native_state;if(!native::read_simulation_state(native_state,e))return false;if(ledger(p.values)!=action_session::Ledger{native_state.cash,native_state.clock.flat_day,int32_t(native_state.record_present),native_state.record_day,native_state.record_cash,native_state.record_income,native_state.record_expense,native_state.line_counts,native_state.line_income})return fail(e,"live typed52-slot values differ from existing actual NativeReader");
     return true;
 }
+bool owner_once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());native::WorldStatus status;
+    if(!current_scope(expected,binding,p,status,e)||!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
+    const auto image=p.image;
+    if(!at(image,0x13df9a0,p.clock,e)||!ap(p.clock,image,0x17499d0,e)||!at(image,0x13df220,p.business,e)||!ap(p.business,image,0x16d97e0,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1712c00,e))return false;
+    if(p.clock>UINTPTR_MAX-0x60||p.business>UINTPTR_MAX-0x110||p.record>UINTPTR_MAX-0x5d0)return fail(e,"live native fixed owner extent overflows");
+    int32_t version=0;if(!at(p.record,0x18,version,e)||version!=2)return fail(e,e.empty()?"live native Record dv requires2":e);
+    if(!ap(p.business+0x60,image,0x16ec280,e)||!at(p.business,0x68,p.history,e)||!at(p.business,0x70,p.history_count,e)||!at(p.business,0x74,p.history_capacity,e)||p.history_count<=0||p.history_capacity<p.history_count||!p.history)return fail(e,e.empty()?"live native History shape differs":e);
+    size_t memberships=0;for(int32_t i=0;i<p.history_count;++i){uintptr_t member=0;if(!at(p.history,size_t(i)*sizeof(uintptr_t),member,e))return false;if(member==p.record)++memberships;}if(memberships!=1)return fail(e,"live native CurrentRecord is not a unique owned History member measured="+std::to_string(memberships)+" required=1");
+    // Owner checks run between scalar stores. Keep identity and validity guards,
+    // but do not recapture scalar values that current_owners discards.
+    if(!at(p.clock,0x58,p.selected,e)||!at(p.clock,0x5c,pause,e))return false;p.pause=pause;
+    for(size_t i=0;i<20;++i){
+        const auto line=p.record+0x30+i*0x48;int32_t category=-1,count=-1;
+        if(!ap(line,image,0x171d0d0,e)||!at(line,0x20,category,e)||category!=int32_t(i)||!at(line,0x18,count,e))
+            return fail(e,e.empty()?"live native category class/index differs category="+std::to_string(i):e);
+        if(count<0)return fail(e,"simulation state rejected: ledger line identity/count differs; category="+std::to_string(i));
+    }
+    if(!native::in_game())return fail(e,"simulation state rejected: no active world");
+    uintptr_t subscribers=0;
+    if(!at(image,0x13df690,subscribers,e)||!ap(subscribers,image,0x1725f40,e))
+        return fail(e,"simulation state rejected: clock/business/subscriber identity differs");
+    native::ClockState clock;if(!native::read_clock(clock,e))return false;
+    int32_t logged_in=-1;
+    if(!at(subscribers,0x90,logged_in,e)||logged_in<0)
+        return fail(e,"simulation state rejected: balance, ledger or subscriber count unreadable/invalid");
+    return true;
+}
 uintptr_t address(const Pin& p,size_t slot){if(slot<6)return p.clock+0x38+slot*4;if(slot==6)return p.business+0x38;if(slot<12)return p.record+0x1c+(slot-7)*4;slot-=12;return p.record+0x30+(slot/2)*0x48+0x18+(slot%2)*4;}
 
 }
@@ -71,7 +98,7 @@ bool NativePort::application_ready(uint64_t expected_epoch,bool& waiting,std::st
     return application_activity(status.saves_in_progress,status.edit_operations,waiting,e);
 }
 bool NativePort::read(Pin& out,std::string& e){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());out={};Pin first,second;float pause1=0,pause2=0;if(!once(context_,binding_,first,pause1,e)||!once(context_,binding_,second,pause2,e))return false;if(first!=second||pause1!=pause2)return fail(e,"live native roots/fields/session changed during double read");Frame shape;shape.session=context_.session;shape.snapshot=context_.snapshot_uuid;shape.epoch=binding_.native_epoch;shape.source_generation=binding_.native_generation;shape.revision=shape.time_revision=1;shape.values=first.values;shape.selected=first.selected;shape.pause=pause1;if(!valid(shape,e))return false;out=first;e.clear();return true;}
-bool NativePort::current_owners(const Pin& expected,std::string& e,int32_t expected_edits){Pin current;float pause=0;if(!once(context_,binding_,current,pause,e,expected_edits))return false;current.values={};auto identity=expected;identity.values={};if(current!=identity||(context_.role==action_session::Role::Client&&current.selected!=0))return fail(e,"live scalar current owner identities/History membership/Clock0 differ");e.clear();return true;}
+bool NativePort::current_owners(const Pin& expected,std::string& e,int32_t expected_edits){Pin current;float pause=0;if(!owner_once(context_,binding_,current,pause,e,expected_edits))return false;current.values={};auto identity=expected;identity.values={};if(current!=identity||(context_.role==action_session::Role::Client&&current.selected!=0))return fail(e,"live scalar current owner identities/History membership/Clock0 differ");e.clear();return true;}
 bool NativePort::store(const Pin& pin,size_t slot,int32_t before,int32_t target,std::string& e){if(slot>=scalar_count||GetCurrentThreadId()!=pin.thread||pin.context!=context_||pin.binding!=binding_||pin.context.role!=action_session::Role::Client||pin.selected!=0)return fail(e,"live fixed scalar store slot/actual Mainthread/Client binding invalid");if(!boundary_)return fail(e,"live actual Client economic dispatch fence provider missing; no store");if(!boundary_->read_current_fence(pin,e))return false;
     if(!current_owners(pin,e))return false;
     return compare_fixed_i32(address(pin,slot),before,target,e);}

@@ -11,7 +11,7 @@ using DestroyProps=void(*)(void* manager,NativePropArray* native_array);
 enum class Origin:uint8_t { Foreign,BuildingWindow,DestroyCursor,OtherWindow,SelectionWindow,NpcWindow,MonsterWindow,NetworkWindow,DistrictWindow,ZoneWindow };
 enum class Policy:uint8_t { Standalone,AuthorityRequired,Unavailable };
 enum class Disposition:uint8_t { ForeignOriginal,StandaloneOriginal,EmptyOriginal,IntentCaptured,Rejected,OwnReplayOriginal };
-enum class ReplayPurpose:uint8_t { HostExecution,ConfirmedHostApplication };
+enum class ReplayPurpose:uint8_t { HostExecution,ConfirmedHostApplication,OrderedExecution };
 struct LocalBinding {
     uintptr_t manager=0,object=0;
     uint64_t uid=0,native_epoch=0,native_generation=0;
@@ -33,6 +33,8 @@ public:
     virtual ~Services()=default;
     virtual bool on_game_thread()noexcept=0;
     virtual Policy policy(std::string& cause)=0;
+    virtual Policy policy_for_origin(Origin,std::string& cause){return policy(cause);}
+    virtual Policy policy_for_selection(Origin origin,uintptr_t,NativePropArray*,std::string& cause){return policy_for_origin(origin,cause);}
     // Read the existing native array. Never create a native ownership object here.
     virtual bool array(NativePropArray*,ArrayObservation&,std::string& cause)=0;
     // A complete Scene collection can use its existing typed Scene controller.

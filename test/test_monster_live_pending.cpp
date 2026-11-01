@@ -14,10 +14,10 @@ using json=nlohmann::json;
 namespace {
 size_t checks=0;void need(bool v,const std::string& why){++checks;if(!v)throw std::runtime_error(why);}
 uint32_t GetCurrentThreadId(){return 7;}
-struct Controller{a::Status s;a::Context c;a::Binding b;a::Status status(){return s;}a::Context bound_context(){return c;}a::Binding bound_binding(){return b;}};
+struct Controller{a::Status s;a::Context c;a::Binding b;a::Status status(){return s;}a::Context bound_context(){return c;}a::Binding bound_binding(){return b;}bool ordered_mode()const{return false;}};
 struct Session:a::Session{a::Context c;bool current(a::Context& out,std::string&)override{out=c;return true;}}session;
 struct Engine{int reads=0;bool current(const a::Binding&,const std::string&,std::string&){++reads;return true;}};
-struct Runtime{uint32_t thread=7;Controller controller;Engine engine;Session& session=::session;bool lobby_retiring=false;}fixture_runtime;
+struct Runtime{uint32_t thread=7;Controller controller;Engine engine;Session& session=::session;bool lobby_retiring=false,live_state=false,live_port=false;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 namespace typed_action_runtime {
 #include "monster_live_idle_binding.inc"

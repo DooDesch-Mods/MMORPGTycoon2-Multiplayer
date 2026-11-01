@@ -24,7 +24,7 @@ bool delete_capture(region::Runtime& r,uintptr_t window,std::string& e){
     if(!world_path_runtime::capture_remove(r,window,mixed,e))return false;
     if(mixed)return true;
     const auto controller=typed_action_runtime::status();
-    if(!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||path.pending||path.captured||path.delete_pending||path.ui_receiver)return fail(e,"path delete UI requires idle bound Controller");
+    if(!input_admission(e)||path.pending||path.captured||path.delete_pending||path.ui_receiver)return fail(e,"path delete UI requires idle bound Controller");
     uintptr_t road=0,proxy=0,live=0,owner=0;int32_t id=-1;
     if(!region::at(r,window,0x4f0,road,e)||!region::at(r,window,0x4f8,proxy,e)||!region::at(r,proxy,0,live,e)||!road||live!=road+0x20||!region::at(r,road,0x178,owner,e)||!region::at(r,owner,0x834,id,e))return fail(e,"path delete selected native road unavailable: "+e);
     region::LocalView view;Graph actual;undo::UndoWitness history;
@@ -32,7 +32,9 @@ bool delete_capture(region::Runtime& r,uintptr_t window,std::string& e){
     if(history.active_graph)return fail(e,"path delete UI requires idle Undo");
     const auto found=std::find(actual.paths.begin(),actual.paths.end(),road);
     if(found==actual.paths.end())return fail(e,"path delete selected object is outside native Road graph");
-    path.delete_pending=PendingDelete{{id,int32_t(found-actual.paths.begin()),actual.state.graph_sha256},{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),path.token};
+    std::optional<action::Context> context;
+    if(!capture_context(net::current_snapshot_id(),{view.world.origin.world_epoch,view.world.origin.generation},context,e))return false;
+    path.delete_pending=PendingDelete{{id,int32_t(found-actual.paths.begin()),actual.state.graph_sha256},{view.world.origin.world_epoch,view.world.origin.generation},net::current_snapshot_id(),path.token,std::move(context)};
     ++path.capture_count;return true;
 }
 bool remove_ui_entry(void* window,void* record){
@@ -94,6 +96,26 @@ bool delete_inverse(region::Runtime& r,const undo::UndoWitness& before,const und
     }
     return cash==unsigned(op.evidence.path_after.cost!=0)&&made==std::set<uint64_t>(op.uids.begin(),op.uids.end())||fail(e,"path delete inverse UID set differs");
 }
+uint32_t delete_default(uintptr_t image,const path_delete_tool::Pin& pin,path_delete_tool::Calls& receipt){
+    __try{
+        struct NativeCalls {uintptr_t image;const path_delete_tool::Pin& pin;
+            void cancel(){reinterpret_cast<void(*)(void*,void*)>(image+0xbf63f0)(reinterpret_cast<void*>(pin.current),reinterpret_cast<void*>(pin.cursor));}
+            void switch_default(){reinterpret_cast<void(*)(void*,void*)>(image+0x5854e0)(reinterpret_cast<void*>(pin.cursor),nullptr);}
+        } calls{image,pin};path_delete_tool::sequence(receipt,calls);return 0;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+bool delete_default_code(region::Runtime& r,std::string& e){
+    namespace guards=native_tool_prepare::code;
+    for(const auto& guard:guards::guards){
+        if(guard.rva!=0x5854e0&&guard.rva!=0x589da0&&guard.rva!=0x58a2c0&&guard.rva!=0xbf6500)continue;
+        std::vector<unsigned char> actual(guard.size);if(!r.memory.copy(r.image+guard.rva,actual.data(),actual.size(),e))return false;
+        if(guard.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(r.image+guard.rva,actual.data(),guard.bytes,guard.size,e))return false;}
+        else if(std::memcmp(actual.data(),guard.bytes,guard.size))return fail(e,"path delete Default full native code differs RVA="+std::to_string(guard.rva));
+    }
+    std::array<unsigned char,16> cancel{};
+    return r.memory.copy(r.image+0xbf63f0,cancel.data(),cancel.size(),e)&&
+        (cancel==native_tool_prepare::buy_region::cancel_code||fail(e,"path delete base Cancel full native code differs"));
+}
 uint32_t delete_select(uintptr_t image,uintptr_t manager,uintptr_t road){
     __try{
         reinterpret_cast<void(*)(void*,void*)>(image+0x2d5c60)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(road));
@@ -119,11 +141,53 @@ bool native_delete(const json& args,json& out,std::string& e){
     const auto controller=typed_action_runtime::status();if(!controller.value("started",false)||controller.value("pending",true)||controller.value("locked",true))return fail(e,"path delete UI requires idle bound Controller");
     region::LocalView view;Graph before;action::Ledger money_before,money_after;undo::UndoWitness undo_before,undo_after;uintptr_t manager=0,handler=0,window=0,target=0,proxy=0,live=0;
     if(!region::read(*r,int32_t(id),0,view,e)||!graph(*r,view,before,e)||size_t(index)>=before.paths.size()||!region::ledger(money_before,e)||!undo::read_undo(r->memory,r->image,undo_before,e)||!region::at(*r,r->image,0x13df630,manager,e)||!native::ap(r->memory,manager,r->image,0x17205d0,e))return fail(e,"path delete UI target/before read failed: "+e);
-    auto& job=path.jobs[token];job={{"token",token},{"id",id},{"path_index",index},{"attempted",true},{"submitted",false},{"confirmed",false}};out=job;
-    auto failed=[&]{job["cause"]=e;out=job;return false;};
+    auto& job=path.jobs[token];job={{"token",token},{"id",id},{"path_index",index},{"attempted",true},{"submitted",false},{"confirmed",false},{"ui_command_attempted",false},{"ui_command_returned",false},{"selection_attempted",false},{"selection_returned",false},{"unknown",false}};out=job;bool native_attempted=false;
+    auto failed=[&]{job["cause"]=e;job["unknown"]=native_attempted;out=job;return false;};
     const auto road=before.paths[size_t(index)];
+    auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return region::at(*r,p,offset,value,cause);};
+    path_delete_tool::Pin tool_before,tool_after;path_delete_tool::Calls cleanup;
+    std::optional<action::Context> context;const action::Binding binding{view.world.origin.world_epoch,view.world.origin.generation};
+    if(undo_before.active_graph||!capture_context(net::current_snapshot_id(),binding,context,e)||
+       !path_delete_tool::inspect(r->image,path.road,path.node,manager,at,tool_before,e)||!delete_default_code(*r,e)){
+        if(e.empty())e="path delete cleanup requires idle native Undo";return failed();}
+    uintptr_t random=0;std::array<uint64_t,4> random_before{},random_after{};int32_t extra_before=0,extra_after=0;
+    if(!at(r->image,0x164b250,random,e)||!at(random,0,random_before,e)||!at(random,0x20,extra_before,e))return failed();
+    uint32_t cleanup_fault=0;if(tool_before.road){native_attempted=true;cleanup_fault=delete_default(r->image,tool_before,cleanup);}
+    job["tool_cleanup"]={{"current_ap_before",tool_before.current_ap},{"target_ap",r->image+0x17391a0},
+        {"cancel_attempted",cleanup.cancel_attempted},{"cancel_returned",cleanup.cancel_returned},
+        {"switch_attempted",cleanup.switch_attempted},{"switch_returned",cleanup.switch_returned},
+        {"exception",cleanup_fault},{"confirmed",false}};
+    if(!native_error(cleanup_fault,"Road Cancel/Default transition",e)||
+       !path_delete_tool::cleaned(r->image,tool_before,at,tool_after,e)){
+        job["tool_cleanup"]["current_ap_after"]=tool_after.current_ap;return failed();}
+    job["tool_cleanup"]["current_ap_after"]=tool_after.current_ap;
+    region::LocalView clean_view;Graph clean_graph;action::Ledger clean_money;undo::UndoWitness clean_undo;uintptr_t same_random=0;
+    if(!current_capture(context,net::current_snapshot_id(),binding,e)||
+       !region::read(*r,int32_t(id),view.region,clean_view,e)||!graph(*r,clean_view,clean_graph,e)||
+       !region::ledger(clean_money,e)||!undo::read_undo(r->memory,r->image,clean_undo,e)||
+       !at(r->image,0x164b250,same_random,e)||same_random!=random||!at(random,0,random_after,e)||!at(random,0x20,extra_after,e)){
+        if(e.empty())e="path delete cleanup current owner changed";return failed();}
+    if(before.state!=clean_graph.state||before.rows!=clean_graph.rows||before.paths!=clean_graph.paths||before.nodes!=clean_graph.nodes||
+       before.path_uids!=clean_graph.path_uids||before.node_uids!=clean_graph.node_uids||money_before!=clean_money||undo_before!=clean_undo||
+       random_before!=random_after||extra_before!=extra_after){e="path delete original tool cleanup changed complete graph/Ledger/Undo/DefaultRNG";return failed();}
+    job["tool_cleanup"]["confirmed"]=true;
+    job["tool_cleanup"]["state_unchanged"]=true;
+    job["tool_cleanup"]["graph_sha256"]=before.state.graph_sha256;
+    job["tool_cleanup"]["default_rng_before"]=random_before;job["tool_cleanup"]["default_rng_after"]=random_after;
+    job["tool_cleanup"]["default_rng_extra_before"]=extra_before;job["tool_cleanup"]["default_rng_extra_after"]=extra_after;
+    job["selection_attempted"]=true;native_attempted=true;
     if(!native_error(delete_select(r->image,manager,road),"delete SelectProp/SetInfoWindow",e))return failed();
-    if(!region::at(*r,manager,0xb8,handler,e)||!region::at(*r,handler,0x10,window,e)||!native::ap(r->memory,window,r->image,0x1714810,e)||!region::at(*r,window,0x4f0,target,e)||!region::at(*r,window,0x4f8,proxy,e)||!region::at(*r,proxy,0,live,e)||target!=road||live!=road+0x20){if(e.empty())e="path delete native InfoWindow target differs";return failed();}
+    job["selection_returned"]=true;
+    int32_t selection_count=-1;uintptr_t current=0,current_ap=0,target_ap=0;
+    if(!at(tool_before.cursor,0x190,current,e)||!at(current,0,current_ap,e)||!at(road,0,target_ap,e)||
+       !at(manager,0x30,selection_count,e)||!at(manager,0xb8,handler,e))return failed();
+    job["selection"]={{"current_ap",current_ap},{"target_ap",target_ap},{"count",selection_count},{"handler",handler}};
+    if(current!=tool_before.desired||current_ap!=r->image+0x17391a0||target_ap!=r->image+0x1743f10||selection_count!=1||!handler){
+        e="path delete native selection rejected current_ap="+std::to_string(current_ap)+" target_ap="+std::to_string(target_ap)+
+            " count="+std::to_string(selection_count)+" required=1 handler="+std::to_string(handler);return failed();}
+    if(!region::at(*r,handler,0x10,window,e)||!native::ap(r->memory,window,r->image,0x1714810,e)||!region::at(*r,window,0x4f0,target,e)||!region::at(*r,window,0x4f8,proxy,e)||!proxy||!region::at(*r,proxy,0,live,e)||target!=road||live!=road+0x20){
+        e="path delete native InfoWindow target differs current_ap="+std::to_string(current_ap)+" target_ap="+std::to_string(target_ap)+
+            " count="+std::to_string(selection_count)+" handler="+std::to_string(handler)+" original="+e;return failed();}
     path.token=token;struct ResetToken{~ResetToken(){path.token.clear();}} reset_token;
     DeleteUIReceipt receipt;const auto seh=delete_ui_command(r->image,window,receipt);
     job["ui_command_attempted"]=receipt.attempted;job["ui_command_returned"]=receipt.returned;job["ui_command_accepted"]=receipt.accepted;job["record_cleanup_confirmed"]=receipt.cleaned;job["exception"]=receipt.fault;job["cleanup_exception"]=receipt.cleanup_fault;
@@ -138,6 +202,7 @@ action::Outcome perform_remove(const action::Binding& binding,const action::Requ
     if(!code(*r,true,e))return action::Outcome::RejectedNoEffect;
     const auto controller=typed_action_runtime::status();
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="path delete lacks exact Controller request";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return action::Outcome::RejectedNoEffect;
     region::LocalView before;Graph old;action::TerrainState state;action::Ledger money;undo::UndoWitness undo_before;uintptr_t global=0;
     if(!region::read(*r,request.path_delete.region,0,before,e)||!region::bound(before,binding,request.snapshot_uuid,e)||!region::ledger(money,e)||!graph(*r,before,old,e)||!delete_binding(old,request.path_delete,e)||!terrain::terrain_state(*r,before,state,global,e)||!undo::read_undo(r->memory,r->image,undo_before,e))return action::Outcome::RejectedNoEffect;
     if(undo_before.active_graph){e="path delete requires idle Undo";return action::Outcome::RejectedNoEffect;}
@@ -145,7 +210,7 @@ action::Outcome perform_remove(const action::Binding& binding,const action::Requ
     if(authority&&(money!=authority->before||old.state!=authority->path_before||!action::same_region_content(before.state,authority->region_before)||!action::same_terrain_content(state,authority->terrain_before))){e="path delete client before content differs from Host";return action::Outcome::RejectedNoEffect;}
     const auto road=old.paths[size_t(request.path_delete.path_index)];int32_t price=-1;action::PathPoint position{};
     if(!native_error(delete_quote(r->image,road,price,position),"delete native Cost/CostPosition",e)||price<0)return action::Outcome::RejectedNoEffect;
-    auto& op=path.operations[request.action_uuid];op.binding=binding;op.request=request;op.evidence.before=money;op.evidence.region_before=authority?authority->region_before:before.state;op.evidence.terrain_before=authority?authority->terrain_before:state;op.evidence.path_before=old.state;
+    auto& op=path.operations[request.action_uuid];op.ordered=action::tick_commands::authority::active();op.binding=binding;op.request=request;op.evidence.before=money;op.evidence.region_before=authority?authority->region_before:before.state;op.evidence.terrain_before=authority?authority->terrain_before:state;op.evidence.path_before=old.state;
     op.attempted=true;auto unknown=[&]{op.cause=e;return action::Outcome::Unknown;};
     if(authority&&!native_error(terrain::seed(before.random,global,*authority),"delete authority RNG seed",e))return unknown();
     path.replay=&op;struct Reset{~Reset(){path.replay=nullptr;}} reset;bool returned=false;
@@ -158,6 +223,12 @@ action::Outcome perform_remove(const action::Binding& binding,const action::Requ
         for(auto p:list)if(p==road){e="path delete target remains selected";return unknown();}}
     op.evidence.region_after=after.state;op.evidence.path_after=current.state;op.evidence.path_after.cost=price;op.evidence.target_retired=true;op.evidence.selection_confirmed=true;
     if(!delete_inverse(*r,undo_before,undo_after,op,position,e))return unknown();op.evidence.undo_confirmed=true;
+    json settlement;if(!terrain_settlement::run(*r,request.action_uuid,op.ordered,settlement,e))return unknown();
+    if(op.ordered){Graph settled;region::LocalView settled_view;uintptr_t settled_global=0;
+        if(!region::read(*r,request.path_delete.region,before.region,settled_view,e)||!region::bound(settled_view,binding,request.snapshot_uuid,e)||
+           !graph(*r,settled_view,settled,e)||!settled_geometry(current,settled,e)||!terrain::terrain_state(*r,settled_view,op.evidence.terrain_after,settled_global,e)||!region::ledger(op.evidence.after,e))return unknown();
+        current=std::move(settled);after=std::move(settled_view);op.evidence.region_after=after.state;op.evidence.path_after=current.state;op.evidence.path_after.cost=price;
+    }
     if(!action::path_delete_effect(request,op.evidence,e))return unknown();
     if(authority&&(op.evidence.after!=authority->after||op.evidence.region_after!=authority->region_after||op.evidence.terrain_after!=authority->terrain_after||op.evidence.path_after!=authority->path_after)){e="path delete original result differs from Host";return unknown();}
     op.history_before=path_history_graph::Snapshot{old.path_uids,old.node_uids,old.rows};

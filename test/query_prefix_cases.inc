@@ -80,8 +80,19 @@ void prefix_cases(){
 
         begin();
         {t::PageReadScope scope;exact(0,31);exact(1,31);exact(0,30);exact(1,30);exact(0,5);exact(1,5);}
-        need(observation.addresses==std::vector<LPCVOID>{at(0,31),at(1,31),owned.regions[0],at(1,30),at(1,5)},
-             "alternating allocations retain all suffixes and use only one widening attempt per lifetime");
+        need(observation.addresses==std::vector<LPCVOID>{at(0,31),at(1,31),owned.regions[0],owned.regions[1]},
+             "successful widening remains available for each alternating allocation");
+
+        begin();const auto multiple=count(t::Part::MemoryVirtualQuery);
+        {t::PageReadScope scope;for(size_t i=32;i>0;--i){exact(0,i-1);exact(1,i-1);}}
+        need(observation.addresses==std::vector<LPCVOID>{at(0,31),at(1,31),owned.regions[0],owned.regions[1]}&&
+             count(t::Part::MemoryVirtualQuery)==multiple+4,
+             "two descending allocations retain exact metadata with four actual OS queries");
+
+        begin();observation.probe_address=owned.regions[1];observation.probe=Probe::Failure;
+        {t::PageReadScope scope;exact(0,31);exact(0,20);exact(1,31);exact(1,20);exact(1,10);}
+        need(observation.addresses==std::vector<LPCVOID>{at(0,31),owned.regions[0],at(1,31),owned.regions[1],at(1,20),at(1,10)},
+             "failure after successful widening disables further attempts and retains requested-page fallback");
 
         for(const auto mode:{Probe::Failure,Probe::ChangedError,Probe::Overflow,Probe::NoAccess,Probe::Guard,
                              Probe::Short,Probe::WrongAllocation,Probe::WrongEnd,Probe::WrongProtection}){

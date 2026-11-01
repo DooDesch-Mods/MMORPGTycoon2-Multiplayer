@@ -72,18 +72,24 @@ bool verify_owned(std::string& error){
     return true;
 }
 }
+namespace ordered_message_native {
+unsigned calls=0;bool valid=true;
+bool enabled(std::string& e){++calls;if(!valid){e="original ordered message verification failure";return false;}return true;}
+}
 #include "tutorial_hook_confirmation.inc"
 void need(bool value,const std::string& cause){if(!value)throw std::runtime_error(cause);}
 void reset(int physical_failure=-99){
     owned={0x100,0x200,0x300,true,false};owned_commit={0x400,0x500,0x600,true,false};owned_pay={0x700,0x800,0x900,true,false};
     owned_staff={0xa00,0xb00,0xc00,true,false};owned_display={0xd00,0xe00,0xf00,true,false};owned_scenario_start={0x1000,0x1100,0x1200,true,false};owned_advance={0x1300,0x1400,0x1500,true,false};
-    failed_physical=physical_failure;public_resolver_calls=0;physical_calls.clear();memory.reads=0;game_thread_available=false;intro_native::calls=0;intro_native::valid=true;
+    failed_physical=physical_failure;public_resolver_calls=0;physical_calls.clear();memory.reads=0;game_thread_available=false;intro_native::calls=0;intro_native::valid=true;ordered_message_native::calls=0;ordered_message_native::valid=true;
 }
 void check(){
     reset();std::string error;
+    ordered_message_native::valid=false;need(!hooks_enabled(error)&&ordered_message_native::calls==1&&error=="original ordered message verification failure","ordered message hook failure lost");
+    reset();error.clear();
     const bool confirmed=hooks_enabled(error);
     need(confirmed,"loader-thread hook confirmation failed: "+error);
-    need(public_resolver_calls==0&&intro_native::calls==1,"hook confirmation skipped Intro verification or called public game-thread resolver");
+    need(public_resolver_calls==0&&intro_native::calls==1&&ordered_message_native::calls==1,"hook confirmation skipped Intro verification or called public game-thread resolver");
     need(owned.enabled&&owned_commit.enabled&&owned_pay.enabled&&owned_staff.enabled&&owned_display.enabled&&owned_scenario_start.enabled&&owned_advance.enabled,"confirmed owner flags not enabled");
     need(physical_calls==std::vector<int>({-2,-1,0,1,2,3,4})&&memory.reads==7,"physical verification order or raw memory callback differs");
     for(int kind=-2;kind<=4;++kind){

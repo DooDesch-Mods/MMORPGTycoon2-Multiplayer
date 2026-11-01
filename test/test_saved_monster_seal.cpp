@@ -1,4 +1,5 @@
 #include "monster_saved_identity.h"
+#include "mt2mp/net/snapshot_buffer.h"
 #include "direct_monster_identity.h"
 #include "monster_snapshot_companion.h"
 #include "dungeon_scene_identity_runtime.h"
@@ -18,6 +19,7 @@ namespace direct_monster_identity=mt2mp::game::direct_monster_identity;
 namespace attachment=mt2mp::game::monster_snapshot_companion;
 namespace snapshot_monster_key=mt2mp::game::snapshot_monster_key;
 namespace region_saved_identity=mt2mp::game::region_saved_identity;
+namespace region_rng_snapshot=mt2mp::game::region_rng_snapshot;
 namespace opened {
 struct CurrentWorld{std::string uuid;uint64_t world_epoch=1,generation=2;void* map=nullptr;std::string sha256;bool operator==(const CurrentWorld&)const=default;};
 struct Status{std::string state="pinned",uuid,sha256;bool held=true;uint64_t generation=0,bytes=0;};
@@ -112,7 +114,8 @@ bool capture_saved(const Census& census,Manifest& out,std::string& error){
     Manifest decoded;if(!mt2mp::game::scenery_scene_snapshot_alias::decode(mt2mp::game::scenery_scene_snapshot_alias::encode(next),census.world.sha256,decoded,error))return false;
     if(decoded!=next){error="fixture Scenery capture complete alias readback differs";return false;}out=std::move(decoded);return true;
 }
-bool prepare_saved(const Census& census,const Manifest& input,std::string& error){
+bool prepare_saved(const Census& census,const Manifest& input,std::string& error,bool publish){
+    if(!publish){error="unexpected export publication in legacy seal fixture";return false;}
     ++alias_ports::scenery_prepare;if(!census_matches(census,error)||!alias_ports::entered("Scenery admission",error))return false;
     if(!input.present){error="fixture Scenery admission has no complete alias manifest";return false;}
     if(!mt2mp::game::scenery_scene_snapshot_alias::valid(input,census.world.sha256,error))return false;
@@ -125,6 +128,18 @@ bool prepare_saved(const Census& census,const Manifest& input,std::string& error
 }
 attachment::Manifest prepared,captured;
 opened::CurrentWorld origin,current;
+bool export_mode=false,emergency=false;uint64_t generation=0;
+region_rng_snapshot::Manifest region_capture;
+struct Observer {
+    std::string& uuid=fixture::uuid;std::string& sha=fixture::sha;std::string& failure=fixture::failure;
+    uintptr_t& bound_context=fixture::bound_context;uint64_t& generation=fixture::generation;bool& emergency=fixture::emergency;
+    decltype(saves)& saves=fixture::saves;decltype(loads)& loads=fixture::loads;decltype(load_stack)& load_stack=fixture::load_stack;
+    decltype(observed)& observed=fixture::observed;decltype(pools)& pools=fixture::pools;
+    decltype(scene_census)& scene_census=fixture::scene_census;decltype(captured)& captured=fixture::captured;
+    decltype(region_capture)& region_capture=fixture::region_capture;
+    decltype(origin)& origin=fixture::origin;
+};
+Observer& observer(){static Observer value;return value;}
 std::map<uint64_t,uintptr_t> uid_registry;
 bool healthy(std::string& e){e=failure;return failure.empty();}
 bool reject(std::string& e,const std::string& cause){failure=cause;e=cause;return false;}
@@ -134,7 +149,7 @@ namespace native_open_runtime {bool read_current_world(opened::CurrentWorld& out
 #include "saved_monster_seal_actual.inc"
 void need(bool value,const std::string& cause){++assertions;if(!value)throw std::runtime_error(cause);}
 void setup(){
-    bound_context=9;uuid=birth;alias_ports::clear();
+    bound_context=9;uuid=birth;alias_ports::clear();region_capture={};export_mode=false;
     memory={};failure.clear();observed.clear();pools.clear();prepared={};captured={};prepared_present=false;host_active=false;world_changed=false;scene_census.reset();gizmo_seals=0;export_failed=false;dungeon_scene_identity_runtime::gizmos={};
     direct_monster_identity::registry={};current={"local-native-origin",7,9,reinterpret_cast<void*>(map_address)};
     const auto root=map_address+0x1c0;
@@ -238,10 +253,11 @@ void clear(){capture_active=client_active=gate_failure=false;shared_value.state=
 }
 namespace fixture {
 namespace network_identity=::network_fixture;
-std::mutex gate;bool hooks=true,client_active=false,emergency=false;uint32_t main_thread=17;uint64_t generation=0,prepared_bytes=0;
-std::string prepared_uuid,prepared_sha;
+std::mutex gate;bool hooks=true,client_active=false;uint32_t main_thread=17;uint64_t prepared_bytes=0;
+std::string prepared_uuid,prepared_sha,prepared_region_rng_sha;
 unsigned GetCurrentThreadId(){return 17;}
 namespace net {
+using SnapshotSha256=mt2mp::net::SnapshotSha256;
 struct SnapshotFileHandle{bool open(const std::filesystem::path&,DWORD,DWORD,std::string& error){error="unexpected companion file in load lifecycle fixture";return false;}HANDLE get()const{return INVALID_HANDLE_VALUE;}bool close(std::string*){return true;}};
 bool snapshot_file_length(HANDLE,uint64_t&,std::string& error){error="unexpected companion length in load lifecycle fixture";return false;}
 }
@@ -273,6 +289,16 @@ void load_lifecycle_tests(){
     initial();need(prepare_load(absent,birth,fixture_digest,77,error),error);network_identity::invalidate_world("verified-local-load");opened::pinned.bytes=78;
     need(!arm_client(birth,fixture_digest,error)&&!client_active&&!network_identity::client_active,"NativeOpen pinned byte count did not match exact prepared file");
 }
+void region_capture_tests(){
+    std::string error;
+    const region_rng_snapshot::Manifest expected{true,{{67,{1,2,3,4},-5}}};
+    setup();host_active=true;region_capture=expected;
+    need(seal_world(current,false,error)&&captured.region_rng==expected&&origin==current,"Host seal lost complete Region RNG or exact observed Origin");
+    setup();prepared_present=true;prepared={fixture_digest,77,{{67,record(),record()}}};prepared.region_rng=expected;
+    need(seal_world(current,false,error)&&captured.region_rng==expected&&origin==current,"Client seal lost prepared Region RNG or exact observed Origin");
+    region_capture=expected;reset(birth,fixture_digest);
+    need(!region_capture.present&&region_capture.rows.empty(),"new native observer retained preceding Region RNG capture");
+}
 void alias_port_tests(){
     std::string error;direct_monster_identity::Entry entry;
     setup();need(seal_world(current,false,error),error);
@@ -298,4 +324,4 @@ void alias_port_tests(){
 }
 }
 
-int main()try{fixture::tests();fixture::scene_tests();fixture::load_lifecycle_tests();fixture::alias_port_tests();std::cout<<fixture::assertions<<" actual Monster root/Dungeon seal, ownership, companion and atomic world comparisons passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}
+int main()try{fixture::tests();fixture::scene_tests();fixture::load_lifecycle_tests();fixture::alias_port_tests();fixture::region_capture_tests();std::cout<<fixture::assertions<<" actual Monster root/Dungeon seal, ownership, companion and atomic world comparisons passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}

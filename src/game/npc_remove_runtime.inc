@@ -302,7 +302,7 @@ bool remove_local_binding(uintptr_t manager,uintptr_t object,ui::LocalBinding& o
             return target_binding(npc_target_key::argument(operation.request.canonical_record_key),operation.binding,
                 operation.request.snapshot_uuid,fresh,region,census,cause);});
     const auto snapshot=net::current_snapshot_id();action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,error))return false;
+    if(!capture_binding(snapshot,binding,error))return false;
     Memory target_memory;uint64_t uid=0;std::string target;
     if(!field(target_memory,object,0x18,uid,error)||!local_target_key(object,uid,target,error))return false;
     uintptr_t region=0;npc_census::State census;
@@ -323,7 +323,7 @@ bool authorize_remove_replay(const ui::Replay& replay,std::string& error) {
        state.remove_replay->binding!=replay.binding||!replay.binding.supported_npc||
        !state.ready||GetCurrentThreadId()!=state.thread||
        (replay.purpose!=ui::ReplayPurpose::HostExecution&&
-        replay.purpose!=ui::ReplayPurpose::ConfirmedHostApplication))
+        replay.purpose!=ui::ReplayPurpose::ConfirmedHostApplication&&replay.purpose!=ui::ReplayPurpose::OrderedExecution))
         return fail(error,"NPC Remove lacks exact private replay scope");
     const auto controller=typed_action_runtime::controller_status();
     const auto operation=state.operations.find(replay.intent.action_uuid);
@@ -337,11 +337,13 @@ bool authorize_remove_replay(const ui::Replay& replay,std::string& error) {
        operation->second.local_uid!=replay.binding.uid||
        operation->second.local_pointer!=replay.binding.object)
         return fail(error,"NPC Remove replay action, Place key or native target differs");
+    if(operation->second.ordered!=(replay.purpose==ui::ReplayPurpose::OrderedExecution))return fail(error,"NPC Remove replay execution mode differs");
+    if(operation->second.ordered&&!ordered_scope(operation->second.binding,operation->second.request,error))return false;
     if(!controller.value("started",false)||controller.value("locked",true)||
        !controller.value("pending",false)||
        controller.value("action_uuid",std::string{})!=replay.intent.action_uuid||
        replay.intent.snapshot_uuid!=net::current_snapshot_id()||
-       (replay.purpose==ui::ReplayPurpose::HostExecution)!=Config::instance().is_host)
+       (!operation->second.ordered&&(replay.purpose==ui::ReplayPurpose::HostExecution)!=Config::instance().is_host))
         return fail(error,"NPC Remove replay Controller, World or role differs");
     return true;
 }
@@ -449,6 +451,7 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
     if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||
        !npc_target_key::request(request.canonical_record_key,request.target_action_uuid)){
         error="NPC Remove lacks exact pending Controller or Place key";return action::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
     ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
     if(!target_binding(npc_target_key::argument(request.canonical_record_key),binding,request.snapshot_uuid,local,region,census,error))
         return action::Outcome::RejectedNoEffect;
@@ -487,6 +490,7 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
        quest_proof.references_before!=authority->npc_quest_removal->references_before)){
         error="NPC Remove Client complete Quest records or active references differ from Host";return action::Outcome::RejectedNoEffect;}
     auto& op=state.operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     op.target_action_uuid=request.target_action_uuid;op.local_uid=local.uid;op.local_pointer=local.object;
     op.target_type=target_type;
     if(!field(memory,region,0x834,op.target_region,error))return action::Outcome::RejectedNoEffect;
@@ -533,7 +537,7 @@ action::Outcome remove_perform(const action::Binding& binding,const action::Requ
        !world_quest_history::references(binding,request.snapshot_uuid,selected_quests,selected_refs,error)||
        !npc_qr::unchanged(op.npc_remove_quests_before,selected_quests,error)||selected_refs!=op.npc_remove_refs_before)
         return unknown(error.empty()?"NPC original Select changed complete Quest records or active references":error);
-    ui::Replay replay{authority?ui::ReplayPurpose::ConfirmedHostApplication:ui::ReplayPurpose::HostExecution,
+    ui::Replay replay{op.ordered?ui::ReplayPurpose::OrderedExecution:authority?ui::ReplayPurpose::ConfirmedHostApplication:ui::ReplayPurpose::HostExecution,
                       {request.action_uuid,request.snapshot_uuid,request.canonical_record_key},local};
     const auto old_replays=ui_remove_runtime::status().value("replay_originals",uint64_t{});
     if(state.remove_replay)return unknown("NPC Remove private replay is reentrant");
@@ -601,6 +605,7 @@ bool remove_observe(const action::Binding& binding,const action::Request& reques
        found->second.destroyprops_original_calls!=1)
         return fail(error,"NPC Remove observation lacks exact confirmed OriginalOnce operation");
     const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(binding,request,error))return false;
     if(!request.target_action_uuid.empty()){
         const auto target=state.operations.find(request.target_action_uuid);
         if(target==state.operations.end()||!target->second.target_absent)

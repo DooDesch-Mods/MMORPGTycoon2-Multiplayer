@@ -81,6 +81,7 @@ struct NativeFixture:live_host_state::PartyPort {
     bool host_batch(const std::function<bool(std::string&)>& body,std::string& e){++batches;if(batches==fail_batch)return fail(e,"fixture original batch failed");return body(e);}
     bool births(std::string& e){e.clear();return true;}
     bool pins(std::string& e){e.clear();return true;}
+    bool capture_pins(std::string& e){return pins(e);}
     int references(){return 0;}
     bool reject(std::string& e,const std::string& cause,bool attempted){++rejections;unknown=attempted;return fail(e,cause);}
 };

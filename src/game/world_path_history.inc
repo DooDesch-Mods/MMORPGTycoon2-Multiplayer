@@ -17,7 +17,9 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
        request.canonical_record_key!="path:"+request.target_action_uuid){
         if(error.empty())error="Wall/Pass history requires an active original Path Controller";
         return action::Outcome::RejectedNoEffect;}
-    if(bool(authority)==Config::instance().is_host){
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
+    const bool ordered=action::tick_commands::authority::active();
+    if(!ordered&&bool(authority)==Config::instance().is_host){
         error="Wall/Pass history authority role differs";return action::Outcome::RejectedNoEffect;}
     uint64_t revision=0;
     if(!ui_move_runtime::contract::pending(typed_action_runtime::controller_status(),request,revision,error))
@@ -30,6 +32,7 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
         error="Wall/Pass history lacks confirmed retired source in this World";
         return action::Outcome::RejectedNoEffect;}
     const auto& source=found->second;
+    if(source.ordered!=ordered){error="Wall/Pass history execution mode differs from retained source";return action::Outcome::RejectedNoEffect;}
     const bool undo_direction=request.action==action::Action::UndoBuilding;
     const Sample& expected_before=undo_direction?source.after:source.before;
     const Sample& expected_after=undo_direction?source.before:source.after;
@@ -68,11 +71,27 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     mixed_path_native::Census after_census;
     if(!mixed_path_native::read_world(r->memory,r->image,map,view.world.root,after_census,error)||
        !owner.keys.restore(expected_after.mixed.graph,after_census,error)||
+       (!undo_direction&&ordered&&source.request.world_path.kind==action::WorldPathKind::Wall&&
+        !restore_wall_owners(*r,view.world.root,request.target_action_uuid,expected_after,after_census,source.wall_owners,error))||
        !world_path_sample(*r,request.snapshot_uuid,intent.start_region,intent.end_region,operation.after,error)||
        !region::ledger(operation.evidence.after,error)){
         operation.cause=error;return action::Outcome::Unknown;}
-    if(!mixed::same(operation.after.mixed,expected_after.mixed,error)||operation.evidence.after!=money_after){
-        error=operation.cause="Wall/Pass original Undo/Redo did not restore complete source topology, Records or ledger";
+    const bool topology_matches=mixed::same(operation.after.mixed,expected_after.mixed,error);
+    if(!topology_matches||operation.evidence.after!=money_after){
+        const std::string native_cause=topology_matches?"native ledger differs":error;
+        json detail={{"topology_matches",topology_matches},{"ledger_matches",operation.evidence.after==money_after}};
+        if(!topology_matches){
+            json actual,expected;std::string readback_error;
+            if(mixed::canonical(operation.after.mixed,expected_after.mixed,actual,readback_error)&&
+               mixed::canonical(expected_after.mixed,expected_after.mixed,expected,readback_error)){
+                const auto differences=json::diff(expected,actual);
+                detail["difference_count"]=differences.size();detail["differences"]=json::array();
+                for(size_t i=0;i<differences.size()&&i<16;++i)detail["differences"].push_back(differences[i]);
+            }else detail["readback_error"]=readback_error;
+            if(!undo_direction&&source.request.world_path.kind==action::WorldPathKind::Wall)
+                detail["changed_wall_record"]=changed_wall_record(*r,view.world.root,request.target_action_uuid,operation.after,expected_after);
+        }
+        error=operation.cause="Wall/Pass original Undo/Redo did not restore complete source topology, Records or ledger: "+native_cause+"; "+detail.dump();
         return action::Outcome::Unknown;}
     uintptr_t inverse=0;
     const auto direction=undo_direction?action::Action::RedoBuilding:action::Action::UndoBuilding;
@@ -116,6 +135,6 @@ void retire_world(){
     capture.before.reset();capture.captured.reset();capture.pending.reset();
     owner=Owner{};
     operations.clear();history.clear();
-    capture.last_action.clear();capture.cause.clear();
+    capture.last_action.clear();capture.pending_action.clear();capture.cause.clear();
 }
 }

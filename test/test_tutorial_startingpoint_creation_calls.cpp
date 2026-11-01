@@ -91,6 +91,7 @@ bool read_clock(ClockState& out,std::string&){out=clock_status;return true;}
 bool read_world_status(WorldStatus& out,std::string&){out=world_status;return true;}
 }
 namespace mt2mp::game::live_host_state {
+bool NativePort::application_ready(uint64_t,bool& waiting,std::string& e){waiting=false;e="unexpected Client frame application in creation fixture";return false;}
 bool NativePort::publication_ready(uint64_t,bool& waiting,std::string& e){waiting=false;e="unexpected Host publication in Client creation fixture";return false;}
 bool NativePort::read(Pin& out,std::string& e){++economy_reads;if(economy_reads==fail_economy_read){e="original physical Economy read failed";return false;}out=economy_pin;return true;}
 bool NativePort::store(const Pin&,size_t,int32_t,int32_t,std::string& e){e="unexpected Economy store in creation fixture";return false;}

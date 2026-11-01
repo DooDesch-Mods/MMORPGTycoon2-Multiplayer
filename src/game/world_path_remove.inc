@@ -67,7 +67,9 @@ bool capture_remove(region::Runtime& r,uintptr_t window,bool& handled,std::strin
     intent.target_path=owner.keys.keys().at(found->member.uid);
     intent.graph_before_sha256=before.wire.complete_sha256;
     if(!action::world_path_valid(intent))return fail(error,"mixed Path Remove captured intent invalid");
-    capture.pending=Pending{std::move(intent),{view.world.origin.world_epoch,view.world.origin.generation},snapshot};
+    std::optional<action::Context> context;
+    if(!capture_context(snapshot,{view.world.origin.world_epoch,view.world.origin.generation},context,error))return false;
+    capture.pending=Pending{std::move(intent),{view.world.origin.world_epoch,view.world.origin.generation},snapshot,std::move(context)};
     ++capture.accepted;error.clear();return true;
 }
 uint32_t replay_remove(uintptr_t image,uintptr_t object,bool& returned){

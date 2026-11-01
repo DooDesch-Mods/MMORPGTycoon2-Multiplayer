@@ -23,6 +23,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/region_sale_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/selection_move_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/service_membership_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/ui_path_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/typed_action_runtime.cpp"
  )
 execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_world_edit_bodies.py"
@@ -85,6 +86,7 @@ foreach(target
     test_path_history_graph
     test_path_history_protocol
     test_path_history_runtime
+    test_ordered_world_path_history
     test_region_history_runtime
     test_district_saved_identity
     test_district_lifecycle
@@ -173,3 +175,24 @@ foreach(target
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES TIMEOUT 60)
 endforeach()
+
+add_executable(test_scenery_gesture "${CMAKE_CURRENT_LIST_DIR}/../test/test_scenery_gesture.cpp")
+target_include_directories(test_scenery_gesture PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/game")
+target_compile_features(test_scenery_gesture PRIVATE cxx_std_20)
+add_test(NAME scenery_gesture COMMAND test_scenery_gesture)
+
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/test/extract_scenery_gesture_adapter.py"
+    "${MT2MP_SOURCE_ROOT}/src/game/scenery_stroke_gesture.inc")
+execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_scenery_gesture_adapter.py"
+    --source "${MT2MP_SOURCE_ROOT}" --output "${WORLD_EDIT_GENERATED}"
+    RESULT_VARIABLE SCENERY_GESTURE_EXTRACT_RESULT OUTPUT_VARIABLE SCENERY_GESTURE_EXTRACT_STDOUT ERROR_VARIABLE SCENERY_GESTURE_EXTRACT_STDERR)
+if(NOT SCENERY_GESTURE_EXTRACT_RESULT EQUAL 0)
+    message(FATAL_ERROR "Scenery gesture actual adapter extraction failed: ${SCENERY_GESTURE_EXTRACT_STDOUT}${SCENERY_GESTURE_EXTRACT_STDERR}")
+endif()
+add_executable(test_scenery_gesture_adapter "${MT2MP_SOURCE_ROOT}/test/test_scenery_gesture_adapter.cpp")
+target_compile_features(test_scenery_gesture_adapter PRIVATE cxx_std_20)
+target_compile_options(test_scenery_gesture_adapter PRIVATE /W4 /WX /utf-8 /EHsc)
+target_include_directories(test_scenery_gesture_adapter PRIVATE "${WORLD_EDIT_GENERATED}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include/vendor")
+add_test(NAME scenery_gesture_adapter COMMAND test_scenery_gesture_adapter)
+add_test(NAME scenery_gesture_ops COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_scenery_gesture_ops.py")

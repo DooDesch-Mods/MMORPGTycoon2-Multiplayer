@@ -33,22 +33,37 @@ using Owner = building_capture_identity::StreamOwner;
 uintptr_t image = 0;
 uint32_t main_thread = 0;
 bool hooks = false;
-std::atomic<bool> host_active = false, client_active = false, emergency = false;
+std::atomic<bool> host_active = false, client_active = false, export_mode = false;
 std::mutex gate;
-std::string uuid, sha, failure;
-uint64_t generation = 0, next_ticket = 0;
-uintptr_t bound_context = 0;
-opened::CurrentWorld origin;
 struct Save { q::SaveFrame frame; Owner owner; uint32_t thread = 0; };
 struct Load { q::LoadFrame frame; uintptr_t property = 0, manager = 0; uint32_t thread = 0; q::ChildHeader child; bool child_pending = false; };
+namespace attachment=boss_snapshot_alias;
+uint64_t next_ticket=0;
+struct Observer {
+std::atomic<bool> emergency=false;
+std::string uuid, sha, failure;
+uint64_t generation = 0;
+uintptr_t bound_context = 0;
+opened::CurrentWorld origin;
 std::map<Ticket, Save> saves;
 std::map<Ticket, Load> loads;
 std::map<uint32_t, Ticket> load_stack;
 std::map<uintptr_t, q::Pool> observed;
 std::map<uintptr_t, q::SavedPool> pools;
 std::optional<dungeon_scene_identity_runtime::Census> scene_census;
-namespace attachment=boss_snapshot_alias;
-attachment::Manifest prepared, captured;
+attachment::Manifest captured;
+};
+Observer live_observer, export_observer;
+thread_local Observer* selected_observer=&live_observer;
+Observer& observer() { return *selected_observer; }
+// Only each synchronous export callback selects the capture-owned record.
+// The native save runs after this scope ends; live authority stays published.
+struct ExportScope {
+    Observer* previous=selected_observer;
+    explicit ExportScope(bool isolated) { if(isolated)selected_observer=&export_observer; }
+    ~ExportScope() { selected_observer=previous; }
+};
+attachment::Manifest prepared;
 std::string prepared_uuid;
 bool prepared_present=false;
 uint64_t prepared_bytes=0;
@@ -74,16 +89,17 @@ struct Memory {
     }
 } memory;
 bool reject(std::string& error, const std::string& cause) {
-    if (failure.empty()) { failure = cause; LOG_ERROR("[SavedBoss] snapshot={} cause={}; original serialization unchanged", uuid, cause); }
-    error = failure; pools.clear(); return false;
+    if (observer().failure.empty()) { observer().failure = cause; LOG_ERROR("[SavedBoss] snapshot={} cause={}; original serialization unchanged", observer().uuid, cause); }
+    error = observer().failure; observer().pools.clear(); return false;
 }
 void caught(const char* cause) noexcept {
-    emergency = true; OutputDebugStringA("ERROR SavedBoss observer exception: ");
+    ExportScope export_scope(export_mode.load());
+    observer().emergency = true; OutputDebugStringA("ERROR SavedBoss observer exception: ");
     OutputDebugStringA(cause); OutputDebugStringA("; target bindings blocked, original unchanged\n");
 }
 bool healthy(std::string& error) {
-    if (emergency) return reject(error, "Boss identity observer exception; original diagnostic retained");
-    if (!failure.empty()) { error = failure; return false; }
+    if (observer().emergency) return reject(error, "Boss identity observer exception; original diagnostic retained");
+    if (!observer().failure.empty()) { error = observer().failure; return false; }
     return true;
 }
 template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
@@ -91,12 +107,12 @@ template<class Left,class Right>bool same_world(const Left& a,const Right& b) {
         a.mode == b.mode && a.state == b.state && a.world == b.world && a.map == b.map;
 }
 void reset(const std::string& id, const std::string& digest) {
-    uuid = id; sha = digest; captured={}; failure.clear(); emergency = false; saves.clear(); loads.clear();
-    load_stack.clear(); observed.clear(); pools.clear(); scene_census.reset(); bound_context = 0; main_thread = GetCurrentThreadId();
+    observer().uuid = id; observer().sha = digest; observer().captured={}; observer().failure.clear(); observer().emergency = false; observer().saves.clear(); observer().loads.clear();
+    observer().load_stack.clear(); observer().observed.clear(); observer().pools.clear(); observer().scene_census.reset(); observer().bound_context = 0; main_thread = GetCurrentThreadId();
 }
 bool context(uintptr_t actual, std::string& error) {
-    if (!actual || (bound_context && bound_context != actual)) return reject(error, "Boss property save/load context differs");
-    bound_context = actual; return true;
+    if (!actual || (observer().bound_context && observer().bound_context != actual)) return reject(error, "Boss property save/load context differs");
+    observer().bound_context = actual; return true;
 }
 DWORD contains_call(uintptr_t ctx, uintptr_t object, int32_t& id, bool& present) {
     __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x89e690)(
@@ -119,25 +135,25 @@ DWORD lookup_call(uintptr_t ctx, int32_t id, uintptr_t& out) {
 #endif
 bool live_reader(uintptr_t reader, uintptr_t ctx, std::string& error) {
     uintptr_t mode = 0, actual = 0;
-    if (!opened::validate_reader(reinterpret_cast<void*>(reader), generation, error) ||
+    if (!opened::validate_reader(reinterpret_cast<void*>(reader), observer().generation, error) ||
         !q::at(memory, image, 0x13df320, mode, error) || !q::typed(memory, image, mode, 0x16e6730, error) ||
         !q::at(memory, mode, 0xd8, actual, error)) return false;
     return actual == ctx || q::fail(error, "Boss LoadContext is not active Mode context");
 }
 Load* top(std::string& error) {
-    const auto thread = load_stack.find(GetCurrentThreadId());
-    if (thread == load_stack.end()) { reject(error, "Boss event outside its owned property frame"); return nullptr; }
-    const auto frame = loads.find(thread->second);
-    if (frame == loads.end()) { reject(error, "Boss property frame missing"); return nullptr; }
+    const auto thread = observer().load_stack.find(GetCurrentThreadId());
+    if (thread == observer().load_stack.end()) { reject(error, "Boss event outside its owned property frame"); return nullptr; }
+    const auto frame = observer().loads.find(thread->second);
+    if (frame == observer().loads.end()) { reject(error, "Boss property frame missing"); return nullptr; }
     return &frame->second;
 }
 bool retain(q::Pool value, std::string& error) {
-    if (observed.size() >= 4096 || !observed.emplace(value.manager, std::move(value)).second)
+    if (observer().observed.size() >= 4096 || !observer().observed.emplace(value.manager, std::move(value)).second)
         return reject(error, "Boss property array duplicate or observation budget exceeded");
     return true;
 }
 bool seal_world(const opened::CurrentWorld& world,bool first,std::string& error){
-    if(!healthy(error)||!saves.empty()||!loads.empty()||!load_stack.empty())return reject(error,error.empty()?"Boss snapshot has unfinished original property scopes":error);
+    if(!healthy(error)||!observer().saves.empty()||!observer().loads.empty()||!observer().load_stack.empty())return reject(error,error.empty()?"Boss snapshot has unfinished original property scopes":error);
     const auto map=uintptr_t(world.map),root=map+0x1c0;
     q::Bounds regions;if(!map||!q::typed(memory,image,map,0x1742860,error)||!q::typed(memory,image,map+0x230,0x16f04e0,error)||
        !q::bounds(memory,map+0x230,4096,regions,error))return reject(error,error);
@@ -150,48 +166,50 @@ bool seal_world(const opened::CurrentWorld& world,bool first,std::string& error)
         if(shard!=root||id<0||!ids.insert(id).second)return reject(error,"Boss saved Root Region ownership/ID differs");
         scenes.push_back({"world",root,region,id,-1,-1,false});}
     if(scenes.empty()||!q::unchanged(memory,map+0x230,4096,regions,error))return reject(error,error.empty()?"Boss native saved Root Regions absent":error);
-    if(!scene_census)return reject(error,"Boss snapshot lacks explicit complete Dungeon scene classification");
-    if(!scene_census->snapshot_census||scene_census->world.uuid!=uuid||scene_census->world.sha256!=sha||!same_world(scene_census->world,world))return reject(error,"Boss Dungeon classification snapshot/world lifetime differs");
-    for(const auto& scene:scene_census->pools)scenes.push_back({scene.scene.owner.key,scene.scene.owner.shard,scene.scene.owner.region,scene.scene.exterior_region,scene.scene.exterior_slot,scene.scene.owner.instance_index,true});
+    if(!observer().scene_census)return reject(error,"Boss snapshot lacks explicit complete Dungeon scene classification");
+    if(!observer().scene_census->snapshot_census||observer().scene_census->world.uuid!=observer().uuid||observer().scene_census->world.sha256!=observer().sha||!same_world(observer().scene_census->world,world))return reject(error,"Boss Dungeon classification snapshot/world lifetime differs");
+    for(const auto& scene:observer().scene_census->pools)scenes.push_back({scene.scene.owner.key,scene.scene.owner.shard,scene.scene.owner.region,scene.scene.exterior_region,scene.scene.exterior_slot,scene.scene.owner.instance_index,true});
     std::map<uintptr_t,q::SavedPool> ready;std::set<std::string> keys;std::set<uintptr_t> objects;std::set<uint64_t> uids;
     std::vector<std::pair<std::string,boss_identity::Entry>> restored;attachment::Manifest records;records.present=true;
     for(const auto& scene:scenes){uintptr_t manager=0,owner=0,region_shard=0;
         if(!q::at(memory,scene.region,0x990,manager,error)||!q::typed(memory,image,manager,0x16fa780,error)||!q::at(memory,manager,0x68,owner,error)||!q::at(memory,scene.region,0x70,region_shard,error))return reject(error,error);
         if(owner!=scene.region||region_shard!=scene.shard||ready.contains(manager))return reject(error,"Boss snapshot current scene/manager reciprocity repeats or differs");
-        const auto found=observed.find(manager);if(found==observed.end())return reject(error,"Boss native property unobserved in scene="+scene.key);
+        const auto found=observer().observed.find(manager);if(found==observer().observed.end())return reject(error,"Boss native property unobserved in scene="+scene.key);
         auto links=[&](uintptr_t object,int32_t& link,std::string& cause){for(const auto& row:found->second.records)if(row.pointer==object){link=row.link_id;return true;}return q::fail(cause,"Boss current member absent from original serialized record");};
         q::Pool actual;if(!q::observe(memory,image,manager,links,actual,error)||actual!=found->second)return reject(error,error.empty()?"Boss native array changed before snapshot seal":error);
-        boss_identity::Scope scope{first?uuid:world.uuid,scene.key,world.world_epoch,world.generation,root,scene.shard,scene.region,manager};
+        boss_identity::Scope scope{first?observer().uuid:world.uuid,scene.key,world.world_epoch,world.generation,root,scene.shard,scene.region,manager};
         for(const auto& row:actual.records){uintptr_t actor_region=0,actor_shard=0,registered=0;
             if(!q::at(memory,row.pointer,0x178,actor_region,error)||!q::at(memory,row.pointer,0x170,actor_shard,error))return reject(error,error);
             if(actor_region!=scene.region||actor_shard!=scene.shard||!objects.insert(row.pointer).second||!uids.insert(row.uid).second)return reject(error,"Boss original snapshot member aliases another scene/full UID");
             const auto exception=exact_uid(row.uid,registered);if(exception||registered!=row.pointer)return reject(error,"Boss original snapshot full UID lookup differs SEH="+std::to_string(exception));
             const auto suffix=scene.dungeon?snapshot_boss_key::scene_suffix(scene.region_id,scene.exterior_slot,scene.instance,row.child):snapshot_boss_key::root_suffix(scene.region_id,row.child);
-            const auto record=sha+":world:boss:"+(row.link_id>0?std::to_string(row.link_id):suffix);if(!snapshot_boss_key::valid(record)||!keys.insert(record).second)return reject(error,"Boss exact saved record key duplicates or has invalid domain");
+            const auto record=observer().sha+":world:boss:"+(row.link_id>0?std::to_string(row.link_id):suffix);if(!snapshot_boss_key::valid(record)||!keys.insert(record).second)return reject(error,"Boss exact saved record key duplicates or has invalid domain");
             std::string canonical;if(host_active){if(!boss_identity::registry.capture_key(scope,row.pointer,row.uid,record,canonical,error))return reject(error,error);}
             else if(prepared_present){const auto prior=std::find_if(prepared.rows.begin(),prepared.rows.end(),[&](const auto& saved){return saved.record==record;});if(prior==prepared.rows.end())return reject(error,"Boss snapshot aliases omit an actual original loaded record");canonical=prior->key;}
             else canonical=record;
             records.rows.push_back({record,canonical});restored.emplace_back(canonical,boss_identity::Entry{scope,row.pointer,row.uid,true,false});}
         ready.emplace(manager,q::SavedPool{scene.region_id,std::move(actual)});
     }
-    if(ready.size()!=observed.size())return reject(error,"Boss original serialization contains a foreign manager");
+    if(ready.size()!=observer().observed.size())return reject(error,"Boss original serialization contains a foreign manager");
     std::sort(records.rows.begin(),records.rows.end(),[](const auto& a,const auto& b){return a.record<b.record;});
-    if(!attachment::valid(records,sha,error))return reject(error,error);
+    if(!attachment::valid(records,observer().sha,error))return reject(error,error);
     if(!host_active&&prepared_present&&records.rows!=prepared.rows)return reject(error,"Boss snapshot complete original record set differs from alias manifest");
     if(world.generation){opened::CurrentWorld after;if(!native_open_runtime::read_current_world(after,error)||!same_world(world,after)||after.uuid!=world.uuid)return reject(error,error.empty()?"Boss native world changed before atomic identity publication":error);
         boss_identity::Scope scope;scope.snapshot=world.uuid;scope.epoch=world.world_epoch;scope.generation=world.generation;scope.root=root;
-        if(!boss_identity::registry.restore(scope,restored,error))return reject(error,error);}
-    captured=std::move(records);origin=world;pools=std::move(ready);observed.clear();scene_census.reset();
-    LOG_INFO("[SavedBoss] Native snapshot Bosses bound uuid={} sha={} managers={}",uuid,sha,pools.size());error.clear();return true;
+        if(export_mode){auto checked=boss_identity::registry;if(!checked.restore(scope,restored,error))return reject(error,error);}
+        else if(!boss_identity::registry.restore(scope,restored,error))return reject(error,error);}
+    observer().captured=std::move(records);observer().origin=world;observer().pools=std::move(ready);observer().observed.clear();observer().scene_census.reset();
+    LOG_INFO("[SavedBoss] Native snapshot Bosses bound uuid={} sha={} managers={}",observer().uuid,observer().sha,observer().pools.size());error.clear();return true;
 }
 
 }
 bool stage_scenes(dungeon_scene_identity_runtime::Census census,std::string& error){
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);
-    if((!host_active&&!client_active)||scene_census||GetCurrentThreadId()!=main_thread||!saves.empty()||!loads.empty()||!load_stack.empty())
+    if((!host_active&&!client_active)||observer().scene_census||GetCurrentThreadId()!=main_thread||!observer().saves.empty()||!observer().loads.empty()||!observer().load_stack.empty())
         return reject(error,"Dungeon Boss scene staging requires its idle active native snapshot observer");
-    if(!healthy(error)||!census.snapshot_census||census.world.uuid!=uuid)return reject(error,error.empty()?"Dungeon Boss staged owned snapshot UUID/census differs":error);
-    scene_census=std::move(census);error.clear();return true;
+    if(!healthy(error)||!census.snapshot_census||census.world.uuid!=observer().uuid)return reject(error,error.empty()?"Dungeon Boss staged owned snapshot UUID/census differs":error);
+    observer().scene_census=std::move(census);error.clear();return true;
 }
 bool initialize(std::string& error) {
     std::lock_guard lock(gate);
@@ -212,9 +230,12 @@ bool initialize(std::string& error) {
 }
 void* entrypoint(bool save) { return image ? reinterpret_cast<void*>(image + (save ? q::save_property_rva : q::load_property_rva)) : nullptr; }
 bool confirm_hooks(std::string& error) { std::lock_guard lock(gate); if (!image) return q::fail(error, "Boss property resolver absent"); hooks = true; error.clear(); return true; }
-bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& error) {
+bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& error, bool isolated) {
     std::lock_guard lock(gate);
-    if (!hooks || host_active || client_active || !saves.empty() || !loads.empty()) return q::fail(error, "Boss snapshot observer busy/uninstalled");
+    if(host_active||client_active)return q::fail(error,"Snapshot export cannot replace an active observer");
+    export_mode=isolated;ExportScope export_scope(isolated);
+
+    if (!hooks || host_active || client_active || !observer().saves.empty() || !observer().loads.empty()) return q::fail(error, "Boss snapshot observer busy/uninstalled");
     if (!capture.game || !capture.mode || !capture.state || !capture.world || !capture.map)
         return q::fail(error, "Boss Host capture requires complete BuildingCapture world witness");
     opened::CurrentWorld world;
@@ -230,44 +251,47 @@ bool arm_host(const std::string& id, const CaptureWorld& capture, std::string& e
             return q::fail(error, "Boss Host loaded origin differs from BuildingCapture world witness");
         world = std::move(loaded);
     }
-    reset(id, ""); origin = std::move(world);
+    reset(id, ""); observer().origin = std::move(world);
     host_active = true; error.clear(); return true;
 }
 bool seal_host(const std::string& id, const std::string& digest, const CaptureWorld& capture, std::string& error) {
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);
-    if (!host_active || id != uuid || GetCurrentThreadId() != main_thread) return reject(error, "Boss Host snapshot seal lifetime differs");
-    if (capture.game != origin.game || capture.mode != origin.mode || capture.state != origin.state ||
-        capture.world != origin.world || capture.map != origin.map)
+    if (!host_active || id != observer().uuid || GetCurrentThreadId() != main_thread) return reject(error, "Boss Host snapshot seal lifetime differs");
+    if (capture.game != observer().origin.game || capture.mode != observer().origin.mode || capture.state != observer().origin.state ||
+        capture.world != observer().origin.world || capture.map != observer().origin.map)
         return reject(error, "Boss Host BuildingCapture world witness changed");
-    if (origin.generation) {
+    if (observer().origin.generation) {
         opened::CurrentWorld loaded;
-        if (!native_open_runtime::read_current_world(loaded, error) || !same_world(loaded, origin))
+        if (!native_open_runtime::read_current_world(loaded, error) || !same_world(loaded, observer().origin))
             return reject(error, "Boss Host completed origin changed during capture: " + error);
     }
-    sha = digest; const bool confirmed = seal_world(origin, !origin.generation, error); host_active = false; return confirmed;
+    observer().sha = digest; const bool confirmed = seal_world(observer().origin, !observer().origin.generation, error); host_active = false; return confirmed;
 }
 bool arm_client(const std::string& id, const std::string& digest, std::string& error) {
     std::lock_guard lock(gate); const auto witness = opened::status();
-    if (!hooks || host_active || client_active || !saves.empty() || !loads.empty() || witness.state != "pinned" ||
+    if (!hooks || host_active || client_active || !observer().saves.empty() || !observer().loads.empty() || witness.state != "pinned" ||
         !witness.held || witness.uuid != id || witness.sha256 != digest || !witness.generation)
         return q::fail(error, "Boss Client arm lacks idle pinned exact NativeOpen receipt");
     if(prepared_uuid!=id||prepared_sha!=digest||prepared_bytes!=witness.bytes)
         return q::fail(error,"Boss load lacks exact prepared companion decision");
     // NativeOpen preparation precedes retirement of the previous world.
     // Arm this observer only after that retirement, alongside the other load observers.
-    reset(id, digest); generation = witness.generation; client_active = true; error.clear(); return true;
+    reset(id, digest); observer().generation = witness.generation; client_active = true; error.clear(); return true;
 }
 bool seal_client(std::string& error) {
     std::lock_guard lock(gate);
     if (!client_active || GetCurrentThreadId() != main_thread) return reject(error, "Boss Client seal lifetime differs");
     opened::CurrentWorld world;
-    if (!opened::read_completed_world(generation, world, error) || world.uuid != uuid || world.sha256 != sha)
+    if (!opened::read_completed_world(observer().generation, world, error) || world.uuid != observer().uuid || world.sha256 != observer().sha)
         return reject(error, "Boss Client completed native snapshot differs: " + error);
     const bool confirmed = seal_world(world, false, error); client_active = false;
     return confirmed;
 }
-void cancel(const std::string& cause) { std::lock_guard lock(gate); host_active = false; client_active = false; failure = cause; saves.clear(); loads.clear(); load_stack.clear(); observed.clear(); pools.clear(); scene_census.reset(); }
+void cancel(const std::string& cause) {
+    ExportScope export_scope(export_mode.load()); std::lock_guard lock(gate); host_active = false; client_active = false; observer().failure = cause; observer().saves.clear(); observer().loads.clear(); observer().load_stack.clear(); observer().observed.clear(); observer().pools.clear(); observer().scene_census.reset(); }
 Ticket save_before(const void* property, void* manager, void* writer, void* ctx) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!host_active) return 0;
     Owner owner; bool own = false; std::string error;
     const bool checked = building_capture_identity::stream_owner(writer, owner, own, error);
@@ -275,21 +299,22 @@ Ticket save_before(const void* property, void* manager, void* writer, void* ctx)
     if (!host_active || !healthy(error)) return 0;
     if (!checked) { reject(error, "Boss owned snapshot writer: " + error); return 0; }
     if (!own) return 0;
-    if (owner.capture_uuid != uuid || !context(reinterpret_cast<uintptr_t>(ctx), error)) { reject(error, "Boss writer UUID/context differs: " + error); return 0; }
+    if (owner.capture_uuid != observer().uuid || !context(reinterpret_cast<uintptr_t>(ctx), error)) { reject(error, "Boss writer UUID/context differs: " + error); return 0; }
     auto links = [&](uintptr_t object, int32_t& id, std::string& cause) { return contains(reinterpret_cast<uintptr_t>(ctx), object, id, cause); };
     Save value; value.owner = owner; value.thread = GetCurrentThreadId();
     if (!q::begin_save(memory, image, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), links, value.frame, error)) { reject(error, error); return 0; }
-    if (saves.size() >= 256 || next_ticket == UINT64_MAX) { reject(error, "Boss save frame budget/sequence exceeded"); return 0; }
-    const auto ticket = ++next_ticket; saves.emplace(ticket, std::move(value)); return ticket;
+    if (observer().saves.size() >= 256 || next_ticket == UINT64_MAX) { reject(error, "Boss save frame budget/sequence exceeded"); return 0; }
+    const auto ticket = ++next_ticket; observer().saves.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard save before exception"); return 0; }
 void save_after(Ticket ticket, const void* property, void* manager, void* writer, void* ctx, bool result) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!ticket) return;
     Owner owner; bool own = false; std::string error;
     const bool checked = building_capture_identity::stream_owner(writer, owner, own, error);
     std::lock_guard lock(gate); if (!healthy(error)) return;
-    const auto found = saves.find(ticket);
-    if (!checked || !own || found == saves.end()) { reject(error, "Boss save return/file owner absent: " + error); return; }
+    const auto found = observer().saves.find(ticket);
+    if (!checked || !own || found == observer().saves.end()) { reject(error, "Boss save return/file owner absent: " + error); return; }
     const auto& saved = found->second;
     if (saved.thread != GetCurrentThreadId() || saved.owner.capture_uuid != owner.capture_uuid ||
         saved.owner.stream != owner.stream || saved.owner.consumer != owner.consumer || saved.owner.file != owner.file ||
@@ -298,7 +323,7 @@ void save_after(Ticket ticket, const void* property, void* manager, void* writer
     q::Pool value;
     if (!q::finish_save(memory, image, saved.frame, reinterpret_cast<uintptr_t>(property), reinterpret_cast<uintptr_t>(manager),
         reinterpret_cast<uintptr_t>(writer), reinterpret_cast<uintptr_t>(ctx), result, links, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
-    saves.erase(found);
+    observer().saves.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard save after exception"); }
 Ticket load_before(const void* property, void* manager, void* reader, void* ctx) noexcept try {
     if (!client_active) return 0;
@@ -307,9 +332,9 @@ Ticket load_before(const void* property, void* manager, void* reader, void* ctx)
     const auto r = reinterpret_cast<uintptr_t>(reader), c = reinterpret_cast<uintptr_t>(ctx);
     if (!live_reader(r, c, error) || !context(c, error)) { reject(error, "Boss load reader/context rejected: " + error); return 0; }
     Load value; value.property = reinterpret_cast<uintptr_t>(property); value.manager = reinterpret_cast<uintptr_t>(manager); value.thread = GetCurrentThreadId();
-    if (load_stack.contains(value.thread) || loads.size() >= 256 || next_ticket == UINT64_MAX ||
+    if (observer().load_stack.contains(value.thread) || observer().loads.size() >= 256 || next_ticket == UINT64_MAX ||
         !q::begin_load(memory, image, value.property, value.manager, r, c, value.frame, error)) { reject(error, "Boss load frame rejected: " + error); return 0; }
-    const auto ticket = ++next_ticket; load_stack.emplace(value.thread, ticket); loads.emplace(ticket, std::move(value)); return ticket;
+    const auto ticket = ++next_ticket; observer().load_stack.emplace(value.thread, ticket); observer().loads.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard load before exception"); return 0; }
 void children_before(uintptr_t caller, void* reader) noexcept try {
     if (!client_active || caller != q::load_children_return_rva) return;
@@ -344,16 +369,17 @@ void load_after(Ticket ticket, const void* property, void* manager, void* reader
     if (!ticket) return;
     std::lock_guard lock(gate); std::string error; if (!healthy(error)) return;
     auto* frame = top(error); if (!frame) return;
-    const auto found = loads.find(ticket);
-    if (!result || found == loads.end() || frame != &found->second || frame->child_pending ||
+    const auto found = observer().loads.find(ticket);
+    if (!result || found == observer().loads.end() || frame != &found->second || frame->child_pending ||
         frame->property != reinterpret_cast<uintptr_t>(property) || frame->manager != reinterpret_cast<uintptr_t>(manager) ||
         frame->frame.reader != reinterpret_cast<uintptr_t>(reader) || frame->frame.context != reinterpret_cast<uintptr_t>(ctx) ||
         !live_reader(frame->frame.reader, frame->frame.context, error)) { reject(error, "Boss original LoadStream result/lifetime differs: " + error); return; }
     q::Pool value;
     if (!frame->frame.finish(memory, image, value, error) || !retain(std::move(value), error)) { reject(error, error); return; }
-    load_stack.erase(frame->thread); loads.erase(found);
+    observer().load_stack.erase(frame->thread); observer().loads.erase(found);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("non-standard load after exception"); }
 void original_failed(Ticket ticket, const std::string& cause) noexcept try {
+    ExportScope export_scope(export_mode.load());
     if (!ticket) return; std::lock_guard lock(gate); std::string error; reject(error, "original Boss property failed: " + cause);
 } catch (const std::exception& e) { caught(e.what()); } catch (...) { caught("original failure reporting exception"); }
 bool prepare_aliases(const std::string& id,const std::string& digest,uint64_t bytes,const attachment::Manifest& aliases,std::string& error){
@@ -362,8 +388,17 @@ bool prepare_aliases(const std::string& id,const std::string& digest,uint64_t by
     prepared=aliases;prepared_uuid=id;prepared_sha=digest;prepared_bytes=bytes;prepared_present=aliases.present;error.clear();return true;
 }
 bool aliases(const std::string& id,const std::string& digest,attachment::Manifest& out,std::string& error){
+    ExportScope export_scope(export_mode.load());
     std::lock_guard lock(gate);out={};if(!healthy(error))return false;
-    if(host_active||client_active||id!=uuid||digest!=sha||!captured.present||pools.empty())return q::fail(error,"Boss original snapshot aliases are not sealed for this exact native file");
-    if(!attachment::valid(captured,digest,error))return false;out=captured;error.clear();return true;
+    if(host_active||client_active||id!=observer().uuid||digest!=observer().sha||!observer().captured.present||observer().pools.empty())return q::fail(error,"Boss original snapshot aliases are not sealed for this exact native file");
+    if(!attachment::valid(observer().captured,digest,error))return false;out=observer().captured;error.clear();return true;
 }
+bool finish_export(std::string& error){
+    std::lock_guard lock(gate);
+    if(!export_mode){error.clear();return true;}
+    if(host_active||!export_observer.saves.empty()||!export_observer.loads.empty())
+        return q::fail(error,"Snapshot export still owns original serialization callbacks");
+    export_mode=false;error.clear();return true;
+}
+
 }

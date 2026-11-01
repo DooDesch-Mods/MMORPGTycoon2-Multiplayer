@@ -32,6 +32,8 @@ void send_report(const std::string&){}
 json status(){return {{"automatic",false}};}
 void automatic_reports(bool){}
 }
+bool framework_ordered_selected=false;
+bool ordered_action_allowed(const std::string&){return false;}
 bool admitted(){return member;}
 bool fail(const std::string& detail){++command_failures;cause=detail;return false;}
 FrameworkWidget* framework_widget(const char* id){auto it=framework_widgets.find(id);return it==framework_widgets.end()?nullptr:&it->second;}

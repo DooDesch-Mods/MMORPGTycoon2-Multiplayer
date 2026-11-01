@@ -5,6 +5,24 @@
 namespace mt2mp::build_actions::private_native::host {class ProcessMemory;}
 
 namespace mt2mp::scenery_kiss {
+// Code proof lives only across one synchronous identity census. Mutable
+// manager, strings, object ownership and state remain per-read observations.
+class CatalogCodeReadBatch {
+    CatalogCodeReadBatch* previous_=nullptr;
+    static thread_local CatalogCodeReadBatch* current_;
+    uintptr_t image_=0;
+    uint32_t thread_=0;
+    uint64_t revision_=0;
+    bool finished_=false,failed_=false;
+    bool context(uintptr_t,std::string&);
+public:
+    CatalogCodeReadBatch();
+    ~CatalogCodeReadBatch();
+    CatalogCodeReadBatch(const CatalogCodeReadBatch&)=delete;
+    CatalogCodeReadBatch& operator=(const CatalogCodeReadBatch&)=delete;
+    static bool verify(native::Memory&,uintptr_t,std::string&);
+    bool finish(std::string&);
+};
 class NativeCatalog final:public Catalog {
     native::host::ProcessMemory& memory_;uintptr_t image_;uint32_t thread_;
 public:

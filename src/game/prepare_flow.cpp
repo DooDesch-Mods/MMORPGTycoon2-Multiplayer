@@ -1,4 +1,5 @@
 #include "prepare_flow.h"
+#include "ordered_startup.h"
 #include "session_reload/production.h"
 #include "mt2mp/net/chat_runtime.h"
 #include "native_lobby.h"
@@ -25,14 +26,16 @@
 #include "startup_timing.h"
 namespace mt2mp::game::lobby_prepare {
 namespace {
-enum class Step {Idle,LoadSelected,CaptureLocal,ReturnTitle,LoadOrigin,CaptureShared,AwaitAck,Ready,Starting,Playing,Failed,Handshake,Leaving};
+enum class Step {Idle,LoadSelected,CaptureLocal,ReturnTitle,LoadOrigin,CaptureShared,AwaitAck,Ready,Starting,Playing,Failed,Handshake,Leaving,SoloLoading};
 Step step=Step::Idle;std::string operation,snapshot,failure,selected_path;bool start_requested=false;
 bool source_current_world=false,zero_day_reload_attempted=false;
 bool leave_requested=false;
+bool ordered_waiting_current=false,current_resume_known=false;float current_resume_scale=0;
+OrderedSelector ordered_selector=nullptr;
 auto leave_began=std::chrono::steady_clock::time_point{};
 auto began=std::chrono::steady_clock::time_point{};
 uint64_t leave_confirmed=0;
-const char* label(){switch(step){case Step::Idle:return "Choose a world";case Step::LoadSelected:case Step::LoadOrigin:return "Loading world";
+const char* label(){switch(step){case Step::Idle:return "Choose a world";case Step::LoadSelected:case Step::LoadOrigin:case Step::SoloLoading:return "Loading world";
 case Step::CaptureLocal:case Step::CaptureShared:return "Capturing save";case Step::ReturnTitle:return "Preparing world";
 case Step::AwaitAck:return "Transferring save";case Step::Ready:return "World ready";case Step::Starting:return "Starting session";
 case Step::Playing:return "Connected";case Step::Leaving:return "Leaving session";case Step::Handshake:return "Confirming connection";case Step::Failed:return "Session unavailable";}return "Session unavailable";}
@@ -44,17 +47,55 @@ bool path_ready(){return ui_path_runtime::status().value("enabled",false);}
 bool captures_ready(){return ui_build_runtime::enabled()&&ui_remove_runtime::enabled()&&ui_move_runtime::enabled()&&ui_region_runtime::enabled()&&terrain_ready()&&path_ready()&&ui_network_runtime::enabled();}
 bool start_runtime(std::string& error){
     if(!startup_timing::run("typed_action_start",error,[&]{return typed_action_runtime::start(error);}))return fail(error);
-    if((!ui_build_runtime::enabled()&&!startup_timing::run("capture_build",error,[&]{return ui_build_runtime::enable(error);}))||
-       (!ui_remove_runtime::enabled()&&!startup_timing::run("capture_remove",error,[&]{return ui_remove_runtime::enable(error);}))||
-       (!ui_move_runtime::enabled()&&!startup_timing::run("capture_move",error,[&]{return ui_move_runtime::enable(error);}))||
-       (!ui_region_runtime::enabled()&&!startup_timing::run("capture_region",error,[&]{return ui_region_runtime::enable(error);}))||
-       (!terrain_ready()&&!startup_timing::run("capture_terrain",error,[&]{return ui_terrain_runtime::enable(error);}))||
-       (!path_ready()&&!startup_timing::run("capture_path",error,[&]{return ui_path_runtime::enable(error);}))||
-       (!ui_network_runtime::enabled()&&!startup_timing::run("capture_network",error,[&]{return ui_network_runtime::enable(error); })))return fail("native action capture installation failed: "+error);
-    if(!captures_ready())return fail("native action capture installation returned without actual enabled readback");
+    if(!enable_captures(error))return fail(error);
     // Claiming Channel9 and arming its live discriminator must occur before the next packet poll.
     if(!typed_action_runtime::enable_live_state(error))return fail(error);
     snapshot=net::current_snapshot_id();enter(Step::Starting);return true;
+}
+bool select_paired_world(const std::string& path,bool& handled,std::string& error){
+    handled=false;
+    if(!ordered_selector)return true;
+    if(net::session_wire::membership_pending())return fail(error="selected world requires completed physical lobby membership refresh");
+    std::array<uint64_t,5> members{};uint64_t lobby=0,local=0;
+    if(!net::session_wire::read_binding(members,lobby,local,error))return fail(error);
+    if(local!=1||!lobby||!members[1])return fail(error="selected world requires the actual physical Host");
+    if(!(net::session_wire::peer_mask()&0x0e))return true;
+    handled=true;
+    if(!native_lobby::admitted()||!lobby_operations::executor_idle())return fail(error="ordered selected world requires admitted idle native lobby");
+    if(!ordered_selector(path,error))return fail(error);
+    if(!ordered_startup::selected())return fail(error="ordered selected world returned without retained startup owner");
+    selected_path.clear();start_requested=false;enter(Step::Idle);error.clear();return true;
+}
+bool capture_current_world(std::string& error){
+    if(ordered_selector){
+        native::ClockState clock;if(!native::read_clock(clock,error))return fail(error);
+        const auto scale=clock.paused?0:clock.time_scale;
+        if(scale!=0&&scale!=1&&scale!=3&&scale!=9)return fail(error="current Host speed differs from native pause/1/3/9 contract");
+        current_resume_scale=scale;current_resume_known=true;
+    }
+    return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+}
+bool wait_current_peer(std::string& error){
+    if(!ordered_selector||!native::in_game())return fail(error="ordered waiting requires an actual current Host world");
+    ordered_waiting_current=true;source_current_world=true;enter(Step::Idle);error.clear();return true;
+}
+bool select_or_load_solo(std::string& error){
+    bool handled=false;if(!select_paired_world(selected_path,handled,error))return false;
+    if(handled)return true;
+    if(!ordered_selector)return submit("load_snapshot",{{"selected_file",selected_path}},Step::LoadOrigin,error);
+    // No shared owner exists yet. Keep the normal native world playable until
+    // a peer arrives; the guarded current-world capture then supplies both peers.
+    enter(Step::SoloLoading);
+    if(!native::request_load(selected_path,error))return fail(error);
+    error.clear();return true;
+}
+bool captured_source(const nlohmann::json& result,std::string& error){
+    const auto id=result.value("snapshot_id",std::string{}),world=result.value("world_name",std::string{});
+    if(!net::snapshot_world_path::valid_uuid(id)||!net::snapshot_world_path::valid_folder(world)||
+       !result.value("building_bindings_confirmed",false)||result.value("distribution_requested",true)||
+       result.value("state",std::string{})!="snapshot_file_complete")
+        return fail(error="ordered current-world capture lacks its completed local file/identity receipt");
+    selected_path=net::snapshot_world_path::load(world,id);return true;
 }
 bool completed(nlohmann::json& response,std::string& error){if(!lobby_operations::take_response(operation,response))return false;
 if(!response.value("ok",false)){error=response.value("error",nlohmann::json::object()).value("message",std::string("native operation failed"));fail(error);return false;}return true;}
@@ -79,8 +120,36 @@ bool all_ack(std::string& error){
     error.clear();return true;
 }
 }
+bool enable_captures(std::string& error){
+    if((!ui_build_runtime::enabled()&&!startup_timing::run("capture_build",error,[&]{return ui_build_runtime::enable(error);}))||
+       (!ui_remove_runtime::enabled()&&!startup_timing::run("capture_remove",error,[&]{return ui_remove_runtime::enable(error);}))||
+       (!ui_move_runtime::enabled()&&!startup_timing::run("capture_move",error,[&]{return ui_move_runtime::enable(error);}))||
+       (!ui_region_runtime::enabled()&&!startup_timing::run("capture_region",error,[&]{return ui_region_runtime::enable(error);}))||
+       (!terrain_ready()&&!startup_timing::run("capture_terrain",error,[&]{return ui_terrain_runtime::enable(error);}))||
+       (!path_ready()&&!startup_timing::run("capture_path",error,[&]{return ui_path_runtime::enable(error);}))||
+       (!ui_network_runtime::enabled()&&!startup_timing::run("capture_network",error,[&]{return ui_network_runtime::enable(error); }))){error="native action capture installation failed: "+error;return false;}
+    if(!captures_ready()){error="native action capture installation returned without actual enabled readback";return false;}
+    error.clear();return true;
+}
+void configure_ordered_entry(OrderedSelector selector){ordered_selector=selector;}
+bool admit_ordered_client(std::string& error){
+    session_reload::admit_refreshed_ordered_client();
+    if(!ordered_selector||step!=Step::Idle||leave_requested||ordered_startup::selected()||
+       !native_lobby::admitted()||!lobby_operations::executor_idle()||session_reload::busy()||
+       typed_action_runtime::controller_status().value("initialized",false)){
+        error="ordered manifest requires an admitted idle Client lobby without another world owner";return false;
+    }
+    std::array<uint64_t,5> members{};uint64_t lobby=0,local=0;
+    if(!net::session_wire::read_binding(members,lobby,local,error))return false;
+    if(local<2||local>4||!lobby||!members[1]||!members[local]||net::session_wire::membership_pending()){
+        error="ordered manifest requires the actual acknowledged physical Client";return false;
+    }
+    if(!ordered_selector({},error))return fail(error);
+    if(!ordered_startup::selected())return fail(error="ordered Client selection returned without retained startup owner");
+    start_requested=false;enter(Step::Idle);error.clear();return true;
+}
 bool prepare(const std::string& path,std::string& error){
-    if(step!=Step::Idle||leave_requested){error="native preparation has already been attempted or Leave is pending; no replay";return false;}
+    if(step!=Step::Idle||leave_requested||ordered_waiting_current||ordered_startup::selected()){error="native preparation has already been attempted or Leave is pending; no replay";return false;}
     if(!Config::instance().is_host){error="native preparation requires confirmed Host";return false;}
     if(!lobby_operations::available()){error="owned native snapshot executor is unavailable; world load not attempted";return false;}
     if(!path.starts_with("save/")||!path.ends_with(".vrz")||path.find("..")!=std::string::npos){error="native selected save path invalid";return false;}
@@ -90,10 +159,10 @@ bool prepare(const std::string& path,std::string& error){
         selected_path=path;enter(Step::Handshake);error.clear();return true;
     }
     if(!net::session_wire::connected()){selected_path=path;enter(Step::Handshake);error.clear();return true;}
-    selected_path=path;return submit("load_snapshot",{{"selected_file",path}},Step::LoadOrigin,error);
+    selected_path=path;return select_or_load_solo(error);
 }
 bool prepare_current(std::string& error){
-    if(step!=Step::Idle||leave_requested){error="native preparation has already been attempted or Leave is pending; no replay";return false;}
+    if(step!=Step::Idle||leave_requested||ordered_waiting_current||ordered_startup::selected()){error="native preparation has already been attempted or Leave is pending; no replay";return false;}
     if(!Config::instance().is_host){error="native preparation requires confirmed Host";return false;}
     if(!lobby_operations::available()){error="owned native snapshot executor is unavailable; current world capture not attempted";return false;}
     if(!native::in_game()){error="current Host world is no longer active";return false;}
@@ -103,9 +172,12 @@ bool prepare_current(std::string& error){
         enter(Step::Handshake);error.clear();return true;
     }
     if(!net::session_wire::connected()){enter(Step::Handshake);error.clear();return true;}
-    return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+    if(ordered_selector&&!(net::session_wire::peer_mask()&0x0e))return wait_current_peer(error);
+    return capture_current_world(error);
 }
 bool start(std::string& error){
+    if(ordered_startup::selected())return ordered_startup::current(error);
+    if(ordered_waiting_current&&step==Step::Idle&&!leave_requested){start_requested=true;error.clear();return true;}
     if(leave_requested||step==Step::Idle||step==Step::Failed||step==Step::Playing||step==Step::Leaving){error="native start requires pending or ready preparation";return false;}
     start_requested=true;error.clear();return true;
 }
@@ -125,6 +197,14 @@ bool leave(std::string& error){
         error="native Leave blocked by Terrain capture/pending/unresolved capturing="+std::to_string(terrain.value("capturing",false))+
             " pending="+std::to_string(terrain.value("pending",false))+" cause="+terrain.value("cause",std::string{});
         return false;
+    }
+    if(ordered_startup::selected()){
+        if(session_reload::busy()){
+            bool ready=false;if(!lobby_operations::release_for_leave(ready,error))return false;
+            if(!ready){error="Ordered Leave waits for the entered reload capture; no cancellation or replay";return false;}
+            if(!session_reload::release_for_leave(error))return false;
+        }
+        return ordered_startup::request_leave(error);
     }
     if(step==Step::Leaving){error="native Leave already in progress";return false;}
     bool operation_ready=false;
@@ -147,7 +227,7 @@ bool leave(std::string& error){
     if(native::in_game()&&!native::request_return_to_title(error))return fail(error);
     error.clear();return true;
 }
-bool leaving(){return leave_requested||step==Step::Leaving;}
+bool leaving(){return leave_requested||step==Step::Leaving||ordered_startup::leaving();}
 bool tick(std::string& error){
     if(leave_requested){
         if(std::chrono::steady_clock::now()-leave_began>=std::chrono::seconds(net::snapshot_native_load_timeout_seconds)){
@@ -159,12 +239,18 @@ bool tick(std::string& error){
     if(step==Step::Failed){error=failure;return false;}
     if(step==Step::Leaving){
         bool ready=false;if(!typed_action_runtime::finish_lobby_leave(ready,error))return fail(error);
-        if(ready){operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;source_current_world=false;zero_day_reload_attempted=false;++leave_confirmed;enter(Step::Idle);}
+        if(ready){operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;source_current_world=false;zero_day_reload_attempted=false;ordered_waiting_current=false;++leave_confirmed;enter(Step::Idle);}
         else if(std::chrono::steady_clock::now()-began>=std::chrono::seconds(net::snapshot_native_load_timeout_seconds)){error="native Leave timed out awaiting actual Title/Time retirement required<900s; owner retained";return fail(error);}
         error.clear();return true;
     }
     if(step==Step::Idle){
         error.clear();
+        if(ordered_waiting_current){
+            if(!native::in_game())return fail(error="Host current world left before shared capture");
+            if(net::session_wire::membership_pending()||!net::session_wire::connected()||!(net::session_wire::peer_mask()&0x0e))return true;
+            ordered_waiting_current=false;
+            return capture_current_world(error);
+        }
         if(!Config::instance().is_host&&(!Config::instance().local_test||native_lobby::admitted())&&net::session_wire::connected()&&
            net::snapshot_progress().value("phase",std::string{})=="active"){
             std::string pending;
@@ -181,6 +267,10 @@ bool tick(std::string& error){
     }
     if(std::chrono::steady_clock::now()-began>=std::chrono::seconds(net::snapshot_native_load_timeout_seconds)){
         error="native preparation state timed out state="+std::string(label())+" required<900s; native task not cancelled";return fail(error);}
+    if(step==Step::SoloLoading){
+        if(native::in_game())return wait_current_peer(error);
+        error.clear();return true;
+    }
     if(!net::session_wire::connected()){
         if(step==Step::Handshake&&net::session_wire::failure_reason().empty()){
             if(!net::session_wire::prepare(error)&&!error.starts_with("info:"))return fail(error);
@@ -192,15 +282,26 @@ bool tick(std::string& error){
     if(step==Step::Handshake){
         if(source_current_world){
             if(!native::in_game()){error="current Host world left before capture";return fail(error);}
-            return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+            if(ordered_selector&&!(net::session_wire::peer_mask()&0x0e))return wait_current_peer(error);
+            return capture_current_world(error);
         }
-        return submit("load_snapshot",{{"selected_file",selected_path}},Step::LoadOrigin,error);
+        return select_or_load_solo(error);
     }
     else if(step==Step::CaptureLocal){if(completed(response,error)){snapshot=response.at("result").at("snapshot_id").get<std::string>();
         if(!response.at("result").value("building_bindings_confirmed",false)){error="Host snapshot building bindings are incomplete: "+response.at("result").value("building_identity_error",std::string("native capture cause unavailable"));return fail(error);}
+        if(ordered_selector&&!captured_source(response.at("result"),error))return false;
         if(!native::request_return_to_title(error))return fail(error);enter(Step::ReturnTitle);}}
     else if(step==Step::ReturnTitle){native::WorldStatus world;if(!native::read_world_status(world,error))return fail(error);
-        if(world.active_mode_index==2&&!world.title_transition_pending)return submit("load_snapshot",{{"snapshot_id",snapshot}},Step::LoadOrigin,error);}
+        if(world.active_mode_index==2&&!world.title_transition_pending&&!world.world_present&&world.saves_in_progress<=0&&world.edit_operations<=0){
+            if(ordered_selector){
+                bool handled=false;if(!select_paired_world(selected_path,handled,error))return false;
+                if(!handled)return fail(error="ordered captured world lost its physical peer before shared selection");
+                if(!current_resume_known)return fail(error="captured Host resume receipt absent");
+                if(!ordered_startup::retain_resume_scale(current_resume_scale,error))return fail(error);
+                return true;
+            }
+            return submit("load_snapshot",{{"snapshot_id",snapshot}},Step::LoadOrigin,error);
+        }}
     else if(step==Step::LoadOrigin){if(completed(response,error)){
         native::SimulationState actual;
         if(!native::read_simulation_state(actual,error))return fail("Host loaded Clock/CurrentRecord read failed: "+error);
@@ -223,7 +324,7 @@ bool tick(std::string& error){
             }
             LOG_INFO("[StartupCalendar] Original reload retained cause={}",error);error.clear();
             zero_day_reload_attempted=true;
-            return submit("capture_local_snapshot",nlohmann::json::object(),Step::CaptureLocal,error);
+            return capture_current_world(error);
         }
         return submit("capture_snapshot",nlohmann::json::object(),Step::CaptureShared,error);
     }}
@@ -242,6 +343,16 @@ bool tick(std::string& error){
     if(step==Step::Failed){error=failure;return false;}return true;
 }
 nlohmann::json status(){auto value=nlohmann::json{{"leave_confirmed",leave_confirmed},{"leaving",step==Step::Leaving},{"state",int(step)},{"label",label()},{"source",source_current_world?"current_world":"selected_save"},{"snapshot_id",snapshot},{"operation_id",operation},{"start_requested",start_requested},{"prepared",step==Step::Ready},{"captures_ready",captures_ready()},{"ready",step==Step::Playing&&captures_ready()},{"playing",step==Step::Playing},{"error",failure},{"captures",{{"build",ui_build_runtime::status()},{"remove",ui_remove_runtime::status()},{"move",ui_move_runtime::status()},{"region",ui_region_runtime::status()},{"terrain",ui_terrain_runtime::status()},{"path",ui_path_runtime::status()}}}};
+    if(ordered_startup::selected()||ordered_startup::leave_confirmed){
+        value["leave_confirmed"]=leave_confirmed+ordered_startup::leave_confirmed;
+        if(ordered_startup::selected()){
+            const bool leaving=ordered_startup::leaving(),playing=ordered_startup::started()&&!leaving;
+            value["leaving"]=leaving;value["playing"]=playing;value["ready"]=playing;value["start_requested"]=true;
+            value["state"]=int(leaving?Step::Leaving:playing?Step::Playing:Step::Starting);
+            value["label"]=leaving?"Leaving session":playing?"Connected":"Starting session";
+            value["snapshot_id"]=net::current_snapshot_id();value["error"]=ordered_startup::state.failure;
+        }
+    }
     const auto reload=session_reload::status();value["reload"]=reload;value["reloading"]=session_reload::busy();
     if(leave_requested){value["leaving"]=true;value["ready"]=false;value["prepared"]=false;value["state"]=int(Step::Leaving);value["label"]="Leaving session";}
     else if(session_reload::busy()){value["ready"]=false;value["prepared"]=false;value["state"]=int(Step::Handshake);value["label"]=reload.at("label");
@@ -259,14 +370,21 @@ bool reset_after_world_reload(std::string& error){
         error="world reload reset requires actual idle Title and retired native Controller";return false;
     }
     operation.clear();snapshot.clear();selected_path.clear();failure.clear();start_requested=false;
-    source_current_world=zero_day_reload_attempted=leave_requested=false;enter(Step::Idle);error.clear();return true;
+    source_current_world=zero_day_reload_attempted=leave_requested=ordered_waiting_current=current_resume_known=false;current_resume_scale=0;enter(Step::Idle);error.clear();return true;
 }
-bool prepare_snapshot(const std::string& id,std::string& error){
+bool prepare_snapshot(const std::string& id,std::string& error,const std::string& world_name){
     if(step!=Step::Idle||leave_requested||!Config::instance().is_host||!net::session_wire::connected()||
        id.size()!=36||id.find_first_not_of("0123456789abcdef-")!=std::string::npos){
         error="shared reload requires idle Host, confirmed physical members and captured snapshot ID";return false;
     }
     source_current_world=zero_day_reload_attempted=false;selected_path.clear();start_requested=false;
+    if(ordered_selector){
+        if(!net::snapshot_world_path::valid_folder(world_name))return fail(error="ordered captured reload lacks actual native world folder");
+        selected_path=net::snapshot_world_path::load(world_name,id);
+        bool handled=false;if(!select_paired_world(selected_path,handled,error))return false;
+        if(!handled)return fail(error="ordered captured reload requires actual paired membership; legacy fallback refused");
+        return true;
+    }
     return submit("load_snapshot",{{"snapshot_id",id}},Step::LoadOrigin,error);
 }
 }

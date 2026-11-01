@@ -149,7 +149,8 @@ bool read(Memory& memory,uintptr_t image,const std::vector<Region>& supplied,Cen
     for(const auto& row:value.paths)paths.emplace(row.member.object,&row);
     for(const auto& row:value.nodes)nodes.emplace(row.member.object,&row);
     for(const auto& row:value.paths){
-        if(row.second&&(!regions.contains(row.second)||row.second==row.owner))return reject(error,"Path second Region is foreign or equals its owner");
+        // Native PostResolve preserves a saved owner-valued second Region for local Paths.
+        if(row.second&&!regions.contains(row.second))return reject(error,"Path second Region is foreign");
         for(uintptr_t endpoint:{row.start,row.end}){
             if(!endpoint)continue;
             const auto found=nodes.find(endpoint);if(found==nodes.end())return reject(error,"Path endpoint is absent from all six Intersection buckets");
@@ -165,11 +166,11 @@ bool read(Memory& memory,uintptr_t image,const std::vector<Region>& supplied,Cen
     std::set<std::pair<int32_t,uintptr_t>> remote;
     for(const auto& row:value.remote){
         const auto found=paths.find(row.path);
-        if(found==paths.end()||found->second->member.ref.type!=row.type||!found->second->second||
+        if(found==paths.end()||found->second->member.ref.type!=row.type||!found->second->second||found->second->second==found->second->owner||
            regions.at(found->second->second)!=row.region||!remote.emplace(row.region,row.path).second)
             return reject(error,"remote Path type/second Region/owned membership differs");
     }
-    for(const auto& row:value.paths)if(row.second&&!remote.contains({regions.at(row.second),row.member.object}))
+    for(const auto& row:value.paths)if(row.second&&row.second!=row.owner&&!remote.contains({regions.at(row.second),row.member.object}))
         return reject(error,"second Region is missing its reciprocal remote Path");
     for(const auto& bucket:buckets){std::vector<uintptr_t> fresh;
         if(!array(memory,bucket.owner,bucket.data,bucket.count,bucket.capacity,1000000,fresh,error))return false;

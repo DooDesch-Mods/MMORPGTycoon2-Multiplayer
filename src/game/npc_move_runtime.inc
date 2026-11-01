@@ -119,7 +119,7 @@ bool move_capture_binding(const std::string& snapshot,uint64_t epoch,uint64_t ge
     before={};key.clear();if(!state.ready||GetCurrentThreadId()!=state.thread)
         return fail(error,"NPC Move capture requires ready Mainthread");
     action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,error))return false;
+    if(!capture_binding(snapshot,binding,error))return false;
     if(binding.native_epoch!=epoch||binding.native_generation!=generation)
         return fail(error,"NPC Move capture World binding differs epoch="+
             std::to_string(binding.native_epoch)+" required="+std::to_string(epoch)+
@@ -145,6 +145,7 @@ bool submit_restored_move(const move_kiss::Intent& intent,const std::string& act
        binding.native_epoch!=intent.origin.world_epoch||
        binding.native_generation!=intent.origin.generation)
         return fail(error,error.empty()?"NPC Move visibility restore World binding differs":error);
+    if(!current_capture(state.move_context,snapshot,binding,error))return false;
     const auto target=npc_target_key::argument(intent.object_key);
     ui::LocalBinding local;uintptr_t region=0;npc_census::State census;npc_census::Row row;
     if(!move_target(target,binding,snapshot,local,region,census,row,error)||
@@ -186,6 +187,8 @@ bool move_captured(const move_kiss::Intent& intent,const std::string& action_uui
                    std::string& error) {
     if(!npc_target_key::valid(intent.object_key)||
        state.pending||state.capture_failed)return fail(error,"NPC Move capture key or pending state invalid");
+    const action::Binding binding{intent.origin.world_epoch,intent.origin.generation};
+    if(!capture_context(intent.origin.snapshot_uuid,binding,state.move_context,error))return false;
     if(!state.move_ui_token.empty()) {
         auto found=state.ui_jobs.find(state.move_ui_token);
         if(found==state.ui_jobs.end()||found->second.value("operation",std::string{})!="move"||
@@ -199,6 +202,7 @@ bool move_captured(const move_kiss::Intent& intent,const std::string& action_uui
     ++state.captures;error.clear();return true;
 }
 void move_submitted(const std::string& action_uuid) {
+    state.move_context.reset();
     ++state.submits;state.last_action=action_uuid;
     if(state.move_ui_token.empty())return;
     auto found=state.ui_jobs.find(state.move_ui_token);
@@ -207,6 +211,7 @@ void move_submitted(const std::string& action_uuid) {
     state.move_ui_token.clear();
 }
 void move_failed(const std::string& cause) {
+    if(state.move_context){state.move_context.reset();state.capture_failed=true;rejected(cause);}
     if(state.move_ui_token.empty())return;
     const auto found=state.ui_jobs.find(state.move_ui_token);
     if(found==state.ui_jobs.end())return;
@@ -223,6 +228,7 @@ action::Outcome move_perform(const action::Binding& binding,const action::Reques
     if(!controller.value("pending",false)||
        controller.value("action_uuid",std::string{})!=request.action_uuid)
         return fail(error,"NPC Move lacks exact pending Controller request"),action::Outcome::RejectedNoEffect;
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
     ui::LocalBinding local;uintptr_t region=0;npc_census::State census;npc_census::Row old;
     if(!move_target(npc_target_key::argument(request.canonical_record_key),binding,request.snapshot_uuid,
                     local,region,census,old,error))return action::Outcome::RejectedNoEffect;
@@ -268,6 +274,7 @@ action::Outcome move_perform(const action::Binding& binding,const action::Reques
         return fail(error,"NPC Move QuestGiver original marker absent before Move"),
             action::Outcome::RejectedNoEffect;
     auto& op=state.operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     op.target_action_uuid=request.target_action_uuid;op.local_uid=local.uid;
     op.local_pointer=local.object;op.spawn_before=spawn_before;
     op.quest_tasks_before=before_tasks;
@@ -339,7 +346,9 @@ bool move_observe(const action::Binding& binding,const action::Request& request,
        found->second.move_original_calls!=1||!found->second.spawn_confirmed||
        !found->second.actor_confirmed||!found->second.undo_confirmed)
         return fail(error,"NPC Move observation lacks confirmed OriginalOnce operation");
-    const auto& op=found->second;ui::LocalBinding local;uintptr_t region=0;
+    const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(binding,request,error))return false;
+    ui::LocalBinding local;uintptr_t region=0;
     npc_census::State census;npc_census::Row row;
     if(!move_target(npc_target_key::argument(request.canonical_record_key),binding,request.snapshot_uuid,
                     local,region,census,row,error))return false;

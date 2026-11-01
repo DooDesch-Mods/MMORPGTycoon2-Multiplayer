@@ -21,6 +21,23 @@ bool verify_pay_entry(uintptr_t address,std::string&);
 bool verify_allocate_entry(uintptr_t address,std::string&);
 bool set_startingpoint_workers(const action_session::Context&,const action_session::Binding&,
     const startingpoint::Row& expected,int32_t desired,bool& attempted,std::string&);
+bool submit_ordered_startingpoint_ui(const action_session::Context&,const action_session::Binding&,
+    const std::string&,uintptr_t window,uintptr_t tabs,std::string&);
+bool ordered_lifecycle_health(std::string&);
+void tick_ordered_tutorial();
+void tick_ordered_tutorial_held();
+action_session::Outcome perform_ordered_tutorial(const action_session::Binding&,const action_session::Request&,std::string&);
+bool observe_ordered_tutorial(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
+bool retire_ordered_tutorial(const action_session::Binding&,const action_session::Request&,std::string&);
+bool set_startingpoint_workers_ordered(const action_session::Context&,const action_session::Binding&,
+    const action_session::Request&,const startingpoint::Row&,bool&,std::string&);
+bool commit_startingpoint_ordered(const action_session::Context&,const action_session::Binding&,
+    const action_session::Request&,const startingpoint::Row&,bool&,std::string&);
+bool read_ordered_startingpoint_row(const action_session::Context&,const action_session::Binding&,
+    const action_session::Request&,startingpoint::Row&,std::string&);
+bool start_startingpoint_ordered(const action_session::Context&,const action_session::Binding&,
+    const action_session::Request&,const action_session::Ledger&,const startingpoint::Row&,
+    action_session::Ledger&,startingpoint::Row&,bool&,bool&,std::string&);
 bool start_startingpoint(const action_session::Context&,const action_session::Binding&,
     const action_session::Ledger&,const startingpoint::Row&,action_session::Ledger&,startingpoint::Row&,bool&,std::string&);
 bool apply_startingpoint_start(const action_session::Context&,const action_session::Binding&,const std::string& action,
@@ -34,7 +51,7 @@ bool capture(const action_session::Context&,const action_session::Binding&,State
 bool read_startingpoint_row(const action_session::Context&,const action_session::Binding&,startingpoint::Row&,std::string&);
 bool commit_startingpoint(const action_session::Context&,const action_session::Binding&,const startingpoint::Row& expected,bool& attempted,std::string&);
 bool apply_startingpoint_commit(const action_session::Context&,const action_session::Binding&,const startingpoint::Row& before,const startingpoint::Row& after,bool& attempted,bool& unknown,std::string&);
-bool invalidate_developer_pool(const action_session::Context&,const action_session::Binding&,std::string&);
+bool invalidate_developer_pool(const action_session::Context&,const action_session::Binding&,std::string&,const action_session::Request* request=nullptr);
 bool read_progress(nlohmann::json&,std::string&);
 bool preflight(const action_session::Context&,const action_session::Binding&,const State&,std::string&);
 bool apply(const action_session::Context&,const action_session::Binding&,const State&,bool& attempted,bool& unknown,std::string&);

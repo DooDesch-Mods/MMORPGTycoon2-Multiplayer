@@ -9,6 +9,23 @@
 #include <set>
 
 namespace mt2mp::game::tutorial_welcome {
+const char* initial_message(int32_t index){
+    switch(index){
+    case 4:return "welcome";
+    case 15:return "mainheader";
+    case 19:return "pregrid";
+    case 22:return "actionbar";
+    case 32:return "assigndev_addendum";
+    case 38:return "";
+    case 43:return "postzone";
+    case 48:return "terrain";
+    case 53:return "respawn_02";
+    case 66:return "inn_2";
+    case 79:return "monsters";
+    case 103:return "allDone";
+    default:return nullptr;
+    }
+}
 const char* leveltwo_message(int32_t index){
     switch(index){
     case 2:return "welcome";
@@ -59,8 +76,8 @@ bool pin(const Request& request,uintptr_t image,Pin& p,std::string& e){
     const char* scenario=leveltwo?"leveltwo_tutorial":"initial_tutorial";
     const auto scenario_length=std::strlen(scenario);
     const int32_t required_count=leveltwo?17:107;
-    const char* message=leveltwo?leveltwo_message(request.index):request.index==4?"welcome":request.index==103?"allDone":nullptr;
-    if(!message)return fail(e,"tutorial close requires a fixed LevelTwo message or Initial welcome4/allDone103");
+    const char* message=leveltwo?leveltwo_message(request.index):initial_message(request.index);
+    if(!message)return fail(e,"tutorial close requires a fixed authored Initial or LevelTwo message");
     World current;if(!world(request,current,e))return false;p.state=reinterpret_cast<uintptr_t>(current.state);
     uintptr_t singleton=0,active=0;int32_t count=0;
     if(!at(p.state,0x1e8,p.log,e)||!at(image,0x13df330,singleton,e)||!at(p.log,0x20,active,e)||!at(p.log,0x28,count,e))return false;
@@ -97,7 +114,7 @@ DWORD hide(const Pin& p){
 bool close(const Request& request,nlohmann::json& receipt,std::string& e){
     receipt={{"attempted",false},{"confirmed",false},{"unknown",false}};e.clear();
     try{
-        if((request.leveltwo?!leveltwo_message(request.index):(request.index!=4&&request.index!=103))||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"tutorial close requires exact origin/fixed message index and bounded token");
+        if(!(request.leveltwo?leveltwo_message(request.index):initial_message(request.index))||!request.epoch||!request.generation||request.snapshot.empty()||request.token.empty()||request.token.size()>64)return fail(e,"tutorial close requires exact origin/fixed message index and bounded token");
         // Mainthread serializes this operation. Keep used tokens for the process lifetime,
         // including failed calls, so a lost receipt cannot replay an uncertain mutation.
         static std::set<std::string> used;
@@ -120,7 +137,7 @@ bool close(const Request& request,nlohmann::json& receipt,std::string& e){
             receipt["unknown"]=true;if(e.empty())e="welcome origin changed after call";return false;
         }
         if(target!=0){receipt["unknown"]=true;return fail(e,"welcome native hide target readback differs required=0");}
-        receipt["confirmed"]=true;receipt["effect"]=request.leveltwo?"leveltwo_message_window_hide_requested":request.index==4?"welcome_window_hide_requested":"allDone_window_hide_requested";
+        receipt["confirmed"]=true;receipt["effect"]=request.leveltwo?"leveltwo_message_window_hide_requested":request.index==4?"welcome_window_hide_requested":request.index==103?"allDone_window_hide_requested":"initial_message_window_hide_requested";
         receipt["progression"]="await_normal_native_update";receipt["before"]=std::move(observed);return true;
     }catch(const std::exception& exception){receipt["unknown"]=receipt.value("attempted",false);return fail(e,std::string("welcome close exception: ")+exception.what());}
 }

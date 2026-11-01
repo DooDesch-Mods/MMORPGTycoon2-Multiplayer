@@ -73,6 +73,42 @@ inline fs::path live_write(const Binding& b,AttributeReader& read_attributes=Get
     const auto getter=module?reinterpret_cast<Getter>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
     return actual_write(b,getter?getter():nullptr,read_attributes);
 }
+// Only the parsed spelling is retained. Config, PhysFS and attributes stay fresh.
+class WriteOrigin {
+    std::string raw_;
+    fs::path path_,expected_,data_;
+    bool account_=false;
+public:
+    void clear(){raw_.clear();path_.clear();expected_.clear();data_.clear();account_=false;}
+    void validate(const Binding& b,const fs::path& expected,const char* actual,
+                  AttributeReader& read_attributes=GetFileAttributesW){
+        unchanged(b);
+        if(actual&&!raw_.empty()&&raw_==actual&&expected_==expected&&data_==b.data){
+            if(account_){
+                const auto attributes=read_attributes(path_.c_str());
+                if(attributes==INVALID_FILE_ATTRIBUTES)
+                    throw std::runtime_error("actual Framework account directory unavailable Win32="+std::to_string(GetLastError()));
+                if(!(attributes&FILE_ATTRIBUTE_DIRECTORY)||(attributes&FILE_ATTRIBUTE_REPARSE_POINT))
+                    throw std::runtime_error("actual Framework account directory reparse or non-directory refused");
+            }
+            return;
+        }
+        const auto path=actual_write(b,actual,read_attributes);
+        if(expected.empty()||!private_profile::equal(path,expected))
+            throw std::runtime_error("Framework native open actual write root changed during bound origin");
+        const bool account=!private_profile::equal(path,b.data);
+        std::string raw(actual);
+        auto expected_copy=expected,data_copy=b.data,path_copy=path;
+        raw_.swap(raw);path_.swap(path_copy);expected_.swap(expected_copy);data_.swap(data_copy);account_=account;
+    }
+    void live_validate(const Binding& b,const fs::path& expected,
+                       AttributeReader& read_attributes=GetFileAttributesW){
+        using Getter=const char*(*)();
+        const auto module=GetModuleHandleW(L"libphysfs.dll");
+        const auto getter=module?reinterpret_cast<Getter>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
+        validate(b,expected,getter?getter():nullptr,read_attributes);
+    }
+};
 inline fs::path verified_write_root(const fs::path& runtime,const char* actual) {
     return actual_write(bind(runtime),actual);
 }

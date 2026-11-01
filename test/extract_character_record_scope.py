@@ -56,7 +56,8 @@ catalog = (a.root / 'src/game/scenery_kiss/native_catalog.cpp').read_text(encodi
 start = catalog.index('        {\n            mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;')
 end = catalog.index('\n        }', start) + len('\n        }')
 block = catalog[start:end]
-assert block.count('memory.copy(') == 2 and 'find(' not in block
+assert block.count('memory.copy(') == 3 and 'find(' not in block
+assert 'memory.copy(region+0x834,&saved_id,sizeof saved_id,e)' in block
 (a.output / 'scenery_owner_fields.inc').write_text(block + '\n', encoding='utf-8')
 (a.output / 'scenery_owner_fields_baseline.inc').write_text(
     block.replace('            mt2mp::game::live_host_state::apply_timing::PageReadScope owner_fields;\n', '') + '\n', encoding='utf-8')
@@ -91,6 +92,16 @@ assert body.index(scope) < body.index('c::read_graph(') < body.index('\n    }\n 
 for name, text in [('gm_record_actual', body), ('gm_record_baseline', body.replace(scope, ''))]:
     (a.output / (name + '.inc')).write_text(text + '\n', encoding='utf-8')
 
+source = (a.root / 'src/game/release_graph_native.cpp').read_text(encoding='utf-8')
+start = source.index('bool inspect(void* user,')
+end = source.index('\n}', start) + 2
+body = source[start:end]
+scope = '        live_host_state::apply_timing::PageReadScope record_pages;\n'
+assert body.count(scope) == 1 and body.count('c::read_graph(') == 1
+assert body.index(scope) < body.index('c::read_graph(') < body.index('\n    }\n    return release_graph::capture_value(')
+for name, text in [('release_record_actual', body), ('release_record_baseline', body.replace(scope, ''))]:
+    (a.output / (name + '.inc')).write_text(text + '\n', encoding='utf-8')
+
 source = (a.root / 'src/game/world_zone_current.inc').read_text(encoding='utf-8')
 start = source.index('bool read_world_zones(')
 start = source.index('    auto at=', start)
@@ -101,7 +112,7 @@ assert body.count(scope) == 1
 assert body.index('if(!capture_regions())') < body.index(scope) < body.index('for(const auto& [id,region]')
 assert body.index('    }\n    opened::CurrentWorld after;') > body.index(scope)
 assert 'PageReadScope zone_pages(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());' in body
-assert 'PageReadScope original_lookup(mt2mp::game::live_host_state::apply_timing::PageBoundary::OriginalCall);' in body
+assert 'PageReadScope original_lookup' not in body and 'const auto exception=exact_uid(uid,value);' in body
 for name, text in [('world_zone_scope_actual', body), ('world_zone_scope_baseline', body.replace(scope, ''))]:
     (a.output / (name + '.inc')).write_text(text + '\n', encoding='utf-8')
 

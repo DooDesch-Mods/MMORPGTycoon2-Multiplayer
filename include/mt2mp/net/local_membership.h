@@ -67,6 +67,7 @@ public:
     uint64_t instance()const{return local_?physical_[local_]:0;}
     uint64_t host_instance()const{return physical_[1];}
     const Slots& bound()const{return bound_;}
+    const Slots& observed()const{return physical_;}
 private:
     static bool fail(std::string& error,const char* cause){error=cause;return false;}
     uint64_t local_=0,generation_=0,pending_generation_=0;

@@ -1,8 +1,8 @@
 namespace objects=network_object_identity;
 namespace aliases=network_snapshot_alias;
 objects::Registry object_registry;
-aliases::Manifest prepared_aliases,captured_aliases;
-std::string prepared_alias_uuid,prepared_alias_sha,captured_alias_uuid,captured_alias_sha;
+aliases::Manifest prepared_aliases;
+std::string prepared_alias_uuid,prepared_alias_sha;
 
 bool object_scope(const Roots& roots,objects::Scope& out,std::string& e){
     building_mixed_identity::opened_file::CurrentWorld world;
@@ -98,6 +98,10 @@ bool publish_objects(Shared& s,const Roots& roots,std::vector<uint8_t>& digest,s
         }
     }
     if(load&&prepared_aliases.present&&adopted!=prepared_aliases.rows.size()){error="Network companion has extra unadopted aliases";return false;}
-    if(!aliases::valid(result,error)||(!first_capture&&!object_registry.seal(scope,entries,result.retired,error)))return false;
-    captured_aliases=std::move(result);captured_alias_uuid=s.uuid;captured_alias_sha=s.sha;return true;
+    if(!aliases::valid(result,error))return false;
+    if(!first_capture){
+        if(s.export_only){auto checked=object_registry;if(!checked.seal(scope,entries,result.retired,error))return false;}
+        else if(!object_registry.seal(scope,entries,result.retired,error))return false;
+    }
+    s.captured_aliases=std::move(result);s.captured_alias_uuid=s.uuid;s.captured_alias_sha=s.sha;return true;
 }

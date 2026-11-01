@@ -27,6 +27,17 @@ endif()
 
 enable_testing()
 
+if(CMAKE_CURRENT_SOURCE_DIR STREQUAL "${CMAKE_CURRENT_LIST_DIR}/query-attribution")
+    if(NOT WIN32)
+        message(FATAL_ERROR "Query attribution source checks require Windows")
+    endif()
+    include("${CMAKE_CURRENT_LIST_DIR}/query_attribution_checks.cmake")
+    get_property(query_inputs DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS)
+    list(REMOVE_DUPLICATES query_inputs)
+    set_property(DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS "${query_inputs}")
+    return()
+endif()
+
 foreach(name action_order software_snapshot snapshot_buffer slow_frame_diagnostics queued_project_admission party_capture_references scene_building_registry_preview)
 
     add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
@@ -272,6 +283,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_load_start_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/npc_economy_difference_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/locked_lobby_leave_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/diagnostic_capture_checks.cmake")
 
 
 
@@ -417,6 +429,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/research_runtime_checks.cmake")
 
 
 include(live_autosave_checks.cmake)
+include(native_owner_checks.cmake)
 
 
 
@@ -592,6 +605,7 @@ add_test(NAME startup_hook_catalog_consumer
     --source-root "${MT2MP_SOURCE_ROOT}")
 
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ordered_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/character_record_scope_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/startup_calendar_checks.cmake")
 

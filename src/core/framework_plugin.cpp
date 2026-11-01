@@ -12,6 +12,7 @@
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/steam_networking.h"
 #include "../game/native_lobby.h"
+#include "../game/ordered_session_proof.h"
 #include "../game/object_identity/native_free_runtime/native_free_runtime.h"
 #include "../game/object_identity/remove_runtime/remove_runtime.h"
 #include "../game/ui_build_runtime.h"
@@ -222,6 +223,44 @@ const json& modules(){if(!prepared())throw std::runtime_error("Framework module 
 const MT2FW_MT2_RoutesV1& routes(){if(!prepared())throw std::runtime_error("Framework routes unavailable");return state.routes;}
 const MT2FW_MT2_ReleaseV1& release(){if(!state.prepared)throw std::runtime_error("Framework Release service is not prepared");return state.release;}
 const MT2FW_MT2_OwnershipV1& ownership(){if(!prepared())throw std::runtime_error("Framework ownership unavailable");return state.ownership;}
+bool ordered_services(MT2FW_MT2_StepServiceDraftV1& steps,MT2FW_MT2_PatchesV1& patches,std::string& error){
+    steps={};patches={};
+    if(!state.host||!state.prepared||state.retired||state.stop_requested||state.thread!=GetCurrentThreadId()){
+        error="Ordered services require the current prepared Framework game-thread owner";return false;
+    }
+    const auto provider=GetModuleHandleW(L"MT2Framework.dll");
+    if(!provider){error="Ordered services loaded Framework provider is absent";return false;}
+    const auto query_steps=reinterpret_cast<MT2FW_MT2_QueryStepServiceDraftFn>(GetProcAddress(provider,"MT2FW_MT2_QueryStepServiceDraft"));
+    const auto query_patches=reinterpret_cast<MT2FW_MT2_QueryPatchesFn>(GetProcAddress(provider,"MT2FW_MT2_QueryPatches"));
+    if(!query_steps||!query_patches){error="Loaded Framework does not expose ordered Step/session-provider services";return false;}
+    MT2FW_MT2_StepServiceDraftV1 actual_steps{};MT2FW_MT2_PatchesV1 actual_patches{};
+    const auto step_result=query_steps(state.host,MT2FW_MT2_STEP_DRAFT_VERSION,&actual_steps,sizeof(actual_steps));
+    if(step_result!=MT2FW_MT2_OK){error="Framework ordered Step query rejected current owner result="+std::to_string(step_result);return false;}
+    const auto patch_result=query_patches(state.host,MT2FW_MT2_PATCHES_VERSION,&actual_patches,sizeof(actual_patches));
+    if(patch_result!=MT2FW_MT2_OK){error="Framework session-provider query rejected current owner result="+std::to_string(patch_result);return false;}
+    if(actual_steps.size<sizeof(actual_steps)||actual_steps.version!=MT2FW_MT2_STEP_DRAFT_VERSION||!actual_steps.context||
+       !actual_steps.bind||!actual_steps.activate||!actual_steps.read||!actual_steps.preflight_exit||!actual_steps.exit_save||!actual_steps.unbind||
+       actual_patches.size<sizeof(actual_patches)||actual_patches.version!=MT2FW_MT2_PATCHES_VERSION||!actual_patches.context||
+       !actual_patches.bind_session_provider||!actual_patches.unbind_session_provider){
+        error="Framework ordered Step/session-provider service returned an incomplete contract";return false;
+    }
+    steps=actual_steps;patches=actual_patches;error.clear();return true;
+}
+bool ordered_recovery(MT2FW_MT2_StepRecoveryDraftV1& out,std::string& error){
+    out={};
+    if(!state.host||!state.prepared||state.retired||state.stop_requested||state.thread!=GetCurrentThreadId()){
+        error="Recovery service requires the current prepared Framework game-thread owner";return false;
+    }
+    const auto provider=GetModuleHandleW(L"MT2Framework.dll");
+    const auto query=provider?reinterpret_cast<MT2FW_MT2_QueryStepRecoveryDraftFn>(GetProcAddress(provider,"MT2FW_MT2_QueryStepRecoveryDraft")):nullptr;
+    if(!query){error="Loaded Framework lacks the optional original-peer recovery service";return false;}
+    const auto result=query(state.host,MT2FW_MT2_STEP_RECOVERY_DRAFT_VERSION,&out,sizeof(out));
+    if(result!=MT2FW_MT2_OK){error="Framework recovery query rejected current owner result="+std::to_string(result);return false;}
+    if(out.size!=sizeof(out)||out.version!=MT2FW_MT2_STEP_RECOVERY_DRAFT_VERSION||!out.context||!out.bind||!out.read||!out.operation){
+        error="Framework recovery query returned an incomplete contract";return false;
+    }
+    error.clear();return true;
+}
 void publish_instance(){
     if(!state.test)return;
     const auto value=framework_profile::instance_receipt(state.paths,*state.test,state.modules);

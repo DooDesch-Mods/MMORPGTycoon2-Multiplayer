@@ -6,6 +6,7 @@
 #define NOMINMAX
 #endif
 #include "action_native.h"
+#include "typed_action/tick_authority.h"
 #include "general_project_runtime.h"
 #include "action_calls.h"
 #include "frame_apply.h"
@@ -35,7 +36,7 @@ namespace {
 namespace action=action_session;
 using json=nlohmann::json;
 struct Pending {bool hire=false;std::string id;action::Context context;action::Binding binding;Origin origin;};
-struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;NativeReceipt native;bool count_attempted=false,count_returned=false,confirmed=false;std::string cause;};
+struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;NativeReceipt native;std::optional<job_census::Census> hire_jobs;bool count_attempted=false,count_returned=false,confirmed=false,ordered=false;std::string cause;};
 struct Runtime {
     uintptr_t image=0;uint32_t thread=GetCurrentThreadId();
     std::atomic<initial_release::UiCommand> original{nullptr};
@@ -70,16 +71,42 @@ bool project(const Capture& c,PoolState& out,std::string& e){
     for(const auto* source:{&c.local.inside,&c.local.outside})for(auto address:*source){const auto found=ids.find(address);if(found==ids.end())return fail(e,"Developer manager has foreign receiver during projection");(source==&c.local.inside?p.indoor:p.outdoor).push_back(found->second);}
     if(!valid(p,e))return false;out=std::move(p);return true;
 }
-bool read(Runtime& r,const action::Context& expected,const action::Binding& binding,Capture& c,PoolState& out,std::string& e){
+bool read(Runtime& r,const action::Context& expected,const action::Binding& binding,Capture& c,PoolState& out,std::string& e,const action::Request* request=nullptr,bool ui=false,bool ui_hire=false,job_census::Census* hire_jobs=nullptr){
     action::Context context;if(!action::selected_session().current(context,e)||context!=expected)return fail(e,e.empty()?"Developer actual common Context changed":e);
+    bool ordered=false;
+    if(request&&action::tick_commands::authority::active()){
+        if((request->action!=action::Action::HireDeveloper&&request->action!=action::Action::FireDeveloper)||
+           !action::tick_commands::authority::matches(context,binding,*request,e))return fail(e,e.empty()?"Developer read requires exact consumed Hire/Fire":e);
+        ordered=true;
+    }else if(ui){
+        action::Binding actual;
+        if(!typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,actual,e,&ordered)||actual!=binding)
+            return fail(e,e.empty()?"Developer UI current idle binding differs":e);
+    }
     if(!read_process(c,e))return false;
     if(c.image!=r.image||c.thread!=r.thread||GetCurrentThreadId()!=r.thread||c.pin.origin.world_epoch!=binding.native_epoch||c.pin.origin.generation!=binding.native_generation||
-       Config::instance().is_host!=(context.role==action::Role::Host)||(context.role==action::Role::Client&&c.pin.time_scale!=0))
+       Config::instance().is_host!=(context.role==action::Role::Host)||(context.role==action::Role::Client&&!ordered&&c.pin.time_scale!=0))
         return fail(e,"Developer actual process/role/thread/native World binding or Client Clock0 differs");
     native::WorldStatus world;if(!native::read_world_status(world,e))return false;
     if(world.active_mode_index!=3||world.in_game_state!=4||world.quitting||!world.world_present||world.title_transition_pending||world.map_task_pending||world.saves_in_progress>0||world.edit_operations)
         return fail(e,"Developer operation requires actual idle loaded native World");
     if(!project(c,out,e))return false;
+    // Hire changes employment and payment only. Keep the complete native job
+    // census local instead of asking the legacy state-copy bridge for Bug births.
+    if(ordered&&((request&&request->action==action::Action::HireDeveloper)||(ui&&ui_hire))){
+        job_census::Census jobs;
+        if(!job_census::read([&](auto p,auto target,auto n,auto& cause){return r.memory.copy(p,target,n,cause);},c,jobs,e))return false;
+        for(const auto& job:jobs.jobs)if((job.developer&&!job.reciprocal)||(job.bug.pointer&&job.bug.job!=job.pointer))
+            return fail(e,"Ordered Hire native Job reciprocal ownership differs");
+        for(const auto& dev:jobs.developers)if(dev.job&&!dev.reciprocal)
+            return fail(e,"Ordered Hire native Developer Job ownership differs");
+        Capture after;if(!read_process(after,e))return false;
+        if(after.image!=c.image||after.thread!=c.thread||!same_origin(c.pin.origin,after.pin.origin)||
+           after.pin.ledger!=c.pin.ledger||after.pin.time_scale!=c.pin.time_scale||after.pin.pause_scale!=c.pin.pause_scale||
+           after.local!=c.local||after.state!=c.state)return fail(e,"Ordered Hire census changed native owners/pool/ledger/Clock");
+        if(hire_jobs)*hire_jobs=std::move(jobs);
+        return true;
+    }
     std::vector<construction::LocalJob> jobs;
     if(!typed_action_runtime::construction_jobs(context,binding,jobs,e))return false;
     construction::State extra;if(!construction::capture(c,jobs,extra,e))return false;
@@ -120,9 +147,9 @@ struct CaptureCalls {
     Runtime& r;void* receiver;void* record;
     action::Context context;action::Binding binding;Capture native;PoolState pool;
     bool original(){++r.forwarded;return r.original.load(std::memory_order_acquire)(receiver,record);}
-    bool admit(UiIntent,std::string& e){
+    bool admit(UiIntent intent,std::string& e){
         if(r.pending)return fail(e,"Developer UI already has one retained intent");
-        if(!action::selected_session().current(context,e)||!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e)||!read(r,context,binding,native,pool,e)||!full_code(r,e))return false;
+        if(!action::selected_session().current(context,e)||!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e)||!read(r,context,binding,native,pool,e,nullptr,true,intent==UiIntent::Hire)||!full_code(r,e))return false;
         uintptr_t window=0;if(!read_window([&](auto p,auto out,auto n,auto& cause){return r.memory.copy(p,out,n,cause);},native,window,e))return false;
         return window==reinterpret_cast<uintptr_t>(receiver)||fail(e,"Developer UI receiver is not actual owned DevelopmentWindow");
     }
@@ -213,7 +240,7 @@ bool adopt_frame(const action::Context& c,const action::Binding& b,const PoolSta
 }
 void tick(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||!r->pending)return;
     const auto pending=*r->pending;r->pending.reset();std::string e;Capture actual;PoolState state;
-    if(!read(*r,pending.context,pending.binding,actual,state,e)||!same_origin(actual.pin.origin,pending.origin)||!full_code(*r,e)){rejected(*r,e.empty()?"Developer pending UI native Origin changed":e);return;}
+    if(!read(*r,pending.context,pending.binding,actual,state,e,nullptr,true,pending.hire)||!same_origin(actual.pin.origin,pending.origin)||!full_code(*r,e)){rejected(*r,e.empty()?"Developer pending UI native Origin changed":e);return;}
     if(!typed_action_runtime::submit_developer(pending.hire,pending.id,e)){rejected(*r,e);return;}++r->submitted;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* host,std::string& e){
@@ -221,17 +248,24 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(r->operations.contains(request.action_uuid)){e="Developer native action UUID consumed; no replay";return action::Outcome::Unknown;}
     if(r->operations.size()>=action::history_limit){e="Developer retained action capacity reached";return action::Outcome::RejectedNoEffect;}
     const auto controller=typed_action_runtime::controller_status();if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="Developer action requires exact Controller pending UUID";return action::Outcome::RejectedNoEffect;}
-    action::Context context;if(!action::selected_session().current(context,e)||context.snapshot_uuid!=request.snapshot_uuid||(context.role==action::Role::Client)!=(host!=nullptr)){if(e.empty())e="Developer native action actual role/session differs";return action::Outcome::RejectedNoEffect;}
-    Capture before;PoolState state;if(!read(*r,context,binding,before,state,e)||!full_code(*r,e))return action::Outcome::RejectedNoEffect;
+    action::Context context;if(!action::selected_session().current(context,e)||context.snapshot_uuid!=request.snapshot_uuid){if(e.empty())e="Developer native action actual role/session differs";return action::Outcome::RejectedNoEffect;}
+    if(action::tick_commands::authority::active()){
+        if(host){e="Ordered Developer execution must not adopt Host result state";return action::Outcome::RejectedNoEffect;}
+        if(!action::tick_commands::authority::matches(context,binding,request,e))return action::Outcome::RejectedNoEffect;
+    }else if(controller.value("ordered",false)){e="Ordered Developer execution requires current consumed command scope";return action::Outcome::RejectedNoEffect;}
+    else if((context.role==action::Role::Client)!=(host!=nullptr)){e="Developer native action actual role/session differs";return action::Outcome::RejectedNoEffect;}
+    job_census::Census before_jobs;
+    Capture before;PoolState state;if(!read(*r,context,binding,before,state,e,&request,false,false,&before_jobs)||!full_code(*r,e))return action::Outcome::RejectedNoEffect;
     const bool hire=request.action==action::Action::HireDeveloper;
-    std::vector<FieldChange> projected;if(!state.construction&&!frame_plan(state,state,projected,e))return action::Outcome::RejectedNoEffect;
+    const bool ordered_hire=hire&&action::tick_commands::authority::active();
+    std::vector<FieldChange> projected;if(!ordered_hire&&!state.construction&&!frame_plan(state,state,projected,e))return action::Outcome::RejectedNoEffect;
     if((hire&&state.count==50)||(!hire&&!state.count)){e="Developer native requested count is at boundary";return action::Outcome::RejectedNoEffect;}
     action::Ledger expected_ledger;if(!expected_payment(hire,before.pin.ledger,expected_ledger,e))return action::Outcome::RejectedNoEffect;
     const auto affected=size_t(hire?state.count:state.count-1);
     if(state.rows[affected].job_link&&!state.construction){e="Developer affected native JobQueue occurrence is not bound";return action::Outcome::RejectedNoEffect;}
     if(host&&(host->before!=before.pin.ledger||host->developers_before!=state||!host->developers_after)){e="Developer Client native BEFORE differs from Host";return action::Outcome::RejectedNoEffect;}
     uintptr_t window=0;if(!read_window([&](auto p,auto out,auto n,auto& error){return r->memory.copy(p,out,n,error);},before,window,e))return action::Outcome::RejectedNoEffect;
-    auto& op=r->operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.evidence.before=before.pin.ledger;op.evidence.developers_before=state;
+    auto& op=r->operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.ordered=action::tick_commands::authority::active();op.evidence.before=before.pin.ledger;op.evidence.developers_before=state;
     op.native.seh_code=invoke_ui(r->original.load(std::memory_order_acquire),r->image,window,hire,&op.native);
     if(op.native.seh_code||op.native.cleanup_exception||!op.native.attempted||!op.native.returned||!op.native.accepted||!op.native.label_confirmed||!op.native.cleanup_confirmed){e=op.cause="Developer original UI/record cleanup unconfirmed SEH="+std::to_string(op.native.seh_code)+" cleanup="+std::to_string(op.native.cleanup_exception);return action::Outcome::Unknown;}
     Capture immediate;auto expected=before.state;expected.business_count+=hire?1:-1;
@@ -239,17 +273,25 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         if(e.empty())e="Developer original UI immediate count/ledger differs; no forced count projection";op.cause=e;return action::Outcome::Unknown;}
     op.count_attempted=true;const auto count=state.count+(hire?1:-1);const auto code=invoke_count(r->image,before.local.lounge,count);op.count_returned=code==0;
     if(code){e=op.cause="Developer original SetDevCount SEH="+std::to_string(code);return action::Outcome::Unknown;}
-    Capture after;PoolState result;if(!read(*r,context,binding,after,result,e)||!same_origin(before.pin.origin,after.pin.origin)||before.local!=after.local||
+    job_census::Census after_jobs;
+    Capture after;PoolState result;if(!read(*r,context,binding,after,result,e,&request,false,false,&after_jobs)||!same_origin(before.pin.origin,after.pin.origin)||before.local!=after.local||
        !count_effect(hire,state,result,e)||!payment(hire,before.pin.ledger,after.pin.ledger,e)){if(e.empty())e="Developer original native count/owners/full ledger differs";op.cause=e;return action::Outcome::Unknown;}
+    if(ordered_hire){
+        if(before_jobs!=after_jobs){e=op.cause="Ordered Hire changed the complete native Job census";return action::Outcome::Unknown;}
+        op.hire_jobs=std::move(after_jobs);
+    }
     op.evidence.after=after.pin.ledger;op.evidence.developers_after=result;
     if(host&&(host->after!=op.evidence.after||host->developers_after!=op.evidence.developers_after)){e=op.cause="Developer Client native AFTER differs from Host";return action::Outcome::Unknown;}
-    if(!tutorial_replication::invalidate_developer_pool(context,binding,e)){op.cause=e;return action::Outcome::Unknown;}
+    if(!tutorial_replication::invalidate_developer_pool(context,binding,e,&request)){op.cause=e;return action::Outcome::Unknown;}
     op.confirmed=true;e.clear();return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
     auto* r=published.load(std::memory_order_acquire);if(!r||GetCurrentThreadId()!=r->thread)return fail(e,"Developer action observation requires native Mainthread owner");
     const auto found=r->operations.find(request.action_uuid);if(found==r->operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(e,"Developer exact confirmed native action receipt absent");
-    action::Context context;Capture actual;PoolState state;if(!action::selected_session().current(context,e)||!read(*r,context,binding,actual,state,e))return false;
+    if(found->second.ordered&&!action::tick_commands::authority::matches(binding,request,e))return false;
+    job_census::Census jobs;
+    action::Context context;Capture actual;PoolState state;if(!action::selected_session().current(context,e)||!read(*r,context,binding,actual,state,e,&request,false,false,&jobs))return false;
+    if(found->second.hire_jobs&&*found->second.hire_jobs!=jobs)return fail(e,"Ordered Hire retained native Job census changed");
     if(found->second.evidence.after!=actual.pin.ledger||found->second.evidence.developers_after!=state)return fail(e,"Developer retained native action AFTER changed");out=found->second.evidence;return true;
 }
 bool retire(const action::Binding& b,const action::Request& request,std::string& e){action::Evidence actual;if(!observe(b,request,actual,e))return false;published.load(std::memory_order_acquire)->operations.at(request.action_uuid).evidence.retirement_confirmed=true;return true;}
@@ -278,7 +320,8 @@ bool ui_fixture(const json& args,json& out,std::string& e){
             return fail(e,"Developer UI fixture requires actual ready idle Controller");
         action::Context context;action::Binding binding;
         if(!action::selected_session().current(context,e)||!typed_action_runtime::network_binding(context.snapshot_uuid,binding,e))return false;
-        Capture before;PoolState pool;if(!read(*r,context,binding,before,pool,e)||!full_code(*r,e))return false;
+        job_census::Census before_jobs;
+        Capture before;PoolState pool;if(!read(*r,context,binding,before,pool,e,nullptr,true,command=="Hire",&before_jobs)||!full_code(*r,e))return false;
         if(!same_origin(update.pin.origin,before.pin.origin))return fail(e,"Developer UI fixture GameUpdate Origin changed");
         if(args.at("native_origin_uuid")!=before.pin.origin.uuid||args.at("epoch").get<uint64_t>()!=before.pin.origin.world_epoch||
            args.at("generation").get<uint64_t>()!=before.pin.origin.generation||args.at("expected_count").get<int32_t>()!=pool.count)
@@ -293,11 +336,12 @@ bool ui_fixture(const json& args,json& out,std::string& e){
         if(command!="Show"){out["record_confirmed"]=native.label_confirmed;out["record_cleanup_confirmed"]=native.cleanup_confirmed;out["ui_entry_accepted"]=native.accepted;}
         bool ok=!code&&(command=="Show"||(native.attempted&&native.returned&&native.accepted&&native.label_confirmed&&native.cleanup_confirmed&&!native.cleanup_exception));
         if(!ok)e="Developer UI fixture original entry/record cleanup unconfirmed SEH="+std::to_string(code)+" cleanup="+std::to_string(native.cleanup_exception);
+        job_census::Census after_jobs;
         Capture after;PoolState observed;std::string read_error;
-        if(!read(*r,context,binding,after,observed,read_error)){ok=false;e+=(e.empty()?"":"; ")+read_error;}
+        if(!read(*r,context,binding,after,observed,read_error,nullptr,true,command=="Hire",&after_jobs)){ok=false;e+=(e.empty()?"":"; ")+read_error;}
         else{
             out["after"]=encode(after);
-            if(!same_origin(before.pin.origin,after.pin.origin)||before.local!=after.local||before.pin.ledger!=after.pin.ledger||before.state!=after.state||before.pin.time_scale!=after.pin.time_scale||before.pin.pause_scale!=after.pin.pause_scale){ok=false;e+=(e.empty()?"":"; ");e+="Developer UI fixture changed native gameplay before Host authority";}
+            if(before_jobs!=after_jobs||!same_origin(before.pin.origin,after.pin.origin)||before.local!=after.local||before.pin.ledger!=after.pin.ledger||before.state!=after.state||before.pin.time_scale!=after.pin.time_scale||before.pin.pause_scale!=after.pin.pause_scale){ok=false;e+=(e.empty()?"":"; ");e+="Developer UI fixture changed native gameplay before Host authority";}
             if(ok&&command=="Show"){uint8_t visible=0;if(!r->memory.copy(window+0x45f,&visible,sizeof visible,e)||visible!=1){ok=false;if(e.empty())e="Developer UI fixture original Show not visible";}out["shown"]=ok;}
             if(ok&&command!="Show"){
                 ok=r->captured==captured+1&&r->pending&&r->pending->hire==(command=="Hire")&&r->pending->context==context&&r->pending->binding==binding&&same_origin(r->pending->origin,before.pin.origin)&&!r->pending->id.empty();

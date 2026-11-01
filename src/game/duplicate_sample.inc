@@ -3,6 +3,24 @@ namespace {
 namespace q=npc_quest_targets;
 using Family=action::DuplicateFamily;
 using Handle=duplicate_native::Handle;
+struct SampleTiming {
+    using Clock=std::chrono::steady_clock;
+    const bool enabled=Config::instance().local_test;
+    Clock::time_point start=enabled?Clock::now():Clock::time_point{},last=start;
+    std::array<int64_t,7> parts{};
+    character_catalogue_timing::Totals aliases;
+    size_t objects=0;
+    bool complete=false;
+    void mark(size_t index){if(!enabled)return;const auto now=Clock::now();
+        parts.at(index)=std::chrono::duration_cast<std::chrono::microseconds>(now-last).count();last=now;}
+    ~SampleTiming(){if(!enabled)return;
+        const auto total=std::chrono::duration_cast<std::chrono::microseconds>(Clock::now()-start).count();
+        using P=character_catalogue_timing::Part;
+        auto us=[&](P part){return aliases.ns[size_t(part)]/1000;};
+        LOG_INFO("[PropSampleTiming] complete={} objects={} total_us={} census_us={} aliases_us={} groups_us={} props_us={} npc_owners_us={} records_us={} final_us={} aliases_prop_us_inclusive={} aliases_code_us={} aliases_lookup_us={} aliases_text_us={}",
+            complete,objects,total,parts[0],parts[1],parts[2],parts[3],parts[4],parts[5],parts[6],us(P::PropRead),us(P::PropCode),us(P::PropLookup),us(P::PropText));
+    }
+};
 struct Sample {
     host::WorldState world;duplicate_reader::Census census;group_reader::Local groups;
     std::map<std::string,Handle> handles;
@@ -34,6 +52,14 @@ bool external_owner(Runtime& r,const Sample& sample,uintptr_t pointer,std::strin
     const auto found=sample.external_owners.find(pointer);
     if(found!=sample.external_owners.end()){key=found->second;return true;}
     uintptr_t ap=0;if(!q::at(r.memory,pointer,0,ap,e))return false;
+    if(ap==r.image+0x16fca60){
+        uint64_t uid=0;network_identity::ObjectEntry actual;
+        if(!q::at(r.memory,pointer,0x18,uid,e)||!network_identity::object_key(pointer,uid,key,actual,e))return false;
+        if(actual.kind!=network_object_identity::Kind::Pipe||actual.pointer!=pointer||actual.uid!=uid||
+           std::find(sample.census.regions.begin(),sample.census.regions.end(),actual.region)==sample.census.regions.end())
+            return q::fail(e,"Duplicate external Pipe current canonical owner differs from captured region census");
+        return true;
+    }
     return q::fail(e,"Duplicate original record external owner has no current canonical binding addresspoint_rva="+
         std::to_string(ap>=r.image?ap-r.image:0));
 }
@@ -70,6 +96,8 @@ struct GraphMemory final:subscriber_lifecycle::Memory {
 };
 struct RecordCapture {GraphMemory& memory;subscriber_lifecycle::Graph graph;};
 bool inspect_record(void* user,const void* record,const void* context,std::string& e){
+    // The original SaveRecord returned; this scope ends before native cleanup.
+    live_host_state::apply_timing::PageReadScope record_pages;
     auto& v=*static_cast<RecordCapture*>(user);
     return subscriber_lifecycle::read_graph(v.memory,uintptr_t(record),uintptr_t(context),{100000,1000000,32*1024*1024,100000},v.graph,e);
 }
@@ -96,18 +124,27 @@ bool record(Runtime& r,const Sample& sample,const std::string& key,action::Dupli
 bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,
             const std::map<uint64_t,std::string>& created,Sample& out,std::string& e,
             const std::function<bool(Sample&,std::string&)>& prepare_records={},bool untouched_scenery_scope=false,bool duplicate_scope=false,const std::string& diagnostic_key={}){
+    SampleTiming timing;
     out={};if(!world(r,out.world,e)||out.world.origin.world_epoch!=binding.native_epoch||out.world.origin.generation!=binding.native_generation)
         return q::fail(e,e.empty()?"Duplicate current complete World binding differs":e);
     auto find=[&](uint64_t uid,uintptr_t& p,std::string& why){return group_edit::find(r,uid,p,why);};
     if(!duplicate_reader::census(r.memory,r.image,uintptr_t(out.world.origin.map),out.world.root,find,out.census,e))return false;
+    timing.mark(0);
     // This census consumes canonical aliases; full prop and original Record reads follow.
-    json bindings;if(!remove_diagnostics::identity_bindings(bindings,e))return false;std::map<uint64_t,std::string> keys;std::set<uint64_t> retired;
+    json bindings;
+    {
+        std::optional<character_catalogue_timing::Binding> alias_timing;
+        if(timing.enabled)alias_timing.emplace(timing.aliases);
+        if(!remove_diagnostics::identity_bindings(bindings,e))return false;
+    }
+    std::map<uint64_t,std::string> keys;std::set<uint64_t> retired;
     for(const auto& row:bindings.at("bindings")){
         if(row.at("revoked").get<bool>()){retired.insert(row.at("local_uid").get<uint64_t>());continue;}
         if(row.at("unknown").get<bool>()||row.at("snapshot_id")!=net::current_snapshot_id())return q::fail(e,"Duplicate complete shared registry is unknown or foreign");
         if(!keys.emplace(row.at("local_uid").get<uint64_t>(),row.at("record_key").get<std::string>()).second)return q::fail(e,"Duplicate complete shared registry full UID repeats");
     }
     for(const auto& [uid,key]:created){const auto found=keys.find(uid);if(found!=keys.end()&&found->second!=key)return q::fail(e,"Duplicate created full UID aliases another canonical key");keys[uid]=key;}
+    timing.mark(1);
     auto owner=[&](uintptr_t region,int32_t& id,std::string& why){uintptr_t actual=0;if(!q::at(r.memory,region,0x834,id,why))return false;
         auto at=[&](uintptr_t p,size_t off,auto& v,std::string& error){return q::at(r.memory,p,off,v,error);};
         return region_saved_identity::resolve(r.image,uintptr_t(out.world.origin.map),out.world.root,id,region,actual,at,why);};
@@ -133,6 +170,9 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
     for(const auto& group:out.groups.state.groups){const auto handle=out.groups.handles.at(group.key);group_keys.emplace(handle.object,group.key);
         out.handles.emplace(group.key,Handle{handle.object,handle.uid});action::DuplicateObject row;row.key=group.key;row.family=Family::Group;row.region=group.region;row.pose=group.pose;
         for(const auto& member:group.members)row.members.push_back(member.key);out.objects.emplace(row.key,std::move(row));}
+    timing.mark(2);
+    {
+    host::RootSceneryReadBatch prop_batch;
     for(const auto& [p,local]:out.census.objects){if(out.untouched_scenery.contains(p))continue;const auto key=keys.find(local.handle.uid);
         if(key==keys.end())return q::fail(e,"Duplicate complete native census contains unbound prop full_uid="+std::to_string(local.handle.uid));
         action::DuplicateObject row;row.key=key->second;row.family=local.family;row.region=local.region_id;row.pose=local.pose;
@@ -141,6 +181,9 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
         native::BuildingState prop;if(!scenery_kiss::read_action_prop(local.handle.uid,prop,e)||prop.prop.uid!=local.handle.uid)return false;
         out.props.emplace(row.key,world_state::building_state(prop));
     }
+    if(!prop_batch.finish(e))return false;
+    }
+    timing.objects=out.objects.size();timing.mark(3);
     std::vector<npc_saved_identity_runtime::Current> npc_owners;
     if(!npc_saved_identity_runtime::read_current(npc_owners,e))return false;
     std::set<std::string> npc_keys;
@@ -148,6 +191,7 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
            !npc_keys.insert(npc_owner.key).second||!out.external_owners.emplace(npc_owner.row.local_pointer,npc_owner.key).second)
             return q::fail(e,"Duplicate current NPC canonical owner census repeats or is incomplete");}
     if(prepare_records&&!prepare_records(out,e))return false;
+    timing.mark(4);
     std::set<std::string> diagnostic_keys;
     // A caller may select one existing target after census preparation. Its
     // diagnostic shares the original Save used for the complete Record SHA.
@@ -173,6 +217,7 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
         if(!record(r,out,key,row,e,diagnostic,uptime))return false;}
     for(auto& [pointer,row]:out.untouched_scenery)
         if(!record_object(r,out,out.census.objects.at(pointer).handle,row,e))return false;
+    timing.mark(5);
     std::set<std::string> excluded;
     if(intent){for(const auto& target:intent->rows){const auto source=out.objects.find(target.key);if(source==out.objects.end())return q::fail(e,"Duplicate requested source absent key="+target.key);
             out.state.sources.push_back(source->second);excluded.insert(target.key);
@@ -200,6 +245,7 @@ bool sample(Runtime& r,const action::Binding& binding,const action::DuplicateInt
     }
     host::WorldState after;if(!world(r,after,e)||!host::same_world(out.world.origin,after.origin)||out.undo.active_graph)
         return q::fail(e,e.empty()?"Duplicate complete read World/idle graph changed":e);
+    timing.complete=true;timing.mark(6);
     return true;
 }
 bool sample_untouched_scenery(Runtime& r,const action::Binding& binding,const action::DuplicateIntent* intent,

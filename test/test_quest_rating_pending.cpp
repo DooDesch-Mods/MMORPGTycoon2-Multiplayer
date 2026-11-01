@@ -16,11 +16,12 @@ unsigned checks=0,thread=7;void need(bool b,const std::string& e){++checks;if(!b
 bool fail(std::string& e,const std::string& why){e=why;return false;}
 unsigned GetCurrentThreadId(){return thread;}
 struct Session:a::Session{a::Context value;bool current(a::Context& out,std::string&)override{out=value;return true;}}session;
-struct Controller{a::Context c;a::Binding b;a::Status s;a::Status status(){return s;}a::Context bound_context(){return c;}a::Binding bound_binding(){return b;}};
+struct Controller{bool ordered_mode()const{return false;}a::Context c;a::Binding b;a::Status s;a::Status status(){return s;}a::Context bound_context(){return c;}a::Binding bound_binding(){return b;}};
 struct Engine{unsigned reads=0;bool current(const a::Binding&,const std::string&,std::string&){++reads;return true;}};
-struct Runtime{uint32_t thread=7;Controller controller;Engine engine;Session& session=::session;bool lobby_retiring=false;}fixture_runtime;
+struct Runtime{bool live_state=false,live_port=false;uint32_t thread=7;Controller controller;Engine engine;Session& session=::session;bool lobby_retiring=false;}fixture_runtime;
 std::atomic<Runtime*> published_runtime{&fixture_runtime};
 namespace typed_action_runtime{
+bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 #include "quest_rating_idle.inc"
 }
 struct Pin{a::Context context;a::Binding binding;uintptr_t image=0x100000;};

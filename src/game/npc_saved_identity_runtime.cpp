@@ -1,4 +1,5 @@
 #include "npc_saved_identity_runtime.h"
+#include "typed_action/recovery_read_scope.h"
 #include "npc_history_identity.h"
 #include "live_host_state/memory_query_timing.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
@@ -172,8 +173,12 @@ bool seal_world(const opened::CurrentWorld& world, bool, std::string& error) {
 }
 bool current(opened::CurrentWorld& actual, std::string& error) {
     if (!healthy(error)) return false;
-    if (GetCurrentThreadId() != main_thread || host_active || client_active || net::current_snapshot_id() != uuid || !net::current_world_epoch())
-        return q::fail(error, "Saved NPCs require current active snapshot on bound Mainthread");
+    const auto actual_thread=GetCurrentThreadId();const bool saving=host_active,loading=client_active;
+    if(actual_thread!=main_thread||saving||loading)
+        return q::fail(error,"Saved NPCs require idle bound Mainthread: actual_thread="+std::to_string(actual_thread)+
+            " required_thread="+std::to_string(main_thread)+" host_active="+std::to_string(saving)+" client_active="+std::to_string(loading));
+    if(!action_session::recovery_read::snapshot_current(uuid,origin.generation,origin.world_epoch,error))
+        return q::fail(error,"Saved NPCs snapshot admission: "+error);
     if (!origin.generation || !origin.world_epoch) return q::fail(error, "Saved NPCs require completed snapshot load after capture");
     if (!native_open_runtime::read_current_world(actual, error)) return false;
     return same_world(origin, actual) || q::fail(error, "Saved NPC native world generation changed");

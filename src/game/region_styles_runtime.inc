@@ -38,7 +38,13 @@ uint32_t label_is(uintptr_t image,void* record,const char* label,bool& match) {
 bool appearance_capture(Runtime&,void*,void*,bool&,std::string&);
 bool styles_command_entry(void* window,void* record) {
     auto* r=published.load(std::memory_order_acquire);
-    if(!r->ready||!net::session_wire::connected())return r->original_ui.load(std::memory_order_acquire)(window,record);
+    if(!r->ready)return r->original_ui.load(std::memory_order_acquire)(window,record);
+    if(!net::session_wire::connected()){
+        if(typed_action_runtime::controller_status().value("ordered",false)){
+            rejected(*r,"Ordered Region InfoWindow Session disconnected");return false;
+        }
+        return r->original_ui.load(std::memory_order_acquire)(window,record);
+    }
     try {
         bool appearance_handled=false;std::string appearance_error;
         if(!appearance_capture(*r,window,record,appearance_handled,appearance_error)){rejected(*r,appearance_error);return false;}
@@ -58,7 +64,7 @@ bool styles_command_entry(void* window,void* record) {
         if(!style_controls(*r,uintptr_t(window),combo,intent.styles,controls,e)||!validate_styles(*r,intent.styles,e)){rejected(*r,e);return false;}
         r->last_ui={{"command","TerrainApply"},{"ui_state",state},{"controls",controls},{"captured",true}};
         // Defer the whole original mutation scope until the Host orders it.
-        r->pending=intent;r->pending_snapshot=net::current_snapshot_id();r->pending_binding={view.world.origin.world_epoch,view.world.origin.generation};++r->captured;return true;
+        if(!styles_capture(*r,view,intent,e)){rejected(*r,e);return false;}return true;
     }catch(const std::exception& e){rejected(*r,std::string("region TerrainApply capture exception: ")+e.what());return false;}
 }
 uint32_t invoke_styles(uintptr_t image,uintptr_t region,const NativeString* styles,uintptr_t random,const uint64_t* authority_random,Operation& receipt) {

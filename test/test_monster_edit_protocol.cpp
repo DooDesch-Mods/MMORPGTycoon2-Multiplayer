@@ -25,7 +25,7 @@ std::unique_ptr<Message> history(bool remove,bool undo){
     e.monster_after.roster=e.monster_before.roster;e.monster_after.roster.undo_count=undo?1:2;
     e.monster_before.actor=undo?proof.origin.after:proof.origin.before;e.monster_after.actor=undo?proof.origin.before:proof.origin.after;
     if(remove){++e.monster_after.roster.created_monsters;e.monster_after.roster.monsters=undo?3:1;
-        if(undo)++e.monster_after.roster.next_tag;e.target_retired=!undo;}
+        e.target_retired=!undo;}
     e.monster_after.roster.content_sha256=std::string(64,'c');e.undo_confirmed=e.retirement_confirmed=true;return out;
 }
 }
@@ -45,6 +45,7 @@ int main()try{using namespace fixture;std::string error;std::vector<uint8_t> byt
         bad=wire;bad["evidence"]["monster_history"]["origin"]["region"]=1.25;reject(bad);
         auto invalid=std::make_unique<Message>(*packet);++invalid->evidence.after.line_counts[19];need(!encode(*invalid,bytes,error),"History changed full Ledger");
         *invalid=*packet;++invalid->evidence.monster_after.roster.region_random[0];need(!encode(*invalid,bytes,error),"History changed Region RNG");
+        *invalid=*packet;++invalid->evidence.monster_after.roster.next_tag;need(!encode(*invalid,bytes,error),"History changed ordinary spawn serial");
         *invalid=*packet;invalid->evidence.monster_history_proof.reset();need(!encode(*invalid,bytes,error),"Confirmed history lacks source proof");
         *invalid=*packet;invalid->evidence.monster_after.actor=actor(3);need(!encode(*invalid,bytes,error),"Unproved Monster rank admitted");
     }

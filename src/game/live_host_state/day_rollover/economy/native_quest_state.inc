@@ -124,7 +124,7 @@ bool quest_restore_pause(const Pin& p,std::string& e,const std::function<void()>
     constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};
     std::array<unsigned char,10> code{};
     if(!memory.copy(p.image+0x259b70,code.data(),code.size(),e))return false;
-    if(code!=expected)return fail(e,"Quest pause restore original setter bytes differ");
+    if(!hooks::framework::verify_original_bytes(p.image+0x259b70,code.data(),expected.data(),expected.size(),e))return fail(e,"Quest pause restore original setter bytes differ: "+e);
     if(before_set)before_set();
     const auto exception=call_capture_pause(p.image+0x259b70,clock,p.pause);
     if(exception)return fail(e,"Quest pause restore original setter exception="+std::to_string(exception)+"; no replay");

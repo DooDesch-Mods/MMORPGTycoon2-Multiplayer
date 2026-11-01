@@ -8,6 +8,7 @@ namespace a=mt2mp::action_session;
 namespace ur=a::ui_capture;
 using json=nlohmann::json;
 bool fail(std::string& e,const std::string& why){e=why;return false;}
+bool ordered_mode(){return false;}
 unsigned GetCurrentThreadId(){return 1;}
 struct Memory{};struct Pin{};
 namespace d{struct Sample{int content=1;struct Undo{uintptr_t active_graph=0;}undo;};}

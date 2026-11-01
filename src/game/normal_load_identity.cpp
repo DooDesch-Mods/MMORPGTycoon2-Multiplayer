@@ -641,6 +641,17 @@ bool finalize(Status& result, std::string& error) {
 #endif
 }
 
+bool read_load_phase(const std::string& sha,const std::string& uuid,bool& confirmed,std::string& error) {
+    confirmed=false;std::lock_guard lock(mutex);
+    if(current.snapshot_sha256!=sha||current.snapshot_uuid!=uuid||!current.error.empty()){
+        error="Ordered normal-load identity differs: "+current.error;return false;
+    }
+    if(current.state!="armed"&&current.state!="observing"&&current.state!="confirmed"){
+        error="Ordered normal-load phase unavailable: "+current.state;return false;
+    }
+    confirmed=current.state=="confirmed"&&!current.load_pending;error.clear();return true;
+}
+
 Status status() { std::lock_guard lock(mutex); return current; }
 void cancel(const std::string& reason) {
 #ifndef MT2MP_IDENTITY_TEST

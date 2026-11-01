@@ -55,13 +55,27 @@ bool cycle_queue_finalize(Runtime& r,const a::Context& c,const a::Binding& b,std
 bool cycle_boundary(Runtime& r,const MT2FW_MT2_ReleaseCall& call,uint32_t& disposition,std::string& e){
     disposition=MT2FW_MT2_RELEASE_FORWARD;
     if(!typed_action_runtime::controller_status().value("started",false)){e.clear();return true;}
-    a::Context c;a::Binding b;
-    if(cycle_runtime.original){c=cycle_runtime.original->context;b=cycle_runtime.original->binding;}
+    a::Context c;a::Binding b;bool original_go=false;
+    if(!typed_action_runtime::original_go_admission(original_go,e))return false;
+    if(original_go){
+        if(r.unknown||cycle_runtime.original||cycle_runtime.frame_original||cycle_runtime.context||cycle_runtime.binding||
+           cycle_runtime.pending||!cycle_runtime.cycle.empty()||!cycle_runtime.finalize_id.empty()||cycle_runtime.phase!=cycle::Phase::Idle)
+            return fail(e,"Release original Go conflicts with retained state-copy cycle ownership");
+        if(!a::selected_session().current(c,e)||!typed_action_runtime::read_binding(c.snapshot_uuid,b,e))return false;
+    }
+    else if(cycle_runtime.original){c=cycle_runtime.original->context;b=cycle_runtime.original->binding;}
     else if(cycle_runtime.context&&cycle_runtime.binding){c=*cycle_runtime.context;b=*cycle_runtime.binding;}
     else return fail(e,"Release boundary has no retained complete current Session/Binding");
     uintptr_t manager=0,release=0,celebration=0,mode=0;int32_t phase=0;
     if(call.native_return!=r.image+0x4faf6a||!cycle_roots(r,c,b,manager,release,celebration,mode,phase,e)||mode!=uintptr_t(call.receiver)||!code(r,e))return fail(e,e.empty()?"Release actual physical Mode boundary/current owner differs":e);
     std::string actual;if(!string(r,uintptr_t(call.native_command),actual,e)||actual!="LevelUp")return fail(e,e.empty()?"Release actual native GNU command changed":e);
+    if(original_go){
+        std::vector<uintptr_t> frames;
+        if(!release_boundary::current_native_frames(r.image,r.image_bytes,frames,e))return false;
+        if(release_boundary::origin(call.native_return-r.image,frames)!=release_boundary::Origin::Finish||phase!=0)
+            return fail(e,"Release original Go requires native Finish origin and completed celebration phase0");
+        e.clear();return true;
+    }
     if(auto* original=cycle_runtime.original){
         const auto status=typed_action_runtime::controller_status();
         if(!status.value("pending",false)||status.value("action_uuid",std::string{})!=original->request.action_uuid||original->boundaries++)return fail(e,"Release private original boundary does not match one pending action; no replay");

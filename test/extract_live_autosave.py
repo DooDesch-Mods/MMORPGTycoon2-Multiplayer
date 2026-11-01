@@ -21,7 +21,7 @@ for target, path, anchors in [
     ('autosave_activity.inc', 'src/game/live_host_state/native_port.h', ['inline bool native_activity(', 'inline bool publication_activity(', 'inline bool application_activity(']),
     ('autosave_scope.inc', 'src/game/live_host_state/native_port.cpp', ['bool current_scope(', 'bool NativePort::publication_ready(', 'bool NativePort::application_ready(']),
     ('autosave_owners.inc', 'src/game/live_host_state/native_port.cpp', ['bool NativePort::current_owners(', 'bool NativePort::store(']),
-    ('autosave_tutorial_publication.inc', 'src/game/live_host_state/bridge.cpp', ['bool same_tutorial_publication(']),
+    ('autosave_tutorial_publication.inc', 'src/game/live_host_state/bridge.cpp', ['bool same_tutorial_publication(', 'bool same_party_publication(', 'bool same_release_publication(']),
     ('autosave_tick.inc', 'src/game/live_host_state/bridge.cpp', ['bool Bridge::tick(']),
     ('autosave_before.inc', 'src/game/live_host_state/bridge.cpp', ['bool Bridge::application_ready(', 'bool Bridge::before_result(', 'action_session::AuthorityReadiness Bridge::before_ready(']),
 ]:

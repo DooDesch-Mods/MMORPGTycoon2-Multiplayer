@@ -13,6 +13,8 @@ using Command=void(*)(void*,const void*);
 Command original_command=nullptr,original_ingame_command=nullptr;
 bool release_fixture_active=false;void* release_fixture_mode=nullptr;uint64_t release_fixture_callbacks=0;std::string release_fixture_error;
 std::string ui_status="Multiplayer",cause,last_ui_status,selected_world,selected_file;
+bool framework_ordered_selected=false;std::string framework_ordered_heading;
+OrderedPublication ordered_publication;
 bool local_admitted=false;
 std::string chat_error,last_chat_transcript,last_chat_status;uint64_t chat_last_sequence=0;bool chat_draft_clear_failed=false;
 bool current_host_world=false;
@@ -119,7 +121,7 @@ bool framework_render(std::string& error){
         if(!desktop_error.empty())throw std::runtime_error("Multiplayer Desktop registration failed: "+desktop_error);
         if(app.at("open_requested").get<bool>()){framework_open=true;framework_browser=false;}
         if(!image||!ui_owner){error.clear();return true;}
-        if(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,ui_mode==3,error))return false;
+        if(!framework_ordered_selected&&(!render_native_new_world(error)||!observe_native_new_world(ui_mode==2,ui_mode==3,error)))return false;
         if(!framework_open&&!framework_observed_open){error.clear();return true;}
         framework_widgets.at("status").visible=false;
         if(!framework_report)framework_widgets.at("status").text="Multiplayer";
@@ -216,7 +218,11 @@ bool retire_departed_host(const nlohmann::json& preparation,std::string& error) 
 }
 void request_panel_toggle(){++toggle_requested;}
 
+#include "framework_ordered_lobby.inc"
 bool tick(std::string& error) {
+    // Selected sessions update from the actual outer Step service only.
+    if(typed_action_runtime::ordered_mode_selected()){error.clear();return true;}
+    framework_ordered_selected=false;framework_ordered_heading.clear();
     if(!image){error="native lobby not initialized";return false;}
     if(!thread)thread=GetCurrentThreadId();
     if(thread!=GetCurrentThreadId()){error="native lobby tick outside bound game thread";return false;}
@@ -234,7 +240,7 @@ bool tick(std::string& error) {
         (preparation.value("playing",false)&&!net::session_wire::connected()), owner);
     const auto left=preparation.value("leave_confirmed",uint64_t{});
     if(left!=last_leave_confirmed){framework_host_visibility.clear();framework_creating_world=false;framework_new_world_requested=false;}
-    if(left!=last_leave_confirmed){net::chat::Runtime::instance().set_lobby_admitted(false);last_leave_confirmed=left;playing_close_attempted=false;failure_notice_attempted.clear();failure_notice_error.clear();departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;host_world_pick_requested=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();cause.clear();ui_status="Session ended";}
+    if(left!=last_leave_confirmed){net::chat::Runtime::instance().set_lobby_admitted(false);last_leave_confirmed=left;playing_close_attempted=false;failure_notice_attempted.clear();failure_notice_error.clear();departed_host_attempt.clear();departed_host_error.clear();local_admitted=false;host_world_pick_requested=false;owner=0;selected_world.clear();selected_file.clear();current_host_world=false;current_host_world_error.clear();load_attempted=false;selected_lobby=0;publication_failed=false;publication_error.clear();published_state.clear();ordered_publication={};cause.clear();ui_status="Session ended";}
     if(preparation.value("state",0)!=0)ui_status=preparation.value("label",std::string("Session unavailable"));
     if(!retire_departed_host(preparation,error))return false;
     native::WorldStatus world;
@@ -245,6 +251,7 @@ bool tick(std::string& error) {
         world.title_transition_pending||(world.active_mode_index!=2&&world.active_mode_index!=3),!selected_world.empty(),transfer_phase,framework_creating_world));
     const bool title_active=world.active_mode_index==2&&!world.title_transition_pending;
     const bool ingame_active=world.active_mode_index==3&&native::in_game();
+    if(!adopt_local_shared_world(ingame_active,preparation,shared,error))return false;
     if(!title_active&&!ingame_active){ui_owner=nullptr;ui_mode=-1;framework_ready=false;framework_observed_open=false;framework_visibility_known=false;error.clear();return process_panel_toggle(false,error);}
     void* game=nullptr;void* mode=nullptr;void* active=nullptr;
     const size_t mode_offset=title_active?0x350:0x358;
@@ -278,7 +285,7 @@ bool tick(std::string& error) {
         }else if(index<discovered.size()){const auto& row=discovered[index];
             const std::string state=row.state=="open"?"Open":row.state=="preparing"?"Preparing":row.state=="playing"?"Playing":row.state=="leaving"?"Leaving":"Unavailable";
             value=row.host_name+"\n"+(row.save_name=="Welt wird ausgewählt"?std::string("Choosing a world"):row.save_name)+" - "+(row.state=="unavailable"?state:std::to_string(row.player_count)+"/"+std::to_string(row.max_players)+" players - "+state);
-            disabled=pending||admitted()||list_pending||row.state!="open"||row.player_count<1||row.max_players<=row.player_count;
+            disabled=pending||admitted()||list_pending||!joinable_lobby_state(row.state)||row.player_count<1||row.max_players<=row.player_count;
         }
         const bool present=index<(choosing?saved_worlds.size():discovered.size());
         const auto n=std::to_string(slot);
@@ -311,13 +318,13 @@ bool tick(std::string& error) {
     if(!render_context(title_active,ingame_active,preparation,shared,error))return false;
     return framework_process_action(error);
 }
-bool admitted(){return Config::instance().local_test?local_admitted&&net::session_wire::connected():net::SteamMatchmaking::instance().in_lobby();}
+bool admitted(){if(framework_ordered_selected)return net::session_wire::connected();return Config::instance().local_test?local_admitted&&net::session_wire::connected():net::SteamMatchmaking::instance().in_lobby();}
 std::string status(){return cause.empty()?ui_status:cause;}
 
-bool observe(nlohmann::json& result,std::string& error) {
+bool observe(nlohmann::json& result,std::string& error,bool refresh) {
     if(!image||!thread||GetCurrentThreadId()!=thread){error="native lobby observation requires initialized bound game thread";return false;}
     native::WorldStatus world;if(!native::read_world_status(world,error))return false;
-    if(!tick(error)){result["panel_toggle"]=panel_toggle_status();return false;}
+    if(refresh&&!tick(error)){result["panel_toggle"]=panel_toggle_status();return false;}
     result={{"title_active",world.active_mode_index==2&&!world.title_transition_pending},{"state",status()},
         {"transport",Config::instance().local_test?"local":"steam"},{"admission_source",Config::instance().local_test?"launcher_loopback":"steam_callback"},{"admitted",admitted()},{"host_permission",lobby_host()},
         {"local_admitted",Config::instance().local_test&&local_admitted},{"local_role",Config::instance().local_test?(net::session_wire::local_peer()==1?"host":"client"):"none"},{"local_session_id",Config::instance().local_test?net::session_wire::session_id():0},

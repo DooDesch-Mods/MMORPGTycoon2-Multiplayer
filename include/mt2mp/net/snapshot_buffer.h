@@ -142,6 +142,11 @@ public:
         if(!active_||offset_||index_){error="snapshot source release requires validated source with no sent chunks";return false;}
         active_=false;return file_.close(&error);
     }
+    bool retire(std::string& error){
+        if(!retirement_error_.empty()){error=retirement_error_;return false;}
+        if(!file_.close(&error)){retirement_error_=error;return false;}
+        active_=false;total_=offset_=0;index_=0;error.clear();return true;
+    }
     void stop() { active_=false; file_.close(); }
     bool active() const { return active_; }
     uint64_t size() const { return total_; }
@@ -149,6 +154,7 @@ public:
     uint32_t next_index() const { return index_; }
 private:
     SnapshotFileHandle file_;
+    std::string retirement_error_;
     uint64_t total_=0,offset_=0;
     uint32_t index_=0;
     bool active_=false;
@@ -191,6 +197,12 @@ public:
         if(!MoveFileExW(staging_.c_str(),target_.c_str(),MOVEFILE_WRITE_THROUGH)) { error="snapshot final commit Win32="+std::to_string(GetLastError()); return reject(); }
         hash_.reset(); active_=false; committed_=true; return true;
     }
+    bool retire(std::string& error){
+        if(!retirement_error_.empty()){error=retirement_error_;return false;}
+        if(!file_.close(&error)){retirement_error_=error;return false;}
+        hash_.reset();active_=committed_=false;total_=written_=0;chunks_=count_=0;
+        staging_.clear();target_.clear();digest_.clear();error.clear();return true;
+    }
     void stop() { active_=false; file_.close(); hash_.reset(); }
     bool complete() const { return active_&&count_==chunks_&&written_==total_; }
     bool committed() const { return committed_; }
@@ -201,6 +213,7 @@ public:
 private:
     bool reject() { stop(); return false; }
     SnapshotFileHandle file_;
+    std::string retirement_error_;
     std::unique_ptr<SnapshotSha256> hash_;
     std::filesystem::path staging_,target_;
     std::string digest_;

@@ -16,7 +16,11 @@ action_session::Outcome perform_history(const action_session::Binding&,const act
 bool observe_history(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire_history(const action_session::Binding&,const action_session::Request&,std::string&);
 bool retired_keys(const action_session::Binding&,const action_session::Request&,std::vector<std::string>&,std::string&);
+bool settle_building_move(const action_session::Binding&,const action_session::Request&,uint64_t uid,
+    const action_session::BuildingState& immediate,action_session::BuildingState& settled,nlohmann::json&,std::string&);
 bool query(int32_t region_id,nlohmann::json&,std::string&);
+bool query_rng_census(nlohmann::json&,std::string&);
+bool query_purchase_catalog(nlohmann::json&,std::string&);
 bool styles_ui(const std::string& diagnostic_uuid,int32_t region_id,const std::array<std::string,4>& styles,nlohmann::json&,std::string&);
 bool preset_ui(const std::string& diagnostic_uuid,int32_t region_id,const std::string& preset,nlohmann::json&,std::string&);
 bool property_ui(const std::string& diagnostic_uuid,const action_session::RegionPropertyIntent&,nlohmann::json&,std::string&);

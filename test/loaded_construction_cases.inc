@@ -39,7 +39,10 @@ void reset(){native_free_runtime::Runtime::instance()={};current={};current.imag
     jobs={};job_census::Job job;job.pointer=400;job.building=100;job.building_proxy=200;job.region=300;job.type=1;job.valid=1;
     job.position={1,2,3};job.destination={4,5,6};jobs.jobs={job};fixture_target={};uid=500;weak=100+0x20;reads=queues=fixture_target_reads=0;
     read_ok=key_ok=target_ok=proxy_ok=true;queue_change=pool_change=target_change=false;}
-bool fixture_loaded_read_process(Capture& out,std::string& e){++reads;if(!read_ok)return fail(e,"loaded original read failure");out=current;
+bool fixture_loaded_read_process(const std::string& snapshot,const action_session::Binding& binding,Capture& out,std::string& e){
+    if(snapshot!="snapshot"||binding.native_epoch!=7||binding.native_generation!=9)
+        return fail(e,"loaded capture snapshot/binding was not forwarded");
+    ++reads;if(!read_ok)return fail(e,"loaded original read failure");out=current;
     if(pool_change&&reads==2)++out.state.rows[0].state;return true;}
 bool owners(const Capture& a,const Capture& b,std::string& e){return (a.pin.origin.world_epoch==b.pin.origin.world_epoch&&a.pin.origin.generation==b.pin.origin.generation&&a.pin.time_scale==b.pin.time_scale)||fail(e,"loaded owner changed");}
 bool read_jobs(const Capture&,job_census::Census& out,std::string&){++queues;out=jobs;if(queue_change&&queues==2)out.jobs[0].position[0]+=1;return true;}
@@ -57,9 +60,9 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
 bool building(const Capture&,const LocalJob& link,Target& out,std::string& e){++fixture_target_reads;
     if(!target_ok||link.building_key!=key||link.building_uid!=500)return fail(e,"loaded original target failure");out=fixture_target;
     if(target_change&&fixture_target_reads==2)out.binding.variant="changed";return true;}
-#define read_process fixture_loaded_read_process
+#define read_process_loaded fixture_loaded_read_process
 #include "developer_staff/loaded_construction.inc"
-#undef read_process
+#undef read_process_loaded
 }
 void loaded_construction_cases(){
     using namespace loaded_construction_fixture;std::string error;std::vector<LocalJob> out;const action_session::Binding binding{7,9};

@@ -1,4 +1,5 @@
 #include "live_host_state/memory_query_timing.h"
+#include "region_saved_identity.h"
 #include <algorithm>
 #include <cstring>
 #include <iostream>

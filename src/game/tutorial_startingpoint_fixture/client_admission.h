@@ -1,11 +1,12 @@
 #pragma once
 #include "controller_admission.h"
 namespace mt2mp::game::tutorial_startingpoint_fixture {
-inline bool client_controller_admission(const nlohmann::json& state,const std::string& pending_id,std::string& e){
+inline bool client_controller_admission(const nlohmann::json& state,const std::string& pending_id,std::string& e,bool ordered=false){
     if(state.contains("error"))return controller_admission(state,e);
     if(!state.contains("initialized")||!state.at("initialized").is_boolean()||!state.at("initialized").get<bool>()){
         e="startingpoint Client fixture requires initialized authoritative Controller";return false;}
-    if(pending_id.empty())return controller_admission(state,e);
+    if(pending_id.empty())return controller_admission(state,e,ordered);
+    if(ordered){e="startingpoint ordered fixture requires retained capture readback, not legacy Pending";return false;}
     if(!state.contains("pending")||!state.at("pending").is_boolean()||!state.at("pending").get<bool>()||
        !state.contains("action_uuid")||!state.at("action_uuid").is_string()||state.at("action_uuid")!=pending_id||
        !state.contains("outcome")||!state.at("outcome").is_number_integer()||state.at("outcome")!=0){

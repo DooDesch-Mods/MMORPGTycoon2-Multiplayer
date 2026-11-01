@@ -4,14 +4,14 @@ struct Capture {
     action::Binding binding;
     scenery_stroke_capture::Local local;
     action::SceneryStrokeIntent intent;
-    std::string snapshot,cause;
+    std::string snapshot,cause;std::optional<action::Context> context;
 };
-struct Pending {action::Binding binding;action::SceneryStrokeIntent intent;std::string snapshot,id;};
+struct Pending {action::Binding binding;action::SceneryStrokeIntent intent;std::string snapshot,id;std::optional<action::Context> context;};
 struct Port;
 struct Operation {
     action::Binding binding;action::Request request;action::Evidence evidence;
     scenery_stroke_native::Receipt native;std::shared_ptr<Port> port;
-    bool confirmed=false,retired=false;std::string cause;
+    bool confirmed=false,retired=false,ordered=false;std::string cause;
 };
 bool installed=false,installation_attempted=false;
 std::array<uintptr_t,4> originals{};
@@ -25,6 +25,47 @@ json history_status();
 void reject(const std::string& error){++rejections;if(cause!=error){cause=error;LOG_ERROR("[SceneryStroke] {}",error);}}
 bool fault(uint32_t code,const char* operation,std::string& e){
     return !code||q::fail(e,std::string("Scenery stroke original ")+operation+" SEH="+std::to_string(code));
+}
+bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& e){
+    const bool forward=request.action==action::Action::SceneryBrushStroke||request.action==action::Action::SceneryEraseStroke;
+    const bool history=(request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+        !request.target_action_uuid.empty()&&request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid;
+    if(!forward&&!history)return q::fail(e,"Ordered Scenery scope requires a stroke or its exact history");
+    action::Context context;if(!action::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==action::Role::Host))return q::fail(e,"Ordered Scenery actual role differs");
+    return action::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
+    if(action::tick_commands::authority::active()){
+        if(authority)return q::fail(e,"Ordered Scenery execution forbids Host result and RNG adoption");
+        return ordered_scope(binding,request,e);
+    }
+    if(typed_action_runtime::controller_status().value("ordered",false))return q::fail(e,"Ordered Scenery execution requires consumed command scope");
+    return bool(authority)!=Config::instance().is_host||q::fail(e,"Scenery legacy execution role differs");
+}
+bool capture_binding(const std::string& snapshot,action::Binding& binding,std::optional<action::Context>& context,std::string& e){
+    context.reset();
+    if(!typed_action_runtime::controller_status().value("ordered",false))return typed_action_runtime::network_binding(snapshot,binding,e);
+    action::Context current;
+    if(!action::selected_session().current(current,e)||current.snapshot_uuid!=snapshot||
+       !typed_action_runtime::read_binding(snapshot,binding,e)){
+        if(e.empty())e="Ordered Scenery captured Session/Binding differs";return false;
+    }
+    context=current;return true;
+}
+bool current_capture(const std::optional<action::Context>& expected,const std::string& snapshot,const action::Binding& binding,std::string& e){
+    std::optional<action::Context> current;action::Binding actual;
+    if(!capture_binding(snapshot,actual,current,e))return false;
+    return (expected==current&&actual==binding)||q::fail(e,"Scenery captured Session/Binding changed");
+}
+bool input_admission(std::string& e){
+    const auto controller=typed_action_runtime::controller_status();
+    if(!controller.value("started",false)||controller.value("locked",true))return q::fail(e,"Scenery stroke capture requires a ready Controller");
+    if(!controller.value("ordered",false))return !controller.value("pending",true)||q::fail(e,"Scenery stroke capture requires an idle legacy Controller");
+    bool inside=false;action::Binding binding;
+    if(!typed_action_runtime::original_go_admission(inside,e))return false;
+    return inside?typed_action_runtime::read_binding(net::current_snapshot_id(),binding,e):
+        typed_action_runtime::network_binding(net::current_snapshot_id(),binding,e);
 }
 bool source_world(Runtime& r,uintptr_t receiver,Kind kind,host::WorldState& out,std::string& e){
     host::NativeOrigin origin;host::LookupApi lookup;
@@ -53,15 +94,15 @@ bool read_source(Runtime& r,uintptr_t receiver,Kind kind,Capture& out,std::strin
     return scenery_stroke_capture::read(r.memory,r.image,receiver,kind,identify,resolve,out.local,out.intent,e);
 }
 bool capture_paint(Runtime& r,uintptr_t receiver,uintptr_t shape,Kind kind,std::string& e){
-    const auto controller=typed_action_runtime::controller_status();
-    if(!installed||!r.ready||queued||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true))
-        return q::fail(e,"Scenery stroke capture requires an idle ready Controller");
+    if(!installed||!r.ready||queued)return q::fail(e,"Scenery stroke capture requires a ready runtime and no queued stroke");
+    if(!input_admission(e))return false;
+    if(capture&&!current_capture(capture->context,capture->snapshot,capture->binding,e))return false;
     if(capture&&capture->local.receiver!=receiver)return q::fail(e,"Scenery stroke already belongs to another native cursor");
     if(capture&&!capture->cause.empty())return q::fail(e,capture->cause);
     if(!capture&&!verify_routes(r,true,e))return false;
     Capture current;if(!read_source(r,receiver,kind,current,e))return false;
     if(!capture){current.snapshot=net::current_snapshot_id();
-        if(!typed_action_runtime::network_binding(current.snapshot,current.binding,e))return false;capture=std::move(current);++captures;
+        if(!capture_binding(current.snapshot,current.binding,current.context,e))return false;capture=std::move(current);++captures;
     }else if(capture->local!=current.local||capture->intent.kind!=current.intent.kind||capture->intent.region!=current.intent.region||
              capture->intent.mode!=current.intent.mode||capture->intent.type!=current.intent.type||capture->intent.variant!=current.intent.variant||
              capture->intent.random_variant!=current.intent.random_variant||capture->intent.replace!=current.intent.replace)
@@ -111,13 +152,14 @@ bool finish_capture(Runtime& r,uintptr_t receiver,Kind kind,std::string& e){
     if(!e.empty())return false;
     if(value.binding.native_epoch!=current.origin.world_epoch||value.binding.native_generation!=current.origin.generation||value.snapshot!=net::current_snapshot_id()||queued)
         return q::fail(e,"Scenery source snapshot/World binding changed before submission");
+    if(!current_capture(value.context,value.snapshot,value.binding,e))return false;
     if(!action::valid_scenery_stroke(value.intent))return q::fail(e,"Scenery finished source intent is invalid");
     const auto id=uuid(e);if(id.empty())return false;
     action::Message proposal;proposal.kind=action::Kind::Request;proposal.session=1;proposal.request.action_uuid=id;proposal.request.snapshot_uuid=value.snapshot;
     proposal.request.peer=1;proposal.request.sequence=1;proposal.request.action=kind==Kind::Paint?action::Action::SceneryBrushStroke:action::Action::SceneryEraseStroke;
     proposal.request.canonical_record_key="scenery-stroke:"+id;proposal.request.scenery_stroke=value.intent;
     std::vector<uint8_t> bytes;if(!action::encode(proposal,bytes,e))return false;
-    queued=Pending{value.binding,std::move(value.intent),std::move(value.snapshot),id};return true;
+    queued=Pending{value.binding,std::move(value.intent),std::move(value.snapshot),id,std::move(value.context)};return true;
 }
 void finish_entry(void* receiver,Kind kind){
     auto* r=published.load(std::memory_order_acquire);const auto original=reinterpret_cast<calls::Finish>(originals[kind==Kind::Paint?1:3]);

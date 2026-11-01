@@ -19,7 +19,7 @@ bool current_remove(region::Runtime& r,uintptr_t object,Pending& out,uint64_t& u
     intent.target_path=owner.keys.keys().at(found->member.uid);intent.graph_before_sha256=before.wire.complete_sha256;
     if(!action::world_path_valid(intent))return fail(error,"mixed Path Remove current semantic intent invalid");
     uid=found->member.uid;out={std::move(intent),{view.world.origin.world_epoch,view.world.origin.generation},snapshot};
-    return true;
+    return capture_context(snapshot,out.binding,out.context,error);
 }
 }
 bool remove_local_binding(uintptr_t manager,uintptr_t object,action::ui_capture::LocalBinding& out,std::string& error){
@@ -54,5 +54,10 @@ bool submit_remove(const action::ui_capture::Intent& intent,std::string& error){
     if(!world_path_runtime::current_remove(*r,object,current,uid,error)||
        current.intent.target_path!=intent.canonical_record_key||current.snapshot!=intent.snapshot_uuid)
         return fail(error,error.empty()?"mixed Path Remove current identity differs before submission":error);
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        world_path_runtime::capture.pending=std::move(current);
+        world_path_runtime::capture.pending_action=intent.action_uuid;
+        ++world_path_runtime::capture.accepted;return true;
+    }
     return typed_action_runtime::submit_world_path(intent.action_uuid,current.intent,error);
 }

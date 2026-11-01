@@ -52,6 +52,8 @@ public:
     ui::HookResult on_activate(void* type,void* item,uintptr_t caller_rva);
     ui::HookResult on_update(void* type,void* item);
     bool suspend(const std::string&,std::string&);
+    // Drain only a suspended owner. This never binds or advances time.
+    bool finish_retirement(std::string&);
     bool status(Status&,std::string&);
 private:
     struct Impl;

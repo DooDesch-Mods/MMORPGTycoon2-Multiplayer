@@ -1,6 +1,32 @@
 // Fixed owned-world original UI probe. Controller adoption is intentionally not
 // inferred from this local receipt; the caller must never distribute this world.
 namespace zone_probe_detail {
+bool shared_admission(const json& controller,bool input,const std::string& snapshot,
+                      action_session::Binding& binding,std::optional<action_session::Context>& context,std::string& e){
+    context.reset();const auto& config=Config::instance();
+    if(!controller.value("ordered",false))return monster_zone_shared_ui::admit(controller,config.local_test,
+        zone_action_runtime::pending_ui(),snapshot,binding,typed_action_runtime::network_binding,e);
+    bool inside=false;action_session::Context actual;
+    if(!config.local_test||!controller.value("started",false)||controller.value("locked",true)||zone_action_runtime::pending_ui())
+        return fail(e,"Ordered Zone UI requires ready owned Controller without pending capture");
+    if(!typed_action_runtime::original_go_admission(inside,e))return false;
+    if(input&&!inside)return fail(e,"Ordered Zone native input requires actual OriginalGo");
+    if(!action_session::selected_session().current(actual,e)||actual.snapshot_uuid!=snapshot||
+       config.is_host!=(actual.role==action_session::Role::Host)||!typed_action_runtime::read_binding(snapshot,binding,e))
+        return fail(e,e.empty()?"Ordered Zone native input Session/Binding/role differs":e);
+    context=actual;return true;
+}
+bool shared_current(const std::string& snapshot,const action_session::Binding& binding,
+                    const std::optional<action_session::Context>& context,std::string& e){
+    if(!context)return monster_zone_shared_ui::current(snapshot,binding,net::current_snapshot_id(),typed_action_runtime::network_binding,e);
+    action_session::Context actual;action_session::Binding owner;bool inside=false;
+    if(!typed_action_runtime::original_go_admission(inside,e)||!inside||
+       !action_session::selected_session().current(actual,e)||!typed_action_runtime::read_binding(snapshot,owner,e))
+        return fail(e,e.empty()?"Ordered Zone original callback lost current Go owner":e);
+    return (actual==*context&&owner==binding&&net::current_snapshot_id()==snapshot&&
+        Config::instance().is_host==(actual.role==action_session::Role::Host))||fail(e,"Ordered Zone original callback Session/Binding/role changed");
+}
+
 namespace z=monster_zone_read;
 namespace q=npc_quest_targets;
 struct ReadMemory {
@@ -63,13 +89,16 @@ bool tool(Memory& m,uintptr_t image,uintptr_t& brush,uintptr_t& cursor,std::stri
     return npc_census::read_inventory_header(m,inventory,after,e)&&
         ((brush&&after==header)||fail(e,"zone probe MonsterZone tool absent or inventory changed"));
 }
-bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,json& out,std::string& e){
+bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,json& out,std::string& e,bool require_window=true){
     out={{"read_only",true},{"confirmed",false}};
     uintptr_t window=0,ap=0;
-    if(!field(m,brush,0x5d8,window,e)||!window||!field(m,window,0,ap,e))return fail(e,e.empty()?"Zone diagnostic brush ThemeWindow absent":e);
-    std::string key;if(!name(m,window+0x1b0,key,e))return false;
+    if(!field(m,brush,0x5d8,window,e))return false;
+    if(!window&&require_window)return fail(e,"Zone diagnostic active brush ThemeWindow absent");
+    if(window&&!field(m,window,0,ap,e))return false;
+    std::string key;if(window&&!name(m,window+0x1b0,key,e))return false;
+    out["present"]=window!=0;
     const auto class_rva=[&](uintptr_t value)->json{return value>=image&&value-image<0x3000000?json(value-image):json(nullptr);};
-    out["brush_window"]={{"class_rva",class_rva(ap)},{"name",key}};
+    out["brush_window"]=window?json{{"class_rva",class_rva(ap)},{"name",key}}:json(nullptr);
     const auto scan=[&](uintptr_t header,size_t data_off,size_t count_off,size_t cap_off,int32_t limit,json& result)->bool{
         uintptr_t data=0;int32_t count=0,cap=0;
         if(!field(m,header,data_off,data,e)||!field(m,header,count_off,count,e)||!field(m,header,cap_off,cap,e))return false;
@@ -96,8 +125,12 @@ bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,js
     if(!scan(mode,0xa0,0xa8,0xac,256,out["mode"])||
        !scan(image,0x1a3c478,0x1a3c480,0x1a3c484,1024,out["registry"]))return false;
     uintptr_t after_window=0,after_ap=0;std::string after_name;
-    if(!field(m,brush,0x5d8,after_window,e)||!field(m,window,0,after_ap,e)||!name(m,window+0x1b0,after_name,e))return false;
-    if(after_window!=window||after_ap!=ap||after_name!=key)return fail(e,"Zone diagnostic brush window changed");
+    if(!field(m,brush,0x5d8,after_window,e))return false;
+    if(after_window!=window)return fail(e,"Zone diagnostic brush window changed");
+    if(window){
+        if(!field(m,window,0,after_ap,e)||!name(m,window+0x1b0,after_name,e))return false;
+        if(after_ap!=ap||after_name!=key)return fail(e,"Zone diagnostic brush window changed");
+    }
     out["confirmed"]=true;return true;
 }
 
@@ -150,23 +183,22 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
     const auto token=args.at("token").get<std::string>(),phase=args.at("phase").get<std::string>();
     const auto region_id=args.at("region_id").get<int64_t>(),type=args.at("character_type").get<int64_t>();
     if(!token_valid(token)||!token_valid(args.at("snapshot_uuid").get<std::string>())||region_id<0||region_id>INT32_MAX||type< -1||type>INT32_MAX||
-       (phase!="open"&&phase!="select"&&phase!="state"&&phase!="stroke"&&phase!="prepare_tab")||args.at("points").size()>8)return fail(error,"zone probe request values differ");
+       (phase!="open"&&phase!="select"&&phase!="state"&&phase!="stroke"&&phase!="hover"&&phase!="prepare_tab")||args.at("points").size()>8)return fail(error,"zone probe request values differ");
     std::vector<std::array<float,3>> points;
     for(const auto& p:args.at("points")){if(!p.is_array()||p.size()!=3)return fail(error,"zone probe point requires XYZ");std::array<float,3> value{};
         for(size_t n=0;n<3;++n){if(!p[n].is_number())return fail(error,"zone probe point is not numeric");const auto v=p[n].get<double>();if(!std::isfinite(v)||std::abs(v)>(std::numeric_limits<float>::max)())return fail(error,"zone probe point is not finite float32");value[n]=float(v);}points.push_back(value);}
-    if((phase=="stroke"?(points.size()<2||type<0):!points.empty())||((phase=="open"||phase=="state"||phase=="prepare_tab")&&type!=-1)||(phase=="select"&&type<0))return fail(error,"zone probe phase payload differs");
+    if((phase=="stroke"?(points.size()<2||type<0):phase=="hover"?(points.size()!=1||type!=-1):!points.empty())||((phase=="open"||phase=="state"||phase=="prepare_tab")&&type!=-1)||(phase=="select"&&type<0))return fail(error,"zone probe phase payload differs");
     if(d::attempts.contains(token)){result=d::attempts.at(token);return fail(error,"zone probe token already attempted - no replay");}
     if(phase!="state"&&!d::fault.empty())return fail(error,"zone probe previous Unknown blocks new input: "+d::fault);
     if(d::attempts.size()>=64)return fail(error,"zone probe token limit reached");
-    const auto& config=Config::instance();const auto controller=typed_action_runtime::status();
+    const auto& config=Config::instance();const auto controller=typed_action_runtime::controller_status();
     if(!config.local_test||(!shared&&(!config.is_host||!controller.contains("initialized")||controller.at("initialized")!=false||net::session_wire::peers()>1)))
         return fail(error,"zone probe requires isolated local-test Host with uninitialized Controller");
-    action_session::Binding action_binding;const auto common_snapshot=net::current_snapshot_id();
-    if(shared&&!monster_zone_shared_ui::admit(controller,config.local_test,zone_action_runtime::pending_ui(),common_snapshot,
-       action_binding,typed_action_runtime::network_binding,error))return false;
+    action_session::Binding action_binding;std::optional<action_session::Context> action_context;const auto common_snapshot=net::current_snapshot_id();
+    if(shared&&!d::shared_admission(controller,phase!="state",common_snapshot,action_binding,action_context,error))return false;
     uintptr_t image=0;uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(image,thread,sha,error)||sha!=exe_sha||!thread||thread!=GetCurrentThreadId())return fail(error,"zone probe exact EXE/Mainthread differs: "+error);
-    Memory memory;host::LookupApi api;if(!host::resolve_lookup(memory.process,image,sha,api,error)||!test_world(memory,image,error)||!monster_zone_guards::verify(memory,image,[](uintptr_t rva,std::string& e){return zone_action_runtime::verify_owned_entry(rva,e);},error))return false;
+    Memory memory;host::LookupApi api;if(!host::resolve_lookup(memory.process,image,sha,api,error)||(!action_context&&!test_world(memory,image,error))||!monster_zone_guards::verify(memory,image,[](uintptr_t rva,std::string& e){return zone_action_runtime::verify_owned_entry(rva,e);},error))return false;
     host::NativeOrigin origin;host::Reader reader(memory.process,origin,image,thread,api);host::WorldState before_world,after_world;
     if(!reader.current(before_world,true,error))return false;
     if(before_world.origin.uuid!=args.at("snapshot_uuid").get<std::string>()||before_world.origin.world_epoch!=args.at("expected_world_epoch").get<uint64_t>()||before_world.origin.generation!=args.at("expected_generation").get<uint64_t>())return fail(error,"zone probe full local Origin differs");
@@ -243,13 +275,17 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
         result["read_only"]=true;result["selected"]=selected;result["options"]=json::array();for(const auto& o:available)result["options"].push_back(o.id);
         uintptr_t actual_region=0;int32_t painting=0;if(!field(memory,brush,0x170,actual_region,error)||!field(memory,brush,0x6fc,painting,error))return false;
         result["brush_region_matches"]=actual_region==region;result["painting_mode"]=painting;
-        if(!d::theme_ownership(memory,image,uintptr_t(before_world.origin.mode),brush,result["theme_ownership"],error))return false;
+        if(!d::theme_ownership(memory,image,uintptr_t(before_world.origin.mode),brush,result["theme_ownership"],error,result.at("tool_active").get<bool>()))return false;
         monster_zone_tab::Pin tab;monster_zone_tab::Status tab_status;
         if(!observe_tab(tab,tab_status,error))return false;publish_tab(tab,tab_status);
         if(!d::sample(memory,world,after,error)||!reader.current(after_world,true,error)||
            !host::same_world(before_world.origin,after_world.origin)||before_world.root!=after_world.root||
            d::sample_json(before)!=d::sample_json(after))return fail(error,error.empty()?"zone probe read-only state changed during readback":error);
         result["confirmed"]=true;return true;
+    }
+    if(phase=="hover"){
+        uintptr_t actual=0;const auto seh=shard_region(image,world.root,points.front(),actual);
+        if(seh||actual!=region)return fail(error,"zone hover point outside current region exception="+std::to_string(seh));
     }
     if(phase=="stroke"){
         uintptr_t actual_region=0,graph=0;int32_t painting=0;uint8_t visible=0;
@@ -272,11 +308,11 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
         if(!reader.current(after_world,false,error)||!host::same_world(before_world.origin,after_world.origin)||
            before_world.root!=after_world.root||!d::tool(memory,image,current_brush,current_cursor,error)||
            current_brush!=brush||current_cursor!=cursor)return unknown(error.empty()?"zone probe owner changed before next original callback":error);
-        if(shared&&!monster_zone_shared_ui::current(common_snapshot,action_binding,net::current_snapshot_id(),
-           typed_action_runtime::network_binding,error))return unknown(error);
+        if(shared&&!d::shared_current(common_snapshot,action_binding,action_context,error))return unknown(error);
         json entry{{"name",name},{"attempted",true},{"returned",false},{"exception",0}};result["calls"].push_back(entry);d::attempts.at(token)=result;const auto code=callback();result["calls"].back()["exception"]=code;result["calls"].back()["returned"]=code==0;d::attempts.at(token)=result;if(code)return unknown(std::string("zone probe original ")+name+" exception="+std::to_string(code));return true;};
     if(phase=="open"){if(!call("ItemButton::Press",[&]{return original_press(image,binding.button);}))return false;}
     else if(phase=="select"){if(!call("ThemeWindow::SetSelection",[&]{return original_select(image,window,chosen);}))return false;}
+    else if(phase=="hover"){if(!call("MouseOver",[&]{return d::input(image,0,brush,cursor,points.front());}))return false;}
     else{
         const auto input=[&](unsigned step,const std::array<float,3>& point,std::string&){
             constexpr const char* names[]{"MouseOver","Press_Left","Drag_Left","Release_Left"};
@@ -284,7 +320,7 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
         };
         const auto observe=[&](std::string& cause){d::ReadMemory m{memory};d::z::State stage;
             if(!d::z::read(m,world,stage,cause))return unknown(cause);
-            if(shared){const auto capture=zone_edit_runtime::status();
+            if(shared){const auto capture=action_context?zone_action_runtime::status():zone_edit_runtime::status();
                 if(!capture.value("capture_active",false)||capture.value("capture_fault",true))
                     return unknown("Zone original Press capture failed: "+capture.value("cause",std::string{}));}
             result["after_press"]=d::state_json(stage);return true;};
@@ -296,11 +332,18 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
     if(!d::options(memory,image,brush,window,available,selected,error))return unknown(error);
     result["selected"]=selected;result["options"]=json::array();for(const auto& o:available)result["options"].push_back(o.id);
     if(phase!="stroke"&&d::sample_json(before)!=d::sample_json(after))return unknown("zone probe UI selection changed world/ledger/RNG/Undo/Release");
+    if(phase=="hover"){
+        uintptr_t actual_region=0;int32_t painting=0;uintptr_t graph=0;
+        if(!field(memory,brush,0x170,actual_region,error)||!field(memory,brush,0x6fc,painting,error)||
+           !field(memory,brush,0x740,graph,error))return unknown(error);
+        if(actual_region!=region||painting||graph)return unknown("zone original hover did not retain idle requested Region");
+        result["brush_region_matches"]=true;result["painting_mode"]=painting;
+    }
     if(phase=="select"&&selected!=json(std::array<int32_t,2>{1,int32_t(type)}))return unknown("zone probe original selection readback differs");
     if(shared&&phase=="stroke"){
         const auto capture=zone_action_runtime::ui_receipt(token);
         if(!monster_zone_shared_ui::captured(d::sample_json(before),d::sample_json(after),capture,zone_action_runtime::pending_ui(),
-           zone_edit_runtime::status().value("cause",std::string{}),error))return unknown(error);
+           (action_context?zone_action_runtime::status():zone_edit_runtime::status()).value("cause",std::string{}),error))return unknown(error);
         result["captured"]=true;result["submitted"]=false;result["action_uuid"]="";result["host_completion"]=false;
     }else if(phase=="stroke"){
         if(after.state.zones.size()!=before.state.zones.size()+1||after.undo.active_graph||after.undo.undo.size()!=before.undo.undo.size()+1)return unknown("zone probe stroke did not create one Zone and one closed original Undo graph");
@@ -311,7 +354,7 @@ bool monster_zone_probe_impl(const json& args,json& result,std::string& error,bo
     result["confirmed"]=true;result["host_ordered_action"]=shared;d::attempts.at(token)=result;error.clear();return true;
 }
 
-bool monster_zone_ui(const json& args,json& result,std::string& error){
+bool execute_monster_zone_ui(const json& args,json& result,std::string& error){
     try{return monster_zone_probe_impl(args,result,error,true);}
     catch(const std::exception& x){error=std::string("Zone shared UI boundary exception: ")+x.what();}
     catch(...){error="Zone shared UI non-standard boundary exception";}
@@ -335,3 +378,5 @@ bool monster_zone_probe(const json& args,json& result,std::string& error){
     }
     LOG_ERROR("[MonsterZoneProbe] cause={} attempted={}; no replay",error,attempted);return false;
 }
+
+#include "monster_zone_ordered_ui.inc"

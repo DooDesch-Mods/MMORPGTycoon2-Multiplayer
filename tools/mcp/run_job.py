@@ -84,32 +84,27 @@ async def execute_job(manifest: Path, spec: dict, evidence: dict, persist, log_s
             await calls(client)
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--spec", type=Path, required=True)
-    parser.add_argument("--manifest", type=Path, required=True)
-    parser.add_argument("--label", default="job")
-    args = parser.parse_args()
-    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", args.label):
-        parser.error("label must contain 1 through 32 ASCII letters, digits, underscores or hyphens")
-    workspace = Path(__file__).resolve().parents[2]
+def run_saved_job(manifest, spec_path, label, workspace, execute=None):
     directory = workspace / "test" / "mcp" / "evidence"
     directory.mkdir(exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
-    output = directory / f"{args.label}_{stamp}.json"
+    output = directory / f"{label}_{stamp}.json"
     log_path = output.with_suffix(".log")
-    evidence = {"utc_time": datetime.now(timezone.utc).isoformat(), "manifest_path": str(args.manifest.resolve()),
-                "spec_path": str(args.spec.resolve()), "passed": False, "calls": [], "retries": 0,
+    evidence = {"utc_time": datetime.now(timezone.utc).isoformat(), "manifest_path": str(manifest.resolve()),
+                "spec_path": str(spec_path.resolve()), "passed": False, "calls": [], "retries": 0,
                 "confirmation_scope": "matching runtime acknowledgements; inspect result fields for execution versus requested state"}
     def persist():
         atomic_json(output, evidence, max_bytes=20 * 1024 * 1024)
     try:
-        spec = load_spec(args.spec)
+        spec = load_spec(spec_path)
         evidence["spec"] = spec
-        evidence["spec_sha256"] = hashlib.sha256(args.spec.read_bytes()).hexdigest()
+        evidence["spec_sha256"] = hashlib.sha256(spec_path.read_bytes()).hexdigest()
         persist()
         with log_path.open("w", encoding="utf-8") as log_stream:
-            asyncio.run(execute_job(args.manifest.resolve(), spec, evidence, persist, log_stream))
+            if execute is None:
+                asyncio.run(execute_job(manifest.resolve(), spec, evidence, persist, log_stream))
+            else:
+                execute(manifest.resolve(), spec, evidence, persist, log_stream)
         evidence["passed"] = True
     except Exception as exc:
         details = error_details(exc)
@@ -119,8 +114,121 @@ def main() -> None:
             log_stream.write(f"\nerror: MCP job failed operation={evidence['error']['operation']}\n{full_trace(exc)}")
         print(f"error: MCP job {evidence['error']['operation']}: {'; '.join(evidence['error']['original_causes'])}", file=sys.stderr)
     persist()
-    print(json.dumps({"passed": evidence["passed"], "evidence": str(output), "log": str(log_path)}))
-    raise SystemExit(0 if evidence["passed"] else 1)
+    return {"passed": evidence["passed"], "evidence": str(output), "log": str(log_path)}
+
+
+class PersistentLobbyReads:
+    """Own MCP sessions for read-only lobby jobs during one acceptance run."""
+
+    def __init__(self, workspace, directory, timeout, session_factory=None):
+        from contextlib import ExitStack
+        from anyio.from_thread import start_blocking_portal
+        self.workspace, self.directory, self.timeout = Path(workspace), Path(directory), timeout
+        self.stack, self.clients, self.closed = ExitStack(), {}, False
+        self.session_factory = session_factory
+        try:
+            self.portal = self.stack.enter_context(start_blocking_portal())
+            self.log_path = self.directory / 'persistent-lobby-mcp.log'
+            self.log = self.stack.enter_context(self.log_path.open('w', encoding='utf-8'))
+        except BaseException:
+            self.stack.close()
+            raise
+
+    def close(self):
+        if not self.closed:
+            self.closed = True
+            self.stack.close()
+
+    def _open(self, manifest, deadline):
+        from contextlib import asynccontextmanager
+        import anyio
+        import time
+
+        @asynccontextmanager
+        async def opened():
+            parameters = StdioServerParameters(command=sys.executable,
+                args=['-X', 'utf8', str(Path(__file__).with_name('server.py')),
+                      '--instances-root', str(manifest.parent.parent), '--timeout', str(self.timeout)])
+            async with stdio_client(parameters, errlog=self.log) as (read, write):
+                async with ClientSession(read, write, read_timeout_seconds=timedelta(seconds=self.timeout + 15)) as client:
+                    with anyio.fail_after(max(0, deadline - time.monotonic())):
+                        initialized = await client.initialize()
+                    yield client, initialized
+        return opened()
+
+    def _execute(self, manifest, spec, evidence, persist, log_stream, deadline):
+        from contextlib import asynccontextmanager
+        import anyio
+        import time
+
+        if spec['calls'] != [{'tool': 'game_read_native_lobby', 'arguments': {}}]:
+            raise RuntimeErrorDetail('invalid_job', 'Persistent lobby session accepts only one argument-free lobby read')
+        key = str(manifest.resolve())
+        if key not in self.clients:
+            context = self.session_factory(manifest, deadline) if self.session_factory else self._open(manifest, deadline)
+            self.clients[key] = self.stack.enter_context(self.portal.wrap_async_context_manager(context))
+        client, initialized = self.clients[key]
+        evidence['session_log_path'] = str(self.log_path)
+        persist()
+
+        class BorrowedClient:
+            async def initialize(self):
+                return initialized
+
+            async def call_tool(self, name, arguments):
+                return await client.call_tool(name, arguments)
+
+        @asynccontextmanager
+        async def borrowed():
+            yield BorrowedClient()
+
+        async def execute():
+            with anyio.fail_after(max(0, deadline - time.monotonic())):
+                await execute_job(manifest, spec, evidence, persist, log_stream, session_factory=borrowed)
+
+        self.portal.call(execute)
+
+    def run(self, manifest, spec_path, label, wait, stream):
+        import subprocess
+        import time
+        if self.closed:
+            raise RuntimeErrorDetail('session_closed', 'Persistent lobby session is closed after completion or failure; no retry')
+        deadline = time.monotonic() + wait
+        timed_out = False
+
+        def execute(manifest, spec, evidence, persist, log_stream):
+            nonlocal timed_out
+            try:
+                self._execute(manifest, spec, evidence, persist, log_stream, deadline)
+            except TimeoutError:
+                timed_out = True
+                raise
+
+        try:
+            result = run_saved_job(Path(manifest), Path(spec_path), label, self.workspace, execute=execute)
+        except BaseException:
+            self.close()
+            raise
+        print(json.dumps(result), file=stream, flush=True)
+        if not result['passed']:
+            self.close()
+        if timed_out:
+            raise subprocess.TimeoutExpired('persistent lobby MCP read', wait)
+        return subprocess.CompletedProcess('persistent lobby MCP read', 0 if result['passed'] else 1)
+
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--spec", type=Path, required=True)
+    parser.add_argument("--manifest", type=Path, required=True)
+    parser.add_argument("--label", default="job")
+    args = parser.parse_args()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,32}", args.label):
+        parser.error("label must contain 1 through 32 ASCII letters, digits, underscores or hyphens")
+    result = run_saved_job(args.manifest, args.spec, args.label, Path(__file__).resolve().parents[2])
+    print(json.dumps(result))
+    raise SystemExit(0 if result["passed"] else 1)
 
 
 if __name__ == "__main__":

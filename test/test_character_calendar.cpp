@@ -6,6 +6,7 @@
 #include "live_host_state/state.h"
 #include <cstring>
 #include <functional>
+#include <memory>
 #include <iostream>
 #include <stdexcept>
 namespace {
