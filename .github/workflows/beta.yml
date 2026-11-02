@@ -1,6 +1,7 @@
 name: Early Beta release
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths: ['.github/beta-milestone.json']

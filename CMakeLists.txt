@@ -14,6 +14,7 @@ if(MSVC)
     # The combined native adapters exceed the standard COFF section limit.
     set_source_files_properties("${CMAKE_CURRENT_SOURCE_DIR}/src/game/npc_probe.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/game/ui_move_runtime.cpp"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/game/ui_region_runtime.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/game/typed_action/action_session.cpp"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/game/typed_action_runtime.cpp"
         PROPERTIES COMPILE_OPTIONS /bigobj)

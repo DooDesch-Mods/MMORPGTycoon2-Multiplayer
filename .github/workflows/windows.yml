@@ -191,7 +191,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
   compile:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       SCCACHE_DIR: ${{ github.workspace }}/.ci-cache/native-sccache
       SCCACHE_CACHE_SIZE: 512M
@@ -252,7 +252,8 @@ jobs:
             throw 'SDL import library must be a nonempty regular file'
           }
       - name: Restore compiled native objects
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: native_cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .ci-cache/native-sccache
           key: native-sccache-v1-${{ runner.os }}-x64-msvc-release-${{ github.sha }}
@@ -281,6 +282,12 @@ jobs:
           if (-not (Get-Command sccache -ErrorAction SilentlyContinue)) { throw 'Compiler cache setup did not complete; statistics unavailable' }
           sccache --show-stats
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Save compiled native objects
+        if: ${{ !cancelled() && steps.native_cache.outcome == 'success' && steps.native_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ci-cache/native-sccache
+          key: ${{ steps.native_cache.outputs.cache-primary-key }}
       - name: Keep exact native build for packaging
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
