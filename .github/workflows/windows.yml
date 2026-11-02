@@ -58,7 +58,8 @@ jobs:
           path: .ci-deps/framework
           persist-credentials: false
       - name: Restore compiled source-test objects
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        id: source_cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .ci-cache/sccache
           key: source-tests-sccache-v1-${{ runner.os }}-x64-msvc-shard-${{ matrix.shard }}-${{ github.sha }}
@@ -95,6 +96,12 @@ jobs:
           New-Item -ItemType Directory -Force -Path .ci-build/tests | Out-Null
           sccache --show-stats --stats-format=json | Out-File -LiteralPath .ci-build/tests/source-cache-${{ matrix.shard }}.json -Encoding utf8
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Save compiled source-test objects
+        if: ${{ !cancelled() && steps.source_cache.outcome == 'success' && steps.source_cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: .ci-cache/sccache
+          key: ${{ steps.source_cache.outputs.cache-primary-key }}
       - name: Keep source-check shard evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
