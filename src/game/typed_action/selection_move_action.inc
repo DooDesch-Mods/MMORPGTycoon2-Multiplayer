@@ -11,3 +11,7 @@ struct SelectionMoveState {
     std::vector<BuildingState> rows;
     bool operator==(const SelectionMoveState&) const = default;
 };
+struct SelectionMoveSettlement {
+    uint32_t index=0;std::string key;uint32_t immediate_y_bits=0,ground_y_bits=0;
+    bool operator==(const SelectionMoveSettlement&) const = default;
+};

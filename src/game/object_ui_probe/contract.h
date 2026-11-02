@@ -24,12 +24,16 @@ inline bool parse(const Json& args,Input& out,std::string& error)try{
     next.keys=args.at("record_keys").get<std::vector<std::string>>();std::set<std::string> unique;
     if(next.keys.empty()||next.keys.size()>32)return fail(error,"object_ui_selected_key_count_outside_1_32");
     for(const auto& key:next.keys)if(key.empty()||key.size()>256||key.find('\0')!=std::string::npos||!unique.insert(key).second)return fail(error,"object_ui_selected_key_empty_duplicate_or_invalid");
-    if(next.command!="Duplicate"&&next.command!="Group"&&next.command!="Ungroup")return fail(error,"object_ui_command_not_supported");
+    if(next.command!="Duplicate"&&next.command!="Group"&&next.command!="Ungroup"&&next.command!="InspectGroupTargets")return fail(error,"object_ui_command_not_supported");
     if(args.size()!=(next.command=="Duplicate"?7u:6u))return fail(error,"object_ui_exact_command_fields_required");
     if(next.command=="Duplicate"&&next.keys.size()!=1)return fail(error,"object_ui_duplicate_requires_one_current_top_level_object");
     if(next.command=="Duplicate"&&!position(args.at("position"),next.position,error))return false;
     out=std::move(next);error.clear();return true;
 }catch(const std::exception& cause){return fail(error,std::string("object_ui_request: ")+cause.what());}
+inline bool inspection_allowed(const Input& input,bool mailbox,std::string& error){
+    if(input.command=="InspectGroupTargets"&&!mailbox)return fail(error,"object_ui_inspection_requires_diagnostic_mailbox");
+    return true;
+}
 inline bool position(const Json& args,std::array<float,3>& out,std::string& error)try{
     if(!args.is_array()||args.size()!=3)return fail(error,"object_ui_duplicate_position_requires_three_scalars");
     for(size_t n=0;n<3;++n){if(!args[n].is_number())return fail(error,"object_ui_duplicate_position_not_numeric");const double value=args[n].get<double>();if(!std::isfinite(value)||std::abs(value)>double(std::numeric_limits<float>::max()))return fail(error,"object_ui_duplicate_position_not_finite_float32");out[n]=float(value);}return true;

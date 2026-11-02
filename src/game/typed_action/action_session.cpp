@@ -34,6 +34,7 @@
 #include "../npc_target_key.h"
 #include <algorithm>
 #include <cmath>
+#include <bit>
 #include <limits>
 #include <regex>
 #include <set>
@@ -772,7 +773,7 @@ bool execution(const Request& r,const Evidence& e) {
     if(r.action==Action::MoveDistrictTitle)return district_title_effect(r,e);
     if(r.action==Action::EditDistrictText)return district_effect(r,e);
     if(r.action==Action::EditDistrict)return district_property_effect(r,e);
-    if(r.action==Action::MoveSelection)return selection_move_effect(r,e);
+    if(r.action==Action::MoveSelection)return e.selection_move_settlement.empty()?selection_move_effect(r,e):selection_move_settled_effect(r,e);
     if(r.action==Action::EditServiceMembership)return service_effect(r,e);
     if(r.action==Action::EditPropText)return prop_text_effect(r,e);
     if(r.action==Action::EditNpcProperty)return npc_property_effect(r,e);
@@ -832,7 +833,7 @@ bool execution(const Request& r,const Evidence& e) {
     }
     if(world_path_action(r.action)||(world_path_history(r)&&e.world_path_before))return world_path_effect(r,e);
     if(path_history(r)){std::string cause;return valid_path_state(e.path_before)&&valid_path_state(e.path_after)&&valid_region(e.region_before)&&valid_region(e.region_after)&&valid_terrain_state(e.terrain_before)&&valid_terrain_state(e.terrain_after)&&path_history_effect(r,e,cause);}
-    if(selection_history(r))return selection_history_effect(e)&&
+    if(selection_history(r))return selection_history_effect(e)&&(e.selection_move_settlement.empty()||selection_settlement_shape(e))&&
         e.region_before==RegionState{}&&e.region_after==RegionState{}&&
         e.terrain_before==TerrainState{}&&e.terrain_after==TerrainState{}&&
         e.path_before==PathState{}&&e.path_after==PathState{}&&
@@ -1030,6 +1031,8 @@ bool valid_message(const Message& m,std::string& error) {
        bool(m.evidence.selection_move_before)!=bool(m.evidence.selection_move_after)||
        (m.evidence.selection_move_before&&!selection_move_state_valid(*m.evidence.selection_move_before))||
        (m.evidence.selection_move_after&&!selection_move_state_valid(*m.evidence.selection_move_after))){error="Selection Move evidence pair/owner invalid";return false;}
+    if(!m.evidence.selection_move_settlement.empty()&&
+       ((m.request.action!=Action::MoveSelection&&!selection_history(m.request))||!selection_settlement_shape(m.evidence))){error="Selection settlement proof owner or shape invalid";return false;}
     if((m.request.action!=Action::EditServiceMembership&&(m.evidence.service_membership_before||m.evidence.service_membership_after))||
        bool(m.evidence.service_membership_before)!=bool(m.evidence.service_membership_after)||
        (m.evidence.service_membership_before&&!service_state_valid(*m.evidence.service_membership_before))||
@@ -1538,11 +1541,14 @@ bool district_wire_fits(const Request& r,const DistrictState& before,const Ledge
 }
 bool valid_selection_move(const SelectionMoveIntent& v){return selection_move_intent_valid(v);}
 bool valid_selection_move_effect(const Request& r,const Evidence& e){return selection_move_effect(r,e);}
+bool valid_settled_selection_move_effect(const Request& r,const Evidence& e){return selection_move_settled_effect(r,e);}
 bool selection_move_wire_fits(const Request& r,const Ledger& money,std::string& error){
     Message m;m.kind=Kind::ApplyAck;m.session=UINT64_MAX;m.revision=UINT64_MAX;m.required_mask=15;m.ack_peer=4;m.outcome=Outcome::Confirmed;m.request=r;
     m.request.sequence=UINT64_MAX;m.request.host_revision=UINT64_MAX;m.evidence.before=m.evidence.after=money;m.evidence.retirement_confirmed=true;
     m.evidence.undo_confirmed=m.evidence.selection_confirmed=true;m.evidence.selection_move_before=SelectionMoveState{};m.evidence.selection_move_after=SelectionMoveState{};
-    for(const auto& row:r.selection_move.rows){m.evidence.selection_move_before->rows.push_back(row.before);m.evidence.selection_move_after->rows.push_back(row.after);}
+    for(size_t i=0;i<r.selection_move.rows.size();++i){const auto& row=r.selection_move.rows[i];m.evidence.selection_move_before->rows.push_back(row.before);
+        auto worst=row.after;worst.y=row.after.y==-1.0f?1.0f:-1.0f;m.evidence.selection_move_after->rows.push_back(worst);
+        m.evidence.selection_move_settlement.push_back({uint32_t(i),row.key,std::bit_cast<uint32_t>(row.after.y),std::bit_cast<uint32_t>(worst.y)});}
     std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;if(bytes.size()>max_payload-256){error="Selection Move complete result exceeds transport budget before mutation";return false;}return true;
 }
 bool valid_service_membership_effect(const Request& r,const Evidence& e){return service_effect(r,e);}
@@ -1847,6 +1853,7 @@ bool encode(const Message& m,std::vector<uint8_t>& out,std::string& error) {
             j["evidence"]["object_before"]=building_json(e.object_before);j["evidence"]["object_after"]=building_json(e.object_after);
         }
         if(e.building_clearance){j["schema"]=uint64_t(38);j["evidence"]["building_clearance"]=scenery_stroke_result_json(e.building_clearance);}
+        if(!e.selection_move_settlement.empty()){j["schema"]=uint64_t(39);j["evidence"]["selection_move_settlement"]=selection_settlement_json(e.selection_move_settlement);}
         const auto bytes=j.dump();if(bytes.size()>max_payload) {error="action payload exceeds "+std::to_string(max_payload)+" bytes";return false;}
         out.assign(bytes.begin(),bytes.end());error.clear();return true;
     }catch(const std::exception& e){error=std::string("action serialization: ")+e.what();return false;}
@@ -1864,6 +1871,14 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             return true;
         });
         exact(j,{"schema","kind","session","revision","ack_peer","required_mask","outcome","cause","request","evidence"});
+        const bool selection_settlement_packet=u64(j.at("schema"))==39;
+        json selection_settlement=nullptr;
+        if(selection_settlement_packet){const auto action=u64(j.at("request").at("action"));
+            if((action!=44&&action!=10&&action!=11)||!j.at("evidence").contains("selection_move_settlement")||
+               !j.at("evidence").at("selection_move_settlement").is_array()||j.at("evidence").at("selection_move_settlement").empty())
+                throw std::runtime_error("Selection settlement schema39 requires exact action and nonempty proof");
+            selection_settlement=j["evidence"]["selection_move_settlement"];j["evidence"].erase("selection_move_settlement");j["schema"]=uint64_t(35);
+        }
         const bool clearance_packet=u64(j.at("schema"))==38;
         json clearance=nullptr;
         if(clearance_packet){
@@ -2273,6 +2288,10 @@ bool decode(const uint8_t* data,size_t length,Message& out,std::string& error) {
             m.evidence.building_clearance=scenery_stroke_result_read(forward,true);
             if(restoring){std::swap(m.evidence.building_clearance->removed,m.evidence.building_clearance->created);
                 for(auto& change:m.evidence.building_clearance->changed)std::swap(change.before,change.after);}
+        }
+        if(selection_settlement_packet){
+            if(m.request.action!=Action::MoveSelection&&!selection_history(m.request))throw std::runtime_error("Selection settlement schema39 history owner differs");
+            m.evidence.selection_move_settlement=selection_settlement_read(selection_settlement);
         }
         if(!valid_message(m,error))return false;out=std::move(m);error.clear();return true;
     }catch(const std::exception& e){error=std::string("action decode: ")+e.what();return false;}

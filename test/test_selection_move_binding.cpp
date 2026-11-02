@@ -14,6 +14,7 @@ std::map<std::string,Actor> actors;
 std::vector<std::string> refreshes;
 std::string fail_refresh;
 bool change_uid=false;
+float settle_delta=0;
 unsigned native_calls=0,resolves=0;
 world_state::Origin origin{"12345678-1234-4234-8234-123456789012",std::string(64,'a'),2,3};
 json controller;
@@ -53,9 +54,12 @@ namespace selection_move {
 action::Outcome perform(const action::Binding&,const action::Request& request,const action::Evidence*,std::string& e){
     ++native_calls;std::vector<move_kiss::LocalBinding> before;
     for(const auto& row:request.selection_move.rows){move_kiss::LocalBinding local;local.local_uid=actors.at(row.key).uid;before.push_back(local);actors.at(row.key).live=row.after;}
+    actors.at(request.selection_move.rows[0].key).live.y+=settle_delta;
     if(change_uid)++actors.at(request.selection_move.rows.back().key).uid;
     return refresh_targets(request,before,e)?action::Outcome::Confirmed:action::Outcome::Unknown;
 }
+bool observe(const action::Binding&,const action::Request& request,action::Evidence& out,std::string&){out.selection_move_after=action::SelectionMoveState{};
+    for(const auto& row:request.selection_move.rows)out.selection_move_after->rows.push_back(actors.at(row.key).live);return true;}
 }
 }
 struct Harness {
@@ -67,7 +71,7 @@ struct Harness {
 };
 void need(bool condition,const std::string& e){if(!condition)throw std::runtime_error(e);}
 action::Request setup(Harness& h){
-    actors.clear();refreshes.clear();fail_refresh.clear();native_calls=resolves=0;change_uid=false;
+    actors.clear();refreshes.clear();fail_refresh.clear();native_calls=resolves=0;change_uid=false;settle_delta=0;
     action::Request request;request.action=action::Action::MoveSelection;request.action_uuid="23456789-1234-4234-8234-123456789012";
     request.snapshot_uuid=origin.snapshot_uuid;request.canonical_record_key="selection:"+request.action_uuid;
     std::vector<world_state::SnapshotObject> saved;
@@ -87,6 +91,10 @@ int main(){try{unsigned cases=0;std::string e;const action::Binding binding{2,3}
         auto fresh=origin;fresh.generation=4;std::vector<world_state::SnapshotObject> saved;
         for(const auto& row:request.selection_move.rows)saved.push_back({row.key,row.key,row.after});
         need(h.world_.rebind_snapshot(fresh,saved,e),e);++cases;}
+    {Harness h;auto request=setup(h);const auto immutable=request;settle_delta=1;
+        need(h.perform_selection_move(binding,request,nullptr,e)==action::Outcome::Confirmed,e);
+        auto actual=immutable.selection_move.rows[0].after;actual.y+=1;
+        need(h.world_.rows().at(immutable.selection_move.rows[0].key).state==actual&&request==immutable,"settled shared pose or immutable request differs");++cases;}
     {Harness h;auto request=setup(h);const auto before=h.world_.rows();request.selection_move.rows[1].before.x+=1;
         need(h.perform_selection_move(binding,request,nullptr,e)==action::Outcome::RejectedNoEffect&&native_calls==0&&h.world_.rows()==before,"bad preflight reached original");++cases;}
     {Harness h;auto request=setup(h);const auto before=h.world_.rows();fail_refresh=request.selection_move.rows[1].key;

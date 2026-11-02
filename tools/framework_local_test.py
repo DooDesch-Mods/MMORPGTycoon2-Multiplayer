@@ -181,6 +181,40 @@ def source_files(source, args, metagame=None):
     return files
 
 
+def copy_immutable_archive(source, destination, root, digest):
+    store_root = root.parent if root.parent.name.lower() == "_mptest" else root
+    store = safe_path(store_root / "immutable-archives", store_root)
+    store.mkdir(parents=True, exist_ok=True)
+    archive = store / (digest + ".zip")
+    if not archive.exists():
+        temporary = store / (digest + "." + uuid.uuid4().hex + ".tmp")
+        try:
+            shutil.copy2(source, temporary)
+            if sha256(temporary) != digest:
+                raise LaunchError(f"archive source changed while copying: {source}")
+            try:
+                os.link(temporary, archive)
+            except FileExistsError:
+                # Another preparation created this entry; verify its bytes below.
+                log("info", f"archive entry created concurrently; verifying {archive}")
+            except OSError as error:
+                log("warn", f"archive store hardlink failed for {archive}: {error}; copying archive")
+                shutil.copy2(source, destination)
+                return
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+    if sha256(archive) != digest:
+        raise LaunchError(f"immutable archive store hash differs: {archive}")
+    try:
+        os.link(archive, destination)
+    except FileExistsError as error:
+        raise LaunchError(f"archive destination already exists: {destination}") from error
+    except OSError as error:
+        log("warn", f"archive hardlink failed for {destination}: {error}; copying archive")
+        shutil.copy2(source, destination)
+
+
 def prepare_instance(runtime, root, files, metagame=None):
     # A fresh run owns this directory; an explicit fixture is the only imported game-data file.
     safe_path(runtime, root).mkdir(parents=True, exist_ok=False)
@@ -197,7 +231,10 @@ def prepare_instance(runtime, root, files, metagame=None):
                 stream.write(data)
         else:
             before = sha256(source)
-            shutil.copy2(source, destination)
+            if relative in ("game/Data/MMORPG.zip", "game/Data/VS.zip"):
+                copy_immutable_archive(source, destination, root, before)
+            else:
+                shutil.copy2(source, destination)
         if sha256(destination) != before:
             raise LaunchError(f"copied file differs from source receipt: {destination}")
         receipt[relative] = {"source": str(source), "sha256": before}

@@ -14,7 +14,8 @@ bool Executor::current(std::string& cause) {
     return engine_.current(binding_,context_.snapshot_uuid,cause);
 }
 Outcome Executor::gameplay(const Request& request,ExecutionReceipt& receipt,std::string& cause) {
-    const auto action=request.action==Action::PlaceBuilding?request.action_uuid:std::string{};
+    const auto action=(request.action==Action::PlaceBuilding||request.action==Action::EditGroup||
+        ((request.action==Action::UndoBuilding||request.action==Action::RedoBuilding)&&request.canonical_record_key.starts_with("groups:")))?request.action_uuid:std::string{};
     Ledger before;
     if(!engine_.ledger(binding_,before,cause))return Outcome::RejectedNoEffect;
     if(before.record_present<0||before.record_present>1){cause="tick execution ledger record_present requires 0 or 1";return Outcome::RejectedNoEffect;}

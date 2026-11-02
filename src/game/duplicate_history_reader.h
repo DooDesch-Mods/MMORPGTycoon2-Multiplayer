@@ -16,12 +16,55 @@ bool execution_order(Memory& memory,uintptr_t image,uintptr_t graph,const Graph&
     namespace q=npc_quest_targets;out.clear();q::Bounds sorted;
     if(!q::typed(memory,image,graph+0x30,0x1748aa0,e)||!q::bounds(memory,graph+0x30,100000,sorted,e))return false;
     std::set<uintptr_t> expected(saved.top_operations.begin(),saved.top_operations.end()),seen;
-    if(expected.size()!=saved.top_operations.size()||size_t(sorted.count)!=expected.size())return q::fail(e,"Duplicate history original sorted graph count differs");
+    if(expected.size()!=saved.top_operations.size()||size_t(sorted.count)!=expected.size()){
+        q::Bounds dependencies;std::string detail;
+        const bool have_dependencies=q::typed(memory,image,graph,0x16e32d0,detail)&&q::bounds(memory,graph,100000,dependencies,detail);
+        detail="Duplicate history original sorted graph count differs operations="+std::to_string(saved.top_operations.size())+
+            " unique="+std::to_string(expected.size())+" sorted="+std::to_string(sorted.count)+
+            " dependencies="+(have_dependencies?std::to_string(dependencies.count):std::string("unreadable"));
+        auto describe=[&](uintptr_t pointer){uintptr_t ap=0;uint64_t value=0;std::string why;
+            if(!q::at(memory,pointer,0,ap,why)||!q::at(memory,pointer,0xb8,value,why))return std::string("unreadable");
+            return std::to_string(pointer)+":"+std::to_string(ap>=image?ap-image:ap)+":"+std::to_string(value);};
+        detail+=" top=[";for(size_t i=0;i<saved.top_operations.size()&&i<32;++i){if(i)detail+=",";detail+=describe(saved.top_operations[i]);}
+        if(saved.top_operations.size()>32)detail+=",...";detail+="] sorted_nodes=[";
+        for(int32_t i=0;i<sorted.count&&i<32;++i){uintptr_t pointer=0;std::string why;if(i)detail+=",";
+            if(!q::at(memory,sorted.data,size_t(i)*8,pointer,why)){detail+="unreadable";break;}detail+=describe(pointer);}
+        if(sorted.count>32)detail+=",...";detail+="]";return q::fail(e,detail);
+    }
     for(int32_t i=0;i<sorted.count;++i){uintptr_t pointer=0;
         if(!q::at(memory,sorted.data,size_t(i)*8,pointer,e))return false;
         if(!expected.contains(pointer)||!seen.insert(pointer).second)return q::fail(e,"Duplicate history original sorted graph member repeats or is foreign");
         out.push_back(pointer);}
     return q::unchanged(memory,graph+0x30,100000,sorted,e);
+}
+template<class Memory,class Relevant>
+bool projected_order(Memory& memory,uintptr_t image,uintptr_t graph,const Graph& saved,Relevant&& relevant,
+                     std::vector<uintptr_t>& out,std::string& e){
+    namespace q=npc_quest_targets;q::Bounds dependencies,sorted,top;
+    if(!q::typed(memory,image,graph,0x16e32d0,e)||!q::bounds(memory,graph,100000,dependencies,e)||
+       !q::typed(memory,image,graph+0x30,0x1748aa0,e)||!q::bounds(memory,graph+0x30,100000,sorted,e))return false;
+    std::vector<uintptr_t> order;
+    if(dependencies.count||sorted.count){
+        if(!dependencies.count||!sorted.count)return q::fail(e,"Duplicate history original cache is partially populated");
+        if(!execution_order(memory,image,graph,saved,order,e)||!q::unchanged(memory,graph,100000,dependencies,e))return false;
+    }
+    else{
+        if(!q::typed(memory,image,graph+0x18,0x16e2dc0,e)||!q::bounds(memory,graph+0x18,100000,top,e)||
+           size_t(top.count)!=saved.top_operations.size())return q::fail(e,e.empty()?"Duplicate history original operation count changed":e);
+        std::set<uintptr_t> unique;
+        for(int32_t i=0;i<top.count;++i){uintptr_t pointer=0;
+            if(!q::at(memory,top.data,size_t(i)*8,pointer,e))return false;
+            if(pointer!=saved.top_operations[size_t(i)]||!unique.insert(pointer).second)
+                return q::fail(e,"Duplicate history original operations changed or repeat");
+            order.push_back(pointer);
+        }
+        if(!q::unchanged(memory,graph+0x18,100000,top,e)||!q::unchanged(memory,graph,100000,dependencies,e)||
+           !q::unchanged(memory,graph+0x30,100000,sorted,e))return false;
+    }
+    out.clear();for(auto pointer:order){bool include=false;if(!relevant(pointer,include,e))return false;if(include)out.push_back(pointer);}
+    if(!dependencies.count&&!sorted.count&&out.size()>1)return q::fail(e,"Duplicate history unsorted projection has multiple relevant operations");
+    return q::unchanged(memory,graph,100000,dependencies,e)&&q::unchanged(memory,graph+0x30,100000,sorted,e)&&
+        (dependencies.count||q::unchanged(memory,graph+0x18,100000,top,e));
 }
 template<class Memory,class Find,class Text,class Building,class Related>
 bool read(Memory& m,uintptr_t image,uintptr_t graph,bool undo,const std::map<uint64_t,Known>& known,

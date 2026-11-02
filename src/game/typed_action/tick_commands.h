@@ -36,10 +36,10 @@ struct Batch {
 };
 inline bool requires_evidence(const Input& input){
     const auto* r=std::get_if<Request>(&input.command);
-    return r&&(r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
+    return r&&(r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::EditGroup||r->action==Action::MoveSelection||r->action==Action::DuplicateSelection||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
         ((r->action==Action::UndoBuilding||r->action==Action::RedoBuilding)&&
          !r->target_action_uuid.empty()&&(r->canonical_record_key=="terrain:"+r->target_action_uuid||
-         r->canonical_record_key=="path:"+r->target_action_uuid)));
+         r->canonical_record_key=="path:"+r->target_action_uuid||r->canonical_record_key=="groups:"+r->target_action_uuid||r->canonical_record_key=="selection:"+r->target_action_uuid||r->canonical_record_key=="duplicate:"+r->target_action_uuid)));
 }
 struct CommandEvidence {
     uint64_t order=0;

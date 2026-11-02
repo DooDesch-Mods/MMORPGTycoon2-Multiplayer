@@ -2,6 +2,7 @@
 #include "character_boss_retirement.h"
 #include "vendor/nlohmann/json.hpp"
 #include <string>
+#include <functional>
 #include <vector>
 #include <map>
 #include <cstdint>
@@ -20,7 +21,10 @@ bool current_registry_world(const std::string& snapshot,uint64_t epoch,uint64_t 
 bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,uint64_t full_uid,std::string& key,std::string& error);
 bool resolve_current_building_identity(const std::string& snapshot,const std::string& key,uintptr_t& object,uint64_t& full_uid,std::string& error);
 bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget&,std::string&);
+using LocalTargetResolver=std::function<bool(uintptr_t,LocalTarget&,std::string&)>;
+bool with_local_target_batch(uintptr_t manager,const std::function<bool(const LocalTargetResolver&,std::string&)>& read,std::string& error);
 bool resolve_record_target(const std::string& snapshot,const std::string& key,LocalTarget&,std::string&);
+bool resolve_record_targets(const std::string& snapshot,const std::vector<std::string>& keys,std::vector<LocalTarget>& out,std::string& error);
 nlohmann::json status();
 bool bindings(nlohmann::json&,std::string&);
 bool identity_bindings(nlohmann::json&,std::string&);

@@ -6,6 +6,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import types
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -154,6 +155,32 @@ class FrameworkReleaseTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "SDK header differs"):
                 framework_beta.build(self.root, sdk, COMMIT)
         command.assert_not_called()
+
+    def test_build_generator_and_receipt_paths(self):
+        pin = dict(self.pin, headers={})
+        (self.root / '.github/framework-sdk.json').write_text(json.dumps(pin), encoding='utf-8')
+        sdk = self.root / 'sdk'
+        sdk.mkdir()
+        guard = types.SimpleNamespace(inputs=lambda root, sdk: 'snapshot',
+                                      require_unchanged=lambda root, before, sdk: self.assertEqual(before, 'snapshot'))
+        for ci_ninja, folder, generator in ((False, 'mod', 'Visual Studio 17 2022'),
+                                            (True, 'mod-forced', 'Ninja')):
+            with self.subTest(ci_ninja=ci_ninja):
+                binary = self.root / '.ci-build' / folder / 'bin/Release/MT2MultiplayerPlugin.dll'
+                binary.parent.mkdir(parents=True, exist_ok=True)
+                binary.write_bytes(b'plugin')
+                with patch.object(framework_beta, 'source_commit', return_value=COMMIT), \
+                     patch.dict(sys.modules, {'build_input_guard': guard}), \
+                     patch.object(framework_beta.subprocess, 'run') as command:
+                    framework_beta.build(self.root, sdk, COMMIT, ci_ninja)
+                configure, compile_command = [call.args[0] for call in command.call_args_list]
+                self.assertEqual(configure[configure.index('-G') + 1], generator)
+                self.assertEqual(configure[configure.index('-B') + 1], str(binary.parents[2]))
+                self.assertEqual('-DCMAKE_CXX_COMPILER_LAUNCHER=sccache' in configure, ci_ninja)
+                self.assertEqual('-DMT2MP_CI_FORCE_HEADER=ON' in configure, ci_ninja)
+                self.assertEqual('/nodeReuse:false' in compile_command, not ci_ninja)
+                self.assertEqual(json.loads((binary.parent / 'framework-build.json').read_text())['dll_sha256'],
+                                 hashlib.sha256(b'plugin').hexdigest())
 
 
 if __name__ == "__main__":

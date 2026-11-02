@@ -34,7 +34,7 @@ def identity(root, commit):
     return version
 
 
-def build(root, sdk, commit):
+def build(root, sdk, commit, ci_ninja=False):
     version = identity(root, commit)
     pin = json.loads((root / ".github/framework-sdk.json").read_text(encoding="utf-8"))
     for name, expected in pin["headers"].items():
@@ -43,12 +43,18 @@ def build(root, sdk, commit):
     sys.path.insert(0, str(root / "tools"))
     from build_input_guard import inputs, require_unchanged
     before = inputs(root, sdk)
-    output = root / ".ci-build/mod"
-    subprocess.run(["cmake", "-S", str(root), "-B", str(output), "-G", "Visual Studio 17 2022", "-A", "x64",
+    output = root / (".ci-build/mod-forced" if ci_ninja else ".ci-build/mod")
+    generator = (["-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release", "-DCMAKE_CXX_COMPILER_LAUNCHER=sccache", "-DMT2MP_CI_FORCE_HEADER=ON",
+                  "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=" + str(output / "bin/Release")]
+                 if ci_ninja else ["-G", "Visual Studio 17 2022", "-A", "x64"])
+    subprocess.run(["cmake", "-S", str(root), "-B", str(output), *generator,
                     "-DMT2MP_BUILD_TESTS=OFF", "-DMT2MP_FRAMEWORK_PLUGIN=ON",
                     "-DMT2_FRAMEWORK_SDK=" + str(sdk.resolve()), "-DMT2MP_BUILD_VERSION=" + version], check=True)
-    subprocess.run(["cmake", "--build", str(output), "--config", "Release", "--target",
-                    "MT2MultiplayerPlugin", "--parallel", "2", "--", "/nodeReuse:false"], check=True)
+    command = ["cmake", "--build", str(output), "--config", "Release", "--target",
+               "MT2MultiplayerPlugin", "--parallel", "2"]
+    if not ci_ninja:
+        command += ["--", "/nodeReuse:false"]
+    subprocess.run(command, check=True)
     require_unchanged(root, before, sdk)
     binary = output / "bin/Release/MT2MultiplayerPlugin.dll"
     data = binary.read_bytes()
@@ -144,6 +150,7 @@ def main():
     compile_command = commands.add_parser("build")
     compile_command.add_argument("--sdk", type=Path, required=True)
     compile_command.add_argument("--commit", required=True)
+    compile_command.add_argument("--ci-ninja", action="store_true")
     pack = commands.add_parser("package")
     pack.add_argument("--tag", required=True)
     pack.add_argument("--commit", required=True)
@@ -151,7 +158,7 @@ def main():
     pack.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "build":
-        build(ROOT, args.sdk, args.commit)
+        build(ROOT, args.sdk, args.commit, args.ci_ninja)
     else:
         package(ROOT, args.build, args.tag, args.commit, args.output)
 

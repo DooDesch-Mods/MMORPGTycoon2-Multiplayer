@@ -6,7 +6,7 @@ struct HistoryOperation {
     action::Binding binding;action::Request request;Sample before,after;action::Evidence evidence;
     std::vector<group_history::Node> nodes;uintptr_t source_graph=0,inverse_graph=0;
     bool attempted=false,original_returned=false,selection_restored=false,confirmed=false,retired=false;
-    std::string cause,cleanup_cause;
+    std::string cause,cleanup_cause;bool ordered=false;action::Context ordered_context;
 };
 std::map<std::string,HistorySource> history_sources;
 std::map<std::string,HistoryOperation> history_operations;
@@ -19,6 +19,21 @@ bool history_nodes(Runtime& r,const Sample& state,uintptr_t graph,const HistoryS
         return region_saved_identity::resolve(r.image,uintptr_t(state.world.origin.map),state.world.root,id,0,object,field,why);};
     auto text=[&](uintptr_t object,std::string& value,std::string& why){return prop_text::text(r,object,value,why);};
     return group_history::code(r.memory,r.image,e)&&group_history::read(r.memory,r.image,state.world.root,graph,state.local,source.known,uid,region,text,out,e);
+}
+bool history_admitted(const action::Binding& binding,const action::Request& request,std::string& e){
+    const auto original=operations.find(request.target_action_uuid);
+    if((request.action!=action::Action::UndoBuilding&&request.action!=action::Action::RedoBuilding)||request.target_action_uuid.empty()||
+       request.canonical_record_key!="groups:"+request.target_action_uuid||original==operations.end()||
+       !history_sources.contains(request.target_action_uuid)||!original->second.confirmed||!original->second.retired||
+       original->second.binding!=binding||original->second.request.action!=action::Action::EditGroup||
+       original->second.request.action_uuid!=request.target_action_uuid||original->second.request.snapshot_uuid!=request.snapshot_uuid||
+       request.snapshot_uuid!=net::current_snapshot_id())return q::fail(e,"Group history lacks exact retired current source");
+    const auto& source=original->second;const bool ordered=action::tick_commands::authority::active();
+    if(source.ordered!=ordered)return q::fail(e,"Group history source execution route differs");
+    if(ordered){action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(context!=source.ordered_context)return q::fail(e,"Group history source session differs");
+        if(!action::tick_commands::authority::matches(context,binding,request,e))return false;}
+    return true;
 }
 std::vector<group_history::Node> history_values(const std::vector<group_history::LocalNode>& rows){
     std::vector<group_history::Node> out;for(const auto& row:rows)out.push_back(row.value);return out;
@@ -101,12 +116,13 @@ bool history_restore(Port& port,const Sample& before,const Sample& after,std::st
 }
 
 action::Outcome perform_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
-    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;
+    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;bool ordered=false;
     if(!r||!r->ready||!installed||GetCurrentThreadId()!=r->thread||
        (request.action!=action::Action::UndoBuilding&&request.action!=action::Action::RedoBuilding)||
        request.canonical_record_key!="groups:"+request.target_action_uuid||request.snapshot_uuid!=net::current_snapshot_id()||
-       !contract::pending(typed_action_runtime::controller_status(),request,revision,e)||bool(authority)==Config::instance().is_host){
+       !contract::pending(typed_action_runtime::controller_status(),request,revision,e)||!command_scope(binding,request,authority,ordered,e)){
         if(e.empty())e="Group history exact pending direction/role/current snapshot unavailable";return action::Outcome::RejectedNoEffect;}
+    if(!history_admitted(binding,request,e))return action::Outcome::RejectedNoEffect;
     if(history_operations.contains(request.action_uuid)){e="Group history already attempted; no replay";return action::Outcome::Unknown;}
     const auto original=operations.find(request.target_action_uuid);const auto remembered=history_sources.find(request.target_action_uuid);
     if(original==operations.end()||remembered==history_sources.end()||!original->second.confirmed||!original->second.retired||
@@ -127,8 +143,9 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
         if(e.empty())e="Group history Client complete prior/effect differs from Host";return action::Outcome::RejectedNoEffect;}
     if(!action::group_history_wire_fits(request,group_history::canonical(before.local.state),group_history::canonical(projected),before.money,e))return action::Outcome::RejectedNoEffect;
     Port port{*r,binding,before};if(!history_ready(port,before,e))return action::Outcome::RejectedNoEffect;
+    action::Context context;if(ordered&&(!action::selected_session().current(context,e)||!action::tick_commands::authority::matches(context,binding,request,e)))return action::Outcome::RejectedNoEffect;
     auto& op=history_operations.emplace(request.action_uuid,HistoryOperation{binding,request,before}).first->second;
-    op.nodes=nodes;op.source_graph=graph;op.attempted=true;
+    op.ordered=ordered;op.ordered_context=context;op.nodes=nodes;op.source_graph=graph;op.attempted=true;
     const auto outcome=building_history_slice::perform(request.action,request.target_action_uuid,e);
     if(outcome==action::Outcome::RejectedNoEffect){op.attempted=false;op.cause=e;return outcome;}
     op.original_returned=outcome==action::Outcome::Confirmed;
@@ -167,7 +184,8 @@ bool observe_history(const action::Binding& binding,const action::Request& reque
     auto* r=published.load(std::memory_order_acquire);const auto found=history_operations.find(request.action_uuid);
     if(!r||r->thread!=GetCurrentThreadId()||found==history_operations.end()||found->second.binding!=binding||
        found->second.request!=request||!found->second.confirmed)return q::fail(e,"Group history observation lacks exact confirmed operation");
-    const auto& op=found->second;Sample actual;if(!sample(*r,binding,props(op.after.local),actual,e))return false;
+    const auto& op=found->second;if(!observation_scope(op.ordered,op.ordered_context,binding,request,e))return false;
+    Sample actual;if(!sample(*r,binding,props(op.after.local),actual,e))return false;
     if(!same_binding(op.after,actual)||actual.local.state!=op.after.local.state||actual.local.handles!=op.after.local.handles||
        actual.group_names!=op.after.group_names||actual.money!=op.after.money||actual.undo!=op.after.undo)
         return q::fail(e,"Group history complete current full UID/pose/members/name/Undo/Ledger differs before ACK");

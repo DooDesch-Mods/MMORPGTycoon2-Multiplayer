@@ -99,6 +99,7 @@ foreach(target
     test_district_title_native
     test_group_protocol
     test_group_reader
+    test_group_target_batch
     test_group_native
     test_group_inverse
     test_group_runtime
@@ -196,3 +197,33 @@ target_compile_options(test_scenery_gesture_adapter PRIVATE /W4 /WX /utf-8 /EHsc
 target_include_directories(test_scenery_gesture_adapter PRIVATE "${WORLD_EDIT_GENERATED}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include/vendor")
 add_test(NAME scenery_gesture_adapter COMMAND test_scenery_gesture_adapter)
 add_test(NAME scenery_gesture_ops COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_scenery_gesture_ops.py")
+
+# Exercise ordered edit evidence and production capture and settlement bodies.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/src/game/building_move_settlement.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/ui_move_runtime.cpp"
+    "${MT2MP_SOURCE_ROOT}/test/prepare_batch_settlement.py"
+    "${MT2MP_SOURCE_ROOT}/test/test_capture_pump.py")
+foreach(generator prepare_batch_settlement test_capture_pump)
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/${generator}.py"
+        --source "${MT2MP_SOURCE_ROOT}" --output "${WORLD_EDIT_GENERATED}" COMMAND_ERROR_IS_FATAL ANY)
+endforeach()
+foreach(name group_evidence group_router ordered_edit_evidence batch_settlement capture_pump)
+    if(name STREQUAL "batch_settlement" OR name STREQUAL "capture_pump")
+        set(fixture "${WORLD_EDIT_GENERATED}/test_${name}.cpp")
+    else()
+        set(fixture "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
+    endif()
+    add_executable(test_${name} "${fixture}")
+    target_include_directories(test_${name} PRIVATE "${WORLD_EDIT_GENERATED}" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+    target_compile_features(test_${name} PRIVATE cxx_std_20)
+    target_compile_definitions(test_${name} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(test_${name} PRIVATE /utf-8 /EHsc /bigobj)
+    target_link_options(test_${name} PRIVATE /STACK:16777216)
+    if(name STREQUAL "group_evidence")
+        target_link_libraries(test_${name} PRIVATE world_edit_session_checks)
+    elseif(name STREQUAL "ordered_edit_evidence")
+        target_link_libraries(test_${name} PRIVATE source_check_codecs_windows)
+    endif()
+    add_test(NAME test_${name} COMMAND test_${name})
+endforeach()

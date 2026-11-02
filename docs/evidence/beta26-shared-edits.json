@@ -1,0 +1,101 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.26",
+  "state": "local-correctness-and-targeted-performance-confirmed",
+  "game_build": "24993678",
+  "framework_runtime_minimum": "0.5.1",
+  "framework_runtime_sha256": "d9a5d0f79cc779d4c634df19eb2490588f3dfc202d18f3140fc60f7cac1e1f64",
+  "candidate_sha256": "dfc07549c2c11361284328c3e5cff4373dcb5548f0217227bab66a90fd4dc8f6",
+  "candidate_source_manifest_sha256": "647f78917a85889d63b757745736935431d3dd2e46b899cbb95b30457a2fcf56",
+  "candidate_package_sha256": "54329feef6515eeaa666a5d3e2c83fc0049922888926b9fcfdaff3b8791b58ef",
+  "candidate_performance_acceptance": {
+    "run_id": "e2ab10a5-f393-44cc-abdf-048a9ee3c74c",
+    "scope": "One paused two-member Client scenery Group, Undo and Redo in two isolated peers.",
+    "mutation_requests": 3,
+    "mutation_retries": 0,
+    "canonical_hashes_match": true,
+    "host_acknowledgement_mask": 3,
+    "group_engine_execute_ms": {"host": 124, "client": 69},
+    "group_observe_ms": {"host": 86, "client": 52},
+    "native260_group_engine_execute_ms": {"host": 3866, "client": 3688},
+    "native260_group_observe_ms": {"host": 1202, "client": 1666},
+    "diagnostic_group_confirmation_seconds": 4.248,
+    "native260_diagnostic_group_confirmation_seconds": 12.556,
+    "measurement_limits": "One paused two-member sample; diagnostic confirmation includes polling. This is not a rendered FPS or general latency measurement. Native259 used larger Group shapes and is not directly comparable.",
+    "cleanup": "confirmed-stopped"
+  },
+  "selection": {
+    "run_id": "bc8bdb9b-02d3-41a8-9ba5-3483557d823c",
+    "candidate_sha256": "becaf303957cdd90134a1e30cdd9f4e4afc7817cc3bc29b3b3d116b9ff7ae703",
+    "framework_sha256": "db88211ac60bdf706845e33140cdfcd723a0c0dfde2cc7ae5ce1e5eb17f7e73f",
+    "scope": "Client mixed Building and Scenery Move, Undo and Redo in two isolated peers.",
+    "mutation_requests": 3,
+    "mutation_retries": 0,
+    "cleanup": "confirmed-stopped"
+  },
+  "duplicate": {
+    "run_id": "00bb1771-c9bf-411d-8550-47cfbb52f49f",
+    "candidate_sha256": "ca9a6726c49857c65d37a6a826d8cb2c153cedf2d4a110ab8ff55bead9c5679d",
+    "framework_sha256": "fa9cbf67234fd4a123259a086dba97d83db22390e6232bcfd321c79e7cf76603",
+    "scope": "Building Duplicate, Undo and Redo after Client-only Service cache resolution in two isolated peers.",
+    "mutation_requests": 3,
+    "mutation_retries": 0,
+    "cleanup": "confirmed-stopped"
+  },
+  "group": {
+    "run_id": "0b845a1f-f3f2-485d-bf35-68baf61db1d7",
+    "candidate_sha256": "68daa6a0105a2506b6adbfe8d2e6eccc1c19ac1ba3c589432b10477677a4a51c",
+    "scope": "Seven confirmed scenery Group and Ungroup operations and history actions across two isolated peers.",
+    "confirmed_actions": [
+      "client-group",
+      "group-undo",
+      "group-redo",
+      "client-ungroup",
+      "ungroup-undo",
+      "ungroup-redo",
+      "host-group"
+    ],
+    "subsequent_action": "unknown after observation timeout; no replay",
+    "mutation_requests": 8,
+    "mutation_retries": 0,
+    "cleanup": "confirmed-stopped",
+    "history_followup": {
+      "run_id": "159147d2-69d7-4993-bba1-6ae125f7b97d",
+      "candidate_sha256": "27ec721a2315d091052b4e0e36712f4f48bce29b4322280bb2a655c291c94ad3",
+      "scope": "Client Group, Undo and Redo in two isolated peers.",
+      "mutation_requests": 3,
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped"
+    },
+    "followup": {
+      "run_id": "0381e16d-2dfd-40d2-a389-e9ddb81d732b",
+      "candidate_sha256": "68daa6a0105a2506b6adbfe8d2e6eccc1c19ac1ba3c589432b10477677a4a51c",
+      "confirmed_actions": [
+        "host-group",
+        "second-group",
+        "host-multi-ungroup",
+        "host-multi-ungroup-undo",
+        "host-multi-ungroup-redo",
+        "merge-first",
+        "merge-second",
+        "append-free",
+        "merge-groups",
+        "merge-groups-undo",
+        "merge-groups-redo"
+      ],
+      "host_acknowledgement_mask": 3,
+      "canonical_hashes_match": true,
+      "mutation_retries": 0,
+      "observation_timeouts": "Two initial UI observations timed out; later paired ordered evidence confirmed the actions. Retained logs show main-thread network dispatch gaps of 25-32 seconds; the cause remains under investigation.",
+      "cleanup": "confirmed-stopped"
+    }
+  },
+  "limits": [
+    "These are local isolated two-peer small-world runs, not separate-account Steam acceptance.",
+    "Historical runs used the candidate hashes recorded for each run; they are not a claim that the final candidate was used in each run.",
+    "Complete world-state equality, large worlds, four peers and all gameplay families remain unproven.",
+    "The package declares the Framework minimum; native admission checks ABI and services, not runtime semantic version."
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false
+}

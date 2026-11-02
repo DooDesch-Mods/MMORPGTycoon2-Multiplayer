@@ -5,6 +5,8 @@
 #include "district_stroke_calls.h"
 #include "ui_remove_runtime.h"
 #include "ui_move_runtime.h"
+#include "ui_region_runtime.h"
+#include <bit>
 #include "prop_text_runtime.h"
 #include "district_text_runtime.h"
 #include "district_title_runtime.h"
@@ -512,8 +514,6 @@ void tick(){
     boss_placement::tick();
     group_object::tick();
     modular::tick();
-    duplicate_edit::tick();
-    group_edit::tick();
     district_edit::tick();
     district_stroke::tick();
     district_title::tick();
@@ -521,10 +521,12 @@ void tick(){
     prop_text::tick();
     boss_phase::tick();
     service_membership::tick();
-    selection_move::tick();
     tick_core_capture();
 }
 void tick_core_capture(){
+    group_edit::tick();
+    duplicate_edit::tick();
+    selection_move::tick();
     scenery_stroke::tick();
     auto* r=published.load(std::memory_order_acquire);if(!r||!enabled()||!r->pending)return;
     const auto intent=*r->pending;const auto id=r->pending_id;r->pending.reset();r->pending_id.clear();std::string e;

@@ -6,7 +6,7 @@ struct Pending {action::Binding binding;std::string id;duplicate_reader::Capture
 struct Operation {action::Binding binding;action::Request request;Sample before,after;action::Evidence evidence;
     duplicate_native::Receipt native;std::map<uint64_t,std::string> created;std::vector<uintptr_t> cash_ops,destroy_ops;
     std::map<uint64_t,child_npc::Receipt> children;
-    bool confirmed=false,retired=false;std::string cause;};
+    bool confirmed=false,retired=false,ordered=false;action::Context ordered_context;std::string cause;};
 std::optional<Pending> captured;std::map<std::string,Operation> operations;std::set<std::string> local_sources;
 uint64_t captures=0,submitted=0,rejections=0;std::string cause;
 json last_submission=nullptr,last_source_records=nullptr,last_observation=nullptr;
@@ -135,10 +135,10 @@ void tick(){
     last_submission["submitted"]=true;last_submission["submission_count"]=submitted;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
-    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;
+    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;bool ordered=false;
     if(!r||!r->ready||GetCurrentThreadId()!=r->thread||request.action!=action::Action::DuplicateSelection||!action::valid_duplicate(request.duplicate)||
        request.snapshot_uuid!=net::current_snapshot_id()||!contract::pending(typed_action_runtime::controller_status(),request,revision,e)||
-       bool(authority)==Config::instance().is_host){if(e.empty())e="Duplicate exact pending action/role unavailable";return action::Outcome::RejectedNoEffect;}
+       !selection_move::command_scope(binding,request,authority,ordered,e)){if(e.empty())e="Duplicate exact pending action/role unavailable";return action::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)){e="Duplicate already attempted; no replay";return action::Outcome::Unknown;}
     if(authority&&!action::valid_duplicate_effect(request,*authority)){e="Duplicate Host complete evidence invalid";return action::Outcome::RejectedNoEffect;}
     Sample before;if(!sample_duplicate(*r,binding,&request.duplicate,{},before,e))return action::Outcome::RejectedNoEffect;
@@ -146,7 +146,8 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     if(!source_matches(request.duplicate,before,e))return action::Outcome::RejectedNoEffect;
     if(authority&&(before.state!=authority->duplicate_before||before.money!=authority->before)){e="Duplicate Client complete source/records/RNG/Release/Ledger differ from Host";return action::Outcome::RejectedNoEffect;}
     if(!action::duplicate_wire_fits(request,before.state,before.money,e))return action::Outcome::RejectedNoEffect;
-    auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.before=std::move(before);
+    action::Context context;if(ordered&&(!action::selected_session().current(context,e)||!action::tick_commands::authority::matches(context,binding,request,e)))return action::Outcome::RejectedNoEffect;
+    auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.ordered=ordered;op.ordered_context=context;op.before=std::move(before);
     op.evidence.before=op.before.money;op.evidence.duplicate_before=op.before.state;
     Port port{*r,binding,request,op.before,{},op.native};port.source_peer=local_sources.contains(request.action_uuid);
     std::vector<Handle> sources;for(const auto& row:request.duplicate.rows)sources.push_back(op.before.handles.at(row.key));
@@ -241,7 +242,11 @@ bool observe(const action::Binding& binding,const action::Request& request,actio
     auto* r=published.load(std::memory_order_acquire);const auto found=operations.find(request.action_uuid);
     if(!r||found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)
         return q::fail(e,"Duplicate observation lacks exact confirmed operation");
-    auto& op=found->second;Sample current;
+    auto& op=found->second;if(op.ordered!=action::tick_commands::authority::active())return q::fail(e,"Duplicate observation execution route differs");
+    if(op.ordered){action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(context!=op.ordered_context)return q::fail(e,"Duplicate observation source session differs");
+        if(!action::tick_commands::authority::matches(context,binding,request,e))return false;}
+    Sample current;
     const bool sampled=sample_duplicate(*r,binding,&request.duplicate,op.created,current,e);
     if(!sampled||!same_binding(op.before,current)||
        current.state!=op.after.state||current.money!=op.after.money||current.handles!=op.after.handles){

@@ -13,7 +13,7 @@ BINARY_NAMES = ("MT2_Multiplayer.dll", "steam_api64.dll")
 UI_NAMES = ("entry.win", "lobby.win", "browser.win", "multiplayer.png",
             "materials/mt2mp_desktop_multiplayer.mat")
 GAME_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
-FRAMEWORK_MIN_VERSION = "0.5.0"
+FRAMEWORK_MIN_VERSION = "0.5.1"
 
 
 def vortex_readme(root, version):

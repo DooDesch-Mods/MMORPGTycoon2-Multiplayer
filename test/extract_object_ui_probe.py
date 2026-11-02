@@ -25,9 +25,13 @@ assert source.index('if(!selection_ready(r,job,error))') < source.index('job.exc
 assert 'image+0x2d5910' in body('uint32_t show(')
 assert 'step==6?0x5c0200:step==7?0x5c05c0:0x5c01e0' in body('uint32_t cursor_call(')
 assert 'job.input.command=="Duplicate"?duplicate_edit::sample_duplicate(' in source
-assert '(job.input.command=="Group"||job.input.command=="Ungroup")?duplicate_edit::sample_untouched_scenery(' in source
+assert '(job.input.command=="Group"||job.input.command=="Ungroup"||job.input.command=="InspectGroupTargets")?duplicate_edit::sample_untouched_scenery(' in source
+probe=source[source.index('bool probe(const json& args,'):source.index('bool read(const json& args,')]
+assert probe.index('inspection_allowed(')<probe.index('jobs.emplace(')
+assert probe.index('job.result=inspect_group_targets(')<probe.index('common::resolve_api(')<probe.index('job.exception=show(')<probe.index('job.exception=command(')
 args.output.mkdir(parents=True,exist_ok=True)
 (args.output/'object_ui_command.inc').write_text(body('uint32_t command(')+'\n',encoding='utf-8')
+(args.output/'object_ui_group_inspect.inc').write_text(body('json inspect_group_targets(')+'\n',encoding='utf-8')
 (args.output/'object_ui_preparation.inc').write_text(body('bool selection_ready(')+'\n'+body('bool reconcile_preparation(')+'\n',encoding='utf-8')
 (args.output/'object_ui_rejection.inc').write_text(body('bool terminal(')+'\n'+body('bool reconcile_rejection(')+'\n'+body('bool unresolved(')+'\n',encoding='utf-8')
 (args.output/'object_ui_current.inc').write_text(body('bool current(')+'\n',encoding='utf-8')

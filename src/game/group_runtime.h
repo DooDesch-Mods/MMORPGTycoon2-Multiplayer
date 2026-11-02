@@ -6,6 +6,7 @@ action_session::Outcome perform(const action_session::Binding&,const action_sess
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
 action_session::Outcome perform_history(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
+bool history_admitted(const action_session::Binding&,const action_session::Request&,std::string&);
 bool observe_history(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire_history(const action_session::Binding&,const action_session::Request&,std::string&);
 nlohmann::json status();

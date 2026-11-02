@@ -1,4 +1,6 @@
 #include "typed_action/action_session.h"
+#include "typed_action/tick_evidence.h"
+#include <bit>
 #include <iostream>
 #include <stdexcept>
 using namespace mt2mp::action_session;
@@ -13,6 +15,44 @@ Message sample(){Message m;m.kind=Kind::HostResult;m.session=1;m.revision=1;m.re
     for(const auto& row:r.selection_move.rows){e.selection_move_before->rows.push_back(row.before);e.selection_move_after->rows.push_back(row.after);}return m;
 }
 int main(){try{unsigned cases=0;auto m=sample();std::vector<uint8_t> bytes;std::string e;Message decoded;
+    namespace tick=mt2mp::action_session::tick_commands;
+    auto digest=[&](const Message& value,std::string& out){
+        Context context;context.session=value.session;context.snapshot_uuid=value.request.snapshot_uuid;context.peer_mask=static_cast<uint8_t>(value.required_mask);
+        tick::Assigned assigned{value.revision,{value.session,value.request.snapshot_uuid,value.request}};
+        tick::ExecutionReceipt receipt;receipt.command=assigned;receipt.outcome=Outcome::Confirmed;receipt.evidence=std::make_shared<Evidence>(value.evidence);
+        return tick::canonical_evidence(context,assigned,receipt,out,e);
+    };
+    std::string original,changed;need(digest(m,original),e);
+
+    auto distinct=[&](Message value){need(!digest(value,changed)||changed!=original,"changed evidence accepted as identical");++cases;};
+    {auto value=m;value.request.selection_move.rows[1].before.type=value.request.selection_move.rows[1].after.type="Cactus";
+        value.evidence.selection_move_before->rows[1].type=value.evidence.selection_move_after->rows[1].type="Cactus";distinct(value);}
+    {auto value=m;std::swap(value.request.selection_move.rows[0],value.request.selection_move.rows[1]);
+        std::swap(value.evidence.selection_move_before->rows[0],value.evidence.selection_move_before->rows[1]);
+        std::swap(value.evidence.selection_move_after->rows[0],value.evidence.selection_move_after->rows[1]);distinct(value);}
+    {auto value=m;++value.evidence.before.cash;++value.evidence.after.cash;distinct(value);}
+    {auto value=m;value.evidence.retirement_confirmed=false;distinct(value);}
+    auto settled=m;auto& settled_after=settled.evidence.selection_move_after->rows[0];settled_after.y+=1;
+    settled.evidence.selection_move_settlement.push_back({0,settled.request.selection_move.rows[0].key,
+        std::bit_cast<uint32_t>(settled.request.selection_move.rows[0].after.y),std::bit_cast<uint32_t>(settled_after.y)});
+    need(!valid_selection_move_effect(settled.request,settled.evidence)&&valid_settled_selection_move_effect(settled.request,settled.evidence),"legacy and settled effect validators not separated");++cases;
+    need(encode(settled,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==settled,e);
+    need(nlohmann::json::parse(bytes).at("schema")==39,"settlement schema differs");++cases;
+    need(digest(settled,changed)&&changed!=original,"settled digest did not change");++cases;
+    auto reject_settlement=[&](auto change){auto bad=settled;change(bad);need(!encode(bad,bytes,e),"invalid settlement evidence accepted");++cases;};
+    reject_settlement([](auto& v){v.evidence.selection_move_settlement[0].key="action:44444444-4444-4444-8444-444444444444";});
+    reject_settlement([](auto& v){v.evidence.selection_move_settlement[0].index=2;});
+    reject_settlement([](auto& v){v.evidence.selection_move_settlement.push_back(v.evidence.selection_move_settlement[0]);});
+    reject_settlement([](auto& v){++v.evidence.selection_move_settlement[0].immediate_y_bits;});
+    reject_settlement([](auto& v){++v.evidence.selection_move_settlement[0].ground_y_bits;});
+    reject_settlement([](auto& v){v.evidence.selection_move_after->rows[0].x+=1;});
+    reject_settlement([](auto& v){v.evidence.selection_move_after->rows[1].y+=1;});
+    reject_settlement([](auto& v){v.evidence.selection_move_settlement[0].ground_y_bits=0x7fc00000u;});
+    {auto bad=settled;auto second=bad.evidence.selection_move_after->rows[1];second.y+=1;bad.evidence.selection_move_after->rows[1]=second;
+        bad.evidence.selection_move_settlement.push_back({1,bad.request.selection_move.rows[1].key,std::bit_cast<uint32_t>(bad.request.selection_move.rows[1].after.y),std::bit_cast<uint32_t>(second.y)});
+        std::swap(bad.evidence.selection_move_settlement[0],bad.evidence.selection_move_settlement[1]);need(!encode(bad,bytes,e),"out-of-order settlement markers accepted");++cases;}
+    {need(encode(settled,bytes,e),e);auto malformed=nlohmann::json::parse(bytes);malformed["evidence"]["selection_move_settlement"]=nlohmann::json::array();auto encoded=malformed.dump();
+        need(!decode(reinterpret_cast<const uint8_t*>(encoded.data()),encoded.size(),decoded,e),"empty schema39 proof accepted");++cases;}
     need(encode(m,bytes,e),e);need(decode(bytes.data(),bytes.size(),decoded,e),e);need(decoded==m,"full result roundtrip");++cases;
     auto request=m;request.kind=Kind::Request;request.revision=0;request.required_mask=0;request.outcome=Outcome::Pending;request.evidence={};
     need(encode(request,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==request,e);++cases;
@@ -34,13 +74,21 @@ int main(){try{unsigned cases=0;auto m=sample();std::vector<uint8_t> bytes;std::
     auto huge=m.request;
     for(unsigned i=0;i<1000;++i){auto row=huge.selection_move.rows[0];char id[64];std::snprintf(id,sizeof id,"action:12345678-1234-4234-8234-%012u",i);row.key=id;huge.selection_move.rows.push_back(row);}
     need(!selection_move_wire_fits(huge,{},e),"oversized complete result allowed before mutation");++cases;
+    std::string undo_digest;
     for(auto direction:{Action::UndoBuilding,Action::RedoBuilding}){
-        auto history=sample();const auto original=history.request.action_uuid;
+        auto history=sample();const auto source_uuid=history.request.action_uuid;
         history.request.action=direction;history.request.action_uuid="55555555-5555-4555-8555-555555555555";
-        history.request.target_action_uuid=original;history.request.canonical_record_key="selection:"+original;
+        history.request.target_action_uuid=source_uuid;history.request.canonical_record_key="selection:"+source_uuid;
         history.request.selection_move={};history.evidence.selection_confirmed=false;
         if(direction==Action::UndoBuilding)std::swap(history.evidence.selection_move_before,history.evidence.selection_move_after);
         need(encode(history,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==history,e);++cases;
+        {auto corrected=history;auto& final=corrected.evidence.selection_move_after->rows[0];const auto immediate=std::bit_cast<uint32_t>(final.y);final.y+=1;
+            corrected.evidence.selection_move_settlement.push_back({0,sample().request.selection_move.rows[0].key,immediate,std::bit_cast<uint32_t>(final.y)});
+            need(encode(corrected,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==corrected,e);
+            need(nlohmann::json::parse(bytes).at("schema")==39,"history settlement schema differs");++cases;}
+        need(digest(history,changed),e);
+        if(direction==Action::UndoBuilding)undo_digest=changed;
+        else need(changed!=undo_digest,"history direction produced identical evidence");
         auto pending_history=history;pending_history.kind=Kind::Request;pending_history.revision=0;pending_history.required_mask=0;pending_history.outcome=Outcome::Pending;pending_history.evidence={};
         need(encode(pending_history,bytes,e)&&decode(bytes.data(),bytes.size(),decoded,e)&&decoded==pending_history,e);++cases;
         auto history_reject=[&](auto change){auto bad=history;change(bad);need(!encode(bad,bytes,e),"invalid group history accepted");++cases;};

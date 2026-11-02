@@ -6,6 +6,15 @@
 #include "building_npc_lifecycle.h"
 #include "duplicate_history_effects.h"
 #include <atomic>
+namespace mt2mp::action_session {
+struct TestSession { Context context; bool current(Context& out,std::string&) {out=context;return true;} };
+TestSession& selected_session(){static TestSession value;return value;}
+namespace tick_commands::authority {
+bool enabled=false,matched=true;
+bool active(){return enabled;}
+bool matches(const Context&,const Binding&,const Request&,std::string& e){if(!enabled||!matched){e="scope mismatch";return false;}return true;}
+bool matches(const Binding&,const Request&,std::string& e){if(!enabled||!matched){e="scope mismatch";return false;}return true;}
+}}
 namespace history_fixture {
 namespace action=mt2mp::action_session;namespace duplicate_history=mt2mp::game::duplicate_history;
 namespace q=mt2mp::game::npc_quest_targets;namespace contract=mt2mp::game::ui_move_runtime::contract;
@@ -28,11 +37,12 @@ using Family=action::DuplicateFamily;using json=nlohmann::json;
 struct Handle{uintptr_t object=0;uint64_t uid=0;bool operator==(const Handle&)const=default;};
 struct Sample{unsigned generation=4,undo=1;std::map<std::string,Handle> handles;DuplicateState state;Ledger money;};
 struct Runtime{bool ready=true;uint32_t thread=17;uintptr_t image=100;int memory=0;};
-struct Operation{Binding binding;Request request;Sample before,after;bool confirmed=true,retired=true;std::map<uint64_t,std::string> created;};
+struct Operation{Binding binding;Request request;Sample before,after;bool confirmed=true,retired=true,ordered=false;action::Context ordered_context;std::map<uint64_t,std::string> created;};
 #include "duplicate_history_structs_actual.inc"
 Runtime fixture_runtime;std::atomic<Runtime*> published{&fixture_runtime};std::map<std::string,Operation> operations;
 const Binding fixture_binding{3,4};Sample fixture_state;json fixture_controller;std::string fault;
-unsigned original_calls=0,restores=0,public_binding_calls=0,alias_changes=0;uintptr_t graph_current=1;
+unsigned original_calls=0,restores=0,public_binding_calls=0,alias_changes=0,after_samples=0;uintptr_t graph_current=1;
+std::set<uint64_t> revoked_aliases;const uint64_t unrelated_alias=999;
 struct Config{bool is_host=true;static Config& instance(){static Config c;return c;}};
 uint32_t GetCurrentThreadId(){return 17;}
 namespace net{std::string current_snapshot_id(){return fixture_snapshot_uuid;}}
@@ -45,6 +55,9 @@ bool same_binding(const Sample& first,const Sample& second){return first.generat
 bool sample_duplicate(Runtime&,const Binding& binding,const DuplicateIntent*,const std::map<uint64_t,std::string>&,Sample& out,std::string& e,
             const std::function<bool(Sample&,std::string&)>& prepare={}){
     if(binding!=fixture_binding||fixture_state.generation!=binding.native_generation)return q::fail(e,"native current generation changed");
+    if(original_calls){++after_samples;if(fixture_state.state.created.empty())for(const auto& [uid,key]:operations.at(fixture_action_uuid).created){(void)key;
+        if(!revoked_aliases.contains(uid))return q::fail(e,"registry enumerated destroyed live alias");}}
+    if(revoked_aliases.contains(unrelated_alias))return q::fail(e,"unrelated alias retired");
     if(fault=="after-read"&&original_calls)return q::fail(e,"actual after read failed");out=fixture_state;return !prepare||prepare(out,e);}
 bool history_known(Runtime&,const Sample& value,HistorySource& source,std::string& e){
     if(fault=="recreated-uid"&&original_calls)return q::fail(e,"original recreation full UID differs");
@@ -53,11 +66,15 @@ bool history_graph(Runtime&,uintptr_t,bool,const HistorySource&,const DuplicateI
     if(fault=="graph"&&!original_calls)return q::fail(e,"first original graph ownership cause");
     if(fault=="inverse"&&original_calls)return q::fail(e,"original nested inverse changed");return true;}
 bool history_local_selection(Runtime&,const Sample&,std::vector<Handle>&,std::array<uint8_t,9>&,uintptr_t&,std::string& e){return fault!="selection"||q::fail(e,"local selection unavailable");}
-bool history_restore(Runtime&,const Sample&,const std::vector<Handle>&,const std::array<uint8_t,9>&,uintptr_t,const HistorySource&,std::string& e){
+bool history_restore(Runtime&,const Sample&,const std::vector<Handle>&,const std::array<uint8_t,9>&,uintptr_t,const HistorySource&,std::string& e,const Request*){
     ++restores;return (fault!="restore"&&fault!="original-restore")||q::fail(e,"local selection cleanup failed");}
 namespace remove_diagnostics{
-bool retire_undone_building(const std::string&,const std::string&,uint64_t,std::string& e){++alias_changes;return fault!="alias"||q::fail(e,"actual target absence not confirmed");}
-bool restore_redone_building(const std::string&,const std::string&,uint64_t,std::string& e){++alias_changes;return fault!="alias"||q::fail(e,"actual target restoration not confirmed");}
+bool retire_undone_building(const std::string&,const std::string&,uint64_t uid,std::string& e){++alias_changes;
+    if(fault=="alias"||(fault=="second-alias"&&alias_changes==2))return q::fail(e,"actual target absence not confirmed");
+    return revoked_aliases.insert(uid).second||q::fail(e,"alias already retired");}
+bool restore_redone_building(const std::string&,const std::string&,uint64_t uid,std::string& e){++alias_changes;
+    if(fault=="alias")return q::fail(e,"actual target restoration not confirmed");
+    return revoked_aliases.erase(uid)==1||q::fail(e,"alias not retired");}
 }
 namespace building_history_slice{
 bool graph_for(Action,const std::string&,uintptr_t& out,std::string& e){out=graph_current;return fault!="stack"||q::fail(e,"original graph not stack top");}
@@ -139,10 +156,24 @@ bool history_effect_witness(const Sample&,const HistoryServices& services,const 
        !duplicate_history_effects::owned_children(std::string(64,'d'),children,effects.related_sha,e))return false;
     state.history=std::move(effects);return true;}
 #include "duplicate_history_survivors_actual.inc"
+namespace selection_move {
+bool command_scope(const action::Binding& binding,const action::Request& request,const action::Evidence* host,bool& ordered,std::string& e){
+    ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(host){e="Ordered selection forbids Host evidence";return false;}
+        action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(Config::instance().is_host!=(context.role==action::Role::Host)){e="Ordered selection actual role differs";return false;}
+        return action::tick_commands::authority::matches(context,binding,request,e);
+    }
+    if(typed_action_runtime::controller_status().value("ordered",false)){e="Ordered selection requires consumed command authority";return false;}
+    if(bool(host)==Config::instance().is_host){e="Selection role/authority differs";return false;}
+    return true;
+}
+}
 #include "duplicate_history_perform_actual.inc"
 Request request(Action direction=Action::UndoBuilding){Request r;r.action=direction;r.peer=2;r.sequence=1;
     r.action_uuid="33333333-3333-4333-8333-333333333333";r.snapshot_uuid=fixture_snapshot_uuid;r.target_action_uuid=fixture_action_uuid;r.canonical_record_key="duplicate:"+fixture_action_uuid;return r;}
-void reset(){fixture_runtime={};history_sources.clear();history_operations.clear();operations.clear();original_calls=restores=public_binding_calls=alias_changes=0;graph_current=1;fault.clear();Config::instance().is_host=true;
+void reset(){fixture_runtime={};history_sources.clear();history_operations.clear();operations.clear();revoked_aliases.clear();original_calls=restores=public_binding_calls=alias_changes=after_samples=0;graph_current=1;fault.clear();Config::instance().is_host=true;
     child_retirements=child_restorations=building_graph_checks=0;child_current.clear();
     auto m=message();m.request.duplicate.rows[0].family=Family::Scenery;m.evidence.duplicate_before->sources[0].family=Family::Scenery;
     m.evidence.duplicate_after->sources[0].family=Family::Scenery;m.evidence.duplicate_after->created[0].family=Family::Scenery;
@@ -158,13 +189,35 @@ void building(){reset();auto& birth=operations.at(fixture_action_uuid);birth.req
     source.known.at(200).row=fixture_state.state.created[0];}
 void run(){std::string e;reset();const auto req=request();Evidence host;
     need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed,e);
+    need(revoked_aliases.contains(200)&&!revoked_aliases.contains(unrelated_alias)&&after_samples==1,"Undo sampled before exact alias retirement or changed unrelated alias");
     need(observe_history(fixture_binding,req,host,e)&&retire_history(fixture_binding,req,e)&&original_calls==1&&alias_changes==1&&!public_binding_calls,e);
     need(!retire_history(fixture_binding,req,e),"history retired twice");
     need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1,"confirmed graph replayed");
     auto redo=request(Action::RedoBuilding);redo.action_uuid="44444444-4444-4444-8444-444444444444";fixture_controller["action_uuid"]=redo.action_uuid;fixture_controller["host_revision"]=uint64_t(3);
     need(perform_history(fixture_binding,redo,nullptr,e)==Outcome::Confirmed&&original_calls==2&&alias_changes==2,e);
+    need(revoked_aliases.empty(),"Redo did not restore the exact retired alias");
     need(fixture_state.handles.at(fresh(0)).uid==200&&fixture_state.money.record_expense==10,"Redo lost UID or treated negative cash as expense");
     reset();Config::instance().is_host=false;need(perform_history(fixture_binding,req,&host,e)==Outcome::Confirmed&&original_calls==1&&!public_binding_calls,e);
+    for(bool is_host:{true,false}){reset();e.clear();fixture_controller["ordered"]=true;Config::instance().is_host=is_host;
+        action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+        action::selected_session().context.role=is_host?action::Role::Host:action::Role::Client;
+        auto& source=operations.at(fixture_action_uuid);source.ordered=true;source.ordered_context=action::selected_session().context;
+        std::map<uint64_t,std::string> targets;need(history_targets(fixture_binding,req,targets,e)&&targets==source.created,e);
+        need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed&&original_calls==1,e);
+        Evidence value;need(observe_history(fixture_binding,req,value,e),e);
+        action::tick_commands::authority::enabled=false;
+        need(!observe_history(fixture_binding,req,value,e),"ordered history observation accepted wrong route");
+        action::tick_commands::authority::enabled=true;
+        need(retire_history(fixture_binding,req,e),e);}
+    reset();e.clear();fixture_controller["ordered"]=true;operations.at(fixture_action_uuid).ordered=true;
+    action::tick_commands::authority::enabled=false;
+    need(perform_history(fixture_binding,req,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"missing ordered scope accepted");
+    action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+    action::selected_session().context.role=action::Role::Host;operations.at(fixture_action_uuid).ordered_context=action::selected_session().context;
+    ++action::selected_session().context.session;
+    need(perform_history(fixture_binding,req,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"stale source session accepted");
+    std::map<uint64_t,std::string> targets;need(!history_targets(fixture_binding,req,targets,e),"stale history target session accepted");
+    action::tick_commands::authority::enabled=false;
     auto rejected=[&](auto change){reset();auto r=req;change(r);need(perform_history(fixture_binding,r,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"invalid history mutated original graph");};
     rejected([](auto&){fixture_controller["pending"]=false;});rejected([](auto&){fixture_controller["locked"]=true;});
     rejected([](auto&){fixture_controller["action_uuid"]=fixture_snapshot_uuid;});rejected([](auto&){fixture_runtime.thread=18;});
@@ -179,6 +232,11 @@ void run(){std::string e;reset();const auto req=request();Evidence host;
         reset();fault=stage;need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1&&!e.empty(),"partial graph not Unknown");
         if(stage=="original-restore")need(e.starts_with("first original graph failure; cleanup:"),"first original cause lost");
         need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1,"partial graph replayed");}
+    reset();operations.at(fixture_action_uuid).created.emplace(201,fresh(1));fault="second-alias";
+    need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1&&alias_changes==2&&
+         revoked_aliases.contains(200)&&!revoked_aliases.contains(201)&&!revoked_aliases.contains(unrelated_alias)&&after_samples==0,
+         "partial exact alias retirement sampled or changed unrelated alias");
+    need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1,"partial alias retirement replayed");
     reset();need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed,e);fixture_state.money.cash++;
     need(!observe_history(fixture_binding,req,host,e),"changed actual Ledger ACKed");
     reset();need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed,e);fixture_state.handles.at(key(1)).uid++;

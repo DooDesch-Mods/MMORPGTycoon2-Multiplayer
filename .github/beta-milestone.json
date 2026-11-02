@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.25",
-  "summary": "Introduce ordered shared simulation and improve recovery after a Client reconnects.",
-  "native_evidence": "docs/evidence/beta25-ordered-recovery.json"
+  "version": "0.1.0-beta.26",
+  "summary": "Add shared selection moves, supported copies and scenery grouping with Undo and Redo.",
+  "native_evidence": "docs/evidence/beta26-shared-edits.json"
 }

@@ -726,6 +726,10 @@ public:
         }
         const auto outcome=ui_move_runtime::selection_move::perform_history(binding,request,authority,error);
         if(outcome!=action::Outcome::Confirmed)return outcome;
+        action::Evidence selection_effect;
+        if(!ui_move_runtime::selection_move::observe_history(binding,request,selection_effect,error)||!selection_effect.selection_move_after||
+           selection_effect.selection_move_after->rows.size()!=changes.size()){if(error.empty())error="Selection history confirmed effect count differs";return action::Outcome::Unknown;}
+        for(size_t i=0;i<changes.size();++i)changes[i].after=selection_effect.selection_move_after->rows[i];
         std::vector<world_state::LocalBinding> after;
         for(size_t i=0;i<changes.size();++i){
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
@@ -756,6 +760,10 @@ public:
         }
         const auto outcome=ui_move_runtime::selection_move::perform(binding,request,authority,error);
         if(outcome!=action::Outcome::Confirmed)return outcome;
+        action::Evidence selection_effect;
+        if(!ui_move_runtime::selection_move::observe(binding,request,selection_effect,error)||!selection_effect.selection_move_after||
+           selection_effect.selection_move_after->rows.size()!=changes.size()){if(error.empty())error="Selection Move confirmed effect count differs";return action::Outcome::Unknown;}
+        for(size_t i=0;i<changes.size();++i)changes[i].after=selection_effect.selection_move_after->rows[i];
         std::vector<world_state::LocalBinding> after;
         for(size_t i=0;i<changes.size();++i){
             remove_diagnostics::LocalTarget target;native::BuildingState actual;world_state::LocalBinding observed;
@@ -1352,6 +1360,24 @@ public:
             if(live_state_||live_port_||live_result_){error="Ordered native execution requires inactive authoritative state-copy bridge";return action::Outcome::RejectedNoEffect;}
             const auto placed=buildings_.find(request.target_action_uuid);
             const auto removed=operations_.find(request.target_action_uuid);
+            bool selection_history=false,duplicate_history=false,group_history=false;
+            if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+               !request.target_action_uuid.empty()&&request.canonical_record_key=="selection:"+request.target_action_uuid){
+                action::SelectionMoveIntent intent;
+                if(!ui_move_runtime::selection_move::history_intent(binding,request,intent,error))return action::Outcome::RejectedNoEffect;
+                selection_history=true;
+            }
+            if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+               !request.target_action_uuid.empty()&&request.canonical_record_key=="duplicate:"+request.target_action_uuid){
+                std::map<uint64_t,std::string> targets;
+                if(!ui_move_runtime::duplicate_edit::history_targets(binding,request,targets,error))return action::Outcome::RejectedNoEffect;
+                duplicate_history=true;
+            }
+            if((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
+               !request.target_action_uuid.empty()&&request.canonical_record_key=="groups:"+request.target_action_uuid){
+                if(!ui_move_runtime::group_edit::history_admitted(binding,request,error))return action::Outcome::RejectedNoEffect;
+                group_history=true;
+            }
             if(request.action!=action::Action::PlacePath&&request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemovePath&&request.action!=action::Action::RemoveWorldPath&&
                request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC&&
                request.action!=action::Action::PlaceMonsterZone&&request.action!=action::Action::PlaceMonster&&
@@ -1363,7 +1389,9 @@ public:
                request.action!=action::Action::SceneryBrushStroke&&request.action!=action::Action::SceneryEraseStroke&&
                 !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
                   !request.target_action_uuid.empty()&&request.canonical_record_key=="scenery-stroke:"+request.target_action_uuid)&&
-                request.action!=action::Action::TerrainStroke&&
+               request.action!=action::Action::TerrainStroke&&request.action!=action::Action::MoveSelection&&!selection_history&&
+               request.action!=action::Action::DuplicateSelection&&!duplicate_history&&
+               request.action!=action::Action::EditGroup&&!group_history&&
                !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
                  !request.target_action_uuid.empty()&&request.canonical_record_key=="terrain:"+request.target_action_uuid)&&
                request.action!=action::Action::SetRegionStyles&&

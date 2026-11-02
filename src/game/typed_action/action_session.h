@@ -202,6 +202,7 @@ struct Evidence {
     std::optional<BossPhaseState> boss_phase_before,boss_phase_after;
     std::optional<ServiceMembershipState> service_membership_before,service_membership_after;
     std::optional<SelectionMoveState> selection_move_before,selection_move_after;
+    std::vector<SelectionMoveSettlement> selection_move_settlement;
     std::optional<DistrictState> district_before,district_after;
     uint32_t district_continent_height=0;
     std::optional<DistrictStrokeEffect> district_stroke;
@@ -370,6 +371,7 @@ bool valid_district_effect(const Request&,const Evidence&);
 bool district_wire_fits(const Request&,const DistrictState&,const Ledger&,std::string&);
 bool valid_selection_move(const SelectionMoveIntent&);
 bool valid_selection_move_effect(const Request&,const Evidence&);
+bool valid_settled_selection_move_effect(const Request&,const Evidence&);
 bool selection_move_wire_fits(const Request&,const Ledger&,std::string&);
 bool valid_service_membership_effect(const Request&,const Evidence&);
 bool service_membership_wire_fits(const Request&,const ServiceMembershipState&,const Ledger&,std::string&);

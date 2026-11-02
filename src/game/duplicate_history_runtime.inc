@@ -9,7 +9,7 @@ struct HistoryOperation {
     action::Binding binding;action::Request request;Sample before,after;action::Evidence evidence;
     uintptr_t graph=0,inverse=0;bool attempted=false,returned=false,selection_restored=false,confirmed=false,retired=false;
     std::string cause,cleanup_cause;
-    bool building=false,undo=false;HistoryServices services;monster_quest_retirement::Witness quests;
+    bool building=false,undo=false,ordered=false;action::Context ordered_context;HistoryServices services;monster_quest_retirement::Witness quests;
     std::map<uint64_t,child_npc::Receipt> children;std::set<std::string> related_keys;
 };
 std::map<std::string,HistorySource> history_sources;
@@ -57,15 +57,42 @@ bool history_local_selection(Runtime& r,const Sample& before,std::vector<Handle>
         selection.push_back({pointer,uid});}return true;
 }
 bool history_restore(Runtime& r,const Sample& before,const std::vector<Handle>& selection,const std::array<uint8_t,9>& filter,
-                     uintptr_t camera,const HistorySource& source,std::string& e){
+                     uintptr_t camera,const HistorySource& source,std::string& e,const action::Request* request=nullptr){
     std::vector<uintptr_t> desired;
     for(const auto& row:selection){uintptr_t found=0;if(!group_edit::find(r,row.uid,found,e))return false;
         if(found==row.object)desired.push_back(found);
         else if(found||!source.known.contains(row.uid))return q::fail(e,"Duplicate history changed unrelated selected full UID");}
     const duplicate_calls::Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
-    const auto selected=duplicate_calls::select(r.image,before.world.selection,array);
-    const auto restored=group_edit::filter_call(r.image,before.world.selection,filter);
-    if(selected||restored)return q::fail(e,"Duplicate history Selection/filter restore failed select_seh="+std::to_string(selected)+" filter_seh="+std::to_string(restored));
+    host::WorldState boundary;bool admitted=false;
+    auto guard=[&](std::string& why){
+        if(GetCurrentThreadId()!=r.thread||!r.ready||!request||request->snapshot_uuid!=net::current_snapshot_id())
+            return q::fail(why,"Duplicate history local Selection RNG current thread/session differs");
+        host::NativeOrigin origin;host::LookupApi api;host::WorldState current;
+        if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,why))return false;
+        host::Reader reader(r.memory.process,origin,r.image,r.thread,api);uintptr_t owner=0;
+        if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x164b250,owner,why))return false;
+        if(!host::same_world(before.world.origin,current.origin)||current.root!=before.world.root||
+           current.selection!=before.world.selection||!owner||owner!=before.random)
+            return q::fail(why,"Duplicate history local Selection RNG current World/owner differs");
+        if(admitted&&(current.saves!=boundary.saves||current.edits!=boundary.edits||current.active_graph!=boundary.active_graph))
+            return q::fail(why,"Duplicate history local Selection RNG save/edit/graph boundary changed");
+        boundary=std::move(current);admitted=true;return true;
+    };
+    auto read=[&](std::array<uint64_t,4>& value,std::string& why){return q::at(r.memory,before.random,0,value,why);};
+    auto invoke=[&](std::string& why){const auto selected=duplicate_calls::select(r.image,before.world.selection,array);
+        return !selected||q::fail(why,"Duplicate history Selection restore failed select_seh="+std::to_string(selected));};
+    auto write=[&](const std::array<uint64_t,4>& value,std::string& why){const auto code=duplicate_calls::restore_random(before.random,value);
+        return !code||q::fail(why,"Duplicate history local Selection RNG restore failed SEH="+std::to_string(code));};
+    if(!request){const auto selected=duplicate_calls::select(r.image,before.world.selection,array);
+        const auto restored=group_edit::filter_call(r.image,before.world.selection,filter);
+        if(selected||restored)return q::fail(e,"Duplicate history Selection/filter restore failed select_seh="+std::to_string(selected)+" filter_seh="+std::to_string(restored));
+    }else{
+        std::string selection_cause;
+        const bool selected=duplicate_native::restore_selection_random(guard,read,invoke,write,selection_cause);
+        const auto restored=group_edit::filter_call(r.image,before.world.selection,filter);
+        if(restored)return q::fail(e,(selected?std::string{}:selection_cause+"; cleanup: ")+"Duplicate history filter restore failed filter_seh="+std::to_string(restored));
+        if(!selected){e=selection_cause;return false;}
+    }
     std::vector<uintptr_t> raw,filtered;std::array<uint8_t,9> actual{};uintptr_t manager=0,current=0;
     if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,before.world.selection,0xc8,actual,e)||
        !q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,current,e))return false;
@@ -79,17 +106,21 @@ bool history_survivors(const Sample& before,const Sample& after,const HistorySou
     return true;
 }
 action::Outcome perform_history(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
-    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;
+    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;bool ordered=false;
     if(!r||!r->ready||GetCurrentThreadId()!=r->thread||request.snapshot_uuid!=net::current_snapshot_id()||
        (request.action!=action::Action::UndoBuilding&&request.action!=action::Action::RedoBuilding)||
-       request.canonical_record_key!="duplicate:"+request.target_action_uuid||bool(authority)==Config::instance().is_host||
+       request.canonical_record_key!="duplicate:"+request.target_action_uuid||!selection_move::command_scope(binding,request,authority,ordered,e)||
        !contract::pending(typed_action_runtime::controller_status(),request,revision,e)){
         if(e.empty())e="Duplicate history exact pending direction/role/current snapshot unavailable";return action::Outcome::RejectedNoEffect;}
     if(history_operations.contains(request.action_uuid)){e="Duplicate history already attempted; no replay";return action::Outcome::Unknown;}
     const auto original=operations.find(request.target_action_uuid);const auto remembered=history_sources.find(request.target_action_uuid);
-    if(original==operations.end()||remembered==history_sources.end()||original->second.binding!=binding||!original->second.confirmed||!original->second.retired){
+    if(original==operations.end()||remembered==history_sources.end()||original->second.binding!=binding||
+       original->second.request.snapshot_uuid!=request.snapshot_uuid||!original->second.confirmed||!original->second.retired){
         e="Duplicate history lacks current confirmed original whole transaction";return action::Outcome::RejectedNoEffect;}
-    auto& source=remembered->second;const auto& birth=original->second;const bool undo=request.action==action::Action::UndoBuilding;
+    auto& source=remembered->second;const auto& birth=original->second;
+    action::Context context;if(birth.ordered!=ordered){e="Duplicate history source execution route differs";return action::Outcome::RejectedNoEffect;}
+    if(ordered&&(!action::selected_session().current(context,e)||context!=birth.ordered_context)){if(e.empty())e="Duplicate history source session differs";return action::Outcome::RejectedNoEffect;}
+    const bool undo=request.action==action::Action::UndoBuilding;
     const bool building=std::any_of(source.known.begin(),source.known.end(),[](const auto& value){return value.second.row.family==Family::Building;});
     Sample before;uintptr_t graph=0;
     if(!duplicate_code::check(r->memory,r->image,e)||!sample_duplicate(*r,binding,&birth.request.duplicate,undo?birth.created:std::map<uint64_t,std::string>{},before,e)||
@@ -120,12 +151,12 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     std::vector<Handle> selection;std::array<uint8_t,9> filter{};uintptr_t camera=0;
     if(!history_local_selection(*r,before,selection,filter,camera,e))return action::Outcome::RejectedNoEffect;
     auto& op=history_operations.emplace(request.action_uuid,HistoryOperation{binding,request,before}).first->second;
-    op.graph=graph;op.attempted=true;op.building=building;op.undo=undo;op.related_keys=plan.related_keys;
+    op.ordered=ordered;op.ordered_context=context;op.graph=graph;op.attempted=true;op.building=building;op.undo=undo;op.related_keys=plan.related_keys;
     const auto result=building_history_slice::perform(request.action,request.target_action_uuid,e);
     if(result==action::Outcome::RejectedNoEffect){op.attempted=false;op.cause=e;return result;}
     op.returned=result==action::Outcome::Confirmed;const auto original_cause=e;
     auto fail=[&](const std::string& why){op.cause=why;std::string cleanup;
-        if(history_restore(*r,before,selection,filter,camera,source,cleanup))op.selection_restored=true;
+        if(history_restore(*r,before,selection,filter,camera,source,cleanup,ordered?&request:nullptr))op.selection_restored=true;
         else{op.cleanup_cause=cleanup;op.cause+="; cleanup: "+cleanup;}e=op.cause;return action::Outcome::Unknown;};
     if(!op.returned)return fail(original_cause);
     const auto opposite=undo?action::Action::RedoBuilding:action::Action::UndoBuilding;
@@ -134,6 +165,11 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
         if(!history_building_graph(*r,op.inverse,source.known,lease,plan,quest_order,e))return fail(e);
         for(const auto& [uid,child]:plan.children){(void)uid;if(!child_npc::confirm_retired(lease,child,e))return fail(e);}
         op.children=plan.children;
+    }
+    if(undo){
+        if(!building&&!history_graph(*r,op.inverse,false,source,birth.request.duplicate,e))return fail(e);
+        for(const auto& [uid,key]:birth.created)
+            if(!remove_diagnostics::retire_undone_building(request.snapshot_uuid,key,uid,e))return fail(e);
     }
     auto restore_children=[&](Sample& current,std::string& why){
         if(!building||undo)return true;
@@ -170,11 +206,10 @@ action::Outcome perform_history(const action::Binding& binding,const action::Req
     if(!history_survivors(before,op.after,source,e)||!duplicate_history::effect(undo,before.state,op.after.state,e)||
        !duplicate_history::ledger(before.money,op.after.money,cash))return fail(e.empty()?"Duplicate history original signed AddCash Ledger differs":e);
     if(!undo&&!history_known(*r,op.after,source,e))return fail(e);
-    if((!building||!undo)&&!history_graph(*r,op.inverse,!undo,source,birth.request.duplicate,e))return fail(e);
-    for(const auto& [uid,key]:birth.created){
-        if(undo?!remove_diagnostics::retire_undone_building(request.snapshot_uuid,key,uid,e):
-                 !remove_diagnostics::restore_redone_building(request.snapshot_uuid,key,uid,e))return fail(e);}
-    if(!history_restore(*r,before,selection,filter,camera,source,e)){op.cause=e;return action::Outcome::Unknown;}op.selection_restored=true;
+    if(!undo&&!history_graph(*r,op.inverse,true,source,birth.request.duplicate,e))return fail(e);
+    if(!undo)for(const auto& [uid,key]:birth.created)
+        if(!remove_diagnostics::restore_redone_building(request.snapshot_uuid,key,uid,e))return fail(e);
+    if(!history_restore(*r,before,selection,filter,camera,source,e,ordered?&request:nullptr)){op.cause=e;return action::Outcome::Unknown;}op.selection_restored=true;
     op.evidence.before=before.money;op.evidence.after=op.after.money;op.evidence.undo_confirmed=true;
     op.evidence.duplicate_before=before.state;op.evidence.duplicate_after=op.after.state;op.evidence.duplicate_cash=cash;
     if(!action::valid_duplicate_history_effect(request,op.evidence)||(authority&&(authority->after!=op.evidence.after||authority->duplicate_after!=op.evidence.duplicate_after))){
@@ -186,7 +221,11 @@ bool observe_history(const action::Binding& binding,const action::Request& reque
     auto* r=published.load(std::memory_order_acquire);const auto found=history_operations.find(request.action_uuid);
     if(!r||GetCurrentThreadId()!=r->thread||found==history_operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)
         return q::fail(e,"Duplicate history observation lacks exact confirmed operation");
-    auto& op=found->second;const auto& birth=operations.at(request.target_action_uuid);Sample current;auto children=op.children;
+    auto& op=found->second;if(op.ordered!=action::tick_commands::authority::active())return q::fail(e,"Duplicate history observation execution route differs");
+    if(op.ordered){action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(context!=op.ordered_context)return q::fail(e,"Duplicate history observation source session differs");
+        if(!action::tick_commands::authority::matches(context,binding,request,e))return false;}
+    const auto& birth=operations.at(request.target_action_uuid);Sample current;auto children=op.children;
     auto capture_children=[&](Sample& value,std::string& why){if(!op.building||op.undo)return true;
         auto owner=[&](uintptr_t p,std::string& key,std::string& cause){return external_owner(*r,value,p,key,cause);};
         for(auto& [uid,child]:children){(void)uid;child_npc::Parent parent;child_npc::Receipt actual;
@@ -211,8 +250,14 @@ bool retire_history(const action::Binding& binding,const action::Request& reques
 }
 bool history_targets(const action::Binding& binding,const action::Request& request,std::map<uint64_t,std::string>& out,std::string& e){
     const auto found=operations.find(request.target_action_uuid);
-    if(found==operations.end()||found->second.binding!=binding||!found->second.confirmed||!found->second.retired||
+    if((request.action!=action::Action::UndoBuilding&&request.action!=action::Action::RedoBuilding)||request.target_action_uuid.empty()||
+       request.canonical_record_key!="duplicate:"+request.target_action_uuid||found==operations.end()||found->second.binding!=binding||!found->second.confirmed||!found->second.retired||
+       found->second.request.action!=action::Action::DuplicateSelection||found->second.request.action_uuid!=request.target_action_uuid||
        found->second.request.snapshot_uuid!=request.snapshot_uuid||!history_sources.contains(request.target_action_uuid))
         return q::fail(e,"Duplicate history target set lacks exact current source binding");
+    if(found->second.ordered!=action::tick_commands::authority::active())return q::fail(e,"Duplicate history source execution route differs");
+    if(found->second.ordered){action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(context!=found->second.ordered_context)return q::fail(e,"Duplicate history source session differs");
+        if(!action::tick_commands::authority::matches(context,binding,request,e))return false;}
     out=found->second.created;return true;
 }

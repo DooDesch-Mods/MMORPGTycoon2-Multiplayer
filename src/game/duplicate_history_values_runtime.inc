@@ -151,8 +151,13 @@ bool history_building_plan(Runtime& r,const action::Binding& binding,const Sampl
     out={};duplicate_history::Graph original;std::vector<uintptr_t> ordered;
     auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& why){return group_edit::find(r,uid,pointer,why);};
     auto text=[&](uintptr_t p,std::string& value,std::string& why){return prop_text::text(r,p,value,why);};
+    auto building_target=[&](uintptr_t pointer,bool& include,std::string& why){uintptr_t ap=0;uint64_t uid=0;include=false;
+        if(!q::at(r.memory,pointer,0,ap,why))return false;if(ap!=r.image+0x16de860)return true;
+        if(!q::at(r.memory,pointer,0xb8,uid,why))return false;const auto target=known.find(uid);
+        if(target==known.end())return q::fail(why,"Duplicate Building history Destroy target absent");
+        include=target->second.row.family==Family::Building;return true;};
     if(!duplicate_history::read(r.memory,r.image,graph,true,known,find,text,original,e)||
-       !duplicate_history::execution_order(r.memory,r.image,graph,original,ordered,e))return false;
+       !duplicate_history::projected_order(r.memory,r.image,graph,original,building_target,ordered,e))return false;
     out.undo_cash=original.cash;
     for(auto pointer:ordered){uintptr_t ap=0;uint64_t uid=0;
         if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x16de860)continue;
@@ -236,7 +241,9 @@ bool history_building_graph(Runtime& r,uintptr_t graph,const std::map<uint64_t,d
         return q::fail(e,"Duplicate Building inverse count differs services="+std::to_string(services.size())+" required="+
             std::to_string(expected.service_removal.saved.size())+" quests="+std::to_string(quests.size())+" required="+std::to_string(owners.size())+
             " npcs="+std::to_string(npcs.size())+" required="+std::to_string(children.size()));
-    if(!duplicate_history::execution_order(r.memory,r.image,graph,nodes,ordered,e))return false;
+    auto quest_target=[&](uintptr_t pointer,bool& include,std::string& why){uintptr_t ap=0;
+        if(!q::at(r.memory,pointer,0,ap,why))return false;include=ap==r.image+0x1713330;return true;};
+    if(!duplicate_history::projected_order(r.memory,r.image,graph,nodes,quest_target,ordered,e))return false;
     for(auto pointer:ordered){uintptr_t ap=0;uint64_t uid=0;
         if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x1713330)continue;
         if(!q::at(r.memory,pointer,0xb8,uid,e))return false;

@@ -6,6 +6,8 @@
 #endif
 #include <windows.h>
 #include "object_ui_probe/contract.h"
+#include "group_transition.h"
+#include "typed_action/duplicate_action.h"
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include <iostream>
 #include <stdexcept>
@@ -242,7 +244,10 @@ void reset(){
     owner_ok=ledger_ok=true;observed_money={};owner_reads=money_reads=0;
 }
 void checks(){
-    Runtime runtime;std::string error;reset();auto& recovered=jobs.at("token");
+    Runtime runtime;std::string error;reset();jobs.at("token").phase="inspected";
+    need(terminal(jobs.at("token"))&&!unresolved(),"read-only inspection is terminal and permits a later request");
+    need(!jobs.contains("next")&&jobs.emplace("next",Job{}).second&&unresolved(),"fresh actual request enters normal job lifecycle after inspection");
+    reset();auto& recovered=jobs.at("token");
     need(unresolved(),"unobserved original command blocks new mutations");
     need(reconcile_rejection(runtime,recovered,error)&&terminal(recovered)&&!unresolved(),
         "exact submitted action plus authenticated no-effect completion releases only this probe");
@@ -288,12 +293,37 @@ void checks(){
     need(!reconcile_rejection(runtime,jobs.at("token"),error)&&error=="object_ui_rejection_counter_exhausted"&&unresolved(),"counter wrap cannot fabricate exact-one submission");
 }
 }
+namespace actual_group_inspection {
+using json=contract::Json;namespace probe_contract=contract;namespace action=mt2mp::action_session;
+namespace group_transition=mt2mp::game::group_transition;
+namespace duplicate_edit {struct Sample {struct Groups {action::GroupState state;} groups;
+    std::map<std::string,int> handles;std::map<std::string,action::DuplicateObject> objects;};}
+#include "object_ui_group_inspect.inc"
+void checks(){duplicate_edit::Sample sample;contract::Input input;input.snapshot="snapshot";input.epoch=7;input.generation=8;
+    input.keys={"missing", "no_object", "child", "building", "no_prop", "group", "free1", "free2", "free3", "free4", "free5", "free6"};
+    for(const auto& key:input.keys)if(key!="missing")sample.handles[key]=1;
+    auto add=[&](const std::string& key,action::DuplicateFamily family,const std::string& parent=""){
+        action::DuplicateObject row;row.key=key;row.family=family;row.parent=parent;row.region=67;sample.objects[key]=row;};
+    add("child",action::DuplicateFamily::Scenery,"group:parent");add("building",action::DuplicateFamily::Building);
+    add("no_prop",action::DuplicateFamily::Scenery);add("group",action::DuplicateFamily::Group);
+    for(const char* key:{"free1","free2","free3","free4","free5","free6"}){add(key,action::DuplicateFamily::Scenery);action::GroupProp row;row.key=key;row.region=67;sample.groups.state.props.push_back(row);}
+    const auto result=inspect_group_targets(sample,input);const auto& rows=result.at("targets");
+    for(const auto& [index,state]:std::vector<std::pair<size_t,std::string>>{{0,"handle_absent"},{1,"object_absent"},{2,"has_parent"},{3,"wrong_family"},{4,"group_prop_absent"},{5,"current_group"},{6,"free_scenery"}})
+        need(rows.at(index).at("state")==state,"actual inspection classifies requested targets independently");
+    need(rows.at(0).at("family").is_null()&&rows.at(2).at("parent")=="group:parent","missing metadata and parent are exact");
+    need(result.at("free_scenery_keys").size()==5&&result.at("group_plan").at("valid")==true&&result.at("group_plan").at("selected")==json::array({"free1","free2"}),"bounded free keys use actual Group plan");
+    input.keys={"free1"};const auto one=inspect_group_targets(sample,input);
+    need(one.at("group_plan").at("valid")==false&&!one.at("group_plan").at("cause").get<std::string>().empty(),"insufficient keys keep explicit cause");
+}
+}
 #include "object_ui_late_observation_cases.inc"
 int main()try{
     using contract::Json;const std::string id="12345678-1234-4234-8234-123456789abc";std::string error;contract::Input input;
     Json args={{"acceptance_token",id},{"snapshot_uuid",id},{"command","Duplicate"},{"record_keys",Json::array({"action:"+id})},{"expected_world_epoch",7},{"expected_generation",8},{"position",Json::array({1,2,3})}};
     need(contract::parse(args,input,error)&&input.position[2]==3,"actual Duplicate input schema");
-    for(const char* command:{"Group","Ungroup"}){auto request=args;request["command"]=command;request.erase("position");need(contract::parse(request,input,error),"actual Group/Ungroup input schema");}
+    for(const char* command:{"Group","Ungroup","InspectGroupTargets"}){auto request=args;request["command"]=command;request.erase("position");need(contract::parse(request,input,error),"actual Group/inspection input schema");}
+    need(!contract::inspection_allowed(input,false,error)&&contract::inspection_allowed(input,true,error),"inspection requires enabled diagnostic mailbox");
+    {auto request=args;request["command"]="InspectGroupTargets";need(!contract::parse(request,input,error),"inspection rejects a seventh field");}
     for(int bad=0;bad<10;++bad){auto request=args;
         if(bad==0)request["acceptance_token"]="wrong";
         if(bad==1)request["snapshot_uuid"]="wrong";
@@ -327,5 +357,5 @@ int main()try{
         if(bad==9)need(error==cause,"original native failure cause retained");
     }
     need(complete(before,0,false,false,false,false,false,0,30001,{})==contract::Completion::Unknown&&error.find("no_replay")!=std::string::npos,"read-only deadline preserves no-replay Unknown");
-    actual_late_observation::checks();actual_rejection::checks();actual_observation::checks();actual_preparation::checks();actual_command::checks();std::cout<<object_checks<<" object UI checks passed\n";return 0;
+    actual_group_inspection::checks();actual_late_observation::checks();actual_rejection::checks();actual_observation::checks();actual_preparation::checks();actual_command::checks();std::cout<<object_checks<<" object UI checks passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<"failure after "<<object_checks<<": "<<error.what()<<'\n';return 1;}

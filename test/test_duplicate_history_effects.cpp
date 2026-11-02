@@ -2,6 +2,7 @@
 #include "test_group_reader.cpp"
 #undef main
 #include "duplicate_history_effects.h"
+#include "service_live_reader.h"
 namespace effects=mt2mp::game::duplicate_history_effects;
 namespace sh=mt2mp::game::duplicate_service_history;
 namespace aq=mt2mp::action_session;
@@ -23,6 +24,40 @@ int main()try{
     changed_states=states;changed_states.at(100).configs[0].price[1]++;
     f::need(effects::services(services,changed_states,keys,second,error)&&first!=second,"effective Config Price owner was omitted");
     f::need(!effects::services(services,states,{},second,error),"missing complete canonical Building set admitted");
+    for(const int price:{0,25}){
+        auto cold=states;auto& member=cold.at(100).rows[0];
+        member.config_key="SmallInn_Spawn";member.flags[0]=true;member.config=false;member.price={0,0};
+        cold.at(100).configs[0].price={0,price};auto effective_saved=services;effective_saved.at(100)[0].price={0,price};
+        auto warm=cold;warm.at(100).rows[0].config=true;warm.at(100).rows[0].price={0,price};
+        f::need(effects::services(effective_saved,cold,keys,first,error)&&effects::services(effective_saved,warm,keys,second,error)&&first==second,
+            "equivalent Service cache transition changed duplicate history witness");
+        f::need(mt2mp::game::service_live::effective_row(cold.at(100),member)==
+                mt2mp::game::service_live::effective_row(warm.at(100),warm.at(100).rows[0]),
+            "existing effective Service projection differs for cache transition");
+        f::need(mt2mp::game::service_live::effective_row(cold.at(100),member).price==effective_saved.at(100)[0].price,
+            "effective Service projection differs from saved effective price");
+        auto differing=warm;differing.at(100).configs[0].price[1]++;
+        f::need(effects::services(effective_saved,differing,keys,second,error)&&first!=second,"changed Config price was omitted");
+        differing=warm;differing.at(100).rows[0].config_key+="_other";
+        f::need(effects::services(effective_saved,differing,keys,second,error)&&first!=second,"changed Config key was omitted");
+        differing=warm;differing.at(100).rows[0].flags[0]=false;
+        f::need(effects::services(effective_saved,differing,keys,second,error)&&first!=second,"changed sync flag was omitted");
+        differing=warm;differing.at(100).rows[0].flags[1]=true;
+        f::need(effects::services(effective_saved,differing,keys,second,error)&&first!=second,"changed custom flag was omitted");
+        differing=cold;differing.at(100).rows[0].character=42;
+        f::need(effects::services(effective_saved,differing,keys,second,error)&&first!=second,"changed membership was omitted");
+        auto counts=effective_saved;counts.at(100)[0].counts[1].words[3]++;
+        f::need(effects::services(counts,cold,keys,second,error)&&first!=second,"changed DailyCount was omitted");
+        for(int mode=0;mode<4;++mode){
+            auto raw=cold;if(mode==0)raw.at(100).rows[0].flags[0]=false;
+            if(mode==1)raw.at(100).config_present=false;
+            if(mode==2)raw.at(100).configs.push_back(raw.at(100).configs[0]);
+            if(mode==3)raw.at(100).configs.clear();
+            auto raw_changed=raw;raw_changed.at(100).rows[0].price[1]++;
+            f::need(effects::services(effective_saved,raw,keys,first,error)&&effects::services(effective_saved,raw_changed,keys,second,error)&&first!=second,
+                "unsynced, missing, or ambiguous Config suppressed raw price");
+        }
+    }
     using QuestWitness=mt2mp::game::monster_quest_retirement::Witness;QuestWitness quests;
     quests.manager=0x100;quests.completed=1;quests.quests={0x200};quests.links={{0x300,0x301,0x302,0x400,0x401,0x402}};
     auto& owner=quests.owners[0x400];owner.pointer=0x400;owner.uid=22;owner.key="action:npc";

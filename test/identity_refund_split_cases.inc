@@ -43,6 +43,7 @@ struct LocalTarget {
     std::string snapshot_id,record_key,type,variant;bool normal_building=false,normal_scenery=false;
     std::string kind_cause;
 };
+using LocalTargetResolver=std::function<bool(uintptr_t,LocalTarget&,std::string&)>;
 #include "identity_refund_split_type.inc"
 std::map<std::string,Bound> registry;
 uint64_t registry_generation=1,next_entry=0;
@@ -330,6 +331,50 @@ void checks(){
         else need(!accepted&&!e.empty()&&refund_calls==0,"Scene Scenery stale/foreign reciprocal Scene rejected before any refund read");
         if(failure==1)need(e=="original Scene Scenery reciprocal owner failure","Original Scene Scenery owner failure cause retained");
     }
+    reset();std::vector<LocalTarget> selected;
+    need(resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.size()==2&&
+         selected[0].uid==101&&selected[1].uid==102&&selected[0].record_key==key(101)&&selected[1].record_key==key(102)&&
+         !settlement_reads.contains(104)&&settlement_reads.at(101)==1&&settlement_reads.at(102)==1&&prop_reads==2,
+         "warm selected batch must fully resolve targets without reading unrelated registry rows");
+    need(resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&!settlement_reads.contains(104)&&prop_reads==4,
+         "warm selected batch must freshly validate each target");
+    live.at(104).prop.x+=1;
+    need(resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.size()==2,"unrelated free metadata blocked Group identity refresh");
+    need(!resolve_record_target(::uuid,key(101),out,e),"standalone complete admission stopped checking unrelated metadata");
+    reset();live.at(101).prop.y=12;
+    need(resolve_record_targets(::uuid,{key(101)},selected,e)&&registry.at(registry_id(::uuid,key(101))).metadata.at("y")==12,
+         "targeted finite native height settlement differs");
+    for(int mismatch=0;mismatch<7;++mismatch){reset();auto& bad=live.at(101);
+        if(mismatch==0)bad.type="Tavern";if(mismatch==1)bad.variant="boat";if(mismatch==2)bad.prop.x+=1;
+        if(mismatch==3)bad.prop.z+=1;if(mismatch==4)bad.prop.y=std::numeric_limits<float>::quiet_NaN();
+        if(mismatch==5){registry.at(registry_id(::uuid,key(101))).metadata["rotation"]=bad.rotation;bad.rotation[0]=1;}
+        if(mismatch==6){registry.at(registry_id(::uuid,key(101))).metadata["scale"]=bad.scale;bad.scale[0]=2;}
+        need(!resolve_record_targets(::uuid,{key(101)},selected,e)&&selected.empty(),("targeted settlement accepted changed target metadata case="+std::to_string(mismatch)).c_str());}
+    reset();registry.clear();admitted_world={};
+    need(resolve_record_targets(::uuid,{key(101)},selected,e)&&seals==1,"unprimed batch skipped complete admission");
+    reset();scene_scenery::saved_admission=scene_scenery::SavedAdmission{};
+    scene_scenery::append_fixture=[](json&,std::string&){scene_scenery::saved_admission->consumed=true;return true;};
+    need(resolve_record_targets(::uuid,{key(101)},selected,e)&&settlement_reads.at(104)==1&&!scene_scenery::saved_admission_pending(),
+         "pending saved aliases bypassed complete admission");
+    reset();++live_world.world_epoch;
+    (void)resolve_record_targets(::uuid,{key(101)},selected,e);
+    need(registry_generation==2,"changed World skipped registry invalidation");
+    reset();fixture_session_snapshot="different";
+    (void)resolve_record_targets(fixture_session_snapshot,{key(101)},selected,e);
+    need(scene_scenery::append_calls>0||seals>0,"changed snapshot skipped initial admission");
+    reset();need(!resolve_record_targets(::uuid,{key(101),key(999)},selected,e)&&selected.empty(),"missing second key published a partial batch");
+    reset();change_world_on_lookup=true;
+    need(!resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.empty(),"selected batch accepted World drift");
+    reset();lookup_override=object(102);
+    need(!resolve_record_targets(::uuid,{key(101)},selected,e)&&selected.empty(),"selected batch accepted wrong full UID");
+    reset();registry.at(registry_id(::uuid,key(102))).revoked=true;
+    need(!resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.empty(),"selected batch accepted revoked binding");
+    reset();host::batch_final_failure="fixture final root failure";
+    need(!resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.empty()&&e==host::batch_final_failure,"selected batch published before root finish");
+    host::batch_final_failure.clear();reset();scenery_kiss::catalog_final_failure="fixture final catalog failure";
+    need(!resolve_record_targets(::uuid,{key(101),key(102)},selected,e)&&selected.empty()&&e==scenery_kiss::catalog_final_failure,"selected batch published before catalog finish");
+    reset();LocalTarget mode_out;LocalTargetResolver forbidden=[](uintptr_t,LocalTarget&,std::string&){return true;};
+    need(!resolve_record_target_impl(::uuid,key(101),mode_out,e,true,&forbidden),"selected batch admitted target-only validation");
     reset();refund_failure=104;
     need(identity_bindings(report,e)&&refund_calls==0&&registered_reads==0&&report.at("bindings").size()==4,"complete public identity report must not execute foreign refund getters");
     for(uint64_t uid=101;uid<=104;++uid)need(settlement_reads[uid]==1,"public identity report retains each current building settlement");

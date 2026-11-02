@@ -146,9 +146,9 @@ assert hashlib.sha256(original.encode()).hexdigest() == '6aa33a7d60b77f636002b1f
 
 pieces = [body('std::string binding_id('), body('std::string registry_id('),
           body('template<class Binding>bool import_bindings('),
-          body('enum class BindingDetails ') + ';', body('bool collect_bindings_body('), body('bool collect_bindings('),
+          body('enum class BindingDetails ') + ';', body('bool settle_current_identity('), body('bool collect_bindings_body('), body('bool collect_bindings('),
           body('bool bindings(json& out,'), body('bool identity_bindings('), body('bool attach_refunds(const host::opened::CurrentWorld& origin,'),
-          body('bool resolve_local_target_impl('), body('bool resolve_local_target('), body('static bool resolve_record_target_impl('), body('bool resolve_record_target(')]
+          body('bool resolve_local_target_impl('), body('bool resolve_local_target('), body('bool with_local_target_batch('), body('static bool resolve_record_target_impl('), body('bool resolve_record_targets('), body('bool resolve_record_target(')]
 pieces.append(body('bool identity_targets('))
 args.output.mkdir(parents=True, exist_ok=True)
 metadata=(args.root/'src/game/root_scenery_metadata.inc').read_text(encoding='utf-8')

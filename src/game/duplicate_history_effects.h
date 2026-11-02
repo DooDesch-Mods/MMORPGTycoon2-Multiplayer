@@ -2,6 +2,7 @@
 #include "duplicate_service_history.h"
 #include "duplicate_quest_history.h"
 #include "duplicate_transition.h"
+#include "service_live_reader.h"
 #include "mt2mp/core/hash.h"
 #include "vendor/nlohmann/json.hpp"
 
@@ -21,7 +22,7 @@ inline bool services(const duplicate_service_history::World& saved,const std::ma
         if(state==values.end()||key==keys.end()||key->second.empty()||rows.size()!=state->second.rows.size())
             return npc_quest_targets::fail(e,"Duplicate complete Service witness key/member count differs");
         const auto& current=state->second;json members=json::array(),characters=json::array(),configs=json::array();
-        for(size_t i=0;i<rows.size();++i){const auto& original=rows[i];const auto& member=current.rows[i];
+        for(size_t i=0;i<rows.size();++i){const auto& original=rows[i];const auto member=service_live::effective_row(current,current.rows[i]);
             if(original.owner_uid!=owner||original.type!=member.type)return npc_quest_targets::fail(e,"Duplicate complete Service witness owner/type differs");
             members.push_back(json::array({member.type,member.character,member.index,member.destination,member.config_key,member.price,
                 member.flags,member.prototype,member.config,original.price,original.flags,daily(original.counts[0]),daily(original.counts[1])}));

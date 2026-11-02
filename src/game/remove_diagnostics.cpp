@@ -16,6 +16,7 @@
 #include "scenery_kiss/native_catalog.h"
 #include "scenery_kiss/lifecycle_contract.h"
 #include <cmath>
+#include <chrono>
 #include "object_identity/remove_runtime/remove_runtime.h"
 #include "building_capture_identity.h"
 #include "snapshot_building_key.h"
@@ -190,6 +191,20 @@ json status() {
 namespace {bool attach_refunds(const host::opened::CurrentWorld&,json&,std::string&);}
 namespace {
 enum class BindingDetails {Identity,Refund,BuildingTargets};
+bool settle_current_identity(Bound& saved,const native::BuildingState& settled,std::string& error){
+    if(settled.prop.uid!=saved.uid||saved.metadata.at("type")!=settled.type||
+       saved.metadata.at("variant")!=settled.variant||saved.metadata.at("x")!=settled.prop.x||
+       saved.metadata.at("z")!=settled.prop.z||!std::isfinite(settled.prop.y)||
+       (saved.metadata.contains("rotation")&&saved.metadata.at("rotation")!=settled.rotation)||
+       (saved.metadata.contains("scale")&&saved.metadata.at("scale")!=settled.scale)) {
+        error="shared building identity changed during native height readback";return false;
+    }
+    if(saved.metadata.at("y")!=settled.prop.y) {
+        LOG_INFO("[Action] Native terrain height settled key={} before={} after={}",saved.key,saved.metadata.at("y").dump(),settled.prop.y);
+        saved.metadata["y"]=settled.prop.y;
+    }
+    return true;
+}
 bool collect_bindings_body(json& out,std::string& error,BindingDetails details,const std::set<uint64_t>* omit_metadata=nullptr,const std::vector<uint64_t>* sorted_omissions=nullptr) {
     out=json::object();error.clear();host::opened::CurrentWorld world;
     if(!current(world,error))return false;
@@ -211,17 +226,7 @@ bool collect_bindings_body(json& out,std::string& error,BindingDetails details,c
         if(!saved.revoked&&!saved.unknown&&!omitted) {
             native::BuildingState settled;
             if(!scenery_kiss::read_action_prop(saved.uid,settled,error))return false;
-            if(settled.prop.uid!=saved.uid||saved.metadata.at("type")!=settled.type||
-               saved.metadata.at("variant")!=settled.variant||saved.metadata.at("x")!=settled.prop.x||
-               saved.metadata.at("z")!=settled.prop.z||!std::isfinite(settled.prop.y)||
-               (saved.metadata.contains("rotation")&&saved.metadata.at("rotation")!=settled.rotation)||
-               (saved.metadata.contains("scale")&&saved.metadata.at("scale")!=settled.scale)) {
-                error="shared building identity changed during native height readback";return false;
-            }
-            if(saved.metadata.at("y")!=settled.prop.y) {
-                LOG_INFO("[Action] Native terrain height settled key={} before={} after={}",saved.key,saved.metadata.at("y").dump(),settled.prop.y);
-                saved.metadata["y"]=settled.prop.y;
-            }
+            if(!settle_current_identity(saved,settled,error))return false;
         }
         if(details==BindingDetails::BuildingTargets&&omitted&&!saved.revoked&&!saved.unknown){
             // The Building census already excludes this admitted saved Scenery.
@@ -576,7 +581,8 @@ bool refresh_moved_building(const std::string& snapshot,const std::string& key,u
 }
 namespace {
 bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error,
-                               const host::opened::CurrentWorld* admitted,bool metadata_only=false,const Bound* known=nullptr) {
+                               const host::opened::CurrentWorld* admitted,bool metadata_only=false,const Bound* known=nullptr,
+                               const std::string* group_snapshot=nullptr) {
     out={};error.clear();
     host::opened::CurrentWorld opened;
     if(!current(opened,error))return false;
@@ -614,16 +620,19 @@ bool resolve_local_target_impl(uintptr_t manager,uintptr_t object,LocalTarget& o
     const json metadata={{"type",building.type},{"variant",building.variant},
         {"x",building.prop.x},{"y",building.prop.y},{"z",building.prop.z}};
     const prop_lease::World actual{opened.world_epoch,opened.generation,opened.world,opened.map};
-    const Bound* matched=known;
+    const Bound* matched=known;Bound* refresh=nullptr;
+    if(group_snapshot&&(!admitted||metadata_only||known)){error="Group target refresh requires full admitted identity";return false;}
     if(known){
         if(!metadata_only||!admitted||known->generation!=registry_generation||known->world!=actual||known->uid!=uid||known->revoked||known->unknown){
             error="native readonly target supplied binding is no longer current";return false;
         }
-    }else for(const auto& [id,binding]:registry) {
+    }else for(auto& [id,binding]:registry) {
         if(binding.generation!=registry_generation||binding.world!=actual||binding.uid!=uid||binding.revoked||binding.unknown)continue;
         if(matched){error="native UI target snapshot binding is ambiguous";return false;}
-        matched=&binding;
+        matched=&binding;refresh=&binding;
     }
+    if(group_snapshot&&(!refresh||refresh->snapshot!=*group_snapshot)){error="Group target snapshot binding differs";return false;}
+    if(group_snapshot&&!settle_current_identity(*refresh,building,error))return false;
     if(!matched||!scenery_kiss::metadata_matches(matched->metadata,building)||building.prop.uid!=uid||
        (matched->object&&matched->object!=object)||(matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)) {
         error="native UI target type/coordinates or snapshot registry differs";return false;
@@ -755,6 +764,36 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
 bool resolve_local_target(uintptr_t manager,uintptr_t object,LocalTarget& out,std::string& error) {
     return resolve_local_target_impl(manager,object,out,error,nullptr);
 }
+bool with_local_target_batch(uintptr_t manager,const std::function<bool(const LocalTargetResolver&,std::string&)>& read,std::string& error) {
+    using clock=std::chrono::steady_clock;
+    const auto start=clock::now();uint64_t targets=0,target_us=0;
+    scenery_kiss::CatalogCodeReadBatch code;host::RootSceneryReadBatch roots;
+    host::opened::CurrentWorld admitted,after;
+    const auto snapshot=net::current_snapshot_id();
+    if(snapshot.empty()||!manager||!current(admitted,error)){if(error.empty())error="Group target batch requires current world, snapshot and manager";return false;}
+    const prop_lease::World actual{admitted.world_epoch,admitted.generation,admitted.world,admitted.map};
+    bool retained=false;for(const auto& [id,saved]:registry){(void)id;
+        if(saved.generation==registry_generation&&saved.world==actual&&saved.snapshot==snapshot&&saved.scene_owner!="retired"){retained=true;break;}}
+    const bool warm=!unknown_locked&&admitted_world==actual&&retained&&!scene_scenery::saved_admission_pending();
+    json sources;const auto collect_start=clock::now();
+    if(!warm&&!collect_bindings_body(sources,error,BindingDetails::Identity))return false;
+    const auto collect_us=std::chrono::duration_cast<std::chrono::microseconds>(clock::now()-collect_start).count();
+    const auto generation=registry_generation;
+    const auto stable=[&](std::string& why){
+        if(snapshot!=net::current_snapshot_id()||generation!=registry_generation||unknown_locked||scene_scenery::saved_admission_pending()){why="Group target batch snapshot, registry or pending admission changed";return false;}
+        if(!current(after,why)||!host::same_world(admitted,after)){if(why.empty())why="Group target batch world changed";return false;}return true;};
+    if(!stable(error))return false;
+    const LocalTargetResolver resolver=[&](uintptr_t object,LocalTarget& target,std::string& why){
+        const auto began=clock::now();++targets;
+        const bool ok=stable(why)&&resolve_local_target_impl(manager,object,target,why,&admitted,false,nullptr,&snapshot);
+        target_us+=uint64_t(std::chrono::duration_cast<std::chrono::microseconds>(clock::now()-began).count());return ok;};
+    const bool read_ok=read(resolver,error);
+    bool finish_ok=false;
+    if(read_ok&&stable(error)&&roots.finish(error)&&code.finish(error))finish_ok=true;
+    const auto total_us=std::chrono::duration_cast<std::chrono::microseconds>(clock::now()-start).count();
+    LOG_INFO("[GroupSampleTiming] registry_collections={} collection_us={} targets={} target_us={} total_us={} success={}",warm?0:1,collect_us,targets,target_us,total_us,finish_ok);
+    return finish_ok;
+}
 bool resolve_current_building_identity(const std::string& snapshot,const std::string& key,uintptr_t& object,uint64_t& uid,std::string& error){
     object=0;uid=0;const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown||found->second.generation!=registry_generation||found->second.snapshot!=snapshot){error="current Building key has no unrevoked current canonical identity";return false;}
@@ -805,8 +844,9 @@ bool is_modular_target(const LocalTarget& target,std::string& error){
     if(target.snapshot_id!=net::current_snapshot_id()||!read_registered_building(target.uid,opened,value,object,ap,error,true,true))return false;
     if(target.object!=object||target.type!=value.type||target.variant!=value.variant||target.world_epoch!=opened.world_epoch||target.world_generation!=opened.generation){error="Modular target full canonical World binding differs";return false;}error.clear();return true;
 }
-static bool resolve_record_target_impl(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error,bool target_only) {
-    out={};if(!target_only){json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;}
+static bool resolve_record_target_impl(const std::string& snapshot,const std::string& key,LocalTarget& out,std::string& error,bool target_only,const LocalTargetResolver* admitted=nullptr) {
+    out={};if(target_only&&admitted){error="native UI record batch cannot use target-only validation";return false;}
+    if(!target_only&&!admitted){json sources;if(!collect_bindings(sources,error,BindingDetails::Identity))return false;}
     const auto found=registry.find(registry_id(snapshot,key));
     if(found==registry.end()||found->second.revoked||found->second.unknown) {
         error="native UI record has no current unrevoked binding";return false;
@@ -825,12 +865,30 @@ static bool resolve_record_target_impl(const std::string& snapshot,const std::st
     void* object=nullptr;uint32_t seh=0;
     if(!lookup(api,found->second.uid,object,seh)) {error="native UI record lookup SEH="+std::to_string(seh);return false;}
     if(!object){error="native UI record lookup returned no target";return false;}
-    if(!resolve_local_target_impl(world.selection,uintptr_t(object),out,error,&world.origin,target_only))return false;
+    if(admitted? !(*admitted)(uintptr_t(object),out,error):
+       !resolve_local_target_impl(world.selection,uintptr_t(object),out,error,&world.origin,target_only))return false;
     if(out.snapshot_id!=snapshot||out.record_key!=key||out.world_epoch!=expected.epoch||out.world_generation!=expected.origin_generation||
        found->second.revoked||found->second.unknown) {
         error="native UI record lookup resolved a different snapshot binding";out={};return false;
     }
     return true;
+}
+bool resolve_record_targets(const std::string& snapshot,const std::vector<std::string>& keys,std::vector<LocalTarget>& out,std::string& error){
+    out.clear();if(keys.empty())return true;
+    auto& free=native_free_runtime::Runtime::instance();native_free_runtime::Receipt heap;
+    if(!free.read_actual_receipt(heap,error))return false;
+    host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
+    if(!host::resolve_lookup(memory,heap.image,heap.executable.sha256.data(),api,error))return false;
+    host::Reader reader(memory,origin,heap.image,heap.main_thread,api);host::WorldState world;
+    if(!reader.current(world,true,error))return false;
+    std::vector<LocalTarget> pending;pending.reserve(keys.size());
+    const auto read=[&](const LocalTargetResolver& resolve,std::string& why){
+        for(const auto& key:keys){LocalTarget target;
+            if(!resolve_record_target_impl(snapshot,key,target,why,false,&resolve))return false;
+            pending.push_back(std::move(target));}
+        return true;};
+    if(!with_local_target_batch(world.selection,read,error))return false;
+    out=std::move(pending);return true;
 }
 bool resolve_ordered_placement(const action_session::Binding& binding,const action_session::Request& request,LocalTarget& out,std::string& error){
     out={};

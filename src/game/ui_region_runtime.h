@@ -18,6 +18,9 @@ bool retire_history(const action_session::Binding&,const action_session::Request
 bool retired_keys(const action_session::Binding&,const action_session::Request&,std::vector<std::string>&,std::string&);
 bool settle_building_move(const action_session::Binding&,const action_session::Request&,uint64_t uid,
     const action_session::BuildingState& immediate,action_session::BuildingState& settled,nlohmann::json&,std::string&);
+struct SelectionBuildingSettlement {std::string key;uint64_t uid=0;action_session::BuildingState immediate;};
+bool settle_selection_buildings(const action_session::Binding&,const action_session::Request&,
+    const std::vector<SelectionBuildingSettlement>&,std::vector<action_session::BuildingState>&,nlohmann::json&,std::string&);
 bool query(int32_t region_id,nlohmann::json&,std::string&);
 bool query_rng_census(nlohmann::json&,std::string&);
 bool query_purchase_catalog(nlohmann::json&,std::string&);

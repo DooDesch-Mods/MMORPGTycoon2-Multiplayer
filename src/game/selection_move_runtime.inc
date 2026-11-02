@@ -1,9 +1,10 @@
 namespace selection_move {
 namespace {
 struct Pending {action::Binding binding;std::string id;selection_move_reader::Selection source;action::SelectionMoveIntent intent;};
-struct Operation {action::Binding binding;action::Request request;action::Evidence evidence;
+struct Operation {action::Binding binding;action::Request request,poses;action::Evidence evidence;
     std::vector<move_kiss::LocalBinding> before;selection_move_native::Receipt native;
-    bool confirmed=false,retired=false;std::string cause;};
+    action::SelectionMoveState history_before,history_after;
+    bool confirmed=false,retired=false,ordered=false;action::Context ordered_context;std::string cause;};
 std::optional<Pending> captured;std::map<std::string,Operation> operations;
 uint64_t captures=0,submitted=0,rejections=0;std::string cause;
 void reject(const std::string& e){++rejections;if(cause!=e){cause=e;LOG_ERROR("[SelectionMove] {}",e);}}
@@ -75,6 +76,18 @@ bool current(Runtime& r,const action::Binding& binding,const action::Request& re
 }
 }
 bool pending(){return bool(captured);}
+bool command_scope(const action::Binding& binding,const action::Request& request,const action::Evidence* host,bool& ordered,std::string& e){
+    ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(host){e="Ordered selection forbids Host evidence";return false;}
+        action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(Config::instance().is_host!=(context.role==action::Role::Host)){e="Ordered selection actual role differs";return false;}
+        return action::tick_commands::authority::matches(context,binding,request,e);
+    }
+    if(typed_action_runtime::controller_status().value("ordered",false)){e="Ordered selection requires consumed command authority";return false;}
+    if(bool(host)==Config::instance().is_host){e="Selection role/authority differs";return false;}
+    return true;
+}
 bool capture_purchase(uintptr_t behaviour,uintptr_t caller,bool& handled,std::string& e){
     handled=false;auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready||caller!=r->image+0x5c2a20||GetCurrentThreadId()!=r->thread||!net::session_wire::connected())return true;
@@ -107,12 +120,12 @@ void tick(){
     if(!typed_action_runtime::submit_selection_move(value.id,value.intent,e)){reject(e);return;}++submitted;
 }
 action::Outcome perform(const action::Binding& binding,const action::Request& request,const action::Evidence* authority,std::string& e){
-    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;
+    auto* r=published.load(std::memory_order_acquire);uint64_t revision=0;bool ordered=false;
     if(!r||!r->ready||GetCurrentThreadId()!=r->thread||request.action!=action::Action::MoveSelection||!action::valid_selection_move(request.selection_move)||
-       !contract::pending(typed_action_runtime::controller_status(),request,revision,e)||bool(authority)==Config::instance().is_host){
+       !contract::pending(typed_action_runtime::controller_status(),request,revision,e)||!command_scope(binding,request,authority,ordered,e)){
         if(e.empty())e="Selection Move exact pending action/role unavailable";return action::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)){e="Selection Move already attempted; no replay";return action::Outcome::Unknown;}
-    if(authority&&!action::valid_selection_move_effect(request,*authority)){e="Selection Move Host complete evidence invalid";return action::Outcome::RejectedNoEffect;}
+    if(authority&&(!authority->selection_move_settlement.empty()||!action::valid_selection_move_effect(request,*authority))){e="Selection Move Host complete evidence invalid";return action::Outcome::RejectedNoEffect;}
     move_kiss::Calls checked;if(!calls(*r,checked,e))return action::Outcome::RejectedNoEffect;
     std::vector<std::unique_ptr<ExecuteServices>> readers;std::vector<move_kiss::LocalBinding> before;
     std::vector<selection_move_native::Target> native_targets;std::set<uint64_t> uids;std::set<uintptr_t> objects;
@@ -128,7 +141,10 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     }
     if(authority&&authority->before!=money){e="Selection Move Client Ledger differs from Host";return action::Outcome::RejectedNoEffect;}
     if(!action::selection_move_wire_fits(request,money,e))return action::Outcome::RejectedNoEffect;
-    auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.before=before;op.evidence.before=money;
+    action::Context ordered_context;
+    if(ordered&&(!action::selected_session().current(ordered_context,e)||
+       !action::tick_commands::authority::matches(ordered_context,binding,request,e)))return action::Outcome::RejectedNoEffect;
+    auto& op=operations.emplace(request.action_uuid,Operation{binding,request}).first->second;op.ordered=ordered;op.ordered_context=ordered_context;op.poses=request;op.before=before;op.evidence.before=money;
     op.evidence.selection_move_before=action::SelectionMoveState{};for(const auto& row:before)op.evidence.selection_move_before->rows.push_back(row.actual);
     auto unknown=[&](const std::string& why){e=op.cause=why;return action::Outcome::Unknown;};
     if(!selection_move_native::execute(checked,native_targets,op.native,e))return unknown(e);
@@ -138,16 +154,28 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
            back.current.actual!=request.selection_move.rows[i].after||back.current.ledger!=money||!back.manager_registered||!back.inverse_registered||!back.selection_present||!back.edit_closed)
             return unknown("Selection Move original full binding/pose/inverse/selection/ledger differs index="+std::to_string(i));}
     if(!refresh_targets(request,before,e))return unknown(e);
-    action::SelectionMoveState after;if(!current(*r,binding,request,before,op.native.scope.graph,after,op.evidence.after,e))return unknown(e);
+    if(ordered){std::vector<ui_region_runtime::SelectionBuildingSettlement> buildings;std::vector<size_t> indices;
+        for(size_t i=0;i<readers.size();++i)if(readers[i]->target.normal_building){buildings.push_back({request.selection_move.rows[i].key,before[i].local_uid,request.selection_move.rows[i].after});indices.push_back(i);}
+        if(!buildings.empty()){std::vector<action::BuildingState> settled;json receipt;
+            if(!ui_region_runtime::settle_selection_buildings(binding,request,buildings,settled,receipt,e)||settled.size()!=buildings.size())return unknown(e.empty()?"Selection Move Building settlement count differs":e);
+            for(size_t n=0;n<indices.size();++n){const auto i=indices[n];const auto immediate=request.selection_move.rows[i].after;
+                op.poses.selection_move.rows[i].after=settled[n];
+                if(std::bit_cast<uint32_t>(immediate.y)!=std::bit_cast<uint32_t>(settled[n].y))op.evidence.selection_move_settlement.push_back({uint32_t(i),request.selection_move.rows[i].key,std::bit_cast<uint32_t>(immediate.y),std::bit_cast<uint32_t>(settled[n].y)});}
+            if(!refresh_targets(op.poses,before,e))return unknown(e);
+        }
+    }
+    action::SelectionMoveState after;if(!current(*r,binding,op.poses,before,op.native.scope.graph,after,op.evidence.after,e))return unknown(e);
     op.evidence.selection_move_after=std::move(after);op.evidence.undo_confirmed=op.evidence.selection_confirmed=true;
-    if(!action::valid_selection_move_effect(request,op.evidence)||(authority&&(op.evidence.selection_move_after!=authority->selection_move_after||op.evidence.after!=authority->after)))return unknown("Selection Move actual complete result differs from Host/request");
+    if(!(op.evidence.selection_move_settlement.empty()?action::valid_selection_move_effect(request,op.evidence):action::valid_settled_selection_move_effect(request,op.evidence))||(authority&&(op.evidence.selection_move_after!=authority->selection_move_after||op.evidence.after!=authority->after)))return unknown("Selection Move actual complete result differs from Host/request");
+    op.history_before=*op.evidence.selection_move_before;op.history_after=*op.evidence.selection_move_after;
     op.confirmed=true;return action::Outcome::Confirmed;
 }
 bool observe(const action::Binding& binding,const action::Request& request,action::Evidence& out,std::string& e){
     auto* r=published.load(std::memory_order_acquire);const auto found=operations.find(request.action_uuid);
     if(!r||found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed){e="Selection Move observation lacks exact confirmed operation";return false;}
-    const auto& op=found->second;action::SelectionMoveState value;action::Ledger money;
-    if(!current(*r,binding,request,op.before,op.native.scope.graph,value,money,e))return false;
+    const auto& op=found->second;if(op.ordered&&!action::tick_commands::authority::matches(binding,request,e))return false;
+    action::SelectionMoveState value;action::Ledger money;
+    if(!current(*r,binding,op.poses,op.before,op.native.scope.graph,value,money,e))return false;
     if(value!=op.evidence.selection_move_after||money!=op.evidence.after){e="Selection Move current complete result changed before ACK";return false;}
     out=op.evidence;out.retirement_confirmed=op.retired;return true;
 }

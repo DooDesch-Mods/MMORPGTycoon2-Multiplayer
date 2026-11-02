@@ -2,7 +2,7 @@
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 25 compatibility list.
+This historical table describes [Early Beta 23](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23) and its earlier synchronization system. It is not a Beta 26 compatibility list.
 
 Updated 2026-10-22. Development entries do not change the current download.
 

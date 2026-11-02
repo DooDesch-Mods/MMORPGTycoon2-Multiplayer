@@ -3,6 +3,13 @@
 #undef main
 #include "duplicate_history_reader.h"
 namespace dh=mt2mp::game::duplicate_history;
+struct ChangingCacheMemory : f::Memory {
+    uintptr_t watched=0;int reads=0;
+    bool read(uintptr_t p,void* out,size_t n,std::string& e){
+        if(p==watched&&++reads==2)put(watched,uintptr_t(0x123456));
+        return f::Memory::read(p,out,n,e);
+    }
+};
 int main()try{
     constexpr uintptr_t graph=0x90000,cash=0xa0000,group=0xb0000,first=0xc0000,second=0xd0000;
     std::string e;bool alive=false;std::map<uint64_t,dh::Known> known;
@@ -32,6 +39,27 @@ int main()try{
         f::need(dh::execution_order(m,f::image,graph,out,sorted,e)&&sorted==std::vector<uintptr_t>{group,cash},"native dependency order replaced by insertion order");
         f::array(m,graph+0x30,0x1748aa0,{group,group});f::need(!dh::execution_order(m,f::image,graph,out,sorted,e),"duplicate sorted native operation admitted");
         f::array(m,graph+0x30,0x1748aa0,{group,first});f::need(!dh::execution_order(m,f::image,graph,out,sorted,e),"nested or foreign sorted native operation admitted");
+        f::array(m,graph,0x16e32d0,{});f::array(m,graph+0x30,0x1748aa0,{});
+        auto one=[&](uintptr_t pointer,bool& include,std::string&){include=pointer==group;return true;};
+        auto two=[&](uintptr_t,bool& include,std::string&){include=true;return true;};
+        auto none=[&](uintptr_t,bool& include,std::string&){include=false;return true;};
+        f::need(dh::projected_order(m,f::image,graph,out,one,sorted,e)&&sorted==std::vector<uintptr_t>{group},"empty native cache singleton projection differs");
+        f::need(dh::projected_order(m,f::image,graph,out,none,sorted,e)&&sorted.empty(),"empty native cache zero projection differs");
+        f::need(!dh::projected_order(m,f::image,graph,out,two,sorted,e),"empty native cache multiple relevant operations admitted");
+        ChangingCacheMemory changing;static_cast<f::Memory&>(changing)=m;changing.watched=graph+8;
+        f::need(!dh::projected_order(changing,f::image,graph,out,one,sorted,e),"changed native cache admitted");
+        f::array(m,graph+0x18,0x16e2dc0,{group,cash});
+        f::need(!dh::projected_order(m,f::image,graph,out,one,sorted,e),"changed original graph admitted");
+        f::array(m,graph+0x18,0x16e2dc0,{cash,group});f::array(m,graph,0x16e32d0,{first});
+        f::need(!dh::projected_order(m,f::image,graph,out,one,sorted,e),"partially filled native cache admitted");
+        f::array(m,graph,0x16e32d0,{});f::array(m,graph+0x30,0x1748aa0,{group,cash});
+        f::need(!dh::projected_order(m,f::image,graph,out,one,sorted,e),"sorted cache without dependencies admitted");
+        f::array(m,graph,0x16e32d0,{first});
+        f::need(dh::projected_order(m,f::image,graph,out,two,sorted,e)&&sorted==std::vector<uintptr_t>{group,cash},"materialized native order changed");
+        f::array(m,graph+0x30,0x1748aa0,{group,group});
+        f::need(!dh::projected_order(m,f::image,graph,out,two,sorted,e),"materialized duplicate admitted");
+        f::array(m,graph+0x30,0x1748aa0,{group,first});
+        f::need(!dh::projected_order(m,f::image,graph,out,two,sorted,e),"materialized foreign node admitted");
         auto bad=[&](auto change){m=fixture(undo);change(m);f::need(!read(),"invalid Duplicate history original graph admitted");};
         bad([&](auto& v){v.put(group+0xb8,uint64_t(99));});bad([&](auto& v){v.put(group,f::image+1);});
         bad([&](auto& v){v.put(f::image+0x1786fb0+0x10,f::image+1);});bad([&](auto& v){f::array(v,graph+0x18,0x16e2dc0,{cash,group,group});});

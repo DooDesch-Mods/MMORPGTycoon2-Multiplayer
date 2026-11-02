@@ -5,6 +5,14 @@
 #include "group_history_reader.h"
 #include "move_contract.h"
 #include <atomic>
+namespace mt2mp::action_session {
+struct TestSession { Context context; bool current(Context& out,std::string&) {out=context;return true;} };
+TestSession& selected_session(){static TestSession value;return value;}
+namespace tick_commands::authority {
+bool enabled=false,matched=true;
+bool active(){return enabled;}
+bool matches(const Context&,const Binding&,const Request&,std::string& e){if(!enabled||!matched){e="scope mismatch";return false;}return true;}
+}}
 namespace gh=mt2mp::game::group_history;
 namespace history_fixture {
 namespace action=mt2mp::action_session;
@@ -17,7 +25,7 @@ struct World {uint64_t generation=4;bool operator==(const World&)const=default;}
 struct Sample {World world;group_reader::Local local;action::Ledger money;unsigned undo=0;std::map<std::string,std::string> group_names;};
 struct Runtime {bool ready=true;uint32_t thread=17;};
 struct NativeReceipt{uintptr_t graph=1;};
-struct Operation {action::Binding binding;action::Request request;Sample before,after;bool confirmed=true,retired=true;NativeReceipt native;};
+struct Operation {action::Binding binding;action::Request request;Sample before,after;bool confirmed=true,retired=true;NativeReceipt native;bool ordered=false;action::Context ordered_context;};
 #include "group_history_structs_actual.inc"
 Runtime fixture_runtime;std::atomic<Runtime*> published{&fixture_runtime};bool installed=true;
 struct Config {bool is_host=true;static Config& instance(){static Config c;return c;}};
@@ -56,7 +64,9 @@ bool graph_for(action::Action,const std::string& source,uintptr_t& graph,std::st
 action::Outcome perform(action::Action direction,const std::string&,std::string& e){
     if(fault=="bridge-reject"){e="original history queue not ready";return action::Outcome::RejectedNoEffect;}
     ++original_calls;if(fault=="original"||fault=="original-restore"){e="first original graph failure";return action::Outcome::Unknown;}
+    const auto entry_rng=fixture_state.local.state.random;
     auto& source=operations.at(fixture_action_uuid);fixture_state=direction==action::Action::UndoBuilding?source.before:source.after;
+    fixture_state.local.state.random=entry_rng;
     if(direction==action::Action::RedoBuilding)for(auto& [key_value,name]:fixture_state.group_names){
         (void)key_value;name=history_sources.at(fixture_action_uuid).known.at(77).restore_name;}
     graph_current=direction==action::Action::UndoBuilding?2:1;fixture_state.undo=unsigned(graph_current);
@@ -67,6 +77,8 @@ action::Outcome perform(action::Action direction,const std::string&,std::string&
     return action::Outcome::Confirmed;
 }
 }
+#include "group_scope_actual.inc"
+#include "group_admission_actual.inc"
 #include "group_history_perform_actual.inc"
 Sample local_sample(const GroupState& state){Sample result;result.local.state=state;result.local.manager=12;result.undo=1;uintptr_t object=100;
     for(const auto& p:state.props){result.local.handles[p.key]={object,uint64_t(object)};object+=10;}
@@ -81,7 +93,28 @@ void reset(){fixture_runtime={};installed=true;operations.clear();history_source
     remembered.undo_nodes={{gh::Kind::Remove,g.key,g.region,g.pose,{key(1),key(2)}}};
     const auto r=request();fixture_controller={{"started",true},{"pending",true},{"locked",false},{"action_uuid",r.action_uuid},{"host_revision",uint64_t(2)}};
 }
-void run(){std::string e;reset();auto req=request();need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed,e);Evidence authority;
+void run(){std::string e;reset();
+    {fixture_controller["ordered"]=true;action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+        action::selected_session().context.role=action::Role::Host;auto& birth=operations.at(fixture_action_uuid);
+        birth.ordered=true;birth.ordered_context=action::selected_session().context;
+        fixture_state.local.state.random={1,2,3,4};auto undo=request();Evidence evidence;
+        need(perform_history(fixture_binding,undo,nullptr,e)==Outcome::Confirmed&&observe_history(fixture_binding,undo,evidence,e)&&retire_history(fixture_binding,undo,e),e);
+        need(fixture_state.local.state.random==std::array<uint64_t,4>{1,2,3,4},"Undo did not preserve fresh entry RNG");
+        fixture_state.local.state.random={5,6,7,8};auto redo=request(Action::RedoBuilding);redo.action_uuid="44444444-4444-4444-8444-444444444444";
+        fixture_controller["action_uuid"]=redo.action_uuid;fixture_controller["host_revision"]=uint64_t(3);
+        need(perform_history(fixture_binding,redo,nullptr,e)==Outcome::Confirmed&&observe_history(fixture_binding,redo,evidence,e)&&retire_history(fixture_binding,redo,e),e);
+        need(fixture_state.local.state.random==std::array<uint64_t,4>{5,6,7,8},"Redo did not preserve fresh entry RNG");
+        action::tick_commands::authority::enabled=false;}
+    for(bool host:{true,false}){reset();Config::instance().is_host=host;fixture_controller["ordered"]=true;
+        action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+        action::selected_session().context.role=host?action::Role::Host:action::Role::Client;
+        auto& birth=operations.at(fixture_action_uuid);birth.ordered=true;birth.ordered_context=action::selected_session().context;
+        auto r=request();need(perform_history(fixture_binding,r,nullptr,e)==Outcome::Confirmed&&original_calls==1,e);Evidence value;
+        need(observe_history(fixture_binding,r,value,e)&&retire_history(fixture_binding,r,e),e);
+        action::tick_commands::authority::enabled=false;need(!observe_history(fixture_binding,r,value,e),"history route substitution accepted");}
+    reset();fixture_controller["ordered"]=true;action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+    need(perform_history(fixture_binding,request(),nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"legacy source admitted to ordered history");
+    action::tick_commands::authority::enabled=false;reset();auto req=request();need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Confirmed,e);Evidence authority;
     need(observe_history(fixture_binding,req,authority,e)&&original_calls==1&&restores==1&&!public_binding_calls,e);
     need(retire_history(fixture_binding,req,e)&&!retire_history(fixture_binding,req,e),"history retired twice");
     need(perform_history(fixture_binding,req,nullptr,e)==Outcome::Unknown&&original_calls==1,"confirmed graph replayed");

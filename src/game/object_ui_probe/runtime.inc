@@ -21,9 +21,35 @@ struct Job {
     std::string reconciliation_cause,prior_observation_cause;json result=json::object();
 };
 std::map<std::string,Job> jobs;
-bool terminal(const Job& job){return job.phase=="confirmed"||job.phase=="rejected";}
+bool terminal(const Job& job){return job.phase=="confirmed"||job.phase=="rejected"||job.phase=="inspected";}
 bool stopped(Job& job,const std::string& cause,std::string& error){job.cause=cause;job.phase=job.attempted_mask?"unknown":"rejected";LOG_ERROR("[ObjectUIProbe] token={} command={} action={} cause={}; no replay",job.input.token,job.input.command,job.action_uuid,cause);return probe_contract::fail(error,cause);}
 json format(const Job& job){return {{"acceptance_token",job.input.token},{"snapshot_uuid",job.input.snapshot},{"command",job.input.command},{"record_keys",job.input.keys},{"phase",job.phase},{"confirmed",job.phase=="confirmed"},{"unknown",job.phase=="unknown"},{"attempted_mask",job.attempted_mask},{"returned_mask",job.returned_mask},{"exception",job.exception},{"cleanup_exception",job.cleanup_exception},{"command_attempted",bool(job.attempted_mask&16)},{"preparation_reconciled",job.preparation_reconciled},{"reconciliation_cause",job.reconciliation_cause},{"observation_reconciled",job.observation_reconciled},{"prior_observation_cause",job.prior_observation_cause},{"command_accepted",job.command_accepted},{"action_uuid",job.action_uuid},{"cause",job.cause},{"result",job.result}};}
+json inspect_group_targets(const duplicate_edit::Sample& sample,const probe_contract::Input& input){
+    json targets=json::array();std::vector<std::string> free;
+    for(const auto& key:input.keys){const auto handle=sample.handles.find(key);const auto object=sample.objects.find(key);
+        const bool present=handle!=sample.handles.end(),known=object!=sample.objects.end();
+        const auto prop=std::find_if(sample.groups.state.props.begin(),sample.groups.state.props.end(),[&](const auto& row){return row.key==key;});
+        const bool group_prop=prop!=sample.groups.state.props.end();json row={{"key",key},{"handle_present",present},{"object_present",known},
+            {"family",nullptr},{"region",nullptr},{"parent",nullptr},{"group_prop_present",group_prop}};
+        std::string state;
+        if(known){const auto& value=object->second;row["region"]=value.region;row["parent"]=value.parent;
+            row["family"]=value.family==action::DuplicateFamily::Scenery?"Scenery":value.family==action::DuplicateFamily::Group?"Group":"Building";}
+        if(!present)state="handle_absent";else if(!known)state="object_absent";
+        else if(!object->second.parent.empty())state="has_parent";
+        else if(object->second.family==action::DuplicateFamily::Group)state="current_group";
+        else if(object->second.family!=action::DuplicateFamily::Scenery)state="wrong_family";
+        else if(!group_prop)state="group_prop_absent";
+        else{state="free_scenery";if(free.size()<5)free.push_back(key);}
+        row["state"]=state;targets.push_back(std::move(row));
+    }
+    std::vector<std::string> selected;if(free.size()>=2)selected={free[0],free[1]};
+    bool valid=false;std::string cause;if(selected.size()==2){group_transition::Plan plan;
+        valid=group_transition::plan(sample.groups.state,action::GroupIntent{action::GroupKind::Group,selected},plan,cause);
+    }else cause="Group inspection needs two eligible Scenery keys; found="+std::to_string(free.size());
+    return {{"schema_version",1},{"snapshot_uuid",input.snapshot},{"native_epoch",input.epoch},{"native_generation",input.generation},
+        {"targets",targets},{"free_scenery_keys",free},{"group_plan",{{"selected",selected},{"valid",valid},{"cause",cause}}},
+        {"sample_counts",{{"handles",sample.handles.size()},{"objects",sample.objects.size()},{"groups",sample.groups.state.groups.size()},{"group_props",sample.groups.state.props.size()}}}};
+}
 bool current(Runtime& runtime,const Job& job,std::string& error){
     action::Binding binding;host::WorldState value;
     if(!runtime.ready||runtime.thread!=GetCurrentThreadId()||!net::session_wire::connected()||net::current_snapshot_id()!=job.input.snapshot||
@@ -137,6 +163,7 @@ bool live_window(Runtime& runtime,const Job& job,common::Api& api,uintptr_t& win
 bool unresolved()noexcept{for(const auto& [token,job]:jobs){(void)token;if(!terminal(job))return true;}return false;}
 bool probe(const json& args,json& out,std::string& error){Job* active=nullptr;try{
     out=json::object();probe_contract::Input input;if(!probe_contract::parse(args,input,error))return false;
+    if(!probe_contract::inspection_allowed(input,Config::instance().diagnostic_mailbox_enabled,error))return false;
     if(jobs.contains(input.token))return probe_contract::fail(error,"object_ui_token_already_attempted_no_replay");if(unresolved())return probe_contract::fail(error,"object_ui_previous_effect_unresolved");
     auto* runtime=published.load(std::memory_order_acquire);if(!runtime||!runtime->ready||runtime->thread!=GetCurrentThreadId())return probe_contract::fail(error,"object_ui_ready_Mainthread_required");
     auto& job=jobs.emplace(input.token,Job{}).first->second;active=&job;job.input=std::move(input);auto& r=*runtime;const auto controller=typed_action_runtime::controller_status();
@@ -145,13 +172,16 @@ bool probe(const json& args,json& out,std::string& error){Job* active=nullptr;tr
        job.binding.native_epoch!=job.input.epoch||job.binding.native_generation!=job.input.generation)return stopped(job,error.empty()?"object_ui_idle_current_controller_required":error,error);
     duplicate_edit::Sample sample;
     const bool sampled=job.input.command=="Duplicate"?duplicate_edit::sample_duplicate(r,job.binding,nullptr,{},sample,error):
-        (job.input.command=="Group"||job.input.command=="Ungroup")?duplicate_edit::sample_untouched_scenery(r,job.binding,nullptr,{},sample,error):
+        (job.input.command=="Group"||job.input.command=="Ungroup"||job.input.command=="InspectGroupTargets")?duplicate_edit::sample_untouched_scenery(r,job.binding,nullptr,{},sample,error):
         duplicate_edit::sample(r,job.binding,nullptr,{},sample,error);
     if(!sampled)return stopped(job,error,error);
+    if(job.input.command=="InspectGroupTargets"){job.result=inspect_group_targets(sample,job.input);job.phase="inspected";out=format(job);error.clear();return true;}
     common::Family family=common::Family::Building;
     for(const auto& key:job.input.keys){const auto found=sample.handles.find(key);
-        if(found==sample.handles.end()||!sample.objects.at(key).parent.empty())return stopped(job,"object_ui_selected_canonical_top_level_target_absent",error);
-        const auto kind=sample.objects.at(key).family;
+        if(found==sample.handles.end())return stopped(job,"object_ui_target_handle_absent key="+key,error);
+        const auto object=sample.objects.find(key);if(object==sample.objects.end())return stopped(job,"object_ui_target_object_absent key="+key,error);
+        if(!object->second.parent.empty())return stopped(job,"object_ui_target_has_parent key="+key+" parent="+object->second.parent,error);
+        const auto kind=object->second.family;
         if(job.input.command=="Group"&&kind!=action::DuplicateFamily::Scenery&&kind!=action::DuplicateFamily::Group)return stopped(job,"object_ui_Group_requires_original_Scenery_or_Group_members",error);
         if(job.input.command=="Ungroup"&&kind!=action::DuplicateFamily::Group)return stopped(job,"object_ui_Ungroup_requires_current_Group",error);
         if(kind==action::DuplicateFamily::Scenery)family=common::Family::Scenery;job.selected.push_back(found->second);
