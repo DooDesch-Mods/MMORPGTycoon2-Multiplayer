@@ -1,6 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-beta.28",
-  "summary": "Share NPC names and online settings, and reduce repeated world-state validation.",
+  "summary": "Share NPC names and online-status changes while reducing repeated world-state validation.",
   "native_evidence": "docs/evidence/beta28-npc-properties.json"
 }
