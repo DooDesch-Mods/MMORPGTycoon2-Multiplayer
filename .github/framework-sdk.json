@@ -1,6 +1,6 @@
 {
   "repository": "DooDesch-Mods/MMORPGTycoon2-ModFramework",
-  "revision": "a2da8d4efa2a8468e639aac98d679e96d39070c0",
+  "revision": "887bcabf3e5db6b5360db2f9b465da033520d998",
   "headers": {
     "include/mt2fw/plugin.h": "6a25a61c1bcc942888b8e991618919c61f6e2fd22676a0c2c5bc35faa6d32d3d",
     "adapters/mt2/sdk/native_services.h": "7f51729f6f9ac22133051a75e165c39615d15a9262a186d0a5d1a1d0a07717c0",
@@ -8,7 +8,7 @@
     "adapters/mt2/sdk/native_ownership.h": "318d35897b65d528dd5aebbcae73e50d0cd463e2c1eed2a36910253aa0dbca3f",
     "adapters/mt2/sdk/native_patches.h": "853716ca2286e8ff42d2cf6ec8140eb90c677bf014957a3bc50d476c8f2741b4",
     "adapters/mt2/sdk/native_release.h": "02b189260f370a4efd2368a673d72f8f024640013724d0667a14edc462c1203d",
-    "adapters/mt2/sdk/native_steps_draft.h": "b9d190d068f178e5af964640c7a3db4401a3684d8ad1446cc71c677c9af93312",
+    "adapters/mt2/sdk/native_steps_draft.h": "4d20374b12f4e93a89fe36a37da174a7e6dcb62b9ca3899f5e3293916d40f9c4",
     "adapters/mt2/sdk/native_step_recovery_draft.h": "031ecc23f58b7b847a674220878792ae96ee2c5ae84fe54491b3dc264aee9b5c"
   }
 }

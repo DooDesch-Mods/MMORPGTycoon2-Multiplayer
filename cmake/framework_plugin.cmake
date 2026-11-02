@@ -24,7 +24,8 @@ target_link_libraries(mp_imgui PUBLIC opengl32
 file(GLOB_RECURSE MP_SOURCES CONFIGURE_DEPENDS
     src/core/*.cpp src/hooks/*.cpp src/net/*.cpp src/sync/*.cpp src/overlay/*.cpp src/game/*.cpp)
 add_library(MT2MultiplayerPlugin SHARED ${MP_SOURCES}
-    src/game/object_identity/native_lease/native_free/native_free_bridges.asm)
+    src/game/object_identity/native_lease/native_free/native_free_bridges.asm
+    src/game/toon_time_fence/camera_gate.asm)
 target_include_directories(MT2MultiplayerPlugin PRIVATE include src/game
     include/vendor/steam include/vendor/minhook/include
     "${MT2_FRAMEWORK_SDK}/include" "${MT2_FRAMEWORK_SDK}/adapters/mt2/sdk")

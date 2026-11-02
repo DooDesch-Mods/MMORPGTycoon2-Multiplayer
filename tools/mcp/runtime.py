@@ -27,11 +27,14 @@ OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot",
 OPS.add("append_subscriber_record_probe")
 OPS.add("insert_marketing_record_probe")
 OPS.add("read_subscriber_weapon")
+OPS.add("read_toon_motion_trace")
+OPS.add("native_periodic_countdown")
 OPS.add("read_vip_alert_owners")
 OPS.add("resync_world")
 MUTATIONS = {"set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
 MUTATIONS.add("resync_world")
+MUTATIONS.add("native_periodic_countdown")
 MUTATIONS.add("insert_marketing_record_probe")
 OPS.add("tutorial_welcome_ok")
 OPS.add("tutorial_leveltwo_message_ok")
@@ -125,6 +128,20 @@ MUTATIONS.add("native_bug_c_policy")
 OPS.update({"read_native_bug_fix_ui", "native_bug_fix_ui"})
 MUTATIONS.add("native_bug_fix_ui")
 OPS.update({"read_native_release", "native_initial_release_fixture"})
+OPS.update({"read_release_planner_ui", "native_release_planner_ui"})
+OPS.update({"read_native_gm_ui", "native_gm_ui"})
+OPS.update({"read_native_loan_ui", "native_loan_ui"})
+OPS.update({"read_native_campaign_ui", "native_campaign_ui"})
+OPS.update({"read_native_service_sync_ui", "native_service_sync_ui"})
+OPS.add("native_service_select_ui")
+OPS.add("native_service_price_ui")
+MUTATIONS.add("native_service_sync_ui")
+MUTATIONS.add("native_service_select_ui")
+MUTATIONS.add("native_service_price_ui")
+MUTATIONS.add("native_campaign_ui")
+MUTATIONS.add("native_loan_ui")
+MUTATIONS.add("native_gm_ui")
+MUTATIONS.add("native_release_planner_ui")
 MUTATIONS.add("native_initial_release_fixture")
 OPS.update({"read_native_developers", "native_developer_fixture"})
 MUTATIONS.add("native_developer_fixture")
@@ -833,7 +850,7 @@ class Runtime:
         if response.get("id") != request_id or response.get("run_id") != self.bound["run_id"]:
             return None
         # A completed snapshot includes the full before/after world witness.
-        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "read_live_host_state", "focus_test_camera", "probe_remove_ui", "read_remove_bindings", "capture_local_snapshot"} else MAX_JSON
+        max_bytes = MAX_STATUS_JSON if operation in {"status", "inspect_engine", "read_native_lobby", "read_live_host_state", "focus_test_camera", "probe_remove_ui", "read_remove_bindings", "capture_local_snapshot", "read_toon_motion_trace"} else MAX_JSON
         if response_bytes > max_bytes:
             raise RuntimeErrorDetail("oversize_json", f"{path}: exceeds {max_bytes} bytes")
         if response.get("schema_version") != 1 or type(response.get("ok")) is not bool:

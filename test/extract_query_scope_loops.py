@@ -317,7 +317,7 @@ release_runtime=(a.root/'src/game/release_runtime.cpp').read_text(encoding='utf-
 release_sample=body(release_runtime,'bool sample(Runtime&')
 release_scalar_call='    {live::apply_timing::PageReadScope scalar_pages(!live::apply_timing::PageReadScope::reader_active());\n        if(!p::sample(read,text,r.image,before,first,e)||!p::sample(read,text,r.image,out,state,e))return false;}'
 assert release_sample.count(release_scalar_call)==1
-assert release_sample.index('context(r,c,b,pin,e)')<release_sample.index(release_scalar_call)<release_sample.index('if(before!=out||first!=state)')<release_sample.index('native_open_runtime::read_current_world(')
+assert release_sample.index('context(r,c,b,pin,e,ordered)')<release_sample.index(release_scalar_call)<release_sample.index('if(before!=out||first!=state)')<release_sample.index('native_open_runtime::read_current_world(')
 (a.output/'release_scalar_pair_actual.inc').write_text(release_scalar_call+'\n'+release_sample[release_sample.index('    if(before!=out||first!=state)'):release_sample.index('    building_mixed_identity::')],encoding='utf-8')
 (a.output/'pure_release_string_bodies.inc').write_text(body(release_runtime,'template<class T>bool at(Runtime&')+'\n'+body(release_runtime,'bool string(Runtime&')+'\n',encoding='utf-8')
 find_call='    auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& cause){const auto seh=lookup(api.find,uid,pointer);\n        return !seh||fail(cause,"Character complete census current FindUID failed SEH="+std::to_string(seh));};'
@@ -445,7 +445,7 @@ region_scope=batch_runtime[region_start:region_end]
 assert region_scope.count('PageReadScope fields(')==1 and batch_runtime.count(region_scope)==1
 (a.output/'saved_root_final_field_scope.inc').write_text(region_scope+'return port();\n',encoding='utf-8')
 # Both uncached global Origin proofs remain outside the concrete final Region adapter.
-assert 'if(!verify_origin(error)||!finish_body(error)||!verify_origin(error))return proof.reject(error);' in batch_runtime
+assert 'if(!verify_origin(error)||!finish_body(error)||!verify_origin(error)||!verify_lookup(error))return proof.reject(error);' in batch_runtime
 catalog_source=(a.root/'src/game/scenery_kiss/native_catalog.cpp').read_text(encoding='utf-8')
 method=body(catalog_source,'bool NativeCatalog::identify(')
 (a.output/'catalog_field_scope_body.inc').write_text(method+'\n',encoding='utf-8')

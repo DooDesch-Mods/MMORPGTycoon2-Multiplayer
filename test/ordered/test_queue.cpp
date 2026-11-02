@@ -1,4 +1,5 @@
 #include "tick_commands.h"
+#include "periodic_requests.h"
 #include <iostream>
 #include <deque>
 using namespace mt2mp::action_session;
@@ -22,6 +23,21 @@ struct Native {
 int main(){try{
     retained_completion_cases::run();
     std::string error;tc::Assigned assigned;tc::Batch batch;tc::Receipt receipt;
+    {tc::PeriodicRequests pending;bool ready=false;auto owner=config().context;tc::wire::PeriodicRequest due{77,10,7,2,"snapshot-A"};
+     need(pending.receive(owner,2,due,100,50,error),error);need(pending.receive(owner,2,due,101,50,error),"equal request not deduplicated");
+     need(pending.ready(9,102,false,ready,error)&&!ready,"Host captured before Client request tick");
+     need(pending.ready(10,102,true,ready,error)&&!ready,"busy prior snapshot was incorrectly coalesced");
+     need(pending.ready(10,102,false,ready,error)&&ready,"fresh periodic request did not become ready");
+     auto conflict=due;conflict.invocation++;need(!pending.receive(owner,2,conflict,103,50,error),"conflicting Client owner admitted");
+     pending.completed();need(pending.trigger_count()==1&&pending.last_triggered()[2]&&pending.last_triggered()[2]->tick==10,"trigger did not retain Client request identity");
+     need(pending.receive(owner,2,due,104,50,error),"late equal duplicate was not ignored");
+     need(pending.ready(10,105,false,ready,error)&&!ready,"late duplicate replayed Host Save");
+     due.tick++;need(pending.receive(owner,2,due,110,50,error),error);need(!pending.ready(11,160,false,ready,error),"expired periodic request silently succeeded");}
+    {tc::Queue host(config(),valid);tc::Input snapshot{77,"snapshot-A",tc::SnapshotRequest{1,1,0,"22222222-2222-4222-8222-222222222222",tc::SnapshotPurpose::HostPeriodic}};
+     need(host.offer(1,snapshot,assigned,error)==tc::Admission::Accepted,error);
+     need(host.offer(1,snapshot,assigned,error)==tc::Admission::Duplicate,"identical periodic request is not duplicate");
+     std::get<tc::SnapshotRequest>(snapshot.command).purpose=tc::SnapshotPurpose::Ordinary;
+     need(host.offer(1,snapshot,assigned,error)==tc::Admission::Rejected&&host.state().locked,"conflicting duplicate purpose did not lock");}
     {tc::Queue host(config(),valid),client(config(2),valid);Native h,c;
      const auto a=action(2,1),pause=time(1,1),undo=action(1,1,Action::UndoBuilding);
      need(host.offer(2,a,assigned,error)==tc::Admission::Accepted&&assigned.order==1,error);

@@ -1,5 +1,10 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include "native_steps_draft.h"
+#include <cstddef>
+static_assert(MT2FW_MT2_SNAPSHOT_ARM_PERIODIC==7);
+static_assert(sizeof(MT2FW_MT2_SnapshotRequest)==128);
+static_assert(offsetof(MT2FW_MT2_SnapshotRequest,nonce)==56);
+static_assert(offsetof(MT2FW_MT2_SnapshotRequest,witness_sha256)==96);
 #include <optional>
 #include <map>
 #include <algorithm>

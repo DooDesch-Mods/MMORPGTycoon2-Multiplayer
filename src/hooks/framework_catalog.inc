@@ -83,6 +83,10 @@
 {"mp.toon-visual-equip.3a1df0",0x3a1df0,false},
 
 {"mp.toon-time-normalization.3ea3a0",0x3ea3a0,false},
+{"mp.toon-camera-schedule-gate.3ea462",0x3ea462,false},
+{"mp.npc-camera-gate.3c8db7",0x3c8db7,false},
+{"mp.toon-travel-rotation-gate.3b7b37",0x3b7b37,false},
+{"mp.toon-attribute-cadence-gate.3a0942",0x3a0942,false},
 
 {"mp.thought-d1-lifetime.3f0fc0",0x3f0fc0,false},
 
@@ -308,6 +312,7 @@
 {"mp.monster-property-save-load.da7a10",0xda7a10,false},
 {"mp.management-hire-gm.56940",0x56940,false},
 {"mp.management-fire-gm.56a70",0x56a70,false},
+{"mp.management-gm-window-command.6ea5a0",0x6ea5a0,false},
 {"mp.management-release-funds.4ec880",0x4ec880,false},
 {"mp.management-statistics-apply.7d2a40",0x7d2a40,false},
 {"mp.management-overview-command.76bd40",0x76bd40,false},

@@ -8,20 +8,23 @@ inline const CameraStep* camera_step(int32_t index){
     static constexpr CameraStep steps[]={{8,3,10,"zoom","rotate"},{10,2,12,"rotate","zoomout"},{12,4,15,"zoomout","mainheader"}};
     for(const auto& step:steps)if(step.index==index)return &step;return nullptr;
 }
-enum class CameraInput {WheelIn,WheelOut,RotateDown,RotateMotion,RotateUp};
+enum class CameraInput {WheelIn,WheelOut,RotateDown,RotateMotion,RotateUp,Position};
 struct CameraReceipt {
     std::string token,cause,release_cause;int32_t index=-1;
     Snapshot before{},after{},completion{};
     bool active=false,confirmed=false,button_attempted=false,button_returned=false,button_polled=false;
+    bool position_attempted=false,position_pending=false,position_polled=false,position_ready=false;
     bool up_attempted=false,up_returned=false,up_polled=false,button_released=false;
     uint32_t pulses_attempted=0,pulses_returned=0,pulses_polled=0;
-    uint64_t last_frame=0,deadline=0,release_deadline=0;
+    uint64_t last_frame=0,position_polled_frame=0,deadline=0,release_deadline=0;
 };
 struct CameraServices {
     void* user=nullptr;
     bool(*observe)(void*,int32_t,Snapshot&,std::string&)=nullptr;
     bool(*release_observe)(void*,const Snapshot&,Snapshot&,std::string&)=nullptr;
     bool(*send)(void*,const Snapshot&,CameraInput,std::string&)=nullptr;
+    bool(*prepare_position)(void*,const Snapshot&,bool&,std::string&)=nullptr;
+    bool(*position_ready)(void*,const Snapshot&,std::string&)=nullptr;
     uint64_t(*now)(void*)=nullptr;
 };
 class CameraFixture {
@@ -48,12 +51,20 @@ public:
         if(token.empty()||s.origin!=origin||s.tutorial_index!=index||s.threshold_reached||!s.keyboard_focus||!s.input_enabled||s.key_down||s.axis!=0){error="camera tutorial requires exact idle owned input and current step";return false;}
         used_[slot]=true;receipt_={};receipt_.index=index;receipt_.token=token;receipt_.before=receipt_.after=s;receipt_.active=true;
         receipt_.last_frame=frame;receipt_.deadline=services_.now(services_.user)+15000;
-        if(index==10){receipt_.button_attempted=true;receipt_.button_returned=services_.send(services_.user,s,CameraInput::RotateDown,error);if(!receipt_.button_returned){failure(error,error);std::string cleanup;release(cleanup);return false;}}
+        if(index==10){
+            receipt_.position_attempted=true;
+            if(!services_.prepare_position||!services_.position_ready||!services_.prepare_position(services_.user,s,receipt_.position_pending,error)){
+                receipt_.active=false;return failure(error.empty()?"camera position preparation unavailable":error,error);
+            }
+            receipt_.position_polled=!receipt_.position_pending;
+            if(!receipt_.position_pending)receipt_.position_polled_frame=frame;
+        }
         error.clear();return true;
     }
-    bool polled(CameraInput input,std::string& error){
+    bool polled(CameraInput input,uint64_t frame,std::string& error){
         if(!receipt_.active)return true;
-        if(input==CameraInput::RotateDown){if(!receipt_.button_attempted||receipt_.button_polled)return failure("unexpected duplicate original rotate down",error);receipt_.button_polled=true;}
+        if(input==CameraInput::Position){if(!receipt_.position_pending||receipt_.position_polled)return failure("unexpected camera position acknowledgement",error);receipt_.position_polled=true;receipt_.position_polled_frame=frame;}
+        else if(input==CameraInput::RotateDown){if(!receipt_.button_attempted||receipt_.button_polled)return failure("unexpected duplicate original rotate down",error);receipt_.button_polled=true;}
         else if(input==CameraInput::RotateUp){if(!receipt_.up_attempted||receipt_.up_polled)return failure("unexpected duplicate original rotate up",error);receipt_.up_polled=true;}
         else{if(receipt_.pulses_polled>=receipt_.pulses_attempted)return failure("unexpected camera pulse acknowledgement",error);++receipt_.pulses_polled;}
         return true;
@@ -69,6 +80,8 @@ public:
             if(!services_.observe(services_.user,receipt_.index,actual,error)||!same_owner(actual))failure(error.empty()?"camera tutorial owner changed":error,error);
             else{
                 receipt_.after=actual;
+                if(receipt_.index==10&&!receipt_.button_attempted&&actual.threshold_reached)
+                    failure("camera position changed rotation before original button input",error);
                 if(actual.threshold_reached)receipt_.completion=actual;
                 if(now>=receipt_.deadline)failure("camera tutorial threshold or ordered release timed out after 15000ms",error);
             }
@@ -96,6 +109,14 @@ public:
         }
         if(frame<=receipt_.last_frame||receipt_.pulses_polled!=receipt_.pulses_returned)return true;
         if(!actual.keyboard_focus||!actual.input_enabled)return suspend("camera tutorial lost owned input focus",error);
+        if(receipt_.index==10&&!receipt_.button_attempted){
+            if(!receipt_.position_polled||frame<=receipt_.position_polled_frame)return true;
+            if(!services_.position_ready(services_.user,receipt_.before,error))return suspend(error,error);
+            receipt_.position_ready=true;receipt_.button_attempted=true;receipt_.last_frame=frame;
+            receipt_.button_returned=services_.send(services_.user,receipt_.before,CameraInput::RotateDown,error);
+            if(!receipt_.button_returned)return suspend(error,error);
+            return true;
+        }
         // The native camera owns the relative-mode transition, which flushes queued motion.
         if(receipt_.index==10&&(!receipt_.button_polled||!actual.key_down||actual.axis<=0||!actual.mouse_relative||!actual.mouse_focus))return true;
         if(receipt_.pulses_attempted>=256)return suspend("camera tutorial exceeded 256 original input pulses",error);

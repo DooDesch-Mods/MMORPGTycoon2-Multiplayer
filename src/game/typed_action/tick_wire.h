@@ -11,9 +11,14 @@ struct SnapshotControl {
     std::array<uint8_t,32> witness{};
     bool operator==(const SnapshotControl&)const=default;
 };
+struct PeriodicRequest {
+    uint64_t session=0,tick=0,invocation=0,peer=0;
+    std::string snapshot_uuid;
+    bool operator==(const PeriodicRequest&)const=default;
+};
 struct Packet {
     uint8_t peer_mask=0;
-    std::variant<Input,Batch,Receipt,SnapshotControl> value;
+    std::variant<Input,Batch,Receipt,SnapshotControl,PeriodicRequest> value;
     bool operator==(const Packet&)const=default;
 };
 bool encode(const Packet&,std::vector<uint8_t>&,std::string&);

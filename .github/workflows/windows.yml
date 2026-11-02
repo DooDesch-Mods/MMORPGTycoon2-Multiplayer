@@ -159,6 +159,18 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_developer_ui.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_gm_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_loan_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_campaign_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_release_planner_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_service_sync_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -X utf8 test/mcp/test_service_price_ui.py
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_bug_policy.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_bug_fix_ui.py

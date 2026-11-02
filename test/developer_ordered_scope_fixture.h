@@ -12,4 +12,5 @@ bool matches(const Context& c,const Binding& b,const Request& r,std::string& e){
     if(!active()||c!=ordered_test::context||b!=ordered_test::binding||r!=ordered_test::request){e="fixture ordered command Context/Binding/request differs";return false;}
     return true;
 }
+bool matches(const Binding& b,const Request& r,std::string& e){return matches(ordered_test::context,b,r,e);}
 }

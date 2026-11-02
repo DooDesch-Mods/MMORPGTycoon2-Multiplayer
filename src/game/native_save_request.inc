@@ -104,6 +104,45 @@ bool request_original_periodic_save(std::string& error){
     error.clear();return true;
 }
 
+namespace {
+uint32_t periodic_countdown_show(uintptr_t entry,void* window){
+    __try{reinterpret_cast<void(*)(void*,bool,bool)>(entry)(window,true,false);return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+}
+bool request_original_periodic_countdown(std::string& error){
+    if(!check_thread(error))return false;
+    auto* mode=singleton(mode_slot);int saves=-1;void* window=nullptr;
+    if(!in_game()||!read_at(mode,0x30c,saves)||saves!=0||!read_at(mode,0x90,window)||!has_vtable(window,0x1712560))
+        return fail(error,"periodic countdown requires current idle Mode-owned AutosaveWindow");
+    uint8_t visible=0,locked=0;
+    if(!read_at(window,0x45f,visible)||!read_at(window,0x4ec,locked)||visible||locked)
+        return fail(error,"periodic countdown requires hidden and unlocked original Window");
+    const auto module=image.load();
+    struct Pin {uintptr_t rva;size_t bytes;const char* hash;};
+    static constexpr Pin pins[]={
+        {0x81ec20,64,"6017edee8911e17d4541a597fa2ff4240b5652a187d885a5d9ef24b56ce25f57"},
+        {0x65fa60,544,"572d1de21a8e165d7adfab777252f7f47ee483d529a87e15ca47a3483297ee4e"},
+        {0x81e4e0,1856,"de12dc1850699c368d22c5df83fe6b2d37836d1ab26f78e019f22deb9162b371"},
+    };
+    for(const auto& pin:pins){std::string cause;const auto entry=module+pin.rva;
+        if(!readable(reinterpret_cast<void*>(entry),pin.bytes)||!hooks::framework::verify_original_hash(entry,reinterpret_cast<void*>(entry),pin.bytes,pin.hash,cause))
+            return fail(error,"periodic countdown original body differs RVA="+std::to_string(pin.rva)+": "+cause);
+    }
+    uintptr_t table=0,show=0,on_show=0,update=0;
+    if(!read_at(window,0,table)||!read_at(reinterpret_cast<void*>(table),0x1d0,show)||!read_at(reinterpret_cast<void*>(table),0xb0,on_show)||
+       !read_at(reinterpret_cast<void*>(table),0xd8,update)||show!=module+0x81ec20||on_show!=module+0x65fa60||update!=module+0x65fc80)
+        return fail(error,"periodic countdown original Window virtual entries differ");
+    const auto exception=periodic_countdown_show(show,window);
+    if(exception)return fail(error,"periodic countdown original Show failed exception="+std::to_string(exception)+"; no replay");
+    void* after_window=nullptr;int state=-1;float countdown=0;
+    if(!in_game()||singleton(mode_slot)!=mode||!read_at(mode,0x90,after_window)||after_window!=window||
+       !read_at(window,0x45f,visible)||!read_at(window,0x4ec,locked)||!read_at(window,0x4e8,state)||!read_at(window,0x4e4,countdown)||
+       visible!=1||locked!=0||state!=0||countdown!=20.0f)
+        return fail(error,"periodic countdown original Show returned with changed owner or countdown; no replay");
+    error.clear();return true;
+}
+
 bool original_export_request(const std::string& nonce,uint32_t kind,bool option,uintptr_t& mode,std::string& filename,std::string& error){
     mode=0;filename.clear();if(!check_thread(error))return false;
     if((kind!=1&&kind!=2)||(nonce.size()!=36||nonce.find_first_not_of("0123456789abcdef-")!=std::string::npos))return fail(error,"Client export original Save kind or nonce invalid");

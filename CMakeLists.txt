@@ -78,7 +78,7 @@ list(FILTER MOD_SOURCES EXCLUDE REGEX "/src/hooks/framework_backend\\.cpp$")
 
 add_library(MT2_Multiplayer SHARED ${MOD_SOURCES})
 enable_language(ASM_MASM)
-target_sources(MT2_Multiplayer PRIVATE src/game/object_identity/native_lease/native_free/native_free_bridges.asm)
+target_sources(MT2_Multiplayer PRIVATE src/game/object_identity/native_lease/native_free/native_free_bridges.asm src/game/toon_time_fence/camera_gate.asm)
 target_include_directories(MT2_Multiplayer PUBLIC include)
 target_include_directories(MT2_Multiplayer PRIVATE src/game)
 if(MSVC)

@@ -48,7 +48,7 @@ bool Queue::input(const Input& in,std::string& cause){
         if(uint8_t(time->intent)>uint8_t(game::time_session::Intent::TogglePauseNormal))return reject("Time command intent invalid",cause);
     }else {
         const auto& save=std::get<SnapshotRequest>(in.command);
-        if(save.peer!=c.host_peer||save.nonce.size()!=36)return reject("Snapshot preparation requires Host and exact nonce",cause);
+        if(save.peer!=c.host_peer||save.nonce.size()!=36||uint8_t(save.purpose)>1)return reject("Snapshot preparation requires Host, exact nonce and valid purpose",cause);
     }
     try{if(!validate_(in,cause))return reject(detail("Tick command validation",cause),cause);}
     catch(const std::exception& e){return reject(std::string("Tick command validator exception: ")+e.what(),cause,true);}

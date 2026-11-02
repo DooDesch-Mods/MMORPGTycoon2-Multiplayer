@@ -36,7 +36,9 @@ bool read_services(Runtime& r,const a::Context& context,const a::Binding& bindin
     }
     const auto& selected=services.rows[size_t(intent.service_ordinal)];
     if(services.config_present&&(selected.synced||(intent.op==a::ManagementOp::SetServiceSync&&intent.value&&selected.allow_sync))&&selected.config_key.empty())return fail(e,"Management original config resolution requires nonempty native service key");
-    state.services=std::move(services);return true;
+    state.services=std::move(services);
+    if(intent.op==a::ManagementOp::SetServicePrice&&typed_action_runtime::controller_status().value("ordered",false)&&!read_price_graph(r,context,binding,local,*state.services,e))return false;
+    return true;
 }
 void service_capture(Runtime& r,void* receiver,a::ManagementIntent intent){
     std::string e;uintptr_t building=0,selection=0;

@@ -5,6 +5,8 @@
 
 namespace mt2mp::game::interventions::actors::live {
 bool enable(std::string&);
+bool enable_npc_camera_gate(std::string&);
+bool normalize_npc_body(uintptr_t,std::vector<unsigned char>&,std::string&);
 bool bind(const action_session::Context&,const action_session::Binding&,uint64_t,std::string&);
 bool suspend(std::string&);
 bool capture(const action_session::Context&,const action_session::Binding&,State&,lifecycle::Batch&,std::string&);

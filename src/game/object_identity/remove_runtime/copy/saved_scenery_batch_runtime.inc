@@ -5,6 +5,26 @@ struct RootSceneryReadBatch::State {
     uint64_t origin_revision=0;
     bool fresh_origin=false;
     bool world_ready=false,fresh_world=false;
+    uintptr_t lookup_image=0;uint32_t lookup_thread=0;uint64_t lookup_revision=0;LookupApi lookup_api;
+    bool lookup_context(uintptr_t requested,std::string_view hash,std::string& error){
+        if(!proof.healthy(error))return false;
+        const auto revision=mt2mp::game::live_host_state::apply_timing::original_call_revision;
+        if(hash!=mt2mp::native_uid::required_exe_sha||!requested||revision==UINT64_MAX||
+           (lookup_image&&(lookup_image!=requested||lookup_thread!=GetCurrentThreadId()||lookup_revision!=revision))){
+            error="saved Scenery lookup proof owner, hash or native boundary changed";return proof.reject(error);
+        }return true;
+    }
+    bool resolve_cached_lookup(Memory& memory,uintptr_t requested,std::string_view hash,LookupApi& out,std::string& error){
+        out={};if(!lookup_context(requested,hash,error))return false;
+        if(!lookup_image){LookupApi fresh;if(!resolve_lookup_raw(memory,requested,hash,fresh,error))return proof.reject(error);
+            lookup_image=requested;lookup_thread=GetCurrentThreadId();lookup_revision=mt2mp::game::live_host_state::apply_timing::original_call_revision;lookup_api=fresh;}
+        out=lookup_api;return true;
+    }
+    bool verify_lookup(std::string& error){
+        if(!lookup_image)return true;if(!lookup_context(lookup_image,mt2mp::native_uid::required_exe_sha,error))return false;
+        ProcessMemory memory;LookupApi fresh;if(!resolve_lookup_raw(memory,lookup_image,mt2mp::native_uid::required_exe_sha,fresh,error))return false;
+        if(fresh.find!=lookup_api.find||fresh.cast!=lookup_api.cast){error="saved Scenery lookup proof changed";return false;}return true;
+    }
     bool verify_origin(std::string& error){
         if(!cached_origin)return true;
         struct Fresh {bool& flag;explicit Fresh(bool& value):flag(value){flag=true;}~Fresh(){flag=false;}} fresh(fresh_origin);
@@ -30,7 +50,7 @@ struct RootSceneryReadBatch::State {
         if(!proof.active())return true;
         struct FreshWorld {bool& flag;explicit FreshWorld(bool& value):flag(value){flag=true;}~FreshWorld(){flag=false;}} fresh(fresh_world);
         ProcessMemory memory;NativeOrigin origin;LookupApi resolved;
-        if(!resolve_lookup(memory,image,mt2mp::native_uid::required_exe_sha,resolved,error))return false;
+        if(!resolve_lookup_raw(memory,image,mt2mp::native_uid::required_exe_sha,resolved,error))return false;
         Reader reader(memory,origin,image,thread,resolved);WorldState before,after;
         if(!reader.current(before,true,error)||!admit(before,image,thread,resolved,error))return false;
         auto read=[&](uintptr_t pointer,size_t offset,auto& value,std::string& cause){
@@ -66,10 +86,14 @@ struct RootSceneryReadBatch::State {
     }
     bool finish(std::string& error){
         if(!proof.healthy(error))return false;
-        if(!verify_origin(error)||!finish_body(error)||!verify_origin(error))return proof.reject(error);
+        if(!verify_origin(error)||!finish_body(error)||!verify_origin(error)||!verify_lookup(error))return proof.reject(error);
         return true;
     }
 };
+bool RootSceneryReadBatch::resolve_current_lookup(Memory& memory,uintptr_t image,std::string_view hash,LookupApi& out,std::string& error){
+    if(!current_)return resolve_lookup_raw(memory,image,hash,out,error);
+    return current_->state_->resolve_cached_lookup(memory,image,hash,out,error);
+}
 bool RootSceneryReadBatch::reuse_world(WorldState& out,bool idle,uintptr_t image,uint32_t thread,LookupApi api,bool& reused,std::string& error){
     reused=false;if(!current_)return true;
     auto& state=*current_->state_;

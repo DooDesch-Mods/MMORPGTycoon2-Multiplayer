@@ -11,9 +11,18 @@
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/minhook_backend.h"
 #include "live_host_state/economic_fence.h"
+#include "toon_time_fence/camera_gate_scope.h"
+#include "toon_time_fence/npc_camera_owner.h"
+#include "toon_time_fence/gate_relocation.h"
 #include <Windows.h>
 #include <intrin.h>
 #include <cstring>
+
+extern "C" void mt2mp_npc_camera_gate();
+extern "C" {
+uintptr_t mt2mp_npc_gate_original=0;
+uintptr_t mt2mp_npc_gate_full=0;
+}
 
 namespace mt2mp::game::interventions::actors::live {
 namespace {
@@ -38,17 +47,38 @@ struct Runtime {
         {0x39d560,96,6,"6b2cfd2d932839ba6f9ea33deeb8a73f232616b7a6b11fe155c3592103037896"},
         {0x39e760,496,7,"3c6b2d2f40bfb03057953423834024adcd5a098857a34ab786ba79584ca9f822"}}};
 } state;
+struct NpcGate {bool attempted=false,enabled=false;uint64_t generation=0;std::array<unsigned char,9> original{};std::array<unsigned char,16> installed{};std::array<unsigned char,64> relocated{};} npc_gate;
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}
 bool reject(std::string& error,const std::string& cause){
     if(!state.locked){state.locked=true;state.cause=cause;live_host_state::economic_fence().journal_failed(cause);LOG_ERROR("[Actor24] {}",cause);}error=state.cause;return false;
 }
 template<class T>bool at(uintptr_t object,size_t offset,T& value,std::string& error){return root_saved_building::bytes(reinterpret_cast<void*>(object),offset,&value,sizeof value,error);}
+bool npc_gate_current(std::string& error){
+    if(!npc_gate.enabled)return fail(error,"NPC camera gate is not enabled");
+    MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;
+    if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(state.image+0x3c8db7),actual))return fail(error,"NPC camera gate route read failed: "+hooks::framework::process_backend().error());
+    if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=npc_gate.generation||actual.entry!=state.image+0x3c8db7||
+       actual.trampoline!=mt2mp_npc_gate_original||actual.detour!=uintptr_t(&mt2mp_npc_camera_gate)||std::strcmp(actual.owner,"doodesch.multiplayer"))return fail(error,"NPC camera gate route ownership changed");
+    std::array<unsigned char,16> entry{};std::array<unsigned char,64> relocated{};
+    if(!root_saved_building::bytes(reinterpret_cast<void*>(actual.entry),0,entry.data(),entry.size(),error)||
+       !root_saved_building::bytes(reinterpret_cast<void*>(actual.trampoline),0,relocated.data(),relocated.size(),error))return false;
+    return (entry==npc_gate.installed&&relocated==npc_gate.relocated)||fail(error,"NPC camera gate entry or trampoline changed");
+}
 bool route_current(Route& route,std::string& error,bool full){
     const auto& owner=route.owner;MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;
     if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),actual))return fail(error,"Actor24 named route read failed original="+hooks::framework::process_backend().error());
     if(actual.state!=MT2FW_MT2_ROUTE_ENABLED||actual.generation!=owner.generation||actual.entry!=owner.entry||actual.trampoline!=owner.trampoline||actual.detour!=owner.detour||std::strcmp(actual.owner,"doodesch.multiplayer"))return fail(error,"Actor24 named route owner/generation/trampoline changed");
     if(!full)return true;
-    return release_ui_owner::verify(owner,[](auto address,auto out,auto bytes,auto& cause){return root_saved_building::bytes(reinterpret_cast<void*>(address),0,out,bytes,cause);},[](const auto& bytes){return mt2mp::sha256(bytes);},route.sha,error)&&hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error);
+    if(route.rva==0x3c8d50&&npc_gate.enabled){
+        if(!npc_gate_current(error)||!hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error))return false;
+    }
+    const auto copy=[&](auto address,auto out,auto bytes,auto& cause){
+        if(!root_saved_building::bytes(reinterpret_cast<void*>(address),0,out,bytes,cause))return false;
+        if(route.rva==0x3c8d50&&npc_gate.enabled&&address==owner.entry&&bytes==owner.pristine.size())
+            std::memcpy(static_cast<unsigned char*>(out)+(0x3c8db7-0x3c8d50),npc_gate.original.data(),npc_gate.original.size());
+        return true;
+    };
+    return release_ui_owner::verify(owner,copy,[](const auto& bytes){return mt2mp::sha256(bytes);},route.sha,error)&&hooks::framework::process_backend().verify_code(owner.entry,owner.pristine.data(),owner.pristine.size(),error);
 }
 bool routes(std::string& error){for(auto& route:state.routes)if(!route_current(route,error,true))return false;return true;}
 bool world(std::string& error){
@@ -128,7 +158,22 @@ void update_entry(size_t index,uintptr_t pointer,float dt){
     }catch(const std::exception& exception){reject(error,std::string("Actor24 update disposition exception: ")+exception.what());}
     catch(...){reject(error,"Actor24 update disposition nonstandard exception");}
 }
-void npc_update(uintptr_t pointer,float dt){update_entry(0,pointer,dt);}void npc_tick(uintptr_t pointer,float dt){update_entry(1,pointer,dt);}
+void npc_update(uintptr_t pointer,float dt){
+    namespace gate=toon_time_fence::camera_gate;
+    bool admitted=false;std::string error;
+    if(gate::state.root){
+        try{
+            const auto read=[](uintptr_t object,size_t offset,auto& value,std::string& cause){return at(object,offset,value,cause);};
+            if(!toon_time_fence::npc_camera_owner::admit(read,state.image,gate::state.root,pointer,uintptr_t(_ReturnAddress()),admitted,error)){
+                gate::state.failed=true;if(gate::state.cause.empty())gate::state.cause=error.empty()?"NPC camera owner failed without cause":error;
+            }
+        }catch(const std::exception& ex){gate::state.failed=true;if(gate::state.cause.empty())gate::state.cause=ex.what();}
+        catch(...){gate::state.failed=true;if(gate::state.cause.empty())gate::state.cause="NPC camera owner nonstandard exception";}
+    }
+    gate::Entry selected(admitted?pointer:0);
+    update_entry(0,pointer,dt);
+}
+void npc_tick(uintptr_t pointer,float dt){update_entry(1,pointer,dt);}
 void boss_update(uintptr_t pointer,float dt){update_entry(2,pointer,dt);}void boss_tick(uintptr_t pointer,float dt){update_entry(3,pointer,dt);}
 void manager_update(uintptr_t pointer,float dt){
     auto& route=state.routes[4];if(!route.original)throw std::runtime_error("Actor24 BossManager original route unavailable");
@@ -163,6 +208,39 @@ bool enable(std::string& error){
         MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(owner.entry),actual)){error="Actor24 named route receipt failed original="+hooks::framework::process_backend().error();return failed();}owner.generation=actual.generation;
     }
     if(!routes(error))return failed();state.enabled=true;error.clear();return true;
+}
+bool enable_npc_camera_gate(std::string& error){
+    if(npc_gate.enabled)return npc_gate_current(error);
+    if(npc_gate.attempted)return fail(error,"NPC camera gate installation already attempted");
+    npc_gate.attempted=true;
+    if(!state.enabled||GetCurrentThreadId()!=state.thread||!routes(error))return fail(error,error.empty()?"NPC camera gate requires the current entry owner":error);
+    const auto target=state.image+0x3c8db7;
+    std::array<unsigned char,16> before{};
+    if(!root_saved_building::bytes(reinterpret_cast<void*>(target),0,before.data(),before.size(),error))return false;
+    std::copy_n(before.begin(),npc_gate.original.size(),npc_gate.original.begin());
+    if(mt2mp::sha256(std::vector<unsigned char>(npc_gate.original.begin(),npc_gate.original.end()))!="9be443f68b129ad7fd04163b47b7251aec1fe8de1182aa9e153cd9e85b51818c")return fail(error,"NPC camera original branch differs");
+    const auto prepared=MH_CreateHook(reinterpret_cast<void*>(target),reinterpret_cast<void*>(&mt2mp_npc_camera_gate),reinterpret_cast<void**>(&mt2mp_npc_gate_original));
+    if(prepared!=MH_OK||!mt2mp_npc_gate_original)return fail(error,"NPC camera gate prepare failed status="+std::to_string(prepared));
+    mt2mp_npc_gate_full=state.image+0x3c8e78;
+    if(!root_saved_building::bytes(reinterpret_cast<void*>(mt2mp_npc_gate_original),0,npc_gate.relocated.data(),npc_gate.relocated.size(),error))return false;
+    if(!toon_time_fence::camera_gate::npc_relocation(npc_gate.relocated,state.image,uintptr_t(&mt2mp_npc_camera_gate)))return fail(error,"NPC camera relocated branches or relay differ");
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(target));
+    if(enabled!=MH_OK)return fail(error,"NPC camera gate enable failed status="+std::to_string(enabled));
+    if(!root_saved_building::bytes(reinterpret_cast<void*>(target),0,npc_gate.installed.data(),npc_gate.installed.size(),error))return false;
+    if(npc_gate.installed[0]!=0xe9||!std::equal(npc_gate.installed.begin()+5,npc_gate.installed.end(),before.begin()+5))return fail(error,"NPC camera gate modified original branch tail");
+    MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;
+    if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(target),actual))return fail(error,"NPC camera gate receipt failed: "+hooks::framework::process_backend().error());
+    npc_gate.generation=actual.generation;npc_gate.enabled=true;
+    if(!npc_gate_current(error)||!routes(error))return false;
+    error.clear();return true;
+}
+bool normalize_npc_body(uintptr_t entry,std::vector<unsigned char>& bytes,std::string& error){
+    if(!npc_gate.enabled)return true;
+    const auto& owner=state.routes[0].owner;constexpr size_t offset=0x3c8db7-0x3c8d50;
+    if(entry!=owner.entry||bytes.size()!=801||offset+npc_gate.installed.size()>bytes.size())return fail(error,"NPC original-body normalization extent differs");
+    if(!route_current(state.routes[0],error,true))return false;
+    if(!std::equal(npc_gate.installed.begin(),npc_gate.installed.end(),bytes.begin()+offset))return fail(error,"NPC original-body observed gate differs");
+    std::copy(npc_gate.original.begin(),npc_gate.original.end(),bytes.begin()+offset);return true;
 }
 bool bind(const a::Context& context,const a::Binding& binding,uint64_t epoch,std::string& error){
     if(!state.enabled||state.locked||state.ordered||state.replaying||GetCurrentThreadId()!=state.thread||!epoch)return fail(error,state.cause.empty()?"Actor24 bind requires enabled confirmed idle Mainthread owner":state.cause);

@@ -284,6 +284,7 @@ bool original_save_target(uintptr_t mode,const std::string& filename,uint32_t ki
 bool capture_original_save(uintptr_t mode,const std::string& filename,uint32_t kind,bool option,const std::string& target,std::string& error);
 bool request_original_save(const std::string& filename,bool blocking,std::string& error);
 bool request_original_periodic_save(std::string& error);
+bool request_original_periodic_countdown(std::string& error);
 // Accepts save/<game-folder>/<filename>.vrz while the title mode is active.
 // True means a load was requested, not that world activation completed.
 bool request_load(const std::string& filename, std::string& error);

@@ -11,9 +11,11 @@ struct TimeRequest {
     game::time_session::Intent intent=game::time_session::Intent::Pause;
     bool operator==(const TimeRequest&)const=default;
 };
+enum class SnapshotPurpose : uint8_t { Ordinary = 0, HostPeriodic = 1 };
 struct SnapshotRequest {
     uint64_t peer=0,sequence=0,observed_revision=0;
     std::string nonce;
+    SnapshotPurpose purpose=SnapshotPurpose::Ordinary;
     bool operator==(const SnapshotRequest&)const=default;
 };
 struct Input {
@@ -36,7 +38,7 @@ struct Batch {
 };
 inline bool requires_evidence(const Input& input){
     const auto* r=std::get_if<Request>(&input.command);
-    return r&&(r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::EditGroup||r->action==Action::MoveSelection||r->action==Action::DuplicateSelection||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
+    return r&&((r->action==Action::ManagementCommand&&ordered_management(r->management))||(r->action==Action::ReleaseEdit&&game::release_edit::ordered_type(r->release_edit))||r->action==Action::FireDeveloper||r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::EditGroup||r->action==Action::MoveSelection||r->action==Action::DuplicateSelection||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
         ((r->action==Action::UndoBuilding||r->action==Action::RedoBuilding)&&
          !r->target_action_uuid.empty()&&(r->canonical_record_key=="terrain:"+r->target_action_uuid||
          r->canonical_record_key=="path:"+r->target_action_uuid||r->canonical_record_key=="groups:"+r->target_action_uuid||r->canonical_record_key=="selection:"+r->target_action_uuid||r->canonical_record_key=="duplicate:"+r->target_action_uuid)));

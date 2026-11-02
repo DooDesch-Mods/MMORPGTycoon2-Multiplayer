@@ -19,6 +19,8 @@ namespace action=mt2mp::action_session;
 namespace staff=mt2mp::game::developer_staff;
 namespace fixture {
 bool change_job_census=false;
+bool use_actual_read=false,ordered_mode=false,reciprocal_ok=true;
+unsigned census_calls=0,legacy_job_reads=0,submissions=0,rejected_calls=0;
 unsigned checks=0,ui_calls=0,count_calls=0,reads=0;
 unsigned construction_preflights=0,construction_applies=0;bool jobs_ok=true,construction_ok=true,construction_partial=false;
 bool code_ok=true,window_ok=true,before_ok=true,after_ok=true,immediate_ok=true;
@@ -38,12 +40,18 @@ namespace latch {using ApplyReceipt=mt2mp::game::live_host_state::ApplyReceipt;
 }
 uint32_t fixture_current_thread(){return 1;}
 #define GetCurrentThreadId fixture_current_thread
-namespace mt2mp {struct Config {bool local_test=true;static Config& instance(){static Config value;return value;}};}
+namespace mt2mp {struct Config {bool local_test=true,is_host=true;static Config& instance(){static Config value;return value;}};}
 namespace mt2mp::action_session {Session& selected_session(){return fixture::session;}}
 namespace mt2mp::game::typed_action_runtime {
 nlohmann::json controller_status(){return fixture::controller;}
-bool construction_jobs(const action::Context&,const action::Binding&,std::vector<staff::construction::LocalJob>& out,std::string& e){out.clear();if(!fixture::jobs_ok){e="actual local Job owner changed";return false;}return true;}
+bool construction_jobs(const action::Context&,const action::Binding&,std::vector<staff::construction::LocalJob>& out,std::string& e){++fixture::legacy_job_reads;out.clear();if(!fixture::jobs_ok){e="actual local Job owner changed";return false;}return true;}
 bool network_binding(const std::string&,action::Binding& out,std::string& e){if(!fixture::network_ok){e="original ready binding failure";return false;}out=fixture::binding;return true;}
+bool network_binding_with_mode(const std::string& snapshot,action::Binding& out,std::string& e,bool* ordered){if(!network_binding(snapshot,out,e))return false;*ordered=fixture::ordered_mode;return true;}
+bool submit_developer(bool,const std::string&,std::string&){++fixture::submissions;return true;}
+}
+namespace mt2mp::game::native {
+struct WorldStatus {int active_mode_index=3,in_game_state=4,saves_in_progress=0,edit_operations=0;bool quitting=false,world_present=true,title_transition_pending=false,map_task_pending=false;};
+bool read_world_status(WorldStatus& out,std::string&){out={};return true;}
 }
 namespace mt2mp::game::hud_time_runtime {bool verify_window_show_hook(uintptr_t,std::string&){return true;}}
 namespace mt2mp::game::tutorial_replication {
@@ -66,29 +74,43 @@ bool apply(const Read&,uintptr_t,uintptr_t actor,Field field,int32_t value,Recei
 }
 }
 namespace construction {
+bool capture(const Capture&,const std::vector<LocalJob>&,State& out,std::string&){out={};return true;}
 bool preflight(const action::Context&,const action::Binding&,const Capture&,const PoolState&,const std::vector<LocalJob>&,std::string& e){++fixture::construction_preflights;if(!fixture::construction_ok)e="actual construction preflight cause";return fixture::construction_ok;}
 bool apply(const action::Context&,const action::Binding&,const Capture&,const PoolState& target,const std::vector<LocalJob>&,bool& attempted,bool& unknown,std::string& e){++fixture::construction_applies;attempted=true;unknown=fixture::construction_partial;if(unknown){e="actual construction partial native effect";return false;}fixture::pool=target;return true;}
+}
+namespace job_census {
+bool read(const Read&,const Capture&,Census& out,std::string&){++fixture::census_calls;out={};out.queue=1;
+    Job job;job.pointer=0x900;job.developer=0xa00;job.reciprocal=fixture::reciprocal_ok;out.jobs.push_back(job);
+    Developer dev;dev.pointer=job.developer;dev.job=job.pointer;dev.reciprocal=fixture::reciprocal_ok;out.developers.push_back(dev);
+    if(fixture::change_job_census&&fixture::reads>1)out.queue=2;return true;}
 }
 namespace action_runtime {
 using json=nlohmann::json;
 #include "developer_pending.inc"
 #include "developer_operation.inc"
 struct Memory {bool copy(uintptr_t,void* out,size_t n,std::string&){if(n==sizeof(uintptr_t))*static_cast<uintptr_t*>(out)=fixture::carried?1:0;if(n==1)*static_cast<uint8_t*>(out)=fixture::show_visible?1:0;return true;}};
-struct Runtime {bool ready=true;uintptr_t image=0x140000000;uint32_t thread=1;Memory memory;std::map<std::string,Operation> operations;std::atomic<initial_release::UiCommand> original{nullptr};bool frame_locked=false;std::string frame_cause;uint64_t frame_fields=0;std::map<std::string,nlohmann::json> ui_proofs;bool ui_proof_locked=false;std::string ui_proof_cause;std::optional<Pending> pending;uint64_t captured=0;UiEntryOwner owner;IntentReceipt intent;};
+struct Runtime {bool ready=true;uintptr_t image=0x140000000;uint32_t thread=1;Memory memory;std::map<std::string,Operation> operations;std::atomic<initial_release::UiCommand> original{nullptr};bool frame_locked=false;std::string frame_cause;uint64_t frame_fields=0;std::map<std::string,nlohmann::json> ui_proofs;bool ui_proof_locked=false;std::string ui_proof_cause;std::optional<Pending> pending;uint64_t captured=0,submitted=0,forwarded=0;UiEntryOwner owner;IntentReceipt intent;};
 std::atomic<Runtime*> published{nullptr};
-bool read(Runtime&,const action::Context&,const action::Binding&,Capture& out,PoolState& state,std::string& e,const action::Request* =nullptr,bool=false,bool=false,job_census::Census* jobs=nullptr){
+bool fail(std::string& e,const std::string& why){e=why;return false;}
+bool project(const Capture&,PoolState& out,std::string&){out=fixture::pool;return true;}
+#include "developer_read.inc"
+bool read(Runtime& r,const action::Context& c,const action::Binding& b,Capture& out,PoolState& state,std::string& e,const action::Request* request=nullptr,bool ui=false,job_census::Census* jobs=nullptr,bool* mode=nullptr){
     ++fixture::reads;if((fixture::reads==1&&!fixture::before_ok)||(fixture::reads>1&&!fixture::after_ok)){e="actual pool read failed";return false;}
+    if(fixture::use_actual_read)return read_actual(r,c,b,out,state,e,request,ui,jobs,mode);
+    if(mode)*mode=fixture::ordered_mode;
     out=fixture::current;state=fixture::pool;if(jobs){*jobs={};jobs->queue=1;if(fixture::change_job_census&&fixture::reads>1)jobs->queue=2;}return true;
 }
 bool full_code(Runtime&,std::string& e){if(!fixture::code_ok)e="actual code owner differs";return fixture::code_ok;}
-bool fail(std::string& e,const std::string& why){e=why;return false;}
+void rejected(Runtime&,const std::string& e){++fixture::rejected_calls;fixture::cause=e;}
 #include "developer_frame_calls.inc"
 template<class Copy>bool read_window(Copy&&,const Capture&,uintptr_t& out,std::string& e){if(!fixture::window_ok){e="actual DevelopmentWindow owner differs";return false;}out=0x5000;return true;}
+std::string uuid(std::string&){return "33333333-3333-4333-8333-333333333333";}
+#include "developer_capture_calls.inc"
 uint32_t invoke_ui(initial_release::UiCommand original,uintptr_t,uintptr_t,bool hire,NativeReceipt* receipt){
     ++fixture::ui_calls;receipt->attempted=true;receipt->returned=fixture::ui_returned;receipt->accepted=fixture::ui_accepted;
     receipt->label_confirmed=fixture::ui_label;receipt->cleanup_confirmed=fixture::ui_clean;
     auto* owner=published.load();if(reinterpret_cast<uintptr_t>(original)==owner->owner.target){
-        if(fixture::ui_effect){owner->pending=Pending{hire,"33333333-3333-4333-8333-333333333333",fixture::context,fixture::binding,fixture::current.pin.origin};++owner->captured;}
+        if(fixture::ui_effect){owner->pending=Pending{hire,fixture::ordered_mode,"33333333-3333-4333-8333-333333333333",fixture::context,fixture::binding,fixture::current.pin.origin};++owner->captured;}
         if(fixture::ui_unexpected_effect)--fixture::current.pin.ledger.cash;
         return 0;
     }
@@ -107,6 +129,8 @@ uint32_t invoke_count(uintptr_t,uintptr_t,int32_t count){
     return 0;
 }
 #include "developer_perform.inc"
+#include "developer_tick.inc"
+#include "developer_observe.inc"
 #include "developer_adopt_frame.inc"
 #include "developer_ui_fixture.inc"
 }
@@ -116,17 +140,17 @@ namespace runtime=staff::action_runtime;
 constexpr const char* fixture_action_id="11111111-1111-4111-8111-111111111111";
 constexpr const char* snapshot="22222222-2222-4222-8222-222222222222";
 void reset(runtime::Runtime& owner,bool hire=true){
-    using namespace fixture;ordered_test::enabled=false;change_job_census=false;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
+    using namespace fixture;ordered_test::enabled=false;change_job_census=false;use_actual_read=ordered_mode=false;reciprocal_ok=true;census_calls=legacy_job_reads=submissions=rejected_calls=0;ui_calls=count_calls=reads=0;construction_preflights=construction_applies=0;jobs_ok=construction_ok=true;construction_partial=false;code_ok=window_ok=before_ok=after_ok=immediate_ok=true;
     ui_accepted=ui_returned=ui_clean=ui_label=ui_effect=true;wrong_owner=wrong_immediate_actor=wrong_final_actor=count_fault=false;
     session_ok=role_ok=display_ok=true;carried=scalar_ledger_change=false;scalar_calls=fail_scalar=display_calls=0;cause.clear();context={};context.role=action::Role::Host;context.snapshot_uuid=snapshot;
-    controller={{"pending",true},{"action_uuid",fixture_action_id}};current={};pool={};pool.count=hire?1:2;
+    controller={{"pending",true},{"action_uuid",fixture_action_id}};current={};current.image=owner.image;current.thread=1;pool={};pool.count=hire?1:2;
     current.local.lounge=0x3000;current.state.business_count=current.state.lounge_count=pool.count;
     current.pin.origin.uuid=snapshot;current.pin.origin.world_epoch=7;current.pin.origin.generation=9;
     auto& l=current.pin.ledger;l.cash=l.record_cash=93640;l.record_present=1;l.record_day=l.flat_day=0;
     for(int32_t i=0;i<50;++i){staff::Row r;r.id=49-i;r.slot=i;r.employed=r.active=i<pool.count;current.state.rows.push_back(r);
         pool.rows.push_back({r.id,r.state,r.employed,r.active,r.on_map,r.job_link,r.position});pool.indoor.push_back(r.id);current.local.developers.push_back(0x10000+uintptr_t(i)*0x1000);}
-    update_ok=network_ok=true;show_visible=ui_unexpected_effect=false;mt2mp::Config::instance().local_test=true;
-    owner.operations.clear();owner.ready=true;owner.frame_locked=false;owner.frame_cause.clear();owner.frame_fields=0;owner.thread=1;owner.owner.target=owner.image+0x6c7b70;owner.pending.reset();owner.captured=0;owner.intent={};owner.ui_proofs.clear();owner.ui_proof_locked=false;owner.ui_proof_cause.clear();runtime::published=&owner;
+    update_ok=network_ok=true;show_visible=ui_unexpected_effect=false;mt2mp::Config::instance().local_test=true;mt2mp::Config::instance().is_host=true;
+    owner.operations.clear();owner.ready=true;owner.frame_locked=false;owner.frame_cause.clear();owner.frame_fields=0;owner.thread=1;owner.owner.target=owner.image+0x6c7b70;owner.pending.reset();owner.captured=owner.submitted=owner.forwarded=0;owner.intent={};owner.ui_proofs.clear();owner.ui_proof_locked=false;owner.ui_proof_cause.clear();runtime::published=&owner;
 }
 action::Request request(bool hire=true){action::Request r;r.action=hire?action::Action::HireDeveloper:action::Action::FireDeveloper;r.action_uuid=fixture_action_id;r.snapshot_uuid=snapshot;r.canonical_record_key="staff:developers";return r;}
 action::Outcome run(bool hire=true,const action::Evidence* host=nullptr){return runtime::perform(fixture::binding,request(hire),host,fixture::cause);}
@@ -171,8 +195,43 @@ int main(){try{
     reset(owner);after_ok=false;unknown_once(owner);need(count_calls==1,"post-effect read failure did not retain original count attempt");
     reset(owner);display_ok=false;unknown_once(owner);need(count_calls==1&&display_calls==1,"action cache ownership failure lost original effect/Unknown");
     reset(owner);ordered_test::bind(context,binding,request());change_job_census=true;
-    need(run()==action::Outcome::Unknown&&ui_calls==1&&count_calls==1&&cause=="Ordered Hire changed the complete native Job census","ordered Hire lost Job census mismatch");
+    need(run()==action::Outcome::Unknown&&ui_calls==1&&count_calls==1&&cause=="Ordered Developer changed the complete native Job census","ordered Hire lost Job census mismatch");
     const auto census_cause=cause;need(run()==action::Outcome::Unknown&&ui_calls==1&&!census_cause.empty(),"ordered partial Hire replayed original work");
+    for(const auto role:{action::Role::Host,action::Role::Client}){
+        reset(owner,false);context.role=role;mt2mp::Config::instance().is_host=role==action::Role::Host;
+        use_actual_read=true;current.state.rows[1].job_link=pool.rows[1].job_link=true;ordered_test::bind(context,binding,request(false));
+        need(run(false)==action::Outcome::Confirmed&&ui_calls==1&&count_calls==1&&census_calls==2&&!legacy_job_reads,
+             "ordered active-job Fire did not use full census and exact original calls");
+        auto& op=owner.operations.at(fixture_action_id);
+        need(op.count_jobs&&op.count_jobs->jobs.size()==1&&op.evidence.before==op.evidence.after&&op.evidence.developers_after->rows[1].job_link&&op.evidence.developers_after->rows[1].active&&!op.evidence.developers_after->rows[1].employed,
+             "Fire did not preserve immediate active Job and full Ledger");
+        action::Evidence observed;need(runtime::observe(binding,request(false),observed,cause)&&runtime::retire(binding,request(false),cause)&&op.evidence.retirement_confirmed,
+             "ordered Fire observation and receipt retirement failed");
+        need(run(false)==action::Outcome::Unknown&&ui_calls==1&&count_calls==1,"ordered Fire replayed a confirmed native action");
+    }
+    reset(owner,false);use_actual_read=true;reciprocal_ok=false;current.state.rows[1].job_link=pool.rows[1].job_link=true;ordered_test::bind(context,binding,request(false));
+    need(run(false)==action::Outcome::RejectedNoEffect&&!ui_calls&&!count_calls&&census_calls==1&&!legacy_job_reads,"broken reciprocal Job reached native Fire");
+    reset(owner,false);use_actual_read=true;change_job_census=true;current.state.rows[1].job_link=pool.rows[1].job_link=true;ordered_test::bind(context,binding,request(false));
+    unknown_once(owner,false);need(count_calls==1,"changed Job census did not retain native attempt");
+    reset(owner,false);use_actual_read=true;ordered_mode=true;current.state.rows[1].job_link=pool.rows[1].job_link=true;
+    runtime::CaptureCalls capture{owner,reinterpret_cast<void*>(0x5000),nullptr};
+    need(capture.admit(staff::UiIntent::Fire,cause)&&capture.retain(staff::UiIntent::Fire,fixture_action_id,cause)&&owner.pending&&owner.pending->ordered&&census_calls==1&&!legacy_job_reads,
+         "ordered genuine Fire capture did not retain mode and local census");
+    runtime::tick();need(submissions==1&&!owner.pending&&census_calls==2,"held Fire did not submit once after fresh census");
+    reset(owner,false);use_actual_read=true;ordered_mode=true;runtime::CaptureCalls mode_capture{owner,reinterpret_cast<void*>(0x5000),nullptr};
+    need(mode_capture.admit(staff::UiIntent::Fire,cause)&&mode_capture.retain(staff::UiIntent::Fire,fixture_action_id,cause),"mode fixture capture failed");
+    ordered_mode=false;runtime::tick();need(!submissions&&rejected_calls==1&&!owner.pending,"changed ordered mode reached held submission");
+    reset(owner,false);use_actual_read=true;ordered_mode=true;staff::Capture ui_read;staff::PoolState ui_pool;staff::job_census::Census ui_jobs;bool actual_mode=false;
+    need(runtime::read(owner,context,binding,ui_read,ui_pool,cause,nullptr,true,&ui_jobs,&actual_mode)&&actual_mode&&ui_jobs.jobs.size()==1&&!legacy_job_reads,
+         "ordered Show/Fire UI read did not retain full local job census");
+    reset(owner,false);use_actual_read=true;ordered_mode=false;jobs_ok=false;
+    need(!runtime::read(owner,context,binding,ui_read,ui_pool,cause,nullptr,true)&&legacy_job_reads==1&&cause=="actual local Job owner changed",
+         "legacy UI stopped using original construction bridge");
+    reset(owner,false);use_actual_read=true;ordered_test::bind(context,binding,request(false));current.state.business_count=current.state.lounge_count=pool.count=0;
+    need(run(false)==action::Outcome::RejectedNoEffect&&!ui_calls&&!count_calls,"zero-count Fire reached original native call");
+    for(int fire_failure=0;fire_failure<4;++fire_failure){reset(owner,false);use_actual_read=true;ordered_test::bind(context,binding,request(false));
+        if(fire_failure==0)ui_accepted=false;if(fire_failure==1)ui_clean=false;if(fire_failure==2)count_fault=true;if(fire_failure==3)after_ok=false;
+        unknown_once(owner,false);}
     bool attempted=false,unknown=false;
     reset(owner);context.role=action::Role::Client;auto target=pool;target.rows[0].state=6;target.rows[1].active=true;
     need(runtime::preflight_frame(context,binding,target,cause)&&!scalar_calls,"frame preflight performed a native property");

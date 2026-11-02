@@ -2,6 +2,17 @@ from pathlib import Path
 import argparse,hashlib,json
 p=argparse.ArgumentParser();p.add_argument('--source-root',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
 source=a.source_root/'src/game/release_runtime.cpp';text=source.read_text(encoding='utf-8')
+def function(anchor):
+    assert text.count(anchor)==1,anchor
+    start=text.index(anchor);end=text.index('{',start)+1;depth=1
+    while depth:
+        depth+=(text[end]=='{')-(text[end]=='}');end+=1
+    return text[start:end]
+a.output.mkdir(parents=True,exist_ok=True)
+for name,anchor in [('release_context_actual.inc','bool context('),('release_read_ordered_actual.inc','bool read_ordered_state('),('release_capture_actual.inc','bool capture_edit('),('release_ui_entry_actual.inc','bool ui_entry('),
+                    ('release_flush_actual.inc','void flush_pending('),('release_perform_actual.inc','a::Outcome perform('),
+                    ('release_observe_actual.inc','bool observe('),('release_retire_action_actual.inc','bool retire(')]:
+    (a.output/name).write_text(function(anchor)+'\n',encoding='utf-8')
 start='bool defaults(Runtime& r,';end='bool collection(Runtime& r,'
 assert text.count(start)==1 and text.count(end)==1
 body=text[text.index(start):text.index(end)]

@@ -16,6 +16,7 @@
 #include "toon_thought_lifetime.h"
 #include "toon_thought_state.h"
 #include "live_host_state/state.h"
+#include "typed_action/tick_authority.h"
 namespace {
 struct Local {struct {uintptr_t business=0;}pin;uintptr_t release=0,software=0,current_release=0,lounge=0;std::vector<uintptr_t> gm_rows;};
 #include "management_scalar_body.inc"
@@ -29,7 +30,10 @@ int assertions=0;void need(bool ok,const char* cause){++assertions;if(!ok)throw 
 #include "gizmo_live_adopt_cases.inc"
 #include "building_uptime_fence_cases.inc"
 #include "management_primary_cases.inc"
+#include "management_ordered_cases.inc"
+#include "management_campaign_option_cases.inc"
 int main(){try{uptime_fence_cases();
+    management_ordered_fixture::run();gm_registry_fixture::run();campaign_option_fixture::run();
     management_primary_fixture::run();
     analytics_projection_fixture::run();
     demand_projection_fixture::run();

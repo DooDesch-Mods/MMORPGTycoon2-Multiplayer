@@ -1,4 +1,5 @@
 #include "mt2mp/core/framework_runtime.h"
+#include "framework_version.h"
 #include "mt2mp/core/game_update_pair.h"
 #include "mt2mp/core/framework_input.h"
 #include "mt2mp/core/dll_main.h"
@@ -273,6 +274,8 @@ void publish_instance(){
 int load(const MT2FW_Host* host) {
     if(state.host||!host||host->size<sizeof(*host)||host->abi_version!=MT2FW_ABI_VERSION||!host->context||!host->request||!host->subscribe||!host->unsubscribe)return 0;
     state.host=host;
+    std::string version_error;
+    if(!framework_version::loaded_module_at_least(GetModuleHandleW(L"MT2Framework.dll"),version_error))throw std::runtime_error(version_error);
     if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,reinterpret_cast<LPCWSTR>(&MT2FW_PluginLoad),&state.module))
         throw std::runtime_error("Framework Multiplayer module pin failed Win32="+std::to_string(GetLastError()));
     state.update_token=host->subscribe(host->context,"update",update,&state);

@@ -20,6 +20,7 @@ mt2mp_diagnostic_body(diagnostic_mailbox_text "static void diagnostics_tick() {"
 mt2mp_diagnostic_body(diagnostic_mailbox_text "        if(!game::lobby_prepare::leaving())game::session_reload::tick();" "\n    }\n}\nstatic void game_update(void* receiver" lobby_leave_schedule.inc)
 mt2mp_diagnostic_body(diagnostic_mailbox_text "static void respond(const std::filesystem::path& dir,const json& response) {" "static json read_request(" diagnostic_respond_body.inc)
 mt2mp_diagnostic_body(diagnostic_mailbox_text "        auto request_path=dir/\"request.json\";" "        auto operation=request.at(\"op\")" diagnostic_admit_body.inc)
+mt2mp_diagnostic_body(diagnostic_mailbox_text "        if(!pending_ordered_snapshot.empty())game::typed_action_runtime::fail_ordered_snapshot(error.what());" "    }\n}\nstatic void publish_installed_proof()" diagnostic_failure_body.inc)
 mt2mp_diagnostic_body(lobby_executor_text "namespace {nlohmann::json" "bool submit(" lobby_executor_idle_body.inc)
 
 add_executable(test_diagnostic_mailbox "${MT2MP_SOURCE_ROOT}/test/test_diagnostic_mailbox.cpp")

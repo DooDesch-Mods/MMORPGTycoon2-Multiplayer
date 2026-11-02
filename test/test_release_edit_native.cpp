@@ -27,8 +27,8 @@ uint32_t thread=7;bool readable=true;unsigned reads=0;
 mt2mp::game::native::WorldStatus world;
 struct Runtime {
     uint32_t thread=7;bool ready=true;uintptr_t image=10;
-    std::optional<int> pending=42;std::vector<int> presentations{1},operations{2};
-    bool unknown=true,replay=false;std::string cause="retained original cause",natural_failure="retained natural cause";uint64_t natural_attempted=3,natural_confirmed=2;
+    std::optional<int> pending=42;std::vector<int> presentations{1},operations{2},ui_proofs{3};
+    bool unknown=true,replay=false,ui_proof_locked=true;std::string cause="retained original cause",natural_failure="retained natural cause",ui_proof_cause="retained UI cause";uint64_t natural_attempted=3,natural_confirmed=2;
     bool operator==(const Runtime&)const=default;
 };
 namespace cycle {enum class Phase {Idle,Waiting};}
@@ -71,7 +71,7 @@ void run(){
             need(!value.pending&&value.presentations.empty()&&value.operations.empty()&&value.cause.empty(),"retirement retained old action state");
             need(value.ready&&value.image==10&&published.load()==&value,"retirement discarded installed hook owner");
             if(is_release){const auto& actual_cycle=release::cycle_runtime;
-                need(!value.unknown&&!actual_cycle.pending&&actual_cycle.operations.empty()&&!actual_cycle.context&&!actual_cycle.binding&&actual_cycle.cycle.empty()&&actual_cycle.last_terminal.empty()&&actual_cycle.finalize_id.empty()&&actual_cycle.phase==cycle::Phase::Idle&&!actual_cycle.local_finished,"Release cycle not fully retired");}
+                need(!value.unknown&&!value.ui_proof_locked&&value.ui_proofs.empty()&&value.ui_proof_cause.empty()&&!actual_cycle.pending&&actual_cycle.operations.empty()&&!actual_cycle.context&&!actual_cycle.binding&&actual_cycle.cycle.empty()&&actual_cycle.last_terminal.empty()&&actual_cycle.finalize_id.empty()&&actual_cycle.phase==cycle::Phase::Idle&&!actual_cycle.local_finished,"Release cycle not fully retired");}
         }
         for(int guard=0;guard<(is_release?6:7);++guard){
             Runtime value;release::cycle_runtime=Cycle{};world={};world.active_mode_index=2;thread=7;readable=true;

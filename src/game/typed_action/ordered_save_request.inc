@@ -31,6 +31,9 @@ public:
     }
     nlohmann::json save_request_status()const{
         nlohmann::json out={{"retained",save_intent_.has_value()},{"queued_nonce",save_queued_nonce_},{"client_periodic_delegated",client_periodic_delegated_}};
+        auto requests=nlohmann::json::array();
+        for(const auto& value:periodic_requests_.last_triggered())if(value)requests.push_back({{"peer",value->peer},{"tick",value->tick},{"invocation",value->invocation}});
+        out["client_periodic_triggered"]={{"count",periodic_requests_.trigger_count()},{"requests",requests}};
         if(save_intent_){out["filename"]=save_intent_->filename;out["kind"]=save_intent_->kind;out["option"]=save_intent_->option;}
         out["quit_completion"]=quit_completion_;return out;
     }
@@ -39,6 +42,24 @@ private:
     SaveSubmit save_submit_;std::optional<SaveIntent> save_intent_,save_active_;
     std::string save_queued_nonce_;
     bool save_callback_=false;uint64_t client_periodic_delegated_=0;
+    std::optional<wire::PeriodicRequest> client_periodic_outbound_;
+    PeriodicRequests periodic_requests_;
+    std::function<bool(std::string&)> periodic_trigger_;
+    bool periodic_service(const MT2FW_MT2_StepReceipt& receipt,std::string& error){
+        if(client_periodic_outbound_){
+            if(!controller_.send_ordered_periodic(*client_periodic_outbound_,error))return false;
+            client_periodic_outbound_.reset();
+        }
+        if(context_.role!=Role::Host){error.clear();return true;}
+        bool ready=false;const bool busy=ordinary_save_pending()||snapshot_active()||controller_.status().pending||quit_pending_;
+        if(!periodic_requests_.ready(receipt.tick,now_(),busy,ready,error)||!ready)return error.empty();
+        if(!periodic_trigger_){error="Client periodic request lacks original Host Save trigger";return false;}
+        if(!periodic_trigger_(error))return false;
+        if(!save_active_||save_active_->kind!=MT2FW_MT2_SAVE_PERIODIC||save_active_->filename!="periodic"||save_active_->option){
+            error="Original Host periodic Save did not retain its native owner";return false;
+        }
+        periodic_requests_.completed();error.clear();return true;
+    }
     bool quit_pending_=false,quit_ready_=false,quit_requires_save_=false;
     nlohmann::json quit_completion_;
     void retain_quit_completion(const std::string& nonce){
@@ -91,8 +112,8 @@ private:
             error="Periodic Save request changed its fixed filename/options";return false;
         }
         if(context_.role==Role::Client&&request->kind==MT2FW_MT2_SAVE_PERIODIC){
-            // The Host owns periodic rotation. The framework resets only this
-            // Client's original periodic timer after validating this callback.
+            if(client_periodic_outbound_||!request->tick||!request->invocation){error="Client periodic request lacks a fresh original invocation";return false;}
+            client_periodic_outbound_=wire::PeriodicRequest{context_.session,request->tick,request->invocation,context_.local_peer,context_.snapshot_uuid};
             ++client_periodic_delegated_;return true;
         }
         if(ordinary_save_pending()){

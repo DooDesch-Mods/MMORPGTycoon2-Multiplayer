@@ -1,4 +1,5 @@
 #include "snapshot_barrier.h"
+#include "../../src/core/save_purpose.h"
 #include <set>
 #include <iostream>
 #include <cstring>
@@ -13,6 +14,10 @@ tc::SnapshotRequest request(){return {1,1,0,nonce_id};}
 tc::SnapshotBarrier armed(uint64_t peer=1){tc::SnapshotBarrier b;std::string e;need(b.arm(context(peer),request(),5,8,e),"actual ARM failed");return b;}
 void lifecycle(){
     std::string e;auto h=armed(),c=armed(2);
+    need(mt2mp::core::host_periodic_save(3,"periodic",false),"original periodic provenance");
+    need(!mt2mp::core::host_periodic_save(2,"periodic",false)&&!mt2mp::core::host_periodic_save(3,"other",false)&&!mt2mp::core::host_periodic_save(3,"periodic",true),"other original saves are not periodic");
+    {auto periodic=request();periodic.purpose=tc::SnapshotPurpose::HostPeriodic;tc::SnapshotBarrier b;
+     need(b.arm(context(),periodic,5,8,e)&&b.purpose==tc::SnapshotPurpose::HostPeriodic,"periodic purpose retained by barrier");}
     need(c.seal(hash(),e),"Client SEAL");
     const auto prepared=c.packet(tc::wire::SnapshotPhase::Prepared,2);
     need(h.receive(2,prepared,e),"early actual Prepared must wait for Host SEAL");

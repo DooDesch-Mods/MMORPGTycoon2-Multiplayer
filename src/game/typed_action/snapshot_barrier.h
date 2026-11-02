@@ -5,6 +5,7 @@ namespace mt2mp::action_session::tick_commands {
 struct SnapshotBarrier {
     enum class Phase {Idle,Armed,Sealed,Capturing,Captured,Releasing,Released,Failed};
     Context context;std::string nonce,cause;uint64_t tick=0,order=0;
+    SnapshotPurpose purpose=SnapshotPurpose::Ordinary;
     Phase phase=Phase::Idle;std::array<uint8_t,32> witness{};
     uint8_t prepared=0,released=0;bool file_confirmed=false;
     std::array<std::optional<wire::SnapshotControl>,5> peer_prepared{},peer_released{};
@@ -14,9 +15,9 @@ struct SnapshotBarrier {
     bool active()const{return phase!=Phase::Idle&&phase!=Phase::Released;}
     bool fail(const std::string& why,std::string& error){if(cause.empty())cause=why;phase=Phase::Failed;error=cause;return false;}
     bool arm(const Context& owner,const SnapshotRequest& request,uint64_t at,uint64_t assigned,std::string& error){
-        if(active()||request.peer!=owner.host_peer||!at||!assigned||request.nonce.size()!=36)
+        if(active()||request.peer!=owner.host_peer||!at||!assigned||request.nonce.size()!=36||uint8_t(request.purpose)>1)
             return fail("Snapshot barrier ARM identity or lifecycle differs",error);
-        *this={};context=owner;nonce=request.nonce;tick=at;order=assigned;phase=Phase::Armed;
+        *this={};context=owner;nonce=request.nonce;purpose=request.purpose;tick=at;order=assigned;phase=Phase::Armed;
         released=bit(context.local_peer);return true;
     }
     bool same(const wire::SnapshotControl& value)const{

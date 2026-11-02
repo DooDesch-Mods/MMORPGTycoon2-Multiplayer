@@ -12,6 +12,9 @@ inline bool canonical_evidence(const Context& context,const Assigned& command,co
     auto message=std::make_unique<Message>();message->kind=Kind::HostResult;
     message->session=context.session;message->revision=command.order;message->required_mask=context.peer_mask;
     message->request=std::get<Request>(command.input.command);message->outcome=Outcome::Confirmed;message->evidence=*receipt.evidence;
+    if(message->request.action==Action::ManagementCommand){Ledger expected;const auto& e=message->evidence;if(!e.management_before||!e.management_after||!ordered_management_ledger(message->request.management,*e.management_before,e.before,expected)||expected!=e.after||!ordered_campaign_effect(message->request.management,*e.management_before,*e.management_after,e.before)){error="Ordered Management canonical Ledger or Campaign differs";return false;}}
+    if(message->request.action==Action::ManagementCommand&&message->request.management.op==ManagementOp::SetServicePrice){const auto& e=message->evidence;
+        if(!e.management_before->services||!e.management_after->services||!e.management_before->services->price||!e.management_after->services->price){error="Ordered ServicePrice canonical graph/RNG evidence absent";return false;}}
     std::vector<uint8_t> bytes;
     if(!action_session::encode(*message,bytes,error))return false;
     // The existing strict codec owns canonical field order and domain checks.

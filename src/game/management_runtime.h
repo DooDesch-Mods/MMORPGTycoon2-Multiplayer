@@ -3,7 +3,14 @@
 namespace mt2mp::game::management_runtime {
 bool enable(std::string&);
 void tick();
+void tick_pending();
+bool ordered_pending(const action_session::Context&,const action_session::Binding&,int32_t,std::string&);
 bool pending_ui();
+bool gm_ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool loan_ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool campaign_ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool service_sync_ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
+bool service_price_ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
 // True only while the validated ordered intervention invokes its original.
 bool intervention_replaying();
 bool retire_lobby(std::string&);

@@ -1,5 +1,6 @@
 #pragma once
 #include "normalization.h"
+#include "camera_gate_scope.h"
 #include "live_host_state/apply_timing.h"
 #include "../typed_action/action_session.h"
 #include <array>
@@ -19,7 +20,10 @@ struct Callbacks {
     bool(*owner)(uintptr_t,Owner&,bool&,std::string&)=nullptr;
     void(*publish)(uintptr_t,const Receipt&)=nullptr;
     bool(*client_active)()=nullptr;
+    void(*observe)(uintptr_t,float,uintptr_t,bool) noexcept=nullptr;
+    bool(*ordered_owner)(uintptr_t,uintptr_t,uintptr_t,bool&,std::string&)=nullptr;
 };
 bool initialize(uintptr_t image,const Callbacks&,std::string&);
 bool verify_hook(std::string&);
+bool initialize_camera_gate(std::string&);
 }

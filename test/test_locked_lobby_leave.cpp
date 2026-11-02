@@ -236,4 +236,8 @@ void eraser_cash_cases(){
     fixture::check(refund(value)&&value.action_cash_calls_==0,"Host original cash forwarding changed");
 }
 }
-int main(){try{bridge_cases();fence_cases();eraser_cash_cases();std::cout<<fixture::checks<<" actual Bridge/Fence Leave and cash cases passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}
+void loan_fence_cases(){
+    for(bool repay:{false,true}){cash_fixture::reset();auto value=fence();value.pin_.business=0x5000;value.action_pin_=value.pin_;value.frame_depth_=1;value.action_=action::Message{};value.action_->request.action=action::Action::ManagementCommand;value.action_->request.management.op=repay?action::ManagementOp::RepayLoan:action::ManagementOp::TakeLoan;const auto leaf=repay?live::EconomicLeaf::RepayLoan:live::EconomicLeaf::TakeLoan;fixture::check(value.allow(leaf,reinterpret_cast<void*>(0x5000))&&!value.locked_,"actual Management Loan fence suppressed matching original");cash_fixture::owner=false;fixture::check(!value.allow(leaf,reinterpret_cast<void*>(0x5000))&&value.locked_,"actual Management Loan fence accepted stale owner");}
+    auto unarmed=fence();unarmed.armed_=false;fixture::check(unarmed.allow(live::EconomicLeaf::TakeLoan,reinterpret_cast<void*>(0x5000))&&unarmed.allow(live::EconomicLeaf::RepayLoan,reinterpret_cast<void*>(0x5000)),"inactive original Loan route suppressed");
+}
+int main(){try{bridge_cases();fence_cases();eraser_cash_cases();loan_fence_cases();std::cout<<fixture::checks<<" actual Bridge/Fence Leave and cash cases passed\n";return 0;}catch(const std::exception& e){std::cerr<<"error: "<<e.what()<<'\n';return 1;}}

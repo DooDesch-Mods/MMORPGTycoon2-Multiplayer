@@ -6,6 +6,7 @@
 #include "tick_execution.h"
 #include "tick_wire.h"
 #include "snapshot_barrier.h"
+#include "periodic_requests.h"
 #include <set>
 #include <cstring>
 
@@ -108,6 +109,13 @@ public:
         if(!controller_.bind_ordered_snapshot([this](uint64_t peer,const wire::SnapshotControl& value,std::string& cause){
             return snapshot_receive(peer,value,cause);
         },error))return reject(error,error);
+        if(!controller_.bind_ordered_periodic([this](uint64_t peer,const wire::PeriodicRequest& value,std::string& cause){
+            const auto next=controller_.ordered_state().next_tick;
+            if(!next||(value.tick>next&&value.tick-next>Queue::in_flight_limit)){
+                cause="Periodic request tick exceeds the retained ordered window";return false;
+            }
+            return periodic_requests_.receive(context_,peer,value,now_(),snapshot_completion_timeout_,cause);
+        },error))return reject(error,error);
         MT2FW_MT2_StepReceipt receipt{};receipt.size=sizeof(receipt);
         const auto result=service_.activate(service_.context,&activation,&receipt);
         if(result!=MT2FW_MT2_OK)return api_failure("activate",result,receipt,error);
@@ -124,6 +132,15 @@ public:
         const auto result=service_.read(service_.context,lease_,&out);
         if(result!=MT2FW_MT2_OK)return api_failure("read",result,out,error);
         if(!lease_identity(out))return reject("Ordered Framework read receipt identity differs",error);
+        error.clear();return true;
+    }
+    bool diagnostic_read(MT2FW_MT2_StepReceipt& out,std::string& error){
+        out={};out.size=sizeof(out);
+        if(!thread(error)||!lease_){if(error.empty())error="Ordered diagnostic lease is not bound";return false;}
+        const auto result=service_.read(service_.context,lease_,&out);
+        if(result!=MT2FW_MT2_OK||!lease_identity(out)){
+            error="Ordered diagnostic receipt unavailable result="+std::to_string(result);return false;
+        }
         error.clear();return true;
     }
     bool preflight_exit(std::string& error){
@@ -230,6 +247,7 @@ public:
     #include "ordered_snapshot_runtime.inc"
 #include "ordered_save_request.inc"
 public:
+    void periodic_trigger(std::function<bool(std::string&)> trigger){periodic_trigger_=std::move(trigger);}
     bool admission_ready()const{
         const auto controller=controller_.status();
         return started_&&!retiring_&&!borrowed_&&failure_.empty()&&!leave_hold_&&!quit_pending_&&
@@ -331,6 +349,7 @@ private:
                 return MT2FW_MT2_OK;
             }
         }
+        if(!periodic_service(*receipt,error))return reject("Ordered periodic request failed: "+error,error),MT2FW_MT2_FAILED;
         if(!submit_save(error))return reject("Ordered Save submission failed: "+error,error),MT2FW_MT2_FAILED;
         if(!snapshot_service(*receipt,error))return reject("Ordered snapshot service failed: "+error,error),MT2FW_MT2_FAILED;
         if(!finish_save_request(error))return reject("Ordered Quit Save completion failed: "+error,error),MT2FW_MT2_FAILED;

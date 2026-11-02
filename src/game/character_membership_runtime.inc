@@ -27,6 +27,7 @@ bool code(Memory& memory,std::string& error){
             if(!std::equal(receipt.pristine,receipt.pristine+copied,trampoline.begin())||
                !std::equal(continuation.begin(),continuation.end(),trampoline.begin()+copied)||resume!=state.image+pin.rva+copied)
                 return fail(error,"Character confirmed-delete exact original instruction boundary differs");}
+        if(pin.rva==0x3c8d50&&!interventions::actors::live::normalize_npc_body(state.image+pin.rva,bytes,error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
             return fail(error,"Character membership original body differs RVA="+std::to_string(pin.rva)+" original="+error);
     }return true;

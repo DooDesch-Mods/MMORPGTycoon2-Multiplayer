@@ -11,8 +11,8 @@ int main(){try{
     auto valid=[](const tick::Input&,std::string&){return true;};
     auto current=[](std::string&){return true;};auto advance=[](uint64_t,std::string&){return Outcome::Confirmed;};
     unsigned cases=0;std::string e;
-    for(bool group:{false,true}) for(auto action:{group?Action::EditGroup:Action::MoveSelection,Action::UndoBuilding,Action::RedoBuilding}){
-        auto request=input(action,group);need(tick::requires_evidence(request),"selection evidence not mandatory");
+    for(bool group:{false,true}) for(auto action:{group?Action::EditGroup:Action::MoveSelection,Action::UndoBuilding,Action::RedoBuilding,Action::FireDeveloper}){
+        auto request=input(action,group);need(tick::requires_evidence(request),"ordered action evidence not mandatory");
         {tick::Queue host(config(1),valid);tick::Assigned assigned;tick::Batch batch;tick::Receipt receipt;
             need(host.offer(2,request,assigned,e)==tick::Admission::Accepted&&host.seal(batch,e),e);
             need(!host.consume(1,current,[](const auto&,std::string&){return Outcome::Confirmed;},advance,receipt,e)&&

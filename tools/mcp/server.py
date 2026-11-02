@@ -335,7 +335,7 @@ OP_SCHEMAS = {
     "read_building_catalog": EMPTY,
     "read_subscriber_candidates": EMPTY,
     "read_subscriber_needs": object_schema({"serialized_id":{"type":"integer","minimum":0,"maximum":2147483647}},("serialized_id",)),
-    "read_subscriber_weapon": object_schema({"serialized_id":{"type":"integer","minimum":0,"maximum":2147483647}},("serialized_id",)),
+    "read_subscriber_weapon": object_schema({"serialized_id":{"type":"integer","minimum":0,"maximum":2147483647},"include_motion":{"type":"boolean"},"include_animation":{"type":"boolean"}},("serialized_id",)),
     "arm_subscriber_needs": object_schema({"epoch": POSITIVE_UINT64, "serialized_id": SUBSCRIBER_ID, "expected_initial": NEEDS},
                                          ("epoch", "serialized_id", "expected_initial")),
     "apply_subscriber_needs": object_schema({"epoch": POSITIVE_UINT64, "serialized_id": SUBSCRIBER_ID, "revision": POSITIVE_UINT64,
@@ -507,7 +507,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -893,7 +893,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                     if type(value) not in {int, float} or not -100 <= value <= 100 or not math.isfinite(value):
                         raise RuntimeErrorDetail("invalid_args", f"{key} requires values in [-100,100]")
         if op in {"read_subscriber_needs", "read_subscriber_weapon"}:
-            if set(arguments)!={"serialized_id"} or type(arguments["serialized_id"]) is not int or not 0<=arguments["serialized_id"]<=2147483647:
+            allowed={"serialized_id", "include_motion", "include_animation"} if op=="read_subscriber_weapon" else {"serialized_id"}
+            if not isinstance(arguments,dict) or "serialized_id" not in arguments or not set(arguments)<=allowed or type(arguments["serialized_id"]) is not int or not 0<=arguments["serialized_id"]<=2147483647 or ("include_motion" in arguments and type(arguments["include_motion"]) is not bool) or ("include_animation" in arguments and type(arguments["include_animation"]) is not bool):
                 raise RuntimeErrorDetail("invalid_args","serialized_id requires integer 0 through 2147483647")
         if op in {"purchase_test_region", "focus_test_camera"}:
             keys = ("x", "z") if op == "purchase_test_region" else ("x", "y", "z", "distance")

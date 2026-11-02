@@ -169,7 +169,7 @@ bool complete(const std::string& token,const std::string& origin,uint64_t frame_
     return fixture.start(token,origin,frame_id,e,true);
 }
 void poll(void* raw,uint64_t frame_id){
-    const auto event=static_cast<const SDL_Event*>(raw);if(event)camera_poll(*event);if(!event||(event->type!=SDL_EVENT_KEY_DOWN&&event->type!=SDL_EVENT_KEY_UP))return;
+    const auto event=static_cast<const SDL_Event*>(raw);if(event)camera_poll(*event,frame_id);if(!event||(event->type!=SDL_EVENT_KEY_DOWN&&event->type!=SDL_EVENT_KEY_UP))return;
     std::string e;if(!fixture.poll(event->key.windowID,event->key.which,uint32_t(event->key.scancode),event->key.key,event->type==SDL_EVENT_KEY_DOWN,event->key.repeat,frame_id,e))report(e);
 }
 void frame(uint64_t frame_id){std::string e;if(!fixture.frame(frame_id,e))report(e);if(!camera_fixture.frame(frame_id,e))report(e);}
@@ -188,6 +188,10 @@ nlohmann::json camera_status(){
         {"button_down",s.key_down},{"axis",s.axis},{"mouse_relative",s.mouse_relative},{"mouse_focus",s.mouse_focus},
         {"mouse_capture",s.mouse_capture},{"mouse_auto_capture",s.mouse_auto_capture}};};
     return {{"schema",1},{"token",r.token},{"index",r.index},{"active",r.active},{"confirmed",r.confirmed},{"cause",r.cause},{"release_cause",r.release_cause},
+        {"position_attempted",r.position_attempted},{"position_pending",r.position_pending},{"position_polled",r.position_polled},{"position_ready",r.position_ready},
+        {"position",r.position_attempted?nlohmann::json{{"window_id",r.before.window_id},{"sent_button",SDL_BUTTON_RIGHT},{"before_x",camera_position.before_x},{"before_y",camera_position.before_y},{"target_x",camera_position.target_x},{"target_y",camera_position.target_y},{"width",camera_position.width},{"height",camera_position.height},
+            {"position_timestamp",camera_position.position_timestamp},{"button_timestamp",camera_position.button_timestamp},
+            {"position_event_bytes",camera_position.position_event_bytes},{"button_event_bytes",camera_position.button_event_bytes}}:nlohmann::json(nullptr)},
         {"button_attempted",r.button_attempted},{"button_returned",r.button_returned},{"button_polled",r.button_polled},{"up_attempted",r.up_attempted},{"up_returned",r.up_returned},
         {"up_polled",r.up_polled},{"button_released",r.button_released},{"pulses_attempted",r.pulses_attempted},{"pulses_returned",r.pulses_returned},{"pulses_polled",r.pulses_polled},
         {"before",snapshot(r.before)},{"after",snapshot(r.after)},{"completion",snapshot(r.completion)}};

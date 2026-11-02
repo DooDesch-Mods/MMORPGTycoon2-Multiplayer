@@ -56,7 +56,7 @@ bool publish_ordered_save_cache(const std::string& nonce,std::string&);
 bool read_ordered_steps(MT2FW_MT2_StepReceipt&,std::string&);
 std::string ordered_step_failure();
 nlohmann::json ordered_execution_status();
-bool request_ordered_snapshot(const std::string& id,std::function<bool(std::string&)> capture,std::string& error,bool managed=false,bool asynchronous=false);
+bool request_ordered_snapshot(const std::string& id,std::function<bool(std::string&)> capture,std::string& error,bool managed=false,bool asynchronous=false,bool periodic=false);
 nlohmann::json ordered_native_save_status();
 bool confirm_ordered_snapshot_file(const std::string&,std::string&);
 void fail_ordered_snapshot(const std::string&);
@@ -168,6 +168,9 @@ bool resolve_held_dungeon_destination(uintptr_t pointer,std::string& key,bool& m
 bool submit_dungeon_building(const std::string& id,action_session::Action,const std::string& key,
     const std::string& scene,const action_session::BuildingState&,const std::string& target_action,std::string& error);
 nlohmann::json status();
+nlohmann::json toon_motion_diagnostic();
+bool read_subscriber_motion(int32_t id,nlohmann::json& out,std::string& error);
+bool read_subscriber_animation(int32_t id,nlohmann::json& out,std::string& error);
 // Periodic diagnostics may report the labeled committed frame; explicit inspection stays fresh.
 nlohmann::json status(bool inspect_native_economy);
 bool authorize_ui_replay(const action_session::ui_capture::Replay&,std::string&);

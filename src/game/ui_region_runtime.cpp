@@ -11,6 +11,7 @@
 #include "region_rng_capture.h"
 #include "typed_action_runtime.h"
 #include "typed_action/recovery_read_scope.h"
+#include "live_host_state/memory_query_timing.h"
 #include "remove_diagnostics.h"
 #include "object_identity/remove_runtime/copy/world_prop_reader.h"
 #include "object_identity/remove_runtime/copy/scenery_witness.h"

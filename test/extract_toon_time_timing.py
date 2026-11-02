@@ -17,7 +17,11 @@ restored = source.replace(original_boundary, '        const auto exception=updat
 backend_include = '#include "mt2mp/hooks/minhook_backend.h"'
 assert restored.count(backend_include) == 1, 'Toon hook backend include changed'
 restored = restored.replace(backend_include, '#include <MinHook.h>', 1)
-assert hashlib.sha256(restored.encode()).hexdigest() == 'e58ee34b277bb321d95c7917de499f80f31d700fe1025e7f33cad2ba351602e7', 'Toon native behavior changed beyond two timer scopes and the original-call metadata boundary'
+assert restored.count('uintptr_t mt2mp_toon_gate_full=0;') == 1
+assert restored.count('mt2mp_toon_gate_full=image+camera_gate::full_update_rva;') == 1
+restored = restored.replace('uintptr_t mt2mp_toon_gate_full=0;', 'uintptr_t mt2mp_toon_gate_deferred=0;', 1)
+restored = restored.replace('mt2mp_toon_gate_full=image+camera_gate::full_update_rva;', 'mt2mp_toon_gate_deferred=image+0x3ea7e2;', 1)
+assert hashlib.sha256(restored.encode()).hexdigest() == 'e4ddfd3bc627e4027e7abdd0862f231f37a115f5bf6cf17eb386e5a183010885', 'Toon native behavior changed beyond the recorded timing and camera gate boundaries'
 
 def body(marker):
     start = source.index(marker)

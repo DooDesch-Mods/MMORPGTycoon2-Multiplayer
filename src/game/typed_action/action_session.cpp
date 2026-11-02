@@ -666,7 +666,7 @@ bool execution(const Request& r,const Evidence& e) {
         expected==e.after&&network_remove_transition(r.canonical_record_key,r.network_remove,*e.network_removal_before,*e.network_removal_after);}
     if(r.action==Action::ManagementCommand){Ledger expected;
         return e.management_before&&e.management_after&&management_transition(r.management,*e.management_before,*e.management_after)&&
-            management_ledger(r.management,*e.management_before,e.before,expected)&&expected==e.after&&
+            ((management_ledger(r.management,*e.management_before,e.before,expected)&&expected==e.after)||((r.management.op==ManagementOp::HireGameMaster||r.management.op==ManagementOp::StartCampaign)&&ordered_management_ledger(r.management,*e.management_before,e.before,expected)&&expected==e.after))&&
             !e.target_retired&&!e.undo_confirmed&&!e.selection_confirmed&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};}
     if(r.action==Action::SetBuildingStatus)return building_status_transition(r.building_status,e.building_status_before,e.building_status_after)&&
         e.before==e.after&&!e.undo_confirmed&&!e.selection_confirmed&&!e.target_retired&&e.object_before==BuildingState{}&&e.object_after==BuildingState{};
@@ -1552,6 +1552,20 @@ bool selection_move_wire_fits(const Request& r,const Ledger& money,std::string& 
     std::vector<uint8_t> bytes;if(!encode(m,bytes,error))return false;if(bytes.size()>max_payload-256){error="Selection Move complete result exceeds transport budget before mutation";return false;}return true;
 }
 bool valid_service_membership_effect(const Request& r,const Evidence& e){return service_effect(r,e);}
+bool service_price_wire_fits(const Request& r,const ManagementState& before,const Ledger& money,const std::vector<std::string>& possible_configs,std::string& error){
+    const auto& intent=r.management;if(r.action!=Action::ManagementCommand||intent.op!=ManagementOp::SetServicePrice||!management_valid(intent)||!management_valid(before)||!before.services||!before.services->price||size_t(intent.service_ordinal)>=before.services->rows.size()){error="Service price packet preflight requires complete current evidence";return false;}
+    auto after=before;auto& services=*after.services;auto& selected=services.rows[size_t(intent.service_ordinal)];selected.price={intent.currency,intent.value};
+    const auto append=[&](const std::string& key,const std::array<int32_t,2>& price){const auto found=std::find_if(services.configs.begin(),services.configs.end(),[&](const auto& row){return row.key==key;});
+        if(found==services.configs.end())services.configs.push_back({key,price});else if(key==selected.config_key&&selected.synced)found->price=price;};
+    if(services.config_present&&selected.synced)append(selected.config_key,selected.price);
+    if(services.config_present)for(const auto& key:possible_configs)if(!key.empty()&&(key!=selected.config_key||!selected.synced)){append(key,{1,INT32_MAX});if(services.configs.size()>4096){error="Service price possible config census exceeds typed bound";return false;}}
+    services.price->graph_sha256=std::string(64,'f');services.price->random.fill(UINT64_MAX);services.price->random_extra=INT32_MIN;
+    if(!management_valid(after)){error="Service price complete worst-case config evidence exceeds typed bounds";return false;}
+    Message probe;probe.kind=Kind::ApplyAck;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;
+    probe.request=r;probe.request.host_revision=UINT64_MAX;probe.request.sequence=UINT64_MAX;probe.evidence.before=probe.evidence.after=money;probe.evidence.retirement_confirmed=true;
+    probe.evidence.management_before=before;probe.evidence.management_after=std::move(after);std::vector<uint8_t> bytes;
+    if(!encode(probe,bytes,error))return false;if(bytes.size()>max_payload-256){error="Service price complete result exceeds existing action packet reserve";return false;}return true;
+}
 bool service_membership_wire_fits(const Request& r,const ServiceMembershipState& before,const Ledger& money,std::string& error){
     ServiceMembershipState after;if(!service_membership_expected(r.service_membership,before,after)){error="Service membership cannot derive complete preflight effect";return false;}
     Message probe;probe.kind=Kind::ApplyAck;probe.session=UINT64_MAX;probe.revision=UINT64_MAX;probe.ack_peer=4;probe.required_mask=15;probe.outcome=Outcome::Confirmed;

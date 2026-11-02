@@ -39,7 +39,7 @@ inline bool topology(std::vector<uint64_t> members,uint64_t host,Slots& out,std:
     out=slots;error.clear();return true;
 }
 inline nlohmann::json encode(const Binding& binding,const std::string& version,const std::string& game){
-    return {{"revision",2},{"lobby",binding.lobby},{"session",binding.session},{"host",binding.slots[1]},
+    return {{"revision",3},{"lobby",binding.lobby},{"session",binding.session},{"host",binding.slots[1]},
         {"mod",version},{"game",game},{"slots",binding.slots}};
 }
 inline bool decode(const std::string& text,const std::string& version,const std::string& game,Binding& out,std::string& error){
@@ -49,7 +49,7 @@ inline bool decode(const std::string& text,const std::string& version,const std:
         if(!value.is_object()||value.size()!=7){error="Steam binding metadata exact fields required";return false;}
         for(const char* key:{"revision","lobby","session","host","mod","game","slots"})
             if(!value.contains(key)){error=std::string("Steam binding metadata missing ")+key;return false;}
-        if(!value.at("revision").is_number_integer()||value.at("revision")!=2||value.at("mod")!=version||value.at("game")!=game){error="Steam binding protocol/mod/game differs";return false;}
+        if(!value.at("revision").is_number_integer()||value.at("revision")!=3||value.at("mod")!=version||value.at("game")!=game){error="Steam binding protocol/mod/game differs";return false;}
         const auto integer=[](const nlohmann::json& number,uint64_t& result){
             if(!number.is_number_integer()||(!number.is_number_unsigned()&&number.get<int64_t>()<0))return false;
             result=number.get<uint64_t>();return true;

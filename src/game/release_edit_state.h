@@ -7,6 +7,7 @@
 namespace mt2mp::game::release_edit {
 enum class Command:uint8_t {SetType=1,PlannerTitle=2,Changelog=3,Announcement=4,UseCustom=5,ResetCustom=6};
 struct Intent {Command command=Command::SetType;int32_t type=0;bool custom=false;std::string text,text_sha256;bool operator==(const Intent&)const=default;};
+inline bool ordered_type(const Intent& intent){return intent.command==Command::SetType;}
 struct State {
     std::array<int32_t,3> version{},planned{};
     int32_t type=0,state=0,changes=0,features=0,demands=0,history=0,allocated_funds=0;

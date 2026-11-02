@@ -1,6 +1,7 @@
 #pragma once
 #include "typed_action/action_session.h"
 #include <vector>
+#include <map>
 #include "ui_remove/ui_capture.h"
 namespace mt2mp::game::ui_path_runtime {
 bool enable(std::string&);
@@ -21,6 +22,7 @@ bool query(int32_t,nlohmann::json&,std::string&);
 bool region_members(int32_t,std::vector<uint64_t>&,std::vector<uint64_t>&,std::string&);
 bool native_delete(const nlohmann::json&,nlohmann::json&,std::string&);
 bool world_path_query(const nlohmann::json&,nlohmann::json&,std::string&);
+bool current_root_path_keys(const std::string&,std::map<uintptr_t,std::string>&,std::string&);
 bool native_world_path(const nlohmann::json&,nlohmann::json&,std::string&);
 bool native_segment(const nlohmann::json&,nlohmann::json&,std::string&);
 }

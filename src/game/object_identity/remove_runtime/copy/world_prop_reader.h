@@ -31,6 +31,8 @@ class RootSceneryReadBatch {
     static bool reuse_current(opened::CurrentWorld&,bool&,std::string&);
     static bool remember_current(const opened::CurrentWorld&,std::string&);
     static bool reject_current(std::string&);
+    static bool resolve_current_lookup(Memory&,uintptr_t,std::string_view,LookupApi&,std::string&);
+    friend bool resolve_lookup(Memory&,uintptr_t,std::string_view,LookupApi&,std::string&);
     static bool reuse_world(WorldState&,bool,uintptr_t,uint32_t,LookupApi,bool&,std::string&);
     friend class Reader;
 public:

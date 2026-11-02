@@ -2,6 +2,8 @@
 #include "../game/gm_ticket_native.h"
 #include "../game/bug_authority/runtime_internal.h"
 #include "mt2mp/core/dll_main.h"
+#include "save_purpose.h"
+#include "countdown_owner.h"
 #ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_runtime.h"
 #include "mt2mp/core/framework_input.h"
@@ -40,6 +42,8 @@
 #include "../game/native_lobby.h"
 #include "../game/loan_diagnostics/loan_gate.h"
 #include "../game/initial_release/release_fixture.h"
+#include "../game/release_runtime.h"
+#include "../game/management_runtime.h"
 #include "../game/developer_staff/probe.h"
 #include "../game/developer_staff/bug_policy.h"
 #include "../game/bug_authority/manual_action.h"
@@ -1429,11 +1433,24 @@ static json status(bool inspect_native_economy) {
     result["capabilities"]["read_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_bug_c_policy"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["read_native_developers"]=owned_native_profile;
+    result["capabilities"]["read_toon_motion_trace"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["native_developer_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_native_developer_retirement"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_developer_retirement_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_developer_fixture"]=owned_native_profile && Config::instance().local_test && Config::instance().is_host;
     result["capabilities"]["native_initial_release_fixture"]=owned_native_profile;
+    result["capabilities"]["native_release_planner_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_release_planner_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_gm_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_gm_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_loan_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_loan_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_campaign_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_campaign_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_service_sync_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_service_sync_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_service_select_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_service_price_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["native_take_loan_fixture"]=owned_native_profile;
     result["capabilities"]["native_loan_payment"]=owned_native_profile;
     result["capabilities"]["native_lobby_button"]=native_lobby_initialized;
@@ -1577,6 +1594,7 @@ static json status(bool inspect_native_economy) {
     const bool original_save_probe=game::native::in_game()&&net::ordered_snapshot_selected()&&ordinary_save_id.empty();
     result["capabilities"]["native_original_save"]=original_save_probe;
     result["capabilities"]["native_periodic_save"]=Config::instance().is_host&&original_save_probe;
+    result["capabilities"]["native_periodic_countdown"]=!Config::instance().is_host&&original_save_probe;
     auto window=hooks::get_game_window();
     if(window) {
         int width=0,height=0;
@@ -1951,8 +1969,14 @@ static void diagnostics_tick() {
             game::session_reload::recovery_capture_pending(id);
         if(held_diagnostics&&!retained_recovery_request){
             const auto op=request.at("op").get<std::string>();
-            if(op!="status"&&op!="inspect_engine"&&op!="read_ordered_world"&&op!="read_region_rng"&&op!="read_native_lobby"&&op!="read_tutorial_camera")
-                throw std::runtime_error("Ordered snapshot/failed hold permits status and read-only state; Leave remains available in native UI");
+            if(op!="status"&&op!="inspect_engine"&&op!="read_ordered_world"&&op!="read_region_rng"&&op!="read_native_lobby"&&op!="read_tutorial_camera"){
+                const std::string cause="Ordered snapshot/failed hold permits status and read-only state; Leave remains available in native UI";
+                if(internal_request)throw std::runtime_error(cause);
+                last_mailbox_request=id;last_request=id;
+                respond(dir,{{"schema_version",1},{"id",id},{"run_id",run_id},{"ok",false},{"error",{{"code","SNAPSHOT_HELD"},{"message",cause}}}});
+                LOG_WARN("[MCP] Request rejected during ordered hold: id={} op={} cause={}",id,op,cause);
+                return;
+            }
         }
         // Internal operations must not make an unchanged external mailbox request new again.
         if(!internal_request)last_mailbox_request=id;
@@ -2023,6 +2047,45 @@ static void diagnostics_tick() {
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","DEVELOPER_FIXTURE_FAILED"},{"message",error}};
         }
+        else if(operation=="native_service_sync_ui"||operation=="read_native_service_sync_ui"||operation=="native_service_select_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Service UI requires owned local-test profile");
+            auto args=request.at("args");if(!args.is_object()||args.contains("command"))throw std::runtime_error("Service UI command is engine-owned");args["command"]=operation=="read_native_service_sync_ui"?"Read":operation=="native_service_select_ui"?"Select":"Toggle";
+            json observed;std::string error;response["ok"]=game::management_runtime::service_sync_ui_fixture(args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","SERVICE_SYNC_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_service_price_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Service price UI requires owned local-test profile");
+            json observed;std::string error;response["ok"]=game::management_runtime::service_price_ui_fixture(request.at("args"),observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","SERVICE_PRICE_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_campaign_ui"||operation=="read_native_campaign_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Campaign UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_campaign_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("Campaign UI read requires empty arguments");
+            if(operation=="native_campaign_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("Campaign UI read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::campaign_ui_fixture(operation=="read_native_campaign_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","CAMPAIGN_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_loan_ui"||operation=="read_native_loan_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Loan UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_loan_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("Loan UI read requires empty arguments");
+            if(operation=="native_loan_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("Loan UI read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::loan_ui_fixture(operation=="read_native_loan_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","LOAN_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_gm_ui"||operation=="read_native_gm_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("GM UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_gm_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("GM UI read requires empty arguments");
+            if(operation=="native_gm_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("GM UI read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::gm_ui_fixture(operation=="read_native_gm_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","GM_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_release_planner_ui"||operation=="read_release_planner_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Release planner UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_release_planner_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("Release planner read requires empty arguments");
+            if(operation=="native_release_planner_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("Release planner read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::release_runtime::ui_fixture(operation=="read_release_planner_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","RELEASE_PLANNER_UI_FAILED"},{"message",error}};
+        }
         else if(operation=="read_native_release"||operation=="native_initial_release_fixture") {
             json observed;std::string error;
             if(operation=="read_native_release") {
@@ -2047,6 +2110,11 @@ static void diagnostics_tick() {
             response["ok"]=operation=="read_native_lobby"?game::native_lobby::observe(observed,error,!held_diagnostics):game::native_lobby::activate(request.at("args"),observed,error);
             response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_LOBBY_FAILED"},{"message",error.empty()?native_lobby_error:error}};
+        }
+        else if(operation=="read_toon_motion_trace") {
+            if(!owned_native_profile||!Config::instance().local_test||!request.at("args").is_object()||!request.at("args").empty())
+                throw std::runtime_error("Toon motion trace requires an owned local-test profile and empty arguments");
+            response["ok"]=true;response["result"]=game::typed_action_runtime::toon_motion_diagnostic();
         }
         else if(operation=="status"||operation=="inspect_engine") { response["ok"]=true; response["result"]=status(); response["result"]["world_reload"]=game::session_reload::status(); }
         else if(operation=="resync_world") {
@@ -2734,8 +2802,11 @@ static void diagnostics_tick() {
         }
         else if(operation=="read_subscriber_weapon") {
             const auto& args=request.at("args");
-            if(!args.is_object()||args.size()!=1||!args.contains("serialized_id"))
-                throw std::runtime_error("read_subscriber_weapon requires exactly serialized_id");
+            if(!args.is_object()||!args.contains("serialized_id")||
+               args.size()!=1u+size_t(args.contains("include_motion"))+size_t(args.contains("include_animation"))||
+               (args.contains("include_motion")&&!args.at("include_motion").is_boolean())||
+               (args.contains("include_animation")&&!args.at("include_animation").is_boolean()))
+                throw std::runtime_error("read_subscriber_weapon requires serialized_id and optional boolean include_motion/include_animation");
             const auto& number=args.at("serialized_id");
             if(!number.is_number_integer()||number.is_boolean()||
                (number.is_number_unsigned()&&number.get<uint64_t>()>INT32_MAX)||
@@ -2743,6 +2814,16 @@ static void diagnostics_tick() {
                 throw std::runtime_error("subscriber ID requires int32 range 0..2147483647");
             std::string error;json observed;
             response["ok"]=game::typed_action_runtime::read_subscriber_weapon(number.get<int32_t>(),observed,error);
+            if(response["ok"].get<bool>()&&args.value("include_motion",false)){
+                if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Subscriber motion requires owned local test");
+                json motion;response["ok"]=game::typed_action_runtime::read_subscriber_motion(number.get<int32_t>(),motion,error);
+                if(response["ok"].get<bool>())observed["current_motion"]=std::move(motion);
+            }
+            if(response["ok"].get<bool>()&&args.value("include_animation",false)){
+                if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Subscriber animation requires owned local test");
+                json animation;response["ok"]=game::typed_action_runtime::read_subscriber_animation(number.get<int32_t>(),animation,error);
+                if(response["ok"].get<bool>())observed["current_animation"]=std::move(animation);
+            }
             response["result"]=std::move(observed);
             if(!response["ok"].get<bool>())response["error"]={{"code","SUBSCRIBER_WEAPON_READ_REJECTED"},{"message",error}};
         }
@@ -2825,6 +2906,22 @@ static void diagnostics_tick() {
         else if(operation=="capture_frame") {
             pending_frame={{"id",id}}; last_request=id; return;
         }
+        else if(operation=="native_periodic_countdown") {
+            if(internal_request||!request.at("args").is_object()||!request.at("args").empty()||Config::instance().is_host||
+                !net::ordered_snapshot_selected()||!ordinary_save_id.empty()||game::typed_action_runtime::ordered_snapshot_active())
+                throw std::runtime_error("Periodic countdown probe requires idle owned ordered Client and empty arguments");
+            const auto retained=game::typed_action_runtime::ordered_native_save_status();
+            if(retained.value("client_periodic_delegated",uint64_t{0})!=0||retained.value("retained",false)||
+                !retained.value("queued_nonce",std::string{}).empty()||!retained.value("runtime_failure",std::string{}).empty())
+                throw std::runtime_error("Periodic countdown probe requires a fresh Client without an earlier delegation");
+            std::string error;MT2FW_MT2_StepReceipt step{};step.size=sizeof(step);
+            if(!game::typed_action_runtime::read_ordered_steps(step,error)||!mt2mp::core::countdown_owner(step))
+                throw std::runtime_error("Periodic countdown probe lacks its entered original Client owner: phase="+std::to_string(step.phase)+
+                    " workers_held="+std::to_string(step.workers_held)+" callbacks="+std::to_string(step.callbacks_inflight)+
+                    " attempted="+std::to_string(step.original_attempted)+" returned="+std::to_string(step.original_returned)+" cause="+error);
+            if(!game::native::request_original_periodic_countdown(error))throw std::runtime_error(error);
+            response["ok"]=true;response["result"]={{"state","original-periodic-countdown-opened"}};
+        }
         else if(operation=="native_periodic_save") {
             if(internal_request||!request.at("args").is_object()||!request.at("args").empty()||!Config::instance().is_host||
                 !net::ordered_snapshot_selected()||!ordinary_save_id.empty())
@@ -2865,6 +2962,7 @@ static void diagnostics_tick() {
             }
             if(!ordinary&&!request.at("args").empty())throw std::runtime_error("snapshot capture requires empty arguments");
             const bool asynchronous=ordinary&&original.at("kind").get<uint32_t>()!=2;
+            const bool periodic=ordinary&&mt2mp::core::host_periodic_save(original.at("kind").get<uint32_t>(),original.at("filename").get<std::string>(),original.at("option").get<bool>());
             const bool distribute=operation=="capture_snapshot"&&Config::instance().is_host;
             const bool ordered=net::ordered_snapshot_selected()&&net::current_world_epoch()!=0;
             if(ordered&&distribute)throw std::runtime_error("Active ordered resync requires coordinated retirement and reload; current-world export remains available");
@@ -2971,7 +3069,7 @@ static void diagnostics_tick() {
                 last_request=id;return;
             }
             if(ordered){
-                if(!game::typed_action_runtime::request_ordered_snapshot(id,std::move(capture),error,ordinary,asynchronous))throw std::runtime_error(error);
+                if(!game::typed_action_runtime::request_ordered_snapshot(id,std::move(capture),error,ordinary,asynchronous,periodic))throw std::runtime_error(error);
                 pending_ordered_snapshot=id;last_request=id;return;
             }
             if(capture(error)){last_request=id;return;}
@@ -3000,6 +3098,7 @@ static void diagnostics_tick() {
             if(operation=="read_ordered_world"){
                 response["result"]["last_execution"]=game::typed_action_runtime::ordered_execution_status();
                 response["result"]["ordinary_save"]=ordinary_save_last;
+                response["result"]["native_save_owner"]=game::typed_action_runtime::ordered_native_save_status();
             }
             if(!response["ok"].get<bool>()){
                 if(error.empty())error="Ordered startup operation rejected without a diagnostic cause";

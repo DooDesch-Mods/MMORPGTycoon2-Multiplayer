@@ -375,6 +375,7 @@ bool valid_settled_selection_move_effect(const Request&,const Evidence&);
 bool selection_move_wire_fits(const Request&,const Ledger&,std::string&);
 bool valid_service_membership_effect(const Request&,const Evidence&);
 bool service_membership_wire_fits(const Request&,const ServiceMembershipState&,const Ledger&,std::string&);
+bool service_price_wire_fits(const Request&,const ManagementState&,const Ledger&,const std::vector<std::string>&,std::string&);
 bool valid_boss_phase(const BossPhaseIntent&);
 bool valid_boss_phase_effect(const Request&,const Evidence&);
 bool valid_prop_text(const PropTextIntent&);
@@ -388,7 +389,7 @@ bool valid_npc_quest_removal(const NpcQuestRemovalProof&,const std::string&);
 bool npc_quest_removal_wire_fits(const Request&,const NpcState&,const Ledger&,const NpcQuestRemovalProof&,std::string&);
 bool valid_modular(const ModularIntent&);
 bool valid_modular_effect(const Request&,const Evidence&);
-namespace tick_commands { namespace wire {struct SnapshotControl;} class Queue; struct Config; struct Input; struct Assigned; struct Batch; struct Receipt; struct State; struct CompletedAction; }
+namespace tick_commands { namespace wire {struct SnapshotControl;struct PeriodicRequest;} class Queue; struct Config; struct Input; struct Assigned; struct Batch; struct Receipt; struct State; struct CompletedAction; }
 class Controller {
 public:
     bool submit_dungeon_building(const std::string& id,Action,const std::string& key,const std::string& scene,
@@ -428,8 +429,11 @@ public:
     bool ordered_consume(uint64_t,tick_commands::Receipt&,uint64_t,std::string&);
     bool submit_ordered_time(game::time_session::Intent,uint64_t,std::string&);
     using OrderedSnapshotReceive=std::function<bool(uint64_t,const tick_commands::wire::SnapshotControl&,std::string&)>;
+    using OrderedPeriodicReceive=std::function<bool(uint64_t,const tick_commands::wire::PeriodicRequest&,std::string&)>;
     bool bind_ordered_snapshot(OrderedSnapshotReceive,std::string&);
-    bool submit_ordered_snapshot(const std::string&,uint64_t,std::string&);
+    bool bind_ordered_periodic(OrderedPeriodicReceive,std::string&);
+    bool send_ordered_periodic(const tick_commands::wire::PeriodicRequest&,std::string&);
+    bool submit_ordered_snapshot(const std::string&,uint64_t,std::string&,bool periodic=false);
     bool send_ordered_snapshot(uint64_t,const tick_commands::wire::SnapshotControl&,std::string&);
     void hold_ordered_snapshot(bool);
     uint64_t ack_timeout_ms()const{return timeout_;}

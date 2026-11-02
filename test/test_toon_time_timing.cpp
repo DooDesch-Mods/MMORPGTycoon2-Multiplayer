@@ -2,12 +2,15 @@
 #include "test_toon_time_fence.cpp"
 #undef main
 #include "live_host_state/memory_query_timing.h"
+#include "toon_time_fence/camera_gate_scope.h"
 #include <functional>
 #include <intrin.h>
 
 namespace timing=mt2mp::game::live_host_state::apply_timing;
 namespace live_host_state=mt2mp::game::live_host_state;
+namespace camera_gate=mt2mp::game::toon_time_fence::camera_gate;
 namespace fixture {
+namespace camera_gate=mt2mp::game::toon_time_fence::camera_gate;
 using Owner=Calls::Owner;
 using Receipt=timef::Receipt;
 using timef::normalize;
@@ -40,10 +43,12 @@ public:
 struct Callbacks {
     std::function<bool()> client_active=[](){return active;};
     std::function<void(uintptr_t,const Receipt&)> publish=[](uintptr_t,const Receipt& r){++published;last=r;};
+    std::function<void(uintptr_t,float,uintptr_t,bool)> observe;
+    std::function<bool(uintptr_t,uintptr_t,uintptr_t,bool&,std::string&)> ordered_owner;
 } callbacks;
-void original_update(uintptr_t,float dt){++forwarded;forwarded_dt=dt;}
+void original_update(uintptr_t,float dt){++forwarded;forwarded_dt=dt;if(original_effect)original_effect();}
 #include "toon_time_update.inc"
-void reset(){seed={};observed={};active=true;entered=false;inside_original=false;forwarded=published=0;last={};original_effect={};backlog_probe={};timing::totals={};}
+void reset(){seed={};observed={};active=true;entered=false;inside_original=false;forwarded=published=0;last={};original_effect={};backlog_probe={};callbacks.observe={};callbacks.ordered_owner={};camera_gate::state={};timing::totals={};}
 }
 #include "toon_original_boundary_cases.inc"
 int main(){
@@ -60,6 +65,29 @@ int main(){
         need(timing::take_depth==0&&timing::query_phase==timing::QueryPhase::Other,"timers changed Take/query context");
         fixture::reset();fixture::active=false;fixture::update(1,3);
         need(fixture::forwarded==1&&fixture::forwarded_dt==3&&!count(timing::Part::ToonNormalize)&&!count(timing::Part::ToonOriginal),"Host/offline forwarding instrumented or changed");
+        fixture::reset();fixture::active=false;int value=7,before=-1,after=-1;unsigned events=0;
+        fixture::callbacks.observe=[&](uintptr_t toon,float dt,uintptr_t,bool returned){
+            need(toon==1&&dt==3,"observer changed receiver or dt");++events;(returned?after:before)=value;
+        };
+        fixture::original_effect=[&]{value=9;};fixture::update(1,3);
+        need(fixture::forwarded==1&&fixture::forwarded_dt==3&&events==2&&before==7&&after==9,
+             "diagnostic did not bracket exactly one unchanged original update");
+        fixture::reset();fixture::active=false;bool diagnostic_failed=false;
+        fixture::callbacks.observe=[&](uintptr_t,float,uintptr_t,bool returned){if(!returned)diagnostic_failed=true;};
+        fixture::update(1,3);
+        need(diagnostic_failed&&fixture::forwarded==1&&fixture::forwarded_dt==3,
+             "diagnostic failure suppressed or changed original update");
+        for(float dt:{0.0f,3.0f}){
+            fixture::reset();fixture::active=false;camera_gate::Step step(11);bool scoped=false;
+            fixture::callbacks.ordered_owner=[](uintptr_t,uintptr_t,uintptr_t root,bool& owned,std::string&){owned=root==11;return true;};
+            fixture::original_effect=[&]{scoped=camera_gate::selected(1);};fixture::update(1,dt);
+            need(scoped&&fixture::forwarded==1&&fixture::forwarded_dt==dt&&!camera_gate::selected(1)&&!step.failed(),
+                 "ordered camera scope changed original receiver, dt or lifetime");
+        }
+        fixture::reset();fixture::active=false;
+        {camera_gate::Step step(11);fixture::callbacks.ordered_owner=[](uintptr_t,uintptr_t,uintptr_t,bool&,std::string& cause){cause="owner rejected";return false;};
+         fixture::update(1,3);need(step.failed()&&step.cause()=="owner rejected"&&fixture::forwarded==1,
+             "owner rejection lost cause or suppressed original");}
         fixture::reset();fixture::seed.owned=false;fixture::update(1,3);
         need(fixture::forwarded==1&&fixture::forwarded_dt==3&&count(timing::Part::ToonNormalize)==1&&!count(timing::Part::ToonOriginal),"unowned decision/forwarding changed");
         fixture::reset();fixture::seed.fail_pin=1;fixture::update(1,0);

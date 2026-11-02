@@ -79,6 +79,11 @@ void codec(){for(bool hire:{true,false}){Message m;m.session=5;m.request.action=
     m.kind=Kind::HostResult;m.revision=1;m.required_mask=3;m.outcome=Outcome::Confirmed;m.evidence.before=money();m.evidence.after=money(hire);
     m.evidence.developers_before=pool(!hire);m.evidence.developers_after=hire?pool(true):pool(false,true);m.evidence.retirement_confirmed=true;
     check(encode(m,bytes,e)&&decode(bytes.data(),bytes.size(),out,e)&&m==out,"full50 result roundtrip failed: "+e);check(bytes.size()<max_payload,"full50 evidence exceeded existing action bound");
+    if(!hire){const auto baseline=bytes;auto other=m;std::vector<uint8_t> changed;
+        other.evidence.developers_before->rows[49].position[0]=1;other.evidence.developers_after->rows[49].position[0]=1;
+        check(encode(other,changed,e)&&changed!=baseline,"Fire unchanged actor evidence did not affect canonical bytes");
+        other=m;other.evidence.before.line_counts[19]++;other.evidence.after.line_counts[19]++;
+        check(encode(other,changed,e)&&changed!=baseline,"Fire unchanged Ledger evidence did not affect canonical bytes");}
     raw=nlohmann::json::parse(bytes);bad=raw;bad["evidence"]["developers_after"]["rows"][49][6]=1;reject(bad);bad=raw;bad["evidence"]["developers_after"]["rows"][1][0]=49;reject(bad);
     bad=raw;bad["evidence"]["after"]["line_counts"][19]=1;reject(bad);bad=raw;bad["evidence"].erase("developers_before");reject(bad);
     m.evidence.developers_after.reset();check(!encode(m,bytes,e),"missing pool evidence accepted on encode");

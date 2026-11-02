@@ -2,7 +2,8 @@
 #include "typed_action/action_session.h"
 namespace mt2mp::game::release_runtime {
 bool enable(std::string&);
-bool pending_ui();bool retire_lobby(std::string&);void tick();
+bool pending_ui();bool retire_lobby(std::string&);void tick();void tick_ordered_pending();
+bool ui_fixture(const nlohmann::json&,nlohmann::json&,std::string&);
 bool framework_retire(std::string&);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);

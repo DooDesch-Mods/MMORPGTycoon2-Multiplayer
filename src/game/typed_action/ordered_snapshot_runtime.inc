@@ -20,12 +20,12 @@ public:
     }
     bool snapshot_active()const{return snapshot_.active()||!snapshot_requested_.empty()||snapshot_clock_pending();}
     void snapshot_native_pending(std::function<bool(bool&,std::string&)> read){snapshot_native_pending_=std::move(read);}
-    bool request_snapshot(const std::string& nonce,SnapshotCapture capture,std::string& error,bool manage_clock=false,bool asynchronous=false){
+    bool request_snapshot(const std::string& nonce,SnapshotCapture capture,std::string& error,bool manage_clock=false,bool asynchronous=false,bool periodic=false){
         if(!current(error))return false;
         if((!save_queued_nonce_.empty()&&save_queued_nonce_!=nonce)||context_.role!=Role::Host||reload_held_||(!reload_token_.empty()&&(manage_clock||asynchronous))||snapshot_active()||!capture||!snapshot_witness_||!snapshot_completion_timeout_||snapshot_nonces_.contains(nonce)){
             error="Snapshot request requires idle Host, fresh nonce and owned capture/witness";return false;
         }
-        snapshot_requested_=nonce;snapshot_capture_=std::move(capture);snapshot_nonces_.insert(nonce);
+        snapshot_requested_=nonce;snapshot_periodic_=periodic;snapshot_capture_=std::move(capture);snapshot_nonces_.insert(nonce);
         snapshot_async_=asynchronous;snapshot_native_live_=false;snapshot_pump_error_.clear();
         snapshot_submitted_=false;snapshot_manage_clock_=manage_clock||!reload_token_.empty();snapshot_clock_phase_=SnapshotClockPhase::Idle;
         snapshot_clock_sequence_=0;snapshot_clock_confirmed_=false;snapshot_resume_scale_=0;
@@ -116,7 +116,7 @@ private:
     std::array<std::optional<wire::SnapshotControl>,5> snapshot_early_{};
     std::set<std::string> snapshot_nonces_;std::string snapshot_requested_;nlohmann::json snapshot_observation_;
     uint64_t snapshot_command_order_=0;
-    bool snapshot_submitted_=false;
+    bool snapshot_submitted_=false,snapshot_periodic_=false;
     std::string reload_token_,reload_nonce_;bool reload_held_=false;
     uint64_t snapshot_completion_timeout_=0,snapshot_deadline_=0;
     bool snapshot_wait(uint64_t duration,std::string& error){
@@ -138,7 +138,7 @@ private:
         request.lease=lease_;request.session=context_.session;request.world_epoch=world_;
         request.tick=snapshot_.tick;request.order=snapshot_.order;request.peer_mask=context_.peer_mask;
         std::memcpy(request.nonce,snapshot_.nonce.c_str(),snapshot_.nonce.size()+1);
-        if(operation==MT2FW_MT2_SNAPSHOT_ARM)request.invocation=borrowed_?borrowed_->invocation:0;
+        if(operation==MT2FW_MT2_SNAPSHOT_ARM||operation==MT2FW_MT2_SNAPSHOT_ARM_PERIODIC)request.invocation=borrowed_?borrowed_->invocation:0;
         else std::copy(snapshot_.witness.begin(),snapshot_.witness.end(),request.witness_sha256);
         if(operation==MT2FW_MT2_SNAPSHOT_CAPTURE||operation==MT2FW_MT2_SNAPSHOT_RELEASE||operation==MT2FW_MT2_SNAPSHOT_PUMP||operation==MT2FW_MT2_SNAPSHOT_CLIENT_CACHE)request.ack_mask=context_.peer_mask;
         MT2FW_MT2_StepReceipt receipt{};receipt.size=sizeof(receipt);
@@ -148,13 +148,13 @@ private:
         if(result!=MT2FW_MT2_OK){error=api_cause(("snapshot operation "+std::to_string(operation)).c_str(),result,receipt);
             return terminal?false:snapshot_.fail(error,error);}
         if(!identity(receipt)||receipt.workers_held!=1||receipt.callbacks_inflight!=1||
-           (operation!=MT2FW_MT2_SNAPSHOT_ARM&&receipt.completed_tick!=snapshot_.tick))
+           (operation!=MT2FW_MT2_SNAPSHOT_ARM&&operation!=MT2FW_MT2_SNAPSHOT_ARM_PERIODIC&&receipt.completed_tick!=snapshot_.tick))
             return snapshot_.fail("Snapshot Framework receipt owner/completed tick differs",error);
         return true;
     }
     bool snapshot_arm(const SnapshotRequest& request,std::string& error){
         if(!borrowed_||!snapshot_witness_||!snapshot_completion_timeout_||!snapshot_command_order_)return snapshot_.fail("Snapshot ARM lacks borrowed command and witness",error);
-        if(context_.role==Role::Host&&(snapshot_requested_!=request.nonce||!snapshot_capture_||!snapshot_submitted_))return snapshot_.fail("Snapshot Host capture owner differs",error);
+        if(context_.role==Role::Host&&(snapshot_requested_!=request.nonce||snapshot_periodic_!=(request.purpose==SnapshotPurpose::HostPeriodic)||!snapshot_capture_||!snapshot_submitted_))return snapshot_.fail("Snapshot Host capture owner differs",error);
         if(!snapshot_.arm(context_,request,borrowed_->tick,snapshot_command_order_,error))return false;
         snapshot_diagnostic_receipt_=nullptr;
         for(uint64_t peer=1;peer<=4;++peer)if(snapshot_early_[peer]){
@@ -164,7 +164,7 @@ private:
             if(!reload_nonce_.empty())return snapshot_.fail("Ordered reload Snapshot ARM repeated",error);
             reload_nonce_=request.nonce;
         }
-        controller_.hold_ordered_snapshot(true);return snapshot_api(MT2FW_MT2_SNAPSHOT_ARM,error);
+        controller_.hold_ordered_snapshot(true);return snapshot_api(snapshot_.purpose==SnapshotPurpose::HostPeriodic?MT2FW_MT2_SNAPSHOT_ARM_PERIODIC:MT2FW_MT2_SNAPSHOT_ARM,error);
     }
     bool snapshot_service(const MT2FW_MT2_StepReceipt& receipt,std::string& error){
         using Phase=SnapshotBarrier::Phase;
@@ -174,7 +174,7 @@ private:
             // Original Go can retain a request, but only the held service enters Controller transport.
             if(controller_.status().pending)return true;
             bool paused=false;if(!snapshot_pause(paused,error))return false;if(!paused)return true;
-            if(!controller_.submit_ordered_snapshot(snapshot_requested_,now_(),error))return snapshot_.fail(error,error);
+            if(!controller_.submit_ordered_snapshot(snapshot_requested_,now_(),error,snapshot_periodic_))return snapshot_.fail(error,error);
             snapshot_submitted_=true;return true;
         }
         if(!snapshot_.active())return true;
@@ -226,7 +226,7 @@ private:
                 // Reload restores the retained selected speed only in the new epoch.
                 snapshot_clock_phase_=SnapshotClockPhase::Done;
             }
-            controller_.hold_ordered_snapshot(false);snapshot_requested_.clear();snapshot_capture_={};
+            controller_.hold_ordered_snapshot(false);snapshot_requested_.clear();snapshot_periodic_=false;snapshot_capture_={};
             last_time_us_=deadline_us_=monotonic_us_();
             snapshot_deadline_=0;
         }

@@ -81,6 +81,18 @@ void pair(){
     need(host->controller.ordered_seal(batch,23,cause)&&batch.commands.size()==1&&std::holds_alternative<tc::TimeRequest>(batch.commands[0].input.command),"time did not share Host order");
     need(host->engine.legacy==0&&client->engine.legacy==0,"legacy state copy or executor called");
 }
+void periodic_pair(){
+    auto host=std::make_unique<Peer>(1),client=std::make_unique<Peer>(2);std::string cause;int received=0;
+    need(host->start(cause)&&client->start(cause),"periodic pair startup failed");
+    need(host->controller.bind_ordered_periodic([&](uint64_t peer,const tc::wire::PeriodicRequest& value,std::string&){
+        ++received;return peer==2&&value.tick==10&&value.invocation==7;
+    },cause),"periodic receiver bind failed");
+    tc::wire::PeriodicRequest due{17,10,7,2,world};
+    need(client->controller.send_ordered_periodic(due,cause),"Client periodic send failed");
+    need(client->deliver(*host,0,cause)&&received==1,"authenticated periodic request not delivered");
+    need(host->commands==0&&client->commands==0&&host->steps==0&&client->steps==0,"periodic transport executed a native action");
+    due.peer=1;need(!client->controller.send_ordered_periodic(due,cause),"Client spoofed a Host periodic request");
+}
 void failures(){
     std::string cause;tc::Batch b;tc::Receipt r;
     auto failed=std::make_unique<Peer>(1);need(failed->start(cause),"failure start");
@@ -126,4 +138,4 @@ void host_ack(){
     need(!host->controller.status().pending&&host->controller.status().confirmed==1&&host->controller.status().ack_mask==3,"Host exact completion mask missing");
 }
 }
-int main(){try{pair();failures();backpressure();host_ack();std::cout<<checks<<" ordered checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"FAIL after "<<checks<<" checks: "<<e.what()<<'\n';return 1;}}
+int main(){try{pair();periodic_pair();failures();backpressure();host_ack();std::cout<<checks<<" ordered checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<"FAIL after "<<checks<<" checks: "<<e.what()<<'\n';return 1;}}

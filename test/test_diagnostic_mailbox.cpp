@@ -19,9 +19,10 @@ struct Config {bool diagnostic_mailbox_enabled=true;static Config& instance(){st
 std::string run_id="fixture-run",last_request,last_mailbox_request;
 std::string ordinary_save_id;
 namespace game::typed_action_runtime {
-bool held=false;std::string failure;
+bool held=false;std::string failure;unsigned snapshot_failures=0;
 json ordered_snapshot_status(){return {{"runtime_failure",failure}};}
 bool ordered_snapshot_active(){return held;}
+void fail_ordered_snapshot(const std::string&){++snapshot_failures;}
 }
 namespace game::session_reload {
 bool active=false;std::string capture_id;
@@ -29,7 +30,7 @@ bool recovery_active(){return active;}
 bool recovery_capture_pending(const std::string& id){return !capture_id.empty()&&id==capture_id;}
 }
 json external_request;
-unsigned reads=0,writes=0;bool write_fails=false;
+unsigned reads=0,writes=0;bool write_fails=false;json written_response;
 std::vector<std::string> attempts;
 std::string runtime_root="fixture-profile";
 unsigned executor_ticks=0;
@@ -37,10 +38,23 @@ unsigned executor_ticks=0;
     ++executor_ticks;
 }
 json read_request(const std::filesystem::path&){++reads;return external_request;}
-void write_json(const std::filesystem::path&,const json&){++writes;if(write_fails)throw std::runtime_error("original response write failure");}
+void write_json(const std::filesystem::path&,const json& value){++writes;if(write_fails)throw std::runtime_error("original response write failure");written_response=value;}
 json status(){return json::object();}
 #define LOG_INFO(...) ((void)0)
+#define LOG_WARN(...) ((void)0)
+template<class... T>void ignore_log(T&&...){}
+#define LOG_ERROR(...) ignore_log(__VA_ARGS__)
 #include "diagnostic_respond_body.inc"
+namespace runtime_paths {std::filesystem::path diagnostics(const std::string&){return std::filesystem::current_path();}}
+namespace game::normal_load_identity {void cancel(const std::string&) {}}
+namespace game::building_capture_identity {unsigned cancellations=0;void cancel(const std::string&){++cancellations;}}
+namespace game::network_identity {unsigned cancellations=0;void cancel_pending(const std::string&){++cancellations;}}
+struct LoadWatch {void finish(){}} load_watch;
+std::string pending_ordered_snapshot,diagnostic_failure;size_t diagnostic_failure_count=0;
+bool snapshot_observer_begun=false,snapshot_network_observer_begun=false;
+void actual_failure(const std::exception& error,const std::string& request_in_progress){
+#include "diagnostic_failure_body.inc"
+}
 void poll(){
     const auto dir=std::filesystem::current_path();
     std::string request_in_progress;
@@ -116,14 +130,24 @@ int main() try {
     external_request=request(first);external_request["run_id"]="old-run";poll();check(attempts.size()==3,"foreign run executed");
     check(last_mailbox_request==first,"foreign mailbox identity not retained");
     last_request=internal;poll();check(attempts.size()==3,"foreign mailbox replayed after internal ID change");
-    game::typed_action_runtime::held=true;last_mailbox_request.clear();external_request=request(next);
-    bool blocked=false;try{poll();}catch(const std::runtime_error& error){blocked=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
-    check(blocked&&attempts.size()==3,"held snapshot admitted a mutation through diagnostics");
-    external_request["op"]="read_ordered_world";poll();check(attempts.size()==4,"held snapshot blocked current read-only evidence");
+    game::typed_action_runtime::held=true;last_mailbox_request.clear();external_request=request(next);external_request["op"]="read_native_campaign_ui";
+    pending_snapshot={{"id",internal}};ordinary_save_id=internal;const auto before_denial=writes;poll();
+    check(attempts.size()==3&&writes==before_denial+2&&written_response.at("id")==next&&!written_response.at("ok").get<bool>()&&written_response.at("error").at("code")=="SNAPSHOT_HELD"&&pending_snapshot.at("id")==internal&&ordinary_save_id==internal&&last_mailbox_request==next,"held snapshot rejection lost request identity or snapshot owner");
+    poll();check(writes==before_denial+2&&attempts.size()==3,"held rejection replayed");pending_snapshot=nullptr;ordinary_save_id.clear();
+    pending_snapshot={{"id",internal}};ordinary_save_id=internal;external_request=request(first);external_request["op"]="read_native_campaign_ui";write_fails=true;
+    bool publication_failed=false;try{poll();}catch(const std::runtime_error& error){publication_failed=std::string(error.what())=="original response write failure";}
+    check(publication_failed&&deferred_response.at("id")==first&&!deferred_response.at("ok").get<bool>()&&deferred_response.at("error").at("code")=="SNAPSHOT_HELD"&&pending_snapshot.at("id")==internal,"held rejection publication failure lost original error or deferred response");
+    write_fails=false;deferred_response=nullptr;pending_snapshot=nullptr;ordinary_save_id.clear();
+    external_request=request(next);external_request["op"]="read_ordered_world";poll();check(attempts.size()==4,"held snapshot blocked current read-only evidence");
     game::typed_action_runtime::held=false;game::session_reload::active=true;last_mailbox_request.clear();external_request=request(next);
-    blocked=false;try{poll();}catch(const std::runtime_error& error){blocked=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
-    check(blocked&&attempts.size()==4,"active recovery admitted an unrelated external mutation");
+    poll();check(attempts.size()==4&&written_response.at("id")==next&&written_response.at("error").at("code")=="SNAPSHOT_HELD","active recovery admitted an unrelated external mutation");
+    ops::active=internal;ops::request=request(internal);bool internal_failed=false;try{poll();}catch(const std::runtime_error& error){internal_failed=std::string(error.what()).find("permits status and read-only state")!=std::string::npos;}
+    check(internal_failed&&attempts.size()==4,"internal held failure was silently handled");
     ops::active=internal;ops::request=request(internal);ops::request["op"]="capture_recovery_snapshot";
     game::session_reload::capture_id=internal;poll();check(attempts.size()==5&&attempts.back()==internal,"retained recovery capture was blocked");
+    ops::active.clear();ops::request=nullptr;ops::response=nullptr;game::session_reload::active=false;
+    pending_snapshot={{"id",internal},{"bind_snapshot_identities",true}};pending_ordered_snapshot=internal;
+    actual_failure(std::runtime_error("original native snapshot fault"),next);
+    check(game::typed_action_runtime::snapshot_failures==1&&game::building_capture_identity::cancellations==1&&game::network_identity::cancellations==1&&pending_snapshot.is_null()&&written_response.at("id")==internal&&!written_response.at("ok").get<bool>()&&written_response.at("error").at("message")=="original native snapshot fault","actual native snapshot failure did not remain fatal and visible");
     std::cout<<"PASS actual broker selection/response and idle bodies: internal completion cannot replay external mutation, failure response retained, pending operations defer adoption\n";
 } catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

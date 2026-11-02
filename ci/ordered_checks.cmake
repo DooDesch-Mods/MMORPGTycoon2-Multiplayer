@@ -17,6 +17,23 @@ foreach(name queue wire controller snapshot_barrier)
     set_tests_properties(ordered_${name} PROPERTIES TIMEOUT 60 LABELS ordered)
 endforeach()
 
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_movement/camera_native.inc" "${ordered_test_root}/extract_tutorial_camera_native.py")
+execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${ordered_test_root}/extract_tutorial_camera_native.py"
+    --source "${MT2MP_SOURCE_ROOT}" --output "${ordered_generated}/ordered_tutorial_camera_native_body.inc" COMMAND_ERROR_IS_FATAL ANY)
+foreach(name tutorial_camera tutorial_camera_native)
+    add_executable(test_ordered_${name} "${ordered_test_root}/test_${name}.cpp")
+    target_include_directories(test_ordered_${name} PRIVATE "${ordered_generated}" "${MT2MP_SOURCE_ROOT}/src" "${MT2MP_SOURCE_ROOT}/include")
+    target_compile_features(test_ordered_${name} PRIVATE cxx_std_20)
+    target_compile_definitions(test_ordered_${name} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
+    if(MSVC)
+        target_compile_options(test_ordered_${name} PRIVATE /W4 /WX /utf-8 /EHsc)
+    endif()
+    add_test(NAME ordered_${name} COMMAND test_ordered_${name})
+    set_tests_properties(ordered_${name} PROPERTIES TIMEOUT 60 LABELS ordered)
+endforeach()
+
 target_sources(test_ordered_queue PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/placement_ui_diagnostics/admission.cpp")
 
 if(WIN32)
@@ -40,7 +57,18 @@ if(WIN32)
     execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${ordered_test_root}/extract_bootstrap.py"
         --source "${MT2MP_SOURCE_ROOT}" --output "${ordered_generated}/ordered_bootstrap_body.inc"
         COMMAND_ERROR_IS_FATAL ANY)
-    foreach(name bootstrap lifecycle)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/ordered_save_request.inc"
+        "${ordered_test_root}/extract_periodic_service.py")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${ordered_test_root}/extract_periodic_service.py"
+        --source "${MT2MP_SOURCE_ROOT}" --output "${ordered_generated}/ordered_periodic_service_body.inc"
+        COMMAND_ERROR_IS_FATAL ANY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MT2MP_SOURCE_ROOT}/src/game/native_save_request.inc" "${ordered_test_root}/extract_periodic_countdown.py")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${ordered_test_root}/extract_periodic_countdown.py"
+        --source "${MT2MP_SOURCE_ROOT}" --output "${ordered_generated}/ordered_periodic_countdown_body.inc"
+        COMMAND_ERROR_IS_FATAL ANY)
+    foreach(name bootstrap lifecycle periodic_service periodic_countdown)
         add_executable(test_ordered_${name} "${ordered_test_root}/test_${name}.cpp")
         target_include_directories(test_ordered_${name} PRIVATE "${ordered_generated}"
             "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include"

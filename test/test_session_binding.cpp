@@ -28,7 +28,8 @@ int main()try{
     auto value=raw;value["mod"]="other";require(reject(value),"mixed mod version admitted");
     value=raw;value["game"]="other";require(reject(value),"mixed executable admitted");
     value=raw;value["revision"]=1;require(reject(value),"old fixed-membership protocol admitted");
-    value=raw;value["revision"]=2.0;require(reject(value),"floating-point protocol revision admitted");
+    value=raw;value["revision"]=2;require(reject(value)&&error=="Steam binding protocol/mod/game differs","previous tick protocol did not report named mismatch");
+    value=raw;value["revision"]=3.0;require(reject(value),"floating-point protocol revision admitted");
     value=raw;value["slots"][0]=1;require(reject(value),"reserved slot admitted");
     value=raw;value["slots"][2]=55;require(reject(value),"duplicate physical sender admitted");
     value=raw;value["host"]=22;require(reject(value),"metadata Host differs from physical Host slot");

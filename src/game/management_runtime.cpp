@@ -28,14 +28,29 @@
 #include <functional>
 #include <cstring>
 #include "typed_action_runtime.h"
+#include "typed_action/tick_authority.h"
+#include "mt2mp/core/config.h"
 #include "session_provider.h"
 #include "native_open_runtime.h"
+#include "hud_time_runtime.h"
+#include "initial_release/release_entry.h"
+#include "initial_release/release_bytes.h"
+#include "monster_target_key.h"
 #include "live_host_state/native_port.h"
 #include "live_host_state/economic_fence.h"
 #include "live_host_state/memory_query_timing.h"
 #include "placement_ui_probe/ui_probe.h"
 #include "marketing_authority/readback.h"
 #include "remove_diagnostics.h"
+#include "ui_remove/diagnostic/ui_diagnostic.h"
+#include "region_saved_identity.h"
+#include "dungeon_scene_identity_runtime.h"
+#include "ui_path_runtime.h"
+#include "management_service_graph_read.h"
+#include "management_service_graph_transition.h"
+#include "management_service_sources.h"
+#include "management_service_lock.h"
+#include "management_service_price_witness.h"
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/core/hash.h"
 #include "mt2mp/core/logger.h"
@@ -46,8 +61,10 @@
 #include <intrin.h>
 #include <atomic>
 #include <map>
+namespace mt2mp::game::developer_staff {uint32_t original_show(uintptr_t,uintptr_t);}
 #include <optional>
 #include <set>
+#include <tuple>
 #include <cstdio>
 
 namespace mt2mp::game::management_runtime {
@@ -59,16 +76,18 @@ using GmUpdate=void(*)(void*,float);
 struct GmRoute {uintptr_t rva;size_t bytes,stolen;const char* sha;GmUpdate original=nullptr;release_ui_owner::Owner owner;};
 using ServicePrice=void(*)(void*,const void*);using ServiceSync=void(*)(void*,bool);
 struct ServiceOwner {std::string key;uintptr_t object=0;uint64_t uid=0;service_membership_reader::Local local;a::ServiceMembershipState sampled;building_uptime::Native uptime;bool operator==(const ServiceOwner&)const=default;};
-struct Local {std::vector<ServiceOwner> services;std::map<uintptr_t,std::string> service_destinations;live::Pin pin;uintptr_t software=0,release=0,current_release=0,lounge=0,marketing=0,service_building=0,service_object=0;uint64_t service_uid=0;std::vector<uintptr_t> service_rows,gm_rows;std::vector<uint64_t> gm_uids;int32_t lounge_count=0;};
-struct Pending {a::Context context;a::Binding binding;a::ManagementIntent intent;std::string id;};
-struct Receipt {a::Binding binding;a::Request request;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false;std::string cause;};
+struct Local {std::vector<ServiceOwner> services;std::map<uintptr_t,std::string> service_destinations;live::Pin pin;uintptr_t software=0,release=0,current_release=0,lounge=0,marketing=0,service_building=0,service_object=0;uint64_t service_uid=0;std::vector<uintptr_t> service_rows,gm_rows,loan_rows,offer_rows;std::vector<uint64_t> gm_uids;int32_t lounge_count=0;std::optional<management_service_graph::Graph> price_graph;uintptr_t price_manager=0;};
+struct Pending {a::Context context;a::Binding binding;a::ManagementIntent intent;std::string id;bool ordered=false;};
+struct Receipt {a::Binding binding;a::Request request;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,ordered=false;std::string cause;size_t price_changed_destinations=0;};
 struct Runtime {
     DWORD thread=GetCurrentThreadId();uintptr_t image=0;bool attempted=false,ready=false,replay=false;
     Void hire=nullptr,fire=nullptr,statistics=nullptr,toggle_release=nullptr;Funds funds=nullptr,purchase_statistic=nullptr;
-    Ui overview=nullptr;
+    Ui overview=nullptr,gm_window=nullptr;
     ServicePrice service_price=nullptr;ServiceSync service_sync=nullptr;
+    bool service_price_lock_unknown=false;
     placement_ui_probe::ProcessMemory memory;std::optional<Pending> pending;std::map<std::string,Receipt> operations;
     uint64_t captures=0,submitted=0,rejected=0;std::string cause,install_cause;
+    std::map<std::string,nlohmann::json> gm_ui_proofs,loan_ui_proofs,campaign_ui_proofs,service_ui_proofs;bool gm_ui_locked=false,loan_ui_locked=false,campaign_ui_locked=false,service_ui_locked=false;std::string gm_ui_cause,loan_ui_cause,campaign_ui_cause,service_ui_cause;
     std::array<GmRoute,2> gm_routes{{{0x3adae0,240,5,"9098ff645372542d40e5b75a5490516c5e340d4eb47bc7dbcdd3817deac772c9"},{0x3ad520,1344,11,"5bc044e0425b35c55ddbca5ce914b0994a0341628acf4652dcc5afa88cff711b"}}};
     bool gm_client=false,gm_suspended=true,gm_failed=false;std::string gm_cause;
     uintptr_t gm_root=0;std::optional<a::Context> gm_context;std::optional<a::Binding> gm_binding;
@@ -102,7 +121,7 @@ bool text(Runtime& r,uintptr_t string,std::string& out,size_t limit,std::string&
     if(length&&!r.memory.copy(bytes,out.data(),length,e))return false;char end=1;
     return at(r,bytes,length,end,e)&&(!end&&out.find('\0')==std::string::npos||fail(e,"Management GNU string terminator differs"));
 }
-bool loan_rows(Runtime& r,const Local& local,a::ManagementState& state,std::string& e){
+bool loan_rows(Runtime& r,Local& local,a::ManagementState& state,std::string& e){
     uintptr_t analytics=0;if(!at(r,r.image,0x13df280,analytics,e)||!ap(r,analytics,0x16dd3b0,e))return false;
     int32_t eligibility=0;if(!at(r,analytics,0x44,eligibility,e))return false;
     for(bool offer:{false,true}){
@@ -111,7 +130,7 @@ bool loan_rows(Runtime& r,const Local& local,a::ManagementState& state,std::stri
         if(count<0||count>1024||capacity<count||capacity>1000000||(!data&&count))return fail(e,"Management actual Loan/Offer array invalid");
         std::set<uintptr_t> owners;std::set<std::string> keys;
         for(int32_t i=0;i<count;++i){uintptr_t owner=0;if(!at(r,data,size_t(i)*8,owner,e)||!ap(r,owner,offer?0x16df370:0x17438e0,e))return false;
-            if(!owners.insert(owner).second)return fail(e,"Management Loan/Offer native owner duplicated");
+            if(!owners.insert(owner).second)return fail(e,"Management Loan/Offer native owner duplicated");(offer?local.offer_rows:local.loan_rows).push_back(owner);
             a::ManagementLoan loan;a::ManagementOffer quote;auto& names=offer?quote.text:loan.text;
             for(size_t n=0;n<3;++n)if(!text(r,owner+0x18+n*0x20,names[n],n?2048:256,e))return false;
             if(!keys.insert(names[0]).second)return fail(e,"Management Loan/Offer key duplicated");
@@ -147,6 +166,7 @@ bool read_employment(Runtime& r,Local& local,int32_t& count,std::vector<std::arr
         uintptr_t registered=0;const auto seh=uid_lookup(r.image,uid,registered);if(seh||registered!=object)return fail(e,"Management GameMaster FindUID/current pointer differs SEH="+std::to_string(seh));flags.push_back(pair);local.gm_uids.push_back(uid);}
     return true;
 }
+bool validate_state(const a::ManagementState& state,std::string& e){return a::management_valid(state)||fail(e,"Management native state outside typed domain");}
 bool once(Runtime& r,const a::Context& c,const a::Binding& b,Local& local,a::ManagementState& state,a::Ledger& ledger,std::string& e,const a::ManagementIntent* intent){
     state={};local={};a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c)return fail(e,e.empty()?"Management immutable Session/Mainthread differs":e);
     live::NativePort port(c,b,nullptr);if(!port.read(local.pin,e)||local.pin.image!=r.image)return fail(e,e.empty()?"Management actual bound World/image differs":e);
@@ -167,18 +187,20 @@ bool once(Runtime& r,const a::Context& c,const a::Binding& b,Local& local,a::Man
     local.marketing=marketing.marketing;state.marketing=marketing.values;
     for(size_t n=0;n<9;++n)if(!at(r,r.image,0x1a39bc0+n*0xd0,state.campaign_costs[n],e))return false;
     if(intent&&!read_services(r,c,b,*intent,local,state,e))return false;
-    ledger=live::ledger(local.pin.values);return a::management_valid(state)||fail(e,"Management native state outside typed domain");
+    ledger=live::ledger(local.pin.values);return validate_state(state,e);
 }
 bool read(Runtime& r,const a::Context& c,const a::Binding& b,Local& local,a::ManagementState& state,a::Ledger& ledger,std::string& e,const a::ManagementIntent* intent=nullptr){
     Local previous;a::ManagementState before;a::Ledger money;if(!once(r,c,b,previous,before,money,e,intent)||!once(r,c,b,local,state,ledger,e,intent))return false;
-    if(previous.pin!=local.pin||previous.software!=local.software||previous.release!=local.release||previous.current_release!=local.current_release||previous.lounge!=local.lounge||previous.lounge_count!=local.lounge_count||previous.marketing!=local.marketing||previous.service_uid!=local.service_uid||previous.service_building!=local.service_building||previous.service_object!=local.service_object||previous.service_rows!=local.service_rows||previous.gm_rows!=local.gm_rows||previous.gm_uids!=local.gm_uids||before!=state||money!=ledger)return fail(e,"Management native roots/state/Ledger changed during double read");e.clear();return true;
+    if(previous.pin!=local.pin||previous.software!=local.software||previous.release!=local.release||previous.current_release!=local.current_release||previous.lounge!=local.lounge||previous.lounge_count!=local.lounge_count||previous.marketing!=local.marketing||previous.service_uid!=local.service_uid||previous.service_building!=local.service_building||previous.service_object!=local.service_object||previous.service_rows!=local.service_rows||previous.price_manager!=local.price_manager||previous.gm_rows!=local.gm_rows||previous.gm_uids!=local.gm_uids||previous.loan_rows!=local.loan_rows||previous.offer_rows!=local.offer_rows||before!=state||money!=ledger)return fail(e,"Management native roots/state/Ledger changed during double read");e.clear();return true;
 }
-bool expected_money(const a::ManagementIntent& intent,const a::ManagementState& state,const a::Ledger& before,a::Ledger& after,std::string& e){
-    return a::management_ledger(intent,state,before,after)||fail(e,"Management native payment amount/Ledger invalid");
+bool expected_money(const a::ManagementIntent& intent,const a::ManagementState& state,const a::Ledger& before,a::Ledger& after,std::string& e,bool ordered=false){
+    return (ordered?a::ordered_management_ledger(intent,state,before,after):a::management_ledger(intent,state,before,after))||fail(e,"Management native payment amount/Ledger invalid");
 }
 std::string uuid(std::string& e){unsigned char b[16]{};auto code=BCryptGenRandom(nullptr,b,sizeof b,BCRYPT_USE_SYSTEM_PREFERRED_RNG);if(code){e="Management UUID NTSTATUS="+std::to_string(code);return {};}
     b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;char out[37];std::snprintf(out,sizeof out,"%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",b[0],b[1],b[2],b[3],b[4],b[5],b[6],b[7],b[8],b[9],b[10],b[11],b[12],b[13],b[14],b[15]);return out;}
 void reject(Runtime& r,const std::string& e){++r.rejected;if(r.cause!=e){r.cause=e;LOG_ERROR("[Management] Rejected cause={}",e);}}
+uint32_t hire_afford(uintptr_t image,uintptr_t business,bool& affordable)noexcept{__try{affordable=reinterpret_cast<bool(*)(void*,int32_t)>(image+0x54d00)(reinterpret_cast<void*>(business),500);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t campaign_afford(uintptr_t image,uintptr_t business,int32_t amount,bool& affordable)noexcept{__try{affordable=reinterpret_cast<bool(*)(void*,int32_t)>(image+0x54d00)(reinterpret_cast<void*>(business),amount);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 std::string hook_cause(){
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     return hooks::framework::process_backend().error();
@@ -187,16 +209,23 @@ std::string hook_cause(){
 #endif
 }
 bool capture(Runtime& r,void* receiver,const a::ManagementIntent& intent,uintptr_t expected_owner){
-    std::string e;const auto controller=typed_action_runtime::controller_status();a::Context c;a::Binding b;
+    std::string e;const auto controller=typed_action_runtime::controller_status();a::Context c;a::Binding b;bool ordered=false;
     if(!r.ready||r.replay||GetCurrentThreadId()!=r.thread||r.pending||policy_pending()||rules_pending()||intervention_pending()||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||
-       !a::selected_session().current(c,e)||!typed_action_runtime::network_binding(c.snapshot_uuid,b,e)){reject(r,e.empty()?"Management normal UI requires idle bound Controller":e);return false;}
+       !a::selected_session().current(c,e)||!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,b,e,&ordered)||(ordered&&!a::ordered_management(intent))){reject(r,e.empty()?"Management normal UI requires idle bound Controller and supported mode":e);return false;}
     Local local;a::ManagementState state;a::Ledger money;
     if(!a::management_valid(intent)||!read(r,c,b,local,state,money,e,&intent)||uintptr_t(receiver)!=expected_owner||(local.service_object&&local.service_object!=uintptr_t(receiver))){reject(r,e.empty()?"Management original receiver or intent differs":e);return false;}
-    auto id=uuid(e);if(id.empty()){reject(r,e);return false;}r.pending=Pending{c,b,intent,id};++r.captures;return true;
+    if(ordered&&(intent.op==a::ManagementOp::TakeLoan||intent.op==a::ManagementOp::RepayLoan)){a::Ledger expected;if(!a::management_loan_ready(intent,state)||!a::ordered_management_ledger(intent,state,money,expected)){reject(r,"Management Loan actual offer/debt or Ledger prerequisite failed");return false;}}
+    if(ordered&&intent.op==a::ManagementOp::StartCampaign){a::Ledger expected;bool affordable=false;if(!a::management_campaign_ready(intent,state)||!a::ordered_management_ledger(intent,state,money,expected)){reject(r,"Management Campaign actual selection/cost or Ledger prerequisite failed");return false;}const auto fault=campaign_afford(r.image,local.pin.business,state.campaign_costs[size_t(intent.value)]*7,affordable);if(fault||!affordable){reject(r,"Management Campaign original affordability failed SEH="+std::to_string(fault));return false;}}
+    if(ordered&&intent.op==a::ManagementOp::SetServiceSync&&!a::management_service_sync_ready(intent,state)){reject(r,"Management service sync actual owner/transition prerequisite failed");return false;}
+    if(ordered&&intent.op==a::ManagementOp::SetServicePrice&&!a::management_service_price_ready(intent,state)){reject(r,"Management service price actual owner/config prerequisite failed");return false;}
+    if(ordered&&intent.op==a::ManagementOp::HireGameMaster){bool affordable=false;const auto fault=hire_afford(r.image,local.pin.business,affordable);if(fault||!affordable||local.lounge_count>=50){reject(r,"Management Hire original affordability/capacity failed SEH="+std::to_string(fault));return false;}}
+    auto id=uuid(e);if(id.empty()){reject(r,e);return false;}r.pending=Pending{c,b,intent,id,ordered};++r.captures;return true;
 }
+#include "management_service_price_runtime.inc"
 #include "management_services.inc"
 void gm(bool hire,void* receiver,uintptr_t caller){auto* r=published.load(std::memory_order_acquire);const auto original=hire?r->hire:r->fire;
     if(r->replay||!net::session_wire::connected()||caller!=r->image+(hire?0x6ea687:0x6ea620)){original(receiver);return;}
+    if(hire&&typed_action_runtime::controller_status().value("ordered",false)){reject(*r,"Ordered Management Hire requires before-payment UI capture");return;}
     uintptr_t business=0;std::string e;if(!at(*r,r->image,0x13df220,business,e)){reject(*r,e);return;}
     a::ManagementIntent intent;intent.op=hire?a::ManagementOp::HireGameMaster:a::ManagementOp::FireGameMaster;capture(*r,receiver,intent,business);
 }
@@ -221,8 +250,26 @@ void statistics_entry(void* receiver){auto* r=published.load(std::memory_order_a
 uint32_t campaign_command(uintptr_t image,void* record,bool& matches)noexcept{
     __try{matches=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,"StartAdCampaign");return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+uint32_t hire_command(uintptr_t image,void* record,bool& matches)noexcept{
+    __try{matches=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,"Hire");return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+bool gm_window_entry(void* receiver,void* record){auto* r=published.load(std::memory_order_acquire);
+    if(r->replay||!net::session_wire::connected()||!typed_action_runtime::controller_status().value("ordered",false))return r->gm_window(receiver,record);
+    bool matches=false;const auto fault=hire_command(r->image,record,matches);if(fault){reject(*r,"Management GM command SEH="+std::to_string(fault));return true;}if(!matches)return r->gm_window(receiver,record);
+    std::string e;uintptr_t business=0;if(!ap(*r,uintptr_t(receiver),0x172c6d0,e)||!at(*r,r->image,0x13df220,business,e)){reject(*r,e.empty()?"Management GM original window or Business differs":e);return true;}
+    a::ManagementIntent intent;intent.op=a::ManagementOp::HireGameMaster;capture(*r,reinterpret_cast<void*>(business),intent,business);return true;
+}
 uint32_t campaign_type(uintptr_t image,uintptr_t choice,int32_t& type)noexcept{
     __try{const auto value=reinterpret_cast<void*(*)(void*)>(image+0x6ab190)(reinterpret_cast<void*>(choice));type=reinterpret_cast<int32_t(*)(void*)>(image+0x5165d0)(value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+uint32_t campaign_value_type(uintptr_t image,uintptr_t value,int32_t& type)noexcept{
+    __try{type=reinterpret_cast<int32_t(*)(const void*)>(image+0x5165d0)(reinterpret_cast<const void*>(value));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+uint32_t campaign_select_original(uintptr_t image,uintptr_t choice,uintptr_t value)noexcept{
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0xb1e150)(reinterpret_cast<void*>(choice),reinterpret_cast<const void*>(value));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
+uint32_t campaign_selection_id(uintptr_t image,uintptr_t choice,int32_t& id)noexcept{
+    __try{id=reinterpret_cast<int32_t(*)(void*)>(image+0x6a9b20)(reinterpret_cast<void*>(choice));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool overview_entry(void* receiver,void* record){auto* r=published.load(std::memory_order_acquire);
     if(r->replay||!net::session_wire::connected())return r->overview(receiver,record);
@@ -248,32 +295,31 @@ bool purchase_statistic_entry(void* receiver,int32_t ordinal){auto* r=published.
     reject(*r,"Statistics project reached Pay without its before-effect Development UI capture");return false;
 }
 struct Call {Runtime* runtime=nullptr;a::ManagementIntent intent;Local local;bool accepted=false,returned=false,price_constructed=false,price_cleaned=false;alignas(8) unsigned char price[0x20]{};};
+bool pay_hire(Runtime& r,void* business){return reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(r.image+0x54d80)(business,500,10);}
+bool loan_original(Runtime& r,bool repay,void* business,const void* key){return reinterpret_cast<bool(*)(void*,const void*)>(r.image+(repay?0x57620:0x555a0))(business,key);}
+bool campaign_original(Runtime& r,const Local& local,int32_t type){const auto daily=reinterpret_cast<int32_t(*)(int32_t)>(r.image+0x516510)(type);return daily>=0&&daily<=INT32_MAX/7&&reinterpret_cast<bool(*)(void*,int32_t)>(r.image+0x51c5e0)(reinterpret_cast<void*>(local.marketing),type)&&reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(r.image+0x54d80)(reinterpret_cast<void*>(local.pin.business),daily*7,17)&&reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(r.image+0x51c640)(reinterpret_cast<void*>(local.marketing),type,7);}
+void price_construct(Runtime& r,void* value,int32_t currency,int32_t amount){reinterpret_cast<void(*)(void*,int32_t,int32_t)>(r.image+0x86d260)(value,currency,amount);}
+void price_destroy(Runtime& r,void* value){reinterpret_cast<void(*)(void*)>(r.image+0x89da30)(value);}
 uint32_t original(Call& c){uint32_t seh=0;auto& r=*c.runtime;__try{
     switch(c.intent.op){
-    case a::ManagementOp::HireGameMaster:r.hire(reinterpret_cast<void*>(c.local.pin.business));c.accepted=true;break;
+    case a::ManagementOp::HireGameMaster:if(!a::tick_commands::authority::active()||pay_hire(r,reinterpret_cast<void*>(c.local.pin.business))){r.hire(reinterpret_cast<void*>(c.local.pin.business));c.accepted=true;}break;
     case a::ManagementOp::FireGameMaster:r.fire(reinterpret_cast<void*>(c.local.pin.business));c.accepted=true;break;
     case a::ManagementOp::AllocateReleaseFunds:c.accepted=r.funds(reinterpret_cast<void*>(c.local.release),c.intent.value);break;
     case a::ManagementOp::SpendStatistics:for(int32_t n=0;n<10;++n)reinterpret_cast<void(*)(void*,int32_t,int32_t)>(r.image+0x2dc900)(reinterpret_cast<void*>(c.local.software),n,c.intent.statistics[n]);c.accepted=true;break;
     case a::ManagementOp::TakeLoan:case a::ManagementOp::RepayLoan:{
         const struct {const char* data;size_t length;unsigned char rest[16];} key{c.intent.key.data(),c.intent.key.size(),{}};
-        c.accepted=reinterpret_cast<bool(*)(void*,const void*)>(r.image+(c.intent.op==a::ManagementOp::TakeLoan?0x555a0:0x57620))(reinterpret_cast<void*>(c.local.pin.business),&key);break;
+        c.accepted=loan_original(r,c.intent.op==a::ManagementOp::RepayLoan,reinterpret_cast<void*>(c.local.pin.business),&key);break;
     }
-    case a::ManagementOp::StartCampaign:{
-        const auto daily=reinterpret_cast<int32_t(*)(int32_t)>(r.image+0x516510)(c.intent.value);
-        if(daily>=0&&daily<=INT32_MAX/7&&reinterpret_cast<bool(*)(void*,int32_t)>(r.image+0x51c5e0)(reinterpret_cast<void*>(c.local.marketing),c.intent.value)&&
-           reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(r.image+0x54d80)(reinterpret_cast<void*>(c.local.pin.business),daily*7,17))
-            c.accepted=reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(r.image+0x51c640)(reinterpret_cast<void*>(c.local.marketing),c.intent.value,7);
-        break;
-    }
+    case a::ManagementOp::StartCampaign:c.accepted=campaign_original(r,c.local,c.intent.value);break;
     case a::ManagementOp::ToggleReleaseKind:r.toggle_release(reinterpret_cast<void*>(c.local.current_release));c.accepted=true;break;
     case a::ManagementOp::SetServicePrice:
-        reinterpret_cast<void(*)(void*,int32_t,int32_t)>(r.image+0x86d260)(c.price,c.intent.currency,c.intent.value);c.price_constructed=true;
+        price_construct(r,c.price,c.intent.currency,c.intent.value);c.price_constructed=true;
         r.service_price(reinterpret_cast<void*>(c.local.service_object),c.price);c.accepted=true;break;
     case a::ManagementOp::SetServiceSync:r.service_sync(reinterpret_cast<void*>(c.local.service_object),c.intent.value!=0);c.accepted=true;break;
     case a::ManagementOp::PurchaseStatistic:c.accepted=r.purchase_statistic(reinterpret_cast<void*>(c.local.software),c.intent.value);break;
     }c.returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){seh=GetExceptionCode();}
-    if(c.price_constructed){__try{reinterpret_cast<void(*)(void*)>(r.image+0x89da30)(c.price);c.price_cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){if(!seh)seh=GetExceptionCode();}}
+    if(c.price_constructed){__try{price_destroy(r,c.price);c.price_cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){if(!seh)seh=GetExceptionCode();}}
     return seh;
 }
 #include "gm_ticket_hooks.inc"
@@ -291,10 +337,12 @@ bool enable(std::string& e){
     struct Keep {Runtime& r;std::string& e;~Keep(){if(!e.empty())r.install_cause=e;}} keep{*r,e};
     uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"Management exact EXE/Mainthread differs: "+e);
     std::vector<unsigned char> lookup_body(176);if(!r->memory.copy(r->image+0x47ce20,lookup_body.data(),lookup_body.size(),e)||mt2mp::sha256(lookup_body)!="de46f415bfe91761b32588eb0578aee73c58a18f4fe9b2f40ce3060ac30ff1f7")return fail(e,e.empty()?"Management original FindUID body differs":e);
+    std::vector<unsigned char> afford_body(32);if(!r->memory.copy(r->image+0x54d00,afford_body.data(),afford_body.size(),e)||mt2mp::sha256(afford_body)!="f743600a807eb2caf8a0e9f7bed2dae3fa941212661a1bd6505b313b2300c040")return fail(e,e.empty()?"Management original affordability body differs":e);
     struct Hook {uintptr_t rva;size_t size;const char* sha;void* entry;void** original;};
     const Hook hooks[]{
         {0x56940,304,"7c7d686227b2264218cc445425c6f390458d1aaebaba7312e71e42e32dce95c9",reinterpret_cast<void*>(&hire_entry),reinterpret_cast<void**>(&r->hire)},
         {0x56a70,304,"dc180bfe9808d320f2c64b5e02d4a7aad5aaca55fb8768b150ebdae2c568e20f",reinterpret_cast<void*>(&fire_entry),reinterpret_cast<void**>(&r->fire)},
+        {0x6ea5a0,624,"e0ea25a0b830cd94eb7f01163ffc4993ade480f97c4e91d7f78650dad7c73355",reinterpret_cast<void*>(&gm_window_entry),reinterpret_cast<void**>(&r->gm_window)},
         {0x4ec880,128,"fc03d6d85d9c83f1acf14b2c8cdef6570663cc902f22c311987e4170c5baeb1b",reinterpret_cast<void*>(&funds_entry),reinterpret_cast<void**>(&r->funds)},
         {0x7d2a40,1024,"f41f346ad13cd53dce37f79878dbe9911dfe9718e2d4305cba2f05ba2375fb85",reinterpret_cast<void*>(&statistics_entry),reinterpret_cast<void**>(&r->statistics)},
         {0x76bd40,1296,"d28dbc0bfd6cc611b65cabf76028840aa9d2ac5572ed6fc577e23fd27bedb9a4",reinterpret_cast<void*>(&overview_entry),reinterpret_cast<void**>(&r->overview)},
@@ -307,17 +355,62 @@ bool enable(std::string& e){
         const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(enabled!=MH_OK)return fail(e,"Management hook enable failed RVA="+std::to_string(h.rva)+" status="+std::to_string(enabled)+" original="+hook_cause());}
     if(!gm_enable(*r,e)||!policy_enable(*r,e)||!rules_enable(*r,e)||!intervention_enable(*r,e)||!interventions::actors::live::enable(e)||!control_input::runtime::enable(e)||!thought_native::enable(*r,e)||!uptime_native::enable(*r,e))return false;r->ready=true;e.clear();return true;
 }
+namespace {
+struct GmFixtureCall {bool constructed=false,label=false,attempted=false,returned=false,accepted=false,cleaned=false;uint32_t exception=0,cleanup_exception=0;};
+void gm_fixture_call(uintptr_t image,uintptr_t window,const char* command,GmFixtureCall& out)noexcept{
+    initial_release::Record record{};__try{reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,command);out.constructed=true;out.label=reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,command);if(out.label){out.attempted=true;out.accepted=reinterpret_cast<Ui>(image+0x6ea5a0)(reinterpret_cast<void*>(window),&record);out.returned=true;}}__except(EXCEPTION_EXECUTE_HANDLER){out.exception=GetExceptionCode();}
+    if(out.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}}
+}
+bool gm_fixture_sample(Runtime& r,const a::Context& c,const a::Binding& b,Local& local,a::ManagementState& state,a::Ledger& ledger,uintptr_t& rng,std::array<uint64_t,4>& random,std::string& e){
+    if(!read(r,c,b,local,state,ledger,e)||!at(r,r.image,0x164b250,rng,e)||!at(r,rng,0,random,e))return false;return true;
+}
+bool gm_fixture_window(Runtime& r,uintptr_t& target,bool visible,std::string& e){
+    uintptr_t data=0;int32_t count=0,capacity=0;if(!at(r,r.image,0x1a3c478,data,e)||!at(r,r.image,0x1a3c480,count,e)||!at(r,r.image,0x1a3c484,capacity,e))return false;
+    if(count<0||count>1024||capacity<count||capacity>65536||(!data&&capacity))return fail(e,"GM UI registry extent invalid");std::vector<uintptr_t> windows(count);if(count&&!r.memory.copy(data,windows.data(),windows.size()*sizeof(uintptr_t),e))return false;
+    target=0;for(auto window:windows){uintptr_t klass=0;if(!at(r,window,0,klass,e))return false;if(klass!=r.image+0x172c6d0)continue;std::string name;uintptr_t logic=1;uint8_t shown=0;if(!text(r,window+0x1b0,name,256,e)||!at(r,window,0x318,logic,e)||!at(r,window,0x45f,shown,e))return false;if(name!="gm_management"||logic||shown>1||(visible&&!shown))continue;if(target)return fail(e,"GM UI registry has multiple matching windows");target=window;}
+    return target!=0||fail(e,"GM UI registry requires one actual matching window");
+}
+}
+bool gm_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){
+    out={{"read_only",false},{"execution_ack",false},{"ui_attempted",false},{"captured",false},{"unknown",false}};auto* r=published.load(std::memory_order_acquire);std::string token;bool attempted=false;
+    try{
+        if(!r||!r->ready||GetCurrentThreadId()!=r->thread||!Config::instance().local_test)return fail(e,"GM UI fixture requires owned ready local-test Mainthread");
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,e)||!inside)return fail(e,e.empty()?"GM UI fixture requires actual original Go scope":e);
+        a::Context c;a::Binding b;bool ordered=false;if(!a::selected_session().current(c,e)||!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,b,e,&ordered)||!ordered||Config::instance().is_host!=(c.role==a::Role::Host))return fail(e,e.empty()?"GM UI fixture requires actual ordered role and idle binding":e);
+        building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e)||world.uuid!=c.snapshot_uuid||world.world_epoch!=b.native_epoch||world.generation!=b.native_generation)return fail(e,e.empty()?"GM UI actual Origin/Binding differs":e);
+        Local local,after_local;a::ManagementState before,after;a::Ledger money,after_money;uintptr_t rng=0,after_rng=0;std::array<uint64_t,4> random{},after_random{};if(!gm_fixture_sample(*r,c,b,local,before,money,rng,random,e))return false;
+        if(args.is_object()&&args.size()==1&&args.value("command",std::string{})=="Read"){out={{"read_only",true},{"snapshot_uuid",c.snapshot_uuid},{"session",c.session},{"local_peer",c.local_peer},{"epoch",b.native_epoch},{"generation",b.native_generation},{"state",a::management_state_observation(before)},{"ledger",a::management_ledger_observation(money)},{"gm_uids",local.gm_uids},{"random",random}};e.clear();return true;}
+        if(!args.is_object()||args.size()!=6||!args.contains("command")||!args.at("command").is_string()||!args.contains("token")||!args.at("token").is_string()||!args.contains("snapshot_uuid")||!args.at("snapshot_uuid").is_string()||!args.contains("epoch")||!args.at("epoch").is_number_unsigned()||!args.contains("generation")||!args.at("generation").is_number_unsigned()||!args.contains("expected_count")||!args.at("expected_count").is_number_integer())return fail(e,"GM UI fixture requires exact six typed fields");
+        const auto command=args.at("command").get<std::string>();token=args.at("token").get<std::string>();if((command!="Show"&&command!="Hire"&&command!="Fire")||!monster_target_key::uuid(token)||!monster_target_key::uuid(args.at("snapshot_uuid").get<std::string>()))return fail(e,"GM UI command or UUID invalid");
+        if(r->gm_ui_proofs.contains(token)){out=r->gm_ui_proofs.at(token);return fail(e,"GM UI token consumed; no replay");}if(r->gm_ui_locked)return fail(e,r->gm_ui_cause);if(r->gm_ui_proofs.size()>=64||r->pending||policy_pending()||rules_pending()||intervention_pending()||control_input::runtime::pending()||r->replay)return fail(e,"GM UI fixture requires empty pending owners");
+        if(args.at("snapshot_uuid").get<std::string>()!=c.snapshot_uuid||args.at("epoch").get<uint64_t>()!=b.native_epoch||args.at("generation").get<uint64_t>()!=b.native_generation||args.at("expected_count").get<int32_t>()!=before.game_masters)return fail(e,"GM UI actual identity or count differs");
+        uintptr_t target=0;if(!gm_fixture_window(*r,target,command!="Show",e))return false;if(command=="Show"&&!hud_time_runtime::verify_window_show_hook(r->image+0x81ec20,e))return false;
+        if(command!="Show")for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x967370||guard.rva==0x9676a0||guard.rva==0x1113d80){std::vector<unsigned char> bytes(guard.size);if(!r->memory.copy(r->image+guard.rva,bytes.data(),bytes.size(),e)||std::memcmp(bytes.data(),guard.data,guard.size))return fail(e,e.empty()?"GM UI original record body differs":e);}
+        const auto captures=r->captures;out["token"]=token;out["command"]=command;out["unknown"]=true;r->gm_ui_proofs.emplace(token,out);r->gm_ui_locked=true;r->gm_ui_cause="GM UI original call unconfirmed; no replay";out["ui_attempted"]=true;r->gm_ui_proofs[token]=out;attempted=true;
+        bool ok=false;if(command=="Show"){const auto fault=developer_staff::original_show(r->image,target);out["exception"]=fault;out["ui_returned"]=fault==0;uintptr_t shown=0;ok=!fault&&gm_fixture_window(*r,shown,true,e)&&shown==target&&!r->pending;out["shown"]=ok;}
+        else{GmFixtureCall call;gm_fixture_call(r->image,target,command.c_str(),call);out["record_constructed"]=call.constructed;out["record_confirmed"]=call.label;out["callback_attempted"]=call.attempted;out["ui_returned"]=call.returned;out["ui_accepted"]=call.accepted;out["record_cleanup_confirmed"]=call.cleaned;out["exception"]=call.exception;out["cleanup_exception"]=call.cleanup_exception;const auto op=command=="Hire"?a::ManagementOp::HireGameMaster:a::ManagementOp::FireGameMaster;ok=call.constructed&&call.label&&call.attempted&&call.returned&&call.accepted&&call.cleaned&&!call.exception&&!call.cleanup_exception&&r->captures==captures+1&&r->pending&&r->pending->ordered&&r->pending->context==c&&r->pending->binding==b&&r->pending->intent.op==op;if(ok){out["captured"]=true;out["action_uuid"]=r->pending->id;}}
+        std::string read_error;uintptr_t retained=0;a::Context after_context;a::Binding after_binding;bool after_ordered=false;if(!gm_fixture_sample(*r,c,b,after_local,after,after_money,after_rng,after_random,read_error)||!a::selected_session().current(after_context,read_error)||after_context!=c||!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,after_binding,read_error,&after_ordered)||after_binding!=b||!after_ordered||!gm_fixture_window(*r,retained,true,read_error)||retained!=target||after_local.pin!=local.pin||after_local.software!=local.software||after_local.release!=local.release||after_local.current_release!=local.current_release||after_local.lounge!=local.lounge||after_local.marketing!=local.marketing||after_local.gm_rows!=local.gm_rows||after_local.gm_uids!=local.gm_uids||after_local.loan_rows!=local.loan_rows||after_local.offer_rows!=local.offer_rows||after_local.lounge_count!=local.lounge_count||after!=before||after_money!=money||after_rng!=rng||after_random!=random){ok=false;if(read_error.empty())read_error="GM UI changed gameplay/RNG/owners/Ledger before ordering";}
+        if(!ok){if(!read_error.empty())e=read_error;else if(e.empty())e="GM UI original Show/callback capture unconfirmed";r->gm_ui_cause=e;out["cause"]=e;r->gm_ui_proofs[token]=out;return false;}out["unknown"]=false;r->gm_ui_proofs[token]=out;r->gm_ui_locked=false;r->gm_ui_cause.clear();e.clear();return true;
+    }catch(const std::exception& ex){e=std::string("GM UI fixture exception: ")+ex.what();}catch(...){e="GM UI fixture nonstandard exception";}
+    out["ui_attempted"]=attempted;if(r&&r->gm_ui_proofs.contains(token)){r->gm_ui_locked=true;r->gm_ui_cause=e;out["cause"]=e;r->gm_ui_proofs[token]=out;}return false;
+}
+#include "management_loan_ui.inc"
+#include "management_campaign_ui.inc"
+#include "management_service_ui.inc"
+#include "management_service_price_ui.inc"
 bool pending_ui(){auto* r=published.load(std::memory_order_acquire);return r&&(r->pending.has_value()||policy_pending()||rules_pending()||intervention_pending()||control_input::runtime::pending()||r->replay);}
+bool ordered_pending(const a::Context& c,const a::Binding& b,int32_t amount,std::string& id){auto* r=published.load(std::memory_order_acquire);if(!r||GetCurrentThreadId()!=r->thread||r->replay||!r->pending)return false;const auto& p=*r->pending;if(!p.ordered||p.context!=c||p.binding!=b||!a::ordered_management(p.intent)||p.intent.value!=amount)return false;id=p.id;return !id.empty();}
 bool retire_lobby(std::string& e){
     auto* r=published.load(std::memory_order_acquire);if(!r){e.clear();return true;}
     native::WorldStatus world;if(GetCurrentThreadId()!=r->thread||!native::read_world_status(world,e))return fail(e,e.empty()?"Management lobby retirement requires Mainthread":e);
     if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0||r->replay)return fail(e,"Management lobby retirement requires actual idle Title and no replay");
     if(!control_input::runtime::retire_lobby(e))return false;
-    intervention_reset();rules_reset();policy_reset();r->pending.reset();r->operations.clear();r->cause.clear();r->gm_client=false;r->gm_suspended=true;r->gm_failed=false;r->gm_cause.clear();r->gm_context.reset();r->gm_binding.reset();r->gm_root=0;e.clear();return true;
+    intervention_reset();rules_reset();policy_reset();r->pending.reset();r->operations.clear();r->cause.clear();r->gm_ui_proofs.clear();r->gm_ui_locked=false;r->gm_ui_cause.clear();r->loan_ui_proofs.clear();r->loan_ui_locked=false;r->loan_ui_cause.clear();r->campaign_ui_proofs.clear();r->campaign_ui_locked=false;r->campaign_ui_cause.clear();r->service_ui_proofs.clear();r->service_ui_locked=false;r->service_ui_cause.clear();r->gm_client=false;r->gm_suspended=true;r->gm_failed=false;r->gm_cause.clear();r->gm_context.reset();r->gm_binding.reset();r->gm_root=0;e.clear();return true;
 }
-void tick(){auto* r=published.load(std::memory_order_acquire);if(!r)return;control_input::runtime::tick();intervention_tick(*r);rules_tick(*r);policy_tick(*r);if(!r->pending)return;const auto pending=*r->pending;r->pending.reset();std::string e;
-    a::Context c;a::Binding b;if(!a::selected_session().current(c,e)||c!=pending.context||!typed_action_runtime::network_binding(c.snapshot_uuid,b,e)||b!=pending.binding||!typed_action_runtime::submit_management(pending.id,pending.intent,e)){reject(*r,e.empty()?"Management captured native binding changed":e);return;}++r->submitted;
+void tick_pending(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->pending)return;const auto pending=*r->pending;r->pending.reset();std::string e;
+    a::Context c;a::Binding b;bool ordered=false;if(!a::selected_session().current(c,e)||c!=pending.context||!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,b,e,&ordered)||b!=pending.binding||ordered!=pending.ordered||(ordered&&!a::ordered_management(pending.intent))||!typed_action_runtime::submit_management(pending.id,pending.intent,e)){reject(*r,e.empty()?"Management captured native binding changed":e);return;}++r->submitted;
 }
+void tick(){auto* r=published.load(std::memory_order_acquire);if(!r)return;control_input::runtime::tick();intervention_tick(*r);rules_tick(*r);policy_tick(*r);tick_pending();}
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* host,std::string& e){
     if(request.action==a::Action::Intervention)return interventions::control_command(request.intervention.command)?control_input::runtime::perform(binding,request,host,e):intervention_perform(binding,request,host,e);
     if(request.action==a::Action::GameRules)return rules_perform(binding,request,host,e);
@@ -327,10 +420,22 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(r->operations.size()>=a::history_limit){auto oldest=r->operations.end();for(auto it=r->operations.begin();it!=r->operations.end();++it)
         if(it->second.retired&&(oldest==r->operations.end()||it->second.request.host_revision<oldest->second.request.host_revision))oldest=it;
         if(oldest==r->operations.end()){e="Management retained unretired original capacity reached";return a::Outcome::RejectedNoEffect;}r->operations.erase(oldest);}
-    const auto controller=typed_action_runtime::controller_status();a::Context c;
-    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(c,e)||c.snapshot_uuid!=request.snapshot_uuid||(c.role==a::Role::Client)!=(host!=nullptr)){if(e.empty())e="Management requires exact pending Controller/role/snapshot";return a::Outcome::RejectedNoEffect;}
+    const auto controller=typed_action_runtime::controller_status();a::Context c;const bool ordered=a::tick_commands::authority::active();
+    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(c,e)||c.snapshot_uuid!=request.snapshot_uuid||
+       (ordered?(!a::ordered_management(request.management)||host||Config::instance().is_host!=(c.role==a::Role::Host)||!a::tick_commands::authority::matches(c,binding,request,e)):(controller.value("ordered",false)||(c.role==a::Role::Client)!=(host!=nullptr)))){if(e.empty())e="Management requires exact pending Controller/role/snapshot/authority";return a::Outcome::RejectedNoEffect;}
     Local local;a::ManagementState state;a::Ledger money,expected;
-    if(!read(*r,c,binding,local,state,money,e,&request.management)||!expected_money(request.management,state,money,expected,e))return a::Outcome::RejectedNoEffect;
+    if(!read(*r,c,binding,local,state,money,e,&request.management)||!expected_money(request.management,state,money,expected,e,ordered))return a::Outcome::RejectedNoEffect;
+    if(ordered&&request.management.op==a::ManagementOp::SetServicePrice){
+        if(!state.services||!state.services->price||!local.price_graph){e="Management ServicePrice complete graph/RNG evidence absent";return a::Outcome::RejectedNoEffect;}
+        if(!a::management_service_price_ready(request.management,state)){e="Management ServicePrice actual owner/config prerequisite failed";return a::Outcome::RejectedNoEffect;}
+        std::vector<std::string> possible_configs;for(const auto& source:local.price_graph->source_buildings)for(const auto& row:source.services.rows)if(row.flags[0]&&!row.destination.empty()&&!row.config_key.empty())possible_configs.push_back(row.config_key);
+        if(!a::service_price_wire_fits(request,state,money,possible_configs,e))return a::Outcome::RejectedNoEffect;
+    }
+    if(ordered&&request.management.op==a::ManagementOp::StartCampaign){bool affordable=false;if(!a::management_campaign_ready(request.management,state)){e="Management Campaign actual selection/cost/capacity prerequisite failed";return a::Outcome::RejectedNoEffect;}const auto fault=campaign_afford(r->image,local.pin.business,state.campaign_costs[size_t(request.management.value)]*7,affordable);if(fault||!affordable){e="Management Campaign original affordability failed SEH="+std::to_string(fault);return a::Outcome::RejectedNoEffect;}}
+    if(ordered&&request.management.op==a::ManagementOp::SetServiceSync&&!a::management_service_sync_ready(request.management,state)){e="Management service sync actual owner/transition prerequisite failed";return a::Outcome::RejectedNoEffect;}
+    if(ordered&&(request.management.op==a::ManagementOp::TakeLoan||request.management.op==a::ManagementOp::RepayLoan)&&!a::management_loan_ready(request.management,state)){e="Management Loan actual offer/debt prerequisite failed";return a::Outcome::RejectedNoEffect;}
+    if(ordered&&((request.management.op==a::ManagementOp::HireGameMaster&&state.game_masters>=50)||(request.management.op==a::ManagementOp::FireGameMaster&&state.game_masters<=0))){e="Management GM desired count outside native domain";return a::Outcome::RejectedNoEffect;}
+    if(ordered&&request.management.op==a::ManagementOp::HireGameMaster){bool affordable=false;const auto fault=hire_afford(r->image,local.pin.business,affordable);if(fault||!affordable){e="Management Hire original affordability failed SEH="+std::to_string(fault);return a::Outcome::RejectedNoEffect;}}
     if(a::management_transition(request.management,state,state)){e="Management requested native values are unchanged";return a::Outcome::RejectedNoEffect;}
     if(request.management.op==a::ManagementOp::StartCampaign){
         const auto& campaigns=state.marketing.at("campaigns");bool duplicate=false;for(const auto& row:campaigns)duplicate|=row.at("type")==request.management.value;
@@ -339,14 +444,22 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(request.management.op==a::ManagementOp::SetServiceSync&&request.management.value&&!state.services->rows[size_t(request.management.service_ordinal)].allow_sync){e="Management original service prototype disables price sync";return a::Outcome::RejectedNoEffect;}
     if(host&&(!host->management_before||!host->management_after||state!=*host->management_before||money!=host->before||expected!=host->after)){e="Management Client actual before/Ledger differs from Host";return a::Outcome::RejectedNoEffect;}
     if((request.management.op==a::ManagementOp::HireGameMaster&&local.lounge_count>=50)||(request.management.op==a::ManagementOp::FireGameMaster&&local.lounge_count<=0)){e="Management original Lounge employment prerequisite failed";return a::Outcome::RejectedNoEffect;}
-    auto& op=r->operations.emplace(request.action_uuid,Receipt{binding,request}).first->second;op.evidence.before=money;op.evidence.management_before=state;
+    auto& op=r->operations.emplace(request.action_uuid,Receipt{binding,request}).first->second;op.ordered=ordered;op.evidence.before=money;op.evidence.management_before=state;
     Call call{r,request.management,local};r->replay=true;op.attempted=true;const auto seh=original(call);r->replay=false;op.returned=call.returned;
     auto unknown=[&](const std::string& why){e=op.cause=why;return a::Outcome::Unknown;};
     if(seh||!call.returned||!call.accepted)return unknown("Management original failed/returned false SEH="+std::to_string(seh)+"; no replay");
     a::ManagementState after;Local final;if(!read(*r,c,binding,final,after,op.evidence.after,e,&request.management))return unknown(e);
-    if(local.service_uid!=final.service_uid||local.service_building!=final.service_building||local.service_object!=final.service_object||local.service_rows!=final.service_rows)return unknown("Management original service identity/membership changed");
     op.evidence.management_after=after;
-    if(!a::management_transition(request.management,state,after)||op.evidence.after!=expected||(host&&after!=*host->management_after))return unknown("Management original state or full Ledger differs from intent/Host");
+    if(ordered&&(local.pin.world!=final.pin.world||local.pin.business!=final.pin.business||local.pin.record!=final.pin.record||local.software!=final.software||local.release!=final.release))return unknown("Management original native owners changed");
+    if(local.service_uid!=final.service_uid||local.service_building!=final.service_building||local.service_object!=final.service_object||local.service_rows!=final.service_rows)return unknown("Management original service identity/membership changed");
+    if(ordered&&request.management.op==a::ManagementOp::SetServicePrice){
+        if(!state.services||!after.services||!state.services->price||!after.services->price||!local.price_graph||!final.price_graph||local.price_manager!=final.price_manager)return unknown("Management ServicePrice graph/RNG owner or receipt absent");
+        const auto ordinal=size_t(request.management.service_ordinal);const std::array<int32_t,2> desired{request.management.currency,request.management.value};
+        const bool rebuild=state.services->rows[ordinal].price!=desired;
+        if(!price_graph::topology_transition(*local.price_graph,*final.price_graph,rebuild,e)||!price_graph::services_transition(*local.price_graph,*final.price_graph,*state.services,*after.services,request.management.key,ordinal,desired,rebuild,e))return unknown(e);
+        op.price_changed_destinations=price_graph::changed_selected_destination_prices(*local.price_graph,*final.price_graph);
+    }
+    if(!a::management_transition(request.management,state,after)||(ordered&&!a::ordered_campaign_effect(request.management,state,after,money))||op.evidence.after!=expected||(host&&after!=*host->management_after))return unknown("Management original state or full Ledger differs from intent/Host");
     op.confirmed=true;e.clear();return a::Outcome::Confirmed;
 }
 bool observe(const a::Binding& b,const a::Request& q,a::Evidence& out,std::string& e){
@@ -355,7 +468,11 @@ bool observe(const a::Binding& b,const a::Request& q,a::Evidence& out,std::strin
     if(q.action==a::Action::GmPolicy)return policy_observe(b,q,out,e);
     auto* r=published.load(std::memory_order_acquire);if(!r)return fail(e,"Management owner absent");auto found=r->operations.find(q.action_uuid);
     if(found==r->operations.end()||found->second.binding!=b||found->second.request!=q||!found->second.confirmed)return fail(e,"Management exact confirmed original receipt absent");
-    a::Context c;Local local;a::ManagementState state;a::Ledger ledger;if(!a::selected_session().current(c,e)||c.snapshot_uuid!=q.snapshot_uuid||!read(*r,c,b,local,state,ledger,e,&q.management))return false;
+    if(typed_action_runtime::controller_status().value("ordered",false)!=found->second.ordered)return fail(e,"Management retained execution mode changed");
+    a::Context c;Local local;a::ManagementState state;a::Ledger ledger;if(!a::selected_session().current(c,e)||c.snapshot_uuid!=q.snapshot_uuid)return fail(e,e.empty()?"Management current Session/snapshot changed":e);
+    if(found->second.ordered&&Config::instance().is_host!=(c.role==a::Role::Host))return fail(e,"Management ordered actual role changed");
+    if(found->second.ordered&&!a::tick_commands::authority::matches(c,b,q,e))return false;
+    if(!read(*r,c,b,local,state,ledger,e,&q.management))return false;
     auto& op=found->second;if(state!=*op.evidence.management_after||ledger!=op.evidence.after)return fail(e,"Management actual state/Ledger differs from original receipt");out=op.evidence;out.retirement_confirmed=op.retired;e.clear();return true;
 }
 bool retire(const a::Binding& b,const a::Request& q,std::string& e){if(q.action==a::Action::Intervention)return interventions::control_command(q.intervention.command)?control_input::runtime::retire(b,q,e):intervention_retire(b,q,e);if(q.action==a::Action::GameRules)return rules_retire(b,q,e);if(q.action==a::Action::GmPolicy)return policy_retire(b,q,e);a::Evidence actual;if(!observe(b,q,actual,e))return false;published.load()->operations.at(q.action_uuid).retired=true;e.clear();return true;}
@@ -363,7 +480,7 @@ nlohmann::json status(){auto* r=published.load(std::memory_order_acquire);if(!r)
     {"intent",a::management_intent_observation(v.request.management)},
     {"before",v.evidence.management_before?a::management_state_observation(*v.evidence.management_before):nlohmann::json(nullptr)},
     {"after",v.evidence.management_after?a::management_state_observation(*v.evidence.management_after):nlohmann::json(nullptr)},
-    {"ledger_before",a::management_ledger_observation(v.evidence.before)},{"ledger_after",a::management_ledger_observation(v.evidence.after)}};
+    {"ledger_before",a::management_ledger_observation(v.evidence.before)},{"ledger_after",a::management_ledger_observation(v.evidence.after)},{"price_changed_destinations",v.price_changed_destinations}};
     return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",operations},{"interventions",intervention_status()},{"building_uptime",{{"suppressed",uptime_native::suppressed},{"forwarded",uptime_native::forwarded},{"failed",uptime_native::failed},{"cause",uptime_native::fault}}}};}
 #include "management_live_port.inc"
 #include "gm_policy_runtime.inc"

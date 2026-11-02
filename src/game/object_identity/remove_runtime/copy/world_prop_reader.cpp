@@ -73,7 +73,7 @@ bool ProcessMemory::copy(uintptr_t address,void* out,size_t bytes,std::string& e
     }
     const auto code=copy_native(address,out,bytes);if(code){e="remove_memory_SEH_"+std::to_string(code);return false;}return true;
 }
-bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){
+static bool resolve_lookup_raw(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){
     api={};if(hash!=mt2mp::native_uid::required_exe_sha)return fail(e,"remove_lookup_exe_hash");
     if(!image||image>UINTPTR_MAX-0x1a3aa88)return fail(e,"remove_lookup_image_range");
     const std::pair<uintptr_t,std::vector<uint8_t>> guards[]={
@@ -81,6 +81,9 @@ bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& a
         {0x12654f0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70,0x48,0x89,0xcb,0x48,0x89,0xd5}}};
     for(const auto& [pc,expected]:guards){std::vector<uint8_t> actual(expected.size());if(!m.copy(image+pc,actual.data(),actual.size(),e))return false;if(actual!=expected){e="remove_lookup_prologue_"+std::to_string(pc);return false;}}
     api={reinterpret_cast<FindUid>(image+0x47ce20),reinterpret_cast<DynamicCast>(image+0x12654f0)};return true;
+}
+bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){
+    return RootSceneryReadBatch::resolve_current_lookup(m,image,hash,api,e);
 }
 bool same_world(const opened::CurrentWorld& a,const opened::CurrentWorld& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.uuid==b.uuid&&a.sha256==b.sha256&&a.bytes==b.bytes;}
 bool Reader::current(WorldState& out,bool idle,std::string& e){

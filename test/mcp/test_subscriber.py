@@ -37,16 +37,20 @@ class SubscriberContract(unittest.TestCase):
         self.assertNotIn("read_subscriber_weapon",MUTATIONS)
         helper=region_tests.RegionStdioTests()
         invalid=({}, {"serialized_id":True},{"serialized_id":-1},{"serialized_id":2147483648},
-                 {"serialized_id":0.0},{"serialized_id":"0"},{"serialized_id":0,"extra":1})
-        helper.check_stdio("read_subscriber_weapon",{"serialized_id":60},invalid,
+                 {"serialized_id":0.0},{"serialized_id":"0"},{"serialized_id":0,"extra":1},{"serialized_id":0,"include_motion":1},{"serialized_id":0,"include_animation":1})
+        helper.check_stdio("read_subscriber_weapon",{"serialized_id":60,"include_motion":False,"include_animation":False},invalid,
             {"serialized_id":60,"read_only":True,"attempted":False,"actor_present":True,
-             "weapon_ilvl":13,"weapon_category":"swords","weapon_variant_id":1889777055})
+             "weapon_ilvl":13,"weapon_category":"swords","weapon_variant_id":1889777055},required=("serialized_id",))
+        helper.check_stdio("read_subscriber_weapon",{"serialized_id":60,"include_motion":True,"include_animation":True},(),
+            {"serialized_id":60,"read_only":True,"current_motion":{"serialized_id":60,"completed_tick":123,
+             "generation":1,"registered_motion":{"position":[1.0,2.0,3.0]}},
+             "current_animation":{"actor_present":True,"effective_active_index":0}},required=("serialized_id",))
 
     def test_weapon_read_preserves_native_failure(self):
         helper=region_tests.RegionStdioTests()
-        helper.check_stdio("read_subscriber_weapon",{"serialized_id":60},(),
+        helper.check_stdio("read_subscriber_weapon",{"serialized_id":60,"include_motion":False,"include_animation":False},(),
             {"serialized_id":60,"read_only":True,"attempted":False,"observed":False},
-            native_error={"code":"SUBSCRIBER_WEAPON_READ_REJECTED","message":"actual Toon owner changed"})
+            native_error={"code":"SUBSCRIBER_WEAPON_READ_REJECTED","message":"actual Toon owner changed"},required=("serialized_id",))
 
     def test_exit_rejects_extra_arguments_before_native_request(self):
         runtime=Mock()

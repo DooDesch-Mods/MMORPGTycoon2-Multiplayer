@@ -284,5 +284,21 @@ void press_entry(void* receiver,void* cursor,const void* point) {
 #include "path_execution.inc"
 #include "world_path_history.inc"
 #include "path_history_runtime.inc"
+bool current_root_path_keys(const std::string& snapshot,std::map<uintptr_t,std::string>& out,std::string& error){
+    out.clear();auto* r=runtime(error);if(!r)return false;
+    if(snapshot.empty()||snapshot!=net::current_snapshot_id())return fail(error,"Service graph Path snapshot differs");
+    region::host::WorldState before;if(!region::world(*r,before,error))return false;
+    uintptr_t map=0;if(!region::at(*r,r->image,0x13df8c0,map,error))return false;
+    if(!map||before.root!=map+0x1c0||uintptr_t(before.origin.map)!=map)return fail(error,"Service graph Path Map/root differs");
+    mixed_path_native::Census census;{live_host_state::apply_timing::PageReadScope pages;if(!mixed_path_native::read_world(r->memory,r->image,map,before.root,census,error))return false;}
+    mixed_path_identity::Registry initial;const std::map<uint64_t,std::string>* keys=nullptr;
+    if(world_path_runtime::owner.snapshot.empty()){if(!initial.seed(snapshot,census,error))return false;keys=&initial.keys();}
+    else {if(world_path_runtime::owner.snapshot!=snapshot)return fail(error,"Service graph Path registry belongs to another snapshot");keys=&world_path_runtime::owner.keys.keys();}
+    for(const auto& path:census.paths){const auto found=keys->find(path.member.uid);
+        if(found==keys->end()||found->second.empty()||!out.emplace(path.member.object,found->second).second)return fail(error,"Service graph Path lacks unique current canonical owner");}
+    region::host::WorldState after;if(!region::world(*r,after,error))return false;
+    if(!region::host::same_world(before.origin,after.origin)||before.root!=after.root||snapshot!=net::current_snapshot_id())return fail(error,"Service graph Path world changed during census");
+    error.clear();return true;
+}
 void retire_world(){world_path_runtime::retire_world();}
 }

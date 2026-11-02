@@ -1,0 +1,348 @@
+OPTION CASEMAP:NONE
+EXTERN mt2mp_toon_gate_selected:PROC
+EXTERN mt2mp_toon_gate_original:QWORD
+EXTERN mt2mp_toon_gate_full:QWORD
+EXTERN mt2mp_toon_travel_original:QWORD
+EXTERN mt2mp_toon_travel_rotation:QWORD
+EXTERN mt2mp_toon_attribute_original:QWORD
+EXTERN mt2mp_toon_attribute_batched:QWORD
+EXTERN mt2mp_npc_gate_original:QWORD
+EXTERN mt2mp_npc_gate_full:QWORD
+.code
+mt2mp_toon_camera_gate PROC
+    pushfq
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    sub rsp,120h
+    movdqu [rsp+020h],xmm0
+    movdqu [rsp+030h],xmm1
+    movdqu [rsp+040h],xmm2
+    movdqu [rsp+050h],xmm3
+    movdqu [rsp+060h],xmm4
+    movdqu [rsp+070h],xmm5
+    movdqu [rsp+080h],xmm6
+    movdqu [rsp+090h],xmm7
+    movdqu [rsp+0a0h],xmm8
+    movdqu [rsp+0b0h],xmm9
+    movdqu [rsp+0c0h],xmm10
+    movdqu [rsp+0d0h],xmm11
+    movdqu [rsp+0e0h],xmm12
+    movdqu [rsp+0f0h],xmm13
+    movdqu [rsp+100h],xmm14
+    movdqu [rsp+110h],xmm15
+    mov rcx,rbx
+    call mt2mp_toon_gate_selected
+    test eax,eax
+    jnz selected_path
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_gate_original]
+selected_path:
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_gate_full]
+mt2mp_toon_camera_gate ENDP
+mt2mp_npc_camera_gate PROC
+    pushfq
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    sub rsp,120h
+    movdqu [rsp+020h],xmm0
+    movdqu [rsp+030h],xmm1
+    movdqu [rsp+040h],xmm2
+    movdqu [rsp+050h],xmm3
+    movdqu [rsp+060h],xmm4
+    movdqu [rsp+070h],xmm5
+    movdqu [rsp+080h],xmm6
+    movdqu [rsp+090h],xmm7
+    movdqu [rsp+0a0h],xmm8
+    movdqu [rsp+0b0h],xmm9
+    movdqu [rsp+0c0h],xmm10
+    movdqu [rsp+0d0h],xmm11
+    movdqu [rsp+0e0h],xmm12
+    movdqu [rsp+0f0h],xmm13
+    movdqu [rsp+100h],xmm14
+    movdqu [rsp+110h],xmm15
+    mov rcx,rbx
+    call mt2mp_toon_gate_selected
+    test eax,eax
+    jnz npc_selected_path
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_npc_gate_original]
+npc_selected_path:
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_npc_gate_full]
+mt2mp_npc_camera_gate ENDP
+mt2mp_toon_travel_gate PROC
+    pushfq
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    sub rsp,120h
+    movdqu [rsp+020h],xmm0
+    movdqu [rsp+030h],xmm1
+    movdqu [rsp+040h],xmm2
+    movdqu [rsp+050h],xmm3
+    movdqu [rsp+060h],xmm4
+    movdqu [rsp+070h],xmm5
+    movdqu [rsp+080h],xmm6
+    movdqu [rsp+090h],xmm7
+    movdqu [rsp+0a0h],xmm8
+    movdqu [rsp+0b0h],xmm9
+    movdqu [rsp+0c0h],xmm10
+    movdqu [rsp+0d0h],xmm11
+    movdqu [rsp+0e0h],xmm12
+    movdqu [rsp+0f0h],xmm13
+    movdqu [rsp+100h],xmm14
+    movdqu [rsp+110h],xmm15
+    mov rcx,rbx
+    call mt2mp_toon_gate_selected
+    test eax,eax
+    jnz travel_selected_path
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_travel_original]
+travel_selected_path:
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_travel_rotation]
+mt2mp_toon_travel_gate ENDP
+mt2mp_toon_attribute_gate PROC
+    pushfq
+    push rax
+    push rcx
+    push rdx
+    push r8
+    push r9
+    push r10
+    push r11
+    sub rsp,120h
+    movdqu [rsp+020h],xmm0
+    movdqu [rsp+030h],xmm1
+    movdqu [rsp+040h],xmm2
+    movdqu [rsp+050h],xmm3
+    movdqu [rsp+060h],xmm4
+    movdqu [rsp+070h],xmm5
+    movdqu [rsp+080h],xmm6
+    movdqu [rsp+090h],xmm7
+    movdqu [rsp+0a0h],xmm8
+    movdqu [rsp+0b0h],xmm9
+    movdqu [rsp+0c0h],xmm10
+    movdqu [rsp+0d0h],xmm11
+    movdqu [rsp+0e0h],xmm12
+    movdqu [rsp+0f0h],xmm13
+    movdqu [rsp+100h],xmm14
+    movdqu [rsp+110h],xmm15
+    mov rcx,rbx
+    call mt2mp_toon_gate_selected
+    test eax,eax
+    jnz attribute_selected_path
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_attribute_original]
+attribute_selected_path:
+    movdqu xmm0,[rsp+020h]
+    movdqu xmm1,[rsp+030h]
+    movdqu xmm2,[rsp+040h]
+    movdqu xmm3,[rsp+050h]
+    movdqu xmm4,[rsp+060h]
+    movdqu xmm5,[rsp+070h]
+    movdqu xmm6,[rsp+080h]
+    movdqu xmm7,[rsp+090h]
+    movdqu xmm8,[rsp+0a0h]
+    movdqu xmm9,[rsp+0b0h]
+    movdqu xmm10,[rsp+0c0h]
+    movdqu xmm11,[rsp+0d0h]
+    movdqu xmm12,[rsp+0e0h]
+    movdqu xmm13,[rsp+0f0h]
+    movdqu xmm14,[rsp+100h]
+    movdqu xmm15,[rsp+110h]
+    add rsp,120h
+    pop r11
+    pop r10
+    pop r9
+    pop r8
+    pop rdx
+    pop rcx
+    pop rax
+    popfq
+    jmp qword ptr [mt2mp_toon_attribute_batched]
+mt2mp_toon_attribute_gate ENDP
+END

@@ -21,12 +21,16 @@ BLOCKS = [
     "                SavedSceneryMemberCapture{}(memory,current_owner,image,current_region,root,current_manager,object,full,cause);\n        };\n        mt2mp::prop_lease::Prop value;\n        if(!([&]{\n            mt2mp::game::live_host_state::apply_timing::PageReadScope fields(batch&&!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n            return read_saved_root_scenery(memory_,owner,image_,reinterpret_cast<uintptr_t>(before.origin.map),before.root,region_id,region,reinterpret_cast<uintptr_t>(receiver),uid,exact,value,e,capture_index,capture_member);\n        }()))return false;\n        if(!current(after,true,e))return false;\n        if(!same_world(before.origin,after.origin)||before.root!=after.root)return fail(e,\"saved_scenery_world_changed_after_read\");\n        if(batch)batch->world_ready=true;\n        out=std::move(value);return true;\n"
   ]
 ]
+def lookup_normalized(source):
+    wrapper='bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){\n    return RootSceneryReadBatch::resolve_current_lookup(m,image,hash,api,e);\n}\n'
+    assert source.count(wrapper)==1 and source.count('static bool resolve_lookup_raw(')==1, 'Lookup proof routing differs'
+    return source.replace(wrapper,'',1).replace('static bool resolve_lookup_raw(','bool resolve_lookup(',1)
 def normalize(source):
-    assert hashlib.sha256(source.encode()).hexdigest() == CANDIDATE, 'Ordered World reader historical source changed'
+    assert hashlib.sha256(lookup_normalized(source).encode()).hexdigest() == CANDIDATE, 'Ordered World reader historical source changed'
     for added, prior in BLOCKS:
         assert source.count(added) == 1, 'Ordered World reader exact extension changed'
         source = source.replace(added, prior, 1)
-    assert hashlib.sha256(source.encode()).hexdigest() == PRIOR, 'Ordered World reader unrelated boundary changed'
+    assert hashlib.sha256(lookup_normalized(source).encode()).hexdigest() == PRIOR, 'Ordered World reader unrelated boundary changed'
     return source
 CANDIDATE = 'de1660b0809aa9d706caf00729297e5b5f430aff0e91e4b325d3bfb110f0997a'
 PRIOR = '4d241c0fd16d816e504e0d0a7a830cca0e6531150e45d12889288bae67c59aaa'

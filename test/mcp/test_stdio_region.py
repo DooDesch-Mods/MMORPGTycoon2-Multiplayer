@@ -153,7 +153,7 @@ class RegionStdioTests(unittest.TestCase):
         self.check_stdio("focus_test_camera", CAMERA_VALID, CAMERA_INVALID,
                          {"diagnostic": True, "state": "camera_focus_observed", "camera": CAMERA_VALID})
 
-    def check_stdio(self, operation, valid, invalid, native_result, native_error=None):
+    def check_stdio(self, operation, valid, invalid, native_result, native_error=None, required=None):
         async def run():
             with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parent) as directory:
                 root = Path(directory) / "_MPTest"
@@ -184,7 +184,7 @@ class RegionStdioTests(unittest.TestCase):
                         status["capabilities"][operation] = True
                         atomic_json(diagnostics / "status.json", status)
                         definition = {tool.name: tool for tool in (await client.list_tools()).tools}[f"game_{operation}"]
-                        self.assertEqual(set(definition.inputSchema.get("required", [])), set(valid))
+                        self.assertEqual(set(definition.inputSchema.get("required", [])), set(valid) if required is None else set(required))
                         self.assertEqual(set(definition.inputSchema["properties"]), set(valid))
                         if operation == "focus_test_camera":
                             self.assertEqual(definition.inputSchema["properties"]["distance"]["exclusiveMinimum"], 0)

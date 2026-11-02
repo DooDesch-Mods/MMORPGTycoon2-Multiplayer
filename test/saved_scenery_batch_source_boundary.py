@@ -514,7 +514,7 @@ DELTAS={'src/game/object_identity/remove_runtime/copy/saved_scenery_reader.h': [
                                           'list.push_back({{"snapshot_id",entry.snapshot},{"record_key",entry.key},{"local_uid",entry.uid},{"entry_id",entry.entry},{"registry_generation",entry.generation},{"revoked",false},{"unknown",false},\n'
                                           '            '
                                           '{"type",entry.metadata.at("type")},{"variant",entry.metadata.at("variant")},{"x",entry.metadata.at("x")},{"y",entry.metadata.at("y")},{"z",entry.metadata.at("z")},\n')]}
-PINS={'src/game/object_identity/remove_runtime/copy/saved_scenery_batch.h': '85e70e015286724a7866ab6150e3b4ee207675572881c422dfc21fde8c650be4', 'src/game/object_identity/remove_runtime/copy/saved_scenery_batch_runtime.inc': '3a35691cf03424e1d5393d2bbe4ff052120a44a67d4b8c9b7bcf59bacb7c7574'}
+PINS={'src/game/object_identity/remove_runtime/copy/saved_scenery_batch.h': '85e70e015286724a7866ab6150e3b4ee207675572881c422dfc21fde8c650be4', 'src/game/object_identity/remove_runtime/copy/saved_scenery_batch_runtime.inc': '038cfc079892d9f717d84d937c631a50df32083a50cc92fae071b2dc2467910c'}
 LEAF_DELTAS=[('    mt2mp::game::live_host_state::apply_timing::PageReadScope '
   'fields(!mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());\n',
   ''),
@@ -551,6 +551,9 @@ def normalize(relative, source):
                 assert source.count(added)==expected, 'Building-only census exact additive boundary differs'
                 source=source.replace(added,prior)
     if relative=='src/game/object_identity/remove_runtime/copy/world_prop_reader.cpp':
+        wrapper='bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){\n    return RootSceneryReadBatch::resolve_current_lookup(m,image,hash,api,e);\n}\n'
+        assert source.count(wrapper)==1 and source.count('static bool resolve_lookup_raw(')==1, 'Lookup proof routing differs'
+        source=source.replace(wrapper,'',1).replace('static bool resolve_lookup_raw(','bool resolve_lookup(',1)
         added='    bool reused=false;\n    if(!RootSceneryReadBatch::reuse_world(out,idle,image_,thread_,api_,reused,e))return false;\n    if(reused)return true;\n'
         ready='        if(batch)batch->world_ready=true;\n'
         assert source.count(added)==1 and source.count(ready)==1, 'Saved Root complete World context admission differs'

@@ -30,6 +30,9 @@ bool ordered_save_export_begin(std::string&);bool ordered_save_export_retire(std
 #include "toon_weapon_visual/authority.h"
 #include "toon_weapon_visual/probe.h"
 #include "toon_time_fence/native.h"
+#include "snapshot_save_subscriber_motion.h"
+#include "toon_weapon_visual/animation_observation.h"
+#include "npc_quest_records.h"
 #include "scenario_vip_authority/native.h"
 #include "scenario_vip_authority/host_witness.h"
 #include "scenario_vip_authority/frame_adapter.h"
@@ -1396,7 +1399,9 @@ public:
                  !request.target_action_uuid.empty()&&request.canonical_record_key=="terrain:"+request.target_action_uuid)&&
                request.action!=action::Action::SetRegionStyles&&
                request.action!=action::Action::EditRegionProperty&&
-               request.action!=action::Action::GeneralProject&&request.action!=action::Action::TutorialAcknowledge&&request.action!=action::Action::SetStartingpointWorkers&&request.action!=action::Action::CommitStartingpoint&&
+                !(request.action==action::Action::ManagementCommand&&action::ordered_management(request.management))&&
+                !(request.action==action::Action::ReleaseEdit&&release_edit::ordered_type(request.release_edit))&&
+                request.action!=action::Action::GeneralProject&&request.action!=action::Action::TutorialAcknowledge&&request.action!=action::Action::SetStartingpointWorkers&&request.action!=action::Action::CommitStartingpoint&&
                request.action!=action::Action::StartStartingpoint&&request.action!=action::Action::HireDeveloper&&request.action!=action::Action::FireDeveloper&&
                !action::tick_commands::ordered_building_family(request,
                 placed==buildings_.end()?nullptr:&placed->second.request,
@@ -1942,6 +1947,8 @@ std::atomic<Runtime*> published_runtime{nullptr};
 }
 #include "toon_weapon_visual/runtime.inc"
 #include "toon_weapon_visual/probe_runtime.inc"
+#include "toon_weapon_visual/motion_probe_runtime.inc"
+#include "toon_weapon_visual/animation_probe_runtime.inc"
 #include "toon_time_fence/runtime.inc"
 #include "scenario_vip_authority/runtime.inc"
 #include "scenario_vip_authority/alert_runtime.inc"
@@ -1963,7 +1970,7 @@ bool toon_time_initialize(std::string& error){
     if(toon_time_initialize_attempted){error=toon_time_initialize_error;return false;}
     toon_time_initialize_attempted=true;
     toon_time_initialized=toon_time_fence::initialize(weapon_image,
-        {toon_time_owner,toon_time_publish,toon_time_client_active},toon_time_initialize_error);
+        {toon_time_owner,toon_time_publish,toon_time_client_active,toon_motion_observe,toon_camera_owner},toon_time_initialize_error);
     error=toon_time_initialize_error;return toon_time_initialized;
 }
 }
@@ -2019,6 +2026,7 @@ bool bind_ordered_steps(const MT2FW_MT2_StepServiceDraftV1& service,const action
                     if(!local.loaded){why="Original loaded snapshot unavailable";return false;}return true;},cause);
         });
     runtime->ordered_steps->snapshot_witness(&snapshot_save_observation::shared_witness,uint64_t(net::snapshot_native_capture_timeout_seconds)*1000);
+    runtime->ordered_steps->periodic_trigger([](std::string& cause){return game::native::request_original_periodic_save(cause);});
     runtime->ordered_steps->snapshot_diagnostic([](const nlohmann::json& identity,const nlohmann::json& projection){
         auto owner=identity;owner["pid"]=GetCurrentProcessId();nlohmann::json receipt;
         try{
@@ -2066,7 +2074,8 @@ bool start_ordered(const action::tick_commands::Config& config,const shared_time
        !runtime->ordered_steps->lease()||!runtime->ordered_steps->failure().empty()){
         error="Ordered start requires an armed Framework driver and inactive legacy ownership";return false;}
     runtime->attempted=true;time_runtime::Native clock;
-    if(!time_runtime::production_backend(clock_config,clock,error)||!enable_action_features(error))return false;
+    if(!time_runtime::production_backend(clock_config,clock,error)||!enable_action_features(error)||
+       !toon_time_fence::initialize_camera_gate(error)||!interventions::actors::live::enable_npc_camera_gate(error))return false;
     return startup_timing::run("controller_ordered_start",error,[&]{
         if(!runtime->ordered_steps->start(config,action::tick_commands::ordered_native_clock(clock),activation,error))return false;
         return mt2mp::ordered_save_export_begin(error);
@@ -2191,10 +2200,11 @@ bool read_ordered_steps(MT2FW_MT2_StepReceipt& out,std::string& error){
     if(!runtime||!runtime->ordered_steps){error="Ordered Framework driver is not bound";return false;}
     return runtime->ordered_steps->read(out,error);
 }
-bool request_ordered_snapshot(const std::string& id,std::function<bool(std::string&)> capture,std::string& error,bool managed,bool asynchronous){
+nlohmann::json toon_motion_diagnostic(){return toon_motion_status();}
+bool request_ordered_snapshot(const std::string& id,std::function<bool(std::string&)> capture,std::string& error,bool managed,bool asynchronous,bool periodic){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
     if(!runtime||runtime->thread!=GetCurrentThreadId()||!runtime->ordered_steps){error="Snapshot requires actual ordered Runtime";return false;}
-    return runtime->ordered_steps->request_snapshot(id,std::move(capture),error,managed,asynchronous);
+    return runtime->ordered_steps->request_snapshot(id,std::move(capture),error,managed,asynchronous,periodic);
 }
 nlohmann::json ordered_native_save_status(){
     auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -2251,8 +2261,21 @@ action::Outcome run_original_go(const action::tick_commands::OriginalGoBoundary&
         out.retiring=runtime->lobby_retiring;out.state_copy=bool(runtime->live_state)||bool(runtime->live_port);
         return true;
     };
+    const auto camera_scoped_next=[&](std::string& cause){
+        building_mixed_identity::opened_file::CurrentWorld world;
+        const auto binding=runtime->controller.bound_binding();const auto& context=runtime->controller.bound_context_view();
+        if(!native_open_runtime::read_current_world(world,cause)||!world.map||world.uuid!=context.snapshot_uuid||
+           world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation){
+            if(cause.empty())cause="Toon camera gate current world differs";return action::Outcome::RejectedNoEffect;
+        }
+        toon_time_fence::camera_gate::Step scope(uintptr_t(world.map)+0x1c0);
+        if(!scope.admitted()){cause="Toon camera gate nested step rejected";return action::Outcome::RejectedNoEffect;}
+        const auto result=next(cause);
+        if(scope.failed()){cause="Toon camera gate owner failed after original: "+scope.cause();return action::Outcome::Unknown;}
+        return result;
+    };
     return runtime->original_go.run(runtime->session,runtime->engine,runtime->controller.bound_context(),
-        runtime->controller.bound_binding(),boundary,read,next,error);
+        runtime->controller.bound_binding(),boundary,read,camera_scoped_next,error);
 }
 bool original_go_admission(bool& admitted,std::string& error) {
     admitted=false;auto* runtime=published_runtime.load(std::memory_order_acquire);
@@ -2477,8 +2500,8 @@ bool tick_ordered_ui_capture(std::string& error,bool held_service){
     if(!runtime||!runtime->ordered_steps||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring||runtime->live_state||runtime->live_port){error="Ordered UI capture requires held current Runtime without state-copy ownership";return false;}
     bool inside=false;if(!original_go_admission(inside,error))return false;
     if(inside){error="Ordered UI capture flush cannot run inside original Go";return false;}
-    const std::array<void(*)(),13> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
-        ui_price_runtime::tick,release_runtime::tick,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,ui_network_runtime::tick};
+    const std::array<void(*)(),14> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
+        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,ui_network_runtime::tick};
     for(const auto pump:pumps){
         const auto status=runtime->controller.status();action::Context actual;
         if(!status.started||status.locked||!runtime->controller.ordered_mode()){error="Ordered UI capture Controller unavailable: "+status.cause;return false;}

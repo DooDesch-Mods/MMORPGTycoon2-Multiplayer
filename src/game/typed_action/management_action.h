@@ -45,11 +45,13 @@ struct ManagementIntent {
     int32_t service_ordinal=-1,currency=-1;
     bool operator==(const ManagementIntent&)const=default;
 };
+inline bool ordered_management(const ManagementIntent& intent){return intent.op==ManagementOp::HireGameMaster||intent.op==ManagementOp::FireGameMaster||intent.op==ManagementOp::AllocateReleaseFunds||intent.op==ManagementOp::TakeLoan||intent.op==ManagementOp::RepayLoan||intent.op==ManagementOp::StartCampaign||intent.op==ManagementOp::SetServiceSync||intent.op==ManagementOp::SetServicePrice;}
 struct ManagementLoan {std::array<std::string,3> text{};std::array<int32_t,4> amounts{};bool operator==(const ManagementLoan&)const=default;};
 struct ManagementOffer {std::array<std::string,3> text{};std::array<int32_t,3> amounts{};int32_t eligibility=0;bool available=false;bool operator==(const ManagementOffer&)const=default;};
 struct ManagementService {int32_t type=0;std::string config_key;std::array<int32_t,2> price{};bool synced=false,allow_sync=false;bool operator==(const ManagementService&)const=default;};
 struct ManagementServiceConfig {std::string key;std::array<int32_t,2> price{};bool operator==(const ManagementServiceConfig&)const=default;};
-struct ManagementServices {std::string building_key;std::vector<ManagementService> rows;bool config_present=false;std::vector<ManagementServiceConfig> configs;bool operator==(const ManagementServices&)const=default;};
+struct ManagementPriceWitness {std::string graph_sha256;std::array<uint64_t,4> random{};int32_t random_extra=0;bool operator==(const ManagementPriceWitness&)const=default;};
+struct ManagementServices {std::string building_key;std::vector<ManagementService> rows;bool config_present=false;std::vector<ManagementServiceConfig> configs;std::optional<ManagementPriceWitness> price;bool operator==(const ManagementServices&)const=default;};
 struct ManagementState {
     int32_t game_masters=0,release_funds=0,statistics_points=0,purchased_points=0;
     std::array<int32_t,10> statistics{},spent{};
@@ -98,13 +100,32 @@ inline bool management_valid(const ManagementState& v){
     for(const auto& rows:{v.loans.size(),v.offers.size()})if(rows>1024)return false;
     for(const auto& r:v.loans)for(size_t i=0;i<3;++i)if(r.text[i].size()>(i?2048u:256u)||r.text[i].find('\0')!=std::string::npos)return false;
     for(const auto& r:v.offers)for(size_t i=0;i<3;++i)if(r.text[i].size()>(i?2048u:256u)||r.text[i].find('\0')!=std::string::npos)return false;
-    for(auto cost:v.campaign_costs)if(cost<0||cost>INT32_MAX/7)return false;
+    for(auto cost:v.campaign_costs)if(cost< -1||cost>INT32_MAX/7)return false;
     if(!management_marketing_valid(v.marketing))return false;
     if(v.services){const auto& services=*v.services;if(services.building_key.empty()||services.building_key.size()>512||services.rows.size()>1024||services.configs.size()>4096||(!services.config_present&&!services.configs.empty()))return false;
+        if(services.price&&(services.price->graph_sha256.size()!=64||!std::all_of(services.price->graph_sha256.begin(),services.price->graph_sha256.end(),[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');})))return false;
         for(const auto& row:services.rows)if(row.type<0||row.config_key.size()>256||row.config_key.find('\0')!=std::string::npos||row.price[0]<0||row.price[0]>=2||row.price[1]<0)return false;
         std::vector<std::string> keys;for(const auto& row:services.configs){if(row.key.empty()||row.key.size()>256||row.key.find('\0')!=std::string::npos||row.price[0]<0||row.price[0]>=2||row.price[1]<0||std::find(keys.begin(),keys.end(),row.key)!=keys.end())return false;keys.push_back(row.key);}
     }
     return true;
+}
+inline bool management_campaign_ready(const ManagementIntent& i,const ManagementState& state){
+    if(!management_valid(i)||!management_valid(state)||i.op!=ManagementOp::StartCampaign||state.campaign_costs[size_t(i.value)]<=0)return false;
+    const auto& campaigns=state.marketing.at("campaigns");if(campaigns.size()>=4)return false;for(const auto& row:campaigns)if(row.at("type")==i.value)return false;return true;
+}
+inline bool management_service_sync_ready(const ManagementIntent& i,const ManagementState& state){
+    if(!management_valid(i)||!management_valid(state)||i.op!=ManagementOp::SetServiceSync||!state.services||state.services->building_key!=i.key||size_t(i.service_ordinal)>=state.services->rows.size())return false;
+    const auto& row=state.services->rows[size_t(i.service_ordinal)];return row.synced!=(i.value!=0)&&(!i.value||row.allow_sync);
+}
+inline bool management_service_price_ready(const ManagementIntent& i,const ManagementState& state){
+    if(!management_valid(i)||!management_valid(state)||i.op!=ManagementOp::SetServicePrice||!state.services||state.services->building_key!=i.key||size_t(i.service_ordinal)>=state.services->rows.size())return false;
+    const auto& row=state.services->rows[size_t(i.service_ordinal)];return !row.synced||(state.services->config_present&&!row.config_key.empty());
+}
+inline bool management_loan_ready(const ManagementIntent& i,const ManagementState& state){
+    if(!management_valid(i)||!management_valid(state))return false;
+    if(i.op==ManagementOp::TakeLoan){size_t matches=0;bool valid=false;for(const auto& offer:state.offers)if(offer.text[0]==i.key){++matches;valid=offer.available&&offer.amounts[0]>0&&offer.amounts[1]>=offer.amounts[0]&&offer.amounts[2]>0;}return matches==1&&valid;}
+    if(i.op==ManagementOp::RepayLoan){size_t matches=0;bool valid=false;for(const auto& loan:state.loans)if(loan.text[0]==i.key){++matches;valid=loan.amounts[0]>=0;}return matches==1&&valid;}
+    return false;
 }
 // The native leaf owns the derived statistics and LoanOffers rebuild. The action
 // also checks their complete Host readback; these predicates constrain the intent.
@@ -142,6 +163,7 @@ inline bool management_transition(const ManagementIntent& i,const ManagementStat
         expected.loans.erase(expected.loans.begin()+index);expected.offers=a.offers;return a==expected;
     }
     case ManagementOp::StartCampaign:{
+        if(b.campaign_costs[size_t(i.value)]<=0)return false;
         const auto& old=b.marketing.at("campaigns");const auto& now=a.marketing.at("campaigns");
         if(old.size()>=4||now.size()!=old.size()+1)return false;
         for(size_t n=0;n<old.size();++n)if(old[n]!=now[n]||old[n].at("type")==i.value)return false;
@@ -156,14 +178,19 @@ inline bool management_transition(const ManagementIntent& i,const ManagementStat
         return a==expected;
     case ManagementOp::SetServicePrice:case ManagementOp::SetServiceSync:{
         if(!b.services||!a.services||b.services->building_key!=i.key||size_t(i.service_ordinal)>=b.services->rows.size())return false;
+        if(b.services->price.has_value()!=a.services->price.has_value()||(i.op!=ManagementOp::SetServicePrice&&b.services->price))return false;
         auto& group=*expected.services;auto& row=group.rows[size_t(i.service_ordinal)];
         const auto config=std::find_if(group.configs.begin(),group.configs.end(),[&](const auto& item){return item.key==row.config_key;});
         if(i.op==ManagementOp::SetServicePrice){row.price={i.currency,i.value};
             if(row.synced&&group.config_present){if(config==group.configs.end())group.configs.push_back({row.config_key,row.price});else config->price=row.price;}
+            if(group.price){if(a.services->configs.size()<group.configs.size())return false;
+                for(size_t n=0;n<group.configs.size();++n)if(group.configs[n]!=a.services->configs[n])return false;
+                group.configs=a.services->configs;}
         }else{
             row.synced=row.allow_sync&&i.value!=0;
             if(row.synced&&group.config_present){if(config==group.configs.end())group.configs.push_back({row.config_key,row.price});else row.price=config->price;}
         }
+        if(i.op==ManagementOp::SetServicePrice&&group.price)group.price=a.services->price;
         return a==expected;
     }
     case ManagementOp::PurchaseStatistic:expected.purchased[size_t(i.value)]=1;return a==expected;
@@ -178,12 +205,22 @@ template<class Ledger>bool management_ledger(const ManagementIntent& i,const Man
     case ManagementOp::AllocateReleaseFunds:amount=int64_t(i.value)-state.release_funds;subtract=amount>0;amount=std::abs(amount);category=18;break;
     case ManagementOp::TakeLoan:for(const auto& q:state.offers)if(q.text[0]==i.key){amount=q.amounts[0];break;}category=17;break;
     case ManagementOp::RepayLoan:for(const auto& q:state.loans)if(q.text[0]==i.key){amount=q.amounts[0];break;}subtract=true;category=15;break;
-    case ManagementOp::StartCampaign:amount=int64_t(state.campaign_costs[size_t(i.value)])*7;subtract=true;category=17;break;
+    case ManagementOp::StartCampaign:if(state.campaign_costs[size_t(i.value)]<=0)return false;amount=int64_t(state.campaign_costs[size_t(i.value)])*7;subtract=true;category=17;break;
     case ManagementOp::PurchaseStatistic:amount=int64_t(state.statistics[size_t(i.value)])*(i.value==8?10000:i.value==9?5000:2000);subtract=true;category=5;break;
     }
     if(!before.record_present||amount<0||amount>INT32_MAX||(subtract&&before.cash<amount))return false;
     auto add=[](int32_t& target,int64_t delta){const auto sum=int64_t(target)+delta;if(sum<INT32_MIN||sum>INT32_MAX)return false;target=int32_t(sum);return true;};
     const auto delta=subtract?-amount:amount;
     return add(after.cash,delta)&&add(after.record_cash,delta)&&add(subtract?after.record_expense:after.record_income,amount)&&add(after.line_counts[category],1)&&add(after.line_income[category],delta);
+}
+template<class Ledger>bool ordered_management_ledger(const ManagementIntent& i,const ManagementState& state,const Ledger& before,Ledger& after){
+    if(i.op==ManagementOp::StartCampaign){if(!management_valid(i)||!before.record_present||state.campaign_costs[size_t(i.value)]<=0)return false;const int64_t amount=int64_t(state.campaign_costs[size_t(i.value)])*7;if(amount>INT32_MAX)return false;after=before;auto add=[](int32_t& target,int64_t delta){const auto sum=int64_t(target)+delta;if(sum<INT32_MIN||sum>INT32_MAX)return false;target=int32_t(sum);return true;};return add(after.cash,-amount)&&add(after.record_cash,-amount)&&add(after.record_expense,amount)&&add(after.line_counts[17],1)&&add(after.line_income[17],-amount);}
+    if(i.op!=ManagementOp::HireGameMaster)return management_ledger(i,state,before,after);
+    if(!management_valid(i)||!before.record_present)return false;
+    after=before;auto add=[](int32_t& target,int64_t delta){const auto sum=int64_t(target)+delta;if(sum<INT32_MIN||sum>INT32_MAX)return false;target=int32_t(sum);return true;};
+    return add(after.cash,-500)&&add(after.record_cash,-500)&&add(after.record_expense,500)&&add(after.line_counts[10],1)&&add(after.line_income[10],-500);
+}
+template<class Ledger>bool ordered_campaign_effect(const ManagementIntent& i,const ManagementState& before,const ManagementState& after,const Ledger& ledger){
+    if(i.op!=ManagementOp::StartCampaign)return true;if(!management_transition(i,before,after))return false;const auto& row=after.marketing.at("campaigns").back();return row.at("startedOn")==ledger.flat_day&&row.at("customName")==""&&row.at("impressions")==0&&row.at("conversions")==0&&row.at("hype")==0;
 }
 }

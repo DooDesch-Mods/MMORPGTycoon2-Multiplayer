@@ -9,7 +9,7 @@ struct Controller::Ordered {
     std::deque<tc::Input> waiting;
     std::optional<tc::Input> local;
     uint64_t local_tick=0,time_sequence=0,snapshot_sequence=0,local_deadline=0,waiting_deadline=0;
-    bool snapshot_hold=false;uint64_t snapshot_hold_started=0;OrderedSnapshotReceive snapshot_receive;
+    bool snapshot_hold=false;uint64_t snapshot_hold_started=0;OrderedSnapshotReceive snapshot_receive;OrderedPeriodicReceive periodic_receive;
     struct Boundary {uint64_t deadline=0;uint8_t mask=0;};
     std::map<uint64_t,Boundary> boundaries;
     std::vector<uint8_t> last_outgoing;
@@ -98,13 +98,23 @@ bool Controller::submit_ordered_time(game::time_session::Intent intent,uint64_t 
     if(!ordered_)return fail("Ordered time input requires ordered mode",error);
     return ordered_submit({context_.session,context_.snapshot_uuid,tc::TimeRequest{0,0,0,intent}},now,error);
 }
-bool Controller::submit_ordered_snapshot(const std::string& nonce,uint64_t now,std::string& error){
+bool Controller::submit_ordered_snapshot(const std::string& nonce,uint64_t now,std::string& error,bool periodic){
     if(!ordered_||context_.role!=Role::Host||ordered_->snapshot_hold)return fail("Snapshot preparation requires idle ordered Host",error);
-    return ordered_submit({context_.session,context_.snapshot_uuid,tc::SnapshotRequest{0,0,0,nonce}},now,error);
+    return ordered_submit({context_.session,context_.snapshot_uuid,tc::SnapshotRequest{0,0,0,nonce,periodic?tc::SnapshotPurpose::HostPeriodic:tc::SnapshotPurpose::Ordinary}},now,error);
 }
 bool Controller::bind_ordered_snapshot(OrderedSnapshotReceive receive,std::string& error){
     if(!ordered_||ordered_->snapshot_receive||!receive)return fail("Snapshot receiver requires fresh ordered Controller",error);
     ordered_->snapshot_receive=std::move(receive);return true;
+}
+bool Controller::bind_ordered_periodic(OrderedPeriodicReceive receive,std::string& error){
+    if(!ordered_||ordered_->periodic_receive||!receive)return fail("Periodic receiver requires fresh ordered Controller",error);
+    ordered_->periodic_receive=std::move(receive);return true;
+}
+bool Controller::send_ordered_periodic(const tc::wire::PeriodicRequest& value,std::string& error){
+    if(!ordered_||!guard(error))return false;std::vector<uint8_t> bytes;
+    if(value.session!=context_.session||value.snapshot_uuid!=context_.snapshot_uuid||
+       !tc::wire::encode({context_.peer_mask,value},bytes,error))return fail(error.empty()?"Periodic request Session differs":error,error);
+    return ordered_send(context_.host_peer,bytes,error);
 }
 void Controller::hold_ordered_snapshot(bool hold){
     if(!ordered_||ordered_->snapshot_hold==hold)return;auto& o=*ordered_;
@@ -128,6 +138,12 @@ bool Controller::send_ordered_snapshot(uint64_t target,const tc::wire::SnapshotC
 bool Controller::ordered_receive(uint64_t sender,const uint8_t* bytes,size_t size,std::string& error){
     auto& o=*ordered_;tc::wire::Packet packet;
     if(!tc::wire::decode(bytes,size,packet,error))return fail(error,error,true);
+    if(const auto* value=std::get_if<tc::wire::PeriodicRequest>(&packet.value)){
+        if(context_.role!=Role::Host||value->session!=context_.session||value->snapshot_uuid!=context_.snapshot_uuid||
+           packet.peer_mask!=context_.peer_mask||sender!=value->peer||sender==context_.local_peer||!o.periodic_receive)
+            return fail("Periodic request authenticated Session/peer differs",error,true);
+        if(!o.periodic_receive(sender,*value,error))return fail(error,error,true);return true;
+    }
     if(const auto* value=std::get_if<tc::wire::SnapshotControl>(&packet.value)){
         if(value->session!=context_.session||value->snapshot_uuid!=context_.snapshot_uuid||packet.peer_mask!=context_.peer_mask||
            sender<1||sender>4||!(context_.peer_mask&bit(sender))||sender==context_.local_peer||!o.snapshot_receive)

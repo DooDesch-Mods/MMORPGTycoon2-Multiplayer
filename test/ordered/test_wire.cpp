@@ -27,6 +27,31 @@ struct Link:Transport {int calls=0;bool okay=true;uint64_t target=0;std::vector<
 int main()try{
     std::string error;std::vector<uint8_t> bytes;wire::Packet decoded;tc::Assigned assigned;tc::Batch batch;
     const auto roundtrip=[&](const wire::Packet& p){need(wire::encode(p,bytes,error),error);need(wire::decode(bytes.data(),bytes.size(),decoded,error),error);need(decoded==p,"packet changed in roundtrip");};
+    {
+        wire::PeriodicRequest request{91,120,4,2,world};roundtrip({3,request});
+        need(bytes[4]==3&&bytes[5]==5,"Client periodic request lacks revision3 control kind");
+        auto bad_request=bytes;bad_request[4]=1;need(!wire::decode(bad_request.data(),bad_request.size(),decoded,error),"legacy periodic request admitted");
+        bad_request=bytes;bad_request[52]=1;need(!wire::decode(bad_request.data(),bad_request.size(),decoded,error),"Host impersonated Client periodic request");
+        bad_request=bytes;bad_request.pop_back();need(!wire::decode(bad_request.data(),bad_request.size(),decoded,error),"truncated periodic request admitted");
+        bad_request=bytes;bad_request.push_back(0);need(!wire::decode(bad_request.data(),bad_request.size(),decoded,error),"trailing periodic request admitted");
+    }
+    {
+        tc::SnapshotRequest ordinary{1,1,0,id(1)};
+        tc::Input input{91,world,ordinary};
+        roundtrip({3,input});need(bytes[4]==1,"ordinary snapshot must retain revision1 layout");
+        const auto legacy=bytes;
+        ordinary.purpose=tc::SnapshotPurpose::HostPeriodic;input.command=ordinary;
+        roundtrip({3,input});need(bytes[4]==3&&bytes.size()==legacy.size()+1,"periodic input must carry revision3 purpose");
+        auto malformed=bytes;malformed.back()=2;need(!wire::decode(malformed.data(),malformed.size(),decoded,error),"unknown purpose admitted");
+        malformed=bytes;malformed.pop_back();need(!wire::decode(malformed.data(),malformed.size(),decoded,error),"truncated purpose admitted");
+        malformed=bytes;malformed.push_back(0);need(!wire::decode(malformed.data(),malformed.size(),decoded,error),"trailing purpose admitted");
+        malformed=bytes;malformed[4]=1;need(!wire::decode(malformed.data(),malformed.size(),decoded,error),"revision1 accepted extended body");
+        malformed=bytes;malformed[4]=4;need(!wire::decode(malformed.data(),malformed.size(),decoded,error),"unsupported revision admitted");
+        roundtrip({3,tc::Batch{91,1,0,3,world,{{1,action()},{2,input}}}});need(bytes[4]==3,"periodic batch must use revision3");
+        need(wire::decode(legacy.data(),legacy.size(),decoded,error)&&std::get<tc::SnapshotRequest>(std::get<tc::Input>(decoded.value).command).purpose==tc::SnapshotPurpose::Ordinary,"legacy snapshot must remain ordinary");
+        auto different=input;std::get<tc::SnapshotRequest>(different.command).purpose=tc::SnapshotPurpose::Ordinary;
+        need(input!=different,"snapshot duplicate comparison lost purpose");
+    }
     roundtrip({3,action()});const auto gameplay=bytes;
     auto embedded=std::make_unique<Message>();embedded->session=91;embedded->request=std::get<Request>(action().command);std::vector<uint8_t> existing;
     need(encode(*embedded,existing,error),error);need(std::vector<uint8_t>(gameplay.begin()+57,gameplay.end())==existing,"Gameplay body differs from unchanged production Request codec");

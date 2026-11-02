@@ -1,6 +1,28 @@
 from pathlib import Path
 import argparse,hashlib,json
 p=argparse.ArgumentParser();p.add_argument('--source-root',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
+def function(text, anchor):
+    start=text.index(anchor); pos=text.index('{',start); depth=1; end=pos+1
+    while depth:
+        if text[end]=='{': depth+=1
+        elif text[end]=='}': depth-=1
+        end+=1
+    return text[start:end]
+runtime=a.source_root/'src/game/management_runtime.cpp'
+native_runtime=runtime.read_text(encoding='utf-8')
+a.output.mkdir(parents=True,exist_ok=True)
+campaign_ui=(a.source_root/'src/game/management_campaign_ui.inc').read_text(encoding='utf-8')
+(a.output/'management_campaign_option_actual.inc').write_text(function(campaign_ui,'bool campaign_option(')+'\n',encoding='utf-8')
+(a.output/'management_campaign_select_actual.inc').write_text(function(campaign_ui,'bool campaign_select_bound(')+'\n',encoding='utf-8')
+for name,anchor in [('management_validate_state_actual.inc','bool validate_state('),('management_capture_actual.inc','bool capture(Runtime&'),('management_campaign_ui_actual.inc','bool overview_entry('),('management_capture_loan_actual.inc','bool capture_loan('),('management_gm_actual.inc','void gm('),('management_gm_window_actual.inc','bool gm_window_entry('),('management_gm_registry_actual.inc','bool gm_fixture_window('),('management_funds_entry_actual.inc','bool funds_entry('),
+                    ('management_pending_actual.inc','void tick_pending()'),('management_perform_actual.inc','a::Outcome perform('),
+                    ('management_observe_actual.inc','bool observe('),('management_retire_actual.inc','bool retire('),
+                    ('management_original_actual.inc','uint32_t original(Call&')]:
+    (a.output/name).write_text(function(native_runtime,anchor)+'\n',encoding='utf-8')
+(a.output/'management_runtime_actual.json').write_text(json.dumps({'source':str(runtime),'sha256':hashlib.sha256(runtime.read_bytes()).hexdigest()},indent=2)+'\n',encoding='utf-8')
+service=a.source_root/'src/game/management_services.inc';native_service=service.read_text(encoding='utf-8')
+for name,anchor in [('management_service_capture_actual.inc','void service_capture('),('management_service_price_actual.inc','void service_price_entry('),('management_service_sync_actual.inc','void service_sync_entry(')]:
+    (a.output/name).write_text(function(native_service,anchor)+'\n',encoding='utf-8')
 source=a.source_root/'src/game/management_live_port.inc';text=source.read_text()
 start='uintptr_t scalar_address(';end='uint32_t slots_once('
 assert text.count(start)==1 and text.count(end)==1,'Management actual native body boundary changed'

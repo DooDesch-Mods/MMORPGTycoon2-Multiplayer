@@ -1,4 +1,5 @@
 #include "native.h"
+#include "gate_relocation.h"
 #include "../placement_ui_probe/ui_probe.h"
 #include "mt2mp/core/hash.h"
 #include <Windows.h>
@@ -10,6 +11,20 @@
 #include <intrin.h>
 #include "../live_host_state/memory_query_timing.h"
 
+extern "C" void mt2mp_toon_camera_gate();
+extern "C" void mt2mp_toon_travel_gate();
+extern "C" void mt2mp_toon_attribute_gate();
+extern "C" {
+uintptr_t mt2mp_toon_gate_original=0;
+uintptr_t mt2mp_toon_gate_full=0;
+uintptr_t mt2mp_toon_travel_original=0;
+uintptr_t mt2mp_toon_travel_rotation=0;
+uintptr_t mt2mp_toon_attribute_original=0;
+uintptr_t mt2mp_toon_attribute_batched=0;
+int mt2mp_toon_gate_selected(uintptr_t receiver) noexcept{
+    return mt2mp::game::toon_time_fence::camera_gate::selected(receiver)?1:0;
+}
+}
 namespace mt2mp::game::toon_time_fence {
 namespace {
 using Update=void(*)(uintptr_t,float);
@@ -21,6 +36,13 @@ std::atomic<bool> ready=false;
 std::mutex installation;
 std::array<unsigned char,16> installed{};
 std::array<unsigned char,64> relocated{};
+std::array<unsigned char,16> camera_installed{};
+std::array<unsigned char,64> camera_relocated{};
+std::array<unsigned char,16> travel_installed{};
+std::array<unsigned char,64> travel_relocated{};
+std::array<unsigned char,16> attribute_installed{};
+std::array<unsigned char,64> attribute_relocated{};
+bool camera_ready=false,camera_attempted=false;
 thread_local bool entered=false;
 bool fail(std::string& error,const std::string& cause){error=cause;return false;}
 uint32_t clear_call(uintptr_t toon,uint32_t expected,bool* exchanged){
@@ -67,7 +89,22 @@ public:
     }
 };
 void update(uintptr_t toon,float dt){
-    if(!callbacks.client_active||!callbacks.client_active()){original_update(toon,dt);return;}
+    if(!callbacks.client_active||!callbacks.client_active()){
+        const auto caller=reinterpret_cast<uintptr_t>(_ReturnAddress());
+        bool owned=false;
+        if(camera_gate::state.root&&callbacks.ordered_owner){
+            std::string error;
+            try{if(!callbacks.ordered_owner(toon,caller,camera_gate::state.root,owned,error)){
+                camera_gate::state.failed=true;if(camera_gate::state.cause.empty())camera_gate::state.cause=error.empty()?"Toon camera owner failed without cause":error;}}
+            catch(const std::exception& ex){camera_gate::state.failed=true;if(camera_gate::state.cause.empty())camera_gate::state.cause=ex.what();}
+            catch(...){camera_gate::state.failed=true;if(camera_gate::state.cause.empty())camera_gate::state.cause="Toon camera owner nonstandard exception";}
+        }
+        camera_gate::Entry selected(owned?toon:0);
+        if(callbacks.observe)callbacks.observe(toon,dt,caller,false);
+        original_update(toon,dt);
+        if(callbacks.observe)callbacks.observe(toon,dt,caller,true);
+        return;
+    }
     live_host_state::apply_timing::PageReadScope page_reads;
     Native calls(reinterpret_cast<uintptr_t>(_ReturnAddress()));Receipt receipt;
     if(entered){
@@ -85,7 +122,89 @@ void update(uintptr_t toon,float dt){
     if(receipt.forward){original_update(toon,dt);return;}
     if(callbacks.publish)callbacks.publish(toon,receipt);
 }
+bool camera_gate_impl(std::string& error){
+    std::lock_guard lock(installation);
+    if(camera_ready){
+#if defined(MT2MP_FRAMEWORK_PLUGIN)
+        MT2FW_MT2_RouteReceipt camera_receipt{},travel_receipt{},attribute_receipt{};
+        if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3ea462),camera_receipt)||
+           !hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3b7b37),travel_receipt)||
+           !hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3a0942),attribute_receipt))
+            return fail(error,"Toon gate Framework ownership changed: "+hooks::framework::process_backend().error());
+#endif
+        std::array<unsigned char,16> entry{},travel_entry{},attribute_entry{};std::array<unsigned char,64> trampoline{},travel_trampoline{},attribute_trampoline{};
+        if(!memory.copy(image+0x3ea462,entry.data(),entry.size(),error)||
+           !memory.copy(mt2mp_toon_gate_original,trampoline.data(),trampoline.size(),error)||
+           !memory.copy(image+0x3b7b37,travel_entry.data(),travel_entry.size(),error)||
+           !memory.copy(mt2mp_toon_travel_original,travel_trampoline.data(),travel_trampoline.size(),error)||
+           !memory.copy(image+0x3a0942,attribute_entry.data(),attribute_entry.size(),error)||
+           !memory.copy(mt2mp_toon_attribute_original,attribute_trampoline.data(),attribute_trampoline.size(),error))return false;
+        return (entry==camera_installed&&trampoline==camera_relocated&&travel_entry==travel_installed&&travel_trampoline==travel_relocated&&
+            attribute_entry==attribute_installed&&attribute_trampoline==attribute_relocated)||fail(error,"Toon gate entry or trampoline changed");
+    }
+    if(camera_attempted)return fail(error,"Toon camera gate installation already failed; no retry");
+    camera_attempted=true;
+    if(!ready.load(std::memory_order_acquire)||!callbacks.ordered_owner)return fail(error,"Toon camera gate requires entry owner");
+    std::array<unsigned char,30> before{};
+    if(!memory.copy(image+0x3ea462,before.data(),before.size(),error))return false;
+    if(mt2mp::sha256(std::vector<unsigned char>(before.begin(),before.end()))!="3d45300ee4bf4b417a337091479e37bfd119ac92bc240759c02710e2b7d0d99f")
+        return fail(error,"Toon camera gate original branch differs");
+    std::vector<unsigned char> travel_body(5120);
+    if(!memory.copy(image+0x3b78b0,travel_body.data(),travel_body.size(),error))return false;
+    if(mt2mp::sha256(travel_body)!="5227570ec1fc062edf107ffbb456d83234e4fba1e5a70e270e2e107fc2d58500")
+        return fail(error,"Toon travel original whole body differs");
+    std::array<unsigned char,30> travel_before{};
+    if(!memory.copy(image+0x3b7b37,travel_before.data(),travel_before.size(),error))return false;
+    if(mt2mp::sha256(std::vector<unsigned char>(travel_before.begin(),travel_before.end()))!="d41c365582b8c40f01a4e3e08ceed68d9bb1090aafe2f06af4740f327a3fd8fc")
+        return fail(error,"Toon travel rotation branch differs");
+    std::vector<unsigned char> attribute_body(6816);
+    if(!memory.copy(image+0x3a0350,attribute_body.data(),attribute_body.size(),error))return false;
+    if(mt2mp::sha256(attribute_body)!="e994c1ef7cf8ff10fe463e8def99af65798238dce88481dbd3dc82838c828b79")
+        return fail(error,"Toon attribute original whole body differs");
+    std::array<unsigned char,30> attribute_before{};
+    if(!memory.copy(image+0x3a0942,attribute_before.data(),attribute_before.size(),error))return false;
+    if(mt2mp::sha256(std::vector<unsigned char>(attribute_before.begin(),attribute_before.end()))!="daf271c95120774c9f0da8cf3696e87a1ce61f7053aa60371753fe406104e14b")
+        return fail(error,"Toon attribute cadence branch differs");
+    auto* target=reinterpret_cast<void*>(image+0x3ea462);
+    auto status=MH_CreateHook(target,reinterpret_cast<void*>(&mt2mp_toon_camera_gate),reinterpret_cast<void**>(&mt2mp_toon_gate_original));
+    if(status!=MH_OK||!mt2mp_toon_gate_original)return fail(error,"Toon camera gate prepare status="+std::to_string(status));
+    mt2mp_toon_gate_full=image+camera_gate::full_update_rva;
+    if(!memory.copy(mt2mp_toon_gate_original,camera_relocated.data(),camera_relocated.size(),error))return false;
+    if(!camera_gate::camera_relocation(before,camera_relocated,image))return fail(error,"Toon camera gate relocated CMP or continuation differs");
+    status=MH_EnableHook(target);if(status!=MH_OK)return fail(error,"Toon camera gate enable status="+std::to_string(status));
+    std::array<unsigned char,30> after{};
+    if(!memory.copy(image+0x3ea462,after.data(),after.size(),error))return false;
+    std::copy_n(after.begin(),camera_installed.size(),camera_installed.begin());
+    if(after[0]!=0xe9||!std::equal(after.begin()+5,after.end(),before.begin()+5))return fail(error,"Toon camera gate modified original branch tail");
+    auto* travel_target=reinterpret_cast<void*>(image+0x3b7b37);
+    status=MH_CreateHook(travel_target,reinterpret_cast<void*>(&mt2mp_toon_travel_gate),reinterpret_cast<void**>(&mt2mp_toon_travel_original));
+    if(status!=MH_OK||!mt2mp_toon_travel_original)return fail(error,"Toon travel gate prepare status="+std::to_string(status));
+    mt2mp_toon_travel_rotation=image+0x3b7b3d;
+    if(!memory.copy(mt2mp_toon_travel_original,travel_relocated.data(),travel_relocated.size(),error))return false;
+    if(!camera_gate::travel_relocation(travel_relocated,image))
+        return fail(error,"Toon travel relocated conditional or continuations differ");
+    status=MH_EnableHook(travel_target);if(status!=MH_OK)return fail(error,"Toon travel gate enable status="+std::to_string(status));
+    std::array<unsigned char,30> travel_after{};
+    if(!memory.copy(image+0x3b7b37,travel_after.data(),travel_after.size(),error))return false;
+    std::copy_n(travel_after.begin(),travel_installed.size(),travel_installed.begin());
+    if(travel_after[0]!=0xe9||!std::equal(travel_after.begin()+5,travel_after.end(),travel_before.begin()+5))
+        return fail(error,"Toon travel gate modified original branch tail");
+    auto* attribute_target=reinterpret_cast<void*>(image+0x3a0942);
+    status=MH_CreateHook(attribute_target,reinterpret_cast<void*>(&mt2mp_toon_attribute_gate),reinterpret_cast<void**>(&mt2mp_toon_attribute_original));
+    if(status!=MH_OK||!mt2mp_toon_attribute_original)return fail(error,"Toon attribute gate prepare status="+std::to_string(status));
+    mt2mp_toon_attribute_batched=image+0x3a0948;
+    if(!memory.copy(mt2mp_toon_attribute_original,attribute_relocated.data(),attribute_relocated.size(),error))return false;
+    if(!camera_gate::attribute_relocation(attribute_relocated,image))return fail(error,"Toon attribute relocated conditional or continuations differ");
+    status=MH_EnableHook(attribute_target);if(status!=MH_OK)return fail(error,"Toon attribute gate enable status="+std::to_string(status));
+    std::array<unsigned char,30> attribute_after{};
+    if(!memory.copy(image+0x3a0942,attribute_after.data(),attribute_after.size(),error))return false;
+    std::copy_n(attribute_after.begin(),attribute_installed.size(),attribute_installed.begin());
+    if(attribute_after[0]!=0xe9||!std::equal(attribute_after.begin()+5,attribute_after.end(),attribute_before.begin()+5))
+        return fail(error,"Toon attribute gate modified original branch tail");
+    camera_ready=true;return true;
 }
+}
+bool initialize_camera_gate(std::string& error){return camera_gate_impl(error);}
 bool verify_hook(std::string& error){
     if(!image||!original_update)return fail(error,"Toon time owned entry missing");
     std::array<unsigned char,16> entry{};std::array<unsigned char,64> trampoline{};

@@ -1,9 +1,35 @@
 if(WIN32)
+    add_executable(test_animation_observation "${MT2MP_SOURCE_ROOT}/test/test_animation_observation.cpp")
+    target_include_directories(test_animation_observation PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+    target_compile_features(test_animation_observation PRIVATE cxx_std_20)
+    target_compile_options(test_animation_observation PRIVATE /W4 /WX /utf-8 /EHsc)
+    add_test(NAME test_animation_observation COMMAND test_animation_observation)
+    add_executable(test_subscriber_motion_read "${MT2MP_SOURCE_ROOT}/test/test_subscriber_motion_read.cpp")
+    target_include_directories(test_subscriber_motion_read PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+    target_compile_features(test_subscriber_motion_read PRIVATE cxx_std_20)
+    target_compile_options(test_subscriber_motion_read PRIVATE /W4 /WX /utf-8 /EHsc)
+    add_test(NAME test_subscriber_motion_read COMMAND test_subscriber_motion_read)
+    enable_language(ASM_MASM)
+    add_executable(test_toon_camera_gate "${MT2MP_SOURCE_ROOT}/test/test_toon_camera_gate.cpp"
+        "${MT2MP_SOURCE_ROOT}/test/toon_camera_gate_test.asm" "${MT2MP_SOURCE_ROOT}/src/game/toon_time_fence/camera_gate.asm")
+    target_include_directories(test_toon_camera_gate PRIVATE "${MT2MP_SOURCE_ROOT}/src/game")
+    target_compile_features(test_toon_camera_gate PRIVATE cxx_std_20)
+    target_compile_options(test_toon_camera_gate PRIVATE "$<$<COMPILE_LANGUAGE:CXX>:/W4;/WX;/utf-8;/EHsc>")
+    add_test(NAME test_toon_camera_gate COMMAND test_toon_camera_gate)
     find_package(Python3 REQUIRED COMPONENTS Interpreter)
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${MT2MP_SOURCE_ROOT}/test/extract_toon_time_timing.py"
         "${MT2MP_SOURCE_ROOT}/src/game/toon_time_fence/native.cpp")
     set(toon_timing_generated "${CMAKE_CURRENT_BINARY_DIR}/toon_time_timing")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MT2MP_SOURCE_ROOT}/test/extract_toon_camera_owner.py" "${MT2MP_SOURCE_ROOT}/src/game/toon_time_fence/runtime.inc")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_toon_camera_owner.py"
+        --source-root "${MT2MP_SOURCE_ROOT}" --output "${toon_timing_generated}" COMMAND_ERROR_IS_FATAL ANY)
+    add_executable(test_toon_camera_owner "${MT2MP_SOURCE_ROOT}/test/test_toon_camera_owner.cpp")
+    target_include_directories(test_toon_camera_owner PRIVATE "${toon_timing_generated}")
+    target_compile_features(test_toon_camera_owner PRIVATE cxx_std_20)
+    target_compile_options(test_toon_camera_owner PRIVATE /W4 /WX /utf-8 /EHsc)
+    add_test(NAME test_toon_camera_owner COMMAND test_toon_camera_owner)
     execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_toon_time_timing.py"
         --source-root "${MT2MP_SOURCE_ROOT}" --output "${toon_timing_generated}" COMMAND_ERROR_IS_FATAL ANY)
     add_executable(test_toon_time_timing "${MT2MP_SOURCE_ROOT}/test/test_toon_time_timing.cpp")

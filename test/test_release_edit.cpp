@@ -3,10 +3,14 @@
 #include "release_ui_owner.h"
 #include "modular_code.h"
 #include "typed_action/action_session.h"
+#include "typed_action/tick_authority.h"
+#include "typed_action/tick_evidence.h"
 #include <iostream>
 #include <sstream>
 #include <iomanip>
 #include <deque>
+#include <atomic>
+#include <map>
 namespace p=mt2mp::game::release_edit;namespace a=mt2mp::action_session;
 namespace {
 int checks=0;void need(bool value,const std::string& cause){++checks;if(!value)throw std::runtime_error(cause);}
@@ -88,5 +92,14 @@ void controller(bool partial){Session hs(1),cs(2);Engine he,ce;ce.partial=partia
     if(partial){need(!deliver()&&client.status().locked&&!client.status().confirmed,"Unknown native effect ACKed");need(deliver()&&host.status().locked&&!host.status().confirmed,"Host accepted Unknown Client");return;}
     need(deliver()&&deliver()&&deliver(),e);need(host.status().ack_mask==3&&host.status().confirmed==1&&client.status().confirmed==1&&he.state==ce.state,"complete original/ACK3 absent");need(host.receive(request.from,request.bytes.data(),request.bytes.size(),2,e)&&client.receive(result.from,result.bytes.data(),result.bytes.size(),2,e),e);need(he.executions==1&&ce.executions==1,"duplicate delivery replayed native original");need(!client.submit_release_edit(id,i,3,e),"consumed UUID replayed");
 }
+void ordered_evidence(){namespace tick=mt2mp::action_session::tick_commands;a::Request q;q.action=a::Action::ReleaseEdit;q.peer=2;q.sequence=1;q.action_uuid=id;q.snapshot_uuid=snapshot;q.canonical_record_key="release:editing";q.release_edit.command=p::Command::SetType;q.release_edit.type=2;
+    a::Context context{77,1,1,3,a::Role::Host,snapshot};tick::Assigned assigned{1,{77,snapshot,q}};a::Evidence evidence;evidence.before.record_present=1;evidence.before.cash=evidence.before.record_cash=1000;evidence.after=evidence.before;auto before=initial();bool confirmation=false;auto after=apply(q.release_edit,before,confirmation);evidence.release_edit_before=proof(before);evidence.release_edit_after=proof(after);evidence.retirement_confirmed=true;
+    auto digest=[&](const a::Evidence& value){tick::ExecutionReceipt receipt;receipt.command=assigned;receipt.outcome=a::Outcome::Confirmed;receipt.evidence=std::make_shared<a::Evidence>(value);std::string result,e;need(tick::canonical_evidence(context,assigned,receipt,result,e),e);return result;};const auto baseline=digest(evidence);auto different=evidence;different.before.cash++;different.after.cash++;need(digest(different)!=baseline,"Release valid Ledger evidence digest did not change");
+    auto other_before=before;other_before.type=3;auto other_after=apply(q.release_edit,other_before,confirmation);auto other=evidence;other.release_edit_before=proof(other_before);other.release_edit_after=proof(other_after);need(digest(other)!=baseline,"Release valid type evidence digest did not change");other_before=before;++other_before.allocated_funds;other_after=apply(q.release_edit,other_before,confirmation);other.release_edit_before=proof(other_before);other.release_edit_after=proof(other_after);need(digest(other)!=baseline,"Release valid unrelated-state evidence digest did not change");
+    auto config=[&](uint64_t peer){tick::Config c;c.context={77,peer,1,3,peer==1?a::Role::Host:a::Role::Client,snapshot};return c;};auto validate=[](const tick::Input&,std::string&){return true;};tick::Queue host(config(1),validate),client(config(2),validate);tick::Assigned queued;tick::Batch batch;tick::Receipt h,c;std::string e;need(host.offer(2,assigned.input,queued,e)==tick::Admission::Accepted&&host.seal(batch,e)&&client.admit(1,batch,e)==tick::Admission::Accepted,e);
+    auto current=[](std::string&){return true;};auto advance=[](uint64_t,std::string&){return a::Outcome::Confirmed;};auto consume=[&](tick::Queue& queue,tick::Receipt& out,const std::string& value){return queue.consume(1,current,[&](const auto& command,std::string& why){return queue.bind_evidence(command,value,why)?a::Outcome::Confirmed:a::Outcome::Unknown;},advance,out,e);};need(consume(host,h,baseline)&&consume(client,c,digest(different)),e);need(!host.acknowledge(2,c,e)&&host.state().locked,"Release evidence mismatch ACKed");
+    q.release_edit.command=p::Command::ResetCustom;assigned.input.command=q;need(!tick::requires_evidence(assigned.input),"unsupported release sibling entered evidence route");
 }
-int main(){try{state_and_codec();physical_owner();modular_physical_owner();controller(false);controller(true);std::cout<<checks<<" Release policy/codec/Controller/physical-owner checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+#include "release_ordered_cases.inc"
+}
+int main(){try{state_and_codec();physical_owner();modular_physical_owner();controller(false);controller(true);ordered_evidence();release_ordered_fixture::run();std::cout<<checks<<" Release policy/codec/Controller/physical-owner checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
