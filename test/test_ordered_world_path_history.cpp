@@ -30,6 +30,12 @@ unsigned GetCurrentThreadId(){return 7;}
 bool fail(std::string& error,const std::string& why){error=why;return false;}
 namespace typed_action_runtime {json controller_status(){return {{"ordered",controller_ordered}};}}
 #include "ordered_path_scope_actual.inc"
+unsigned unrelated_history_calls=0;
+namespace ui_move_runtime {
+namespace selection_move {bool history_intent(const action::Binding&,const action::Request&,action::SelectionMoveIntent&,std::string& error){++unrelated_history_calls;error="Unexpected selection route";return false;}}
+namespace duplicate_edit {bool history_targets(const action::Binding&,const action::Request&,std::map<uint64_t,std::string>&,std::string& error){++unrelated_history_calls;error="Unexpected duplicate route";return false;}}
+namespace group_edit {bool history_admitted(const action::Binding&,const action::Request&,std::string& error){++unrelated_history_calls;error="Unexpected group route";return false;}}
+}
 struct EngineFixture {
     struct Source{action::Request request;};std::map<std::string,Source> buildings_,operations_;
     bool live_state_=false,live_port_=false,live_result_=false;
@@ -192,6 +198,7 @@ int main(){try{
     need(world_path_runtime::perform_history({2,3},request,nullptr,error)==action::Outcome::Confirmed&&owner_restore_calls==0,error);
     request=reset(action::Action::RedoBuilding,true,false);
     need(world_path_runtime::perform_history({2,3},request,nullptr,error)==action::Outcome::Confirmed&&owner_restore_calls==0,error);
+    need(unrelated_history_calls==0,"Path history invoked an unrelated edit route");
     const auto owner_checks=wall_owner_fixture::run();
     std::cout<<checks<<" actual Wall history checks and "<<owner_checks<<" owner cases passed\n";return 0;
 }catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}}

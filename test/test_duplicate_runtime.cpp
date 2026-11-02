@@ -8,6 +8,15 @@
 #include "move_contract.h"
 #include <atomic>
 #include <set>
+namespace mt2mp::action_session {
+struct TestSession { Context context; bool current(Context& out,std::string&) {out=context;return true;} };
+TestSession& selected_session(){static TestSession value;return value;}
+namespace tick_commands::authority {
+bool enabled=false,matched=true;
+bool active(){return enabled;}
+bool matches(const Context&,const Binding&,const Request&,std::string& e){if(!enabled||!matched){e="scope mismatch";return false;}return true;}
+bool matches(const Binding&,const Request&,std::string& e){if(!enabled||!matched){e="scope mismatch";return false;}return true;}
+}}
 namespace runtime_fixture {
 namespace action=mt2mp::action_session;
 namespace duplicate_native=mt2mp::game::duplicate_native;
@@ -23,7 +32,7 @@ struct Sample {struct World {struct Origin {std::string uuid=fixture_snapshot_uu
 struct Runtime {bool ready=true;uint32_t thread=17;int memory=0;uintptr_t image=0;};
 struct Operation {Binding binding;Request request;Sample before,after;Evidence evidence;duplicate_native::Receipt native;
     std::map<uint64_t,std::string> created;std::vector<uintptr_t> cash_ops,destroy_ops;std::map<uint64_t,child_npc::Receipt> children;
-    bool confirmed=false,retired=false;std::string cause;};
+    bool confirmed=false,retired=false,ordered=false;action::Context ordered_context;std::string cause;};
 Runtime fixture_runtime;std::atomic<Runtime*> published{&fixture_runtime};
 Binding fixture_binding{3,4};Sample fixture_current;Message fixture_message;json fixture_controller;
 std::map<std::string,Operation> operations;std::set<std::string> local_sources;
@@ -79,6 +88,20 @@ struct Port {
 #include "duplicate_tick_actual.inc"
 #include "duplicate_retire_session_actual.inc"
 bool remember_history(Runtime&,const Operation&,std::string&){return true;}
+namespace selection_move {
+bool command_scope(const action::Binding& binding,const action::Request& request,const action::Evidence* host,bool& ordered,std::string& e){
+    ordered=action::tick_commands::authority::active();
+    if(ordered){
+        if(host){e="Ordered selection forbids Host evidence";return false;}
+        action::Context context;if(!action::selected_session().current(context,e))return false;
+        if(Config::instance().is_host!=(context.role==action::Role::Host)){e="Ordered selection actual role differs";return false;}
+        return action::tick_commands::authority::matches(context,binding,request,e);
+    }
+    if(typed_action_runtime::controller_status().value("ordered",false)){e="Ordered selection requires consumed command authority";return false;}
+    if(bool(host)==Config::instance().is_host){e="Selection role/authority differs";return false;}
+    return true;
+}
+}
 #include "duplicate_perform_actual.inc"
 void reset(){fixture_runtime={};fixture_message=message();fixture_current={};fixture_current.state=*fixture_message.evidence.duplicate_before;fixture_current.money=fixture_message.evidence.before;
     for(const auto& row:fixture_current.state.sources){fixture_current.handles[row.key]={1000,100};fixture_current.objects[row.key]=row;}
@@ -213,6 +236,25 @@ void run(){observation_diagnostics();submission_diagnostics();source_diagnostics
     need(observe(fixture_binding,request,authority,e)&&retire(fixture_binding,request,e)&&!retire(fixture_binding,request,e),e);
     need(perform(fixture_binding,request,nullptr,e)==Outcome::Unknown&&original_calls==1,"confirmed Duplicate replayed");
     reset();Config::instance().is_host=false;need(perform(fixture_binding,request,&authority,e)==Outcome::Confirmed&&original_calls==1&&!public_binding_calls,e);
+    for(bool host:{true,false}){reset();e.clear();fixture_controller["ordered"]=true;Config::instance().is_host=host;
+        action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=true;
+        action::selected_session().context.role=host?action::Role::Host:action::Role::Client;
+        need(perform(fixture_binding,request,nullptr,e)==Outcome::Confirmed&&original_calls==1,e);
+        Evidence ordered;need(observe(fixture_binding,request,ordered,e),e);
+        action::tick_commands::authority::enabled=false;
+        need(!observe(fixture_binding,request,ordered,e),"ordered Duplicate observation accepted wrong route");
+        action::tick_commands::authority::enabled=true;
+        need(retire(fixture_binding,request,e),e);
+        need(perform(fixture_binding,request,nullptr,e)==Outcome::Unknown&&original_calls==1,"ordered duplicate replayed");}
+    reset();e.clear();fixture_controller["ordered"]=true;action::tick_commands::authority::enabled=false;
+    need(perform(fixture_binding,request,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"missing ordered authority accepted");
+    action::tick_commands::authority::enabled=true;action::tick_commands::authority::matched=false;
+    need(perform(fixture_binding,request,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"wrong ordered authority accepted");
+    action::tick_commands::authority::matched=true;action::selected_session().context.role=action::Role::Client;
+    need(perform(fixture_binding,request,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"wrong ordered role accepted");
+    action::selected_session().context.role=action::Role::Host;
+    need(perform(fixture_binding,request,&authority,e)==Outcome::RejectedNoEffect&&!original_calls,"ordered Host evidence accepted");
+    action::tick_commands::authority::enabled=false;
     auto rejected=[&](auto change){reset();auto req=request;change(req);need(perform(fixture_binding,req,nullptr,e)==Outcome::RejectedNoEffect&&!original_calls,"invalid pending Duplicate mutated");};
     rejected([](auto&){fixture_controller["pending"]=false;});rejected([](auto&){fixture_controller["locked"]=true;});
     rejected([](auto&){fixture_controller["action_uuid"]=fixture_snapshot_uuid;});rejected([](auto&){fixture_runtime.thread=18;});
