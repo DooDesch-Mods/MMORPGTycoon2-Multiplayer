@@ -495,6 +495,18 @@ OP_DESCRIPTIONS.update(terrain_height_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(scenery_gesture_ops.DESCRIPTIONS)
 OP_DESCRIPTIONS.update(placement_ui_ops.DESCRIPTIONS)
 
+
+OP_SCHEMAS['native_terrain_tab'] = native_tool_prepare_ops.SCHEMAS['native_scenery_tab']
+OP_SCHEMAS['read_terrain_tab'] = native_tool_prepare_ops.SCHEMAS['read_scenery_tab']
+OP_SCHEMAS['native_periodic_countdown'] = EMPTY
+OP_SCHEMAS['read_toon_motion_trace'] = EMPTY
+OP_SCHEMAS['read_ordered_world'] = EMPTY
+OP_DESCRIPTIONS['read_ordered_world'] = 'Read the current ordered world and retained native execution receipt without submitting input.'
+OP_DESCRIPTIONS['native_terrain_tab'] = 'Select the original Terrain tab once for the exact current world; retain the token and observe tab_ready before input.'
+OP_DESCRIPTIONS['read_terrain_tab'] = 'Read the retained Terrain tab and layout acknowledgement without repeating input.'
+OP_DESCRIPTIONS['native_periodic_countdown'] = 'Open the original periodic countdown once on a fresh idle owned ordered Client; rejects earlier delegation and active saves.'
+OP_DESCRIPTIONS['read_toon_motion_trace'] = 'Read the retained Toon motion diagnostic in an owned local-test profile without input.'
+
 def tools_for(runtime: Runtime) -> list[types.Tool]:
     tools = [types.Tool(name=name, description=description, inputSchema=schema,
                         annotations=types.ToolAnnotations(readOnlyHint=read_only, destructiveHint=False,
@@ -507,7 +519,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools

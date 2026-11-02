@@ -1034,6 +1034,7 @@ OPS.update({"native_scenery_tab", "read_scenery_tab"})
 MUTATIONS.add("native_scenery_tab")
 
 OPS.update({"native_terrain_tab", "read_terrain_tab"})
+OPS.add("read_ordered_world")
 MUTATIONS.add("native_terrain_tab")
 
 OPS.update({"read_world_path", "native_world_path"})
