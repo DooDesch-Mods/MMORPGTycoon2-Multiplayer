@@ -1,9 +1,11 @@
 #include "typed_action/action_session.h"
 #include "typed_action/ordered_building_family.h"
+#include "release_edit_state.h"
 #include <iostream>
 #include <map>
 #include <stdexcept>
 namespace action=mt2mp::action_session;
+namespace release_edit=mt2mp::game::release_edit;
 bool scope=true,admission=true;unsigned checks=0,admission_calls=0,routed=0;
 namespace mt2mp::action_session {
 namespace tick_commands::authority {
