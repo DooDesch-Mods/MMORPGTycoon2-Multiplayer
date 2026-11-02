@@ -1,0 +1,212 @@
+{
+  "schema": 1,
+  "version": "0.1.0-beta.27",
+  "state": "local-two-peer-milestones-confirmed",
+  "game_build": "24993678",
+  "framework_runtime_minimum": "0.5.5",
+  "planned_framework_runtime_minimum": "0.5.5",
+  "framework_runtime_sha256": "f5f61abb492acbc01d9483711c66bb5c337cd0a470626f3d3c2cf62d81791535",
+  "runtime_minimum_enforced": true,
+  "milestones": [
+    {
+      "run": "native284",
+      "run_id": "12ab11ae-4533-40cd-a0cd-2cd2dd7457cc",
+      "state": "original-gm-hire-fire-confirmed",
+      "scope": "Original Client GameMaster hire and Host fire; paired staff IDs and cash effects.",
+      "candidate_sha256": "89455a1249a9ab1f870431ea38cba6a87aa5b93dc3d892fc2d58df4ed766df7b",
+      "framework_sha256": "5f4f04106539e5d518bb860d02eb810e54509bd5b2fdc00bef1047fdb4018af7",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 8192,
+        "sha256": "1f38de576ef16382d4415c1018f47872a2c92495f4a5b67a003ba887ba414eeb"
+      }
+    },
+    {
+      "run": "native291",
+      "run_id": "c9948fc3-38d5-4ef9-a3c8-6bcb87abd8b1",
+      "state": "original-campaign-start-day-confirmed",
+      "scope": "Original Client advertising purchase and natural first day rollover; paired marketing and ledger.",
+      "candidate_sha256": "bd005e57f734da00dd3de6fa5c9dfaa0fe19cbae263d697619bc26843bb96737",
+      "framework_sha256": "93ac42675718aa3ed15d2097d18f13fde2790e04e77f1973ab588c4f04dc79a4",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 32768,
+        "sha256": "1b1179d749ae4ff8433ae83f9dcb94c6b2fca52b8f2ed3d97795f71ca94cc5b2"
+      },
+      "cash_after_day": 92140
+    },
+    {
+      "run": "native297",
+      "run_id": "facaa2aa-c2d6-474a-bdc8-d83738bf64a0",
+      "state": "client-periodic-ui-and-original-edit-confirmed",
+      "scope": "Original Client countdown requests Host periodic save; exact shared completion unlocks Client editing; subsequent original Client Inn placement succeeds on both peers.",
+      "candidate_sha256": "b75fe4fe067c33f3c32d2dd8ff11c711727e2cb982a64ce36ce1865be90d0eef",
+      "framework_sha256": "1ff61f0a1688c81011e417e7fbd13a821367c91eac29d8f140376a2f45b99585",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "client_edit_lock_before": 1,
+      "client_edit_lock_after": 0,
+      "client_autosave_window_after": "hidden"
+    },
+    {
+      "run": "native304",
+      "run_id": "d03422f0-6519-468a-974c-170410ff2b64",
+      "state": "original-service-sync-confirmed-price-not-executed",
+      "scope": "Original Client toggle of shared pricing on the actual priceable SmallInn service; paired native effects and retirement.",
+      "candidate_sha256": "b7b5d1a6ec3491dc0133f50737ebea0b58268d131c1c4c5ec02569a865a15a10",
+      "framework_sha256": "1ff61f0a1688c81011e417e7fbd13a821367c91eac29d8f140376a2f45b99585",
+      "action_uuid": "bcec9d7d-81f5-4ed3-b438-e18928556b00",
+      "evidence_sha256": "6c3f36486aa919fa6bac9e38841f3047499e59a754cc5d3b94ed4af4f82bcbe2",
+      "execution_tick": 5406,
+      "evidence_ack_mask": 3,
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "limits": [
+        "The later Price attempt was rejected before its original UI callback.",
+        "The final running-world checkpoint was not reached; this accepts the completed Sync action only."
+      ]
+    },
+    {
+      "run": "native310",
+      "run_id": "a3241224-d800-4ce1-a663-f9159cd36389",
+      "state": "original-normal-trace-confirmed",
+      "scope": "Original Normal request with NPC camera-independent full updates; paired covered checkpoints and complete common interior RNG event sequence.",
+      "candidate_sha256": "ec7e041fb660caf09eb6972bbd15ea48cca30596c695101c5af373a27bae38bd",
+      "framework_sha256": "faec31b27252c32750dd75a8951ca3cda3f71ef6a804f4adf24efd582ed7faa0",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 7168,
+        "sha256": "8b555d8565522b7f635727ee7b1b2ff889ff721bf5da18b63c6a5f832cdab888"
+      },
+      "witness_coverage_gaps": [
+        "Developer job targets, paths and full transient actor state are not captured",
+        "Subscriber AI, destinations, combat/quest state and offline Toon state are not fully captured",
+        "finished Task callback owners/state are not captured under their native mutex",
+        "NPC state and world objects, terrain, buildings, paths, quests and full world graph are not captured",
+        "Full Clock graph, economy records, software/development projects and tutorial/scenario state are not captured"
+      ],
+      "rng_prefix_comparison": {
+        "state": "equal-recorded-interior",
+        "excluded_boundary_ticks": [],
+        "first_excluded_tick": 6335,
+        "last_excluded_tick": 7285,
+        "coverage_note": "Only recorded events in fully covered, non-excluded interior ticks are compared; earlier excluded transitions are unresolved.",
+        "compared_events": 3433
+      },
+      "limits": [
+        "The private diagnostic Framework candidate includes the new NPC catalog entry; public 0.5.4 does not.",
+        "This is the bounded previously failing Normal interval, not complete gameplay or large-world acceptance."
+      ]
+    },
+    {
+      "run": "native311",
+      "run_id": "058fb624-ed8c-45a7-8134-c43e9df0d408",
+      "state": "original-service-price-confirmed",
+      "scope": "One original Client price increment on the priceable ordinary Inn service; paired complete action effects and retirement, followed by matching covered world checkpoint.",
+      "candidate_sha256": "ec7e041fb660caf09eb6972bbd15ea48cca30596c695101c5af373a27bae38bd",
+      "framework_sha256": "faec31b27252c32750dd75a8951ca3cda3f71ef6a804f4adf24efd582ed7faa0",
+      "action_uuid": "cf4d06b4-0d67-4006-96e0-284bf40135aa",
+      "execution_tick": 5466,
+      "evidence_sha256": "ade1ad6d6f5a5bf2ab47eae94e9194e9a035dbdece46fc2b4440903b25243398",
+      "evidence_ack_mask": 3,
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 8192,
+        "sha256": "da7662a092864595fc6f1479ef63f73dab531f34ec9ef2bee926985335fa4769"
+      },
+      "witness_coverage_gaps": [
+        "Developer job targets, paths and full transient actor state are not captured",
+        "Subscriber AI, destinations, combat/quest state and offline Toon state are not fully captured",
+        "finished Task callback owners/state are not captured under their native mutex",
+        "NPC state and world objects, terrain, buildings, paths, quests and full world graph are not captured",
+        "Full Clock graph, economy records, software/development projects and tutorial/scenario state are not captured"
+      ],
+      "connected_destination_proved": false,
+      "limits": [
+        "Connected Flight/Teleporter destination cost changes remain unproven.",
+        "Native execution duration is unavailable."
+      ],
+      "visual_review": {
+        "reviewed": true,
+        "observation": "Both original Service panels show Set Home at 1 Gold; both HUDs show cash88320, subscribers59 and online users11 with independent cameras.",
+        "frame_sha256": {
+          "host": "e8ca9ccfddb0ec1fc34580408983aeca768feda2e9b7b6cc2990965cc50fb092",
+          "client-1": "c045d031f8f757cf21cc4aa3053a7ce025b845bd616773ec6b75d1b7c91bc6b4"
+        }
+      }
+    },
+    {
+      "run": "native267",
+      "run_id": "210ceb3e-f5d5-40fe-b07a-b5d5ccf4b690",
+      "state": "original-planner-increase-refund-confirmed",
+      "scope": "Original release planner SetMinor, allocation, SetHotfix and refund, with paired canonical acknowledgement.",
+      "candidate_sha256": "123d125a12826faf84439fa81801656a1063ca2e967f35a2465be471d779dc31",
+      "framework_sha256": "d9a5d0f79cc779d4c634df19eb2490588f3dfc202d18f3140fc60f7cac1e1f64",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 8192,
+        "sha256": "09df7d7201dad4d36917b4dc205a4e3f614c4ff04c7f96dc12275284c76ba99e"
+      },
+      "witness_coverage_gaps": [
+        "Developer job targets, paths and full transient actor state are not captured",
+        "Subscriber AI, destinations, combat/quest state and offline Toon state are not fully captured",
+        "finished Task callback owners/state are not captured under their native mutex",
+        "NPC state and world objects, terrain, buildings, paths, quests and full world graph are not captured",
+        "Full Clock graph, economy records, software/development projects and tutorial/scenario state are not captured"
+      ]
+    },
+    {
+      "run": "native282",
+      "run_id": "ef50a600-d6f1-4d65-a261-4ee6c6ac1bc2",
+      "state": "active-job-fire-natural-lifecycle-confirmed",
+      "scope": "One genuine active construction-job Developer Fire and natural lifecycle; selected Toon trace and bounded camera-independent simulation evidence.",
+      "candidate_sha256": "b4d93ccb77c3e9af889b64c8c17c32807572e21f8e486264e754235b20d6f4b6",
+      "framework_sha256": "1ce5933d2c99e464705ba1b272af640ee03d3d227bd9a9b6477396c3feedd21c",
+      "mutation_retries": 0,
+      "cleanup": "confirmed-stopped",
+      "covered_witness": {
+        "tick": 16384,
+        "sha256": "5f86551032a08578c210664f96905660f94fb69a2b3c23c2b28c495b46624182"
+      },
+      "witness_coverage_gaps": [
+        "Developer job targets, paths and full transient actor state are not captured",
+        "Subscriber AI, destinations, combat/quest state and offline Toon state are not fully captured",
+        "finished Task callback owners/state are not captured under their native mutex",
+        "NPC state and world objects, terrain, buildings, paths, quests and full world graph are not captured",
+        "Full Clock graph, economy records, software/development projects and tutorial/scenario state are not captured"
+      ]
+    }
+  ],
+  "limits": [
+    "Each milestone identifies its own actual native candidate, not the final package.",
+    "These are isolated local two-peer small-world runs, not separate-account Steam acceptance.",
+    "Covered witnesses do not prove complete world-state equality.",
+    "Nonzero research-project deployment and eligible-world loan acceptance remain open.",
+    "Large worlds, four peers and all gameplay families remain unproven."
+  ],
+  "online_acceptance_passed": false,
+  "full_coop_proven": false,
+  "final_framework": {
+    "version": "0.5.5",
+    "source_revision": "887bcabf3e5db6b5360db2f9b465da033520d998",
+    "dll_sha256": "f5f61abb492acbc01d9483711c66bb5c337cd0a470626f3d3c2cf62d81791535",
+    "runtime_zip_sha256": "378438b0f73cedce7c20a7398a61a50a2d944954ff5b1115ad3ec579782ff5cc",
+    "sdk_zip_sha256": "436eca378c0144e09e7621e68baebf42bcf73868972524ee21aa02596b8b3632",
+    "status": "github-and-nexus-confirmed",
+    "acceptance_limit": "Private Native310 Normal and Native311 Price only on faec31; no connected destination cost acceptance. Public code delta is the identical pinned catalog route; private event prefix excluded.",
+    "github_release": "https://github.com/DooDesch-Mods/MMORPGTycoon2-ModFramework/releases/tag/v0.5.5",
+    "github_release_id": 431746896,
+    "github_published_at": "2026-11-02T17:19:44Z",
+    "nexus_url": "https://www.nexusmods.com/mmorpgtycoon2/mods/25",
+    "nexus_file_id": "8170305",
+    "nexus_version_id": "19121194401960",
+    "delivery_recorded_at": "2026-11-02T17:22:54.663570+00:00"
+  },
+  "historical_baseline_framework_runtime_sha256": "1ff61f0a1688c81011e417e7fbd13a821367c91eac29d8f140376a2f45b99585",
+  "release_source_parent": "015ae70199eeeaf91f73feb3d5e32528261ad2bc"
+}
