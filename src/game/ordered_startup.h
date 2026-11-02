@@ -1,5 +1,6 @@
 #pragma once
 #include "ordered_session_proof.h"
+#include "mt2mp/core/game_update_pair.h"
 #include "prepare_flow.h"
 #include "ordered_lobby_view.h"
 #include "native_lobby.h"
@@ -177,6 +178,7 @@ inline bool current(std::string& error){
     if(!state.failure.empty()){error=state.failure;return false;}return true;
 }
 inline bool pump_transport(std::string& error){
+    game_update_pair::Scope traced(game_update_pair::Section::OrderedTransport);
     if(Config::instance().local_test)net::tick_local_session();
     else if(!net::session_wire::tick(error)&&!error.starts_with("info:"))return false;
     if(!net::session_wire::connected()){error="Ordered session disconnected: "+net::session_wire::failure_reason();return false;}
@@ -212,6 +214,7 @@ inline bool resume_current_world(std::string& error){
     state.resume_submitted=true;error.clear();return true;
 }
 inline bool maintain_session(std::string& error){
+    game_update_pair::Scope traced(game_update_pair::Section::OrderedMaintain);
     if(!current(error))return false;
     if(!pump_transport(error))return fail(error,error);
     if(!state.leave_queued&&typed_action_runtime::ordered_quit_pending()){

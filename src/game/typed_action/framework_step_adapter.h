@@ -1,5 +1,6 @@
 #pragma once
 #include "original_go_scope.h"
+#include "mt2mp/core/game_update_pair.h"
 #include "native_steps_draft.h"
 #include <algorithm>
 #include <limits>
@@ -64,7 +65,9 @@ inline Outcome framework_step(const MT2FW_MT2_StepServiceDraftV1& service,
         if(attempted){cause="Framework borrowed continuation was already attempted; no replay";return Outcome::Unknown;}
         attempted=true;
         MT2FW_MT2_StepReceipt receipt{};receipt.size=sizeof(receipt);
-        const auto result=next(continuation,boundary.invocation,&receipt);
+        // This is continuation wall time, including the provider's original Step and worker drain.
+        MT2FW_MT2_Result result;
+        {game_update_pair::Scope traced(game_update_pair::Section::OrderedNativeStep);result=next(continuation,boundary.invocation,&receipt);}
         returned=true;
         if(result!=MT2FW_MT2_OK){failure("Framework step continuation",result,receipt);cause=error;return Outcome::Unknown;}
         if(!identity(receipt,cause))return Outcome::Unknown;

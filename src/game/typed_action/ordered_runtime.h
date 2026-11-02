@@ -1,5 +1,6 @@
 #pragma once
 #include "tick_evidence.h"
+#include "mt2mp/core/game_update_pair.h"
 #include "held_service_interruption.h"
 #include "framework_step_adapter.h"
 #include "tick_authority.h"
@@ -297,6 +298,7 @@ private:
         return true;
     }
     MT2FW_MT2_Result maintain(const MT2FW_MT2_StepReceipt* receipt){
+        game_update_pair::Scope trace_OrderedService(game_update_pair::Section::OrderedService);
         std::string error;
         if(receipt&&receipt->phase==MT2FW_MT2_STEP_FAILED){
             if(borrowed_||startup_service_||!thread(error)||retiring_||!lease_)
@@ -349,14 +351,15 @@ private:
                 return MT2FW_MT2_OK;
             }
         }
-        if(!periodic_service(*receipt,error))return reject("Ordered periodic request failed: "+error,error),MT2FW_MT2_FAILED;
+        {game_update_pair::Scope trace_OrderedPeriodic(game_update_pair::Section::OrderedPeriodic);if(!periodic_service(*receipt,error))return reject("Ordered periodic request failed: "+error,error),MT2FW_MT2_FAILED;}
         if(!submit_save(error))return reject("Ordered Save submission failed: "+error,error),MT2FW_MT2_FAILED;
-        if(!snapshot_service(*receipt,error))return reject("Ordered snapshot service failed: "+error,error),MT2FW_MT2_FAILED;
+        {game_update_pair::Scope trace_OrderedSnapshot(game_update_pair::Section::OrderedSnapshot);if(!snapshot_service(*receipt,error))return reject("Ordered snapshot service failed: "+error,error),MT2FW_MT2_FAILED;}
         if(!finish_save_request(error))return reject("Ordered Quit Save completion failed: "+error,error),MT2FW_MT2_FAILED;
-        if(!controller_.tick_held_service(now_(),error,interruption_))return reject("Ordered held service failed: "+error,error),MT2FW_MT2_FAILED;
+        {game_update_pair::Scope trace_OrderedController(game_update_pair::Section::OrderedController);if(!controller_.tick_held_service(now_(),error,interruption_))return reject("Ordered held service failed: "+error,error),MT2FW_MT2_FAILED;}
         return MT2FW_MT2_OK;
     }
     MT2FW_MT2_StepDisposition boundary(const MT2FW_MT2_StepBoundary* frame,MT2FW_MT2_StepNext next,void* continuation){
+        game_update_pair::Scope trace_OrderedBoundary(game_update_pair::Section::OrderedBoundary);
         std::string error;
         if(!frame||!next||!continuation||borrowed_||!thread(error)||!failure_.empty()||!started_||retiring_)
             return reject("Ordered boundary unavailable: "+error,error),MT2FW_MT2_STEP_STOP_UNKNOWN;
@@ -392,13 +395,13 @@ private:
             if(leave_hold_&&state.in_flight)return MT2FW_MT2_STEP_KEEP_HELD;
             if(context_.role==Role::Client||state.in_flight==Queue::in_flight_limit)return MT2FW_MT2_STEP_KEEP_HELD;
             Batch batch;bool interrupted=false;
-            if(!controller_.ordered_seal_held(batch,now_(),error,interruption_,interrupted))return reject(error,error),MT2FW_MT2_STEP_STOP_UNKNOWN;
+            {game_update_pair::Scope trace_OrderedSeal(game_update_pair::Section::OrderedSeal);if(!controller_.ordered_seal_held(batch,now_(),error,interruption_,interrupted))return reject(error,error),MT2FW_MT2_STEP_STOP_UNKNOWN;}
             if(interrupted){held_membership_cause_=error;return MT2FW_MT2_STEP_KEEP_HELD;}
         }
         borrowed_=frame;next_=next;continuation_=continuation;
         struct Clear {OrderedRuntime& owner;~Clear(){owner.borrowed_=nullptr;owner.next_=nullptr;owner.continuation_=nullptr;}} clear{*this};
         Receipt completed;
-        if(!controller_.ordered_consume(frame->tick,completed,now_(),error))return reject(error,error),MT2FW_MT2_STEP_STOP_UNKNOWN;
+        {game_update_pair::Scope trace_OrderedConsume(game_update_pair::Section::OrderedConsume);if(!controller_.ordered_consume(frame->tick,completed,now_(),error))return reject(error,error),MT2FW_MT2_STEP_STOP_UNKNOWN;}
         if(last_execution_tick_==frame->tick&&last_execution_.outcome==Outcome::Confirmed&&completed.tick_completed&&
            completed.tick==frame->tick&&last_execution_.command.order<=completed.last_order)last_execution_committed_tick_=frame->tick;
         if(context_.role==Role::Host)deadline_us_+=15625;

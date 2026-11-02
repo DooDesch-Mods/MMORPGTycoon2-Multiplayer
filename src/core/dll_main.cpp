@@ -981,21 +981,20 @@ struct GameUpdateFrame {
     }
 };
 static game_update_pair::Trace game_update_trace;
-struct GameUpdateWorkScope {
-    game_update_pair::Section section;
-    game_update_pair::TraceToken token{};
-    explicit GameUpdateWorkScope(game_update_pair::Section value) noexcept:section(value) {
-        try {if(game_update_trace.begin)token=game_update_trace.begin(game_update_trace.context,section);}
-        catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace begin failed: {}",error.what());}
-        catch(...){LOG_ERROR("[GameUpdate] Trace begin failed: unknown exception");}
-    }
-    ~GameUpdateWorkScope() noexcept {
-        if(!token.token)return;
-        try {game_update_trace.end(game_update_trace.context,section,token);}
-        catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace end failed: {}",error.what());}
-        catch(...){LOG_ERROR("[GameUpdate] Trace end failed: unknown exception");}
-    }
-};
+namespace game_update_pair {
+TraceToken begin_scope(Section section) noexcept {
+    try {return game_update_trace.begin?game_update_trace.begin(game_update_trace.context,section):TraceToken{};}
+    catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace begin failed: {}",error.what());}
+    catch(...){LOG_ERROR("[GameUpdate] Trace begin failed: unknown exception");}
+    return {};
+}
+void end_scope(Section section,TraceToken token) noexcept {
+    try {if(game_update_trace.end)game_update_trace.end(game_update_trace.context,section,token);}
+    catch(const std::exception& error){LOG_ERROR("[GameUpdate] Trace end failed: {}",error.what());}
+    catch(...){LOG_ERROR("[GameUpdate] Trace end failed: unknown exception");}
+}
+}
+using GameUpdateWorkScope=game_update_pair::Scope;
 static void game_update_after(GameUpdateFrame& frame,float dt) {
     game::time_input_diagnostics::frame(completed_game_updates+1);
     if(tutorial_movement_ready)game::tutorial_movement::frame(completed_game_updates+1);
@@ -1019,7 +1018,7 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
             std::string error;
             if(!game::ordered_startup::tick_unbound(error))native_lobby_error=error;
         }
-        if(game::ordered_startup::started())diagnostics_tick();
+        if(game::ordered_startup::started()){GameUpdateWorkScope traced(game_update_pair::Section::OrderedDiagnostics);diagnostics_tick();}
         frame.live.close();return;
     }
 #endif
