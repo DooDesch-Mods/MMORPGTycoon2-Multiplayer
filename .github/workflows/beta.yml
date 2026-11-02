@@ -19,6 +19,8 @@ jobs:
   checks:
     if: github.repository == 'DooDesch-Mods/MMORPGTycoon2-Multiplayer'
     uses: ./.github/workflows/windows.yml
+    with:
+      beta_release: true
 
   release:
     needs: checks

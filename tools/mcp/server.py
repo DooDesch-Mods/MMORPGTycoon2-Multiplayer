@@ -93,6 +93,16 @@ BUILDING_STATE = object_schema({
     "alive": {"type": "boolean", "const": True}}, ("type", "variant", "x", "y", "z", "rotation", "scale", "alive"))
 
 
+def validate_npc_property(arguments):
+    if not isinstance(arguments, dict) or set(arguments) != {"token", "key", "kind", "name", "online", "read_only"}:
+        raise RuntimeErrorDetail("invalid_args", "NPC property UI requires exact token/key/kind/name/online/read_only")
+    kind, name, online = (arguments[key] for key in ("kind", "name", "online"))
+    if not isinstance(arguments["token"], str) or not re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) or not isinstance(arguments["key"], str) or not 1 <= len(arguments["key"]) <= 256 or "\0" in arguments["key"] or type(kind) is not int or kind not in (1, 2, 3, 4) or not isinstance(name, str) or type(online) is not int or online not in (0, 1, 2) or type(arguments["read_only"]) is not bool:
+        raise RuntimeErrorDetail("invalid_args", "NPC property UI token/key/intent invalid")
+    if (kind == 1 and (not 1 <= len(name.encode("utf-8")) <= 256 or "\0" in name or online != 0)) or (kind != 1 and name != "") or (kind in (3, 4) and online != 0):
+        raise RuntimeErrorDetail("invalid_args", "NPC property UI intent contains unrelated fields")
+
+
 def saved_monster_key(value):
     if not isinstance(value, str):
         return False
@@ -233,6 +243,10 @@ OP_SCHEMAS = {
             "items": {"type": "number"}}},
         ("token", "region_id", "tool", "character_slot", "character_type", "position")),
     "native_npc_remove_ui": npc_target_schema(monster=True),
+    "native_npc_property_ui": object_schema({"token": TIME_TOKEN, "key": {"type": "string", "minLength": 1, "maxLength": 256},
+        "kind": {"type": "integer", "minimum": 1, "maximum": 4}, "name": {"type": "string", "maxLength": 256},
+        "online": {"type": "integer", "minimum": 0, "maximum": 2}, "read_only": {"type": "boolean"}},
+        ("token", "key", "kind", "name", "online", "read_only")),
     "native_npc_move_ui": npc_target_schema(move=True, monster=True),
     "native_npc_quest_edit_ui": object_schema({"token": TIME_TOKEN, "owner_key": {"type": "string", "minLength": 1, "maxLength": 256}, "region_id": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "remove_slot": {"type": "integer", "minimum": 0, "maximum": 4}, "edit": object_schema({"kind": {"type": "integer", "minimum": 1, "maximum": 3}, "title": {"type": "string", "maxLength": 1024}, "kills": {"type": "integer", "minimum": 0, "maximum": 1000000}, "xp": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "gold": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "defaults": {"type": "boolean"}})}),
     "native_npc_quest_list_ui": object_schema({"token": TIME_TOKEN, "owner_key": {"type": "string", "minLength": 1, "maxLength": 256}, "region_id": {"type": "integer", "minimum": 0, "maximum": 2147483647}, "remove_slot": {"type": "integer", "minimum": -1, "maximum": 4}}),
@@ -358,6 +372,7 @@ OP_SCHEMAS = {
     "execute_action": object_schema({"action_id": TOKEN, "parameters": {"type": "object"}}, ("action_id", "parameters")),
 }
 OP_DESCRIPTIONS = {
+    "native_npc_property_ui": "Select one exact current NPC, verify its offered visible Name/Online/Level control, and invoke its original Header/InfoWindow callback once. read_only selects and inspects the control without committing a property. Observe ui_npc.ui_jobs and complete ordered property receipts. Never replay an attempted token.",
     "enable_ui_build": "Enable normal building intent capture and original native building execution on the bound game thread.",
     "request_building_place": "Submit a complete building request through the existing Host-ordered controller; admission is not a native completion receipt.",
     "request_building_move": "Submit one full-pose Move request for an existing shared building through Host authority. Observe the exact UUID and native inverse Undo; never replay Unknown.",
@@ -737,6 +752,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             validate_npc_quest_list(arguments)
         if op == "native_npc_quest_target_ui":
             validate_npc_quest_target(arguments)
+        if op == "native_npc_property_ui":
+            validate_npc_property(arguments)
         if op in {"native_npc_remove_ui", "native_npc_move_ui"}:
             validate_npc_target(arguments, move=op == "native_npc_move_ui", monster=op in {"native_npc_move_ui", "native_npc_remove_ui"})
         if op == "native_npc_place_ui":

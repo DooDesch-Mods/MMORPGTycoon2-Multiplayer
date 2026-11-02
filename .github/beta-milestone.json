@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.27",
-  "summary": "Add shared management actions and improve shared save and simulation stability.",
-  "native_evidence": "docs/evidence/beta27-shared-management.json"
+  "version": "0.1.0-beta.28",
+  "summary": "Share NPC names and online settings, and reduce repeated world-state validation.",
+  "native_evidence": "docs/evidence/beta28-npc-properties.json"
 }

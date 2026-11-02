@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.1.0-beta.28
+
+### Added
+
+- Share NPC name and online-status changes from either player through the original game controls.
+
+### Improved
+
+- Reduce duplicate origin validation during complete world-state reads. A general FPS improvement has not been measured.
+
+Both players need Early Beta 28 and MT2 Mod Framework Runtime 0.5.5. Close the game, update both mods in Vortex and deploy before starting through Steam.
+
+See the [Beta 27 release notes](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.27) for the preceding shared management and save fixes.
+
 ## 0.1.0-beta.23
 
 ### Fixed

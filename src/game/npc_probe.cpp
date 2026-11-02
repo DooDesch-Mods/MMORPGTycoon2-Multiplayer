@@ -14,6 +14,7 @@
 #include <charconv>
 #include "mt2mp/hooks/original_body.h"
 #include "npc_probe.h"
+#include "npc_property_ui_controls.h"
 #include "typed_action/tick_authority.h"
 #include "npc_history_graph.h"
 #include "npc_history_quests.h"

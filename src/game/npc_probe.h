@@ -54,6 +54,7 @@ bool observe(const action_session::Binding&,const action_session::Request&,actio
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
 bool native_ui(const nlohmann::json&,nlohmann::json&,std::string&);
 bool native_remove_ui(const nlohmann::json&,nlohmann::json&,std::string&);
+bool native_property_ui(const nlohmann::json&,nlohmann::json&,std::string&);
 bool native_move_ui(const nlohmann::json&,nlohmann::json&,std::string&);
 bool move_capture_binding(const std::string& snapshot,uint64_t epoch,uint64_t generation,
     uintptr_t object,uint64_t uid,action_session::BuildingState& before,

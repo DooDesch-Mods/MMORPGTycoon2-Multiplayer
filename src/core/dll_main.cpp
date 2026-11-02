@@ -1349,6 +1349,7 @@ static json status(bool inspect_native_economy) {
         game::npc_probe::action_runtime::status().value("enabled",false);
     result["capabilities"]["native_npc_remove_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_remove_runtime::enabled();
+    result["capabilities"]["native_npc_property_ui"]=result["capabilities"]["native_npc_place_ui"];
     result["capabilities"]["native_npc_move_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_move_runtime::enabled();
     result["capabilities"]["native_npc_quest_edit_ui"]=cfg.local_test&&game::native::in_game()&&game::npc_probe::monster_action_runtime::quest_list::status().value("enabled",false);
@@ -2495,6 +2496,12 @@ static void diagnostics_tick() {
             response["ok"]=game::npc_probe::action_runtime::native_ui(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_PLACE_UI_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_npc_property_ui") {
+            std::string error;json result;
+            response["ok"]=game::npc_probe::action_runtime::native_property_ui(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","NPC_PROPERTY_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="native_npc_remove_ui") {
             std::string error;json result;

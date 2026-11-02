@@ -39,7 +39,9 @@ bool property_capture(uintptr_t object,action::NpcPropertyIntent intent,std::str
         return fail(error,"NPC property UI requires ready idle Mainthread Controller");
     if(!action::valid_npc_property(intent))return fail(error,"NPC property UI value invalid");
     const auto snapshot=net::current_snapshot_id();action::Binding binding;
-    if(!typed_action_runtime::network_binding(snapshot,binding,error))return false;
+    if(!capture_binding(snapshot,binding,error))return false;
+    std::optional<action::Context> context;
+    if(!capture_context(snapshot,binding,context,error))return false;
     Memory memory;uint64_t uid=0;std::string key;
     if(!field(memory,object,0x18,uid,error)||!local_target_key(object,uid,key,error))return false;
     ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
@@ -52,7 +54,14 @@ bool property_capture(uintptr_t object,action::NpcPropertyIntent intent,std::str
         return fail(error,error.empty()?"NPC property capture requires idle Undo":error);
     if(action::npc_property_unchanged(before,intent))
         return fail(error,"NPC property UI value is unchanged");
-    property_pending=PropertyPending{intent,binding,snapshot,npc_target_key::canonical(key)};
+    if(!state.diagnostic_token.empty()){
+        auto found=state.ui_jobs.find(state.diagnostic_token);
+        if(found==state.ui_jobs.end()||found->second.value("operation",std::string{})!="property"||
+           found->second.value("canonical_record_key",std::string{})!=npc_target_key::canonical(key)||
+           found->second.value("captured",false))return fail(error,"NPC property diagnostic target/capture differs");
+        found->second["captured"]=true;
+    }
+    property_pending=PropertyPending{intent,binding,snapshot,npc_target_key::canonical(key),context,state.diagnostic_token};
     ++state.captures;return true;
 }
 void property_rename_entry(void* object,const PropertyString* value){
@@ -149,11 +158,13 @@ void property_tick(){
     if(!property_pending)return;
     auto pending=*property_pending;property_pending.reset();std::string error;action::Binding binding;
     if(pending.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(pending.snapshot,binding,error)||
-       binding!=pending.binding){state.capture_failed=true;rejected(error.empty()?"NPC property pending World changed":error);return;}
+       binding!=pending.binding||!current_capture(pending.context,pending.snapshot,binding,error)){
+        state.capture_failed=true;rejected(error.empty()?"NPC property pending World changed":error);return;}
     const auto id=uuid(error);
     if(id.empty()||!typed_action_runtime::submit_npc_property(id,pending.key,pending.intent,error)){
         state.capture_failed=true;rejected(error.empty()?"NPC property submit failed":error);return;}
     ++state.submits;state.last_action=id;
+    if(!pending.token.empty()){auto& job=state.ui_jobs.at(pending.token);job["submitted"]=true;job["action_uuid"]=id;}
 }
 action::Outcome property_perform(const action::Binding& binding,const action::Request& request,
                                  const action::Evidence* authority,std::string& error){
@@ -164,8 +175,10 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
     if(state.operations.contains(request.action_uuid))return fail(error,"NPC property action already attempted; no replay"),action::Outcome::Unknown;
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||
-       controller.value("action_uuid",std::string{})!=request.action_uuid||bool(authority)==Config::instance().is_host)
+       controller.value("action_uuid",std::string{})!=request.action_uuid||
+       (!action::tick_commands::authority::active()&&bool(authority)==Config::instance().is_host))
         return fail(error,"NPC property exact pending Controller/role differs"),action::Outcome::RejectedNoEffect;
+    if(!execution_admission(binding,request,authority,error))return action::Outcome::RejectedNoEffect;
     Memory memory;ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
     if(!target_binding(npc_target_key::argument(request.canonical_record_key),binding,request.snapshot_uuid,local,region,census,error))
         return action::Outcome::RejectedNoEffect;
@@ -188,6 +201,7 @@ action::Outcome property_perform(const action::Binding& binding,const action::Re
             return fail(error,"NPC property Client before actor/Quest/online/tint/Undo/Ledger differs"),action::Outcome::RejectedNoEffect;
     }
     auto& op=state.operations.emplace(request.action_uuid,Operation{binding,request}).first->second;
+    op.ordered=action::tick_commands::authority::active();
     op.local_uid=local.uid;op.local_pointer=local.object;
     const auto unknown=[&](const std::string& cause){error=op.cause=cause;return action::Outcome::Unknown;};
     if(authority){op.attempted|=2;const auto seh=seed(state.image,authority->npc_property_before->actor.global_random);
@@ -215,7 +229,9 @@ bool property_observe(const action::Binding& binding,const action::Request& requ
     const auto found=state.operations.find(request.action_uuid);
     if(found==state.operations.end()||found->second.request!=request||found->second.binding!=binding||!found->second.confirmed)
         return fail(error,"NPC property observe lacks exact confirmed action");
-    const auto& op=found->second;ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
+    const auto& op=found->second;
+    if(op.ordered&&!ordered_scope(binding,request,error))return false;
+    ui::LocalBinding local;uintptr_t region=0;npc_census::State census;
     if(!target_binding(npc_target_key::argument(request.canonical_record_key),binding,request.snapshot_uuid,local,region,census,error)||
        local.object!=op.local_pointer||local.uid!=op.local_uid)return fail(error,error.empty()?"NPC property current UID changed":error);
     Memory memory;action::NpcPropertyState current;action::Ledger money;undo::UndoWitness witness;json tasks;

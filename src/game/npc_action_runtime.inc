@@ -4,7 +4,7 @@ namespace action=mt2mp::action_session;
 namespace undo=build_actions::private_native;
 namespace ui=action::ui_capture;
 using Release=void(__fastcall*)(void*,void*,const float*);
-struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string snapshot,key;};
+struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string snapshot,key;std::optional<action::Context> context;std::string token;};
 std::optional<PropertyPending> property_pending;
 struct Pending {action::NpcIntent intent;action::Binding binding;std::string snapshot,token;std::optional<action::Context> context;};
 struct Operation {
@@ -41,8 +41,9 @@ void rejected(const std::string& cause) {
     ++state.rejections;if(state.cause!=cause){state.cause=cause;LOG_ERROR("[UINPC] {}",cause);}
 }
 bool ordered_scope(const action::Binding& binding,const action::Request& request,std::string& error) {
-    if(request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC)
-        return fail(error,"Ordered NPC scope requires Place, Move or Remove");
+    if(request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&
+       request.action!=action::Action::RemoveNPC&&request.action!=action::Action::EditNpcProperty)
+        return fail(error,"Ordered NPC scope requires Place, Move, Remove or Property");
     action::Context context;if(!action::selected_session().current(context,error))return false;
     if(Config::instance().is_host!=(context.role==action::Role::Host))return fail(error,"Ordered NPC actual role differs");
     return action::tick_commands::authority::matches(context,binding,request,error);
@@ -721,6 +722,7 @@ bool retire(const action::Binding& binding,const action::Request& request,std::s
 #include "npc_remove_runtime.inc"
 #include "npc_move_runtime.inc"
 #include "npc_property_runtime.inc"
+#include "npc_property_ui.inc"
 #include "npc_history_runtime.inc"
 bool confirm_character_membership_retirements(const action::Binding& binding,const action::Request& request,
     const std::vector<CharacterNpcRetirement>& removed,std::string& error){

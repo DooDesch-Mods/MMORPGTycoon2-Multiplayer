@@ -1382,7 +1382,7 @@ public:
                 group_history=true;
             }
             if(request.action!=action::Action::PlacePath&&request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemovePath&&request.action!=action::Action::RemoveWorldPath&&
-               request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC&&
+               request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC&&request.action!=action::Action::EditNpcProperty&&
                request.action!=action::Action::PlaceMonsterZone&&request.action!=action::Action::PlaceMonster&&
                request.action!=action::Action::MoveMonster&&request.action!=action::Action::RemoveMonster&&request.action!=action::Action::SetPrices&&
                request.action!=action::Action::PlaceNetworkNode&&request.action!=action::Action::PlaceNetworkPipe&&request.action!=action::Action::RemoveNetworkObject&&

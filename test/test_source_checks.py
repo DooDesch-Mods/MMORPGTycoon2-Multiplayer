@@ -1,7 +1,13 @@
 import copy
+import contextlib
 import importlib.util
+import io
+import os
 from pathlib import Path
+import subprocess
+import textwrap
 import unittest
+from unittest.mock import mock_open, patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / '.github/scripts/source_checks.py'
 spec = importlib.util.spec_from_file_location('source_checks', SCRIPT)
@@ -111,6 +117,59 @@ class SourceCheckShards(unittest.TestCase):
             source.test_plan(self.targets, self.tests + [self.tests[0]], 'D:/build', 2)
         with self.assertRaisesRegex(ValueError, 'line break'):
             source.test_plan(self.targets, [{'name': 'bad' + chr(10), 'command': ['python']}], 'D:/build', 2)
+
+
+class WindowsWorkflowRouting(unittest.TestCase):
+    workflow = (SCRIPT.parents[1] / 'workflows/windows.yml').read_text(encoding='utf-8')
+    classifier = textwrap.dedent(workflow.split("          python3 - <<'PY'\n", 1)[1].split('          PY\n', 1)[0])
+
+    def route(self, paths=(), candidate=True, before='a' * 40, failure=None):
+        environment = {'ROUTE_CANDIDATE': str(candidate).lower(), 'PUSH_BEFORE': before,
+                       'GITHUB_SHA': 'b' * 40, 'GITHUB_OUTPUT': 'route-output'}
+        with patch.dict(os.environ, environment), contextlib.redirect_stdout(io.StringIO()), \
+                patch('subprocess.run', side_effect=failure) as fetch, \
+                patch('subprocess.check_output', return_value=b'\0'.join(paths) + b'\0') as diff, \
+                patch('builtins.open', mock_open()) as output:
+            if failure:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    exec(self.classifier, {})
+                output.assert_not_called()
+                return
+            exec(self.classifier, {})
+            if candidate and before != '0' * 40:
+                fetch.assert_called_once_with(['git', 'fetch', '--no-tags', '--depth=1', 'origin', before], check=True)
+                diff.assert_called_once_with(['git', 'diff', '--no-renames', '--name-only', '-z', before, 'b' * 40])
+            else:
+                fetch.assert_not_called()
+                diff.assert_not_called()
+            output.assert_called_once_with('route-output', 'a', encoding='utf-8')
+            return output().write.call_args.args[0].strip()
+
+    def test_only_known_milestone_pushes_delegate(self):
+        marker = b'.github/beta-milestone.json'
+        self.assertEqual(self.route([marker, b'src/main.cpp']), 'run_checks=false')
+        self.assertEqual(self.route([b'src/main.cpp']), 'run_checks=true')
+        self.assertEqual(self.route([]), 'run_checks=true')
+        self.assertEqual(self.route([marker], candidate=False), 'run_checks=true')
+        self.assertEqual(self.route([marker], before='0' * 40), 'run_checks=true')
+
+    def test_github_path_filter_boundary_keeps_uncertain_pushes(self):
+        paths = [b'.github/beta-milestone.json'] + [str(i).encode() for i in range(299)]
+        self.assertEqual(self.route(paths), 'run_checks=false')
+        self.assertEqual(self.route(paths + [b'overflow']), 'run_checks=true')
+
+    def test_failed_range_fetch_cannot_report_a_successful_route(self):
+        self.route(failure=subprocess.CalledProcessError(128, ['git', 'fetch']))
+
+    def test_event_guards_and_aggregate_preserve_required_checks(self):
+        self.assertIn("github.event_name == 'push' && github.ref == 'refs/heads/main'", self.workflow)
+        self.assertIn("github.workflow == 'Windows source checks'", self.workflow)
+        self.assertIn("github.repository == 'DooDesch-Mods/MMORPGTycoon2-Multiplayer' && inputs.beta_release != true", self.workflow)
+        self.assertEqual(self.workflow.count("if: needs.route.outputs.run_checks == 'true'"), 3)
+        self.assertIn("always() && (needs.route.result != 'success' || needs.route.outputs.run_checks != 'false')", self.workflow)
+        self.assertIn('needs: [route, source-tests, python-tests, compile]', self.workflow)
+        beta = (SCRIPT.parents[1] / 'workflows/beta.yml').read_text(encoding='utf-8')
+        self.assertIn('uses: ./.github/workflows/windows.yml\n    with:\n      beta_release: true', beta)
 
 
 if __name__ == '__main__':

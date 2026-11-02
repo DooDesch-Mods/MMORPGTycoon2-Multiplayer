@@ -2,6 +2,7 @@
 #include "ui_remove/ui_capture.h"
 #include "npc_census.h"
 #include "npc_target_key.h"
+#include "npc_property_ui_controls.h"
 #include <cstring>
 #include <iostream>
 #include <map>
@@ -23,9 +24,10 @@ template<class T>bool field(Memory& m,uintptr_t base,size_t offset,T& value,std:
     auto found=m.blocks.find(base+offset);if(found==m.blocks.end()||found->second.size()!=sizeof value)return fail(error,"unreadable field");
     std::memcpy(&value,found->second.data(),sizeof value);return true;
 }
-struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string fixture_snapshot,key;};
+struct PropertyPending {action::NpcPropertyIntent intent;action::Binding binding;std::string fixture_snapshot,key;std::optional<action::Context> context;std::string token;};
 std::optional<PropertyPending> property_pending;
-struct Runtime {bool ready=true,pending=false,capture_failed=false;uint32_t thread=5;uintptr_t image=0x140000000;uint64_t captures=0;} fixture_npc_state;
+struct Runtime {bool ready=true,pending=false,capture_failed=false;uint32_t thread=5;uintptr_t image=0x140000000;uint64_t captures=0;
+    std::string diagnostic_token;std::map<std::string,json> ui_jobs;} fixture_npc_state;
 uint32_t GetCurrentThreadId(){return 5;}
 const std::string fixture_target="33333333-3333-4333-8333-333333333333";
 const std::string fixture_snapshot="22222222-2222-4222-8222-222222222222";
@@ -36,6 +38,10 @@ json controller_status(){return fixture_controller;}
 bool network_binding(const std::string& id,action::Binding& binding,std::string& error){
     if(id!=fixture_snapshot)return fail(error,"fixture_snapshot differs");binding.native_epoch=2;binding.native_generation=3;return true;}
 }
+bool capture_binding(const std::string& id,action::Binding& binding,std::string& error){return typed_action_runtime::network_binding(id,binding,error);}
+bool context_valid=true;
+bool capture_context(const std::string&,const action::Binding&,std::optional<action::Context>& out,std::string& error){
+    if(!context_valid)return fail(error,"Captured Context differs");out=action::Context{};return true;}
 bool local_target_key(uintptr_t object,uint64_t uid,std::string& key,std::string& error){
     if(object!=0x1000||uid!=77)return fail(error,"local fixture_target differs");key=fixture_target;return true;}
 uintptr_t actual_object=0x1000;uint64_t actual_uid=77;bool window_visible=true,undo_active=false;
@@ -67,15 +73,50 @@ unsigned original_calls=0;void* original_object=nullptr;std::string original_com
 bool __fastcall command_fixture(void* object,const PropertyString* command){
     ++original_calls;original_object=object;original_command.assign(command->data,command->size);return true;}
 void need(bool ok,const std::string& why){if(!ok)throw std::runtime_error(why);}
+unsigned offered_controls(){
+    namespace controls=mt2mp::game::npc_property_ui_controls;
+    Memory memory;std::map<uintptr_t,std::string> strings;std::string error;controls::Offered offered;
+    constexpr uintptr_t image=0x140000000,window=0x10000,child=0x20000,data=0x30000;
+    const auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return field(memory,base,offset,value,cause);};
+    const auto text=[&](uintptr_t at,std::string& out,std::string& cause){auto found=strings.find(at);if(found==strings.end())return fail(cause,"unreadable UI text");out=found->second;return true;};
+    memory.set(window,image+0x1707d20);memory.set(image+0x1707d20+0x178,image+0x8167c0);
+    memory.set(window+0x2d0,data);memory.set(window+0x2d8,int32_t{1});memory.set(window+0x2dc,int32_t{1});
+    memory.set(window+0x300,uintptr_t{});memory.set(window+0x308,int32_t{});memory.set(window+0x30c,int32_t{});memory.set(data,child);
+    memory.set(child,image+0x16e3ec0);memory.set(image+0x16e3ec0+0x178,image+0xc35730);
+    memory.set(child+0x278,window);memory.set(child+0x280,window);memory.set(child+0x69,uint8_t{1});
+    memory.set(child+0x46d,uint8_t{});memory.set(child+0x174,uint8_t{1});strings[child+0x388]="MessageTo Parent LevelUp";
+    action::NpcPropertyIntent intent;intent.kind=action::NpcPropertyKind::RaiseLevel;
+    need(controls::find(read,text,image,window,0x50000,intent,offered,error)&&offered.command=="LevelUp",error);
+    memory.set(child+0x46d,uint8_t{1});need(!controls::find(read,text,image,window,0x50000,intent,offered,error),"Disabled level control accepted");
+    memory.set(child+0x46d,uint8_t{});memory.set(child+0x69,uint8_t{});
+    need(!controls::find(read,text,image,window,0x50000,intent,offered,error),"Hidden level control accepted");memory.set(child+0x69,uint8_t{1});
+    memory.set(child+0x280,uintptr_t{0x40000});need(!controls::find(read,text,image,window,0x50000,intent,offered,error),"Foreign UI owner accepted");memory.set(child+0x280,window);
+    strings[child+0x388]="MessageTo Parent DestroyNPC";need(!controls::find(read,text,image,window,0x50000,intent,offered,error),"Unrelated command accepted");
+    intent.kind=action::NpcPropertyKind::OnlineState;intent.online=1;
+    memory.set(window+0x520,child);memory.set(child,image+0x16e7390);strings[child+0x318]="MessageTo Parent SetState";
+    memory.set(child+0x348,uintptr_t{0x40000});memory.set(child+0x350,int32_t{1});memory.set(child+0x354,int32_t{1});
+    memory.set(0x40000,uintptr_t{0x50000});memory.set(0x50000,image+0x16e3ec0);strings[0x50388]="MessageTo Parent SetState 2";
+    memory.set(0x50278,child);memory.set(0x50280,window);memory.set(0x50069,uint8_t{1});memory.set(0x5046d,uint8_t{});memory.set(0x50174,uint8_t{1});
+    need(controls::find(read,text,image,window,0x60000,intent,offered,error)&&offered.command=="SetState 2",error);
+    strings[0x50388]="MessageTo Parent SetState 3";need(!controls::find(read,text,image,window,0x60000,intent,offered,error),"Unoffered online state accepted");
+    intent={};intent.name="New";
+    memory.set(window+0x4e8,child);memory.set(child,image+0x16e58d0);memory.set(child+0x340,uintptr_t{0x60000});
+    memory.set(child+0x320,uintptr_t{0x70000});memory.set(0x70000,image+0x1703290);memory.set(0x70280,window);
+    need(controls::find(read,text,image,window,0x60000,intent,offered,error)&&offered.receiver==child&&offered.text_edit==0x70000,error);
+    need(!controls::find(read,text,image,window,0x60008,intent,offered,error),"Foreign Header target accepted");
+    memory.set(0x70280,uintptr_t{});need(!controls::find(read,text,image,window,0x60000,intent,offered,error),"Foreign rename editor owner accepted");
+    return 10;
+}
 void reset(){property_pending.reset();fixture_npc_state={};fixture_controller={{"started",true},{"locked",false},{"pending",false}};
-    actual_object=0x1000;actual_uid=77;window_visible=true;undo_active=false;old_state={};old_state.actor.created.name="Old";old_state.online=2;}
-int main(){try{unsigned count=0;std::string error;action::NpcPropertyIntent intent;intent.name="New";
+    actual_object=0x1000;actual_uid=77;window_visible=true;undo_active=false;context_valid=true;old_state={};old_state.actor.created.name="Old";old_state.online=2;}
+int main(){try{unsigned count=offered_controls();std::string error;action::NpcPropertyIntent intent;intent.name="New";
     reset();need(property_capture(0x1000,intent,error),error);need(property_pending&&property_pending->key=="action:"+fixture_target&&fixture_npc_state.captures==1,"exact capture missing");++count;
     need(!property_capture(0x1000,intent,error),"second pending capture accepted");++count;
     auto reject=[&](auto mutate){reset();mutate();need(!property_capture(0x1000,intent,error),"capture guard bypassed");need(!property_pending&&!fixture_npc_state.captures,"rejected capture changed fixture_npc_state");++count;};
     reject([]{fixture_controller["pending"]=true;});reject([]{fixture_controller["locked"]=true;});reject([]{fixture_npc_state.thread=6;});
     reject([]{actual_uid=78;});reject([]{actual_object=0x1008;});reject([]{window_visible=false;});
     reject([]{undo_active=true;});reject([]{old_state.actor.created.name="New";});
+    reject([]{context_valid=false;});
     reset();intent.kind=action::NpcPropertyKind::OnlineState;intent.name.clear();intent.online=0;
     need(property_capture(0x1000,intent,error),error);++count;
     Memory memory;memory.set(0x1838,int32_t{1});memory.set(0x16c0,uint8_t{1});memory.set(0x16b0,std::array<float,4>{1,0.5f,0.25f,1});

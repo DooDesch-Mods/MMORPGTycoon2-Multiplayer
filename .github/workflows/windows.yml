@@ -7,6 +7,10 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      beta_release:
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -16,7 +20,47 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run_checks: ${{ steps.route.outputs.run_checks }}
+    env:
+      ROUTE_CANDIDATE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.workflow == 'Windows source checks' && github.repository == 'DooDesch-Mods/MMORPGTycoon2-Multiplayer' && inputs.beta_release != true }}
+      PUSH_BEFORE: ${{ github.event.before }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        if: env.ROUTE_CANDIDATE == 'true' && github.event.before != '0000000000000000000000000000000000000000'
+        with:
+          persist-credentials: false
+      - name: Route checks to the beta caller for milestone pushes
+        id: route
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+          import subprocess
+
+          run_checks = True
+          before = os.environ.get('PUSH_BEFORE', '')
+          if os.environ['ROUTE_CANDIDATE'] == 'true' and before != '0' * 40:
+              after = os.environ['GITHUB_SHA']
+              if not all(re.fullmatch(r'[0-9a-f]{40}', value) for value in (before, after)):
+                  raise ValueError('Invalid push commit range')
+              subprocess.run(['git', 'fetch', '--no-tags', '--depth=1', 'origin', before], check=True)
+              changed = subprocess.check_output(['git', 'diff', '--no-renames', '--name-only', '-z', before, after]).split(b'\0')
+              changed = [path for path in changed if path]
+              # GitHub path filters inspect at most 300 files. Larger or initial pushes retain standalone checks.
+              run_checks = not (len(changed) <= 300 and b'.github/beta-milestone.json' in changed)
+          owner = 'standalone or reusable checks' if run_checks else 'Early Beta release workflow'
+          print(f'Windows check owner: {owner}')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'run_checks={str(run_checks).lower()}\n')
+          PY
   source-tests:
+    needs: route
+    if: needs.route.outputs.run_checks == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -114,6 +158,8 @@ jobs:
             .ci-build/tests/source-cache-${{ matrix.shard }}.json
           if-no-files-found: error
   python-tests:
+    needs: route
+    if: needs.route.outputs.run_checks == 'true'
     runs-on: windows-2022
     timeout-minutes: 30
     defaults:
@@ -209,6 +255,8 @@ jobs:
           python -m unittest discover -s tools/packaging -p test_steam_test.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
   compile:
+    needs: route
+    if: needs.route.outputs.run_checks == 'true'
     runs-on: windows-2022
     timeout-minutes: 45
     env:
@@ -319,8 +367,8 @@ jobs:
           retention-days: 7
           compression-level: 0
   build:
-    if: always()
-    needs: [source-tests, python-tests, compile]
+    if: ${{ always() && (needs.route.result != 'success' || needs.route.outputs.run_checks != 'false') }}
+    needs: [route, source-tests, python-tests, compile]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6

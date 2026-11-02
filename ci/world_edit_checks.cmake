@@ -18,6 +18,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/modular_capture.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/modular_graph.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/npc_property_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/npc_action_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/prop_text_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/region_appearance_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/region_sale_runtime.inc"
@@ -62,6 +63,7 @@ foreach(target
     test_region_appearance_capture
     test_npc_property_protocol
     test_npc_property_capture
+    test_npc_property_runtime
     test_region_sale_protocol
     test_region_sale_reader
     test_region_sale_inverse
@@ -140,6 +142,9 @@ foreach(target
     if(target STREQUAL "test_scenery_alias_order")
         target_sources(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/scenery_witness.cpp")
     endif()
+    if(target STREQUAL "test_npc_property_runtime")
+        target_link_libraries(${target} PRIVATE world_edit_session_checks)
+    endif()
     if(target STREQUAL "test_duplicate_sample")
         target_link_libraries(${target} PRIVATE bcrypt)
     endif()
@@ -176,6 +181,8 @@ foreach(target
     add_test(NAME ${target} COMMAND ${target})
     set_tests_properties(${target} PROPERTIES TIMEOUT 60)
 endforeach()
+
+add_test(NAME npc_property_mcp COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_npc_property_mcp.py")
 
 add_executable(test_scenery_gesture "${CMAKE_CURRENT_LIST_DIR}/../test/test_scenery_gesture.cpp")
 target_include_directories(test_scenery_gesture PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/game")
