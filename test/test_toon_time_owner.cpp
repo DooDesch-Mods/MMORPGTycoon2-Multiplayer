@@ -44,6 +44,9 @@ namespace mt2mp::net {uint64_t current_world_epoch(){return 7;}}
 namespace mt2mp::game::live_host_state {fixture::Fence& economic_fence(){return fixture::fence;}}
 
 namespace mt2mp::game::typed_action_runtime {
+struct Config {bool local_test=false;static Config& instance(){static Config value;return value;}};
+struct MT2FW_MT2_StepReceipt {uint64_t tick=0,completed_tick=0,lease=0,generation=0,session=0,world_epoch=0;uint32_t phase=0;};
+struct OrderedSteps {bool diagnostic_read(MT2FW_MT2_StepReceipt&,std::string& error){error="fixture diagnostic unavailable";return false;}};
 struct Runtime {
     fixture::Controller controller;fixture::Session session;
     uint32_t thread=GetCurrentThreadId();bool lobby_retiring=false;
@@ -51,6 +54,7 @@ struct Runtime {
     toon_time_fence::Receipt toon_time_receipt,toon_time_discarded;
     uintptr_t toon_time_receiver=0,toon_time_discarded_receiver=0;
     uint64_t toon_time_confirmed=0;
+    std::unique_ptr<OrderedSteps> ordered_steps;
 };
 std::atomic<Runtime*> published_runtime=nullptr;
 placement_ui_probe::ProcessMemory weapon_memory;

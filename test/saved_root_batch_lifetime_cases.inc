@@ -1,7 +1,7 @@
 #include <memory>
 #include "native_open_witness.h"
 namespace saved_root_lifetime_fixture {
-struct WorldState;struct LookupApi;
+struct WorldState;struct LookupApi;struct Memory;
 namespace opened=mt2mp::game::building_mixed_identity::opened_file;
 inline unsigned constructed=0,alive=0,finished=0,last_id=0;
 inline bool reject=false,throw_constructor=false;

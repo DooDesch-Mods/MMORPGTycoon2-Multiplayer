@@ -1,11 +1,13 @@
 #include "typed_action/action_session.h"
 #include "typed_action/ordered_building_family.h"
 #include "ordered/wall_owner_cases.h"
+#include "release_edit_state.h"
 #include <iostream>
 #include <map>
 #include <optional>
 #include <stdexcept>
 namespace action=mt2mp::action_session;
+namespace release_edit=mt2mp::game::release_edit;
 using json=nlohmann::json;
 bool fixture_ordered=true,scope_ok=true,controller_ordered=true;
 action::Context fixture_context;

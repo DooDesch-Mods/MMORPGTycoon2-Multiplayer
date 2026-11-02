@@ -1,6 +1,6 @@
 #include <optional>
 namespace saved_root_origin_fixture {
-struct WorldState;struct LookupApi;
+struct WorldState;struct LookupApi;struct Memory;
 namespace opened=mt2mp::game::building_mixed_identity::opened_file;
 #include "saved_root_batch_lifetime_type.inc"
 #include "saved_root_origin_same.inc"
@@ -19,6 +19,7 @@ struct RootSceneryReadBatch::State {
     std::optional<opened::CurrentWorld> cached_origin;
     uint64_t origin_revision=0;
     bool fresh_origin=false;
+    bool verify_lookup(std::string&){return true;}
     bool finish_body(std::string& error){
         ++final_reads;
         if(!member_failure.empty()){error=member_failure;return false;}
