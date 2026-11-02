@@ -14,6 +14,8 @@ bool before_request(uint64_t generation,std::string& error);
 bool retire_unstarted(uint64_t generation,std::string& error);
 bool finish(uint64_t generation,bool& pending,std::string& error);
 bool read_current_world(building_mixed_identity::opened_file::CurrentWorld&,std::string& error);
+bool read_current_world(building_mixed_identity::opened_file::CurrentWorld&,std::string& error,
+                        building_mixed_identity::opened_file::ReadOriginTransaction&);
 nlohmann::json status_json();
 void shutdown(const std::string& cause);
 }

@@ -9,6 +9,7 @@
 struct MT2FW_MT2_StepServiceDraftV1;
 struct MT2FW_MT2_StepReceipt;
 namespace mt2mp::game::ordered_session {class ProofOwner;}
+namespace mt2mp::game::building_mixed_identity::opened_file {class ReadOriginTransaction;}
 namespace mt2mp::net {
 using OrderedClientEntry=bool(*)(std::string& error);
 void configure_ordered_client_entry(OrderedClientEntry);
@@ -76,8 +77,12 @@ bool acknowledge_ordered_bootstrap(const MT2FW_MT2_StepServiceDraftV1&,uint64_t 
 // Before a native request this reads the exact pinned file. Loaded=true requires
 // NativeOpen's completed local world proof; Host distribution alone cannot supply it.
 bool read_ordered_snapshot(OrderedSnapshotIdentity&,std::string&);
+bool read_ordered_snapshot(OrderedSnapshotIdentity&,std::string&,
+    game::building_mixed_identity::opened_file::ReadOriginTransaction&);
 // Recovery-local proof only. Normal Step and action readers keep read_ordered_snapshot.
 bool read_ordered_snapshot_local(OrderedSnapshotIdentity&,std::string&);
+bool read_ordered_snapshot_local(OrderedSnapshotIdentity&,std::string&,
+    game::building_mixed_identity::opened_file::ReadOriginTransaction&);
 // Read-only initial census admission. Reads the retained live service and exact
 // physical peer agreement; unavailable after activation or the first original Go.
 bool read_ordered_initial_bootstrap(OrderedSnapshotIdentity&,MT2FW_MT2_StepReceipt&,std::string&);

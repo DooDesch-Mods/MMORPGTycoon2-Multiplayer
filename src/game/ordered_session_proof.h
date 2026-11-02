@@ -10,8 +10,9 @@ namespace mt2mp::game::ordered_session {
 template<bool RecoveryLocal=false>
 inline bool read_native_proof_impl(MT2FW_MT2_StepProofReply& out,uint32_t& role,std::string& error){
     out={};out.size=sizeof(out);role=MT2FW_MT2_SESSION_UNKNOWN;
+    building_mixed_identity::opened_file::ReadOriginTransaction transaction;
     net::OrderedSnapshotIdentity identity;
-    if(!(RecoveryLocal?net::read_ordered_snapshot_local(identity,error):net::read_ordered_snapshot(identity,error)))return false;
+    if(!(RecoveryLocal?net::read_ordered_snapshot_local(identity,error,transaction):net::read_ordered_snapshot(identity,error,transaction)))return false;
     if(!identity.file_verified||!identity.native_prepared||!identity.native_generation||!identity.seed_present||
        !identity.bytes||identity.snapshot_uuid.empty()||identity.snapshot_uuid.size()>=sizeof(out.snapshot_uuid)||
        identity.sha256.size()!=64||identity.sha256.find_first_not_of("0123456789abcdef")!=std::string::npos||
@@ -40,7 +41,7 @@ inline bool read_native_proof_impl(MT2FW_MT2_StepProofReply& out,uint32_t& role,
         if(!normal_load_identity::read_load_phase(identity.sha256,identity.snapshot_uuid,normal_confirmed,error))return false;
         if(identity.loaded&&normal_confirmed){
             building_mixed_identity::opened_file::CurrentWorld current;
-            if(!native_open_runtime::read_current_world(current,error))return false;
+            if(!native_open_runtime::read_current_world(current,error,transaction))return false;
             if(current.uuid!=identity.snapshot_uuid||current.sha256!=identity.sha256||current.bytes!=identity.bytes||
                current.generation!=identity.native_generation||current.world_epoch!=identity.world_epoch){
                 error="Ordered sealed native world differs from selected snapshot";return false;}
@@ -50,6 +51,7 @@ inline bool read_native_proof_impl(MT2FW_MT2_StepProofReply& out,uint32_t& role,
             out.map=reinterpret_cast<uintptr_t>(current.map);
         }
     }
+    if(!transaction.finish(error))return false;
     error.clear();return true;
 }
 inline bool read_native_proof(MT2FW_MT2_StepProofReply& out,uint32_t& role,std::string& error){return read_native_proof_impl<false>(out,role,error);}

@@ -65,7 +65,25 @@ struct CurrentWorld {
     uint64_t generation=0,world_epoch=0,bytes=0;
     std::string uuid,sha256;
 };
+// This capability is confined to one synchronous readonly proof parent.
+class ReadOriginTransaction {
+    friend bool read_completed_world(uint64_t,CurrentWorld&,std::string&,ReadOriginTransaction&);
+    uint32_t thread_=0;
+    uint64_t generation_=0,epoch_=0,revision_=0;
+    const void* owner_=nullptr;
+    std::filesystem::path root_,write_,file_;
+    bool bound_=false,failed_=false,finished_=false;
+    bool check(std::string&);
+    bool admit(uint64_t,std::string&);
+public:
+    ReadOriginTransaction();
+    ReadOriginTransaction(const ReadOriginTransaction&)=delete;
+    ReadOriginTransaction& operator=(const ReadOriginTransaction&)=delete;
+    ~ReadOriginTransaction()=default;
+    bool finish(std::string&);
+};
 bool read_completed_world(uint64_t generation,CurrentWorld&,std::string& error);
+bool read_completed_world(uint64_t generation,CurrentWorld&,std::string& error,ReadOriginTransaction&);
 Status status();
 #ifdef MT2MP_MIXED_OPEN_TEST
 void testing_backend(uintptr_t image,Lookup real_dir,Lookup mount_point);

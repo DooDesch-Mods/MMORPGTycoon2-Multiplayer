@@ -152,20 +152,27 @@ historical=actual.replace('!mt2mp::game::live_host_state::apply_timing::PageRead
 assert hashlib.sha256(original.encode()).hexdigest()=='955b2a06603fb04df9c8acdd99c2a63c7900c3d78b353c568dc5aa3041b64cea', 'Completed-world reader changed outside its local metadata scope'
 guards=[('bool fail(', '9b5031ed1e70c8b8bd00a2d3a94a745a573285902e33b775c3766a3110d1b526'), ('bool readable(', '54306171b323a8b0ed4b67e0d497ee58ec66fbc71a83b33e8f31be4bb494e87d'), ('DWORD copy(', '7018793e6633a9b9816aedf58895f8d1bac6ac2a8394d76e5b9e0bbc5fca8851'), ('template<class T> bool read(', '1faa597938d8e881a43d513e0ca6f3cd36fee9200d81a99e1105a461df913b16'), ('bool vt(', '495b6c9b9c75f5820292664cd1f94249973ed484c3b5c312c6a41a485575f158'), ('bool mode_singleton(', 'a0a3dac38434ae325ea430452d7d908aa05bf751c3ac763f092700024ff04a11'), ('bool world_witness(', 'aebe4a78c97de856e13d2eb2799236b4a82221e666f4bba6b35d34366db9b128')]
 pieces=[]
+world_fields=body(witness,'bool world_fields(')
 for anchor,digest in guards:
     part=body(witness,anchor)
     baseline_part=part
     if anchor=='bool world_witness(':
+        # Reconstruct the prior complete reader; only the field helper extraction
+        # is admitted here. Origin validation remains mandatory in this wrapper.
+        shared='    return world_fields(w,error);\n}'
+        assert part.count(shared)==1, 'Independent world witness must validate then read fresh fields'
+        baseline_part=part.replace(shared,world_fields[world_fields.index('{')+2:],1)
         binding='#ifdef MT2MP_FRAMEWORK_PLUGIN\n    if(!framework_binding(error))return fail(error,error);\n#endif\n'
         timed_binding='#ifdef MT2MP_FRAMEWORK_PLUGIN\n    {\n        mt2mp::game::live_host_state::apply_timing::Scope timing(\n            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);\n        if(!framework_binding(error,timed_account_attributes))return fail(error,error);\n    }\n#endif\n'
         fields_timing='    mt2mp::game::live_host_state::apply_timing::Scope timing(\n        mt2mp::game::live_host_state::apply_timing::Part::NativeOpenWorldFields);\n'
-        assert part.count(timed_binding)==1, 'Framework completed-world timing boundary changed'
-        assert part.count(fields_timing)==1, 'Completed-world fields timing boundary changed'
-        baseline_part=part.replace(timed_binding,binding,1).replace(fields_timing,'',1)
+        assert baseline_part.count(timed_binding)==1, 'Framework completed-world timing boundary changed'
+        assert baseline_part.count(fields_timing)==1, 'Completed-world fields timing boundary changed'
+        baseline_part=baseline_part.replace(timed_binding,binding,1).replace(fields_timing,'',1)
         assert baseline_part.count(binding)==1, 'Framework completed-world binding changed'
         baseline_part=baseline_part.replace(binding,'',1)
     assert hashlib.sha256(baseline_part.encode()).hexdigest()==digest, 'Completed-world dependency changed: '+anchor
     if anchor=='DWORD copy(':part=part.replace('DWORD copy(', 'DWORD native_copy(',1)
+    if anchor=='bool world_witness(':pieces.append(world_fields)
     pieces.append(part)
 world_type='struct WorldWitness {void* game=nullptr;void* mode=nullptr;void* state=nullptr;void* world=nullptr;void* map=nullptr;bool operator==(const WorldWitness&)const=default;};'
 assert witness.count(world_type)==1

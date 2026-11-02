@@ -122,7 +122,7 @@ static void ordered_check_ack(const json& value,uint64_t sender){
     if(ordered_manifest.is_null()||!value.contains("ordered_simulation")||value.at("ordered_simulation")!=ordered_manifest)
         throw std::runtime_error("Ordered snapshot acknowledgement seed/session/member agreement differs");
 }
-static bool ordered_native_read(OrderedSnapshotIdentity& out,std::string& error){
+static bool ordered_native_read(OrderedSnapshotIdentity& out,std::string& error,game::building_mixed_identity::opened_file::ReadOriginTransaction* transaction=nullptr){
 #if !defined(MT2MP_SNAPSHOT_TEST) || defined(MT2MP_ORDERED_PRELOAD_TEST)
     const auto actual=game::building_mixed_identity::opened_file::status();
     if(actual.uuid!=out.snapshot_uuid||actual.sha256!=out.sha256||actual.bytes!=out.bytes||actual.hash_bytes!=out.bytes||actual.generation!=out.native_generation||
@@ -136,23 +136,23 @@ static bool ordered_native_read(OrderedSnapshotIdentity& out,std::string& error)
     }
     if(actual.completed_origin){
         game::building_mixed_identity::opened_file::CurrentWorld world;
-        if(!game::native_open_runtime::read_current_world(world,error))return false;
+        if(!(transaction?game::native_open_runtime::read_current_world(world,error,*transaction):game::native_open_runtime::read_current_world(world,error)))return false;
         if(world.uuid!=out.snapshot_uuid||world.sha256!=out.sha256||world.bytes!=out.bytes||world.generation!=out.native_generation||!world.world_epoch){error="Ordered loaded NativeOpen identity differs from retained preload";return false;}
         out.loaded=true;out.world_epoch=world.world_epoch;
         if(!ordered_loaded_observation(out,error))return false;
     }
     return true;
 #else
-    (void)out;error="Ordered NativeOpen read is unavailable in legacy snapshot fixture";return false;
+    (void)out;(void)transaction;error="Ordered NativeOpen read is unavailable in legacy snapshot fixture";return false;
 #endif
 }
-bool read_ordered_snapshot(OrderedSnapshotIdentity& out,std::string& error){
+static bool read_ordered_snapshot_impl(OrderedSnapshotIdentity& out,std::string& error,game::building_mixed_identity::opened_file::ReadOriginTransaction* transaction){
     out={};if(!ordered_fresh(error))return false;
     auto current=*ordered_snapshot;
-    if(current.native_prepared&&!ordered_native_read(current,error))return false;
+    if(current.native_prepared&&!ordered_native_read(current,error,transaction))return false;
     out=std::move(current);error.clear();return true;
 }
-bool read_ordered_snapshot_local(OrderedSnapshotIdentity& out,std::string& error){
+static bool read_ordered_snapshot_local_impl(OrderedSnapshotIdentity& out,std::string& error,game::building_mixed_identity::opened_file::ReadOriginTransaction* transaction){
     out={};
     if(!ordered_snapshot||GetCurrentThreadId()!=ordered_thread||!ordered_failure.empty()||!ordered_original_cohort){
         error=ordered_failure.empty()?"Recovery local proof lacks its retained original snapshot owner":ordered_failure;return false;
@@ -160,12 +160,18 @@ bool read_ordered_snapshot_local(OrderedSnapshotIdentity& out,std::string& error
     auto current=*ordered_snapshot;
     if(current.session!=session_wire::session_id()||current.local_peer!=session_wire::local_peer()||
        !current.file_verified||!current.native_prepared||!current.native_generation||!current.seed_present||
-       !ordered_native_read(current,error)||!current.loaded||!current.world_epoch){
+       !ordered_native_read(current,error,transaction)||!current.loaded||!current.world_epoch){
         if(error.empty())error="Recovery local proof changed its loaded native file, session or generation";
         return false;
     }
     out=std::move(current);error.clear();return true;
 }
+bool read_ordered_snapshot(OrderedSnapshotIdentity& out,std::string& error){return read_ordered_snapshot_impl(out,error,nullptr);}
+bool read_ordered_snapshot(OrderedSnapshotIdentity& out,std::string& error,game::building_mixed_identity::opened_file::ReadOriginTransaction& transaction){return read_ordered_snapshot_impl(out,error,&transaction);}
+
+bool read_ordered_snapshot_local(OrderedSnapshotIdentity& out,std::string& error){return read_ordered_snapshot_local_impl(out,error,nullptr);}
+bool read_ordered_snapshot_local(OrderedSnapshotIdentity& out,std::string& error,game::building_mixed_identity::opened_file::ReadOriginTransaction& transaction){return read_ordered_snapshot_local_impl(out,error,&transaction);}
+
 static void ordered_prepare_received(const std::filesystem::path& runtime){
     std::string error;if(!ordered_fresh(error))throw std::runtime_error(error);
     auto& retained=*ordered_snapshot;

@@ -171,6 +171,13 @@ bool read_current_world(witness::CurrentWorld& result,std::string& error) {
     if(active_generation.load()!=generation) {result={};error="current_world_read_runtime_generation_changed";return false;}
     return true;
 }
+bool read_current_world(witness::CurrentWorld& result,std::string& error,witness::ReadOriginTransaction& transaction) {
+    result={};
+    const auto generation=active_generation.load();
+    if(!witness::read_completed_world(generation,result,error,transaction))return false;
+    if(active_generation.load()!=generation) {result={};error="current_world_read_runtime_generation_changed";return false;}
+    return true;
+}
 nlohmann::json status_json() {
     const auto s=witness::status();
     return {{"state",s.state},{"uuid",s.uuid},{"sha256",s.sha256},{"generation",s.generation},

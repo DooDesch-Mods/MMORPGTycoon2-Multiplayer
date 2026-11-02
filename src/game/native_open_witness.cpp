@@ -269,14 +269,7 @@ bool task_owner(void* task,void*& mode,std::string& error) {
        !read(mode,0x2d0,owned,error)||owned!=task)return fail(error,"mode_init_task_owner_type_or_lifetime_mismatch");
     return true;
 }
-bool world_witness(WorldWitness& w,std::string& error) {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
-    {
-        mt2mp::game::live_host_state::apply_timing::Scope timing(
-            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
-        if(!framework_binding(error,timed_account_attributes))return fail(error,error);
-    }
-#endif
+bool world_fields(WorldWitness& w,std::string& error) {
     mt2mp::game::live_host_state::apply_timing::Scope timing(
         mt2mp::game::live_host_state::apply_timing::Part::NativeOpenWorldFields);
     void* active=nullptr;void* world=nullptr;void* map=nullptr;
@@ -295,6 +288,17 @@ bool world_witness(WorldWitness& w,std::string& error) {
         return fail(error,"completed_origin_GameState_World_Map_reciprocity_mismatch");
     return true;
 }
+bool world_witness(WorldWitness& w,std::string& error) {
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    {
+        mt2mp::game::live_host_state::apply_timing::Scope timing(
+            mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
+        if(!framework_binding(error,timed_account_attributes))return fail(error,error);
+    }
+#endif
+    return world_fields(w,error);
+}
+
 bool close_pin(std::string& error) {
     if(held!=INVALID_HANDLE_VALUE){++current.pin_close_calls;if(!CloseHandle(held))return fail(error,"retire_close winerror="+std::to_string(GetLastError()));++current.pin_close_confirmed;}
     held=INVALID_HANDLE_VALUE;current.held=false;retired_generation=current.generation;
@@ -639,6 +643,63 @@ bool validate_completed_origin(uint64_t generation,std::string& error) {
     if(witness!=loaded_world)return fail(error,"completed_origin_world_changed");
     return true;
 }
+ReadOriginTransaction::ReadOriginTransaction():thread_(GetCurrentThreadId()){}
+bool ReadOriginTransaction::check(std::string& error) {
+    if(finished_){error="read_origin_transaction_unavailable";return false;}
+    if(GetCurrentThreadId()!=thread_||GetCurrentThreadId()!=current.game_thread){error="current_world_read_wrong_thread";return false;}
+    if(!generation_||generation_!=current.generation){error="current_world_read_generation_mismatch";return false;}
+    if(live_host_state::apply_timing::original_call_revision==UINT64_MAX||
+       live_host_state::apply_timing::original_call_revision!=revision_){error="read_origin_transaction_native_boundary_changed";return false;}
+    if(init_phase!=InitPhase::Ready||installed_hooks!=required_hooks||callback_failure.load()||
+       !current.completed_origin||!current.current_origin_available||!current.world_witness_bound||
+       !epoch_||current.origin_world_epoch!=epoch_||world_epoch!=epoch_||
+       current.state=="failed"||current.state=="invalidated"){
+        error="current_world_read_origin_unavailable";return false;
+    }
+    if(owner_!=&current||root_!=configured_root||file_!=physical
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+       ||write_!=configured_write
+#endif
+    ){error="read_origin_transaction_owner_changed";return false;}
+    return true;
+}
+bool ReadOriginTransaction::admit(uint64_t generation,std::string& error) {
+    if(failed_||finished_){error="read_origin_transaction_unavailable";return false;}
+    if(bound_)return check(error);
+    if(GetCurrentThreadId()!=thread_){error="current_world_read_wrong_thread";return false;}
+    generation_=generation;epoch_=current.origin_world_epoch;
+    revision_=live_host_state::apply_timing::original_call_revision;
+    owner_=&current;root_=configured_root;file_=physical;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    write_=configured_write;
+#endif
+    if(!check(error))return false;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+    {
+        live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
+        if(!framework_binding(error,timed_account_attributes))return fail(error,error);
+    }
+#endif
+    if(!check(error))return false;
+    bound_=true;return true;
+}
+bool ReadOriginTransaction::finish(std::string& error) {
+    std::lock_guard lock(gate);
+    if(failed_||finished_){error="read_origin_transaction_unavailable";return false;}
+    failed_=true;
+    if(GetCurrentThreadId()!=thread_){error="current_world_read_wrong_thread";return false;}
+    if(bound_){
+        if(!check(error))return false;
+#ifdef MT2MP_FRAMEWORK_PLUGIN
+        {
+            live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
+            if(!framework_binding(error,timed_account_attributes))return fail(error,error);
+        }
+#endif
+        if(!check(error))return false;
+    }
+    finished_=true;failed_=false;error.clear();return true;
+}
 bool read_completed_world(uint64_t generation,CurrentWorld& result,std::string& error) {
     result={};
     std::lock_guard lock(gate);
@@ -667,6 +728,49 @@ bool read_completed_world(uint64_t generation,CurrentWorld& result,std::string& 
     confirmed.generation=generation;confirmed.world_epoch=current.origin_world_epoch;confirmed.bytes=current.bytes;
     confirmed.uuid=current.uuid;confirmed.sha256=current.sha256;
     result=std::move(confirmed);error.clear();return true;
+}
+bool read_completed_world(uint64_t generation,CurrentWorld& result,std::string& error,ReadOriginTransaction& transaction) {
+    result={};
+    std::lock_guard lock(gate);
+    if(transaction.failed_||transaction.finished_){error="read_origin_transaction_unavailable";return false;}
+    struct Rejection {
+        ReadOriginTransaction& transaction;
+        bool accepted=false;
+        ~Rejection(){if(!accepted)transaction.failed_=true;}
+    } rejection{transaction};
+    if(GetCurrentThreadId()!=current.game_thread) {error="current_world_read_wrong_thread";return false;}
+    if(!generation||generation!=current.generation) {error="current_world_read_generation_mismatch";return false;}
+    if(init_phase!=InitPhase::Ready||installed_hooks!=required_hooks||callback_failure.load()||
+       !current.completed_origin||!current.current_origin_available||!current.world_witness_bound||
+       !current.origin_world_epoch||current.origin_world_epoch!=world_epoch||
+       current.state=="failed"||current.state=="invalidated") {
+        error="current_world_read_origin_unavailable";return false;
+    }
+    if(!transaction.admit(generation,error))return false;
+    transaction.failed_=true;
+    const bool ok=[&](){
+    WorldWitness first,second;
+    {
+        mt2mp::game::live_host_state::apply_timing::PageReadScope pages(
+            !mt2mp::game::live_host_state::apply_timing::PageReadScope::reader_active());
+        ++current.world_checks;
+        if(!world_fields(first,error))return false;
+        ++current.world_checks;
+        if(!world_fields(second,error))return false;
+    }
+    if(first!=loaded_world||second!=first)return fail(error,"current_world_read_witness_changed");
+    if(callback_failure.load()) {error="current_world_read_observer_failure";return false;}
+    CurrentWorld confirmed;
+    confirmed.game=first.game;confirmed.mode=first.mode;confirmed.state=first.state;
+    confirmed.world=first.world;confirmed.map=first.map;
+    confirmed.generation=generation;confirmed.world_epoch=current.origin_world_epoch;confirmed.bytes=current.bytes;
+    confirmed.uuid=current.uuid;confirmed.sha256=current.sha256;
+    if(!transaction.check(error))return false;
+    result=std::move(confirmed);error.clear();return true;
+    }();
+    transaction.failed_=!ok;
+    rejection.accepted=ok;
+    return ok;
 }
 Status status(){
     std::lock_guard lock(gate);auto result=current;
