@@ -119,6 +119,7 @@ bool entry(void* receiver,void* record)try{
     if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Ability capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Ability capture non-standard exception");}
 }
+bool presentation_route(std::string& error){Memory memory;if(!original_view_select)return fail(error,"Character presentation route unavailable");return view_route(memory,error);}
 bool capture_adjustment(void* receiver,void* record,bool& handled,std::string& error)try{
     const bool accepted=capture_adjustment_impl(receiver,record,handled,error);if(!accepted)reject(error);return accepted;
 }catch(const std::exception& exception){fault=true;error=std::string("Ability adjustment capture boundary: ")+exception.what();reject(error);return false;}

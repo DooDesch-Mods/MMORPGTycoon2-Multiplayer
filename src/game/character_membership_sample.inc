@@ -11,6 +11,7 @@ struct Sample {
     std::vector<action_runtime::CharacterNpcRetirement> npc_retirements;
     std::vector<character_membership_npc_completion::Pool> npc_pools;
     std::vector<std::pair<std::string,identity::Entry>> monster_aliases;
+    std::string other_users_sha;
 };
 using NativeMemory=Memory;
 struct ValueMemory final:subscriber_lifecycle::Memory {
@@ -128,7 +129,7 @@ bool external_owners(Memory& memory,const a::Binding& binding,const std::string&
     return true;
 }
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::CharacterMembershipIntent& intent,
-    Sample& out,std::string& error,const Sample* previous=nullptr,const a::Request* request=nullptr){
+    Sample& out,std::string& error,const Sample* previous=nullptr,const a::Request* request=nullptr,bool read_only=false){
     out={};host::NativeOrigin origin;if(!host::resolve_lookup(memory.process,state.image,exe_sha,out.api,error))return false;
     host::Reader reader(memory.process,origin,state.image,state.thread,out.api);
     if(!reader.current(out.world,true,error)||!action_runtime::bound(out.world,binding,snapshot,error))return false;
@@ -144,9 +145,10 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         if(definition.kind==intent.kind&&definition.id==intent.id)selected=&definition;}
     if(!selected)return fail(error,"Character membership selected global ID is absent");out.selected=selected->object;out.uid=selected->uid;
     if(!row(memory,out.definitions,*selected,out.value.selected,error))return false;
-    if(!selected->deleted&&!member::collection_member(at,state.image,*selected,out.collection_record,error))return false;
-    const auto family=member::affected(out.definitions,*selected);std::set<uint64_t> unique;
-    for(const auto& user:out.users.rows)if(std::find(family.begin(),family.end(),user.definition)!=family.end()&&unique.insert(user.uid).second){
+    // Definition edits read complete records without requiring deletion eligibility.
+    if(!read_only&&!selected->deleted&&!member::collection_member(at,state.image,*selected,out.collection_record,error))return false;
+    const auto family=read_only?std::vector<std::string>{selected->key}:member::affected(out.definitions,*selected);std::set<uint64_t> unique;
+    for(const auto& user:out.users.rows)if(!read_only&&std::find(family.begin(),family.end(),user.definition)!=family.end()&&unique.insert(user.uid).second){
         out.affected.push_back(user);if(user.family==member::Family::Npc){uintptr_t region=0;uint8_t queued=2;
             if(!at(user.object,0x178,region,error)||!at(user.object,0x894,queued,error)||!region)return fail(error,error.empty()?"Character affected NPC lacks actual Region":error);
             if(queued)return fail(error,"Character membership pre-state contains an already queued native NPC destruction");
@@ -163,16 +165,26 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         qr::Owner current;current.pointer=user.object;current.uid=user.uid;current.key=key;seed.owners.emplace(user.object,std::move(current));}
     if(!read_remove_quests(memory,binding,snapshot,0,{},out.quests,error,&seed)||
        !quest_list::references(memory,binding,snapshot,out.quests,out.references,error)||!external_owners(memory,binding,snapshot,out,error,previous))return false;
+    if(read_only){
+        auto text=[&](uintptr_t address,std::string& value,std::string& cause){return npc_quest_records::read_string(memory,address,0,"Character Release reference",value,cause);};
+        general_project::ReferenceOwners first,second;uintptr_t software=0;
+        if(!general_project::reference_owners(at,text,state.image,first,error)||!general_project::reference_owners(at,text,state.image,second,error)||
+           first!=second||!at(uintptr_t(out.world.origin.state),0x1c8,software,error)||software!=second.software)
+            return fail(error,error.empty()?"Character Release complete canonical reference owners changed":error);
+        for(const auto& [key,object]:second.tech_keys)if(!owner_add(out.owners,object,json::array({"tech",key}).dump(),error))return false;
+        for(const auto& [key,object]:second.pack_keys)if(!owner_add(out.owners,object,json::array({"art",key}).dump(),error))return false;
+        if(!owner_add(out.owners,software,json::array({"software",""}).dump(),error))return false;
+    }
     json metadata=json::array(),family_rows=json::array(),other_rows=json::array(),user_rows=json::array(),boss_rows=json::array();
     const int32_t new_id=previous?(previous->value.first_deleted[size_t(intent.kind)]<0?previous->value.counts[size_t(intent.kind)]:previous->value.first_deleted[size_t(intent.kind)]):
         (out.value.first_deleted[size_t(intent.kind)]<0?out.value.counts[size_t(intent.kind)]:out.value.first_deleted[size_t(intent.kind)]);
     for(const auto& definition:out.definitions.definitions){a::CharacterMembershipRow value;if(!row(memory,out.definitions,definition,value,error))return false;
         json portable={{"kind",value.kind},{"id",value.id},{"parent",value.parent},{"deleted",value.deleted},{"name",value.name},{"variants",value.variants}};
-        metadata.push_back(portable);const bool related=definition.object==out.selected||(!definition.deleted&&definition.parent==out.selected);
+        metadata.push_back(portable);const bool related=definition.object==out.selected||(!read_only&&!definition.deleted&&definition.parent==out.selected);
         std::string complete;if(!definition.deleted&&!complete_record(memory,definition.object,0xf62880,0xf628e0,out.owners,complete,error))return false;
         portable["record_sha"]=complete;
         if(related)family_rows.push_back(portable);
-        else if(!(intent.command==a::CharacterMembershipCommand::CreateVariant&&definition.kind==intent.kind&&definition.id==new_id))other_rows.push_back(portable);
+        else if(read_only||!(intent.command==a::CharacterMembershipCommand::CreateVariant&&definition.kind==intent.kind&&definition.id==new_id))other_rows.push_back(portable);
         if(previous&&intent.command==a::CharacterMembershipCommand::CreateVariant&&definition.kind==intent.kind&&definition.id==new_id)out.value.created=value;
     }
     if(previous&&intent.command==a::CharacterMembershipCommand::Destroy){auto expected=previous->value.selected.variants;expected.push_back(intent.id);std::sort(expected.begin(),expected.end());
@@ -185,22 +197,25 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     for(const auto& user:out.users.rows)if(!actor_records.contains(user.object)){
         character_actor_records::Result captured;if(!character_actor_records::read(binding,snapshot,user.family,user.object,external,captured,error))return false;
         actor_records.emplace(user.object,std::move(captured.portable.sha));}
+    json other_user_rows=json::array();
     for(const auto& [definition,users]:out.users.by_definition){if(users.empty())continue;json rows=json::array();
         for(const auto& user:users){json value={{"key",out.owners.at(user.object)},{"family",uint8_t(user.family)},{"record_sha",actor_records.at(user.object)}};
             rows.push_back(value);if(user.family==member::Family::Boss)boss_rows.push_back(value);}
-        user_rows.push_back({{"definition",definition},{"users",rows}});}
+        user_rows.push_back({{"definition",definition},{"users",rows}});
+        if(std::find(family.begin(),family.end(),definition)==family.end())other_user_rows.push_back({{"definition",definition},{"users",rows}});}
+    if(read_only&&!quest_bridge::sha256(other_user_rows.dump(),out.other_users_sha,error))return false;
     std::string manager,quest_rows;if(!complete_record(memory,out.manager,0x107fa10,0x107fa70,out.owners,manager,error)||
        !quest_digest(out.quests,quest_rows,error))return false;
     out.value.manager_sha=manager;
-    if(intent.command==a::CharacterMembershipCommand::Import){uintptr_t store=0,ap=0;
+    if(intent.command==a::CharacterMembershipCommand::Import||read_only){uintptr_t store=0,ap=0;
         ValueMemory guarded(memory);if(!character_import_native::verify(state.image,guarded,error))return false;
         if(!field(memory,state.image,0x13df210,store,error)||!field(memory,store,0,ap,error)||ap!=state.image+0x16d9300)
             return fail(error,error.empty()?"Character import current original ArtStore singleton differs":error);
-        a::Context current;std::map<uintptr_t,std::string> refs;
-        if(!a::selected_session().current(current,error)||!general_project_runtime::release_reference_keys(current,binding,refs,error))return false;
-        for(const auto& [pointer,key]:refs){const auto found=out.owners.find(pointer);
-            if(found!=out.owners.end()&&found->second!=key)return fail(error,"Character import ArtStore canonical owner aliases another current object");
-            out.owners[pointer]=key;}
+        if(!read_only){a::Context current;std::map<uintptr_t,std::string> refs;
+            if(!a::selected_session().current(current,error)||!general_project_runtime::release_reference_keys(current,binding,refs,error))return false;
+            for(const auto& [pointer,key]:refs){const auto found=out.owners.find(pointer);
+                if(found!=out.owners.end()&&found->second!=key)return fail(error,"Character import ArtStore canonical owner aliases another current object");
+                out.owners[pointer]=key;}}
         out.owners[store]="art-store";
         if(!complete_record(memory,store,0xe56320,0xe56380,out.owners,out.value.import_art_sha,error))return false;
     }
@@ -219,7 +234,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     if(!at(release_manager,0x38,release,error)||!at(release,0,ap,error))return false;
     if(ap!=state.image+0x16c12b0)return fail(error,"Character membership actual current Release class differs");
     if(!at(release,0x120,out.value.release_edits,error))return false;
-    if(intent.command==a::CharacterMembershipCommand::Import){out.owners[release]="current-release";
+    if(intent.command==a::CharacterMembershipCommand::Import||read_only){out.owners[release]="current-release";
         if(!complete_record(memory,release,0xe4f460,0xe4f4c0,out.owners,out.value.import_release_sha,error))return false;}
     out.money=ledger(money);out.value.undo_count=out.undo.undo.size();
     definitions::Census final_definitions;member::Users final_users;host::WorldState final_world;

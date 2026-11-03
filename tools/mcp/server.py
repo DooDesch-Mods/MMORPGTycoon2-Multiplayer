@@ -126,6 +126,28 @@ def npc_target_schema(move=False, monster=False):
     return schema
 
 
+def validate_character_rename_ui(arguments):
+    if not isinstance(arguments, dict) or set(arguments) not in ({"token", "kind", "id", "name", "read_only"}, {"token", "kind", "id", "name", "read_only", "open"}):
+        raise RuntimeErrorDetail("invalid_args", "Character Rename UI requires exact token/kind/id/name/read_only")
+    if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Character Rename UI token must be a canonical UUID")
+    if type(arguments["kind"]) is not int or not -1 <= arguments["kind"] <= 4 or type(arguments["id"]) is not int or not -1 <= arguments["id"] < 1000000:
+        raise RuntimeErrorDetail("invalid_args", "Character Rename UI target is outside the native domain")
+    if type(arguments["read_only"]) is not bool or not isinstance(arguments["name"], str) or len(arguments["name"]) > 20 or "\0" in arguments["name"]:
+        raise RuntimeErrorDetail("invalid_args", "Character Rename UI requires Boolean read_only and a native name of at most 20 characters")
+    if arguments["read_only"] and arguments["name"] or not arguments["read_only"] and (arguments["kind"] < 0 or arguments["id"] < 0):
+        raise RuntimeErrorDetail("invalid_args", "Character Rename inspection needs an empty name; mutation needs an exact current target")
+    if "open" in arguments and (type(arguments["open"]) is not bool or arguments["open"] and (arguments["kind"] < 0 or arguments["id"] < 0)):
+        raise RuntimeErrorDetail("invalid_args", "Character original class-card open needs Boolean open and an exact current target")
+
+
+def validate_character_rename_read(arguments):
+    if (not isinstance(arguments, dict) or set(arguments) not in (set(), {"action_uuid"})
+            or "action_uuid" in arguments and (not isinstance(arguments["action_uuid"], str)
+            or re.fullmatch(TIME_TOKEN_PATTERN, arguments["action_uuid"]) is None)):
+        raise RuntimeErrorDetail("invalid_args", "Character read requires empty args or one canonical action_uuid")
+
+
 def validate_npc_target(arguments, move=False, monster=False):
     if not isinstance(arguments, dict):
         raise RuntimeErrorDetail("invalid_args", "NPC UI requires an object with exactly one target")
@@ -251,6 +273,10 @@ OP_SCHEMAS = {
         "position": {"type": "array", "minItems": 3, "maxItems": 3,
             "items": {"type": "number"}}},
         ("token", "region_id", "tool", "character_slot", "character_type", "position")),
+    "native_character_rename_ui": object_schema({"token": TIME_TOKEN, "kind": {"type": "integer", "minimum": -1, "maximum": 4},
+        "id": {"type": "integer", "minimum": -1, "maximum": 999999}, "name": {"type": "string", "maxLength": 20},
+        "read_only": {"type": "boolean"}, "open": {"type": "boolean"}}, ("token", "kind", "id", "name", "read_only")),
+    "read_character_rename": object_schema({"action_uuid": TIME_TOKEN}),
     "native_npc_remove_ui": npc_target_schema(monster=True),
     "native_npc_property_ui": object_schema({"token": TIME_TOKEN, "key": {"type": "string", "minLength": 1, "maxLength": 256},
         "kind": {"type": "integer", "minimum": 1, "maximum": 4}, "name": {"type": "string", "maxLength": 256},
@@ -381,6 +407,7 @@ OP_SCHEMAS = {
     "execute_action": object_schema({"action_id": TOKEN, "parameters": {"type": "object"}}, ("action_id", "parameters")),
 }
 OP_DESCRIPTIONS = {
+    "read_character_rename": "Empty args list actual live base class candidates. One action_uuid returns only retained command-boundary Character state, complete Definition/Actor/Release/Quest/ArtStore proof hashes and full Ledger, without a new native census. Original offered menu/card controls determine candidate eligibility.",
     "native_npc_property_ui": "Select one exact current NPC, verify its offered visible Name/Online/Level control, and invoke its original Header/InfoWindow callback once. read_only selects and inspects the control without committing a property. Observe ui_npc.ui_jobs and complete ordered property receipts. Never replay an attempted token.",
     "enable_ui_build": "Enable normal building intent capture and original native building execution on the bound game thread.",
     "request_building_place": "Submit a complete building request through the existing Host-ordered controller; admission is not a native completion receipt.",
@@ -405,6 +432,7 @@ OP_DESCRIPTIONS = {
     "native_npc_tool_ui": "Open an actual Guard or Trainer item button and list ThemeWindow CharacterTypeIDs, or select one original ThemeList entry. Uses a fresh token for each UI attempt; open requires CharacterTypeID [-1,-1].",
     "native_npc_place_probe": "In an isolated MPTest world only, call original NPC MouseOver and Release once after ThemeWindow selection. Measure actual NPC rows, RNG, full Ledger and Undo. This mutates the test world; never replay an attempted token.",
     "native_npc_place_ui": "On a connected peer, capture one Host-ordered placement through the original Cursor Release dispatcher. Guard/ClassTrainer/QuestGiver use the existing active NPC UI. item_elitemonster additionally requires level and performs original Region/tool/selection/level preparation. Inspect ui_npc or ui_monster UI job and Controller ACK. Never replay an attempted token.",
+    "native_character_rename_ui": "Inspect the actual offered Character Rename control, or queue original BeginRename and native text input inside OriginalGo. Set open true to start with the class collection hidden, press the actual Design ItemButton if needed, select its offered unlocked pcs menu row, then click the actual class card. Complete gameplay/ArtStore/RNG proof surrounds collection construction and editor opening. Otherwise a live unlocked Character pane is required. Inspect ui_character_rename.ui_jobs and complete peer effects; never replay an attempted token.",
     "native_npc_remove_ui": "Select one NPC from its confirmed placement action and invoke original DestroyNPC. With family=monster, select one confirmed direct Monster birth and invoke original MonsterInfoWindow Destroy. Capture one Host-ordered removal; inspect ui_npc and Controller ACK before another action. Never replay an attempted or unknown token.",
     "native_npc_quest_edit_ui": "Run original QuestSelector SetTitle(kind1), SetKills(kind2), or SetRewards(kind3) for an existing current slot. Inspect ui_npc_quest_list and ACK3; never replay an attempted/unknown token.",
     "native_npc_quest_list_ui": "Run original NPCInfoWindow AddQuest for remove_slot=-1 or QuestSelector Destroy for an existing current slot0..4. Inspect ui_npc_quest_list and ACK3; never replay an attempted or unknown token.",
@@ -543,7 +571,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_character_rename", "read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -785,6 +813,10 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             if op == "native_region_preset_ui":
                 if not isinstance(arguments["diagnostic_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["diagnostic_uuid"]) is None or not isinstance(arguments["preset"], str) or not 1 <= len(arguments["preset"].encode("utf-8")) <= 256 or "\0" in arguments["preset"]:
                     raise RuntimeErrorDetail("invalid_args", "region UI requires canonical diagnostic UUID and bounded preset string")
+        if op == "native_character_rename_ui":
+            validate_character_rename_ui(arguments)
+        if op == "read_character_rename":
+            validate_character_rename_read(arguments)
         if op == "native_price_ui":
             if not isinstance(arguments, dict) or set(arguments) != {"diagnostic_uuid", "purchase_fee", "subscription_fee"} or not isinstance(arguments["diagnostic_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["diagnostic_uuid"]) is None or any(type(arguments[key]) is not int or not 0 <= arguments[key] <= 2147483647 for key in ("purchase_fee", "subscription_fee")):
                 raise RuntimeErrorDetail("invalid_args", "price native UI requires canonical diagnostic UUID and two nonnegative int32 prices")

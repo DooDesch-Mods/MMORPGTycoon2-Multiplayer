@@ -28,7 +28,7 @@ Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.l
 python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.17 --target MT2MultiplayerPlugin
 ```
 
-Framework mode needs a matching Framework source checkout with the native service, route and ownership headers. It writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
+Current development source requires Framework Runtime 0.5.6 and its matching native SDK with the Character preview selector service. Arrange the frozen SDK with its `include` and `adapters/mt2/sdk` directories. A mutable Framework checkout and the Lua authoring SDK are not required. Framework mode writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
 
 The Framework version defaults to `mod.json`; an explicit version must match it. A matching CMake cache skips the redundant configure step while retaining CMake's automatic regeneration. Use `--reconfigure` to configure explicitly. The build writes `build/framework/build-receipt.json` with the exact DLL hash and version.
 

@@ -1398,7 +1398,8 @@ public:
                request.action!=action::Action::EditGroup&&!group_history&&
                !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
                  !request.target_action_uuid.empty()&&request.canonical_record_key=="terrain:"+request.target_action_uuid)&&
-               request.action!=action::Action::SetRegionStyles&&
+               request.action!=action::Action::RenameCharacter&&
+                request.action!=action::Action::SetRegionStyles&&
                request.action!=action::Action::EditRegionProperty&&
                 !(request.action==action::Action::ManagementCommand&&action::ordered_management(request.management))&&
                 !(request.action==action::Action::ReleaseEdit&&release_edit::ordered_type(request.release_edit))&&
@@ -2501,8 +2502,8 @@ bool tick_ordered_ui_capture(std::string& error,bool held_service){
     if(!runtime||!runtime->ordered_steps||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring||runtime->live_state||runtime->live_port){error="Ordered UI capture requires held current Runtime without state-copy ownership";return false;}
     bool inside=false;if(!original_go_admission(inside,error))return false;
     if(inside){error="Ordered UI capture flush cannot run inside original Go";return false;}
-    const std::array<void(*)(),15> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
-        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,npc_probe::monster_action_runtime::quest_list::tick,ui_network_runtime::tick};
+    const std::array<void(*)(),16> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
+        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,npc_probe::monster_action_runtime::quest_list::tick,npc_probe::monster_action_runtime::character_rename::tick,ui_network_runtime::tick};
     for(const auto pump:pumps){
         const auto status=runtime->controller.status();action::Context actual;
         if(!status.started||status.locked||!runtime->controller.ordered_mode()){error="Ordered UI capture Controller unavailable: "+status.cause;return false;}

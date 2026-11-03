@@ -21,6 +21,7 @@
 #include "../game/ui_remove_runtime.h"
 #include "../game/coop_cursor/production.h"
 #include "../game/release_runtime.h"
+#include "../game/character_rename_runtime.h"
 #include <array>
 #include <chrono>
 #include <fstream>
@@ -36,6 +37,7 @@ struct State {
     const MT2FW_Host* host=nullptr;
     HMODULE module=nullptr;
     MT2FW_MT2_ServiceV1 service{};
+    MT2FW_MT2_ServiceV2 character_preview{};
     MT2FW_MT2_RoutesV1 routes{};
     MT2FW_MT2_OwnershipV1 ownership{};
     MT2FW_MT2_ReleaseV1 release{};
@@ -142,6 +144,9 @@ void prepare() {
        query_ownership(state.host,MT2FW_MT2_OWNERSHIP_VERSION,&state.ownership,sizeof(state.ownership))!=MT2FW_MT2_OK||
        query_release(state.host,MT2FW_MT2_RELEASE_VERSION,&state.release,sizeof(state.release))!=MT2FW_MT2_OK)
         throw std::runtime_error("Framework native service query rejected active plugin owner");
+    if(query(state.host,MT2FW_MT2_PREVIEW_SERVICE_VERSION,&state.character_preview.v1,sizeof(state.character_preview))!=MT2FW_MT2_OK||
+       state.character_preview.v1.context!=state.service.context)
+        throw std::runtime_error("Framework Character preview V2 query rejected the active native owner");
     const auto& api=state.service;
     if(!api.frame_subscribe||!api.frame_unsubscribe||!api.section_register||!api.scope_begin||!api.scope_end)
         throw std::runtime_error("Framework native service lacks required paired update/profiling functions");
@@ -169,6 +174,8 @@ void prepare() {
     std::string error;
     if(!game::native_lobby::framework_bind(state.host,&state.routes,&state.ownership,error))throw std::runtime_error("Framework lobby bind failed: "+error);
     if(!initialize(state.module))throw std::runtime_error("Multiplayer engine initialization failed; see original runtime cause");
+    if(!game::npc_probe::monster_action_runtime::character_rename::framework_bind(state.character_preview,error))
+        throw std::runtime_error("Framework Character preview selector bind failed: "+error);
     if(!game::coop_cursor::production::bind(state.host,error))throw std::runtime_error("Multiplayer cursor binding failed: "+error);
     if(!framework_input::bind(state.ownership,state.thread,error))throw std::runtime_error("Framework accepted-input observer bind failed: "+error);
     for(size_t i=0;i<state.sections.size();++i){
@@ -304,6 +311,7 @@ void retire(){
         if(!game::ui_remove_runtime::framework_retire(error))throw std::runtime_error("Framework Remove authority retirement unconfirmed: "+error);
     }
     {std::string error;if(!game::release_runtime::framework_retire(error))throw std::runtime_error("Framework Release delegate retirement unconfirmed: "+error);}
+    {std::string error;if(!game::npc_probe::monster_action_runtime::character_rename::framework_retire(error))throw std::runtime_error("Framework Character preview selector retirement unconfirmed: "+error);}
     if(framework_input::read().subscribed){std::string error;if(!framework_input::unbind(error))throw std::runtime_error("Framework input observer retirement unconfirmed: "+error);}
     if(state.prepared){std::string error;if(!game::native_lobby::framework_unbind(error))throw std::runtime_error("Framework native menu retirement unconfirmed: "+error);}
     stop_reporting();

@@ -43,7 +43,8 @@ bool ready=true,installed=true,fault=true,replaying=false,callback_failed=true;c
 uintptr_t replay_receiver=77,original=0x1234;uint64_t generation=42,captures=3,submitted=2,rejected=1;
 unsigned original_calls=1;std::string cause="previous fault",last_action="old action",ui_token="old token";
 bool replay_remove=true;a::QuestListEdit replay_edit=a::QuestListEdit::Title;unsigned replay_property=4;int replay_state=2;int replay_atmosphere=3;bool preparing=true;
-struct ViewTail {bool armed=false;};ViewTail view_tail;std::map<std::string,uintptr_t> adjustment_views;
+struct ViewTail {bool armed=false;};ViewTail view_tail,rename_tail;bool preparing_view=false;std::map<std::string,uintptr_t> adjustment_views;
+void diagnostic_retire_lobby(){}
 std::optional<int> pending=5;std::map<std::string,int> operations{{"old action",1}},jobs{{"old token",1}};
 '''
         source += text[start:end]

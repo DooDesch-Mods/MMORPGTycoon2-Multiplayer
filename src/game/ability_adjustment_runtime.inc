@@ -4,6 +4,10 @@ struct ViewTail {bool armed=false,preserve=false;uintptr_t view=0;uint32_t calls
 ViewTail view_tail;
 std::map<std::string,uintptr_t> adjustment_views;
 void view_select_entry(void* view,void* selected){
+    bool renamed=false;std::string rename_error;
+    if(!character_rename::presentation(view,selected,uintptr_t(_ReturnAddress()),renamed,rename_error)){
+        fault=true;reject(rename_error);return;}
+    if(renamed)return;
     bool imported=false;std::string import_error;
     if(!character_membership::import_presentation(view,selected,uintptr_t(_ReturnAddress()),imported,import_error)){
         fault=true;reject(import_error);return;}
@@ -13,7 +17,10 @@ void view_select_entry(void* view,void* selected){
             fault=true;reject("Ability adjustment scoped original presentation tail receiver/thread/count differs");return;}
         if(view_tail.preserve)return;
     }
-    original_view_select(view,selected);
+    bool previewed=false;std::string preview_error;
+    if(!character_rename::preview_presentation(view,selected,original_view_select,previewed,preview_error)){
+        fault=true;reject(preview_error);return;}
+    if(!previewed)original_view_select(view,selected);
 }
 bool view_route(Memory& memory,std::string& error){
     if(!original_view_select)return true;

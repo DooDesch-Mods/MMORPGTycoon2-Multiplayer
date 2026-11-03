@@ -6,13 +6,54 @@ uintptr_t replay_receiver=0;uint8_t replay_property=0;uint32_t original_calls=0;
 struct Sample {
     host::WorldState world;uintptr_t manager=0,selected=0;uint64_t uid=0;
     std::vector<std::array<uintptr_t,3>> local;std::array<std::array<uintptr_t,3>,5> arrays{};
-    a::CharacterRenameState value;a::Ledger money;undo_probe::UndoWitness undo;
+    a::CharacterRenameState value;a::Ledger money;undo_probe::UndoWitness undo;json proof=json::object();
 };
-struct Pending {a::Binding binding;std::string snapshot;a::CharacterRenameIntent intent;};
+struct Pending {a::Binding binding;std::string snapshot;a::CharacterRenameIntent intent;std::optional<a::Context> context;std::string diagnostic_token;};
 struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;
-    bool attempted=false,returned=false,confirmed=false,retired=false,seed_attempted=false;uint32_t calls=0;std::string cause;};
+    bool attempted=false,returned=false,confirmed=false,retired=false,seed_attempted=false,ordered=false,ui_restored=false;
+    uint32_t calls=0,presentation_calls=0,preparation_notifications=0;std::string cause;json ui_state=json::object();};
 std::optional<Pending> pending;std::map<std::string,Operation> operations;
+std::string active_ui_token;
+bool diagnostic_pending();
+bool diagnostic_submitted(const std::string&,const std::string&,std::string&);
+void diagnostic_retire_lobby();
+json diagnostic_status();
+bool preview_code(Memory&,std::string&);
+bool enable_preview(std::string&);
 bool entry(void*,void*);
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& error){
+    if(request.action!=a::Action::RenameCharacter||request.character_rename.property)
+        return fail(error,"Ordered Character scope requires Rename");
+    a::Context context;if(!a::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(error,"Ordered Character actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(error,"Ordered Character execution forbids Host state and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !ordered_mode()||fail(error,"Ordered Character execution requires consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,a::Binding& binding,std::optional<a::Context>& context,std::string& error){
+    context.reset();if(!ordered_mode())return typed_action_runtime::network_binding(snapshot,binding,error);
+    bool inside=false;a::Context actual;
+    if(!typed_action_runtime::original_go_admission(inside,error)||!inside)
+        return fail(error,error.empty()?"Ordered Character capture requires actual OriginalGo":error);
+    if(!a::selected_session().current(actual,error)||actual.snapshot_uuid!=snapshot||
+       Config::instance().is_host!=(actual.role==a::Role::Host)||!typed_action_runtime::read_binding(snapshot,binding,error))
+        return fail(error,error.empty()?"Ordered Character captured Session/Binding/role differs":error);
+    context=actual;return true;
+}
+bool current_capture(const Pending& saved,a::Binding& binding,std::string& error){
+    if(saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding)
+        return fail(error,error.empty()?"Character rename captured World changed":error);
+    if(!saved.context)return !ordered_mode()||fail(error,"Ordered Character captured Context absent");
+    a::Context actual;if(!ordered_mode()||!a::selected_session().current(actual,error))
+        return fail(error,error.empty()?"Ordered Character captured Session unavailable":error);
+    return actual==*saved.context||fail(error,"Ordered Character captured Session changed");
+}
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[CharacterRename] {}",error);}return false;}
 constexpr npc_quest_list_ui_codes::Code ui_code{0x689e80,4212,"f007ff46880dc66f06dd5a89f5c875c8a501a28051004c0fc0a216633cd979a8",
     {0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x28,
@@ -35,7 +76,7 @@ bool code(Memory& m,std::string& error){
         bytes.assign(pin.size,'\0');if(!m.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||!quest_bridge::sha256(bytes,hash,error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
             return fail(error,"Character rename original transaction/preparation body differs RVA="+std::to_string(pin.rva)+" original="+error);}
-    return true;
+    return preview_code(m,error);
 }
 const char* stat_label(uint8_t property){switch(property){case 1:return "SetHealth";case 2:return "SetMana";case 3:return "SetRage";case 4:return "SetSpeed";default:return "DoRename";}}
 bool stat_read(Memory& memory,uintptr_t object,a::CharacterRenameState& value,std::string& error){
@@ -74,6 +115,23 @@ bool prepare_stat(Memory& memory,uintptr_t view,const a::CharacterRenameIntent& 
     return true;
 }
 
+bool complete_proof(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::CharacterRenameIntent& intent,Sample& out,const json& rows,const json& others,std::string& error){
+    if(intent.property)return fail(error,"Ordered Character complete proof requires Rename");
+    a::CharacterMembershipIntent selected;selected.kind=intent.kind;selected.id=intent.id;
+    character_membership::Sample complete;
+    if(!character_membership::sample(memory,binding,snapshot,selected,complete,error,nullptr,nullptr,true))return false;
+    if(!same_world(out.world,complete.world)||out.manager!=complete.manager||out.selected!=complete.selected||out.uid!=complete.uid||
+       out.money!=complete.money||out.undo!=complete.undo||out.value.global_random!=complete.value.global_random||out.value.release_edits!=complete.value.release_edits)
+        return fail(error,"Character rename complete Record proof changed current owners/Ledger/Undo/RNG");
+    const auto& proof=complete.value;
+    out.proof={{"manager_sha256",proof.manager_sha},{"family_sha256",proof.family_sha},{"actors_sha256",proof.users_sha},
+        {"bosses_sha256",proof.bosses_sha},{"release_sha256",proof.import_release_sha},{"other_definitions_sha256",proof.others_sha},
+        {"other_actors_sha256",complete.other_users_sha},{"quests_sha256",proof.quests_sha},{"art_store_sha256",proof.import_art_sha}};
+    return quest_bridge::sha256(json{{"catalogue",rows},{"manager",proof.manager_sha},{"family",proof.family_sha},
+            {"actors",proof.users_sha},{"bosses",proof.bosses_sha},{"release",proof.import_release_sha}}.dump(),out.value.all_sha256,error)&&
+        quest_bridge::sha256(json{{"catalogue",others},{"definitions",proof.others_sha},{"actors",complete.other_users_sha},
+            {"quests",proof.quests_sha},{"art_store",proof.import_art_sha}}.dump(),out.value.others_sha256,error);
+}
 bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot,const a::CharacterRenameIntent& intent,Sample& out,std::string& error){
     out={};host::LookupApi api;host::NativeOrigin origin;
     if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;
@@ -124,6 +182,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
        !field(memory,release_manager,0x38,release,error)||!field(memory,release,0,ap,error)||ap!=state.image+0x16c12b0||
        !field(memory,release,0x120,out.value.release_edits,error))return fail(error,error.empty()?"Character rename ledger/Undo/release ownership differs":error);
     out.money=ledger(money);out.value.day=money.clock.flat_day;out.value.undo_count=out.undo.undo.size();
+    if(ordered_mode())return complete_proof(memory,binding,snapshot,intent,out,rows,others,error);
     return quest_bridge::sha256(rows.dump(),out.value.all_sha256,error)&&quest_bridge::sha256((intent.property?names:others).dump(),out.value.others_sha256,error);
 }
 uint32_t find_window(uintptr_t& window)noexcept{
@@ -147,49 +206,98 @@ bool window(Memory& m,uintptr_t expected,uintptr_t& view,uintptr_t& editor,uintp
         return fail(error,error.empty()?"Character rename live named native Window/View/editor binding differs SEH="+std::to_string(seh):error);
     return true;
 }
+#include "character_rename_preview.inc"
+#include "character_rename_view.inc"
+using TokenLabelEquals=bool(*)(const void*,const quest_list::QuestTitleView&);
+bool command_label_matches(TokenLabelEquals equals,const void* record,const char* wanted){
+    const quest_list::QuestTitleView text{wanted,std::char_traits<char>::length(wanted)};
+    return equals(record,text);
+}
+struct CaptureDispatch {uint64_t entries=0,rename_labels=0;uintptr_t receiver=0;std::string disposition;};
+CaptureDispatch capture_dispatch;
+uint32_t native_command_label(void* record,const char* wanted,bool& result)noexcept{
+    // Native text commits append a value token; vsRecord equality would compare that token too.
+    __try{result=command_label_matches(reinterpret_cast<TokenLabelEquals>(state.image+0x96e1d0),record,wanted);return 0;}
+    __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
 bool entry(void* receiver,void* record)try{
+    ++capture_dispatch.entries;capture_dispatch.receiver=uintptr_t(receiver);capture_dispatch.disposition="entry";
     if(!original){fault=true;reject("Character rename original unavailable");return false;}
-    if(!net::session_wire::connected())return original(receiver,record);
+    if(!net::session_wire::connected()){capture_dispatch.disposition="disconnected-original";return original(receiver,record);}
     bool membership=false;std::string membership_error;
     if(!character_membership::capture_variant(receiver,record,membership,membership_error)){reject(membership_error);return false;}
-    if(membership)return true;
+    if(membership){capture_dispatch.disposition="membership-handled";return true;}
     bool adjusted=false;std::string adjustment_error;
     if(!ability_edit::capture_adjustment(receiver,record,adjusted,adjustment_error)){reject(adjustment_error);return false;}
-    if(adjusted)return true;
-    Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;
-    if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;reject(error);return false;}
-    uint8_t property=0;auto seh=quest_list::label(api.label_equals,record,"DoRename",relevant);
-    if(!relevant&&!seh)for(uint8_t field=1;field<=4;++field){seh=quest_list::label(api.label_equals,record,stat_label(field),relevant);if(relevant){property=field;break;}if(seh)break;}if(seh){fault=true;reject("Character rename label SEH="+std::to_string(seh));return false;}
-    if(!relevant)return original(receiver,record);
-    if(replaying){if(uintptr_t(receiver)!=replay_receiver||replay_property!=property||original_calls){fault=true;reject("Character rename original-once receiver/count differs");return false;}
+    if(adjusted){capture_dispatch.disposition="adjustment-handled";return true;}
+    Memory memory;std::string error;bool relevant=false;capture_dispatch.disposition="read-label";
+    uint8_t property=0;auto seh=native_command_label(record,"DoRename",relevant);
+    if(!relevant&&!seh)for(uint8_t field=1;field<=4;++field){seh=native_command_label(record,stat_label(field),relevant);if(relevant){property=field;break;}if(seh)break;}if(seh){fault=true;reject("Character rename label SEH="+std::to_string(seh));return false;}
+    if(!relevant){capture_dispatch.disposition="unrelated-label-original";return original(receiver,record);}
+    if(!property)++capture_dispatch.rename_labels;
+    if(preparing_view){capture_dispatch.disposition="preparing-view";if(property||!prepared_notification(receiver,error)){fault=true;return reject(error.empty()?"Character rename text preparation issued a foreign property":error);}return true;}
+    if(replaying){capture_dispatch.disposition="ordered-original";if(uintptr_t(receiver)!=replay_receiver||replay_property!=property||original_calls){fault=true;reject("Character rename original-once receiver/count differs");return false;}
         ++original_calls;return original(receiver,record);}
-    const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
+    const auto controller=typed_action_runtime::controller_status();a::Binding binding;std::optional<a::Context> context;const auto snapshot=net::current_snapshot_id();
+    capture_dispatch.disposition="capture-admission";
     if(!ready||fault||pending||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||building_status::pending_ui()||quest_list::pending_ui()||ability_edit::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||
-       !code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error)){reject(error.empty()?"Character rename capture requires idle bound Mainthread Controller":error);return false;}
+       !code(memory,error)||!capture_binding(snapshot,binding,context,error)){reject(error.empty()?"Character rename capture requires idle bound Mainthread Controller":error);return false;}
+    if(context&&property)return reject("Ordered Character editor currently requires Rename");
     uintptr_t object=0,view=0,editor=0,outer=0;a::CharacterRenameIntent intent;intent.property=property;
+    capture_dispatch.disposition="read-current-target";
     if(!field(memory,uintptr_t(receiver),0x460,object,error)||!field(memory,object,0x2c,intent.kind,error)||!field(memory,object,0x30,intent.id,error)||
        !window(memory,object,view,editor,outer,error)||view!=uintptr_t(receiver)||!read_input(memory,view,editor,intent,error)){
         reject(error.empty()?"Character rename captured selected type/Window differs":error);return false;}
+    capture_dispatch.disposition="read-current-sample";
     Sample before;if(!sample(memory,binding,snapshot,intent,before,error)||before.selected!=object){reject(error);return false;}intent.before=before.value.name;
-    if(!intent.property&&intent.before==intent.name)return original(receiver,record);
+    if(!intent.property&&intent.before==intent.name){capture_dispatch.disposition="unchanged-name-original";return original(receiver,record);}
     if(intent.name.size()>1024){reject("Character rename title outside native ordered payload bound");return false;}
     bool duplicate=false;const auto query=intent.property?0:name_in_use(before.manager,intent.name.c_str(),intent.name.size(),duplicate);
     if(query){fault=true;reject("Character rename original name-availability query SEH="+std::to_string(query));return false;}
-    if(duplicate)return original(receiver,record);
-    pending=Pending{binding,snapshot,intent};++captures;return true;
+    if(duplicate){capture_dispatch.disposition="duplicate-name-original";return original(receiver,record);}
+    pending=Pending{binding,snapshot,intent,context,active_ui_token};++captures;capture_dispatch.disposition="captured";return true;
 }catch(const std::exception& exception){fault=true;reject(std::string("Character rename capture boundary: ")+exception.what());return false;}
 catch(...){fault=true;reject("Character rename capture non-standard exception");return false;}
 bool same_local(const Sample& before,const Sample& after){return same_world(before.world,after.world)&&before.manager==after.manager&&before.selected==after.selected&&
     before.uid==after.uid&&before.local==after.local&&before.arrays==after.arrays&&before.undo==after.undo&&before.money==after.money;}
 }
-bool pending_ui(){return pending.has_value()||replaying;}
+bool presentation(void* view,void* selected,uintptr_t caller,bool& handled,std::string& error){
+    handled=false;if(!rename_tail.armed)return true;handled=true;
+    if(GetCurrentThreadId()!=state.thread||uintptr_t(view)!=rename_tail.view||uintptr_t(selected)!=rename_tail.target||
+       caller!=state.image+0x68a694||rename_tail.calls++||!rename_tail.binding||!rename_tail.request||
+       !ordered_scope(*rename_tail.binding,*rename_tail.request,error)){
+        fault=true;return fail(error,error.empty()?"Character rename scoped presentation receiver/target/caller/thread/count differs":error);}
+    return true;
+}
+bool preview_presentation(void* view,void* selected,void(*original_select)(void*,void*),bool& handled,std::string& error)try{
+    handled=false;if(!preview::selected())return true;handled=true;
+    if(preview::ingress_fault)return fail(error,"Character preview ingress has a retained failure; original refused");
+    Memory memory;uintptr_t actual=0,editor=0,outer=0;
+    if(!original_select||!window(memory,0,actual,editor,outer,error)||actual!=uintptr_t(view)||!ability_edit::presentation_route(error))
+        return fail(error,error.empty()?"Character preview original InfoView owner differs":error);
+    preview::Frame own;auto& frame=preview::active?*preview::active:own;
+    if(preview::active?!preview::current(frame,memory,error):!preview::prepare(frame,memory,uintptr_t(view),error))return false;
+    character_definition_identity::Census definitions;character_membership_reader::Users users;
+    if(!character_actor_records::read_current(frame.context,frame.binding,definitions,users,error))return false;
+    const auto found=std::find_if(definitions.definitions.begin(),definitions.definitions.end(),[&](const auto& row){return row.object==uintptr_t(selected)&&!row.deleted&&row.uid;});
+    uintptr_t tick=0;if(found==definitions.definitions.end()||!field(memory,state.image+0x1705990,0xb8,tick,error)||tick!=state.image+0x973d0)
+        return fail(error,error.empty()?"Character preview selected current native definition/Tick differs":error);
+    preview::Scope scope(frame,true);const auto seh=preview::call_select(original_select,view,selected);
+    if(seh||frame.failed){preview::ingress_fault=true;fault=true;return fail(error,"Character preview original InfoView failed SEH="+std::to_string(seh)+" selector="+preview::selector_cause.data());}
+    uintptr_t shown=0;if(!field(memory,uintptr_t(view),0x460,shown,error)||shown!=uintptr_t(selected))
+        return fail(error,error.empty()?"Character preview original selected definition differs":error);
+    return preview::current(frame,memory,error);
+}catch(const std::exception& exception){return fail(error,std::string("Character preview InfoView boundary: ")+exception.what());}
+catch(...){return fail(error,"Character preview InfoView non-standard boundary exception");}
+bool pending_ui(){return pending.has_value()||replaying||preparing_view||rename_tail.armed||diagnostic_pending();}
 bool retire_lobby(std::string& e){
     if(!ready){e.clear();return true;}
     if(GetCurrentThreadId()!=state.thread)return fail(e,"Character rename lobby retirement requires Mainthread");
     native::WorldStatus world;if(!native::read_world_status(world,e))return false;
     if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0)return fail(e,"Character rename lobby retirement requires actual idle Title");
-    if(replaying)return fail(e,"Character rename lobby retirement cannot interrupt original execution");
+    if(replaying||preparing_view||rename_tail.armed)return fail(e,"Character rename lobby retirement cannot interrupt original execution");
     pending.reset();operations.clear();replay_property=0;replay_receiver=0;original_calls=0;
+    diagnostic_retire_lobby();
     fault=false;cause.clear();last_action.clear();e.clear();return true;
 }
 bool enable(std::string& error){
@@ -202,56 +310,80 @@ bool enable(std::string& error){
     if(status!=MH_OK||!original)return fail(error,"Character rename prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+ui_code.rva,receipt,error))return false;generation=receipt.generation;
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+ui_code.rva));if(status!=MH_OK)return fail(error,"Character rename enable failed status="+std::to_string(status));
-    if(!code(memory,error))return false;ready=true;return true;
+    if(!enable_preview(error)||!code(memory,error))return false;ready=true;return true;
 }
 void tick(){if(!pending)return;const auto saved=*pending;pending.reset();std::string error;a::Binding binding;
-    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding){fault=true;reject(error.empty()?"Character rename captured world changed":error);return;}
+    if(!ready||fault||!current_capture(saved,binding,error)){fault=true;reject(error.empty()?"Character rename captured world changed":error);return;}
     const auto id=action_runtime::uuid(error);if(id.empty()||!typed_action_runtime::submit_character_rename(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
+    if(!saved.diagnostic_token.empty()&&!diagnostic_submitted(saved.diagnostic_token,id,error)){fault=true;reject(error);}
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error)try{
     if(!ready||fault||GetCurrentThreadId()!=state.thread||(request.action<a::Action::RenameCharacter||request.action>a::Action::SetCharacterSpeed)){error="Character rename runtime unavailable";return a::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)){error="Character rename already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();if(!controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Character rename requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,error))return a::Outcome::RejectedNoEffect;
     Memory memory;Sample before;const auto& intent=request.character_rename;
-    if(!code(memory,error)||!sample(memory,binding,request.snapshot_uuid,intent,before,error)||before.value.name!=intent.before)return a::Outcome::RejectedNoEffect;
+    if(!code(memory,error)||!sample(memory,binding,request.snapshot_uuid,intent,before,error))return a::Outcome::RejectedNoEffect;
+    if(before.value.name!=intent.before){error="Character rename recorded prior name differs measured="+before.value.name+" expected="+intent.before;return a::Outcome::RejectedNoEffect;}
     bool duplicate=false;const auto query=intent.property?0:name_in_use(before.manager,intent.name.c_str(),intent.name.size(),duplicate);
     if(query||duplicate){error="Character rename original name-availability query rejected SEH="+std::to_string(query);return a::Outcome::RejectedNoEffect;}
     if(authority){auto portable=before.value;portable.global_random=authority->character_rename_before.global_random;
         if(portable!=authority->character_rename_before||before.money!=authority->before){error="Character rename Client actual prior census/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
-    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
-    const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;error=op.cause=why.empty()?"Character rename failed without cause":why;return a::Outcome::Unknown;};
+    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.ordered=a::tick_commands::authority::active();
+    OrderedView saved_view;OrderedViewGuard view_guard{memory,saved_view};const auto notifications_before=preparation_notifications;
+    const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;rename_tail={};std::string restore;
+        error=why.empty()?"Character rename failed without cause":why;
+        if(saved_view.armed&&!saved_view.restore_attempted&&!restore_ordered_view(memory,saved_view,restore))error+="; UI restoration failed: "+restore;
+        op.ui_restored=saved_view.restored;op.ui_state=saved_view.evidence;op.preparation_notifications=preparation_notifications-notifications_before;
+        op.cause=error;return a::Outcome::Unknown;};
     const auto desired_rng=authority?authority->character_rename_before.global_random:before.value.global_random;
     uintptr_t view=0,editor=0,outer=0;if(!window(memory,0,view,editor,outer,error))return unknown(error);
-    auto seh=set_window(outer,before.selected,view,editor,intent.name.c_str(),intent.name.size());if(seh)return unknown("Character original menu preparation SEH="+std::to_string(seh));
+    uint32_t seh=0;
+    if(op.ordered){if(!prepare_ordered_view(memory,view,before.selected,request,saved_view,error))return unknown(error);}
+    else {seh=set_window(outer,before.selected,view,editor,intent.name.c_str(),intent.name.size());if(seh)return unknown("Character original menu preparation SEH="+std::to_string(seh));}
     if(intent.property&&!prepare_stat(memory,view,intent,error))return unknown(error);
     Sample prepared;if(!sample(memory,binding,request.snapshot_uuid,intent,prepared,error))return unknown(error);
-    auto prepared_state=prepared.value;prepared_state.global_random=before.value.global_random;
+    auto prepared_state=prepared.value;if(!op.ordered)prepared_state.global_random=before.value.global_random;
     if(!same_local(before,prepared)||prepared_state!=before.value||!window(memory,before.selected,view,editor,outer,error))return unknown(error.empty()?"Character rename normal menu preparation changed gameplay":error);
     auto prepared_intent=intent;if(!read_input(memory,view,editor,prepared_intent,error)||prepared_intent!=intent)return unknown(error.empty()?"Character rename prepared native editor differs":error);
-    op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Character rename original Host RNG adoption SEH="+std::to_string(seed));
+    if(!op.ordered){op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Character rename original Host RNG adoption SEH="+std::to_string(seed));}
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.before,error)||op.before.value.global_random!=desired_rng)return unknown(error.empty()?"Character rename Host RNG readback differs":error);
     op.evidence.before=op.before.money;op.evidence.character_rename_before=op.before.value;
     a::ui_diagnostic::Api api;a::ui_diagnostic::Window command_window;command_window.window=view;
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);api.command=reinterpret_cast<Command>(state.image+ui_code.rva);api.destroy_label=stat_label(intent.property);
     a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=view;replay_property=intent.property;original_calls=0;
+    if(op.ordered){if(rename_tail.armed)return unknown("Character rename presentation scope already active");rename_tail={true,view,before.selected,0,&binding,&request};}
     const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;replaying=false;replay_receiver=0;
+    const auto presentation_calls=rename_tail.calls;op.presentation_calls=presentation_calls;rename_tail={};
     if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed)return unknown(error.empty()?"Character rename original transaction lacks exact once/cleanup receipt":error);
+    if(op.ordered){
+        if(fault||presentation_calls!=1)return unknown("Character rename original presentation tail count differs required=1 measured="+std::to_string(presentation_calls));
+        if(!restore_ordered_view(memory,saved_view,error))return unknown(error);
+        op.ui_restored=saved_view.restored;op.ui_state=saved_view.evidence;op.preparation_notifications=preparation_notifications-notifications_before;
+        if(saved_view.selected==before.selected){seh=dirty_view_title(view);if(seh)return unknown("Character rename original title refresh preparation SEH="+std::to_string(seh));}
+    }
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||
        !a::character_rename_transition(intent,op.before.value,op.after.value))return unknown(error.empty()?"Character rename original effect/census/ledger/Undo/release differs":error);
     op.evidence.after=op.after.money;op.evidence.character_rename_after=op.after.value;
     if(authority){auto expected=*authority;expected.retirement_confirmed=false;if(op.evidence!=expected)return unknown("Character rename Client original result differs from Host");}
     op.confirmed=true;return a::Outcome::Confirmed;
-}catch(const std::exception& exception){replaying=false;replay_receiver=0;error=std::string("Character rename perform boundary: ")+exception.what();return a::Outcome::Unknown;}
-catch(...){replaying=false;replay_receiver=0;error="Character rename perform non-standard exception";return a::Outcome::Unknown;}
+}catch(const std::exception& exception){replaying=false;replay_receiver=0;rename_tail={};error=std::string("Character rename perform boundary: ")+exception.what();return a::Outcome::Unknown;}
+catch(...){replaying=false;replay_receiver=0;rename_tail={};error="Character rename perform non-standard exception";return a::Outcome::Unknown;}
 bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& result,std::string& error){
     const auto found=operations.find(request.action_uuid);if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.returned||found->second.calls!=1)
         return fail(error,"Character rename observation lacks exact confirmed original-once receipt");
-    const auto& op=found->second;Memory memory;Sample now;if(!sample(memory,binding,request.snapshot_uuid,request.character_rename,now,error)||
+    const auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,error))return false;Memory memory;Sample now;if(!sample(memory,binding,request.snapshot_uuid,request.character_rename,now,error)||
        !same_local(op.after,now)||now.value!=op.after.value)return fail(error,error.empty()?"Character rename current result differs before ACK":error);
     result=op.evidence;result.retirement_confirmed=op.retired;return true;
 }
 bool retire(const a::Binding& binding,const a::Request& request,std::string& error){a::Evidence ignored;if(!observe(binding,request,ignored,error))return false;
     auto& op=operations.at(request.action_uuid);if(op.retired)return fail(error,"Character rename receipt already retired");op.retired=true;return true;}
-json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"cause",op.cause}};
-    return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
+#include "character_rename_read.inc"
+#include "character_rename_ui.inc"
+bool framework_bind(const MT2FW_MT2_ServiceV2& api,std::string& error){return preview::bind(api,error);}
+bool framework_retire(std::string& error){return preview::retire(error);}
+json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"ordered",op.ordered},{"ui_restored",op.ui_restored},{"ui_state",op.ui_state},{"presentation_calls",op.presentation_calls},{"preparation_notifications",op.preparation_notifications},{"cause",op.cause}};
+    return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows},{"ui_jobs",diagnostic_status()},
+        {"preview_rng",{{"enabled",preview::enabled},{"selector_token",preview::selector_token},{"ingress_fault",preview::ingress_fault},
+            {"cause",preview::selector_cause.data()},{"scopes",preview::scopes},{"redirected",preview::redirected}}}};}
 }

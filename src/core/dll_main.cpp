@@ -106,6 +106,7 @@
 #include "../game/ui_region_runtime.h"
 #include "../game/ui_price_runtime.h"
 #include "../game/npc_probe.h"
+#include "../game/character_rename_runtime.h"
 #include "../game/npc_quest_authoring_runtime.h"
 #include "../game/npc_quest_list_runtime.h"
 #include "../game/ui_terrain_runtime.h"
@@ -1004,6 +1005,7 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
     engine_thread=GetCurrentThreadId();
     game::ui_move_runtime::scenery_stroke::tick_original_gesture();
     game::npc_probe::tick_original_monster_zone_ui();
+    game::npc_probe::monster_action_runtime::character_rename::tick_original_ui();
     game::ui_network_runtime::tick_original_input();
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     if(game::ordered_startup::selected()) {
@@ -1342,6 +1344,9 @@ static json status(bool inspect_native_economy) {
     result["capabilities"]["read_region_preset"]=game::ui_region_runtime::enabled();
     result["capabilities"]["read_npc_region"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_npc_tool_ui"]=cfg.local_test&&game::native::in_game();
+    result["capabilities"]["native_character_rename_ui"]=cfg.local_test&&game::native::in_game()&&
+        game::npc_probe::monster_action_runtime::character_rename::status().value("enabled",false);
+    result["capabilities"]["read_character_rename"]=result["capabilities"]["native_character_rename_ui"];
     result["capabilities"]["native_monster_zone_ui"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_monster_zone_probe"]=cfg.local_test&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["native_npc_place_probe"]=cfg.local_test&&game::native::in_game();
@@ -2493,6 +2498,18 @@ static void diagnostics_tick() {
             response["ok"]=game::npc_probe::place_probe(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_PLACE_PROBE_REJECTED"},{"message",error}};
+        }
+        else if(operation=="read_character_rename") {
+            std::string error;json result;
+            response["ok"]=game::npc_probe::monster_action_runtime::character_rename::read_native(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","CHARACTER_RENAME_READ_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_character_rename_ui") {
+            std::string error;json result;
+            response["ok"]=game::npc_probe::monster_action_runtime::character_rename::native_ui(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","CHARACTER_RENAME_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="native_npc_place_ui") {
             std::string error;json result;

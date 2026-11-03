@@ -456,6 +456,8 @@
 {"mp.world.zone-press-right.5ef790",0x5ef790,false},
 
 {"mp.character.view-select.689100",0x689100,false},
+{"framework.character.preview-get-int.9fc370",0x9fc370,true},
+{"mp.character.preview-attach-weapon.6577d0",0x6577d0,false},
 {"mp.character.import-image.689510",0x689510,false},
 {"mp.building-uptime-add.859e30",0x859e30,false},
 {"mp.ordered-tutorial-undo-clear.53a240",0x53a240,false},

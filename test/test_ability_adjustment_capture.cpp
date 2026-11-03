@@ -14,7 +14,11 @@ bool reject(const std::string& error){cause=error;return false;}
 namespace net {namespace session_wire {bool connected(){return admitted;}}std::string current_snapshot_id(){return snapshot_id;}}
 namespace typed_action_runtime {nlohmann::json controller_status(){return {{"started",true},{"locked",false},{"pending",false}};}
 bool network_binding(const std::string&,a::Binding& out,std::string&){out={3,4};return true;}}
-namespace character_rename {bool pending_ui(){return false;}}
+bool rename_handled=false,rename_failed=false;
+namespace character_rename {bool pending_ui(){return false;}
+bool presentation(void*,void*,uintptr_t,bool& handled,std::string& error){handled=rename_handled;
+    return !rename_failed||fail(error,"Rename exact presentation scope failed");}
+bool preview_presentation(void*,void*,void(*)(void*,void*),bool& handled,std::string&){handled=false;return true;}}
 void* _ReturnAddress(){return nullptr;}
 namespace character_membership {bool import_presentation(void*,void*,uintptr_t,bool& handled,std::string&){handled=false;return true;}}
 namespace costume_edit {bool pending_ui(){return false;}}
@@ -60,5 +64,9 @@ int main()try{using namespace adjustment_capture_fixture;unsigned checks=0;std::
     view_select_entry(reinterpret_cast<void*>(0x100),reinterpret_cast<void*>(0x200));check(fault&&!native_originals&&cause.find("count")!=std::string::npos,"Duplicate scoped presentation tail was accepted");
     fault=false;view_tail={true,false,0x100,0};view_select_entry(reinterpret_cast<void*>(0x100),reinterpret_cast<void*>(0x200));check(native_originals==1&&view_tail.calls==1&&!fault,"Initiating peer original presentation tail suppressed");
     view_tail={};view_select_entry(reinterpret_cast<void*>(0x100),reinterpret_cast<void*>(0x200));check(native_originals==2,"Unrelated native View selection was intercepted");
+    rename_handled=true;view_select_entry(reinterpret_cast<void*>(0x100),reinterpret_cast<void*>(0x200));
+    check(native_originals==2,"Rename scoped presentation continued into Ability original");
+    rename_failed=true;view_select_entry(reinterpret_cast<void*>(0x100),reinterpret_cast<void*>(0x200));
+    check(fault&&native_originals==2&&cause=="Rename exact presentation scope failed","Rename failed presentation route continued into original");
     std::cout<<checks<<" actual Ability adjustment capture/original presentation boundary checks passed\n";return 0;
 }catch(const std::exception& exception){std::cerr<<exception.what()<<'\n';return 1;}

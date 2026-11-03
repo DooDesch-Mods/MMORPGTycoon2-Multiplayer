@@ -49,6 +49,7 @@
 #include "character_import_native.h"
 #include "character_import_view.h"
 #include "general_project_runtime.h"
+#include "general_project_identity_reader.h"
 #include "character_membership_codes.h"
 #include "character_membership_npc_completion.h"
 #include "character_actor_records.h"
