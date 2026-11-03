@@ -258,6 +258,7 @@ std::string prepared_uuid,prepared_sha,prepared_region_rng_sha;
 unsigned GetCurrentThreadId(){return 17;}
 namespace net {
 using SnapshotSha256=mt2mp::net::SnapshotSha256;
+bool snapshot_file_exists(const std::filesystem::path& path,bool& exists,std::string& error){std::error_code ec;exists=std::filesystem::exists(path,ec);if(ec){error=ec.message();return false;}error.clear();return true;}
 struct SnapshotFileHandle{bool open(const std::filesystem::path&,DWORD,DWORD,std::string& error){error="unexpected companion file in load lifecycle fixture";return false;}HANDLE get()const{return INVALID_HANDLE_VALUE;}bool close(std::string*){return true;}};
 bool snapshot_file_length(HANDLE,uint64_t&,std::string& error){error="unexpected companion length in load lifecycle fixture";return false;}
 }

@@ -43,7 +43,8 @@ bool ready=true,installed=true,fault=true,replaying=false,callback_failed=true;c
 uintptr_t replay_receiver=77,original=0x1234;uint64_t generation=42,captures=3,submitted=2,rejected=1;
 unsigned original_calls=1;std::string cause="previous fault",last_action="old action",ui_token="old token";
 bool replay_remove=true;a::QuestListEdit replay_edit=a::QuestListEdit::Title;unsigned replay_property=4;int replay_state=2;int replay_atmosphere=3;bool preparing=true;
-struct ViewTail {bool armed=false;};ViewTail view_tail,rename_tail;bool preparing_view=false;std::map<std::string,uintptr_t> adjustment_views;
+struct ViewTail {bool armed=false;};ViewTail view_tail,rename_tail,apply_tail;bool preparing_view=false;std::map<std::string,uintptr_t> adjustment_views;
+std::map<std::string,int> ui_jobs;std::optional<int> ui_preparation;bool ui_resuming=false;
 void diagnostic_retire_lobby(){}
 std::optional<int> pending=5;std::map<std::string,int> operations{{"old action",1}},jobs{{"old token",1}};
 '''
@@ -69,6 +70,10 @@ std::optional<int> pending=5;std::map<std::string,int> operations{{"old action",
             source += '    check(ui_token.empty()&&jobs.empty()&&!replay_remove&&replay_edit==a::QuestListEdit::List&&quest_history::journal.empty());\n'
         elif family == 'character_rename':
             source += '    check(replay_property==0);\n'
+        elif family == 'ability_edit':
+            source += '    apply_tail.armed=true;check(!retire_lobby(e)&&e.find("interrupt")!=std::string::npos);apply_tail.armed=false;\n'
+        elif family == 'dungeon_config':
+            source += '    check(ui_jobs.empty()&&!ui_preparation&&!ui_resuming&&ui_token.empty());\n'
         elif family == 'dungeon_gizmo':
             source += '    check(preparation==nullptr&&!callback_failed);\n'
         elif family == 'dungeon_sound':

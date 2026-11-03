@@ -58,6 +58,8 @@ bool network_binding(const std::string& snapshot,a::Binding& binding,std::string
 bool submit_costume_edit(const std::string&,const a::CostumeEditIntent&,std::string&){++fixture_submissions;return true;}
 }
 namespace character_rename {
+std::string native_edit_input_token(){return {};}
+bool native_edit_submitted(const std::string&,const std::string&,std::string& error){return fail(error,"unexpected native edit submission in Costume fixture");}
 bool pending_ui(){return false;}bool ordered_mode(){return fixture_controller.value("ordered",false);}
 bool same_local(const Character& before,const Character& after){return before.selected==after.selected&&before.money==after.money;}
 #include "costume_parent_capture_binding_actual.inc"
