@@ -2445,12 +2445,15 @@ static void diagnostics_tick() {
         }
         else if(operation=="read_npc_region") {
             const auto& a=request.at("args");
-            if(!a.is_object()||a.size()!=1||!a.contains("region_id")||!a.at("region_id").is_number_integer())
-                throw std::runtime_error("read_npc_region requires exact region_id");
+            const bool detail=a.contains("quest_action_uuid");
+            if(!a.is_object()||a.size()!=(detail?2u:1u)||!a.contains("region_id")||!a.at("region_id").is_number_integer()||
+               (detail&&(!a.at("quest_action_uuid").is_string()||a.at("quest_action_uuid").get<std::string>().size()!=36)))
+                throw std::runtime_error("read_npc_region requires region_id and optional exact quest_action_uuid");
             const auto region_id=a.at("region_id").get<int64_t>();
             if(region_id<0||region_id>INT32_MAX)throw std::runtime_error("read_npc_region requires nonnegative int32 region_id");
             std::string error;json result;
-            response["ok"]=game::npc_probe::query(int32_t(region_id),result,error);
+            response["ok"]=detail?game::npc_probe::monster_action_runtime::quest_list::read_operation(int32_t(region_id),a.at("quest_action_uuid").get<std::string>(),result,error):
+                game::npc_probe::query(int32_t(region_id),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_REGION_READ_REJECTED"},{"message",error}};
         }

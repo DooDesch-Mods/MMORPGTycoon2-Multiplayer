@@ -1383,6 +1383,7 @@ public:
             }
             if(request.action!=action::Action::PlacePath&&request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemovePath&&request.action!=action::Action::RemoveWorldPath&&
                request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC&&request.action!=action::Action::EditNpcProperty&&
+               !((request.action==action::Action::SetNpcQuestList||request.action==action::Action::EditNpcQuest)&&action::ordered_quest_list(request.npc_quest_list))&&
                request.action!=action::Action::PlaceMonsterZone&&request.action!=action::Action::PlaceMonster&&
                request.action!=action::Action::MoveMonster&&request.action!=action::Action::RemoveMonster&&request.action!=action::Action::SetPrices&&
                request.action!=action::Action::PlaceNetworkNode&&request.action!=action::Action::PlaceNetworkPipe&&request.action!=action::Action::RemoveNetworkObject&&
@@ -2500,8 +2501,8 @@ bool tick_ordered_ui_capture(std::string& error,bool held_service){
     if(!runtime||!runtime->ordered_steps||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring||runtime->live_state||runtime->live_port){error="Ordered UI capture requires held current Runtime without state-copy ownership";return false;}
     bool inside=false;if(!original_go_admission(inside,error))return false;
     if(inside){error="Ordered UI capture flush cannot run inside original Go";return false;}
-    const std::array<void(*)(),14> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
-        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,ui_network_runtime::tick};
+    const std::array<void(*)(),15> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
+        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,npc_probe::monster_action_runtime::quest_list::tick,ui_network_runtime::tick};
     for(const auto pump:pumps){
         const auto status=runtime->controller.status();action::Context actual;
         if(!status.started||status.locked||!runtime->controller.ordered_mode()){error="Ordered UI capture Controller unavailable: "+status.cause;return false;}

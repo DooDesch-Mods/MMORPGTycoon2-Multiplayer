@@ -29,3 +29,4 @@ add_test(NAME npc_quest_list_mcp COMMAND "${Python3_EXECUTABLE}" -B -X utf8
 set_tests_properties(npc_quest_list_mcp PROPERTIES TIMEOUT 60)
 
 include("${CMAKE_CURRENT_LIST_DIR}/character_dungeon_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/npc_quest_ordered_checks.cmake")

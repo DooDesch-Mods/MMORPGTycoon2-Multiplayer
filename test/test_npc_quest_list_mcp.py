@@ -36,3 +36,23 @@ for change in ['missing','extra']:
 for path in [SERVER,SERVER.with_name('runtime.py')]:
     ast.parse(path.read_text(encoding='utf-8'));checks+=1
 print(f'PASS {checks} actual Quest list MCP argument and module checks')
+detail=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='validate_npc_region')
+exec(compile(ast.Module(body=[detail],type_ignores=[]),str(SERVER),'exec'),scope)
+read=scope['validate_npc_region'];read({'region_id':67});read({'region_id':67,'quest_action_uuid':valid['token']})
+for bad in [{'region_id':True},{'region_id':67,'quest_action_uuid':False},{'region_id':67,'quest_action_uuid':'bad'},
+            {'region_id':67,'quest_action_uuid':valid['token'],'extra':0},{'quest_action_uuid':valid['token']}]:
+    try:read(bad)
+    except RuntimeErrorDetail as error:assert error.code=='invalid_args'
+    else:raise AssertionError('invalid cached Quest detail accepted')
+print('PASS exact cached Quest operation detail MCP arguments')
+root=SERVER.parents[2]
+native=(root/'src/game/npc_quest_list_runtime.inc').read_text(encoding='utf-8')
+detail_body=native[native.index('bool read_operation('):native.index('json status(){')]
+assert all(call not in detail_body for call in ('state_read(', 'd::sample(', 'Memory ', 'network_binding(', 'query(')), 'Cached Quest detail must not scan native state'
+assert 'canonical_diagnostic(op.before)' in detail_body and 'canonical_diagnostic(op.after)' in detail_body
+compact=native[native.index('json status(){'):native.index('bool native_ui(')]
+assert 'canonical_diagnostic(' not in compact, 'Ordinary status must stay compact'
+core=(root/'src/core/dll_main.cpp').read_text(encoding='utf-8')
+route=core[core.index('else if(operation=="read_npc_region")'):core.index('else if(operation=="native_npc_tool_ui")')]
+assert 'detail?game::npc_probe::monster_action_runtime::quest_list::read_operation(' in route, 'Explicit cached Quest route absent'
+print('PASS cached operation-only projection and compact ordinary status boundaries')

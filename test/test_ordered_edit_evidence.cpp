@@ -6,12 +6,14 @@ namespace tick=mt2mp::action_session::tick_commands;
 void need(bool ok,const std::string& error){if(!ok)throw std::runtime_error(error);}
 tick::Config config(uint64_t peer){tick::Config c;c.context={77,peer,1,3,peer==1?Role::Host:Role::Client,"snapshot-A"};return c;}
 tick::Input input(Action action,bool group){Request r;r.peer=2;r.sequence=1;r.action=action;r.action_uuid="action";r.target_action_uuid="source";
-    r.snapshot_uuid="snapshot-A";r.canonical_record_key=(group?"groups:":"selection:")+std::string(action==Action::EditGroup||action==Action::MoveSelection?"action":"source");return {77,"snapshot-A",r};}
+    r.snapshot_uuid="snapshot-A";r.canonical_record_key=(group?"groups:":"selection:")+std::string(action==Action::EditGroup||action==Action::MoveSelection?"action":"source");
+    if(action==Action::EditNpcQuest)r.npc_quest_list.edit=QuestListEdit::Title;
+    return {77,"snapshot-A",r};}
 int main(){try{
     auto valid=[](const tick::Input&,std::string&){return true;};
     auto current=[](std::string&){return true;};auto advance=[](uint64_t,std::string&){return Outcome::Confirmed;};
     unsigned cases=0;std::string e;
-    for(bool group:{false,true}) for(auto action:{group?Action::EditGroup:Action::MoveSelection,Action::UndoBuilding,Action::RedoBuilding,Action::FireDeveloper}){
+    for(bool group:{false,true}) for(auto action:{group?Action::EditGroup:Action::MoveSelection,Action::UndoBuilding,Action::RedoBuilding,Action::FireDeveloper,Action::SetNpcQuestList,Action::EditNpcQuest}){
         auto request=input(action,group);need(tick::requires_evidence(request),"ordered action evidence not mandatory");
         {tick::Queue host(config(1),valid);tick::Assigned assigned;tick::Batch batch;tick::Receipt receipt;
             need(host.offer(2,request,assigned,e)==tick::Admission::Accepted&&host.seal(batch,e),e);

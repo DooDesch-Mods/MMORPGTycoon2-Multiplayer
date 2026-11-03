@@ -153,6 +153,15 @@ def validate_npc_target(arguments, move=False, monster=False):
             raise RuntimeErrorDetail("invalid_args", "NPC move UI requires finite bounded position")
 
 
+def validate_npc_region(arguments):
+    if (not isinstance(arguments, dict) or set(arguments) not in ({"region_id"}, {"region_id", "quest_action_uuid"})
+            or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647):
+        raise RuntimeErrorDetail("invalid_args", "read_npc_region requires region_id and optional quest_action_uuid")
+    if "quest_action_uuid" in arguments and (not isinstance(arguments["quest_action_uuid"], str)
+            or re.fullmatch(TIME_TOKEN_PATTERN, arguments["quest_action_uuid"]) is None):
+        raise RuntimeErrorDetail("invalid_args", "read_npc_region quest_action_uuid requires canonical UUID")
+
+
 def validate_npc_quest_edit(arguments):
     if not isinstance(arguments, dict) or set(arguments) != {"token", "owner_key", "region_id", "remove_slot", "edit"}:
         raise RuntimeErrorDetail("invalid_args", "Quest edit UI requires token, owner_key, region_id, current remove_slot and edit")
@@ -220,7 +229,7 @@ OP_SCHEMAS = {
     "native_terrain_stroke": object_schema({"token": TIME_TOKEN, "id": SUBSCRIBER_ID, "style": {"type": "integer", "minimum": 0, "maximum": 3}, "points": {"type": "array", "minItems": 1, "maxItems": 1024, "items": {"type": "array", "minItems": 3, "maxItems": 3, "items": {"type": "number"}}}}, ("token", "id", "style", "points")),
     "enable_ui_region": EMPTY,
     "read_region_preset": object_schema({"region_id": SUBSCRIBER_ID}, ("region_id",)),
-    "read_npc_region": object_schema({"region_id": SUBSCRIBER_ID}, ("region_id",)),
+    "read_npc_region": object_schema({"region_id": SUBSCRIBER_ID, "quest_action_uuid": TIME_TOKEN}, ("region_id",)),
     "native_npc_tool_ui": object_schema({"token": TIME_TOKEN, "region_id": SUBSCRIBER_ID,
         "tool": {"type": "string", "enum": ["Guard", "ClassTrainer", "QuestGiver"]},
         "phase": {"type": "string", "enum": ["open", "select"]},
@@ -392,7 +401,7 @@ OP_DESCRIPTIONS = {
     "native_terrain_stroke": "Activate the actual Terrain ItemButton and send original MouseOver/Press/Drag/Release once. Observe the token under ui_terrain.ui_jobs until the existing Host controller confirms; never replay an attempted token.",
     "enable_ui_region": "Install genuine RegionInfoWindow PresetApply intent capture on the existing Controller.",
     "read_region_preset": "Read actual native region preset, four styles, RNG words and UID-free scenery digest.",
-    "read_npc_region": "Read actual NPC rows, local UID lookup, tools and bounded visitor Quest progress samples with reward values in one saved region. Visitor identity keys are diagnostic only.",
+    "read_npc_region": "Read actual NPC rows and bounded Quest samples in one saved region. Optional quest_action_uuid returns only cached command-boundary Quest records/tasks/Ledger for that exact retained operation, without another native scan. Local UIDs are diagnostic only.",
     "native_npc_tool_ui": "Open an actual Guard or Trainer item button and list ThemeWindow CharacterTypeIDs, or select one original ThemeList entry. Uses a fresh token for each UI attempt; open requires CharacterTypeID [-1,-1].",
     "native_npc_place_probe": "In an isolated MPTest world only, call original NPC MouseOver and Release once after ThemeWindow selection. Measure actual NPC rows, RNG, full Ledger and Undo. This mutates the test world; never replay an attempted token.",
     "native_npc_place_ui": "On a connected peer, capture one Host-ordered placement through the original Cursor Release dispatcher. Guard/ClassTrainer/QuestGiver use the existing active NPC UI. item_elitemonster additionally requires level and performs original Region/tool/selection/level preparation. Inspect ui_npc or ui_monster UI job and Controller ACK. Never replay an attempted token.",
@@ -726,8 +735,7 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             if not isinstance(arguments["diagnostic_uuid"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["diagnostic_uuid"]) is None or not isinstance(arguments["styles"], list) or len(arguments["styles"]) != 4 or any(not isinstance(v, str) or not 1 <= len(v.encode("utf-8")) <= 256 or "\0" in v for v in arguments["styles"]):
                 raise RuntimeErrorDetail("invalid_args", "region styles requires canonical UUID and four bounded strings")
         if op == "read_npc_region":
-            if not isinstance(arguments, dict) or set(arguments) != {"region_id"} or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647:
-                raise RuntimeErrorDetail("invalid_args", "read_npc_region requires exact nonnegative int32 region_id")
+            validate_npc_region(arguments)
         if op == "native_npc_tool_ui":
             required = {"token", "region_id", "tool", "phase", "character_slot", "character_type"}
             if not isinstance(arguments, dict) or set(arguments) != required or type(arguments["region_id"]) is not int or not 0 <= arguments["region_id"] <= 2147483647 or arguments["tool"] not in ("Guard", "ClassTrainer", "QuestGiver") or arguments["phase"] not in ("open", "select"):

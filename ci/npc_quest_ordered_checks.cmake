@@ -1,0 +1,20 @@
+set(NPC_QUEST_ORDERED_GENERATED "${CMAKE_CURRENT_BINARY_DIR}/npc_quest_ordered")
+file(MAKE_DIRECTORY "${NPC_QUEST_ORDERED_GENERATED}")
+set(saved_quest_generated "${NPC_QUEST_GENERATED}")
+set(NPC_QUEST_GENERATED "${NPC_QUEST_ORDERED_GENERATED}")
+npc_quest_body(src/game/npc_quest_list_runtime.inc "bool ordered_scope(" "bool read_route(" quest_list_scope_actual.inc)
+npc_quest_body(src/game/npc_quest_list_runtime.inc "bool canonical_witness(" "bool state_read(" quest_list_digest_actual.inc)
+npc_quest_body(src/game/npc_quest_list_runtime.inc "bool transition(" "\n}\n\nbool verify_ui(" quest_list_transition_actual.inc)
+npc_quest_body(src/game/npc_quest_list_runtime.inc "a::Outcome perform(" "#include \"npc_quest_info_refresh_runtime.inc\"" quest_list_runtime_actual.inc)
+npc_quest_body(src/game/npc_quest_list_runtime.inc "void tick(){" "a::Outcome perform(" quest_list_tick_actual.inc)
+npc_quest_body(src/game/npc_quest_list_runtime.inc "bool read_operation(" "json status(){" quest_list_detail_actual.inc)
+set(NPC_QUEST_GENERATED "${saved_quest_generated}")
+add_executable(test_npc_quest_ordered_runtime "${MT2MP_SOURCE_ROOT}/test/test_npc_quest_ordered_runtime.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp"
+    "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
+target_include_directories(test_npc_quest_ordered_runtime PRIVATE "${NPC_QUEST_ORDERED_GENERATED}" "${CMAKE_CURRENT_BINARY_DIR}/world_edit_generated" "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_npc_quest_ordered_runtime PRIVATE cxx_std_20)
+target_compile_options(test_npc_quest_ordered_runtime PRIVATE /W4 /WX /utf-8 /EHsc)
+add_test(NAME npc_quest_ordered_runtime COMMAND test_npc_quest_ordered_runtime)
+set_tests_properties(npc_quest_ordered_runtime PROPERTIES TIMEOUT 60)

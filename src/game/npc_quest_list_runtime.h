@@ -6,6 +6,7 @@ bool retire_lobby(std::string&);
 void tick();
 bool pending_ui();
 nlohmann::json status();
+bool read_operation(int32_t,const std::string&,nlohmann::json&,std::string&);
 bool verify_ui(uintptr_t,bool,std::string&);
 bool verify_npc_command(uintptr_t,std::string&);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);

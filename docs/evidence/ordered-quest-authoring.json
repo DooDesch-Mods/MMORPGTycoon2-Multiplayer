@@ -1,0 +1,80 @@
+{
+  "schema": 1,
+  "state": "local-two-peer-add-title-delete-confirmed",
+  "input": "Original NPCInfoWindow AddQuest and QuestSelector SetTitle/Destroy controls",
+  "run_uuid": "101d78ca-2e4f-4b1f-8d12-aaaae02aeb6a",
+  "native_candidate_sha256": "7e7b725d2610d4de81d1430974cae96be3c4f1ceeb331900dc790dc9598e8461",
+  "framework_runtime": "0.5.5",
+  "framework_runtime_sha256": "f5f61abb492acbc01d9483711c66bb5c337cd0a470626f3d3c2cf62d81791535",
+  "target": {
+    "npc": "Apia the Wise",
+    "region_id": 67,
+    "slot": 1
+  },
+  "actions": [
+    {
+      "intent": "add",
+      "origin": "client-1",
+      "action_uuid": "ebc1cc69-9e3c-495a-85fb-96185489edd5",
+      "order": 2,
+      "tick": 1053,
+      "canonical_evidence_sha256": "729aaa0080289a90f6ee667bee4008dba2cd3efa88c13ff6bfb6a4c97237394a"
+    },
+    {
+      "intent": "title",
+      "origin": "host",
+      "action_uuid": "79ae97d9-848f-49e3-82b9-0494a769fd0d",
+      "order": 3,
+      "tick": 1773,
+      "canonical_evidence_sha256": "9c74c5e43b5fb072d0d9593ff3622c3fcfaeebb457485c3cf862f1453278f754"
+    },
+    {
+      "intent": "remove",
+      "origin": "client-1",
+      "action_uuid": "f33941d7-17e3-44bc-8279-fbd942ad0f85",
+      "order": 4,
+      "tick": 2547,
+      "canonical_evidence_sha256": "ef2d4023cea941ea31904409328fc74f08c6bfc04bccdb915aff52edbd5d9db0"
+    }
+  ],
+  "per_action": {
+    "host_ack_mask": 3,
+    "client_local_ack_mask": 2,
+    "original_calls_per_peer": 1,
+    "confirmed_and_retired": true,
+    "host_rng_adoption": false,
+    "mutation_retries": 0,
+    "canonical_records_tasks_membership_references_and_full_ledger_compared": true
+  },
+  "visual_acceptance": {
+    "reviewed_by_native_test_owner": true,
+    "info_quest_counts_on_both_peers": [
+      1,
+      2,
+      1
+    ],
+    "matching_undo_labels": true,
+    "title_text_captured": false
+  },
+  "owned_process_cleanup": "confirmed-stopped",
+  "retained_evidence": [
+    {
+      "artifact": "acceptance.md",
+      "sha256": "b5e08bb45d27f6200b1dde8d769c416553b2ed7398451dc912f01610c0ba119d"
+    },
+    {
+      "artifact": "native-run-result.json",
+      "sha256": "4fce530aa37c85b4c0a2742af18ee388bdf670363f47c21b3ffff0a98eb8df58"
+    },
+    {
+      "artifact": "quest-authoring-result.json",
+      "sha256": "e3c84528c51b6f134196c27b4d81a46918578d22d51d705b41c50d6196681a6c"
+    }
+  ],
+  "limits": [
+    "Acceptance covers the stated actions in one small local two-peer world.",
+    "Title execution and canonical digest passed; the captures do not establish visible title text refresh.",
+    "Passive samples from different frames do not establish ongoing-world RNG or task equality.",
+    "Other Quest edits and full online co-op acceptance remain open."
+  ]
+}

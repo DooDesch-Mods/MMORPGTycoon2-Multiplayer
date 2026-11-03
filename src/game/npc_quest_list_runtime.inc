@@ -9,7 +9,7 @@ Hook npc_hook,selector_hook;
 bool ready=false,installed=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;bool replay_remove=false;a::QuestListEdit replay_edit=a::QuestListEdit::List;uint32_t original_calls=0;
 std::string cause,ui_token,last_action;uint64_t captures=0,submitted=0,rejected=0;
-struct Pending {a::Binding binding;std::string snapshot,owner,token;a::NpcQuestListIntent intent;};
+struct Pending {a::Binding binding;std::string snapshot,owner,token;a::NpcQuestListIntent intent;std::optional<a::Context> context;};
 struct References {
     uintptr_t manager=0,data=0;
     std::vector<std::array<uintptr_t,3>> local;
@@ -18,13 +18,47 @@ struct References {
 struct Operation {
     a::Binding binding;a::Request request;Pin pin;uintptr_t owner=0,graph=0;
     qr::Witness before,after;References refs_before,refs_after;d::Sample sample;a::Evidence evidence;
-    bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false;
+    bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false,ordered=false;
     uint32_t calls=0;std::string cause;
     npc_quest_info_refresh::Receipt info_refresh;
 };
 std::optional<Pending> pending;std::map<std::string,Operation> operations;std::map<std::string,json> jobs;
 bool npc_entry(void*,void*);bool selector_entry(void*,void*);
 bool reject(const std::string& why){++rejected;if(cause!=why){cause=why;LOG_ERROR("[NPCQuestList] {}",why);}return false;}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& e){
+    if((request.action!=a::Action::SetNpcQuestList&&request.action!=a::Action::EditNpcQuest)||!a::ordered_quest_list(request.npc_quest_list))
+        return fail(e,"Ordered Quest scope requires Add, Title or Delete");
+    a::Context context;if(!a::selected_session().current(context,e))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(e,"Ordered Quest actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,e);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& e){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(e,"Ordered Quest execution forbids Host result state and RNG adoption");
+        return ordered_scope(binding,request,e);
+    }
+    return !typed_action_runtime::controller_status().value("ordered",false)||fail(e,"Ordered Quest execution requires current consumed command scope");
+}
+bool capture_binding(const std::string& snapshot,a::Binding& binding,std::string& e){
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,e))return false;
+        if(inside)return typed_action_runtime::read_binding(snapshot,binding,e);
+    }
+    return typed_action_runtime::network_binding(snapshot,binding,e);
+}
+bool capture_context(const std::string& snapshot,const a::Binding& binding,std::optional<a::Context>& out,std::string& e){
+    out.reset();if(!typed_action_runtime::controller_status().value("ordered",false))return true;
+    a::Context context;a::Binding actual;
+    if(!a::selected_session().current(context,e)||context.snapshot_uuid!=snapshot||
+       Config::instance().is_host!=(context.role==a::Role::Host)||!capture_binding(snapshot,actual,e)||actual!=binding)
+        return fail(e,e.empty()?"Ordered Quest captured Session/Binding differs":e);
+    out=context;return true;
+}
+bool current_capture(const Pending& saved,std::string& e){
+    if(!saved.context)return true;
+    std::optional<a::Context> actual;
+    return capture_context(saved.snapshot,saved.binding,actual,e)&&(actual==saved.context||fail(e,"Ordered Quest captured Session changed"));
+}
 bool read_route(uintptr_t entry,MT2FW_MT2_RouteReceipt& route,std::string& e){
 #if defined(MT2MP_FRAMEWORK_PLUGIN)
     auto& backend=mt2mp::hooks::framework::process_backend();
@@ -115,6 +149,25 @@ bool references(Memory& m,const a::Binding& binding,const std::string& snapshot,
            !field(m,pointer,0x20,id,e)||uintptr_t(id)!=out.local[i][2])return fail(e,e.empty()?"Quest list Subscriber local binding changed during read":e);}
     return true;
 }
+bool canonical_witness(const qr::Witness& witness,json& out,std::string& e){
+    json rows=json::array();std::map<std::string,json> owners;
+    for(const auto& [pointer,owner]:witness.owners){(void)pointer;json local=json::array();
+        for(size_t slot=0;slot<owner.state.local.size();++slot){const auto& row=owner.state.local[slot];
+            local.push_back({{"slot",slot},{"task",int(row.task)},{"npc_list_member",row.npc_list_member},
+                {"owner_weak_confirmed",row.owner_weak_confirmed},{"destination_weak_confirmed",row.destination_weak_confirmed},{"manager_member",row.manager_member}});}
+        if(!owners.emplace(owner.key,std::move(local)).second)return fail(e,"Quest canonical owner key duplicated");
+    }
+    for(const auto& row:witness.rows)rows.push_back({{"owner_key",row.owner_key},{"record",quest_bridge::record_json(row.record)}});
+    out={{"rows",rows},{"owners",owners},{"completed",witness.completed}};return true;
+}
+bool canonical_digest(const qr::Witness& witness,std::string& out,std::string& e){
+    json value;return canonical_witness(witness,value,e)&&quest_bridge::sha256(value.dump(),out,e);
+}
+json canonical_diagnostic(const qr::Witness& witness){
+    json value;std::string e;
+    if(!canonical_witness(witness,value,e))return {{"available",false},{"cause",e}};
+    value["available"]=true;return value;
+}
 bool state_read(Memory& m,const a::Binding& binding,const std::string& snapshot,const Pin& p,const action_runtime::ui::LocalBinding& local,
                 const std::string& key,qr::Witness& witness,References& refs,d::Sample& sample,a::NpcQuestListState& value,std::string& e,const qr::Witness* previous=nullptr){
     qr::Witness seed;if(!previous){qr::Owner owner;owner.pointer=local.object;owner.uid=local.uid;owner.key=key;seed.owners.emplace(local.object,owner);previous=&seed;}
@@ -122,7 +175,7 @@ bool state_read(Memory& m,const a::Binding& binding,const std::string& snapshot,
     const auto found=witness.owners.find(local.object);if(found==witness.owners.end()||found->second.uid!=local.uid||found->second.key!=key)return fail(e,"Quest list owner absent from current full witness");
     value={};value.records=found->second.state.records;value.count=uint32_t(witness.quests.size());value.completed=witness.completed;
     value.undo_count=sample.undo.undo.size();value.global_random=sample.state.global_random;
-    return quest_digest(witness,value.all_sha256,e)&&quest_bridge::pool(p.region.saved_region,value.targets_sha256,e)&&quest_bridge::sha256(refs.rows.dump(),value.references_sha256,e);
+    return canonical_digest(witness,value.all_sha256,e)&&quest_bridge::pool(p.region.saved_region,value.targets_sha256,e)&&quest_bridge::sha256(refs.rows.dump(),value.references_sha256,e);
 }
 bool supported(const a::NpcQuestListIntent& intent,const a::NpcQuestListState& value,std::string& e){
     if(value.records!=intent.before||intent.remove_slot< -1||value.records.size()>5||
@@ -259,7 +312,7 @@ bool capture(bool remove,void* receiver,void* record)try{
     const auto controller=typed_action_runtime::controller_status();const auto snapshot=net::current_snapshot_id();a::Binding binding;
     if(!ready||fault||pending||qa::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||building_status::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||
        controller.value("locked",true)||controller.value("pending",true)||!inner_codes(m,e)||!verify_ui(remove?guards::selector.rva:guards::npc.rva,false,e)||
-       !typed_action_runtime::network_binding(snapshot,binding,e)){reject(e.empty()?"Quest list capture requires ready idle Mainthread Controller":e);return false;}
+       !capture_binding(snapshot,binding,e)){reject(e.empty()?"Quest list capture requires ready idle Mainthread Controller":e);return false;}
     uintptr_t npc=0,quest=0,region=0;uint64_t uid=0;int32_t region_id=-1,slot=-1;std::string key;
     if(remove){if(!field(m,uintptr_t(receiver),0x3e0,quest,e)||!field(m,quest,0xb8,npc,e)||!field(m,quest,0x84,slot,e)){reject(e);return false;}}
     else if(!field(m,uintptr_t(receiver),0x550,npc,e)){reject(e);return false;}
@@ -275,7 +328,9 @@ bool capture(bool remove,void* receiver,void* record)try{
     if(editing!=a::QuestListEdit::List&&!read_edit(m,uintptr_t(receiver),intent,e)){reject(e);return false;}
     if(editing!=a::QuestListEdit::List&&((editing==a::QuestListEdit::Title&&(intent.title.empty()||intent.title==value.records[size_t(slot)].name))||(editing==a::QuestListEdit::Kills&&intent.kills==value.records[size_t(slot)].monsters_to_kill)))return hook.original(receiver,record);
     if(!supported(intent,value,e)){reject(e);return false;}
-    pending=Pending{binding,snapshot,key,ui_token,intent};++captures;
+    std::optional<a::Context> context;if(!capture_context(snapshot,binding,context,e)){reject(e);return false;}
+    if(context&&!a::ordered_quest_list(intent)){reject("Ordered Quest command has no deterministic execution scope");return false;}
+    pending=Pending{binding,snapshot,key,ui_token,intent,context};++captures;
     if(!ui_token.empty())jobs.at(ui_token)["captured"]=true;
     return true;
 }catch(const std::exception& x){fault=true;reject(std::string("Quest list capture boundary: ")+x.what());return false;}
@@ -350,7 +405,7 @@ void tick(){
         job["unknown"]=controller.value("outcome",0)==int(a::Outcome::Unknown);job["cause"]=controller.value("cause",std::string{});}}
     if(!pending)return;auto saved=*pending;pending.reset();std::string e;a::Binding binding;
     const auto failed=[&](){fault=true;reject(e);if(!saved.token.empty()){auto& job=jobs.at(saved.token);job["terminal"]=true;job["unknown"]=true;job["cause"]=e;}};
-    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,e)||binding!=saved.binding){if(e.empty())e="Quest list captured World or Mainthread changed";failed();return;}
+    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,e)||binding!=saved.binding||!current_capture(saved,e)){if(e.empty())e="Quest list captured World or Mainthread changed";failed();return;}
     const auto id=action_runtime::uuid(e);if(id.empty()||!typed_action_runtime::submit_npc_quest_list(id,saved.owner,saved.intent,e)){failed();return;}
     ++submitted;last_action=id;if(!saved.token.empty()){jobs.at(saved.token)["submitted"]=true;jobs.at(saved.token)["action_uuid"]=id;}
 }
@@ -359,6 +414,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(operations.contains(request.action_uuid)){e="Quest list already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="Quest list requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return a::Outcome::RejectedNoEffect;
     Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness before;References refs;d::Sample sample;a::NpcQuestListState value;
     const auto& intent=request.npc_quest_list;
     if(!inner_codes(m,e)||!verify_ui(guards::npc.rva,false,e)||!verify_ui(guards::selector.rva,true,e)||!bind_owner(m,binding,request.snapshot_uuid,request.canonical_record_key,intent.region,local,p,e)||
@@ -366,7 +422,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(sample.undo.active_graph){e="Quest list execution requires idle original Undo graph";return a::Outcome::RejectedNoEffect;}
     if(authority){auto local_before=value;local_before.global_random=authority->quest_list_before.global_random;
         if(local_before!=authority->quest_list_before||ledger(sample.money)!=authority->before){e="Quest list Client full before state differs from Host";return a::Outcome::RejectedNoEffect;}}
-    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;op.owner=local.object;
+    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;op.owner=local.object;op.ordered=a::tick_commands::authority::active();
     const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;e=op.cause=why.empty()?"Quest list failed without cause":why;return a::Outcome::Unknown;};
     if(authority){op.seed_attempted=true;const auto seh=action_runtime::seed(state.image,authority->quest_list_before.global_random);if(seh)return unknown("Quest list Host RNG adoption SEH="+std::to_string(seh));
         const auto region_random=sample.state.region_random;
@@ -394,7 +450,7 @@ bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& ou
     const auto found=operations.find(request.action_uuid);
     if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.returned||found->second.calls!=1)
         return fail(e,"Quest list observation lacks exact confirmed original-once receipt");
-    const auto& op=found->second;Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness now;References refs;d::Sample sample;a::NpcQuestListState value;
+    const auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness now;References refs;d::Sample sample;a::NpcQuestListState value;
     if(!bind_owner(m,binding,request.snapshot_uuid,request.canonical_record_key,request.npc_quest_list.region,local,p,e)||local.object!=op.owner||!same_world(p.world,op.pin.world)||
        !state_read(m,binding,request.snapshot_uuid,p,local,request.canonical_record_key,now,refs,sample,value,e,&op.before)||value!=op.evidence.quest_list_after||
        sample.undo.undo.empty()||sample.undo.undo.back()!=op.graph||!transition(m,op,now,refs,sample,value,e))return fail(e,e.empty()?"Quest list current receipt differs before ACK":e);
@@ -406,10 +462,31 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
     if(!quest_history::remember(binding,request,op.owner,op.graph,op.before,op.after,e))return false;
     op.retired=true;refresh_info(op);return true;
 }
+bool read_operation(int32_t region,const std::string& id,json& out,std::string& e){
+    out=json::object();const auto found=operations.find(id);
+    if(!ready||GetCurrentThreadId()!=state.thread||found==operations.end()||found->second.request.npc_quest_list.region!=region)
+        return fail(e,"Quest detail requires an exact retained local operation and Region on Mainthread");
+    const auto& op=found->second;
+    const auto money=[](const a::Ledger& value){return json{{"cash",value.cash},{"flat_day",value.flat_day},{"record_present",value.record_present},
+        {"record_day",value.record_day},{"record_cash",value.record_cash},{"record_income",value.record_income},{"record_expense",value.record_expense},
+        {"line_counts",value.line_counts},{"line_income",value.line_income}};};
+    const auto value=[](const a::NpcQuestListState& v){return json{{"records",quest_bridge::records_json(v.records)},
+        {"all_sha256",v.all_sha256},{"targets_sha256",v.targets_sha256},{"references_sha256",v.references_sha256},
+        {"count",v.count},{"completed",v.completed},{"undo_count",v.undo_count},{"global_random",v.global_random}};};
+    out={{"action_uuid",id},{"snapshot_uuid",op.request.snapshot_uuid},{"owner_key",op.request.canonical_record_key},{"region_id",region},
+        {"native_epoch",op.binding.native_epoch},{"native_generation",op.binding.native_generation},{"ordered",op.ordered},
+        {"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},
+        {"canonical_before",canonical_diagnostic(op.before)},{"canonical_after",canonical_diagnostic(op.after)},
+        {"quest_before",value(op.evidence.quest_list_before)},{"quest_after",value(op.evidence.quest_list_after)},
+        {"ledger_before",money(op.evidence.before)},{"ledger_after",money(op.evidence.after)},
+        {"references_before",op.refs_before.rows},{"references_after",op.refs_after.rows}};return true;
+}
 json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},
-    {"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"owner_key",op.request.canonical_record_key},{"remove_slot",op.request.npc_quest_list.remove_slot},
+    {"confirmed",op.confirmed},{"retired",op.retired},{"ordered",op.ordered},{"seed_attempted",op.seed_attempted},{"owner_key",op.request.canonical_record_key},{"remove_slot",op.request.npc_quest_list.remove_slot},
     {"global_before",op.before.quests.size()},{"global_after",op.after.quests.size()},{"completed_before",op.before.completed},{"completed_after",op.after.completed},
     {"owner_before",op.evidence.quest_list_before.records.size()},{"owner_after",op.evidence.quest_list_after.records.size()},
+    {"quest_before_sha256",op.evidence.quest_list_before.all_sha256},{"quest_after_sha256",op.evidence.quest_list_after.all_sha256},
+    {"global_random_before",op.evidence.quest_list_before.global_random},{"global_random_after",op.evidence.quest_list_after.global_random},
     {"references_before_sha256",op.evidence.quest_list_before.references_sha256},{"references_after_sha256",op.evidence.quest_list_after.references_sha256},{"info_refresh",info_refresh_status(op.info_refresh)},{"cause",op.cause}};
     return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},
         {"last_action",last_action},{"cause",cause},{"operations",rows},{"ui_jobs",jobs}};
@@ -427,6 +504,7 @@ bool native_ui(const json& args,json& result,std::string& e)try{
     if(!state_read(m,binding,snapshot,p,local,key,before,refs,sample,value,e)||sample.undo.active_graph)return fail(e,e.empty()?"Quest list UI requires idle Undo":e);
     a::NpcQuestListIntent intent{int32_t(region),int32_t(slot),value.records};
     if(args.contains("edit")&&!edit_args(args.at("edit"),intent,e))return false;
+    if(controller.value("ordered",false)&&!a::ordered_quest_list(intent))return fail(e,"Ordered Quest UI requires Add, Title or Delete");
     if(!supported(intent,value,e))return false;
     auto& job=jobs.emplace(token,json{{"token",token},{"owner_key",key},{"region_id",region},{"remove_slot",slot},{"attempted",false},{"returned",false},
         {"captured",false},{"submitted",false},{"terminal",false},{"confirmed",false},{"unknown",false}}).first->second;
