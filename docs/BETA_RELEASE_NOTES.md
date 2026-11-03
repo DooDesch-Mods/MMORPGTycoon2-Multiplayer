@@ -1,12 +1,11 @@
-# Early Beta 28 - Shared NPC settings
+# Early Beta 29 - Shared quests and class names
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-Rename NPCs and change their online status together.
+- Create, rename and delete quests together.
+- Rename classes from the game's original Design menu.
+- Keep class previews from changing the shared simulation's random state.
 
-- Share NPC name and online-status changes from either player through the original game controls.
-- Reduce repeated internal checks during shared simulation while keeping complete world-state reads.
+Requires **MMORPG Tycoon 2 Mod Framework 0.5.6**. Install the Framework and Multiplayer archives with Vortex, then deploy both. Every player needs the same Multiplayer version.
 
-Both players need **Multiplayer Beta 28** and **MT2 Mod Framework Runtime 0.5.5**. Close the game, update both mods in Vortex, deploy, then start through Steam.
-
-Early beta for small-world testing. This update does not complete every gameplay feature or establish a general FPS improvement.
+This is an early beta. More Quest controls, Dungeon editing and other remaining gameplay paths are still being completed. Separate-account online testing remains necessary.

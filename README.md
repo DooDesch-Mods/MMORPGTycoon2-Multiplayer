@@ -10,11 +10,11 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 **Early Beta:** Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
 
-**Early Beta 28** adds shared NPC names and online-status changes, and reduces repeated checks during shared simulation. Both players need Beta 28 and MT2 Mod Framework Runtime 0.5.5. Close the game, update and enable both mods in Vortex, then deploy before starting through Steam.
+**Early Beta 29** adds shared Quest creation, names and removal, plus class names through the original Design menu. Both players need Beta 29 and MT2 Mod Framework Runtime 0.5.6. Close the game, update and enable both mods in Vortex, then deploy before starting through Steam.
 
 [Feature coverage](#what-works-in-co-op) | [Roadmap](#roadmap) | [Start playing](#start-playing)
 
-The coverage table below records **Beta 23** and is not a current compatibility list. Beta 28 retains the locally tested two-player selection moves, copies, scenery grouping and [Beta 27 management actions](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.27). NPC name and online-status changes are now confirmed from both players. The shared simulation also routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions; source routing does not confirm every scenario in game. Some management actions, connected travel services, modular construction and dungeons remain incomplete. Separate-account online play, large worlds and four players still need acceptance testing. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
+The coverage table below records **Beta 23** and is not a current compatibility list. Beta 29 retains the locally tested two-player selection moves, copies, scenery grouping, [Beta 27 management actions](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.27) and Beta 28 NPC settings. Quest Add, Title and Delete plus class Rename are now confirmed in a small local two-peer world. The shared simulation also routes supported building, path, terrain, scenery, NPC, monster, network, Region and selected tutorial actions; source routing does not confirm every scenario in game. Some management actions, connected travel services, modular construction and dungeons remain incomplete. Separate-account online play, large worlds and four players still need acceptance testing. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
 
 <!-- roadmap:start -->
 ## What works in co-op?

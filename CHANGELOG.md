@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.1.0-beta.29
+
+### Added
+
+- Create, rename and delete quests together through the original game controls.
+- Rename classes from the original Design menu on either player.
+
+### Fixed
+
+- Keep class previews from changing the shared simulation's random state.
+- Preserve each player's current editor state while a shared class rename completes.
+
+### Improved
+
+- Reuse origin validation within one complete ordered world-state read. A general FPS improvement has not been measured.
+
+Both players need Early Beta 29 and MT2 Mod Framework Runtime 0.5.6. Close the game, update both mods in Vortex and deploy before starting through Steam.
+
+Acceptance covers the listed actions in a small local two-peer world. Quest title execution passed; the Quest captures do not show the title text. Separate-account online play and other unfinished gameplay paths still need acceptance testing.
+
 ## 0.1.0-beta.28
 
 ### Added
