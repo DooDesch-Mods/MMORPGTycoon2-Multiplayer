@@ -1,6 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-beta.29",
-  "summary": "Create, rename and delete quests together, and rename classes from the original Design menu.",
+  "summary": "Change class names and create, rename or delete quests together using the game's original menus.",
   "native_evidence": "docs/evidence/beta29-character-quests.json"
 }

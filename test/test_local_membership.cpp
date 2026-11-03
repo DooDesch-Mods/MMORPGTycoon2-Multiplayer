@@ -40,6 +40,7 @@ namespace recovery_read {
 bool selected=false;unsigned calls=0;
 bool local(Context&,std::string& cause){++calls;cause="fixture recovery read blocked";return false;}
 }
+static bool ordered_local_context(Context&,std::string& cause){cause="unexpected ordered context in legacy membership fixture";return false;}
 class LocalSession {public:bool current(Context&,std::string&);};
 #include "local_session_context.inc"
 }
