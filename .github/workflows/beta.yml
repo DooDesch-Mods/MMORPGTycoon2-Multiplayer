@@ -26,6 +26,8 @@ jobs:
     needs: checks
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    outputs:
+      release_tag: ${{ steps.beta.outputs.tag }}
     permissions:
       contents: write
     steps:
@@ -66,3 +68,19 @@ jobs:
           arguments=(.github/scripts/publish_beta.py --tag "$BETA_TAG" --commit "$BETA_COMMIT" --directory artifacts/beta)
           if [ "$BETA_MILESTONE" = true ]; then arguments+=(--milestone .github/beta-milestone.json); fi
           python "${arguments[@]}"
+
+  nexus:
+    needs: release
+    permissions:
+      contents: write
+    uses: DooDesch-Mods/MMORPGTycoon2-ModFramework/.github/workflows/nexus-release.yml@8c8fc951d286925a29e8a93905b49a4d609c5f37
+    with:
+      release_tag: ${{ needs.release.outputs.release_tag }}
+      tooling_revision: 8c8fc951d286925a29e8a93905b49a4d609c5f37
+      target: multiplayer
+      publish: true
+      announce: true
+      update_listing: false
+    secrets:
+      NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+      DISCORD_RELEASE_WEBHOOK: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
