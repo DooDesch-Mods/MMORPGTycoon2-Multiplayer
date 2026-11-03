@@ -9,10 +9,38 @@
   "npc_properties": {
     "input": "Original NPC window controls",
     "actions": [
-      {"origin": "client", "intent": "name", "uuid": "99b5c304-9eac-45b0-8426-d1d084912b92", "order": 2, "tick": 1131},
-      {"origin": "host", "intent": "name", "uuid": "aaff9bc7-aca7-430f-830a-2e2772558874", "order": 2, "tick": 906},
-      {"origin": "client", "intent": "online", "uuid": "692292ca-54ae-45b8-b74b-410bcf1a1872", "order": 3, "tick": 1458, "before": 2, "after": 0},
-      {"origin": "host", "intent": "online", "uuid": "8192c4e1-1754-4076-aa1c-172258786be4", "order": 4, "tick": 1904, "before": 0, "after": 2}
+      {
+        "origin": "client",
+        "intent": "name",
+        "uuid": "99b5c304-9eac-45b0-8426-d1d084912b92",
+        "order": 2,
+        "tick": 1131
+      },
+      {
+        "origin": "host",
+        "intent": "name",
+        "uuid": "aaff9bc7-aca7-430f-830a-2e2772558874",
+        "order": 2,
+        "tick": 906
+      },
+      {
+        "origin": "client",
+        "intent": "online",
+        "uuid": "692292ca-54ae-45b8-b74b-410bcf1a1872",
+        "order": 3,
+        "tick": 1458,
+        "before": 2,
+        "after": 0
+      },
+      {
+        "origin": "host",
+        "intent": "online",
+        "uuid": "8192c4e1-1754-4076-aa1c-172258786be4",
+        "order": 4,
+        "tick": 1904,
+        "before": 0,
+        "after": 2
+      }
     ],
     "per_action": {
       "same_session_snapshot_order_tick_on_both_peers": true,
@@ -33,16 +61,25 @@
     "candidate_sha256": "bc5112ed85e419fea687d06dec892b2e06c4ee0401ab0b715e64c28f3ed9b7b3",
     "run_uuid": "b5673e0d-22cc-4e76-96f3-b9a6101c2551",
     "paired_start_and_advance_confirmed": true,
-    "host": {"origin_validations": 369298, "world_field_passes": 422538},
-    "client": {"origin_validations": 374216, "world_field_passes": 426740},
+    "host": {
+      "origin_validations": 369298,
+      "world_field_passes": 422538
+    },
+    "client": {
+      "origin_validations": 374216,
+      "world_field_passes": 426740
+    },
     "baseline_validations_per_world_field_pass": 1,
     "complete_world_fields_retained": true,
     "matched_fps_gain_measured": false,
-    "source_ci": {"run_id": "41541229614", "conclusion": "success"}
+    "source_ci": {
+      "run_id": "41541229614",
+      "conclusion": "success"
+    }
   },
   "integration_build": {
-    "dll_sha256": "6ed31a9ea253b973c9c0964e7497717e7c8cf522eef51e30c5fb41ba6dd05a79",
-    "source_inputs_sha256": "403bdf44bec2c0da680f6f375d2dcd32cbbf7d79870ce1229463ad7d8598008b",
+    "dll_sha256": "556478831bec31778dd2346036c8026c6652b4d2eafae550004431e394cc43cf",
+    "source_inputs_sha256": "4d773870ee99752a74967d544fe281f6bda6db64df93efa1b4fda1711872e427",
     "accepted_npc_inputs_byte_identical": true,
     "canonical_build_and_package_checks": "passed",
     "additional_full_family_game_replay": false
@@ -55,5 +92,32 @@
     "Unfenced passive RNG samples from different frames do not establish ongoing-world determinism.",
     "Character design, Quest authoring and other unfinished gameplay groups are not newly accepted by this release.",
     "Large worlds, four players and separate-account online acceptance remain open."
-  ]
+  ],
+  "canonical_peer_gate": {
+    "state": "confirmed-in-two-peer-native-run",
+    "run_uuid": "a97571c7-c551-451f-85ba-fe2508e7cc62",
+    "candidate_sha256": "556478831bec31778dd2346036c8026c6652b4d2eafae550004431e394cc43cf",
+    "actions": [
+      {
+        "origin": "host",
+        "intent": "name",
+        "uuid": "9deed063-d8f9-4f76-b98b-c00253735956",
+        "order": 2,
+        "tick": 883,
+        "canonical_evidence_sha256": "a305fa0a0ba41f9ceabac0458b2ed1fccf0bcb5af3dc7f91a98e65493b400638"
+      },
+      {
+        "origin": "client",
+        "intent": "online",
+        "uuid": "51f71e5e-9074-47c6-be20-07ca16544480",
+        "order": 3,
+        "tick": 1503,
+        "canonical_evidence_sha256": "b4124d21a6950adf96ec24b3066e97c3858a02ca13c0144e41c1a7073434c233"
+      }
+    ],
+    "host_ack_mask": 3,
+    "client_local_ack_mask": 2,
+    "source_checks": "Real canonical property evidence and Queue tests reject missing, early unequal and late unequal peer digests.",
+    "scope": "The full serialized PropertyState and Quest record evidence is peer-compared. Existing local Quest task diagnostics remain locally validated."
+  }
 }

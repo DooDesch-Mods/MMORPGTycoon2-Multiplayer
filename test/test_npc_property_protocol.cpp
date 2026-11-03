@@ -1,4 +1,5 @@
 #include "typed_action/action_session.h"
+#include "typed_action/tick_evidence.h"
 #include <iostream>
 #include <limits>
 #include <stdexcept>
@@ -22,7 +23,86 @@ Message sample(NpcPropertyKind kind,int32_t online=1){
     else b.command_level+=kind==NpcPropertyKind::RaiseLevel?1:-1;
     return m;
 }
+namespace tick=mt2mp::action_session::tick_commands;
+std::string text_sha256(const std::string& value){return mt2mp::sha256(std::vector<unsigned char>(value.begin(),value.end()));}
+std::string proof_digest(const Message& message){
+    Context context{message.session,1,1,3,Role::Host,message.request.snapshot_uuid};
+    tick::Assigned command{message.revision,{message.session,message.request.snapshot_uuid,message.request}};
+    tick::ExecutionReceipt receipt;receipt.command=command;receipt.outcome=Outcome::Confirmed;
+    receipt.evidence=std::make_shared<Evidence>(message.evidence);
+    std::string digest,error;need(tick::canonical_evidence(context,command,receipt,digest,error),error);
+    return digest;
+}
+unsigned ordered_property_proofs(){
+    unsigned count=0;
+    for(auto kind:{NpcPropertyKind::Name,NpcPropertyKind::OnlineState}){
+        auto proof=sample(kind);mt2mp::npc_quest_records::Record quest;quest.sequence_id=0;
+        quest.destination_key="action:44444444-4444-4444-8444-444444444444";
+        quest.accepted.history={1,2};quest.completed.history={0,1};
+        for(auto* state:{&*proof.evidence.npc_property_before,&*proof.evidence.npc_property_after}){
+            state->actor.created.type=0;state->actor.created.quest_count=1;state->actor.created.quests={quest};
+            state->actor.quest_targets_sha256=text_sha256(quest.destination_key);
+        }
+        const auto digest=proof_digest(proof);
+        auto distinct=[&](auto change){auto other=proof;change(other);const auto different=proof_digest(other);
+            need(different!=digest,"different valid NPC property evidence produced equal digest");++count;return different;};
+        const auto other_digest=distinct([](auto& message){
+            ++message.evidence.npc_property_before->actor.created.quests[0].gold_reward;
+            ++message.evidence.npc_property_after->actor.created.quests[0].gold_reward;
+        });
+        for(size_t i=0;i<4;++i)distinct([&](auto& message){
+            ++message.evidence.npc_property_before->actor.global_random[i];
+            ++message.evidence.npc_property_after->actor.global_random[i];
+        });
+        distinct([](auto& message){++message.evidence.before.cash;++message.evidence.after.cash;});
+        distinct([](auto& message){++message.evidence.npc_property_before->actor.undo_count;
+            ++message.evidence.npc_property_after->actor.undo_count;});
+        distinct([](auto& message){message.evidence.npc_property_before->actor.quest_targets_sha256=text_sha256("other target pool");
+            message.evidence.npc_property_after->actor.quest_targets_sha256=text_sha256("other target pool");});
+        const tick::Input input{proof.session,proof.request.snapshot_uuid,proof.request};
+        need(tick::requires_evidence(input),"ordered NPC property lacks required peer evidence");
+        auto config=[&](uint64_t peer){tick::Config value;value.context={proof.session,peer,1,3,
+            peer==1?Role::Host:Role::Client,proof.request.snapshot_uuid};return value;};
+        auto valid=[](const tick::Input&,std::string&){return true;};
+        auto current=[](std::string&){return true;};std::string error;
+        {tick::Queue host(config(1),valid);tick::Assigned command;tick::Batch batch;tick::Receipt receipt;unsigned advances=0;
+            need(host.offer(2,input,command,error)==tick::Admission::Accepted&&host.seal(batch,error),error);
+            need(!host.consume(1,current,[](const auto&,std::string&){return Outcome::Confirmed;},
+                [&](uint64_t,std::string&){++advances;return Outcome::Confirmed;},receipt,error)&&
+                host.state().locked&&advances==0&&error.find("Required canonical")!=std::string::npos,
+                "NPC property without evidence advanced simulation");++count;}
+        for(bool remote_first:{false,true})for(bool equal:{false,true}){
+            tick::Queue host(config(1),valid),client(config(2),valid);tick::Assigned command;tick::Batch batch;tick::Receipt h,c;
+            need(host.offer(2,input,command,error)==tick::Admission::Accepted&&host.seal(batch,error)&&
+                client.admit(1,batch,error)==tick::Admission::Accepted,error);
+            unsigned host_advances=0;
+            auto consume=[&](tick::Queue& queue,tick::Receipt& receipt,const std::string& value,unsigned& advances){
+                return queue.consume(1,current,[&](const auto& assigned,std::string& cause){
+                    return queue.bind_evidence(assigned,value,cause)?Outcome::Confirmed:Outcome::Unknown;},
+                    [&](uint64_t,std::string&){++advances;return Outcome::Confirmed;},receipt,error);};
+            unsigned client_advances=0;need(consume(client,c,equal?digest:other_digest,client_advances),error);
+            if(remote_first){
+                need(host.acknowledge(2,c,error),error);
+                const bool completed=consume(host,h,digest,host_advances);
+                need(equal?completed:(!completed&&host.state().locked&&host_advances==0),
+                    "NPC property early peer evidence mismatch did not lock before simulation");
+            }else{
+                need(consume(host,h,digest,host_advances),error);
+                need(host.completed_actions().empty(),"NPC property globally completed before peer ACK");
+                const bool accepted=host.acknowledge(2,c,error);
+                need(equal?accepted:(!accepted&&host.state().locked),"NPC property late peer evidence mismatch accepted");
+            }
+            if(equal)need(host.state().evidence_ack_mask==3&&host.completed_actions().size()==1,
+                "equal NPC property evidence did not globally complete");
+            else need(host.completed_actions().empty()&&error.find("differs")!=std::string::npos,
+                "different valid NPC property evidence globally completed");
+            ++count;
+        }
+    }
+    return count;
+}
 int main(){try{unsigned count=0;std::string error;std::vector<uint8_t> bytes;Message decoded;
+    count+=ordered_property_proofs();
     for(auto kind:{NpcPropertyKind::Name,NpcPropertyKind::OnlineState,NpcPropertyKind::RaiseLevel,NpcPropertyKind::LowerLevel}){
         auto result=sample(kind);need(encode(result,bytes,error),error);need(decode(bytes.data(),bytes.size(),decoded,error),error);
         need(decoded==result,"NPC property result roundtrip");++count;
