@@ -611,5 +611,5 @@ include("${CMAKE_CURRENT_LIST_DIR}/character_record_scope_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/startup_calendar_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ability_presentation_checks.cmake")
 
-include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/command_label_followup_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")
