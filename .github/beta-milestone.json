@@ -1,6 +1,6 @@
 {
   "schema": 1,
   "version": "0.1.0-beta.30",
-  "summary": "Manage saved monsters together, edit abilities, and share Base XP and GM chat settings.",
+  "summary": "Manage saved monsters and edit abilities together, with shared Base XP and GM chat settings.",
   "native_evidence": "docs/evidence/beta30-abilities-settings-monsters.json"
 }

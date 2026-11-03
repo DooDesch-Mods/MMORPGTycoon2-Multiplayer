@@ -37,6 +37,8 @@ bool property_capture(Runtime& r,const action::RegionPropertyIntent& value,uintp
     LocalView v;if(!property_admit(r,e)||!identity(r,value.id,region,v,e))return false;r.captured=value;++r.captures;return true;
 }
 uint32_t label_is(uintptr_t,void* record,const char* label,bool& match){match=std::strcmp(static_cast<const char*>(record),label)==0;return 0;}
+unsigned selection_label_reads=0;
+uint32_t selection_label_is(uintptr_t,const void* record,const char* label,bool& match){++selection_label_reads;match=std::strcmp(static_cast<const char*>(record),label)==0;return 0;}
 uint32_t appearance_picker(uintptr_t,uintptr_t picker,uintptr_t& value){value=picker+0x12a8;return 0;}
 uint32_t appearance_slider(uintptr_t,uintptr_t,int32_t,float& value){value=2;return 0;}
 uint32_t combo_get(uintptr_t,uintptr_t combo,uintptr_t& value){value=combo;return 0;}
@@ -59,12 +61,12 @@ Runtime fixture(){
 }
 int main(){try{unsigned count=0;std::string e;
     const char* commands[]{"ColorTint","ColorLight","ColorAmbient","SkyColor","FXChange","ColorRegionFX"};
-    for(unsigned i=0;i<6;++i){auto r=fixture();bool handled=false;
+    for(unsigned i=0;i<6;++i){auto r=fixture();bool handled=false;const auto selection_reads_before=selection_label_reads;
         need(appearance_capture(r,reinterpret_cast<void*>(0x1000),const_cast<char*>(commands[i]),handled,e),e);
         need(handled&&r.captures==1&&uint8_t(r.captured.kind)==5+i,"actual command kind/capture differs");
         if(i==1||i==2)need(r.captured.appearance_value[3]==1&&r.captured.appearance_value[1]==0.5f,"original light scale/alpha differs");
         if(i==3)need(r.captured.appearance_value[0]==0.5f&&r.captured.appearance_value[8]==0.3f&&r.captured.appearance_value[4]<0,"original sky coefficient order differs");
-        if(i==4)need(r.captured.appearance_value[0]==6,"native particle conversion differs");++count;
+        if(i==4)need(r.captured.appearance_value[0]==6&&selection_label_reads==selection_reads_before+1,"native particle conversion or selection-token lookup differs");++count;
         r=fixture();r.admitted=false;need(!appearance_capture(r,reinterpret_cast<void*>(0x1000),const_cast<char*>(commands[i]),handled,e)&&!r.captures,"pending capture accepted");++count;
         r=fixture();r.memory.set(0x145f,uint8_t{0});need(!appearance_capture(r,reinterpret_cast<void*>(0x1000),const_cast<char*>(commands[i]),handled,e)&&!r.captures,"hidden UI capture accepted");++count;
     }

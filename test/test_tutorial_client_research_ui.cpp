@@ -90,7 +90,9 @@ DWORD research_page(uintptr_t,uintptr_t){++page_calls;strings[view+0x3e8]="{dev_
 DWORD research_select(uintptr_t,uintptr_t,int32_t row){++select_calls;if(selection_exception)return selection_exception;put<int32_t>(grid,0x3e8,row);put<uint8_t>(grid,0x3ec,1);put<uint8_t>(rows,size_t(row)*12+9,1);put<uintptr_t>(win,0x610,native_snapshot.creation->source);if(selection_enables)put<uint8_t>(button,0x46d,0);return 0;}
 DWORD activate(uintptr_t,uintptr_t){
     ++activation_calls;if(change_ledger)++ledger_value;
-    if(fixture_ordered){capture_project(general_project::Command::Start,"startingpoint");return 0;}
+    if(fixture_ordered){int32_t row=-1,index=-1;std::string error;
+        if(!at(grid,0x3e8,row,error)||row<0||!at(rows,size_t(row)*12,index,error)||index<0||size_t(index)>=native_snapshot.creation->catalogue.size())throw std::runtime_error("fixture selected project is invalid: "+error);
+        capture_project(general_project::Command::Start,native_snapshot.creation->catalogue[size_t(index)].key);return 0;}
     progress_state={{"client_start_submitted",!send_failed},{"client_start_suppressed",true},{"client_start_action_uuid",action},{"client_start_cause",send_failed?"original send failure":""}};
     controller["pending"]=true;controller["action_uuid"]=wrong_pending?"foreign":action;
     if(unknown_pending)controller["outcome"]=3;return 0;
@@ -160,7 +162,8 @@ void check_generic_research(){
         development["research"]["rows"][0]["key"]=selected.first;development["research"]["rows"][0]["cost"]=selected.second;
         Request request;request.operation="client_bridges_start";request.tech_key=selected.first;request.expected_development=development;
         Progress* phase=nullptr;std::string key,e;json out;
-        need(client_research(request,out,phase,key,e)&&activation_calls==1&&out["queued"]==true&&out["price"]==selected.second,"generic original catalogue price/Start failed");
+        const bool started=client_research(request,out,phase,key,e);
+        need(started&&activation_calls==1&&out["queued"]==true&&out["price"]==selected.second,("generic original catalogue price/Start failed: "+e).c_str());
         need(out["route"]=="general_project"&&out["ledger_before"]==out["ledger_after"],"generic UI admission changed local gameplay");
         need(!client_research(request,out,phase,key,e)&&activation_calls==1,"generic uncertain/repeated Start replayed");
     }
