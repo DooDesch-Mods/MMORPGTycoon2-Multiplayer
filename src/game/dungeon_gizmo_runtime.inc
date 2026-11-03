@@ -90,14 +90,15 @@ bool container(Memory& memory,const dungeon_gizmo_record::Window& owner,std::str
 }
 bool record_value(Memory& memory,void* record,int32_t& value,std::string& error){auto at=[&](uintptr_t base,size_t offset,auto& field_value,std::string& e){return field(memory,base,offset,field_value,e);};return dungeon_gizmo_record::value(at,uintptr_t(record),value,error);}
 bool replay_record_equals(const void* record,const char*){
-    if(!reinterpret_cast<a::ui_diagnostic::RecordEquals>(state.image+0x1113d80)(record,dungeon_gizmo_record::labels[size_t(replay_edit)]))return false;
-    Memory memory;std::string error;int32_t value=0;if(!record_value(memory,const_cast<void*>(record),value,error)){reject(error);return false;}return value==replay_value;
+    Memory memory;std::string error;bool label=false;int32_t value=0;
+    if(!command_token_label::read(memory,record,dungeon_gizmo_record::labels[size_t(replay_edit)],label,error)){reject(error);return false;}if(!label)return false;
+    if(!record_value(memory,const_cast<void*>(record),value,error)){reject(error);return false;}return value==replay_value;
 }
 bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Gizmo original unavailable");}if(!net::session_wire::connected()&&!replaying)return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
-    int edit=-1;for(size_t i=0;i<dungeon_gizmo_record::labels.size();++i){bool match=false;const auto seh=quest_list::label(api.label_equals,record,dungeon_gizmo_record::labels[i],match);
-        if(seh){fault=true;return reject("Gizmo native command label SEH="+std::to_string(seh));}if(match){edit=int(i);break;}}
+    int edit=-1;for(size_t i=0;i<dungeon_gizmo_record::labels.size();++i){bool match=false;
+        if(!command_token_label::read(memory,record,dungeon_gizmo_record::labels[i],match,error)){fault=true;return reject(error);}if(match){edit=int(i);break;}}
     if(edit<0){bool destroy=false;
         const auto seh=quest_list::label(api.label_equals,record,"DestroyGizmo",destroy);
         if(seh)return reject("Gizmo Destroy label read SEH="+std::to_string(seh));

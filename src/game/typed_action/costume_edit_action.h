@@ -40,9 +40,14 @@ inline bool costume_weapon_after(const std::vector<std::string>& before,const Co
     if(intent.enabled){if(found!=after.end())return false;after.push_back(intent.category);}
     else{if(found==after.end())return false;*found=after.back();after.pop_back();}return true;
 }
+inline bool ordered_costume_edit(const CostumeEditIntent& intent){return intent.weapon_category.has_value();}
+inline bool costume_weapon_owner_equal(const CharacterRenameState& before,const CharacterRenameState& after){
+    // The complete catalogue includes the edited definition and its category set.
+    auto expected=after;expected.all_sha256=before.all_sha256;return before==expected;
+}
 inline bool costume_edit_transition(const CostumeEditIntent& intent,const CostumeEditState& before,const CostumeEditState& after){
     if(intent.weapon_category){std::vector<std::string> expected;
-        return before.count>0&&before.count==after.count&&before.owner==after.owner&&before.record==intent.record&&after.record==before.record&&
+        return before.count>0&&before.count==after.count&&costume_weapon_owner_equal(before.owner,after.owner)&&before.record==intent.record&&after.record==before.record&&
             costume_weapon_after(before.weapon_categories,*intent.weapon_category,expected)&&expected==after.weapon_categories&&before.all_sha256!=after.all_sha256;}
     if(before.weapon_categories!=after.weapon_categories||after.record!=intent.record||before.count!=after.count||before.count==0||
        before.owner.name!=after.owner.name||before.owner.definition_name!=after.owner.definition_name||

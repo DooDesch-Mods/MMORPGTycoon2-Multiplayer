@@ -185,7 +185,7 @@ class VortexPackageTests(unittest.TestCase):
         self.assertFalse(metadata["online_acceptance_passed"])
         self.assertEqual(metadata["installation"], {"manager": "vortex", "game_id": "mmorpgtycoon2",
             "mod_id": "doodesch.multiplayer", "framework_runtime_required": True, "framework_runtime_included": False,
-            "framework_min_version": "0.5.6", "manual_target": "<profile>/mods/doodesch.multiplayer",
+            "framework_min_version": "0.5.7", "manual_target": "<profile>/mods/doodesch.multiplayer",
             "manual_requires_configured_framework": True, "game_root_extraction_supported": False})
         self.assertNotIn("framework_version", metadata)
         text = entries["README.md"].decode("utf-8")

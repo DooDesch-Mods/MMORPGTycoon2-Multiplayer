@@ -1,6 +1,9 @@
 #include "monster_remove_fixture.h"
 #include <iostream>
 #include <memory>
+#include "typed_action/tick_evidence.h"
+#include "saved_monster_move_retained.inc"
+#include "saved_monster_remove_canonical_cases.inc"
 int main(){try{std::string e;std::vector<uint8_t> bytes;auto output_storage=std::make_unique<Message>();auto& out=*output_storage;unsigned n=0;
  for(auto make:{&remove_request,&remove_result}){auto message_storage=std::make_unique<Message>(make());auto& m=*message_storage;need(encode(m,bytes,e),e);need(decode(bytes.data(),bytes.size(),out,e)&&out==m,"Remove schema36 roundtrip");++n;}
  auto m_storage=std::make_unique<Message>(remove_request());auto& m=*m_storage;need(encode(m,bytes,e),e);const auto raw=nlohmann::json::parse(bytes);need(raw["schema"]==36,"Remove schema differs");
@@ -43,5 +46,6 @@ int main(){try{std::string e;std::vector<uint8_t> bytes;auto output_storage=std:
  {auto j=quest_wire;j["evidence"]["monster_quests"]["removed"][0]["owner_key"]="local:123";bad(j);}
  {auto j=quest_wire;j["evidence"]["monster_quests"]["removed"][0]["record"]["destination_key"]=std::string("action:")+action_id;bad(j);}
  auto foreign_storage=std::make_unique<Message>(result());auto& foreign=*foreign_storage;foreign.evidence.monster_quests=retirement;need(!encode(foreign,bytes,e),"Quest retirement accepted on PlaceMonster");++n;
+ canonical_remove_cases(n,quest);
  std::cout<<n<<" actual Remove codec and transition cases passed\n";return 0;
 }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

@@ -158,8 +158,7 @@ bool retire_native_users(Memory& memory,const a::Binding& binding,const a::Reque
 bool capture_variant(void* receiver,void* record,bool& handled,std::string& error){
     handled=false;if(!net::session_wire::connected())return true;Memory memory;a::ui_diagnostic::Api api;bool label=false;
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return false;
-    const auto seh=quest_list::label(api.label_equals,record,"SetVariant",label);
-    if(seh)return fail(error,"Character membership SetVariant label SEH="+std::to_string(seh));if(!label)return true;
+    if(!command_token_label::read(memory,record,"SetVariant",label,error))return false;if(!label)return true;
     bool is_new=false;if(!new_token(memory,uintptr_t(record),is_new,error))return false;if(!is_new)return true;
     handled=true;const bool accepted=queue(uintptr_t(receiver),a::CharacterMembershipCommand::CreateVariant,error);if(!accepted)reject(error);return accepted;
 }

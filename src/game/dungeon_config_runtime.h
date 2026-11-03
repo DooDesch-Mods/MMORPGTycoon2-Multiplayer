@@ -8,4 +8,6 @@ action_session::Outcome perform(const action_session::Binding&,const action_sess
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);
 nlohmann::json status();
+bool native_ui(const nlohmann::json&,nlohmann::json&,std::string&);
+bool read_ui(const nlohmann::json&,nlohmann::json&,std::string&);
 }

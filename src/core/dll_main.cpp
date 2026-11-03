@@ -109,6 +109,7 @@
 #include "../game/character_rename_runtime.h"
 #include "../game/npc_quest_authoring_runtime.h"
 #include "../game/npc_quest_list_runtime.h"
+#include "../game/dungeon_config_runtime.h"
 #include "../game/ui_terrain_runtime.h"
 #include "../game/ui_path_runtime.h"
 #include "../game/ui_network_runtime.h"
@@ -1347,6 +1348,8 @@ static json status(bool inspect_native_economy) {
     result["capabilities"]["native_character_rename_ui"]=cfg.local_test&&game::native::in_game()&&
         game::npc_probe::monster_action_runtime::character_rename::status().value("enabled",false);
     result["capabilities"]["read_character_rename"]=result["capabilities"]["native_character_rename_ui"];
+    result["capabilities"]["native_character_edit_ui"]=result["capabilities"]["native_character_rename_ui"];
+    result["capabilities"]["read_character_edit_ui"]=result["capabilities"]["native_character_rename_ui"];
     result["capabilities"]["native_monster_zone_ui"]=cfg.local_test&&game::native::in_game();
     result["capabilities"]["native_monster_zone_probe"]=cfg.local_test&&cfg.is_host&&game::native::in_game();
     result["capabilities"]["native_npc_place_probe"]=cfg.local_test&&game::native::in_game();
@@ -1354,6 +1357,8 @@ static json status(bool inspect_native_economy) {
         game::npc_probe::action_runtime::status().value("enabled",false);
     result["capabilities"]["native_npc_remove_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_remove_runtime::enabled();
+    result["capabilities"]["native_dungeon_config_ui"]=cfg.local_test&&game::native::in_game()&&game::npc_probe::monster_action_runtime::dungeon_config::status().value("enabled",false);
+    result["capabilities"]["read_dungeon_config_ui"]=result["capabilities"]["native_dungeon_config_ui"];
     result["capabilities"]["native_npc_property_ui"]=result["capabilities"]["native_npc_place_ui"];
     result["capabilities"]["native_npc_move_ui"]=
         result["capabilities"]["native_npc_place_ui"].get<bool>()&&game::ui_move_runtime::enabled();
@@ -1446,6 +1451,13 @@ static json status(bool inspect_native_economy) {
     result["capabilities"]["native_initial_release_fixture"]=owned_native_profile;
     result["capabilities"]["native_release_planner_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_release_planner_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_rules_numeric_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_rules_feature_events"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_gm_policy_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_gm_policy_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_rules_numeric_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["read_native_rules_ui"]=owned_native_profile && Config::instance().local_test;
+    result["capabilities"]["native_rules_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_native_gm_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["native_gm_ui"]=owned_native_profile && Config::instance().local_test;
     result["capabilities"]["read_native_loan_ui"]=owned_native_profile && Config::instance().local_test;
@@ -1551,6 +1563,7 @@ static json status(bool inspect_native_economy) {
     result["capabilities"]["read_tutorial"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["read_tutorial_development"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_startingpoint"]=owned_native_profile&&cfg.local_test&&game::native::in_game();
+    result["capabilities"]["native_research_ui"]=owned_native_profile&&cfg.local_test&&game::native::in_game();
     result["capabilities"]["read_vip_alert_owners"]=owned_native_profile;
     result["capabilities"]["read_tutorial_progress"]=owned_native_profile&&game::native::in_game();
     result["capabilities"]["tutorial_movement"]=tutorial_movement_ready&&cfg.is_host&&game::native::in_game();
@@ -2077,6 +2090,33 @@ static void diagnostics_tick() {
             json observed;std::string error;response["ok"]=game::management_runtime::loan_ui_fixture(operation=="read_native_loan_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
             if(!response["ok"].get<bool>())response["error"]={{"code","LOAN_UI_FAILED"},{"message",error}};
         }
+        else if(operation=="native_gm_policy_ui"||operation=="read_native_gm_policy_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("GM policy UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_gm_policy_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("GM policy UI read requires empty arguments");
+            if(operation=="native_gm_policy_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("GM policy UI read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::policy_ui_fixture(operation=="read_native_gm_policy_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","GM_POLICY_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="read_native_rules_feature_events") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Feature event observation requires owned local-test profile");
+            const auto& args=request.at("args");if(!args.is_object()||!args.empty())throw std::runtime_error("Feature event observation requires empty arguments");
+            json observed;std::string error;response["ok"]=game::management_runtime::rules_feature_events_observe(observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DESIGN_FEATURE_EVENTS_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_rules_numeric_ui"||operation=="read_native_rules_numeric_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Design numeric UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_rules_numeric_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("Design numeric read requires empty arguments");
+            if(operation=="native_rules_numeric_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("Design numeric read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::rules_numeric_ui_fixture(operation=="read_native_rules_numeric_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DESIGN_NUMERIC_UI_FAILED"},{"message",error}};
+        }
+        else if(operation=="native_rules_ui"||operation=="read_native_rules_ui") {
+            if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("Design UI requires owned local-test profile");
+            const auto& args=request.at("args");if(operation=="read_native_rules_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("Design UI read requires empty arguments");
+            if(operation=="native_rules_ui"&&args.is_object()&&args.value("command",std::string{})=="Read")throw std::runtime_error("Design UI read requires its read-only operation");
+            json observed;std::string error;response["ok"]=game::management_runtime::rules_ui_fixture(operation=="read_native_rules_ui"?json{{"command","Read"}}:args,observed,error);response["result"]=observed;
+            if(!response["ok"].get<bool>())response["error"]={{"code","DESIGN_UI_FAILED"},{"message",error}};
+        }
         else if(operation=="native_gm_ui"||operation=="read_native_gm_ui") {
             if(!owned_native_profile||!Config::instance().local_test)throw std::runtime_error("GM UI requires owned local-test profile");
             const auto& args=request.at("args");if(operation=="read_native_gm_ui"&&(!args.is_object()||!args.empty()))throw std::runtime_error("GM UI read requires empty arguments");
@@ -2505,6 +2545,14 @@ static void diagnostics_tick() {
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","CHARACTER_RENAME_READ_REJECTED"},{"message",error}};
         }
+        else if(operation=="native_character_edit_ui"||operation=="read_character_edit_ui") {
+            std::string error;json result;
+            response["ok"]=operation=="native_character_edit_ui"?
+                game::npc_probe::monster_action_runtime::character_rename::native_edit_ui(request.at("args"),result,error):
+                game::npc_probe::monster_action_runtime::character_rename::native_edit_read(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","CHARACTER_EDIT_UI_REJECTED"},{"message",error}};
+        }
         else if(operation=="native_character_rename_ui") {
             std::string error;json result;
             response["ok"]=game::npc_probe::monster_action_runtime::character_rename::native_ui(request.at("args"),result,error);
@@ -2516,6 +2564,14 @@ static void diagnostics_tick() {
             response["ok"]=game::npc_probe::action_runtime::native_ui(request.at("args"),result,error);
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NPC_PLACE_UI_REJECTED"},{"message",error}};
+        }
+        else if(operation=="native_dungeon_config_ui"||operation=="read_dungeon_config_ui") {
+            std::string error;json result;
+            response["ok"]=operation=="native_dungeon_config_ui"?
+                game::npc_probe::monster_action_runtime::dungeon_config::native_ui(request.at("args"),result,error):
+                game::npc_probe::monster_action_runtime::dungeon_config::read_ui(request.at("args"),result,error);
+            response["result"]=std::move(result);
+            if(!response["ok"].get<bool>())response["error"]={{"code","DUNGEON_CONFIG_UI_REJECTED"},{"message",error}};
         }
         else if(operation=="native_npc_property_ui") {
             std::string error;json result;
@@ -2668,16 +2724,26 @@ static void diagnostics_tick() {
             response["result"]=std::move(result);
             if(!response["ok"].get<bool>())response["error"]={{"code","NATIVE_HOLDER_REJECTED"},{"message",error}};
         }
-        else if(operation=="tutorial_startingpoint") {
+        else if(operation=="tutorial_startingpoint"||operation=="native_research_ui") {
             if(!owned_native_profile||!Config::instance().local_test)
                 throw std::runtime_error("startingpoint fixture requires owned local-test runtime");
             const auto& args=request.at("args");
-            if(!args.is_object()||args.size()!=6||!args.at("token").is_string()||!args.at("native_origin_uuid").is_string()||
+            const bool generic=operation=="native_research_ui";
+            if(!args.is_object()||args.size()!=(generic?7:6)||!args.at("token").is_string()||!args.at("native_origin_uuid").is_string()||
                !args.at("operation").is_string()||!args.at("world_epoch").is_number_unsigned()||
                !args.at("world_generation").is_number_unsigned()||!args.at("expected_development").is_object())
                 throw std::runtime_error("startingpoint fixture requires exact token/operation/origin/development fields");
             game::tutorial_startingpoint_fixture::Request effect{args.at("token").get<std::string>(),args.at("native_origin_uuid").get<std::string>(),
                 args.at("operation").get<std::string>(),args.at("world_epoch").get<uint64_t>(),args.at("world_generation").get<uint64_t>(),args.at("expected_development")};
+            if(generic){
+                static const std::map<std::string,std::string> commands{{"Read","client_bridges_commit_state"},{"Show","client_bridges_show"},
+                    {"State","client_bridges_state"},{"Start","client_bridges_start"},{"StaffShow","client_bridges_staff_show"},
+                    {"StaffState","client_bridges_staff_state"},{"StaffOne","client_bridges_staff_one"},{"Commit","client_bridges_commit"}};
+                if(!args.at("tech_key").is_string()||!commands.contains(effect.operation))throw std::runtime_error("Research UI requires an original offered control operation and Tech key");
+                effect.tech_key=args.at("tech_key").get<std::string>();
+                if(effect.tech_key.empty()||effect.tech_key.size()>200||effect.tech_key.find('\0')!=std::string::npos)throw std::runtime_error("Research UI Tech key invalid");
+                effect.operation=commands.at(effect.operation);
+            }
             std::string error;json receipt;
             response["ok"]=game::tutorial_startingpoint_fixture::run(effect,receipt,error);
             response["result"]=std::move(receipt);

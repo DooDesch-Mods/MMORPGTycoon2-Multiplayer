@@ -122,6 +122,7 @@
 #include "dungeon_light_codes.h"
 #include "dungeon_config_reader.h"
 #include "dungeon_config_input.h"
+#include "dungeon_config_ui.h"
 #include "dungeon_config_codes.h"
 #include "costume_edit_codes.h"
 #include "costume_record_reader.h"

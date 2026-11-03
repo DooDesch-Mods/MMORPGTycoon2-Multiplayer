@@ -15,6 +15,7 @@ struct Request {
     std::string token, origin_uuid, operation;
     uint64_t epoch=0, generation=0;
     nlohmann::json expected_development;
+    std::string tech_key;
 };
 // Fixed isolated Host proof. It does not advance the tutorial or replicate a peer.
 bool run(const Request&,nlohmann::json& receipt,std::string& error);

@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "version": "0.1.0-beta.29",
-  "summary": "Change class names and create, rename or delete quests together using the game's original menus.",
-  "native_evidence": "docs/evidence/beta29-character-quests.json"
+  "version": "0.1.0-beta.30",
+  "summary": "Edit abilities, share Base XP and GM chat settings, and manage saved monsters together.",
+  "native_evidence": "docs/evidence/beta30-abilities-settings-monsters.json"
 }

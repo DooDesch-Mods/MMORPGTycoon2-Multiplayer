@@ -17,7 +17,7 @@ inline AbilityEditState before(){AbilityEditState v;v.owner.day=28;v.owner.renam
     v.owner.all_sha256=std::string(64,'a');v.owner.others_sha256=std::string(64,'b');v.owner.edited=edited_before;v.owner.released=true;v.owner.undo_count=2;
     v.owner.release_edits={1,2,3,4,5,6,7,8};v.owner.global_random={11,12,13,14};v.record=record();v.all_sha256=std::string(64,'e');v.count=22;return v;}
 inline AbilityEditState after(AbilityEditState v){v.record=intent().record;if(adjustment_mode){v.all_sha256=std::string(64,'f');return v;}v.owner.edited=true;v.owner.rename_day=v.owner.day;v.owner.all_sha256=std::string(64,'c');
-    if(!edited_before)++v.owner.release_edits[7];++v.owner.global_random[0];if(!equal_apply)v.all_sha256=std::string(64,'f');return v;}
+    ++v.owner.release_edits[7];if(!edited_before)++v.owner.release_edits[7];++v.owner.global_random[0];if(!equal_apply)v.all_sha256=std::string(64,'f');return v;}
 inline Message request(){Message m;m.session=5;auto& r=m.request;r.action=Action::EditCharacterAbility;r.peer=2;r.sequence=1;
     r.action_uuid=action_id;r.snapshot_uuid=snapshot_id;r.canonical_record_key=ability_key(intent());r.ability_edit=intent();return m;}
 inline Message result(){auto m=request();m.kind=Kind::HostResult;m.revision=1;m.required_mask=3;m.outcome=Outcome::Confirmed;

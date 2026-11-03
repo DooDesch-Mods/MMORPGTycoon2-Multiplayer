@@ -100,5 +100,6 @@ void tests(){
     setup();need(!bind_current_destination(zone+8,key,in_dungeon,error)&&root_calls==0,"Unbound scene pointer was inferred");
 }
 }
-int main()try{fixture::tests();std::cout<<fixture::checks<<" actual Quest destination root/scene dispatch, owner, full UID and original cause comparisons passed\n";return 0;}
+#include "monster_destination_bootstrap_fixture.inc"
+int main()try{fixture::tests();direct_bootstrap_fixture::tests();std::cout<<direct_bootstrap_fixture::checks<<" actual Monster bootstrap destination comparisons passed\n";std::cout<<fixture::checks<<" actual Quest destination root/scene dispatch, owner, full UID and original cause comparisons passed\n";return 0;}
 catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

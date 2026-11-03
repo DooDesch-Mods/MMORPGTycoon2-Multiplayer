@@ -22,7 +22,7 @@ int main()try{size_t checks=0;std::string error;std::vector<uint8_t> bytes;auto 
         auto equal_storage=std::make_unique<Message>(result());auto& equal=*equal_storage;equal.request.ability_edit.record=equal.evidence.ability_edit_before.record;equal.evidence.ability_edit_after.record=equal.request.ability_edit.record;
         equal.evidence.ability_edit_after.all_sha256=equal.evidence.ability_edit_before.all_sha256;
         check(encode(equal,bytes,error),"Original Apply with equal authored record after Simplify lost its metadata transaction");
-        auto message_storage=std::make_unique<Message>(request());auto& message=*message_storage;check(encode(message,bytes,error),error.c_str());auto encoded=nlohmann::json::parse(bytes);encoded["request"]["ability_edit"]["record"]["flags"][0]=1;
+        auto message_storage=std::make_unique<Message>(request());auto& message=*message_storage;check(encode(message,bytes,error),error.c_str());auto encoded=nlohmann::json::parse(bytes);encoded["request"]["ability_edit"]["record"]["use_weapon"]=1;
         auto malformed=encoded.dump();check(!decode(reinterpret_cast<const uint8_t*>(malformed.data()),malformed.size(),decoded,error),"Ability bool accepted integer");
         encoded=nlohmann::json::parse(bytes);encoded["request"]["ability_edit"]["record"]["selectors"].push_back(0);malformed=encoded.dump();check(!decode(reinterpret_cast<const uint8_t*>(malformed.data()),malformed.size(),decoded,error),"Ability fixed ABI record dimension accepted extra field");
         check(ability_edit_wire_fits(request().request,before(),{},error),"Normal Ability receipt failed packet preflight");

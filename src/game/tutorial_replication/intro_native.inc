@@ -56,8 +56,8 @@ bool prepare_hooks(std::string& e){
 }
 DWORD invoke(bool complete,uintptr_t log,uintptr_t asset){__try{if(complete)reinterpret_cast<void(*)(void*,void*)>(image+0x4f4130)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset));else reinterpret_cast<void(*)(void*,void*,void*)>(image+0x4f3b00)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset),nullptr);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 DWORD cas(uintptr_t address,bool byte,int32_t before,int32_t target,bool& stored){__try{stored=byte?uint8_t(_InterlockedCompareExchange8(reinterpret_cast<volatile char*>(address),char(target),char(before)))==uint8_t(before):InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(address),LONG(target),LONG(before))==LONG(before);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-bool sample(const action_session::Context& c,const action_session::Binding& b,World& world,Owners& owner,Value& value,std::string& e){
-    World after;if(!origin(c,b,world,e)||!owners(world,owner,value,e)||!origin(c,b,after,e)||!same_world(world,after))return fail(e,e.empty()?"Intro complete current Origin changed":e);return true;
+bool sample(const action_session::Context& c,const action_session::Binding& b,World& world,Owners& owner,Value& value,std::string& e,bool ordered_read=false){
+    World after;if(!origin(c,b,world,e,nullptr,ordered_read)||!owners(world,owner,value,e)||!origin(c,b,after,e,nullptr,ordered_read)||!same_world(world,after))return fail(e,e.empty()?"Intro complete current Origin changed":e);return true;
 }
 bool adopt(const action_session::Context& c,const action_session::Binding& b,const Value& target,bool& attempted,std::string& e){
     if(c.role!=action_session::Role::Client||!scenario_intro::valid(target,e)||!startingpoint_clock(e)||!verify_owned(e)||!lifecycle_native::verify_transition_code(e))return fail(e,e.empty()?"Intro adoption requires current Client Clock0 and owned original routes":e);

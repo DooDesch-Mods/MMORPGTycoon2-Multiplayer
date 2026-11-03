@@ -1,9 +1,10 @@
-# Export every buildable source-check target, including compile-only libraries.
+# Export binary source-check targets, including compile-only libraries.
+# Extraction-only utilities remain build dependencies of their consumers.
 get_property(source_check_targets DIRECTORY PROPERTY BUILDSYSTEM_TARGETS)
 set(source_check_target_map "")
 foreach(target IN LISTS source_check_targets)
     get_target_property(kind ${target} TYPE)
-    if(kind STREQUAL "INTERFACE_LIBRARY")
+    if(kind STREQUAL "INTERFACE_LIBRARY" OR kind STREQUAL "UTILITY")
         continue()
     endif()
     if(kind STREQUAL "EXECUTABLE")

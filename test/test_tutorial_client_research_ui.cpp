@@ -16,8 +16,8 @@ using DWORD=unsigned long;
 using World=building_mixed_identity::opened_file::CurrentWorld;
 constexpr uintptr_t win=0x2000,tabs=0x3000,view=0x4000,grid=0x5000,button=0x6000,rows=0x7000,fixture_pane=0x8000,tech=0x9000;
 const std::string action="11111111-1111-1111-1111-111111111111";
-struct Pin{bool ordered=false;World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
-struct Request{std::string token="token",origin_uuid="local",operation="client_research";uint64_t epoch=1,generation=1;json expected_development;};
+struct Pin{bool ordered=false,generic=false;World world;uintptr_t image=0x10000000,lounge=2,project=0,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
+struct Request{std::string token="token",origin_uuid="local",operation="client_research",tech_key;uint64_t epoch=1,generation=1;json expected_development;};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;
 json controller,progress_state,development;
@@ -53,7 +53,7 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
     if(!client||!client_controller_admission(controller,pending,e))return false;
     if(pending.empty()){action_session::Binding b;if(!typed_action_runtime::network_binding("common",b,e))return false;}
     else if(!context||!binding||!typed_action_runtime::observe_startingpoint_submission(*context,*binding,pending,e))return false;
-    p={};p.ordered=fixture_ordered;p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
+    p={};p.ordered=fixture_ordered;p.generic=!request.tech_key.empty();p.tech_key=p.generic?request.tech_key:request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";p.development=development;p.world=native_snapshot.origin;
     if(activation_calls&&change_origin)++p.world.world_epoch;
     return true;
 }
@@ -154,6 +154,17 @@ void check_bridges(){std::string e;json out;
     reset();bridges();development["research"]["rows"][0]["cost"]=9999;need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("getters")!=std::string::npos,"Bridges wrong original price reached selection");
     reset();bridges();development["research"]["rows"].push_back(development["research"]["rows"][0]);need(!run(out,e,"client_bridges_start")&&!activation_calls&&!select_calls&&e.find("duplicated")!=std::string::npos,"duplicate Bridges catalogue reached UI");
 }
+void check_generic_research(){
+    for(const auto& selected:{std::pair{"parties",20000},std::pair{"dungeons",90000}}){reset();bridges();fixture_ordered=true;
+        native_snapshot.creation->catalogue[1].key=selected.first;put<int32_t>(tech,0xac,selected.second);
+        development["research"]["rows"][0]["key"]=selected.first;development["research"]["rows"][0]["cost"]=selected.second;
+        Request request;request.operation="client_bridges_start";request.tech_key=selected.first;request.expected_development=development;
+        Progress* phase=nullptr;std::string key,e;json out;
+        need(client_research(request,out,phase,key,e)&&activation_calls==1&&out["queued"]==true&&out["price"]==selected.second,"generic original catalogue price/Start failed");
+        need(out["route"]=="general_project"&&out["ledger_before"]==out["ledger_after"],"generic UI admission changed local gameplay");
+        need(!client_research(request,out,phase,key,e)&&activation_calls==1,"generic uncertain/repeated Start replayed");
+    }
+}
 void check_ordered_queue(){std::string e;json out;
     reset();fixture_ordered=true;need(run(out,e)&&activation_calls==1&&out["queued"]==true&&out["submitted"]==false&&out["host_completion_confirmed"]==false,"ordered research queue confused with Host completion");
     need(!run(out,e)&&activation_calls==1,"ordered research replayed consumed phase");
@@ -213,4 +224,4 @@ void check(){std::string e;json out;
 }
 
 }
-int main(){try{check_ordered_queue();check();check_bridges();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{check_ordered_queue();check();check_bridges();check_generic_research();std::cout<<"PASS "<<checks_completed<<" actual Research orchestration/selection checks\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

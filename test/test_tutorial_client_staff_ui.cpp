@@ -16,7 +16,7 @@ using DWORD=unsigned long;
 using World=building_mixed_identity::opened_file::CurrentWorld;
 constexpr uintptr_t win=0x2000,tabs=0x3000,view=0x4000,pips=0x5000,button=0x6000,rows=0x7000,fixture_pane=0x8000,tech=0x9000,project_view=0xa000,fixture_dev=0xb000,fixture_children=0xc000,business=0xd000;
 const std::string action="11111111-1111-1111-1111-111111111111";
-struct Pin{bool ordered=false;World world;uintptr_t image=0x10000000,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
+struct Pin{bool ordered=false,generic=false;World world;uintptr_t image=0x10000000,lounge=2,project=3,window=0,button=0,player=6,inventory=7,slots=8;std::array<uintptr_t,200> items{};json development,tutorial={{"index",8}};std::string tech_key="startingpoint";};
 struct Request{std::string token="token",origin_uuid="local",operation="client_staff_one";uint64_t epoch=1,generation=1;json expected_development;};
 struct Progress{bool shown=false,completed=false,committed=false,locked=false,begun=false;std::string cause;};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;

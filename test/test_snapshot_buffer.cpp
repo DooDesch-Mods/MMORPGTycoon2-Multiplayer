@@ -65,5 +65,32 @@ int main(int argc,char** argv) {
     require(pop(fragments,header,payload)==Parse::Complete&&payload.size()==50,"fragmented relay frame completes");
     Header oversized{magic,Data,3,1,max_payload+1}; std::vector<uint8_t> malformed(sizeof(oversized)); memcpy(malformed.data(),&oversized,sizeof(oversized));
     require(pop(malformed,header,payload)==Parse::Invalid,"relay oversized length rejected before allocation");
+
+    for(const size_t stage_length:{size_t(260),size_t(310)}) {
+        const auto long_root=root/(stage_length==260?L"long-boundary":L"long-\u6e38\u620f");
+        std::filesystem::create_directories(long_root);
+        const std::wstring suffix=L".vrz.monsters.json";
+        const auto filename_length=stage_length-long_root.native().size()-1-9;
+        require(filename_length>suffix.size()&&filename_length+9<=255,"long fixture component bounds");
+        const auto final=long_root/(std::wstring(filename_length-suffix.size(),L'x')+suffix);
+        auto temporary=final;temporary+=L".incoming";
+        require(temporary.native().size()==stage_length,"exact long staging path boundary");
+        SnapshotBuffer receiver;
+        require(receiver.begin(snapshot_chunk_bytes+3,2,temporary,final,digest,error),"long snapshot manifest accepted length="+std::to_string(stage_length));
+        require(receiver.add(0,first.data(),first.size(),error)&&receiver.add(1,end,3,error),"long snapshot complete bytes");
+        require(receiver.commit(error)&&receiver.committed(),"long snapshot committed without overwrite");
+        bool companion_exists=false;
+        require(snapshot_file_exists(final,companion_exists,error)&&companion_exists,"long committed companion remains discoverable by native-load existence check");
+        require(receiver.target()==final,"long snapshot retains caller path identity");
+        actual.clear();size=0;
+        require(hash_snapshot_file(final,actual,size,error)&&actual==digest&&size==snapshot_chunk_bytes+3,"long snapshot checksum and content preserved");
+        SnapshotBuffer second;
+        require(!second.begin(snapshot_chunk_bytes+3,2,temporary,final,digest,error)&&error.find("refusing overwrite")!=std::string::npos,"long existing target preserved");
+        SnapshotFileSender long_sender;
+        require(long_sender.begin(final,digest,error),"long sender opens verified committed file");
+        require(long_sender.next(sent,error)&&sent==first&&long_sender.next(sent,error)&&sent==std::vector<uint8_t>(end,end+3)&&long_sender.finish(error),"long sender full stream and EOF");
+    }
+    SnapshotFileHandle unicode_missing;
+    require(!unicode_missing.open(root/L"absent-\u6e38\u620f"/L"missing.vrz",GENERIC_READ,OPEN_EXISTING,error)&&error.find("Win32=3")!=std::string::npos,"Unicode missing path retains original Win32 cause without throwing");
     std::cout<<"snapshot file guards passed checks="<<checks<<" root="<<root.string()<<"\n";
 }

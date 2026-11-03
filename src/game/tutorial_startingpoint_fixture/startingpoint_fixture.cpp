@@ -64,11 +64,11 @@ struct Pin {
     World world;
     uintptr_t image=0,lounge=0,project=0,window=0,button=0,player=0,inventory=0,slots=0;
     std::array<uintptr_t,200> items{};
-    json development,tutorial;std::string tech_key="startingpoint";bool ordered=false;
+    json development,tutorial;std::string tech_key="startingpoint";bool ordered=false,generic=false;
 };
 bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const std::string& pending_id={},
          const action_session::Context* submitted_context=nullptr,const action_session::Binding* submitted_binding=nullptr){
-    p.tech_key=request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";
+    p.generic=!request.tech_key.empty();p.tech_key=p.generic?request.tech_key:request.operation.starts_with("client_bridges_")?"bridges":"startingpoint";
     uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(p.image,thread,sha,e))return false;
     if(sha!=exact_sha||p.image!=uintptr_t(GetModuleHandleW(nullptr))||thread!=GetCurrentThreadId()||update_depth!=1||!update_game)
@@ -81,6 +81,7 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
            !typed_action_runtime::network_binding_with_mode(context.snapshot_uuid,binding,e,&p.ordered))return false;
     }
     if(client?!client_controller_admission(controller,pending_id,e,p.ordered):!controller_admission(controller,e,p.ordered))return false;
+    if(p.generic&&!p.ordered)return fail(e,"Generic Research UI requires ordered original execution");
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.edit_operations||status.saves_in_progress||status.quitting||status.title_transition_pending||status.map_task_pending)
         return fail(e,"startingpoint fixture requires idle InGame without edit/save/transition");
@@ -121,6 +122,12 @@ bool pin(const Request& request,Pin& p,std::string& e,bool client=false,const st
     return same(p.world,after)||fail(e,"startingpoint fixture Origin changed during pin");
 }
 bool before(const Pin& p,std::string& e){
+    if(p.generic){
+        tutorial_development::StartingpointSnapshot snapshot;
+        if(!general_project_runtime::research_ui_snapshot(p.tech_key,snapshot,e))return false;
+        return (same(p.world,snapshot.origin)&&p.project==snapshot.project&&snapshot.row&&snapshot.row->project_present&&
+            snapshot.row->purchased&&!snapshot.row->deployed&&!snapshot.row->custom)||fail(e,"Research Commit requires exact purchased current project");
+    }
     if(p.tech_key=="bridges"){
         tutorial_development::StartingpointSnapshot snapshot;json diagnostic;
         if(!tutorial_development::read_research(p.tech_key,snapshot,diagnostic,e,true))return false;
@@ -196,9 +203,9 @@ bool before_research(const Pin& p,std::string& e){
     if(p.tech_key=="startingpoint")return before_begin(p.development,p.project,e);
     if(p.project||p.development.at("research").at("project_present")!=false)return fail(e,"Bridges Research requires no current project");
     size_t matches=0;
-    for(const auto& row:p.development.at("research").at("rows"))if(row.at("key")=="bridges"){
+    for(const auto& row:p.development.at("research").at("rows"))if(row.at("key")==p.tech_key){
         ++matches;if(row.at("visible")!=true||row.at("owned")!=false||row.at("purchased")!=false||
-            row.at("can_choose_now")!=true||row.at("can_afford")!=true||row.at("cost")!=10000)
+            row.at("can_choose_now")!=true||row.at("can_afford")!=true||(!p.generic&&row.at("cost")!=10000))
             return fail(e,"Bridges original Research getters do not admit purchase");
     }
     return matches==1||fail(e,"Bridges actual catalogue row absent/duplicated");

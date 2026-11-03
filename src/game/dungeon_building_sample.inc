@@ -285,7 +285,7 @@ bool once(Memory& memory,const a::Binding& binding,const std::string& snapshot,S
         return fail(error,"Dungeon Building previous Quest witness belongs to another snapshot/binding");old=&previous->local->quests;}
     if(!read_remove_quests(memory,binding,snapshot,0,{},next->quests,error,old)||
        !quest_list::references(memory,binding,snapshot,next->quests,next->references,error)||
-       !dungeon_building_sample::quests(next->quests,output.value.quests,error)||
+       !dungeon_building_sample::quests(next->quests,output.value.quests,error,a::tick_commands::authority::active())||
        !quest_bridge::sha256(next->references.rows.dump(),output.value.references,error))return false;
     std::vector<world_zone_runtime::Current> zone_owners;if(!world_zone_runtime::read_current(binding,snapshot,zone_owners,error))return false;
     std::erase_if(zone_owners,[](const auto& row){return row.scene_key=="world";});

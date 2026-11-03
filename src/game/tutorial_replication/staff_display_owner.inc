@@ -35,10 +35,10 @@ bool bind_target(const staff_display::State& target,const Owners& owners,std::st
 bool cache_bound(const Cache& value,const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& s){
     return value.context==c&&value.binding==b&&same_world(value.world,s.origin)&&value.project==s.project&&value.tech==s.tech&&value.record==s.record&&s.row&&s.row->project_present&&!s.row->deployed;
 }
-bool capture(const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& snapshot,std::optional<staff_display::State>& out,std::string& e,bool share_metadata=false){
+bool capture(const action_session::Context& c,const action_session::Binding& b,const tutorial_development::StartingpointSnapshot& snapshot,std::optional<staff_display::State>& out,std::string& e,bool share_metadata=false,bool ordered_read=false){
     out.reset();if(!snapshot.row||!snapshot.row->project_present||snapshot.row->deployed)return true;
     Owners owners;if(!read_owners(snapshot,owners,e,share_metadata))return false;
-    if(c.role==action_session::Role::Client){if(cache&&cache_bound(*cache,c,b,snapshot)){if(!bind_target(cache->target,owners,e))return false;out=cache->target;}return true;}
+    if(c.role==action_session::Role::Client&&!ordered_read){if(cache&&cache_bound(*cache,c,b,snapshot)){if(!bind_target(cache->target,owners,e))return false;out=cache->target;}return true;}
     staff_display::State value;
     for(const auto& d:owners.developers)if(d.employed){value.developers.push_back({d.id,d.job,d.on_map!=0});if(!d.on_map&&d.job>=5&&d.job<=7)++value.active_tech;}
     // Native GetActiveDevCount includes every outdoor manager entry, including

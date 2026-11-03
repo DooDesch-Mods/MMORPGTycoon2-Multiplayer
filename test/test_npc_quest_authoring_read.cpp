@@ -26,6 +26,12 @@ int main(){try{unsigned n=0;std::string e;const auto old=world(),now=changed(old
  invalid([](auto& v){v.owners.at(5000).state.local[1].task=q::TaskStatus::Pending;});
  invalid([](auto& v){v.owners.at(6000).state.records[0].description="Changed other owner";});
  invalid([](auto& v){v.owners.at(6000).state.local[0].quest=1201;});
+ invalid([](auto& v){v.owners.at(5000).state.local[0].npc_list_member=false;});
+ invalid([](auto& v){v.owners.at(5000).state.local[0].owner_weak_confirmed=false;});
+ invalid([](auto& v){v.owners.at(5000).state.local[0].destination_weak_confirmed=false;});
+ invalid([](auto& v){v.owners.at(5000).state.local[0].manager_member=false;});
+ invalid([](auto& v){v.owners.at(6000).state.local[0].owner_weak_confirmed=false;});
+ invalid([](auto& v){v.owners.at(6000).state.local[0].manager_member=false;});
  auto finished=now;finished.owners.at(5000).state.local[0].task=q::TaskStatus::FinishedWaitingTick;need(check(finished),e);++n;
  std::cout<<n<<" actual Quest selected/unaffected owner, row, link and task cases passed\n";return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}

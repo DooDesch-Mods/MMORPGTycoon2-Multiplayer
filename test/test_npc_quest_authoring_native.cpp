@@ -1,6 +1,7 @@
 #include "npc_quest_authoring_fixture.h"
 #include "npc_quest_authoring_read.h"
 #include "ui_remove/ui_capture.h"
+#include "typed_action/tick_commands.h"
 #include <atomic>
 #include <cstring>
 #include <iostream>
@@ -13,6 +14,21 @@ using json=nlohmann::json;
 namespace mt2mp::action_session::ui_diagnostic{struct Window{uintptr_t window=10000;};}
 namespace fixture {
 bool fail(std::string& e,const std::string& why){e=why;return false;}
+bool fixture_ordered=false,consumed=false,scope_valid=true,inside_go=false,change_refs=false,change_targets=false,change_release=false,change_state=false;
+a::Context ordered_context;
+a::Request ordered_request;
+struct Config{bool is_host=true;static Config& instance(){static Config value;return value;}};
+struct OrderedSession{bool current(a::Context& value,std::string&){value=ordered_context;return true;}};
+}
+namespace mt2mp::action_session {
+fixture::OrderedSession& selected_session(){static fixture::OrderedSession value;return value;}
+namespace tick_commands::authority {
+bool active(){return fixture::consumed;}
+bool matches(const Context& context,const Binding& binding,const Request& request,std::string& e){
+    return (fixture::consumed&&fixture::scope_valid&&context==fixture::ordered_context&&context.snapshot_uuid==request.snapshot_uuid&&binding==Binding{3,4}&&request==fixture::ordered_request)||fixture::fail(e,"Consumed destination scope differs");}
+}
+}
+namespace fixture {
 unsigned thread=1;unsigned GetCurrentThreadId(){return thread;}
 struct Memory{};
 std::map<uintptr_t,uint64_t> fields;
@@ -39,17 +55,19 @@ std::atomic<Runtime*> published_runtime{&fixture};
 bool network_binding_with_mode(const std::string&,a::Binding&,std::string&,bool*);
 bool held_tutorial_session_read(Session&,a::Context&,std::string& e){e="unexpected held tutorial read";return false;}
 #include "quest_network_binding_body.inc"
-json controller_status(){auto v=fixture.controller.value;return{{"started",v.started},{"locked",v.locked},{"pending",v.pending},{"action_uuid",v.action_uuid}};}
+json controller_status(){auto v=fixture.controller.value;return{{"started",v.started},{"locked",v.locked},{"pending",v.pending},{"ordered",fixture_ordered},{"action_uuid",v.action_uuid}};}
+bool original_go_admission(bool& value,std::string&){value=inside_go;return true;}
 }
 namespace net{std::string current_snapshot_id(){return snapshot_id;}namespace session_wire{bool online=true;bool connected(){return online;}}}
 struct World{uintptr_t root=10;};struct Pin{World world;};
-namespace d{struct Sample{struct State{std::array<uint64_t,4> region_random{5,6,7,8};}state;
- struct Undo{uintptr_t active_graph=0;std::vector<uintptr_t> undo;}undo;a::Ledger money;};}
+namespace d{struct Sample{struct State{std::array<uint64_t,4> region_random{5,6,7,8},global_random{1,2,3,4};int protected_value=0;bool operator==(const State&)const=default;}state;
+ struct Undo{uintptr_t active_graph=0;std::vector<uintptr_t> undo;}undo;a::Ledger money;unsigned release_edits=0;};}
 struct State{uintptr_t image=0x10000000;unsigned thread=1;}state;
-struct Pending{a::Binding binding;std::string snapshot,owner,token;a::NpcQuestIntent intent;};
+struct Pending{a::Binding binding;std::string snapshot,owner,token;a::NpcQuestIntent intent;std::optional<a::Context> context;};
 struct Operation{a::Binding binding;a::Request request;Pin pin;qr::Witness before,after;d::Sample sample;
  uintptr_t owner=0,quest=0,destination=0,graph=0;uint64_t destination_uid=0;a::Evidence evidence;
- bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false;std::string cause;};
+ bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false;std::string cause;
+ json refs_before;std::string targets_before;bool ordered=false;};
 bool ready=true,fault=false;std::optional<Pending> pending;std::map<std::string,Operation> operations;
 std::map<std::string,json> jobs;std::string ui_token,cause;uint64_t captures=0,rejected=0;unsigned forwards=0,originals=0,seeds=0,mode=0;bool mutated=false;
 void forward(void*,void*){++forwards;}void(*original)(void*,void*)=&forward;
@@ -68,18 +86,27 @@ qr::Witness world(){qr::Witness w;w.manager=100;w.completed=1;
   auto& own=w.owners[npc];own.pointer=npc;own.uid=npc+0x100000000ull;own.key=key;
   own.state.records.push_back(record);own.state.local.push_back({quest,npc,destination,true,true,true,true,q::TaskStatus::Absent});own.destination_uids.push_back(destination+0x100000000ull);
  }return w;}
-qr::Witness changed(qr::Witness w){const auto value=after(before()).record;w.rows[0].record=value;w.links[0][0]=8000;w.links[0][1]=8888;w.links[0][2]=8032;
+qr::Witness changed(qr::Witness w){auto value=after(before()).record;
+ if(fixture_ordered){const auto& intent=ordered_request.npc_quest;value=intent.before;value.destination_key=intent.destination_key;value.action=intent.action;value.monsters_to_kill=intent.kills;value.monster_type=intent.monster_type;value.name="Visit original Building";}
+ w.rows[0].record=value;w.links[0][0]=8000;w.links[0][1]=8888;w.links[0][2]=8032;
  auto& own=w.owners.at(5000);own.state.records[0]=value;own.state.local[0].destination=8000;own.state.local[0].task=q::TaskStatus::Pending;own.destination_uids[0]=0x100001f40ull;
  if(mode==8)w.rows[1].record.name="Changed survivor";return w;}
 bool state_read(Memory&,const a::Binding&,const std::string&,const Pin&,uintptr_t,int32_t,qr::Witness& witness,d::Sample& sample,a::NpcQuestState& value,uintptr_t& quest,std::string&){
- witness=mutated?changed(world()):world();sample={};value=mutated?after(before()):before();quest=1000;
+ witness=mutated?changed(world()):world();sample={};value=mutated?after(before()):before();if(fixture_ordered)value.record=witness.rows[0].record;quest=1000;
  if(mutated){sample.undo.undo.push_back(50);if(mode==9)++sample.money.cash;if(mode==10)++sample.state.region_random[0];if(mode==11)++value.global_random[0];}
- else if(mode==2)++value.record.xp_reward;return true;}
+ else if(mode==2)++value.record.xp_reward;
+ sample.state.global_random=value.global_random;if(mutated&&change_release)++sample.release_edits;if(mutated&&change_state)++sample.state.protected_value;return true;}
 bool destination(Memory&,const a::Binding&,const std::string&,int32_t,a::QuestDestinationFamily,const std::string&,uintptr_t& ptr,uint64_t& uid,std::string& e){ptr=8000;uid=0x100001f40ull;return mode!=3||fail(e,"destination full UID mismatch");}
-bool target_intent(Memory&,const a::Binding&,const std::string&,uintptr_t ptr,a::NpcQuestIntent& out,std::string& e){if(ptr!=8000)return fail(e,"destination pointer differs");out=intent();return true;}
+bool target_intent(Memory&,const a::Binding&,const std::string&,uintptr_t ptr,a::NpcQuestIntent& out,std::string& e){if(ptr!=8000)return fail(e,"destination pointer differs");out=fixture_ordered?ordered_request.npc_quest:intent();return true;}
 bool inverse(Memory&,const Operation&,const d::Sample&,std::string& e){return mode!=12||fail(e,"DoSetNPCQuests inverse differs");}
-uint32_t set_destination(uintptr_t quest,uintptr_t ptr,int32_t action,int32_t kills){need(quest==1000&&ptr==8000&&action==6&&kills==1,"original ABI differs");++originals;mutated=true;return mode==4?1:0;}
+uint32_t set_destination(uintptr_t quest,uintptr_t ptr,int32_t action,int32_t kills){need(quest==1000&&ptr==8000&&action==(fixture_ordered?2:6)&&kills==(fixture_ordered?0:1),"original ABI differs");++originals;mutated=true;return mode==4?1:0;}
 namespace action_runtime{uint32_t seed(uintptr_t,const std::array<uint64_t,4>&){++seeds;return mode==5?1:0;}}
+namespace quest_list {
+bool authoring_effect(const a::Binding&,const std::string&,int32_t,const qr::Witness&,json& refs,std::string& targets,std::string& digest,std::string&){
+    refs=json::array({{{"subscriber_id",7}}});if(mutated&&change_refs)refs[0]["gold"]=1;
+    targets=mutated&&change_targets?"changed-pool":"pool";digest=std::string(64,mutated?'b':'a');return true;}
+}
+#include "npc_quest_ordered_destination.inc"
 #include "quest_ui_binding_body.inc"
 #include "quest_capture_body.inc"
 #include "quest_perform_body.inc"
@@ -102,6 +129,8 @@ bool graph(Memory&,uintptr_t pointer,const qr::Owner& owner,std::string& e){
 }
 #include "quest_observe_body.inc"
 void reset(unsigned selected=0){mode=selected;thread=1;ready=true;fault=false;pending.reset();operations.clear();jobs.clear();ui_token.clear();cause.clear();captures=rejected=0;forwards=originals=seeds=0;mutated=false;net::session_wire::online=true;typed_action_runtime::fixture={};
+ fixture_ordered=consumed=inside_go=change_refs=change_targets=change_release=change_state=false;scope_valid=true;Config::instance().is_host=true;
+ ordered_context={5,1,1,3,a::Role::Host,snapshot_id};ordered_request={};
  quest_history::sources.clear();quest_history::graph_failed=false;quest_history::graph_reads=0;
  building_history_slice::failed=false;building_history_slice::calls=0;
  const auto image=state.image;fields={{image+0x13df400,20000},{20000,image+0x1701f80},{20000+0x1b0,1000},{20000+0x1b8,30000},{30000,1018},
@@ -161,5 +190,35 @@ int main(){using namespace fixture;try{unsigned n=0;std::string e;
  need(quest_history::remember({3,4},source,5000,50,original_world,after_world,e),e);
  need(!quest_history::remember({3,4},source,5000,50,original_world,after_world,e)&&quest_history::sources.size()==1&&
       quest_history::graph_reads==1&&building_history_slice::calls==1,"duplicate history source repeated original retention");++n;
+ for(bool origin_host:{true,false}){
+  reset();fixture_ordered=consumed=true;Config::instance().is_host=origin_host;ordered_context.role=origin_host?a::Role::Host:a::Role::Client;ordered_context.local_peer=origin_host?1:2;
+  ordered_request=request().request;auto& intent=ordered_request.npc_quest;intent.family=a::QuestDestinationFamily::Building;intent.action=2;intent.kills=0;
+  inside_go=true;
+  capture(state.image+0x5ce471,reinterpret_cast<void*>(20000),reinterpret_cast<void*>(8000));
+  need(captures==1&&pending&&pending->context==ordered_context&&!originals&&!forwards,"Ordered original-Go destination capture mutated or lost Context: "+cause);++n;
+  auto captured=*pending;pending.reset();inside_go=false;need(current_capture(captured,e),e);++ordered_context.session;need(!current_capture(captured,e),"Changed destination capture Session accepted");--ordered_context.session;
+  typed_action_runtime::fixture.controller.value.pending=true;
+  need(perform({3,4},ordered_request,nullptr,e)==a::Outcome::Confirmed&&originals==1&&!seeds,e);
+  a::Evidence evidence;need(observe({3,4},ordered_request,evidence,e)&&evidence.undo_confirmed,e);
+  scope_valid=false;need(!observe({3,4},ordered_request,evidence,e),"Destination observation escaped consumed scope");
+  need(perform({3,4},ordered_request,nullptr,e)==a::Outcome::Unknown&&originals==1,"Ordered destination replayed");++n;
+ }
+ for(int failure=0;failure<9;++failure){
+  reset();fixture_ordered=consumed=true;ordered_request=request().request;auto& intent=ordered_request.npc_quest;intent.family=a::QuestDestinationFamily::Building;intent.action=2;intent.kills=0;
+  typed_action_runtime::fixture.controller.value.pending=true;
+  if(failure==0)consumed=false;if(failure==1)scope_valid=false;if(failure==2)Config::instance().is_host=false;
+  if(failure==3)intent.family=a::QuestDestinationFamily::Zone;if(failure==4)intent.destination_region=68;
+  if(failure==5)intent.family=a::QuestDestinationFamily::NPC;if(failure==6)intent.family=a::QuestDestinationFamily::DirectMonster;
+  if(failure==7)ordered_context.snapshot_uuid="different";
+  a::Evidence authority;const auto* supplied=failure==8?&authority:nullptr;
+  need(perform({3,4},ordered_request,supplied,e)==a::Outcome::RejectedNoEffect&&!originals&&!seeds,"Unsupported destination authority caused native effect");++n;
+ }
+ for(int effect=0;effect<7;++effect){
+  reset();fixture_ordered=consumed=true;ordered_request=request().request;auto& intent=ordered_request.npc_quest;intent.family=a::QuestDestinationFamily::Building;intent.action=2;intent.kills=0;
+  typed_action_runtime::fixture.controller.value.pending=true;change_refs=effect==0;change_targets=effect==1;change_release=effect==2;change_state=effect==3;
+  if(effect==4)mode=9;if(effect==5)mode=10;if(effect==6)mode=8;
+  need(perform({3,4},ordered_request,nullptr,e)==a::Outcome::Unknown&&originals==1&&!seeds,"Unexpected ordered destination effect confirmed");
+  need(perform({3,4},ordered_request,nullptr,e)==a::Outcome::Unknown&&originals==1,"Unknown destination effect replayed");++n;
+ }
  std::cout<<n<<" actual Quest capture/UI binding/pending perform/observe cases passed\n";return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}

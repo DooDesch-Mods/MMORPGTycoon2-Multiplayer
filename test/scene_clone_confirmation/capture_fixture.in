@@ -28,6 +28,7 @@ struct SceneRuntime {
     bool confirm(const action_session::Context& context,const action_session::Binding& binding,const std::string& operation,
         const scene_clone::Mapping* authority,scene_clone::Mapping& out,dungeon_scene_identity_runtime::Census& admitted,bool& attempted,std::string& e){
         ++confirms;out={};admitted={};attempted=false;
+        const bool ordered_template=false;
         @CONFIRM_GUARD@
         if(confirms==fail_confirm)return fail(e,"fixture original census failed");
         @CONSUME_PREPARATION@

@@ -7,15 +7,15 @@ constexpr std::array<size_t,8> string_offsets{0x48,0x68,0x88,0xa8,0xc8,0xf8,0x11
 constexpr npc_quest_list_ui_codes::Code ui_code{0x5714c0,3374,"c58e4309398a34ca2ee0e15494adc64f7590f76184654bddb2d9cbb280e2df2e",
     {0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa8,0,0,0,0x0f,0x11,0xb4,0x24,0x90,0,0,0,0x48,0x89,0xce,0x48,0x89,0xd1,0x48,0x8d,0x5c,0x24,0x50,0x48,0x89}};
 struct Sample {character_rename::Sample character;uintptr_t prototype=0,proxy=0;uint64_t uid=0;std::vector<std::array<uintptr_t,3>> local; a::AbilityEditState value;};
-struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;};
-struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false;uint32_t calls=0;std::string cause;};
+struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;std::optional<a::Context> context;std::string diagnostic_token;};
+struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false,ordered=false,ui_restored=false;uint32_t calls=0,presentation_calls=0,apply_event_calls=0;bool apply_draft_destroyed=false,apply_lease_released=false;std::string cause;};
 std::optional<Pending> pending;std::map<std::string,Operation> operations;
 bool entry(void*,void*);
 bool view_route(Memory&,std::string&);
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[AbilityEdit] {}",error);}return false;}
 json record_json(const a::AbilityRecord& v){json costs=json::array(),effects=json::array();
     for(size_t n=0;n<2;++n)for(const auto& row:n?v.effects:v.costs)(n?effects:costs).push_back({{"integers",row.integers},{"values",row.values},{"count",row.count}});
-    return {{"text",v.text},{"item_value",v.item_value},{"item_kind",v.item_kind},{"item_flag",v.item_flag},{"selectors",v.selectors},{"color",v.color},{"timing",v.timing},{"flags",v.flags},{"final_values",v.final_values},{"level",v.level},{"final_flag",v.final_flag},{"costs",costs},{"effects",effects}};
+    return {{"text",v.text},{"item_value",v.item_value},{"item_kind",v.item_kind},{"item_flag",v.item_flag},{"selectors",v.selectors},{"color",v.color},{"timing",v.timing},{"animation",v.animation},{"use_weapon",v.use_weapon},{"final_values",v.final_values},{"level",v.level},{"final_flag",v.final_flag},{"costs",costs},{"effects",effects}};
 }
 bool code(Memory& memory,std::string& error){
     std::string bytes(ui_code.bytes,'\0'),hash;if(!memory.copy(state.image+ui_code.rva,bytes.data(),bytes.size(),error))return false;
@@ -35,7 +35,7 @@ bool read_record(Memory& memory,uintptr_t object,a::AbilityRecord& value,std::st
     for(size_t i=0;i<string_offsets.size();++i)if(!npc_quest_records::read_string(memory,object,string_offsets[i],"Ability native authored string",value.text[i],error)||value.text[i].size()>4096)return fail(error,error.empty()?"Ability authored string exceeds ordered bound":error);
     uint8_t flag=2;if(!field(memory,object,0xe8,value.item_value,error)||!std::isfinite(value.item_value)||!field(memory,object,0xec,value.item_kind,error)||!field(memory,object,0xf0,flag,error)||flag>1)return fail(error,error.empty()?"Ability native item scalar differs":error);value.item_flag=flag!=0;
     if(!field(memory,object,0x15c,value.selectors,error)||!field(memory,object,0x170,value.color,error)||!field(memory,object,0x180,value.timing,error)||!field(memory,object,0x1f8,value.final_values,error)||!field(memory,object,0x200,value.level,error)||!field(memory,object,0x204,flag,error)||flag>1)return fail(error,error.empty()?"Ability authored native fixed record differs":error);value.final_flag=flag!=0;
-    for(size_t i=0;i<5;++i){if(!field(memory,object,0x1f0+i,flag,error)||flag>1)return fail(error,error.empty()?"Ability authored native boolean differs":error);value.flags[i]=flag!=0;}
+    if(!field(memory,object,0x1f0,value.animation,error)||!field(memory,object,0x1f4,flag,error)||flag>1)return fail(error,error.empty()?"Ability animation/use-weapon native layout differs":error);value.use_weapon=flag!=0;
     for(float number:value.color)if(!std::isfinite(number))return fail(error,"Ability color is non-finite");
     for(float number:value.timing)if(!std::isfinite(number))return fail(error,"Ability timing is non-finite");for(float number:value.final_values)if(!std::isfinite(number))return fail(error,"Ability final scalar is non-finite");
     std::set<uintptr_t> pointers;
@@ -57,7 +57,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
             if(!field(memory,types[0],id*8,type,error)||!field(memory,type,0x130,data,error)||!field(memory,type,0x138,count,error)||!field(memory,type,0x13c,capacity,error)||count<0||count>10000||capacity<count||(count&&!data))return fail(error,error.empty()?"Ability actual CharacterType slot bounds differ":error);
             for(int32_t slot=0;slot<count;++slot){uintptr_t object=0,proxy=0;uint64_t uid=0;a::AbilityRecord record;
                 if(!field(memory,data,size_t(slot)*8,object,error)||!object||!pointers.insert(object).second||!field(memory,object,0x18,uid,error)||!uid||!field(memory,object,0x40,proxy,error)||!read_record(memory,object,record,error))return fail(error,error.empty()?"Ability prototype current owner/full UID differs":error);
-                if(proxy){uintptr_t target=0;if(!field(memory,proxy,0,target,error)||target!=object)return fail(error,error.empty()?"Ability native weak proxy is not live":error);}
+                if(proxy){uintptr_t target=0;if(!field(memory,proxy,0,target,error)||target!=object+0x38)return fail(error,error.empty()?"Ability native weak proxy is not live":error);}
                 out.local.push_back({object,uintptr_t(uid),proxy});rows.push_back({{"kind",kind},{"id",id},{"slot",slot},{"record",record_json(record)}});++out.value.count;
                 if(int32_t(kind)==intent.kind&&int32_t(id)==intent.id&&slot==intent.slot){found=true;out.prototype=object;out.uid=uid;out.proxy=proxy;out.value.record=record;}}
             uintptr_t again=0;int32_t size=0,cap=0;if(!field(memory,type,0x130,again,error)||again!=data||!field(memory,type,0x138,size,error)||size!=count||!field(memory,type,0x13c,cap,error)||cap!=capacity)return fail(error,error.empty()?"Ability actual owner slots changed during read":error);}}
@@ -67,7 +67,7 @@ uint32_t find_window(uintptr_t& window)noexcept{__try{const quest_list::QuestTit
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& live,uintptr_t& draft,uintptr_t& owner,std::string& error){
     const auto seh=find_window(outer);uintptr_t ap=0,proxy=0,target=0;
     if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x1720f30||!field(memory,outer,0x520,live,error)||!field(memory,outer,0x510,draft,error)||
-       !field(memory,outer,0x530,owner,error)||!field(memory,outer,0x528,proxy,error)||(live&&(!proxy||!field(memory,proxy,0,target,error)||target!=live)))return fail(error,error.empty()?"Ability exact named Window/current weak binding differs SEH="+std::to_string(seh):error);
+       !field(memory,outer,0x530,owner,error)||!field(memory,outer,0x528,proxy,error)||(live&&(!proxy||!field(memory,proxy,0,target,error)||target!=live+0x38)))return fail(error,error.empty()?"Ability exact named Window/current weak binding differs SEH="+std::to_string(seh):error);
     if(draft){if(draft==live||!field(memory,draft,0,ap,error)||ap!=state.image+0x171c930)return fail(error,error.empty()?"Ability native owned editor draft differs":error);}
     return true;
 }
@@ -89,7 +89,7 @@ uint32_t prepare(uintptr_t draft,const a::AbilityRecord& record)noexcept{
         for(size_t i=0;i<8;++i){const quest_list::QuestTitleView text{record.text[i].c_str(),record.text[i].size()};reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x11bfce0)(reinterpret_cast<void*>(draft+string_offsets[i]),text);}
         std::memcpy(reinterpret_cast<void*>(draft+0xe8),&record.item_value,4);std::memcpy(reinterpret_cast<void*>(draft+0xec),&record.item_kind,4);*reinterpret_cast<uint8_t*>(draft+0xf0)=record.item_flag?1:0;
         std::memcpy(reinterpret_cast<void*>(draft+0x15c),record.selectors.data(),20);std::memcpy(reinterpret_cast<void*>(draft+0x170),record.color.data(),16);std::memcpy(reinterpret_cast<void*>(draft+0x180),record.timing.data(),12);
-        for(size_t i=0;i<5;++i)*reinterpret_cast<uint8_t*>(draft+0x1f0+i)=record.flags[i]?1:0;
+        std::memcpy(reinterpret_cast<void*>(draft+0x1f0),&record.animation,4);*reinterpret_cast<uint8_t*>(draft+0x1f4)=record.use_weapon?1:0;
         std::memcpy(reinterpret_cast<void*>(draft+0x1f8),record.final_values.data(),8);std::memcpy(reinterpret_cast<void*>(draft+0x200),&record.level,4);*reinterpret_cast<uint8_t*>(draft+0x204)=record.final_flag?1:0;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -99,14 +99,51 @@ bool same_menu_identity(const Sample& before,const Sample& after){
     for(size_t i=0;i<before.local.size();++i)if(before.local[i][0]!=after.local[i][0]||before.local[i][1]!=after.local[i][1])return false;
     return true;
 }
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& error){
+    if(request.action!=a::Action::EditCharacterAbility||!a::ordered_ability_edit(request.ability_edit))
+        return fail(error,"Ordered Ability scope requires an original Apply or adjustment intent");
+    a::Context context;if(!a::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(error,"Ordered Ability actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(error,"Ordered Ability execution forbids Host state and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !ordered_mode()||fail(error,"Ordered Ability execution requires consumed command scope");
+}
+bool current_capture(const Pending& saved,a::Binding& binding,std::string& error){
+    if(saved.snapshot!=net::current_snapshot_id())return fail(error,"Ability captured Snapshot changed");
+    if(!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding)
+        return fail(error,error.empty()?"Ability captured native Binding changed":error);
+    if(!saved.context)return !ordered_mode()||fail(error,"Ordered Ability captured Context absent");
+    if(!ordered_mode())return fail(error,"Ability captured mode changed required=ordered");
+    a::Context actual;if(!a::selected_session().current(actual,error))return false;
+    return actual==*saved.context||fail(error,"Ability captured actual Session changed");
+}
+bool ordered_protected(const Sample& before,const Sample& after,std::string& error){
+    for(const auto* name:{"actors_sha256","bosses_sha256","release_sha256","other_definitions_sha256","other_actors_sha256","quests_sha256","art_store_sha256"}){
+        const auto old=before.character.proof.find(name),now=after.character.proof.find(name);
+        if(old==before.character.proof.end()||now==after.character.proof.end()||!old->is_string()||!now->is_string())
+            return fail(error,std::string("Ordered Ability complete protected proof absent field=")+name);
+        const auto digest=old->get<std::string>();
+        if(digest.size()!=64||!std::all_of(digest.begin(),digest.end(),[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');})||*old!=*now)
+            return fail(error,std::string("Ordered Ability protected original state differs field=")+name);
+    }
+    return before.character.money==after.character.money||fail(error,"Ordered Ability complete Ledger changed");
+}
 #include "ability_adjustment_runtime.inc"
+#include "ability_apply_native.inc"
+#include "ability_apply_runtime.inc"
 bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Ability original unavailable");}if(!net::session_wire::connected())return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
     auto seh=quest_list::label(api.label_equals,record,"Apply",relevant);if(seh){fault=true;return reject("Ability Apply label SEH="+std::to_string(seh));}if(!relevant)return original(receiver,record);
     if(replaying){if(uintptr_t(receiver)!=replay_receiver||original_calls){fault=true;return reject("Ability original-once receiver/count differs");}++original_calls;return original(receiver,record);}
-    const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
-    if(!ready||fault||pending||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||building_status::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))return reject(error.empty()?"Ability capture requires idle bound Mainthread Controller":error);
+    const auto controller=typed_action_runtime::controller_status();a::Binding binding;std::optional<a::Context> context;const auto snapshot=net::current_snapshot_id();
+    if(!ready||fault||pending||costume_edit::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||building_status::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!character_rename::capture_binding(snapshot,binding,context,error))return reject(error.empty()?"Ability capture requires idle bound Mainthread Controller":error);
     uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error)||outer!=uintptr_t(receiver)||!live||!draft)return reject(error.empty()?"Ability captured Window current draft absent":error);
     if(!owner)return original(receiver,record);
     a::AbilityEditIntent intent;if(!field(memory,owner,0x2c,intent.kind,error)||!field(memory,owner,0x30,intent.id,error))return reject(error);
@@ -116,27 +153,45 @@ bool entry(void* receiver,void* record)try{
     seh=simplify(draft);if(seh){fault=true;return reject("Ability normal owned draft Simplify SEH="+std::to_string(seh));}
     Sample before;if(!read_record(memory,draft,intent.record,error)||!sample(memory,binding,snapshot,intent,before,error)||before.prototype!=live||before.character.selected!=owner)return reject(error.empty()?"Ability captured owner/draft census differs":error);
     if(intent.record.effects.empty())return original(receiver,record);
-    if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent};++captures;return true;
+    if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent,outer,context,character_rename::native_edit_input_token()};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Ability capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Ability capture non-standard exception");}
+}
+bool native_apply_state(nlohmann::json& result,std::string& error){
+    result=json::object();Memory memory;uintptr_t outer=0,live=0,draft=0,owner=0;
+    if(!ready||fault||GetCurrentThreadId()!=state.thread||!code(memory,error)||!apply_route(memory,error)||
+       !window(memory,outer,live,draft,owner,error)||!live||!draft||!owner)
+        return fail(error,error.empty()?"Ability Apply current native editor unavailable":error);
+    a::AbilityEditIntent intent;uintptr_t data=0;int32_t count=0;
+    if(!field(memory,owner,0x2c,intent.kind,error)||!field(memory,owner,0x30,intent.id,error)||
+       !field(memory,owner,0x130,data,error)||!field(memory,owner,0x138,count,error)||count<0||count>10000||(count&&!data))
+        return fail(error,error.empty()?"Ability Apply current owner slots differ":error);
+    for(int32_t slot=0;slot<count;++slot){uintptr_t object=0;if(!field(memory,data,size_t(slot)*8,object,error))return false;
+        if(object==live){if(intent.slot!=-1)return fail(error,"Ability Apply duplicate current owner slot");intent.slot=slot;}}
+    if(intent.slot<0)return fail(error,"Ability Apply current live object is outside owner slots");
+    a::AbilityRecord actual;if(!read_record(memory,live,actual,error)||!read_record(memory,draft,intent.record,error)||
+       !quest_bridge::sha256(record_json(actual).dump(),intent.before_sha256,error))return false;
+    result={{"kind",intent.kind},{"id",intent.id},{"slot",intent.slot},{"before_sha256",intent.before_sha256},
+        {"live",record_json(actual)},{"draft",record_json(intent.record)},{"positive_effects",!intent.record.effects.empty()}};
+    return true;
 }
 bool presentation_route(std::string& error){Memory memory;if(!original_view_select)return fail(error,"Character presentation route unavailable");return view_route(memory,error);}
 bool capture_adjustment(void* receiver,void* record,bool& handled,std::string& error)try{
     const bool accepted=capture_adjustment_impl(receiver,record,handled,error);if(!accepted)reject(error);return accepted;
 }catch(const std::exception& exception){fault=true;error=std::string("Ability adjustment capture boundary: ")+exception.what();reject(error);return false;}
 catch(...){fault=true;error="Ability adjustment capture non-standard exception";reject(error);return false;}
-bool pending_ui(){return pending.has_value()||replaying||view_tail.armed;}
+bool pending_ui(){return pending.has_value()||replaying||view_tail.armed||apply_tail.armed;}
 bool retire_lobby(std::string& e){
     if(!ready){e.clear();return true;}
     if(GetCurrentThreadId()!=state.thread)return fail(e,"Ability edit lobby retirement requires Mainthread");
     native::WorldStatus world;if(!native::read_world_status(world,e))return false;
     if(world.active_mode_index!=2||world.title_transition_pending||world.saves_in_progress>0)return fail(e,"Ability edit lobby retirement requires actual idle Title");
-    if(replaying||view_tail.armed)return fail(e,"Ability edit lobby retirement cannot interrupt original execution");
+    if(replaying||view_tail.armed||apply_tail.armed)return fail(e,"Ability edit lobby retirement cannot interrupt original execution");
     pending.reset();operations.clear();adjustment_views.clear();view_tail={};replay_receiver=0;original_calls=0;
     fault=false;cause.clear();last_action.clear();e.clear();return true;
 }
 bool enable(std::string& error){
     if(!state.ready||GetCurrentThreadId()!=state.thread)return fail(error,"Ability edit requires bound Character Mainthread");
-    if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Ability edit retained unretired operation="+id);if(fault||pending_ui())return fail(error,"Ability edit retained unresolved capture");Memory memory;if(!code(memory,error)||!view_route(memory,error))return false;operations.clear();adjustment_views.clear();return true;}
+    if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Ability edit retained unretired operation="+id);if(fault||pending_ui())return fail(error,"Ability edit retained unresolved capture");Memory memory;if(!code(memory,error)||!view_route(memory,error)||!apply_route(memory,error))return false;operations.clear();adjustment_views.clear();return true;}
     if(installed)return fail(error,"Ability edit earlier installation failed: "+cause);installed=true;Memory memory;if(!code(memory,error))return false;
     auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+ui_code.rva),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
     if(status!=MH_OK||!original)return fail(error,"Ability edit prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
@@ -147,22 +202,25 @@ bool enable(std::string& error){
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x689100));
     if(status!=MH_OK)return fail(error,"Ability adjustment presentation enable failed status="+std::to_string(status));
     if(!quest_list::read_route(state.image+0x689100,receipt,error))return false;view_generation=receipt.generation;
-    if(!code(memory,error)||!view_route(memory,error))return false;ready=true;return true;
+    if(!install_apply_routes(error)||!code(memory,error)||!view_route(memory,error))return false;ready=true;return true;
 }
 void tick(){if(!pending)return;const auto saved=*pending;pending.reset();std::string error;a::Binding binding;
-    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding){fault=true;reject(error.empty()?"Ability captured world changed":error);return;}
-    const auto id=action_runtime::uuid(error);if(!id.empty()&&saved.intent.adjustment)adjustment_views.emplace(id,saved.view);if(id.empty()||!typed_action_runtime::submit_ability_edit(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
+    if(!ready||fault||!current_capture(saved,binding,error)){fault=true;reject(error.empty()?"Ability captured Runtime unavailable":error);return;}
+    const auto id=action_runtime::uuid(error);if(!id.empty()&&saved.intent.adjustment&&!saved.context)adjustment_views.emplace(id,saved.view);if(id.empty()||!typed_action_runtime::submit_ability_edit(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
+    if(!saved.diagnostic_token.empty()&&!character_rename::native_edit_submitted(saved.diagnostic_token,id,error)){fault=true;reject(error);}
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error)try{
     if(!ready||fault||GetCurrentThreadId()!=state.thread||request.action!=a::Action::EditCharacterAbility){error="Ability edit runtime unavailable";return a::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)){error="Ability edit already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();if(!controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Ability edit requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,error))return a::Outcome::RejectedNoEffect;
     Memory memory;Sample before;const auto& intent=request.ability_edit;std::string prior_sha;
     if(!code(memory,error)||!sample(memory,binding,request.snapshot_uuid,intent,before,error)||!quest_bridge::sha256(record_json(before.value.record).dump(),prior_sha,error))return a::Outcome::RejectedNoEffect;
     if(prior_sha!=intent.before_sha256){error="Ability edit actual current record differs from captured prior";return a::Outcome::RejectedNoEffect;}
     if(!a::ability_edit_wire_fits(request,before.value,before.character.money,error))return a::Outcome::RejectedNoEffect;
     if(authority){auto portable=before.value;portable.owner.global_random=authority->ability_edit_before.owner.global_random;if(portable!=authority->ability_edit_before||before.character.money!=authority->before){error="Ability Client actual prior owner/census/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
     if(intent.adjustment)return perform_adjustment(memory,binding,request,authority,before,error);
+    if(a::tick_commands::authority::active())return perform_apply(memory,binding,request,before,error);
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
     const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;error=op.cause=why.empty()?"Ability edit failed without cause":why;return a::Outcome::Unknown;};
     uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error))return unknown(error);
@@ -187,5 +245,8 @@ bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& re
     if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.returned||found->second.calls!=1)return fail(error,"Ability observation lacks exact confirmed original-once receipt");
     const auto& op=found->second;Memory memory;Sample now;if(!sample(memory,binding,request.snapshot_uuid,request.ability_edit,now,error)||!same_local(op.after,now)||now.value!=op.after.value)return fail(error,error.empty()?"Ability current result differs before ACK":error);result=op.evidence;result.retirement_confirmed=op.retired;return true;}
 bool retire(const a::Binding& binding,const a::Request& request,std::string& error){a::Evidence ignored;if(!observe(binding,request,ignored,error))return false;auto& op=operations.at(request.action_uuid);if(op.retired)return fail(error,"Ability receipt already retired");op.retired=true;return true;}
-json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"prepared",op.prepared},{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"cause",op.cause}};return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
+json status(){json rows=json::object();for(const auto& [id,op]:operations){const auto& intent=op.request.ability_edit;
+    rows[id]={{"prepared",op.prepared},{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"ordered",op.ordered},{"proposal_restored",op.ui_restored},{"presentation_calls",op.presentation_calls},{"apply_event_calls",op.apply_event_calls},{"apply_draft_destroyed",op.apply_draft_destroyed},{"apply_lease_released",op.apply_lease_released},{"before_record_sha256",op.before.value.all_sha256},{"after_record_sha256",op.after.value.all_sha256},{"rng_before",op.before.value.owner.global_random},{"rng_after",op.after.value.owner.global_random},{"owner_kind",intent.kind},{"owner_id",intent.id},{"ability_slot",intent.slot},{"cause",op.cause}};
+    if(intent.adjustment)rows[id]["adjustment"]={{"cost",intent.adjustment->cost},{"index",intent.adjustment->index},{"delta",intent.adjustment->delta}};
+    }return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
 }

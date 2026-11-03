@@ -10,7 +10,7 @@ class Runtime {
     std::unique_ptr<State> state_;
     bool confirm_impl(const action_session::Context&,const action_session::Binding&,
         const std::string&,const Mapping*,Mapping&,dungeon_scene_identity_runtime::Census&,
-        bool&,std::string&,const std::string&,const Raw*,uintptr_t);
+        bool&,std::string&,const std::string&,const Raw*,uintptr_t,bool ordered_template=false);
 public:
     Runtime();
     ~Runtime();

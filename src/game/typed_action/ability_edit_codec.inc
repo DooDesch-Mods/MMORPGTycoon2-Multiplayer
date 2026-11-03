@@ -13,17 +13,17 @@ bool valid_ability_record(const AbilityRecord& v){
 json ability_record_json(const AbilityRecord& v){json costs=json::array(),effects=json::array();
     for(size_t n=0;n<2;++n)for(const auto& row:n?v.effects:v.costs)(n?effects:costs).push_back({{"integers",row.integers},{"values",row.values},{"count",row.count}});
     return {{"text",v.text},{"item_value",v.item_value},{"item_kind",v.item_kind},{"item_flag",v.item_flag},
-        {"selectors",v.selectors},{"color",v.color},{"timing",v.timing},{"flags",v.flags},{"final_values",v.final_values},
+        {"selectors",v.selectors},{"color",v.color},{"timing",v.timing},{"animation",v.animation},{"use_weapon",v.use_weapon},{"final_values",v.final_values},
         {"level",v.level},{"final_flag",v.final_flag},{"costs",costs},{"effects",effects}};
 }
 template<class T,size_t N,class F>void ability_array(const json& j,std::array<T,N>& out,F read){
     if(!j.is_array()||j.size()!=N)throw std::runtime_error("Ability fixed record dimension differs");for(size_t i=0;i<N;++i)out[i]=read(j[i]);}
 bool ability_bool(const json& j){if(!j.is_boolean())throw std::runtime_error("Ability flag requires bool");return j.get<bool>();}
 AbilityRecord ability_record_read(const json& j){
-    exact(j,{"text","item_value","item_kind","item_flag","selectors","color","timing","flags","final_values","level","final_flag","costs","effects"});AbilityRecord v;
+    exact(j,{"text","item_value","item_kind","item_flag","selectors","color","timing","animation","use_weapon","final_values","level","final_flag","costs","effects"});AbilityRecord v;
     ability_array(j.at("text"),v.text,[](const json& s){return s.get<std::string>();});v.item_value=scalar(j.at("item_value"));v.item_kind=i32(j.at("item_kind"));v.item_flag=ability_bool(j.at("item_flag"));
     ability_array(j.at("selectors"),v.selectors,i32);ability_array(j.at("color"),v.color,scalar);ability_array(j.at("timing"),v.timing,scalar);
-    ability_array(j.at("flags"),v.flags,ability_bool);ability_array(j.at("final_values"),v.final_values,scalar);v.level=i32(j.at("level"));v.final_flag=ability_bool(j.at("final_flag"));
+    v.animation=i32(j.at("animation"));v.use_weapon=ability_bool(j.at("use_weapon"));ability_array(j.at("final_values"),v.final_values,scalar);v.level=i32(j.at("level"));v.final_flag=ability_bool(j.at("final_flag"));
     for(size_t n=0;n<2;++n){const auto& list=j.at(n?"effects":"costs");if(!list.is_array()||list.size()>64)throw std::runtime_error("Ability owned effect record exceeds bound");
         for(const auto& row:list){exact(row,{"integers","values","count"});AbilityEffectRecord effect;ability_array(row.at("integers"),effect.integers,i32);ability_array(row.at("values"),effect.values,scalar);effect.count=i32(row.at("count"));(n?v.effects:v.costs).push_back(effect);}}
     return v;

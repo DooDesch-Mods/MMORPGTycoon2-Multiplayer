@@ -146,6 +146,11 @@ void prepared_staff(){using fixture::need;using fixture::pass;std::string e;
     pass("prepared admission retains fresh world, live Staff and route guards");
 }
 void owners(){using fixture::need;using fixture::pass;std::string e;dn::Owners actual;
+    reset();const auto untouched=fixture::bytes;std::optional<tr::staff_display::State> host_read,client_read,legacy_read;
+    auto host_context=test_context;host_context.role=action_session::Role::Host;
+    need(dn::capture(host_context,binding,fixture::snapshot,host_read,e,true,true)&&host_read.has_value(),e);
+    need(dn::capture(test_context,binding,fixture::snapshot,client_read,e,true,true)&&client_read==host_read&&!dn::cache&&fixture::bytes==untouched,"Ordered Client observation did not read its own complete native Staff state");
+    need(dn::capture(test_context,binding,fixture::snapshot,legacy_read,e)&&!legacy_read&&!dn::cache,"Legacy Client capture invented an unadopted Staff display");pass("ordered read captures actual Staff on both roles without installing legacy cache or writing jobs");
     reset();need(dn::read_owners(fixture::snapshot,actual,e)&&actual.developers[0].id==41&&actual.developers[0].row==0&&actual.developers[1].id==1,"actual array row confused with stable ID");pass("native ownership retains local array row separately from stable Developer ID");
     fixture::put<int32_t>(fixture::snapshot.creation->developers[49].address+0x4c0,41);need(!dn::read_owners(fixture::snapshot,actual,e)&&e.find("identity")!=std::string::npos,"duplicate native Developer ID admitted");pass("duplicate source identity rejects before cache installation");
     reset();fixture::put<uint8_t>(fixture::snapshot.creation->developers[0].address+0x4d8,0);need(!dn::read_owners(fixture::snapshot,actual,e),"hired native prefix mismatch admitted");pass("actual wanted prefix must match the original hired count");

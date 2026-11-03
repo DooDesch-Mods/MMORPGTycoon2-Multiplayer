@@ -64,15 +64,15 @@ uint32_t invoke_adjustment(uintptr_t view,bool& returned)noexcept{
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct AdjustmentCalls {
-    Memory& memory;uintptr_t view=0;uint32_t original_calls=0;bool original_returned=false;
+    Memory& memory;uintptr_t view=0;uint32_t original_calls=0,presentation_calls=0;bool original_returned=false,restore_attempted=false,restored=false;
     bool read(ability_adjustment_view::State& value,std::string& error){return read_proposal(memory,view,value,error);}
     bool prepare(const ability_adjustment_view::State& value,std::string& error){const auto seh=write_proposal(value);
         return !seh||fail(error,"Ability adjustment owned proposal UI preparation SEH="+std::to_string(seh));}
-    bool restore(const ability_adjustment_view::State& value,std::string& error){return prepare(value,error);}
+    bool restore(const ability_adjustment_view::State& value,std::string& error){restore_attempted=true;restored=prepare(value,error);return restored;}
     bool invoke(bool preserve,std::string& error){
         if(view_tail.armed)return fail(error,"Ability adjustment presentation scope is already active");
         view_tail={true,preserve,view,0};++original_calls;const auto seh=invoke_adjustment(view,original_returned);
-        const auto calls=view_tail.calls;view_tail={};
+        const auto calls=view_tail.calls;presentation_calls=calls;view_tail={};
         if(seh||!original_returned||calls!=1||fault)return fail(error,"Ability original adjustment/presentation tail SEH="+std::to_string(seh)+" returned="+std::to_string(original_returned)+" tails="+std::to_string(calls)+(cause.empty()?std::string{}:" cause="+cause));
         return true;
     }
@@ -83,10 +83,10 @@ bool capture_adjustment_impl(void* receiver,void* record,bool& handled,std::stri
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return false;
     const auto seh=quest_list::label(api.label_equals,record,"DoAbilityAdjustment",label);
     if(seh)return fail(error,"Ability adjustment label SEH="+std::to_string(seh));if(!label)return true;handled=true;
-    const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
+    const auto controller=typed_action_runtime::controller_status();a::Binding binding;std::optional<a::Context> context;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending||replaying||character_rename::pending_ui()||costume_edit::pending_ui()||
        GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||
-       !code(memory,error)||!view_route(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))
+       !code(memory,error)||!view_route(memory,error)||!character_rename::capture_binding(snapshot,binding,context,error))
         return fail(error,error.empty()?"Ability adjustment capture requires idle bound Mainthread Controller":error);
     ability_adjustment_view::State proposal;if(!read_proposal(memory,uintptr_t(receiver),proposal,error))return false;
     if(!proposal.prototype)return true;
@@ -105,31 +105,36 @@ bool capture_adjustment_impl(void* receiver,void* record,bool& handled,std::stri
         return fail(error,error.empty()?"Ability adjustment complete current owner/prototype differs":error);
     if(!a::ability_adjusted_record(before.value.record,*intent.adjustment,intent.record))return fail(error,"Ability adjustment original cost/effect index or resulting value differs");
     if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return false;
-    pending=Pending{binding,snapshot,intent,uintptr_t(receiver)};++captures;return true;
+    pending=Pending{binding,snapshot,intent,uintptr_t(receiver),context};++captures;return true;
 }
 a::Outcome perform_adjustment(Memory& memory,const a::Binding& binding,const a::Request& request,const a::Evidence* authority,const Sample& before,std::string& error){
     const auto& intent=request.ability_edit;a::AbilityRecord expected;
+    const bool ordered=a::tick_commands::authority::active();
+    if(ordered&&!ordered_protected(before,before,error))return a::Outcome::RejectedNoEffect;
     if(!intent.adjustment||!a::ability_adjusted_record(before.value.record,*intent.adjustment,expected)||expected!=intent.record){error="Ability adjustment exact original proposal result differs";return a::Outcome::RejectedNoEffect;}
     uintptr_t view=0,editor=0,outer=0;
     if(!view_route(memory,error)||!character_rename::window(memory,0,view,editor,outer,error))return a::Outcome::RejectedNoEffect;
     ability_adjustment_view::State saved;if(!read_proposal(memory,view,saved,error))return a::Outcome::RejectedNoEffect;
-    const auto captured=adjustment_views.find(request.action_uuid);const bool preserve=captured==adjustment_views.end();
+    const auto captured=adjustment_views.find(request.action_uuid);const bool preserve=ordered||captured==adjustment_views.end();
     if(!preserve&&(captured->second!=view||saved.selected!=before.character.selected||saved.prototype!=before.prototype||
        saved.cost!=uint8_t(intent.adjustment->cost)||saved.index!=intent.adjustment->index||saved.delta!=intent.adjustment->delta)){
         error="Ability adjustment initiating native proposal changed before ordered execution";return a::Outcome::RejectedNoEffect;}
-    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
+    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.ordered=ordered;
     const auto unknown=[&](const std::string& why){view_tail={};error=op.cause=why.empty()?"Ability adjustment failed without cause":why;return a::Outcome::Unknown;};
     const auto random=authority?authority->ability_edit_before.owner.global_random:before.value.owner.global_random;
-    op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,random);
-    if(seed)return unknown("Ability adjustment Host RNG adoption SEH="+std::to_string(seed));
+    if(!ordered){op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,random);
+        if(seed)return unknown("Ability adjustment Host RNG adoption SEH="+std::to_string(seed));}
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.before,error)||op.before.value.owner.global_random!=random)
         return unknown(error.empty()?"Ability adjustment Host RNG/readback differs":error);
+    if(ordered&&!ordered_protected(op.before,op.before,error))return unknown(error);
     op.evidence.before=op.before.character.money;op.evidence.ability_edit_before=op.before.value;
     auto prepared=saved;prepared.prototype=before.prototype;prepared.cost=intent.adjustment->cost?1:0;prepared.index=intent.adjustment->index;prepared.delta=intent.adjustment->delta;
     AdjustmentCalls calls{memory,view};bool attempted=false;op.prepared=true;
-    const bool returned=ability_adjustment_view::run(calls,prepared,preserve,attempted,error);op.attempted=calls.original_calls!=0;op.calls=calls.original_calls;op.returned=calls.original_returned;
+    const bool returned=ability_adjustment_view::run(calls,prepared,preserve,attempted,error);op.attempted=calls.original_calls!=0;op.calls=calls.original_calls;op.returned=calls.original_returned;op.ui_restored=calls.restored;op.presentation_calls=calls.presentation_calls;
     if(!returned)return unknown(error);
-    if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::ability_edit_transition(intent,op.before.value,op.after.value))
+    if(ordered&&(!op.ui_restored||op.presentation_calls!=1))return unknown("Ordered Ability original proposal restoration/presentation receipt differs");
+    if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::ability_edit_transition(intent,op.before.value,op.after.value)||
+       (ordered?!ordered_protected(op.before,op.after,error):op.before.value.owner!=op.after.value.owner))
         return unknown(error.empty()?"Ability adjustment original effect/owner/full census/ledger/Undo differs":error);
     op.evidence.after=op.after.character.money;op.evidence.ability_edit_after=op.after.value;
     if(authority){auto exact=*authority;exact.retirement_confirmed=false;if(op.evidence!=exact)return unknown("Ability adjustment Client original effect differs from Host");}

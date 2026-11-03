@@ -9,7 +9,12 @@ uint32_t find(uintptr_t image,uintptr_t tree,const std::string& key,uintptr_t& o
 uint32_t parse(uintptr_t image,const std::string& text,int32_t& out,bool& parsed)noexcept{const String value{text.data(),text.size(),{}};
     __try{parsed=reinterpret_cast<bool(*)(int32_t*,const void*)>(image+0x89fbd0)(&out,&value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t command(uintptr_t image,const void* record,const char* name,bool& matches)noexcept{
-    __try{matches=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+    matches=false;
+    __try{const auto length=strnlen_s(name,65);if(!record||!length||length>64)return ERROR_INVALID_PARAMETER;
+        // UICommand compares the label token; Record equality also compares arguments.
+        const auto* label=reinterpret_cast<const String*(*)(const void*)>(image+0x96d880)(record);
+        if(!label)return ERROR_INVALID_DATA;if(label->length!=length)return 0;if(!label->data)return ERROR_INVALID_DATA;
+        matches=std::memcmp(label->data,name,length)==0;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t buttons(uintptr_t image,void* view,bool enabled)noexcept{
     __try{reinterpret_cast<void(*)(void*,bool)>(image+0x8267d0)(view,enabled);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 Receipt change(uintptr_t image,const Pin& pin,const Intent& intent)noexcept{

@@ -105,6 +105,7 @@ bool ordered_save_export_begin(std::string&);bool ordered_save_export_retire(std
 #include "costume_edit_runtime.h"
 #include "dungeon_building_runtime.h"
 #include "dungeon_building_graph.h"
+#include "scene_clone/runtime.h"
 #include "dungeon_config_runtime.h"
 #include "dungeon_sound_runtime.h"
 #include "dungeon_scene_identity_runtime.h"
@@ -334,6 +335,7 @@ class NativeEngine final:public action::Engine {
     const action_session::ui_capture::Replay* active_ui_replay_=nullptr;
     const action::Evidence* active_host_evidence_=nullptr;
     const action::Request* active_dungeon_building_=nullptr;
+    scene_clone::Runtime ordered_dungeon_scenes_;
     struct DungeonOperation {
         action::Request request;action::Binding binding;
         action::Ledger ledger_before,ledger_after;
@@ -343,7 +345,7 @@ class NativeEngine final:public action::Engine {
         action::BuildingState inverse_destination;
         uintptr_t inverse_graph=0;
         bool inverse_destroying=false,inverse_moving=false;
-        bool confirmed=false,retired=false,removal_finalized=false;
+        bool confirmed=false,retired=false,removal_finalized=false,ordered=false;
     };
     std::map<std::string,std::unique_ptr<DungeonOperation>> dungeon_buildings_;
     bool dungeon_scope(const action::Request& request,std::string& error){
@@ -1383,6 +1385,7 @@ public:
             }
             if(request.action!=action::Action::PlacePath&&request.action!=action::Action::PlaceWall&&request.action!=action::Action::PlacePass&&request.action!=action::Action::RemovePath&&request.action!=action::Action::RemoveWorldPath&&
                request.action!=action::Action::PlaceNPC&&request.action!=action::Action::MoveNPC&&request.action!=action::Action::RemoveNPC&&request.action!=action::Action::EditNpcProperty&&
+               !(request.action==action::Action::SetNpcQuestDestination&&action::ordered_quest_destination(request.npc_quest))&&
                !((request.action==action::Action::SetNpcQuestList||request.action==action::Action::EditNpcQuest)&&action::ordered_quest_list(request.npc_quest_list))&&
                request.action!=action::Action::PlaceMonsterZone&&request.action!=action::Action::PlaceMonster&&
                request.action!=action::Action::MoveMonster&&request.action!=action::Action::RemoveMonster&&request.action!=action::Action::SetPrices&&
@@ -1398,9 +1401,13 @@ public:
                request.action!=action::Action::EditGroup&&!group_history&&
                !((request.action==action::Action::UndoBuilding||request.action==action::Action::RedoBuilding)&&
                  !request.target_action_uuid.empty()&&request.canonical_record_key=="terrain:"+request.target_action_uuid)&&
-               request.action!=action::Action::RenameCharacter&&
+                !(request.action==action::Action::EditCharacterAbility&&action::ordered_ability_edit(request.ability_edit))&&
+                !(request.action==action::Action::EditCharacterCostume&&action::ordered_costume_edit(request.costume_edit))&&
+                request.action!=action::Action::RenameCharacter&&
                 request.action!=action::Action::SetRegionStyles&&
-               request.action!=action::Action::EditRegionProperty&&
+                request.action!=action::Action::EditRegionProperty&&request.action!=action::Action::ConfigureDungeonInstances&&
+                !(request.action==action::Action::GameRules&&action::ordered_game_rules(request.game_rules))&&
+                !(request.action==action::Action::GmPolicy&&action::ordered_gm_policy(request.gm_policy))&&
                 !(request.action==action::Action::ManagementCommand&&action::ordered_management(request.management))&&
                 !(request.action==action::Action::ReleaseEdit&&release_edit::ordered_type(request.release_edit))&&
                 request.action!=action::Action::GeneralProject&&request.action!=action::Action::TutorialAcknowledge&&request.action!=action::Action::SetStartingpointWorkers&&request.action!=action::Action::CommitStartingpoint&&
@@ -2502,8 +2509,8 @@ bool tick_ordered_ui_capture(std::string& error,bool held_service){
     if(!runtime||!runtime->ordered_steps||runtime->thread!=GetCurrentThreadId()||runtime->lobby_retiring||runtime->live_state||runtime->live_port){error="Ordered UI capture requires held current Runtime without state-copy ownership";return false;}
     bool inside=false;if(!original_go_admission(inside,error))return false;
     if(inside){error="Ordered UI capture flush cannot run inside original Go";return false;}
-    const std::array<void(*)(),16> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
-        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,npc_probe::monster_action_runtime::quest_list::tick,npc_probe::monster_action_runtime::character_rename::tick,ui_network_runtime::tick};
+    const std::array<void(*)(),22> pumps{(held_service?tutorial_replication::tick_ordered_tutorial_held:tutorial_replication::tick_ordered_tutorial),ui_move_runtime::tick_core_capture,ui_region_runtime::tick,ui_terrain_runtime::tick,
+        ui_price_runtime::tick,release_runtime::tick_ordered_pending,management_runtime::tick_pending,general_project_runtime::tick,developer_staff::action_runtime::tick,npc_probe::action_runtime::tick,ui_path_runtime::tick,npc_probe::zone_action_runtime::tick,npc_probe::monster_action_runtime::tick,npc_probe::monster_action_runtime::quest_list::tick,npc_probe::monster_action_runtime::character_rename::tick,ui_network_runtime::tick,npc_probe::monster_action_runtime::dungeon_config::tick,management_runtime::tick_rules_pending,management_runtime::tick_policy_pending,npc_probe::monster_action_runtime::quest_authoring::tick,npc_probe::monster_action_runtime::ability_edit::tick,npc_probe::monster_action_runtime::costume_edit::tick};
     for(const auto pump:pumps){
         const auto status=runtime->controller.status();action::Context actual;
         if(!status.started||status.locked||!runtime->controller.ordered_mode()){error="Ordered UI capture Controller unavailable: "+status.cause;return false;}

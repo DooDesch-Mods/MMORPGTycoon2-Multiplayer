@@ -19,7 +19,7 @@ const a::Binding fixture_binding{3,4};
 a::Context fixture_context;
 a::Request current_request;
 bool consumed=true,scope_valid=true,inside_go=false,binding_valid=true,session_valid=true;
-bool mutated=false,change_task=false,change_ledger=false,change_region_rng=false,change_references=false,change_survivor=false;
+bool mutated=false,change_task=false,change_ledger=false,change_region_rng=false,change_references=false,change_survivor=false,change_global_rng=false;
 bool original_returned=true,preparation_changed=false;
 unsigned originals=0,seeds=0,submits=0;
 json fixture_controller;
@@ -80,6 +80,9 @@ uint32_t seed(uintptr_t,const std::array<uint64_t,4>&){++seeds;return 0;}
 }
 struct Pending{a::Binding binding;std::string snapshot,owner,token;a::NpcQuestListIntent intent;std::optional<a::Context> context;};
 struct References{uintptr_t manager=20,data=30;std::vector<std::array<uintptr_t,3>> local;json rows=json::array();};
+References fixture_references;
+std::string fixture_target_pool="pool";
+bool references(Memory&,const a::Binding&,const std::string&,const qr::Witness&,References& out,std::string&){out=fixture_references;return true;}
 struct Operation{
     a::Binding binding;a::Request request;Pin pin;uintptr_t owner=0,graph=0;
     qr::Witness before,after;References refs_before,refs_after;d::Sample sample;a::Evidence evidence;
@@ -98,11 +101,13 @@ std::map<std::string,json> jobs;
 bool reject(const std::string& e){return fail(last_action,e);}
 #include "quest_list_scope_actual.inc"
 namespace quest_bridge {
-json record_json(const q::Record& record){return {{"slot",record.sequence_id},{"name",record.name},{"xp",record.xp_reward},{"destination",record.destination_key}};}
-json records_json(const std::vector<q::Record>& rows){json out=json::array();for(const auto& row:rows)out.push_back(record_json(row));return out;}
+namespace quest=q;
+#include "quest_list_records_actual.inc"
 bool sha256(const std::string& text,std::string& out,std::string&){out=text;return true;}
+bool pool(int32_t region,std::string& out,std::string& e){if(region!=67)return fail(e,"Wrong target Region");out=fixture_target_pool;return true;}
 }
 #include "quest_list_digest_actual.inc"
+#include "quest_list_authoring_effect_actual.inc"
 bool same_world(const World& x,const World& y){return x.root==y.root;}
 a::Ledger ledger(const a::Ledger& value){return value;}
 namespace guards{constexpr struct{uintptr_t rva;}npc{1},selector{2};}
@@ -127,6 +132,11 @@ qr::Witness world(){
 qr::Witness changed(qr::Witness out){
     const auto& intent=current_request.npc_quest_list;auto& owner=out.owners.at(5000);
     if(intent.edit==a::QuestListEdit::Title){out.rows[size_t(intent.remove_slot)].record.name=intent.title;owner.state.records[size_t(intent.remove_slot)].name=intent.title;}
+    else if(intent.edit==a::QuestListEdit::Kills||intent.edit==a::QuestListEdit::Rewards){
+        auto& row=owner.state.records[size_t(intent.remove_slot)];
+        if(intent.edit==a::QuestListEdit::Kills)row.monsters_to_kill=intent.kills;
+        else{row.xp_reward=intent.defaults?-1:intent.xp;row.gold_reward=intent.defaults?-1:intent.gold;}
+        out.rows[size_t(intent.remove_slot)].record=row;}
     else if(intent.remove_slot==-1){auto row=record(3);row.accepted={};row.completed={};row.rating={};
         out.quests.push_back(1300);out.rows.push_back({owner_key,row});out.links.push_back({7000,8000,7032,5000,9000,5032});owner.state.records.push_back(row);
         owner.state.local.push_back({1300,5000,7000,true,true,true,true,q::TaskStatus::Pending});owner.destination_uids.push_back(77);}
@@ -145,7 +155,8 @@ bool state_read(Memory&,const a::Binding&,const std::string&,const Pin&,const ac
     value=before();value.records=witness.owners.at(5000).state.records;value.count=uint32_t(witness.quests.size());value.completed=witness.completed;
     value.all_sha256=std::string(64,mutated?'b':'a');value.undo_count=mutated?1:0;sample={};refs={};
     if(mutated){sample.undo.undo={50};if(current_request.npc_quest_list.edit==a::QuestListEdit::List&&current_request.npc_quest_list.remove_slot==-1)++value.global_random[0];
-        if(change_ledger)++sample.money.cash;if(change_region_rng)++sample.state.region_random[0];if(change_references)refs.rows.push_back("changed");}
+        if(change_ledger)++sample.money.cash;if(change_region_rng)++sample.state.region_random[0];if(change_references)refs.rows.push_back("changed");
+        if(change_global_rng)++value.global_random[0];}
     if(preparation_changed&&!mutated)++value.global_random[0];
     return true;
 }
@@ -173,15 +184,20 @@ bool no_gameplay_change(const d::Sample& before,const d::Sample& after){return b
 void reset(bool host=true,a::QuestListEdit edit=a::QuestListEdit::List,int slot=-1){
     fixture_context={};fixture_context.session=5;fixture_context.snapshot_uuid=snapshot_id;fixture_context.role=host?a::Role::Host:a::Role::Client;fixture_context.local_peer=host?1:2;fixture_context.host_peer=1;fixture_context.peer_mask=3;
     Config::instance().is_host=host;current_request=request().request;current_request.npc_quest_list={67,slot,world().owners.at(5000).state.records};
-    current_request.npc_quest_list.edit=edit;if(edit==a::QuestListEdit::Title){current_request.action=a::Action::EditNpcQuest;current_request.npc_quest_list.title="New title";}
-    consumed=scope_valid=binding_valid=session_valid=original_returned=true;inside_go=mutated=change_task=change_ledger=change_region_rng=change_references=change_survivor=preparation_changed=false;
+    current_request.npc_quest_list.edit=edit;if(edit!=a::QuestListEdit::List)current_request.action=a::Action::EditNpcQuest;
+    if(edit==a::QuestListEdit::Title)current_request.npc_quest_list.title="New title";
+    if(edit==a::QuestListEdit::Kills)current_request.npc_quest_list.kills=17;
+    if(edit==a::QuestListEdit::Rewards){current_request.npc_quest_list.xp=400;current_request.npc_quest_list.gold=31;}
+    consumed=scope_valid=binding_valid=session_valid=original_returned=true;inside_go=mutated=change_task=change_ledger=change_region_rng=change_references=change_survivor=change_global_rng=preparation_changed=false;
     ready=true;fault=false;operations.clear();pending.reset();jobs.clear();originals=seeds=submits=submitted=0;
     fixture_controller={{"started",true},{"locked",false},{"pending",true},{"ordered",true},{"action_uuid",action_id}};
 }
 }
 int main()try{
     using namespace fixture;std::string error;
-    for(bool host:{true,false})for(int kind=0;kind<3;++kind){reset(host,kind==1?a::QuestListEdit::Title:a::QuestListEdit::List,kind==0?-1:kind==1?1:0);
+    for(bool host:{true,false})for(int kind=0;kind<6;++kind){
+        reset(host,kind==1?a::QuestListEdit::Title:kind==3?a::QuestListEdit::Kills:kind>=4?a::QuestListEdit::Rewards:a::QuestListEdit::List,kind==0?-1:kind==2?0:1);
+        if(kind==5){auto& intent=current_request.npc_quest_list;intent.defaults=true;intent.xp=intent.gold=0;}
         EngineFixture engine;need(engine.execute(fixture_binding,current_request,error)==a::Outcome::Confirmed&&engine.routed==1,error);
         need(perform(fixture_binding,current_request,nullptr,error)==a::Outcome::Confirmed,error);need(originals==1&&seeds==0,"Ordered original-once/no-seed failed");
         a::Evidence evidence;need(observe(fixture_binding,current_request,evidence,error),error);need(evidence.undo_confirmed,"Undo proof absent");
@@ -192,10 +208,10 @@ int main()try{
         scope_valid=false;need(!observe(fixture_binding,current_request,evidence,error),"Observation escaped consumed scope");}
     for(int fault_case=0;fault_case<7;++fault_case){reset();if(fault_case==0)consumed=false;if(fault_case==1)scope_valid=false;
         if(fault_case==2)Config::instance().is_host=false;if(fault_case==3)current_request.action_uuid="different";
-        if(fault_case==4)session_valid=false;if(fault_case==5)current_request.npc_quest_list.edit=a::QuestListEdit::Kills;
+        if(fault_case==4)session_valid=false;if(fault_case==5)current_request.npc_quest_list.edit=a::QuestListEdit(255);
         a::Evidence authority;const auto* supplied=fault_case==6?&authority:nullptr;
         need(perform(fixture_binding,current_request,supplied,error)==a::Outcome::RejectedNoEffect&&originals==0&&seeds==0,"Rejected admission caused effect");}
-    for(int effect=0;effect<6;++effect){reset(true,a::QuestListEdit::Title,0);change_task=effect==0;change_ledger=effect==1;change_region_rng=effect==2;change_references=effect==3;change_survivor=effect==4;original_returned=effect!=5;
+    for(auto edit:{a::QuestListEdit::Title,a::QuestListEdit::Kills,a::QuestListEdit::Rewards})for(int effect=0;effect<7;++effect){reset(true,edit,0);change_task=effect==0;change_ledger=effect==1;change_region_rng=effect==2;change_references=effect==3;change_survivor=effect==4;original_returned=effect!=5;change_global_rng=effect==6;
         need(perform(fixture_binding,current_request,nullptr,error)==a::Outcome::Unknown,"Unexpected effect confirmed");need(originals==1&&seeds==0,"Failed effect executed again or seeded");
         need(perform(fixture_binding,current_request,nullptr,error)==a::Outcome::Unknown&&originals==1,"Unknown replay executed");}
     reset();inside_go=true;a::Binding actual;need(capture_binding(snapshot_id,actual,error)&&actual==fixture_binding,error);
@@ -210,8 +226,24 @@ int main()try{
     native=world();auto relocated=native.owners.extract(5000);relocated.key()=15000;relocated.mapped().pointer=15000;relocated.mapped().uid=999;native.owners.insert(std::move(relocated));native.manager=888;
     need(canonical_digest(native,two,error)&&one==two,"Canonical evidence contains native address/UID");
     need(a::tick_commands::requires_evidence({5,snapshot_id,current_request}),"Quest action lacks peer evidence comparison");
-    current_request.npc_quest_list.edit=a::QuestListEdit::Rewards;need(!a::tick_commands::requires_evidence({5,snapshot_id,current_request}),"Unsupported Quest edit entered ordered family");
+    for(auto edit:{a::QuestListEdit::Kills,a::QuestListEdit::Rewards}){
+        current_request.npc_quest_list.edit=edit;need(a::tick_commands::requires_evidence({5,snapshot_id,current_request}),"Quest edit omitted mandatory canonical evidence");
+        native=world();if(edit==a::QuestListEdit::Kills)++native.rows[0].record.monsters_to_kill;else ++native.rows[0].record.gold_reward;
+        need(canonical_digest(native,two,error)&&one!=two,"Canonical evidence omitted kills/reward field");}
+    current_request.npc_quest_list.edit=a::QuestListEdit(255);need(!a::tick_commands::requires_evidence({5,snapshot_id,current_request}),"Unsupported Quest edit entered ordered family");
+    json references;std::string targets,digest;native=world();
+    need(authoring_effect(fixture_binding,snapshot_id,67,native,references,targets,digest,error),error);
+    fixture_references.rows.push_back({{"subscriber_id",7},{"gold",40}});
+    need(authoring_effect(fixture_binding,snapshot_id,67,native,references,targets,two,error)&&digest!=two,"Destination digest omitted active references");
+    fixture_references.rows.clear();fixture_target_pool="new pool";
+    need(authoring_effect(fixture_binding,snapshot_id,67,native,references,targets,two,error)&&digest!=two,"Destination digest omitted target pool");
+    fixture_target_pool="pool";native.owners.at(5000).state.local[0].task=q::TaskStatus::Pending;
+    need(authoring_effect(fixture_binding,snapshot_id,67,native,references,targets,two,error)&&digest!=two,"Destination digest omitted actual recalculation task");
     EngineFixture engine;need(engine.execute(fixture_binding,current_request,error)==a::Outcome::RejectedNoEffect&&engine.routed==0,"Unsupported Quest reached native engine");
-    std::cout<<"Ordered Quest Add/Title/Delete production bodies passed\n";
+    current_request.action=a::Action::SetNpcQuestDestination;current_request.npc_quest.region=current_request.npc_quest.destination_region=67;
+    need(engine.execute(fixture_binding,current_request,error)==a::Outcome::Confirmed&&engine.routed==1,"Same-Region Building destination omitted from consumed engine route");
+    current_request.npc_quest.family=a::QuestDestinationFamily::Zone;
+    need(engine.execute(fixture_binding,current_request,error)==a::Outcome::RejectedNoEffect&&engine.routed==1,"Unimplemented destination subtype entered ordered engine");
+    std::cout<<"Ordered Quest Add/Title/Kills/Rewards/Delete production bodies passed\n";
     return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}

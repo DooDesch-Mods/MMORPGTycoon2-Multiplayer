@@ -5,9 +5,9 @@
 using json=nlohmann::json;using DWORD=unsigned long;
 int checks=0;void check(bool v){++checks;if(!v)throw std::runtime_error("check "+std::to_string(checks));}
 std::string bad;bool ordered=true,deployed=false,complete=true,host=false;int calls=0,legacy_reads=0;std::vector<std::string> research_keys;
-struct Request {std::string operation="client_bridges_commit",token="one",origin_uuid="origin";uint64_t epoch=1,generation=1;json expected_development={{"same",1}};};
+struct Request {std::string operation="client_bridges_commit",token="one",origin_uuid="origin",tech_key;uint64_t epoch=1,generation=1;json expected_development={{"same",1}};};
 struct Progress {bool locked=false,shown=false,committed=false;std::string cause;};
-struct Pin {bool ordered=true;uintptr_t image=1,lounge=2,project=3,window=4,button=5,world=6;int items=7;std::string tech_key="bridges";json development={{"same",1}},tutorial={{"same",1}};};
+struct Pin {bool ordered=true,generic=false;uintptr_t image=1,lounge=2,project=3,window=4,button=5,world=6;int items=7;std::string tech_key="bridges";json development={{"same",1}},tutorial={{"same",1}};};
 std::map<std::string,Progress> worlds;std::map<std::string,json> receipts;
 bool fail(std::string&e,const std::string&c){e=c;return false;}
 struct Config {bool is_host=false;static Config& instance(){static Config c;c.is_host=host;return c;}};
@@ -29,7 +29,7 @@ namespace tutorial_replication {bool read_progress(json&p,std::string&e){++legac
 namespace general_project {enum class Command{Commit};struct Intent{int source=1;};}
 namespace tutorial_development {
 struct Row{bool purchased=true,custom=false,project_present=true,deployed=false;};
-struct StartingpointSnapshot{uintptr_t origin=6,lounge=2,project=3;std::optional<Row> row=Row{};};
+struct StartingpointSnapshot{uintptr_t origin=6,lounge=2,project=3;std::optional<Row> row=Row{};json admission;};
 bool read_research(const std::string& key,StartingpointSnapshot&s,json&d,std::string&e,bool){research_keys.push_back(key);s.project=deployed?0:3;s.row->project_present=!deployed;s.row->deployed=deployed;d={{"project",s.project}};if(bad=="owner")s.lounge=99;if(bad=="foreign")s.row->project_present=false;return bad!="research"||fail(e,"research unavailable");}
 }
 bool begin_snapshot(const Pin&,tutorial_development::StartingpointSnapshot&,json&,std::string&e){return bad!="snapshot"||fail(e,"snapshot unavailable");}

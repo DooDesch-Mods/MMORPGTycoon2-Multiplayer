@@ -1,11 +1,12 @@
-# Early Beta 29 - Shared quests and class names
+# Early Beta 30 - Abilities, settings and saved monsters
 
 > 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).
 
-- Create, rename and delete quests together.
-- Rename classes from the game's original Design menu.
-- Keep class previews from changing the shared simulation's random state.
+- Edit abilities together while preserving the other player's open editor.
+- Share Base XP and GM Chat Enabled changes.
+- Place, move and remove monsters after loading a save.
+- Reduce waits while the game checks for completed tasks.
 
-Requires **MMORPG Tycoon 2 Mod Framework 0.5.6**. Install the Framework and Multiplayer archives with Vortex, then deploy both. Every player needs the same Multiplayer version.
+Requires **MMORPG Tycoon 2 Mod Framework 0.5.7**. Install the Framework and Multiplayer archives with Vortex, then deploy both. Every player needs the same Multiplayer version.
 
-This is an early beta. More Quest controls, Dungeon editing and other remaining gameplay paths are still being completed. Separate-account online testing remains necessary.
+This is an early beta. These actions were tested in a small local two-player world. GM Chat Enabled was tested with an empty queue; Check logs and assigned-ticket effects remain untested. More gameplay paths, separate-account online play, large worlds and four players still need testing.

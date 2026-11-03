@@ -30,14 +30,16 @@ void destroy(void* receiver){
     const auto object=reinterpret_cast<uintptr_t>(receiver);a::Context c;a::Binding b;
     std::optional<world_zone_runtime::Current> owned_zone;
     if(r&&enabled&&r->gm_context&&r->gm_binding&&!r->gm_suspended){try{
-        building_mixed_identity::opened_file::CurrentWorld origin;std::string e;uintptr_t zone=0,proxy=0,current=0;
-        if(!joined(*r,c,b,origin,e)||!ap(*r,object,0x16fdef0,e)||!at(*r,object,0x88,zone,e)||!at(*r,object,0x90,proxy,e)||(proxy&&!at(*r,proxy,0,current,e)))defer(e);
-        else if(current&&zone){
-            if(current!=zone)defer("Thought Zone weak target/proxy differs before original destruction");
-            else{world_zone_runtime::Current zone_pin;uint64_t uid=0;bool read=false;
-                if(at(*r,zone,0x18,uid,e)){live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);read=world_zone_runtime::resolve_current(b,c.snapshot_uuid,zone,uid,zone_pin,e);}
-                if(read)owned_zone=zone_pin;else defer(e);
-            }
+        building_mixed_identity::opened_file::CurrentWorld origin;std::string e;uintptr_t zone=0,proxy=0;
+        ::mt2mp::game::native_weak_reference::Observation weak;
+        auto read_weak=[&](uintptr_t owner,size_t offset,auto& value,std::string& cause){return at(*r,owner,offset,value,cause);};
+        if(!joined(*r,c,b,origin,e)||!ap(*r,object,0x16fdef0,e)||!at(*r,object,0x88,zone,e)||!at(*r,object,0x90,proxy,e)||!::mt2mp::game::native_weak_reference::observe(read_weak,zone,proxy,weak,e))defer(e);
+        else if(weak.live()){
+            world_zone_runtime::Current zone_pin;uint64_t uid=0;bool read=false;
+            if(at(*r,zone,0x18,uid,e)){live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);read=world_zone_runtime::resolve_current(b,c.snapshot_uuid,zone,uid,zone_pin,e);}
+            if(!read)defer(e);
+            else if(!::mt2mp::game::native_weak_reference::require_owner(read_weak,weak,values::weak_owner_layout,e))defer("Thought Zone weak owner kind=1 key_found=1 cause="+e);
+            else owned_zone=zone_pin;
         }
     }catch(const std::exception& error){defer(std::string("Thought destruction ownership guard: ")+error.what());}}
     // Let every original observer and bookkeeping call finish first. The saved

@@ -1,7 +1,8 @@
 #pragma once
-#include "typed_action/action_session.h"
 #include <vendor/nlohmann/json.hpp>
+#include "typed_action/action_session.h"
 namespace mt2mp::game::npc_probe::monster_action_runtime::ability_edit {
+bool native_apply_state(nlohmann::json&,std::string&);
 bool capture_adjustment(void*,void*,bool&,std::string&);
 bool presentation_route(std::string&);
 bool enable(std::string&);

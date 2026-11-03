@@ -105,6 +105,18 @@
         "buildings::publish(building_preview,e)",
         "[&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneBuildingPublish);return buildings::publish(building_preview,e);}()"
       ]
+    ],
+    "semantic_replacements": [
+      {
+        "name": "consumed-template-parameter",
+        "before": "const Raw* restoration,uintptr_t held_node){",
+        "after": "const Raw* restoration,uintptr_t held_node,bool ordered_template){"
+      },
+      {
+        "name": "consumed-template-independent-mapping",
+        "before": "(authority!=nullptr)!=(context.role==action_session::Role::Client)||state_->operations.contains(operation)",
+        "after": "(ordered_template?authority!=nullptr:(authority!=nullptr)!=(context.role==action_session::Role::Client))||state_->operations.contains(operation)"
+      }
     ]
   }
 }

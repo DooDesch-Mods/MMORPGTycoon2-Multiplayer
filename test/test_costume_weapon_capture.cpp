@@ -1,6 +1,7 @@
 #include "typed_action/action_session.h"
 #include "ui_remove/diagnostic/ui_diagnostic.h"
 #include <iostream>
+#include <map>
 #include <optional>
 #include <stdexcept>
 namespace weapon_capture_fixture {
@@ -23,7 +24,7 @@ bool reject(const std::string& error){cause=error;return false;}
 bool original_call(void*,void*){++model.originals;return true;}
 auto original=&original_call;
 struct Sample {uintptr_t costume=10;struct Character {uintptr_t selected=40;}character;a::CostumeEditState value;};
-struct Pending {a::Binding binding;std::string snapshot;a::CostumeEditIntent intent;};
+struct Pending {a::Binding binding;std::string snapshot;a::CostumeEditIntent intent;std::optional<a::Context> context;std::string diagnostic_token;};
 std::optional<Pending> pending;
 namespace net {namespace session_wire {bool connected(){return model.connected;}}std::string current_snapshot_id(){return fixture_snapshot;}}
 namespace typed_action_runtime {
@@ -35,11 +36,19 @@ namespace dungeon_sound {bool pending_ui(){return false;}}
 namespace dungeon_gizmo {bool pending_ui(){return false;}}
 namespace dungeon_palette {bool pending_ui(){return false;}}
 namespace dungeon_light {bool pending_ui(){return false;}}
-namespace character_rename {bool pending_ui(){return false;}}
+namespace character_rename {std::string native_edit_input_token(){return "fixture-native-input";}bool pending_ui(){return false;}bool capture_binding(const std::string& snapshot,a::Binding& binding,std::optional<a::Context>& context,std::string& error){context.reset();return typed_action_runtime::network_binding(snapshot,binding,error);}}
 namespace ability_edit {bool pending_ui(){return false;}}
 namespace quest_list {
+struct QuestTitleView {const char* data;uint64_t size,capacity=0,padding=0;};
 bool pending_ui(){return false;}
-uint32_t label(a::ui_diagnostic::RecordEquals,void* record,const char* text,bool& out){out=(uintptr_t(record)==1&&std::string(text)=="Apply")||(uintptr_t(record)==2&&std::string(text)=="WeaponCategory");return 0;}}
+struct FixtureRecord {std::string label;std::vector<std::string> arguments;};
+const std::map<uintptr_t,FixtureRecord> fixture_records{{1,{"Apply",{}}},{2,{"WeaponCategory",{"Staff","1"}}},{3,{"Other",{"WeaponCategory"}}}};
+uint32_t label(a::ui_diagnostic::RecordEquals,void* record,const char* text,bool& out){const auto& value=fixture_records.at(uintptr_t(record));out=value.arguments.empty()&&value.label==text;return 0;}}
+namespace command_token_label {
+#include "command_token_label_adapter_actual.inc"
+bool fixture_token_equals(const void* record,const quest_list::QuestTitleView& text){return quest_list::fixture_records.at(uintptr_t(record)).label==std::string_view(text.data,size_t(text.size));}
+bool read(Memory&,const void* record,const char* wanted,bool& output,std::string&){output=matches(&fixture_token_equals,record,wanted);return true;}
+}
 namespace quest_bridge {bool sha256(const std::string&,std::string& out,std::string&){out=std::string(64,'a');return true;}}
 bool code(Memory&,std::string& e){return model.mode!=4||fail(e,"exact fixture code guard failure");}
 bool window(Memory&,uintptr_t& outer,uintptr_t& live,uintptr_t& draft,uintptr_t& owner,std::string& e){
@@ -68,8 +77,11 @@ namespace weapon_capture_fixture {
 }
 int main()try{using namespace weapon_capture_fixture;unsigned checks=0;const auto check=[&](bool ok,const char* why){++checks;if(!ok)throw std::runtime_error(std::string(why)+" cause="+cause);};
     const auto reset=[](){model={};ready=true;fault=replaying=false;original_calls=0;captures=0;pending.reset();cause.clear();};
+    bool fixture_whole_record=false;quest_list::label(nullptr,reinterpret_cast<void*>(2),"WeaponCategory",fixture_whole_record);
+    check(!fixture_whole_record,"Complete-record comparison ignored WeaponCategory arguments");
+    reset();check(entry(reinterpret_cast<void*>(1),reinterpret_cast<void*>(3))&&model.originals==1&&!pending&&!captures,"Argument text became the Costume command label");
     reset();check(entry(reinterpret_cast<void*>(1),reinterpret_cast<void*>(2)),"Weapon capture failed");
-    check(pending&&pending->intent.weapon_category==a::CostumeWeaponIntent{"Staff",true}&&pending->intent.record.name=="Live"&&captures==1,"Weapon captured wrong owner/live Costume/intent");
+    check(pending&&pending->diagnostic_token=="fixture-native-input"&&pending->intent.weapon_category==a::CostumeWeaponIntent{"Staff",true}&&pending->intent.record.name=="Live"&&captures==1,"Weapon captured wrong owner/live Costume/intent");
     check(model.originals==0&&model.dirty==1&&model.dirty_reads==1,"Weapon changed live gameplay or skipped original local UI tail");
     check(!entry(reinterpret_cast<void*>(1),reinterpret_cast<void*>(2))&&model.dirty==1&&model.originals==0&&captures==1,"Pending Weapon capture replayed");
     reset();check(entry(reinterpret_cast<void*>(1),reinterpret_cast<void*>(1))&&pending&&!pending->intent.weapon_category&&pending->intent.record.name=="Local unsaved draft"&&model.dirty==0,"Existing Apply draft capture changed");

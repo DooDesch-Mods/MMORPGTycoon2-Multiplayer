@@ -37,6 +37,7 @@ import subscriber_capture_ops
 import subscriber_append_ops
 import marketing_probe_ops
 import node_observer_ops
+import research_ui_ops
 
 LOG = logging.getLogger("mt2_mcp")
 EMPTY = {"type": "object", "properties": {}, "additionalProperties": False}
@@ -93,6 +94,18 @@ BUILDING_STATE = object_schema({
     "alive": {"type": "boolean", "const": True}}, ("type", "variant", "x", "y", "z", "rotation", "scale", "alive"))
 
 
+def validate_dungeon_config_ui(arguments, *, read=False):
+    fields = {"token"} if read else {"token", "key", "desired", "read_only"}
+    if not isinstance(arguments, dict) or set(arguments) != fields:
+        raise RuntimeErrorDetail("invalid_args", "Dungeon config UI requires exact token and original control fields")
+    if not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Dungeon config UI token invalid")
+    if read:
+        return
+    if not isinstance(arguments["key"], str) or re.fullmatch(SHARED_BUILDING_KEY_PATTERN, arguments["key"]) is None or type(arguments["desired"]) is not int or not 1 <= arguments["desired"] <= 10 or type(arguments["read_only"]) is not bool:
+        raise RuntimeErrorDetail("invalid_args", "Dungeon config UI requires a canonical exterior key, desired1..10 and boolean read_only")
+
+
 def validate_npc_property(arguments):
     if not isinstance(arguments, dict) or set(arguments) != {"token", "key", "kind", "name", "online", "read_only"}:
         raise RuntimeErrorDetail("invalid_args", "NPC property UI requires exact token/key/kind/name/online/read_only")
@@ -139,6 +152,51 @@ def validate_character_rename_ui(arguments):
         raise RuntimeErrorDetail("invalid_args", "Character Rename inspection needs an empty name; mutation needs an exact current target")
     if "open" in arguments and (type(arguments["open"]) is not bool or arguments["open"] and (arguments["kind"] < 0 or arguments["id"] < 0)):
         raise RuntimeErrorDetail("invalid_args", "Character original class-card open needs Boolean open and an exact current target")
+
+
+def validate_character_edit_ui(arguments):
+    required = {"token", "operation", "kind", "id"}
+    if not isinstance(arguments, dict) or not required <= arguments.keys():
+        raise RuntimeErrorDetail("invalid_args", "Character offered UI requires token/operation/kind/id")
+    fields = {
+        "ShowCostume": set(), "CostumeState": set(), "ToggleWeapon": {"category", "expected_enabled"},
+        "ShowAbility": set(), "AbilityState": {"slot"}, "ApplyAbility": {"slot"},
+        "ShowAbilityPage": {"slot", "page"}, "EditAbilityText": {"slot", "control", "value"},
+        "EditAbilityChoice": {"slot", "control", "value"}, "ToggleAbilityControl": {"slot", "control", "expected_enabled"},
+        "ActivateAbilityControl": {"slot", "control"},
+    }
+    operation = arguments["operation"]
+    if not isinstance(operation, str) or operation not in fields:
+        raise RuntimeErrorDetail("invalid_args", "Character offered UI operation is unsupported")
+    expected = required | fields[operation]
+    if operation == "ShowAbility" and "slot" in arguments:
+        expected.add("slot")
+    if operation == "EditAbilityText" and "commit" in arguments:
+        expected.add("commit")
+    if set(arguments) != expected or not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Character offered UI requires exact fields and a canonical fresh token")
+    if type(arguments["kind"]) is not int or not 0 <= arguments["kind"] <= 4 or type(arguments["id"]) is not int or not 0 <= arguments["id"] < 1000000:
+        raise RuntimeErrorDetail("invalid_args", "Character offered UI requires an exact native definition")
+    if "slot" in expected and (type(arguments["slot"]) is not int or not 0 <= arguments["slot"] < 10000):
+        raise RuntimeErrorDetail("invalid_args", "Ability offered UI requires an actual canonical slot")
+    for key in {"control", "page", "value", "category"} & expected:
+        value = arguments[key]
+        limit = 4096 if key == "value" else 128 if key == "category" else 512
+        try:
+            valid = isinstance(value, str) and len(value.encode("utf-8")) <= limit and "\0" not in value and (key == "value" or bool(value))
+        except UnicodeError:
+            valid = False
+        if not valid or (key == "category" and any(c in value for c in "\r\n")):
+            raise RuntimeErrorDetail("invalid_args", "Character offered UI text is invalid: " + key)
+    if "expected_enabled" in expected and type(arguments["expected_enabled"]) is not bool:
+        raise RuntimeErrorDetail("invalid_args", "Character offered UI expected_enabled must be Boolean")
+    if "commit" in expected and type(arguments["commit"]) is not bool:
+        raise RuntimeErrorDetail("invalid_args", "Ability original text commit flag must be Boolean")
+
+
+def validate_character_edit_read(arguments):
+    if not isinstance(arguments, dict) or set(arguments) != {"token"} or not isinstance(arguments["token"], str) or re.fullmatch(TIME_TOKEN_PATTERN, arguments["token"]) is None:
+        raise RuntimeErrorDetail("invalid_args", "Character offered input read requires one canonical retained token")
 
 
 def validate_character_rename_read(arguments):
@@ -277,7 +335,18 @@ OP_SCHEMAS = {
         "id": {"type": "integer", "minimum": -1, "maximum": 999999}, "name": {"type": "string", "maxLength": 20},
         "read_only": {"type": "boolean"}, "open": {"type": "boolean"}}, ("token", "kind", "id", "name", "read_only")),
     "read_character_rename": object_schema({"action_uuid": TIME_TOKEN}),
+    "native_character_edit_ui": object_schema({"token": TIME_TOKEN,
+        "operation": {"type": "string", "enum": ["ShowCostume", "CostumeState", "ToggleWeapon", "ShowAbility", "AbilityState", "ShowAbilityPage", "EditAbilityText", "EditAbilityChoice", "ToggleAbilityControl", "ActivateAbilityControl", "ApplyAbility"]},
+        "kind": {"type": "integer", "minimum": 0, "maximum": 4}, "id": {"type": "integer", "minimum": 0, "maximum": 999999},
+        "slot": {"type": "integer", "minimum": 0, "maximum": 9999},
+        "control": {"type": "string", "minLength": 1, "maxLength": 512}, "page": {"type": "string", "minLength": 1, "maxLength": 512},
+        "value": {"type": "string", "maxLength": 4096}, "commit": {"type": "boolean"},
+        "category": {"type": "string", "minLength": 1, "maxLength": 128}, "expected_enabled": {"type": "boolean"}},
+        ("token", "operation", "kind", "id")),
+    "read_character_edit_ui": object_schema({"token": TIME_TOKEN}),
     "native_npc_remove_ui": npc_target_schema(monster=True),
+    "native_dungeon_config_ui": object_schema({"token": TIME_TOKEN, "key": {"type": "string", "pattern": SHARED_BUILDING_KEY_PATTERN}, "desired": {"type": "integer", "minimum": 1, "maximum": 10}, "read_only": {"type": "boolean"}}),
+    "read_dungeon_config_ui": object_schema({"token": TIME_TOKEN}),
     "native_npc_property_ui": object_schema({"token": TIME_TOKEN, "key": {"type": "string", "minLength": 1, "maxLength": 256},
         "kind": {"type": "integer", "minimum": 1, "maximum": 4}, "name": {"type": "string", "maxLength": 256},
         "online": {"type": "integer", "minimum": 0, "maximum": 2}, "read_only": {"type": "boolean"}},
@@ -335,6 +404,11 @@ OP_SCHEMAS = {
     "read_network_state": EMPTY,
     "read_tutorial": EMPTY,
     "read_tutorial_development": EMPTY,
+    "native_research_ui": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
+        "operation": {"type":"string","enum":list(research_ui_ops.COMMANDS)},
+        "tech_key": {"type":"string","minLength":1,"maxLength":200},
+        "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
+        "expected_development": {"type":"object"}}, tuple(sorted(research_ui_ops.FIELDS))),
     "tutorial_startingpoint": object_schema({"token": TIME_TOKEN, "native_origin_uuid": TIME_TOKEN,
         "operation": {"type":"string","enum":["begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit","client_bridges_commit_state","client_startingpoint_commit_state"]},
         "world_epoch": {"type":"integer","minimum":1}, "world_generation": {"type":"integer","minimum":1},
@@ -408,6 +482,10 @@ OP_SCHEMAS = {
 }
 OP_DESCRIPTIONS = {
     "read_character_rename": "Empty args list actual live base class candidates. One action_uuid returns only retained command-boundary Character state, complete Definition/Actor/Release/Quest/ArtStore proof hashes and full Ledger, without a new native census. Original offered menu/card controls determine candidate eligibility.",
+    "read_character_edit_ui": "Return the retained original-input receipt and ordered action UUID for one Character edit token, without a new census or replay.",
+    "native_character_edit_ui": "Use actual offered Character controls in an owned ordered pair. ShowAbility without slot opens the original Abilities page and lists only visible eligible icons mapped to canonical slots, UID, name, level and Boolean positive_effects; an empty offer is a successful empty array. Supplying one actual offered slot opens its genuine icon. AbilityState lists the complete live/draft records and shown inputs. EditAbilityText uses the actual character limit and commits a real text control by default; commit false intentionally leaves its original focused input uncommitted for preservation acceptance. EditAbilityChoice accepts only its current catalogue values, ToggleAbilityControl uses the real checkbox and ShowAbilityPage selects only an enabled stock page. ActivateAbilityControl invokes another shown editor button; prefab saving is excluded. ApplyAbility invokes the shown original Apply once and links the captured complete draft to its ordered UUID. ShowCostume opens the original Design/class card and enabled Costume/Settings tabs. CostumeState lists only shown eligible category checkboxes. ToggleWeapon requires one actual category and its expected current enabled state; native checkbox Press/Release captures one ordered intent. Inspect the retained token and both peer results. Never replay an attempted token.",
+    "native_dungeon_config_ui": "Select the actual Dungeon exterior and enabled original Instances tab. Normal UI update completes waiting_for_tab; the retained job then validates visible Configure and reciprocal owner, invokes original OpenInstancesConfig, Spinner +/- and Accept once. read_only inspects controls without accepting. Observe the token with read_dungeon_config_ui; never replay it.",
+    "read_dungeon_config_ui": "Read one retained Dungeon config UI token and its captured action, original-once status and canonical before/after Config, full Ledger and RNG evidence. Readback never replays input.",
     "native_npc_property_ui": "Select one exact current NPC, verify its offered visible Name/Online/Level control, and invoke its original Header/InfoWindow callback once. read_only selects and inspects the control without committing a property. Observe ui_npc.ui_jobs and complete ordered property receipts. Never replay an attempted token.",
     "enable_ui_build": "Enable normal building intent capture and original native building execution on the bound game thread.",
     "request_building_place": "Submit a complete building request through the existing Host-ordered controller; admission is not a native completion receipt.",
@@ -465,6 +543,7 @@ OP_DESCRIPTIONS = {
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
     "read_tutorial": "Read the current native tutorial scenario, indexed step and completion counts without changing progress or exposing process pointers.",
     "read_tutorial_development": "Read the current world's Starting Point project, technology record and inventory membership without changing game state or exposing process pointers.",
+    "native_research_ui": "Use the genuine offered Research row and original Start, Staff or Commit control for an actual catalogue Tech key in an owned ordered pair. Read returns the complete generic project proof and actual completion without advancing work. Requires fresh token and exact native Origin/development guards. Never replay an uncertain UI attempt. No completion, cash or unlock setter is exposed.",
     "tutorial_startingpoint": "Fixed development UI proof: client_bridges_commit_state and client_startingpoint_commit_state only read the exact current project completion, deployed inventory and native owner; both support running ordered simulation and never finish work. client_bridges_show/state/start use the actual owned Bridges Research row and original button; client_bridges_staff_show/state/one use its original Staff Pips; client_bridges_commit activates its original enabled Commit button after natural completion. These operations confirm only Client intent submission, not peer completion. No completion setter is offered for Bridges. Existing Starting Point proof: staff_activity_state reads actual owned Developer activities and probes both fixed native localized project labels, with native call receipts and unchanged project/full ledger. It requires an initialized idle joined Host or Client, Clock0 and purchased current project; native temporary-object exceptions are Unknown and require process restart before another probe. client_staff_show opens the native Staff page; client_staff_state only measures Staff/dev/Pips/button readiness; client_staff_one activates the first owned toggle Button once for one worker and confirms only a fresh pending Host intent with unchanged local row and full ledger. Staff requires a purchased current Startingpoint project with desired workers0. client_research_show opens the window and requests its Tech page; client_research_state only reads page/owner/Grid/button readiness; client_research selects the actual catalogue Grid row and activates its enabled Research button once and confirms only a fresh pending Host intent with unchanged local row and full ledger. client_show opens the joined Client Development window; client_commit activates its enabled original Commit button and confirms only a pending Host-ordered intent with unchanged local gameplay. Client operations require initialized idle authoritative Client, Clock0 and exact Origin. Existing Host operations: pay for and begin the owned catalogue project through the original engine routines, show the native Development window, complete the existing project, or activate its real Commit button. Requires an uninitialized or idle authoritative Controller, Clock0 and exact current native development readback. Begin requires an existing unpurchased record and no current project. Keep each token; never replay an unknown effect.",
     "read_vip_alert_owners": "Read actual current HUD alert Window class, AlertList ancestry and ScenarioVip arrival ownership on the bound game thread. Never creates, shows, hides or destroys alerts.",
     "read_tutorial_progress": "Read the joined world's actual tutorial progress display and Client Sequence fence without changing input, completion or game state.",
@@ -571,7 +650,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_character_rename", "read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_character_edit_ui", "read_native_gm_policy_ui", "read_native_rules_feature_events", "read_native_rules_numeric_ui", "read_character_rename", "read_dungeon_config_ui", "read_native_rules_ui", "read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -620,6 +699,11 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires exact token/origin")
             if any(not isinstance(value, str) or re.fullmatch(TIME_TOKEN_PATTERN, value) is None for value in arguments.values()):
                 raise RuntimeErrorDetail("invalid_args", "tutorial movement requires lowercase UUIDs")
+        if op == "native_research_ui":
+            try:
+                research_ui_ops.validate(arguments)
+            except ValueError as error:
+                raise RuntimeErrorDetail("invalid_args", str(error)) from error
         if op == "tutorial_startingpoint":
             required={"token","native_origin_uuid","operation","world_epoch","world_generation","expected_development"}
             if not isinstance(arguments,dict) or set(arguments)!=required or arguments["operation"] not in ("begin","show","complete","commit","client_show","client_commit","client_research_show","client_research","client_research_state","client_staff_show","client_staff_state","client_staff_one","staff_activity_state","client_bridges_show","client_bridges_state","client_bridges_start","client_bridges_staff_show","client_bridges_staff_state","client_bridges_staff_one","client_bridges_commit","client_bridges_commit_state","client_startingpoint_commit_state"):
@@ -788,6 +872,8 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
             validate_npc_quest_list(arguments)
         if op == "native_npc_quest_target_ui":
             validate_npc_quest_target(arguments)
+        if op in {"native_dungeon_config_ui", "read_dungeon_config_ui"}:
+            validate_dungeon_config_ui(arguments, read=op == "read_dungeon_config_ui")
         if op == "native_npc_property_ui":
             validate_npc_property(arguments)
         if op in {"native_npc_remove_ui", "native_npc_move_ui"}:
@@ -815,6 +901,10 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                     raise RuntimeErrorDetail("invalid_args", "region UI requires canonical diagnostic UUID and bounded preset string")
         if op == "native_character_rename_ui":
             validate_character_rename_ui(arguments)
+        if op == "native_character_edit_ui":
+            validate_character_edit_ui(arguments)
+        if op == "read_character_edit_ui":
+            validate_character_edit_read(arguments)
         if op == "read_character_rename":
             validate_character_rename_read(arguments)
         if op == "native_price_ui":

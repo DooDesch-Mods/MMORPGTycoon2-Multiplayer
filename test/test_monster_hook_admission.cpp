@@ -339,6 +339,9 @@ int main() {
         monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
         monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");
         monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");monster_named_admission(0x859e30,"mp.building-uptime-add.859e30");admission_and_shim();
+        monster_named_admission(0x570900,"mp.ability-apply-presentation-setup.570900");
+        monster_named_admission(0x5721f0,"mp.ability-apply-presentation-event.5721f0");
+        monster_named_admission(0x569550,"mp.ability-proposal-window-destroy.569550");
         std::printf("framework_hook_backend: %u checks passed\n",checks);return 0;}
     catch(const std::exception& error){std::fprintf(stderr,"framework_hook_backend failed: %s\n",error.what());return 1;}
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "vendor/nlohmann/json.hpp"
+#include "native_weak_reference.h"
 #include <array>
 #include <algorithm>
 #include <bit>
@@ -12,6 +13,7 @@
 #include <string>
 #include <vector>
 namespace mt2mp::game::toon_thought {
+inline constexpr native_weak_reference::Layout weak_owner_layout{0x20,0x28};
 struct Row {
     int32_t type=0;std::array<int32_t,4> time{};std::array<uint32_t,3> position{};
     std::array<std::optional<std::string>,3> targets;bool registered=false;
@@ -64,8 +66,11 @@ if(!at(owned.object,0,ap,e)||ap!=image+0x16fdef0||!at(owned.object,0x18,thinker,
             value.registered=registered!=0;
             constexpr std::array<size_t,3> offsets{0x28,0x60,0x98};constexpr std::array<uintptr_t,3> classes{0x17116f0,0x1711b70,0x1711ab0};
             for(size_t kind=0;kind<3;++kind){if(!at(owned.object,offsets[kind],ap,e)||ap!=image+classes[kind]||!at(owned.object,offsets[kind]+0x28,owned.targets[kind],e)||!at(owned.object,offsets[kind]+0x30,owned.proxies[kind],e))return fail(e,e.empty()?"Thought weak target class/header differs":e);
-                uintptr_t current=0;if(owned.proxies[kind]&&!at(owned.proxies[kind],0,current,e))return false;
-                if(current){const auto found=keys[kind].find(owned.targets[kind]);if(found==keys[kind].end()||current!=owned.targets[kind])return fail(e,"Thought live weak target lacks exact current canonical owner");value.targets[kind]=found->second;}
+                native_weak_reference::Observation weak;
+                if(!native_weak_reference::observe(at,owned.targets[kind],owned.proxies[kind],weak,e))return fail(e,"Thought weak header kind="+std::to_string(kind)+" cause="+e);
+                if(weak.live()){const auto found=keys[kind].find(owned.targets[kind]);const auto diagnostic=" kind="+std::to_string(kind)+" key_found="+(found!=keys[kind].end()?"1":"0")+" current_target_delta="+native_weak_reference::current_target_delta(weak);
+                    if(found==keys[kind].end())return fail(e,"Thought live weak target lacks current canonical key"+diagnostic);
+                    if(!native_weak_reference::require_owner(at,weak,weak_owner_layout,e))return fail(e,"Thought live weak owner differs"+diagnostic+" cause="+e);value.targets[kind]=found->second;}
             }
     for(auto bits:value.position)if(!std::isfinite(std::bit_cast<float>(bits)))return fail(e,"Thought original position is not finite");e.clear();return true;
 }

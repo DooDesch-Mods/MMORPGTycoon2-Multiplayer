@@ -1,5 +1,7 @@
 #include "direct_monster_fixture.h"
+#include "typed_action/tick_evidence.h"
 #include <iostream>
+#include "saved_monster_move_retained.inc"
 constexpr const char* move_id="33333333-3333-4333-8333-333333333333";
 Message moving(){auto m=request();m.request.action=Action::MoveMonster;m.request.action_uuid=move_id;
  m.request.target_action_uuid=action_id;m.request.monster={};m.request.monster_move={63,{8030,70.576828f,8560}};return m;}
@@ -24,5 +26,50 @@ int main(){try{std::string e;std::vector<uint8_t> bytes;Message out;unsigned cou
  auto noop=moved();noop.request.monster_move.position=noop.evidence.monster_before.actor.position;
  noop.evidence.monster_after.actor=noop.evidence.monster_before.actor;noop.evidence.monster_after.roster.content_sha256=noop.evidence.monster_before.roster.content_sha256;
  need(encode(noop,bytes,e),e);++count;
+ auto canonical=[&](const Message& m,std::string& digest){
+  namespace tick=mt2mp::action_session::tick_commands;
+  Context context;context.session=m.session;context.snapshot_uuid=m.request.snapshot_uuid;context.peer_mask=static_cast<uint8_t>(m.required_mask);
+  tick::Assigned assigned{m.revision,{m.session,m.request.snapshot_uuid,m.request}};
+  tick::ExecutionReceipt receipt;receipt.command=assigned;receipt.outcome=Outcome::Confirmed;receipt.native_attempted=true;receipt.evidence=std::make_shared<Evidence>(m.evidence);
+  return tick::canonical_evidence(context,assigned,receipt,digest,e);
+ };
+ const auto retained=std::string(retained_move);Message host;
+ need(decode(reinterpret_cast<const uint8_t*>(retained.data()),retained.size(),host,e),e);
+ auto client=host;client.evidence.monster_before.actor.tag=client.evidence.monster_after.actor.tag=-1010040832;
+ need(encode(host,bytes,e),e);const auto raw_host=mt2mp::sha256(bytes);
+ need(raw_host=="8e8e6c7411627fea36f1cca725635d4e071a86916aa44721632ad67845ee4c72","retained Host original codec hash differs: "+raw_host);++count;
+ need(encode(client,bytes,e),e);const auto raw_client=mt2mp::sha256(bytes);
+ need(raw_client=="0449bc6fd2971e6a18d23db577dd777e28d7380a64b6d97763055c6ffb0bec0c","retained Client original codec hash differs: "+raw_client);++count;
+ std::string expected,actual;need(canonical(host,expected)&&canonical(client,actual)&&actual==expected,e);++count;
+ need(expected==raw_host,"zero-serial Host canonical bytes changed");++count;
+ for(int32_t serial:{INT32_MIN,-1,0,INT32_MAX}){
+  auto local=host;local.evidence.monster_before.actor.tag=local.evidence.monster_after.actor.tag=serial;const auto original=local;
+  need(canonical(local,actual)&&actual==expected,"local serial became canonical identity");
+  need(local==original&&encode(local,bytes,e)&&decode(bytes.data(),bytes.size(),out,e)&&out==local,"canonical projection changed raw receipt or codec");++count;
+ }
+ auto distinct=[&](auto change){auto local=host;change(local);need(!canonical(local,actual)||actual!=expected,"real shared evidence became identical");++count;};
+ distinct([](auto& m){m.request.monster_move.position[0]+=1;m.evidence.monster_after.actor.position[0]+=1;});
+ distinct([](auto& m){m.request.monster_move.rotation={0,0,0,1};m.evidence.monster_after.actor.rotation={0,0,0,1};});
+ distinct([](auto& m){m.evidence.monster_before.actor.name=m.evidence.monster_after.actor.name="Different";});
+ distinct([](auto& m){++m.evidence.monster_before.actor.level;++m.evidence.monster_after.actor.level;});
+ distinct([](auto& m){++m.evidence.monster_before.actor.character_type;++m.evidence.monster_after.actor.character_type;});
+ distinct([](auto& m){++m.evidence.monster_before.roster.region_random[0];++m.evidence.monster_after.roster.region_random[0];});
+ distinct([](auto& m){++m.evidence.monster_before.roster.global_random[0];++m.evidence.monster_after.roster.global_random[0];});
+ distinct([](auto& m){m.evidence.monster_after.roster.content_sha256=std::string(64,'a');});
+ distinct([](auto& m){++m.evidence.monster_before.roster.next_tag;++m.evidence.monster_after.roster.next_tag;});
+ distinct([](auto& m){++m.evidence.before.cash;++m.evidence.after.cash;});
+ distinct([](auto& m){m.request.canonical_record_key=std::string("action:")+action_id;m.request.target_action_uuid=action_id;});
+ distinct([](auto& m){++m.request.monster_move.region;});
+ auto reject_canonical=[&](auto change){auto local=host;change(local);need(!canonical(local,actual)&&actual.empty(),"invalid local transition became canonical success");++count;};
+ reject_canonical([](auto& m){++m.evidence.monster_after.actor.tag;});
+ reject_canonical([](auto& m){m.evidence.monster_before.actor={};});
+ reject_canonical([](auto& m){++m.evidence.after.cash;});
+ reject_canonical([](auto& m){++m.evidence.monster_after.roster.region_random[0];});
+ reject_canonical([](auto& m){m.evidence.undo_confirmed=false;});
+ reject_canonical([](auto& m){m.evidence.selection_confirmed=false;});
+ reject_canonical([](auto& m){m.evidence.retirement_confirmed=false;});
+ {auto placement=result();placement.evidence.monster_before.roster.next_tag=17;placement.evidence.monster_after=born(placement.evidence.monster_before);
+  need(encode(placement,bytes,e),e);const auto raw_placement=mt2mp::sha256(bytes);
+  need(canonical(placement,actual)&&actual==raw_placement,"unrelated placement canonical bytes changed");++count;}
  std::cout<<count<<" MoveMonster codec/transition cases passed\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

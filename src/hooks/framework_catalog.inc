@@ -464,3 +464,6 @@
 {"mp.ordered-clearance-make-scenery.559ee0",0x559ee0,false},
 
 {"mp.terrain-settlement.map-data",0x32c1e0,false},
+{"mp.ability-apply-presentation-setup.570900",0x570900,false},
+{"mp.ability-apply-presentation-event.5721f0",0x5721f0,false},
+{"mp.ability-proposal-window-destroy.569550",0x569550,false},

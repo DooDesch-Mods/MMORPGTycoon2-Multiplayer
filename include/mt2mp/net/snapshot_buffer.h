@@ -58,6 +58,25 @@ private:
     std::vector<uint8_t> object_;
     bool finished_=false;
 };
+
+inline std::filesystem::path snapshot_api_path(const std::filesystem::path& path) {
+    auto absolute=std::filesystem::absolute(path).lexically_normal();
+    absolute.make_preferred();
+    const auto& name=absolute.native();
+    if(name.size()<MAX_PATH||name.rfind(L"\\\\?\\",0)==0)return absolute;
+    // Extended Win32 syntax keeps companion staging suffixes outside MAX_PATH.
+    if(name.rfind(L"\\\\",0)==0)return std::filesystem::path(L"\\\\?\\UNC\\"+name.substr(2));
+    return std::filesystem::path(L"\\\\?\\"+name);
+}
+inline bool snapshot_file_exists(const std::filesystem::path& path,bool& exists,std::string& error) {
+    exists=false;
+    try {
+        std::error_code code;
+        exists=std::filesystem::exists(snapshot_api_path(path),code);
+        if(code) { error="snapshot file existence: "+code.message(); return false; }
+        return true;
+    } catch(const std::exception& failure) { error=std::string("snapshot file existence: ")+failure.what(); return false; }
+}
 class SnapshotFileHandle {
 public:
     ~SnapshotFileHandle() { close(); }
@@ -68,8 +87,17 @@ public:
     bool open(const std::filesystem::path& path,DWORD access,DWORD creation,std::string& error) {
         if(handle_!=INVALID_HANDLE_VALUE) { error="snapshot file already open"; return false; }
         // Denying write and delete sharing pins the source or staging identity.
-        handle_=CreateFileW(path.c_str(),access,FILE_SHARE_READ,nullptr,creation,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN,nullptr);
-        if(handle_==INVALID_HANDLE_VALUE) { error="snapshot file open path="+path.string()+" Win32="+std::to_string(GetLastError()); return false; }
+        try {
+            const auto native=snapshot_api_path(path);
+            handle_=CreateFileW(native.c_str(),access,FILE_SHARE_READ,nullptr,creation,FILE_ATTRIBUTE_NORMAL|FILE_FLAG_SEQUENTIAL_SCAN,nullptr);
+        } catch(const std::exception& failure) { error=std::string("snapshot file path: ")+failure.what(); return false; }
+        if(handle_==INVALID_HANDLE_VALUE) {
+            const auto code=GetLastError();
+            error="snapshot file open Win32="+std::to_string(code);
+            try { const auto name=path.u8string(); error+=" path="+std::string(name.begin(),name.end()); }
+            catch(const std::exception& failure) { error+=" path encoding failed: "+std::string(failure.what()); }
+            return false;
+        }
         return true;
     }
     bool close(std::string* error=nullptr) {
@@ -167,7 +195,8 @@ public:
         if(chunks!=(length+snapshot_chunk_bytes-1)/snapshot_chunk_bytes) { error="snapshot chunk count differs from byte length"; return false; }
         if(!valid_snapshot_digest(digest)||staging==target||staging.parent_path()!=target.parent_path()) { error="snapshot digest or staging path invalid"; return false; }
         try {
-            if(std::filesystem::exists(target)) { error="snapshot target already exists; refusing overwrite"; return false; }
+            bool exists=false; if(!snapshot_file_exists(target,exists,error))return false;
+            if(exists) { error="snapshot target already exists; refusing overwrite"; return false; }
             hash_=std::make_unique<SnapshotSha256>();
         } catch(const std::exception& failure) { error=failure.what(); return false; }
         if(!file_.open(staging,GENERIC_WRITE,CREATE_NEW,error)) { hash_.reset(); return false; }
@@ -194,7 +223,10 @@ public:
         uint64_t actual=0;
         if(!snapshot_file_length(file_.get(),actual,error)||actual!=total_) { if(actual!=total_&&error.empty()) error="snapshot staging size differs"; return reject(); }
         if(!file_.close(&error)) return reject();
-        if(!MoveFileExW(staging_.c_str(),target_.c_str(),MOVEFILE_WRITE_THROUGH)) { error="snapshot final commit Win32="+std::to_string(GetLastError()); return reject(); }
+        try {
+            const auto staging=snapshot_api_path(staging_),target=snapshot_api_path(target_);
+            if(!MoveFileExW(staging.c_str(),target.c_str(),MOVEFILE_WRITE_THROUGH)) { error="snapshot final commit Win32="+std::to_string(GetLastError()); return reject(); }
+        } catch(const std::exception& failure) { error=std::string("snapshot final commit path: ")+failure.what(); return reject(); }
         hash_.reset(); active_=false; committed_=true; return true;
     }
     bool retire(std::string& error){

@@ -267,6 +267,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/tutorial_client_staff_ui_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_staff_activity_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_staff_display_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/tutorial_origin_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/tutorial_message_close_checks.cmake")
 
@@ -608,5 +609,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ordered_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/character_record_scope_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/startup_calendar_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ability_presentation_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/command_label_followup_checks.cmake")

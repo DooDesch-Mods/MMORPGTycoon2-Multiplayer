@@ -1,6 +1,7 @@
 #pragma once
 #include "typed_action/action_session.h"
 #include "general_project_state.h"
+#include "tutorial_development.h"
 #include <map>
 namespace mt2mp::game::general_project_runtime {
 bool enable(std::string&);
@@ -11,6 +12,7 @@ bool admit_bug_birth(const action_session::Context&,const action_session::Bindin
 bool pending_ui();bool retire_lobby(std::string&);void tick();
 bool observe_pending_ui(const action_session::Context&,const action_session::Binding&,
     const general_project::Intent&,uint64_t previous_captures,std::string& id,std::string& error);
+bool research_ui_snapshot(const std::string& tech,tutorial_development::StartingpointSnapshot&,std::string& error);
 action_session::Outcome perform(const action_session::Binding&,const action_session::Request&,const action_session::Evidence*,std::string&);
 bool observe(const action_session::Binding&,const action_session::Request&,action_session::Evidence&,std::string&);
 bool retire(const action_session::Binding&,const action_session::Request&,std::string&);

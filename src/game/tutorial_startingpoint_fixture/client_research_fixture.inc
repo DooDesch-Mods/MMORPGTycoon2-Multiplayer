@@ -2,7 +2,7 @@ bool same_research_native(const Pin& a,const Pin& b,const tutorial_development::
                           const tutorial_development::StartingpointSnapshot& y){
     return same(a.world,b.world)&&a.lounge==b.lounge&&a.project==b.project&&a.development==b.development&&
         a.tutorial==b.tutorial&&same_inventory_owner(a,b)&&a.items==b.items&&x.creation==y.creation&&
-        x.row==y.row&&x.tech==y.tech&&x.record==y.record&&x.project==y.project;
+        x.row==y.row&&x.tech==y.tech&&x.record==y.record&&x.project==y.project&&(!a.generic||x.admission==y.admission);
 }
 bool client_research(const Request& request,json& result,Progress*& phase,std::string& key,std::string& e){
     const bool is_show=request.operation=="client_research_show"||request.operation=="client_bridges_show";

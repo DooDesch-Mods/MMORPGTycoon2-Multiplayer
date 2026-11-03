@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.1.0-beta.30
+
+### Added
+
+- Share supported ability edits and keep the other player's open editor intact.
+- Share changes to Base XP and the GM Chat Enabled setting.
+- Place, move and remove monsters after loading a saved world.
+
+### Improved
+
+- Reduce waits while the game checks for completed tasks with Framework 0.5.7.
+
+Both players need Early Beta 30 and MT2 Mod Framework Runtime 0.5.7. Close the game, update both mods in Vortex and deploy before starting through Steam.
+
+Acceptance covers selected actions in a small local two-player world. GM Chat Enabled was tested with an empty queue; Check logs and assigned-ticket effects remain untested. Separate-account online play, large worlds and four players still need acceptance testing.
+
 ## 0.1.0-beta.29
 
 ### Added

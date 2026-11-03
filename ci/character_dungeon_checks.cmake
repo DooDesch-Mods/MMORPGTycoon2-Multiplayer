@@ -221,10 +221,10 @@ set_tests_properties(dungeon_config_helper_routes PROPERTIES TIMEOUT 60)
 
 set(DUNGEON_REFERENCE_EXTRACTED "${CMAKE_CURRENT_BINARY_DIR}/dungeon_reference_extracted")
 add_custom_command(
-    OUTPUT "${DUNGEON_REFERENCE_EXTRACTED}/dungeon_quest_destination_actual.inc"
+    OUTPUT "${DUNGEON_REFERENCE_EXTRACTED}/dungeon_quest_destination_actual.inc" "${DUNGEON_REFERENCE_EXTRACTED}/monster_destination_bootstrap_actual.inc"
     COMMAND "${Python3_EXECUTABLE}" -B -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_dungeon_quest_destination.py" "${MT2MP_SOURCE_ROOT}" "${DUNGEON_REFERENCE_EXTRACTED}"
     DEPENDS "${MT2MP_SOURCE_ROOT}/test/extract_dungeon_quest_destination.py" "${MT2MP_SOURCE_ROOT}/src/game/npc_quest_target_runtime.cpp"
-        "${MT2MP_SOURCE_ROOT}/src/game/npc_quest_authoring_runtime.inc"
+        "${MT2MP_SOURCE_ROOT}/src/game/npc_quest_authoring_runtime.inc" "${MT2MP_SOURCE_ROOT}/src/game/monster_action_runtime.inc"
     VERBATIM)
 
 add_executable(test_dungeon_monster_reference "${MT2MP_SOURCE_ROOT}/test/test_dungeon_monster_reference.cpp")
@@ -236,7 +236,7 @@ endif()
 add_test(NAME dungeon_monster_reference COMMAND test_dungeon_monster_reference)
 set_tests_properties(dungeon_monster_reference PROPERTIES TIMEOUT 60)
 
-add_executable(test_dungeon_quest_destination "${MT2MP_SOURCE_ROOT}/test/test_dungeon_quest_destination.cpp" "${DUNGEON_REFERENCE_EXTRACTED}/dungeon_quest_destination_actual.inc")
+add_executable(test_dungeon_quest_destination "${MT2MP_SOURCE_ROOT}/test/test_dungeon_quest_destination.cpp" "${MT2MP_SOURCE_ROOT}/test/monster_destination_bootstrap_fixture.inc" "${DUNGEON_REFERENCE_EXTRACTED}/dungeon_quest_destination_actual.inc" "${DUNGEON_REFERENCE_EXTRACTED}/monster_destination_bootstrap_actual.inc")
 target_include_directories(test_dungeon_quest_destination PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${DUNGEON_REFERENCE_EXTRACTED}")
 target_compile_features(test_dungeon_quest_destination PRIVATE cxx_std_20)
 if(MSVC)
@@ -555,3 +555,8 @@ set_tests_properties(character_rename_ordered PROPERTIES TIMEOUT 60)
 add_test(NAME character_rename_mcp COMMAND "${Python3_EXECUTABLE}" -B -X utf8
     "${MT2MP_SOURCE_ROOT}/test/test_character_rename_mcp.py" "${MT2MP_SOURCE_ROOT}/tools/mcp/server.py")
 set_tests_properties(character_rename_mcp PROPERTIES TIMEOUT 60)
+include("${CMAKE_CURRENT_LIST_DIR}/token_label_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ordered_ability_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ability_apply_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/character_offered_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/ordered_costume_checks.cmake")

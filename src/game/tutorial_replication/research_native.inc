@@ -1,5 +1,5 @@
 bool research_capture(const action_session::Context& c,const action_session::Binding& b,
-                      const World& world,State& out,std::string& e){
+                      const World& world,State& out,std::string& e,bool ordered_read){
     tutorial_development::StartingpointSnapshot first; nlohmann::json diagnostic;
     if(!tutorial_development::read_startingpoint(first,diagnostic,e,false,true))return false;
     if(!same_world(world,first.origin))return fail(e,"Research capture Startingpoint Origin differs");
@@ -12,7 +12,7 @@ bool research_capture(const action_session::Context& c,const action_session::Bin
         if(current.row->deployed&&research_commit_receipt.bugs&&same_world(world,research_commit_receipt.origin)&&
            current.tech==research_commit_receipt.tech&&current.record==research_commit_receipt.record)
             out.research->value.commit_bugs=research_commit_receipt.bugs;
-        if(current.row->project_present&&!display_native::capture(c,b,current,out.staff_display,e,true))return false;
+        if(current.row->project_present&&!display_native::capture(c,b,current,out.staff_display,e,true,ordered_read))return false;
     }
     return true;
 }

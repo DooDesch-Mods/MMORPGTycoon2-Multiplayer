@@ -15,7 +15,8 @@ struct NpcQuestListIntent {
     bool operator==(const NpcQuestListIntent&)const=default;
 };
 inline bool ordered_quest_list(const NpcQuestListIntent& intent){
-    return intent.edit==QuestListEdit::List||intent.edit==QuestListEdit::Title;
+    return intent.edit==QuestListEdit::List||intent.edit==QuestListEdit::Title||
+        intent.edit==QuestListEdit::Kills||intent.edit==QuestListEdit::Rewards;
 }
 struct NpcQuestListState {
     std::vector<npc_quest_records::Record> records;

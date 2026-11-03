@@ -233,6 +233,38 @@ bool capture_ui(void* receiver,void* record,bool& handled,bool& accepted){
     if(!pending.ordered||pending.intent.source.kind!=0||pending.intent.source.tech!="startingpoint"||type==p::Command::Cancel)r->presentations.emplace(pending.id,pending);r->pending=std::move(pending);++r->captures;accepted=true;return true;
 }
 bool pending_ui(){const auto* r=published.load(std::memory_order_acquire);return r&&(r->pending.has_value()||r->replay.has_value());}
+bool research_ui_snapshot(const std::string& tech,tutorial_development::StartingpointSnapshot& out,std::string& e){
+    out={};auto* r=published.load(std::memory_order_acquire);a::Context c;a::Binding b;bool ordered=false;
+    if(!r||!r->ready||tech.empty()||!p::text(tech)||!a::selected_session().current(c,e)||
+       !typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,b,e,&ordered)||!ordered)
+        return fail(e,e.empty()?"Research UI requires current ordered runtime and catalogue key":e);
+    p::Local local;p::State state;a::Ledger money;
+    if(!snapshot(*r,c,b,local,state,money,e,true))return false;
+    const auto selected=std::find_if(state.catalogue.begin(),state.catalogue.end(),[&](const auto& row){return row.source.kind==0&&row.source.tech==tech;});
+    if(selected==state.catalogue.end()||!local.tech_keys.contains(tech)||
+       std::count_if(state.catalogue.begin(),state.catalogue.end(),[&](const auto& row){return row.source.kind==0&&row.source.tech==tech;})!=1)
+        return fail(e,"Research UI Tech lacks unique current owned catalogue source");
+    tutorial_development::StartingpointSnapshot value;value.image=r->image;value.lounge=local.lounge;value.project=local.current;
+    value.tech=local.tech_keys.at(tech);value.player=local.player;value.inventory=local.inventory;value.slots=local.slots;value.items=local.items;
+    if(!native_open_runtime::read_current_world(value.origin,e)||value.origin.world_epoch!=b.native_epoch||value.origin.generation!=b.native_generation||
+       !at(*r,value.tech,0x1e8,value.record,e))return fail(e,e.empty()?"Research UI current NativeOpen/record differs":e);
+    tutorial_development::CreationOwners owners;
+    for(size_t i=0;i<state.catalogue.size();++i){const auto& source=state.catalogue[i].source;
+        owners.catalogue.push_back({local.catalogue[i],source.kind,source.statistic,source.tech,source.art});
+    }
+    owners.source=local.catalogue[size_t(selected-state.catalogue.begin())];
+    if(!at(*r,value.tech,0xb4,owners.max_workers,e))return false;
+    if(state.progress.current){const auto& source=*state.progress.current;owners.current=tutorial_development::ProjectSource{local.current,source.kind,source.statistic,source.tech,source.art};}
+    value.creation=std::move(owners);
+    tutorial_replication::startingpoint::Row row;row.purchased=selected->tech_flags[0]!=0;row.deployed=selected->tech_flags[1]!=0;row.custom=selected->tech_flags[2]!=0;
+    row.project_present=state.progress.current&&*state.progress.current==selected->source;
+    if(row.project_present){row.work=std::bit_cast<float>(state.progress.work);row.lines=state.progress.lines;row.bugs_total=state.progress.bugs_total;row.bugs_known=state.progress.bugs_known;row.desired_workers=state.progress.workers;}
+    value.row=row;p::Proof proof;
+    if(!project_proof(c,b,selected->source,state,proof,e))return false;
+    // This adapter supplies UI ownership fields only. Original GeneralProject
+    // execution and its complete state proof own gameplay validation.
+    value.admission=p::encode(proof);out=std::move(value);e.clear();return true;
+}
 bool observe_pending_ui(const a::Context& c,const a::Binding& b,const p::Intent& intent,
     uint64_t previous_captures,std::string& id,std::string& e){
     id.clear();const auto* r=published.load(std::memory_order_acquire);

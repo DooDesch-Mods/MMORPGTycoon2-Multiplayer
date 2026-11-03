@@ -1424,6 +1424,10 @@ bool ability_edit_wire_fits(const Request& request,const AbilityEditState& befor
     auto& evidence=probe.evidence;evidence.before=evidence.after=money;evidence.retirement_confirmed=true;
     evidence.ability_edit_before=before;evidence.ability_edit_after=before;evidence.ability_edit_after.record=request.ability_edit.record;
     evidence.ability_edit_after.all_sha256=std::string(64,before.all_sha256==std::string(64,'a')?'b':'a');
+    if(!request.ability_edit.adjustment){auto& owner=evidence.ability_edit_after.owner;
+        const auto count=int64_t(owner.release_edits[7])+(owner.edited?1:2);
+        if(count>INT32_MAX){error="Ability Apply release counter cannot fit native int32";return false;}
+        owner.release_edits[7]=int32_t(count);owner.edited=true;owner.rename_day=owner.day;}
     std::vector<uint8_t> bytes;if(!encode(probe,bytes,error))return false;
     // The original keeps authored names and scalar sets; only bounded release
     // counters, flags, day and four RNG words can grow in the final receipt.

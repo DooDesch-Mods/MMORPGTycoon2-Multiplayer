@@ -13,7 +13,9 @@
 #include "gm_ticket_reference.h"
 #include "gm_ticket_native.h"
 #include "gm_policy_native.h"
+#include "gm_policy_spatial.h"
 #include "game_rules_native.h"
+#include "game_rules_event_observer.h"
 #include "intervention_census.h"
 #include "intervention_records.h"
 #include "intervention_native.h"
@@ -100,12 +102,14 @@ nlohmann::json intervention_status();
 a::Outcome intervention_perform(const a::Binding&,const a::Request&,const a::Evidence*,std::string&);
 bool intervention_observe(const a::Binding&,const a::Request&,a::Evidence&,std::string&);bool intervention_retire(const a::Binding&,const a::Request&,std::string&);
 bool rules_enable(Runtime&,std::string&);bool rules_pending();void rules_reset();void rules_tick(Runtime&);
+nlohmann::json rules_status();
 bool rules_values(Runtime&,game_rules::State&,game_rules::Pin&,std::string&);bool rules_routes(Runtime&,std::string&);
 bool rules_adopt(Runtime&,const game_rules::State&,live::ManagementReceipt&,std::string&);
 bool rules_checkbox(Runtime&,uintptr_t,bool,bool&,std::string&);
 a::Outcome rules_perform(const a::Binding&,const a::Request&,const a::Evidence*,std::string&);
 bool rules_observe(const a::Binding&,const a::Request&,a::Evidence&,std::string&);bool rules_retire(const a::Binding&,const a::Request&,std::string&);
 bool policy_enable(Runtime&,std::string&);bool policy_pending();void policy_reset();void policy_tick(Runtime&);
+nlohmann::json policy_status();
 bool policy_values(Runtime&,gm_policy::State&,uintptr_t&,std::string&);bool policy_route_code(Runtime&,std::string&);
 bool policy_adopt(Runtime&,const gm_policy::State&,live::ManagementReceipt&,std::string&);
 a::Outcome policy_perform(const a::Binding&,const a::Request&,const a::Evidence*,std::string&);
@@ -407,6 +411,8 @@ bool retire_lobby(std::string& e){
     if(!control_input::runtime::retire_lobby(e))return false;
     intervention_reset();rules_reset();policy_reset();r->pending.reset();r->operations.clear();r->cause.clear();r->gm_ui_proofs.clear();r->gm_ui_locked=false;r->gm_ui_cause.clear();r->loan_ui_proofs.clear();r->loan_ui_locked=false;r->loan_ui_cause.clear();r->campaign_ui_proofs.clear();r->campaign_ui_locked=false;r->campaign_ui_cause.clear();r->service_ui_proofs.clear();r->service_ui_locked=false;r->service_ui_cause.clear();r->gm_client=false;r->gm_suspended=true;r->gm_failed=false;r->gm_cause.clear();r->gm_context.reset();r->gm_binding.reset();r->gm_root=0;e.clear();return true;
 }
+void tick_rules_pending(){auto* r=published.load(std::memory_order_acquire);if(r)rules_tick(*r);}
+void tick_policy_pending(){auto* r=published.load(std::memory_order_acquire);if(r)policy_tick(*r);}
 void tick_pending(){auto* r=published.load(std::memory_order_acquire);if(!r||!r->pending)return;const auto pending=*r->pending;r->pending.reset();std::string e;
     a::Context c;a::Binding b;bool ordered=false;if(!a::selected_session().current(c,e)||c!=pending.context||!typed_action_runtime::network_binding_with_mode(c.snapshot_uuid,b,e,&ordered)||b!=pending.binding||ordered!=pending.ordered||(ordered&&!a::ordered_management(pending.intent))||!typed_action_runtime::submit_management(pending.id,pending.intent,e)){reject(*r,e.empty()?"Management captured native binding changed":e);return;}++r->submitted;
 }
@@ -481,10 +487,14 @@ nlohmann::json status(){auto* r=published.load(std::memory_order_acquire);if(!r)
     {"before",v.evidence.management_before?a::management_state_observation(*v.evidence.management_before):nlohmann::json(nullptr)},
     {"after",v.evidence.management_after?a::management_state_observation(*v.evidence.management_after):nlohmann::json(nullptr)},
     {"ledger_before",a::management_ledger_observation(v.evidence.before)},{"ledger_after",a::management_ledger_observation(v.evidence.after)},{"price_changed_destinations",v.price_changed_destinations}};
-    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",operations},{"interventions",intervention_status()},{"building_uptime",{{"suppressed",uptime_native::suppressed},{"forwarded",uptime_native::forwarded},{"failed",uptime_native::failed},{"cause",uptime_native::fault}}}};}
+    return {{"ready",r->ready},{"pending",r->pending.has_value()},{"captures",r->captures},{"submitted",r->submitted},{"rejected",r->rejected},{"cause",r->cause},{"operations",operations},{"game_rules",rules_status()},{"gm_policy",policy_status()},{"interventions",intervention_status()},{"building_uptime",{{"suppressed",uptime_native::suppressed},{"forwarded",uptime_native::forwarded},{"failed",uptime_native::failed},{"cause",uptime_native::fault}}}};}
 #include "management_live_port.inc"
 #include "gm_policy_runtime.inc"
 #include "game_rules_runtime.inc"
+#include "game_rules_ui.inc"
+#include "game_rules_numeric_ui.inc"
+#include "game_rules_event_observer.inc"
+#include "gm_policy_ui.inc"
 #include "intervention_runtime.inc"
 #include "intervention_subscriber_live.inc"
 bool intervention_replaying(){const auto* r=published.load(std::memory_order_acquire);return control_input::runtime::replaying()||(r&&GetCurrentThreadId()==r->thread&&r->replay&&interventions_runtime.original_active);}

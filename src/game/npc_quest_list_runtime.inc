@@ -1,3 +1,4 @@
+namespace command_token_label {bool read(Memory&,const void*,const char*,bool&,std::string&);}
 namespace quest_list {
 namespace {
 namespace qa=quest_authoring;
@@ -27,7 +28,7 @@ bool npc_entry(void*,void*);bool selector_entry(void*,void*);
 bool reject(const std::string& why){++rejected;if(cause!=why){cause=why;LOG_ERROR("[NPCQuestList] {}",why);}return false;}
 bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& e){
     if((request.action!=a::Action::SetNpcQuestList&&request.action!=a::Action::EditNpcQuest)||!a::ordered_quest_list(request.npc_quest_list))
-        return fail(e,"Ordered Quest scope requires Add, Title or Delete");
+        return fail(e,"Ordered Quest scope requires Add, Title, Kills, Rewards or Delete");
     a::Context context;if(!a::selected_session().current(context,e))return false;
     if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(e,"Ordered Quest actual role differs");
     return a::tick_commands::authority::matches(context,binding,request,e);
@@ -302,7 +303,10 @@ bool capture(bool remove,void* receiver,void* record)try{
     a::QuestListEdit editing=a::QuestListEdit::List;
     auto seh=label(api.label_equals,record,remove?"Destroy":"AddQuest",relevant);
     if(remove&&!relevant&&!seh)for(const auto kind:{a::QuestListEdit::Title,a::QuestListEdit::Kills,a::QuestListEdit::Rewards}){
-        seh=label(api.label_equals,record,edit_label(kind),relevant);if(relevant){editing=kind;break;}if(seh)break;}
+        if(kind==a::QuestListEdit::Title){
+            if(!command_token_label::read(m,record,edit_label(kind),relevant,e)){fault=true;reject(e);return false;}
+        }else seh=label(api.label_equals,record,edit_label(kind),relevant);
+        if(relevant){editing=kind;break;}if(seh)break;}
     if(seh){fault=true;reject("Quest list original command label SEH="+std::to_string(seh));return false;}
     if(!relevant)return hook.original(receiver,record);
     if(replaying){
@@ -367,6 +371,13 @@ bool verify_npc_command(uintptr_t command,std::string& e){Memory m;
     return guards::verify_npc_command(m,state.image,command,owned(guards::npc.rva),read_route,verify_code,quest_bridge::sha256,e);
 }
 bool pending_ui(){return pending.has_value()||!ui_token.empty()||replaying;}
+bool authoring_effect(const a::Binding& binding,const std::string& snapshot,int32_t region,const qr::Witness& witness,
+                      json& rows,std::string& targets,std::string& digest,std::string& e){
+    Memory m;References refs;json quests;
+    if(!canonical_witness(witness,quests,e)||!references(m,binding,snapshot,witness,refs,e)||!quest_bridge::pool(region,targets,e))return false;
+    rows=std::move(refs.rows);
+    return quest_bridge::sha256(json{{"quests",quests},{"references",rows},{"targets_sha256",targets}}.dump(),digest,e);
+}
 bool retire_lobby(std::string& e){
     if(!ready){e.clear();return true;}
     if(GetCurrentThreadId()!=state.thread)return fail(e,"Quest list lobby retirement requires Mainthread");
@@ -504,7 +515,7 @@ bool native_ui(const json& args,json& result,std::string& e)try{
     if(!state_read(m,binding,snapshot,p,local,key,before,refs,sample,value,e)||sample.undo.active_graph)return fail(e,e.empty()?"Quest list UI requires idle Undo":e);
     a::NpcQuestListIntent intent{int32_t(region),int32_t(slot),value.records};
     if(args.contains("edit")&&!edit_args(args.at("edit"),intent,e))return false;
-    if(controller.value("ordered",false)&&!a::ordered_quest_list(intent))return fail(e,"Ordered Quest UI requires Add, Title or Delete");
+    if(controller.value("ordered",false)&&!a::ordered_quest_list(intent))return fail(e,"Ordered Quest UI requires Add, Title, Kills, Rewards or Delete");
     if(!supported(intent,value,e))return false;
     auto& job=jobs.emplace(token,json{{"token",token},{"owner_key",key},{"region_id",region},{"remove_slot",slot},{"attempted",false},{"returned",false},
         {"captured",false},{"submitted",false},{"terminal",false},{"confirmed",false},{"unknown",false}}).first->second;

@@ -45,8 +45,8 @@ uint32_t select(uintptr_t grid,int32_t atmosphere)noexcept{__try{reinterpret_cas
 bool same_local(const Sample& before,const Sample& after){return dungeon_light::same_local(before.dungeon,after.dungeon);}
 bool record_value(Memory& memory,void* record,int32_t& atmosphere,std::string& error){auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& e){return field(memory,base,offset,value,e);};return dungeon_sound_record::read(at,uintptr_t(record),atmosphere,error);}
 bool replay_record_equals(const void* record,const char*){
-    if(!reinterpret_cast<a::ui_diagnostic::RecordEquals>(state.image+0x1113d80)(record,"SetAtmos"))return false;
-    Memory memory;std::string error;int32_t value=-1;
+    Memory memory;std::string error;bool label=false;int32_t value=-1;
+    if(!command_token_label::read(memory,record,"SetAtmos",label,error)){reject(error);return false;}if(!label)return false;
     if(!record_value(memory,const_cast<void*>(record),value,error)){reject(error);return false;}
     return value==replay_atmosphere;
 }
@@ -54,8 +54,7 @@ bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Dungeon sound original unavailable");}if(!net::session_wire::connected())return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
-    const auto seh=quest_list::label(api.label_equals,record,"SetAtmos",relevant);
-    if(seh){fault=true;return reject("Dungeon sound label SEH="+std::to_string(seh));}if(!relevant)return original(receiver,record);
+    if(!command_token_label::read(memory,record,"SetAtmos",relevant,error)){fault=true;return reject(error);}if(!relevant)return original(receiver,record);
     int32_t atmosphere=-1;if(!record_value(memory,record,atmosphere,error))return reject(error);
     // SelectRow sends a synchronous SetAtmos message. Preparing the local selection consumes that callback before its gameplay effect.
     if(replaying){bool execute=false;if(!dungeon_sound_record::replay(uintptr_t(receiver),atmosphere,replay_receiver,replay_atmosphere,preparing,original_calls,execute,error)){fault=true;return reject(error);}return execute?original(receiver,record):true;}

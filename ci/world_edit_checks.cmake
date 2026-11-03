@@ -19,6 +19,9 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${MT2MP_SOURCE_ROOT}/src/game/modular_graph.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/npc_property_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/npc_action_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/dungeon_config_runtime.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/dungeon_config_ui.inc"
+    "${MT2MP_SOURCE_ROOT}/src/game/scene_clone/runtime.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/prop_text_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/region_appearance_runtime.inc"
     "${MT2MP_SOURCE_ROOT}/src/game/region_sale_runtime.inc"
@@ -64,6 +67,9 @@ foreach(target
     test_npc_property_protocol
     test_npc_property_capture
     test_npc_property_runtime
+    test_dungeon_config_runtime
+    test_dungeon_scene_ordered
+    test_dungeon_config_ui
     test_region_sale_protocol
     test_region_sale_reader
     test_region_sale_inverse
@@ -142,7 +148,7 @@ foreach(target
     if(target STREQUAL "test_scenery_alias_order")
         target_sources(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/object_identity/remove_runtime/copy/scenery_witness.cpp")
     endif()
-    if(target STREQUAL "test_npc_property_runtime")
+    if(target STREQUAL "test_npc_property_runtime" OR target STREQUAL "test_dungeon_config_runtime" OR target STREQUAL "test_dungeon_scene_ordered")
         target_link_libraries(${target} PRIVATE world_edit_session_checks)
     endif()
     if(target STREQUAL "test_duplicate_sample")
@@ -183,6 +189,7 @@ foreach(target
 endforeach()
 
 add_test(NAME npc_property_mcp COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_npc_property_mcp.py")
+add_test(NAME dungeon_config_mcp COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/test_dungeon_config_mcp.py")
 
 add_executable(test_scenery_gesture "${CMAKE_CURRENT_LIST_DIR}/../test/test_scenery_gesture.cpp")
 target_include_directories(test_scenery_gesture PRIVATE "${CMAKE_CURRENT_LIST_DIR}/../src/game")

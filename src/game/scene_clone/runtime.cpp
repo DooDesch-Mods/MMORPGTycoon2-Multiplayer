@@ -9,6 +9,8 @@
 #include "../building_history_slice/native_bridge.h"
 #include "../session_provider.h"
 #include "../typed_action_runtime.h"
+#include "../typed_action/tick_authority.h"
+#include "../typed_action/ordered_building_family.h"
 #include "mt2mp/game/native_engine.h"
 #include <Windows.h>
 namespace mt2mp::game::scene_clone {
@@ -85,9 +87,9 @@ bool Runtime::prepare(const action_session::Context& context,const action_sessio
     state_->prepared_raw=std::move(actual);state_->prepared=true;e.clear();return true;
 }
 bool Runtime::confirm_impl(const action_session::Context& context,const action_session::Binding& binding,const std::string& operation,
-    const Mapping* authority,Mapping& out,gizmo::Census& admitted,bool& attempted,std::string& e,const std::string& template_exterior,const Raw* restoration,uintptr_t held_node){
+    const Mapping* authority,Mapping& out,gizmo::Census& admitted,bool& attempted,std::string& e,const std::string& template_exterior,const Raw* restoration,uintptr_t held_node,bool ordered_template){
     out={};admitted={};attempted=false;
-    if(!state_||!state_->prepared||state_->locked||state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding||!current(context,binding,e)||(authority!=nullptr)!=(context.role==action_session::Role::Client)||state_->operations.contains(operation))return fail(e,e.empty()?"Scene clone confirmation token/current bound preparation differs":e);
+    if(!state_||!state_->prepared||state_->locked||state_->thread!=GetCurrentThreadId()||state_->context!=context||state_->binding!=binding||!current(context,binding,e)||(ordered_template?authority!=nullptr:(authority!=nullptr)!=(context.role==action_session::Role::Client))||state_->operations.contains(operation))return fail(e,e.empty()?"Scene clone confirmation token/current bound preparation differs":e);
     Raw actual;Mapping mapping;Changes changes;
     if(![&](){std::optional<live_host_state::apply_timing::Scope> measured;if(live_host_state::apply_timing::client_party_prepare_depth)measured.emplace(live_host_state::apply_timing::Part::ClientPartySceneRawActual);return read_raw(actual,e);}()||!identities(actual,direct::registry,e,&state_->baseline)||!plan(state_->baseline,actual,operation,state_->mapping,authority,mapping,changes,e,template_exterior,restoration))return false;
     Raw held;const Raw* retained=nullptr;
@@ -157,6 +159,12 @@ bool Runtime::confirm_template(const action_session::Context& context,const acti
     const action_session::Request& request,const Mapping* authority,Mapping& out,gizmo::Census& admitted,
     bool& attempted,std::string& e,uintptr_t held_node){
     out={};admitted={};attempted=false;
+    const bool ordered=action_session::tick_commands::authority::active();
+    if(ordered){
+        if(authority||!action_session::tick_commands::ordered_dungeon_action(request)||
+           !action_session::tick_commands::authority::matches(context,binding,request,e))
+            return fail(e,e.empty()?"Ordered Scene clone requires exact consumed Dungeon action without Host mapping":e);
+    }else if(typed_action_runtime::controller_status().value("ordered",false))return fail(e,"Ordered Scene clone requires consumed command scope");
     using A=action_session::Action;
     const auto controller=typed_action_runtime::controller_status();
     const bool place=request.action==A::PlaceBuilding;
@@ -173,7 +181,7 @@ bool Runtime::confirm_template(const action_session::Context& context,const acti
         return fail(e,"Scene clone Dungeon Building scene family is invalid");
     if(request.dungeon_scene!="world"){
         if(held_node)return fail(e,"Contained Building action cannot own a detached Dungeon");
-        return confirm_impl(context,binding,request.action_uuid,authority,out,admitted,attempted,e,{},nullptr,0);
+        return confirm_impl(context,binding,request.action_uuid,authority,out,admitted,attempted,e,{},nullptr,0,ordered);
     }
     const Raw* restoration=nullptr;
     if(history){
@@ -187,7 +195,7 @@ bool Runtime::confirm_template(const action_session::Context& context,const acti
     }else if(!request.target_action_uuid.empty()||state_->template_history.contains(request.action_uuid))
         return fail(e,"Scene clone template source action was already retained or has a foreign history target");
     const auto before=state_->baseline;
-    if(!confirm_impl(context,binding,request.action_uuid,authority,out,admitted,attempted,e,request.canonical_record_key,restoration,held_node))return false;
+    if(!confirm_impl(context,binding,request.action_uuid,authority,out,admitted,attempted,e,request.canonical_record_key,restoration,held_node,ordered))return false;
     if(!history)state_->template_history.emplace(request.action_uuid,State::TemplateHistory{request.action,request.canonical_record_key,before,state_->baseline,held_node});
     else state_->template_history.at(request.target_action_uuid).held_node=held_node;
     return true;

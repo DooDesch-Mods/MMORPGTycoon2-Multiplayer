@@ -35,6 +35,14 @@ uint32_t label_is(uintptr_t image,void* record,const char* label,bool& match) {
     __try {match=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,label);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
+uint32_t selection_label_is(uintptr_t image,const void* record,const char* label,bool& match)noexcept{
+    match=false;
+    __try{
+        const auto length=strnlen_s(label,65);if(!record||!length||length>64)return ERROR_INVALID_PARAMETER;
+        const NativeString wanted{label,length,{}};
+        match=reinterpret_cast<bool(*)(const void*,const NativeString&)>(image+0x96e1d0)(record,wanted);return 0;
+    }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+}
 bool appearance_capture(Runtime&,void*,void*,bool&,std::string&);
 bool styles_command_entry(void* window,void* record) {
     auto* r=published.load(std::memory_order_acquire);
@@ -90,6 +98,10 @@ uint32_t invoke_styles(uintptr_t image,uintptr_t region,const NativeString* styl
     return exception;
 }
 bool install_styles(Runtime& r,std::string& e) {
+    std::string token_bytes(80,'\0'),token_sha;
+    if(!r.memory.copy(r.image+0x96e1d0,token_bytes.data(),token_bytes.size(),e)||!sha256(token_bytes,token_sha,e))return false;
+    if(token_sha!="8804bc96497105c4fc82d693ffc88533c3e6c1b9e70b92e3d310cdad72a0f2cc")
+        return fail(e,"Region selection token-label native body differs actual="+token_sha);
     constexpr unsigned char expected[]{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48};
     std::array<unsigned char,sizeof expected> actual{};
     if(!r.memory.copy(r.image+0x797850,actual.data(),actual.size(),e))return false;

@@ -1,5 +1,6 @@
 namespace {
 struct UiJob {a::Context context;a::Binding binding;json arguments,result=json::object();
+    bool (*executor)(UiJob&,const std::string&,std::string&)=nullptr;
     bool attempted=false,returned=false,waiting=false;unsigned stage=0,waits=0;
     OrderedView input_view;a::CharacterRenameIntent input_intent;json open_proof=json::object();std::string action_uuid,cause;};
 std::map<std::string,UiJob> ui_jobs;std::optional<std::string> queued_ui;
@@ -210,7 +211,7 @@ void tick_original_ui(){
        !typed_action_runtime::read_binding(job.context.snapshot_uuid,binding,error)||binding!=job.binding))
         if(error.empty())error="Character Rename queued input Session/Binding changed";
     if(error.empty()){
-        try{job.returned=execute_ui(job,token,error);}
+        try{job.returned=job.executor?job.executor(job,token,error):execute_ui(job,token,error);}
         catch(const std::exception& exception){error=std::string("Character Rename original input boundary: ")+exception.what();}
         catch(...){error="Character Rename original input non-standard exception";}
     }

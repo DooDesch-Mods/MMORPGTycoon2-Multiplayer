@@ -73,7 +73,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         const auto seh=lookup(out.current.api.find,uid,registered);
         if(seh||!uid||registered!=object||slot.display_slot< -1)return fail(error,"Ability membership current prototype full UID/order differs SEH="+std::to_string(seh));
         if(proxy){uintptr_t target=0;if(!field(memory,proxy,0,target,error))return false;
-            if(target!=object)return fail(error,"Ability membership actual prototype weak proxy differs");}
+            if(object>UINTPTR_MAX-0x38||target!=object+0x38)return fail(error,"Ability membership actual prototype weak proxy differs");}
         out.local.push_back({object,uintptr_t(uid),proxy});out.value.slots.push_back(std::move(slot));}
     uintptr_t final_data=0;int32_t final_count=0,final_capacity=0;
     if(!field(memory,out.current.selected,0x130,final_data,error)||!field(memory,out.current.selected,0x138,final_count,error)||
@@ -98,14 +98,17 @@ bool copy_name(Memory& memory,uintptr_t owner,const std::string& source,std::str
     if(!read)return false;return (!result.empty()&&result.size()<=4096)||fail(error,"Ability original unique name exceeds the existing authored text bound");
 }
 bool icon(Memory& memory,uintptr_t object,uintptr_t& prototype,uintptr_t& owner,bool& prefab,std::string& error){
-    uintptr_t ap=0,proxy=0,target=0;uint8_t flag=2;
+    uintptr_t ap=0,proxy=0,target=0,reciprocal=0;int32_t refs=0;uint8_t flag=2;
     if(!field(memory,object,0,ap,error)||!field(memory,object,0x320,prototype,error)||!field(memory,object,0x328,proxy,error)||
        !field(memory,object,0x330,owner,error)||!field(memory,object,0x399,flag,error))return false;
     constexpr uintptr_t icon_ap=0x1717790;
-    if(ap!=state.image+icon_ap||!prototype||!proxy||flag>1||!field(memory,proxy,0,target,error)||target!=prototype)
+    if(ap!=state.image+icon_ap||!prototype||!proxy||flag>1||prototype>UINTPTR_MAX-0x40||
+       !field(memory,proxy,0,target,error)||target!=prototype+0x38||!field(memory,proxy,8,refs,error)||refs<=0||
+       !field(memory,prototype,0x40,reciprocal,error)||reciprocal!=proxy)
         return fail(error,error.empty()?"Ability captured concrete Icon/weak binding differs":error);
     prefab=flag!=0;return true;
 }
+#include "ability_membership_presentation.inc"
 bool queue(uintptr_t owner,a::AbilityMembershipIntent intent,uintptr_t prototype,std::string& error){
     const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();Memory memory;
     if(!ready||fault||pending||executing||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||
@@ -128,8 +131,7 @@ bool new_entry(void* receiver,void* record)try{
     if(!net::session_wire::connected()||executing)return original_new(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;
     if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
-    const auto seh=quest_list::label(api.label_equals,record,"NewAbility",relevant);
-    if(seh){fault=true;return reject("Ability New label SEH="+std::to_string(seh));}if(!relevant)return original_new(receiver,record);
+    if(!command_token_label::read(memory,record,"NewAbility",relevant,error)){fault=true;return reject(error);}if(!relevant)return original_new(receiver,record);
     uintptr_t tokens=0,owner=0,ap=0;int32_t count=0,capacity=0,type=0,level=0;std::string label;
     if(!field(memory,uintptr_t(receiver),0,ap,error)||!field(memory,uintptr_t(receiver),0x340,owner,error)||
        !field(memory,uintptr_t(record),0x38,tokens,error)||!field(memory,uintptr_t(record),0x40,count,error)||
@@ -159,6 +161,9 @@ void dock_entry(void* receiver,void* button,float seconds,bool animate)try{
     if(!owner){original_dock(receiver,button,seconds,animate);return;}
     if(ap!=state.image+0x1717a00||!icon(memory,uintptr_t(button),prototype,source_owner,prefab,error)){reject(error.empty()?"Ability Dock actual native slot class differs":error);return;}
     if(!prefab&&source_owner!=owner){reject("Ability Dock non-prefab source has a different actual Character owner");return;}
+    if(uintptr_t(_ReturnAddress())==state.image+0x652826){
+        if(!presentation_dock(memory,receiver,button,seconds,animate,owner,prototype,prefab,error)){fault=true;reject(error);}return;
+    }
     a::AbilityMembershipIntent intent;intent.command=prefab?Command::Copy:Command::Dock;
     if(!field(memory,uintptr_t(receiver),0x348,intent.display_slot,error)||!field(memory,uintptr_t(receiver),0x34c,intent.level,error)){reject(error);return;}
     if(intent.display_slot<0||intent.level<0){reject("Ability Dock original authored display slot/level is negative");return;}

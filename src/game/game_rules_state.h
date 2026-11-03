@@ -15,7 +15,7 @@ struct State {
     bool operator==(const State&)const=default;
 };
 struct Intent {Command command=Command::ApplyXP;State before,after;bool operator==(const Intent&)const=default;};
-struct Proof {State state;std::string tutorial_sha256;bool operator==(const Proof&)const=default;};
+struct Proof {State state;std::string tutorial_sha256;std::string protected_sha256;bool operator==(const Proof&)const=default;};
 inline bool valid(const State& value){if(value.respawn_seconds<0)return false;for(size_t i=1;i<value.xp.size();++i)if(value.xp[i]>uint32_t(INT32_MAX))return false;for(auto v:value.features)if(v>1)return false;for(auto v:value.available)if(v>1)return false;return true;}
 inline bool valid(const Intent& value){
     if(!valid(value.before)||!valid(value.after)||(value.before==value.after&&value.command!=Command::Features))return false;auto expected=value.before;
@@ -28,13 +28,13 @@ inline bool valid(const Intent& value){
     return expected==value.after;
 }
 inline bool digest(const std::string& value){return value.size()==64&&value.find_first_not_of("0123456789abcdef")==std::string::npos;}
-inline bool valid(const Proof& value){return valid(value.state)&&digest(value.tutorial_sha256);}
-inline bool effect(const Intent& intent,const Proof& before,const Proof& after){return valid(intent)&&valid(before)&&valid(after)&&before.state==intent.before&&after.state==intent.after&&(intent.command==Command::Features||before.tutorial_sha256==after.tutorial_sha256);}
+inline bool valid(const Proof& value){return valid(value.state)&&digest(value.tutorial_sha256)&&(value.protected_sha256.empty()||digest(value.protected_sha256));}
+inline bool effect(const Intent& intent,const Proof& before,const Proof& after){return valid(intent)&&valid(before)&&valid(after)&&before.state==intent.before&&after.state==intent.after&&before.protected_sha256==after.protected_sha256&&(intent.command==Command::Features||before.tutorial_sha256==after.tutorial_sha256);}
 inline uint8_t feature_calls(const State& before){return uint8_t(before.available[0]|(before.available[1]<<1));}
 inline uint8_t feature_events(const State& before){return uint8_t((before.available[0]&&!before.features[0]?1:0)+(before.available[1]&&!before.features[1]?1:0));}
 inline nlohmann::json encode(const State& value){return {{"xp",value.xp},{"respawn_seconds",value.respawn_seconds},{"respawn_delay",value.respawn_delay},{"features",value.features},{"available",value.available}};}
 inline nlohmann::json encode(const Intent& value){return {{"command",uint8_t(value.command)},{"before",encode(value.before)},{"after",encode(value.after)}};}
-inline nlohmann::json encode(const Proof& value){return {{"rules",encode(value.state)},{"tutorial_sha256",value.tutorial_sha256}};}
+inline nlohmann::json encode(const Proof& value){nlohmann::json out={{"rules",encode(value.state)},{"tutorial_sha256",value.tutorial_sha256}};if(!value.protected_sha256.empty())out["protected_sha256"]=value.protected_sha256;return out;}
 namespace codec {
 using json=nlohmann::json;
 inline uint32_t number(const json& v,uint32_t max){if(!v.is_number_integer()||(v.is_number_unsigned()?v.get<uint64_t>()>max:v.get<int64_t>()<0||uint64_t(v.get<int64_t>())>max))throw std::runtime_error("Design rule integer outside native domain");return v.get<uint32_t>();}
@@ -43,7 +43,7 @@ inline State state(const json& j){if(!j.is_object()||j.size()!=5)throw std::runt
     out.respawn_seconds=int32_t(number(j.at("respawn_seconds"),INT32_MAX));if(!j.at("respawn_delay").is_boolean())throw std::runtime_error("Design respawn delay requires Boolean");out.respawn_delay=j.at("respawn_delay").get<bool>();
     for(auto [name,target]:{std::pair{"features",&out.features},std::pair{"available",&out.available}}){const auto& a=j.at(name);if(!a.is_array()||a.size()!=2)throw std::runtime_error("Design features require exact two native entries");for(size_t i=0;i<2;++i)(*target)[i]=uint8_t(number(a[i],1));}return out;}
 inline Intent intent(const json& j){if(!j.is_object()||j.size()!=3)throw std::runtime_error("Design intent requires exact command/before/after");Intent out{Command(number(j.at("command"),4)),state(j.at("before")),state(j.at("after"))};if(!valid(out))throw std::runtime_error("Design intent changes another rule family or has no native change");return out;}
-inline Proof proof(const json& j){if(!j.is_object()||j.size()!=2)throw std::runtime_error("Design proof requires exact full rules/tutorial digest");Proof out{state(j.at("rules")),j.at("tutorial_sha256").get<std::string>()};if(!valid(out))throw std::runtime_error("Design complete proof invalid");return out;}
+inline Proof proof(const json& j){if(!j.is_object()||j.size()!=2+size_t(j.contains("protected_sha256")))throw std::runtime_error("Design proof requires exact full rules/tutorial and optional protected digest");Proof out{state(j.at("rules")),j.at("tutorial_sha256").get<std::string>(),{}};if(j.contains("protected_sha256")){out.protected_sha256=j.at("protected_sha256").get<std::string>();if(!digest(out.protected_sha256))throw std::runtime_error("Design protected digest invalid");}if(!valid(out))throw std::runtime_error("Design complete proof invalid");return out;}
 }
 struct Pin {uintptr_t software=0,design=0,features=0,tree=0;std::array<uintptr_t,2> tech{},records{};bool operator==(const Pin&)const=default;};
 template<class Read,class Copy>bool array(Read& read,Copy& copy,uintptr_t object,size_t offset,std::vector<uintptr_t>& out,std::string& error){

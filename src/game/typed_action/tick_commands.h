@@ -1,5 +1,6 @@
 #pragma once
 #include "action_session.h"
+#include "ordered_building_family.h"
 #include "../time_session.h"
 #include <variant>
 #include <algorithm>
@@ -38,7 +39,7 @@ struct Batch {
 };
 inline bool requires_evidence(const Input& input){
     const auto* r=std::get_if<Request>(&input.command);
-    return r&&(((r->action==Action::SetNpcQuestList||r->action==Action::EditNpcQuest)&&ordered_quest_list(r->npc_quest_list))||(r->action==Action::ManagementCommand&&ordered_management(r->management))||(r->action==Action::ReleaseEdit&&game::release_edit::ordered_type(r->release_edit))||r->action==Action::RenameCharacter||r->action==Action::FireDeveloper||r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::EditGroup||r->action==Action::MoveSelection||r->action==Action::DuplicateSelection||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::EditNpcProperty||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
+    return r&&((r->action==Action::EditCharacterCostume&&ordered_costume_edit(r->costume_edit))||(r->action==Action::EditCharacterAbility&&ordered_ability_edit(r->ability_edit))||ordered_dungeon_action(*r)||(r->action==Action::GmPolicy&&ordered_gm_policy(r->gm_policy))||(r->action==Action::GameRules&&ordered_game_rules(r->game_rules))||(r->action==Action::SetNpcQuestDestination&&ordered_quest_destination(r->npc_quest))||((r->action==Action::SetNpcQuestList||r->action==Action::EditNpcQuest)&&ordered_quest_list(r->npc_quest_list))||(r->action==Action::ManagementCommand&&ordered_management(r->management))||(r->action==Action::ReleaseEdit&&game::release_edit::ordered_type(r->release_edit))||r->action==Action::GeneralProject||r->action==Action::RenameCharacter||r->action==Action::FireDeveloper||r->action==Action::CommitStartingpoint||monster_history(*r)||r->action==Action::EditGroup||r->action==Action::MoveSelection||r->action==Action::DuplicateSelection||r->action==Action::PlaceMonster||r->action==Action::MoveMonster||r->action==Action::RemoveMonster||r->action==Action::EditNpcProperty||r->action==Action::ConfigureDungeonInstances||r->action==Action::PlaceWall||r->action==Action::PlacePass||r->action==Action::TerrainStroke||
         ((r->action==Action::UndoBuilding||r->action==Action::RedoBuilding)&&
          !r->target_action_uuid.empty()&&(r->canonical_record_key=="terrain:"+r->target_action_uuid||
          r->canonical_record_key=="path:"+r->target_action_uuid||r->canonical_record_key=="groups:"+r->target_action_uuid||r->canonical_record_key=="selection:"+r->target_action_uuid||r->canonical_record_key=="duplicate:"+r->target_action_uuid)));

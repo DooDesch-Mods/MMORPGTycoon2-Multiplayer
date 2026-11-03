@@ -29,7 +29,9 @@ inline bool transition(const qr::Witness& before,const qr::Witness& after,uintpt
             return qr::fail(e,"Quest edit changed owner identity or slot count");
         const auto& now=found->second;
         for(size_t i=0;i<old.state.local.size();++i){const auto& a=old.state.local[i];const auto& b=now.state.local[i];
-            if(a.quest!=b.quest||a.owner!=b.owner)return qr::fail(e,"Quest edit changed owner slot pointer");
+            if(a.quest!=b.quest||a.owner!=b.owner||a.npc_list_member!=b.npc_list_member||
+               a.owner_weak_confirmed!=b.owner_weak_confirmed||a.destination_weak_confirmed!=b.destination_weak_confirmed||a.manager_member!=b.manager_member)
+                return qr::fail(e,"Quest edit changed owner slot pointer, weak validity or membership");
             if(a.quest==quest){
                 if(b.destination!=destination||now.destination_uids[i]!=destination_uid||b.task==npc_quest_records::TaskStatus::Absent)
                     return qr::fail(e,"Quest edit destination full UID or original recalculation task absent");

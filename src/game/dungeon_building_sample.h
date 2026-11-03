@@ -4,7 +4,7 @@
 #include "duplicate_history_effects.h"
 #include <memory>
 namespace mt2mp::game::dungeon_building_sample {
-inline bool quests(const monster_quest_retirement::Witness& value,std::string& sha,std::string& error){
+inline bool quests(const monster_quest_retirement::Witness& value,std::string& sha,std::string& error,bool include_tasks=false){
     sha.clear();if(!duplicate_quest_history::aggregate(value,error))return false;
     nlohmann::json global=nlohmann::json::array();std::map<std::string,nlohmann::json> owners;
     std::map<uintptr_t,std::pair<std::string,size_t>> current;
@@ -16,10 +16,11 @@ inline bool quests(const monster_quest_retirement::Witness& value,std::string& s
         for(size_t i=0;i<owner.state.records.size();++i){const auto& local=owner.state.local[i];
             if(local.owner!=pointer||!local.quest||owner.state.records[i].sequence_id!=int32_t(i)||
                !current.emplace(local.quest,std::pair{owner.key,i}).second){error="Dungeon Building Quest owner/order repeats or differs";return false;}
-            // Private native task cleanup is retained in the local Witness.
-            // Authored admission includes every current weak membership flag.
-            rows.push_back(nlohmann::json::array({duplicate_history_effects::quest(owner.state.records[i]),
-                local.npc_list_member,local.owner_weak_confirmed,local.destination_weak_confirmed,local.manager_member}));
+            auto row=nlohmann::json::array({duplicate_history_effects::quest(owner.state.records[i]),
+                local.npc_list_member,local.owner_weak_confirmed,local.destination_weak_confirmed,local.manager_member});
+            // Consumed ordered commands compare actual task phases between peers.
+            if(include_tasks)row.push_back(int(local.task));
+            rows.push_back(std::move(row));
         }
         if(!owners.emplace(owner.key,std::move(rows)).second){error="Dungeon Building Quest canonical owner repeats";return false;}
     }

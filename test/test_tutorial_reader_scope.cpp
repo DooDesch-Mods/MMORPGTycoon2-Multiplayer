@@ -43,7 +43,7 @@ template<class T>bool at(uintptr_t p,size_t offset,T& value,std::string& e){retu
 void string_at(uintptr_t object,uintptr_t storage,const std::string& text){put(object,storage);put(object+8,uint64_t(text.size()));std::memcpy(reinterpret_cast<void*>(storage),text.c_str(),text.size()+1);}
 bool supported(const std::string& id){return id=="initial_tutorial"||id=="leveltwo_tutorial";}
 bool same_world(const World& a,const World& b){return a.world==b.world&&a.generation==b.generation;}
-bool origin(const action_session::Context&,const action_session::Binding&,World& out,std::string& e){
+bool origin(const action_session::Context&,const action_session::Binding&,World& out,std::string& e,const void* =nullptr,bool=false){
     ++origin_calls;uintptr_t magic=0;if(!at(base,0,magic,e))return false;
     out=world;if(changed_origin&&origin_calls>1)++out.generation;return true;
 }
@@ -63,10 +63,10 @@ bool read_startingpoint(StartingpointSnapshot& out,nlohmann::json&,std::string&,
 }
 struct {World origin;uintptr_t tech=0,record=0;std::optional<startingpoint::CommitBugs> bugs;} commit_receipt;
 namespace display_native {
-bool capture(const action_session::Context&,const action_session::Binding&,const tutorial_development::StartingpointSnapshot&,std::optional<mt2mp::game::tutorial_replication::staff_display::State>&,std::string&,bool){return true;}
+bool capture(const action_session::Context&,const action_session::Binding&,const tutorial_development::StartingpointSnapshot&,std::optional<mt2mp::game::tutorial_replication::staff_display::State>&,std::string&,bool,bool){return true;}
 }
 namespace lifecycle_native {bool decorate(const World&,const action_session::Context&,State&,std::string&){return true;}}
-bool research_capture(const action_session::Context&,const action_session::Binding&,const World&,State&,std::string&){return true;}
+bool research_capture(const action_session::Context&,const action_session::Binding&,const World&,State&,std::string&,bool){return true;}
 namespace message_progress {
 struct Binding {std::optional<mt2mp::game::tutorial_replication::MessageProgress> values;};
 bool read(Memory&,uintptr_t,uintptr_t,int32_t,Binding&,std::string&){return true;}

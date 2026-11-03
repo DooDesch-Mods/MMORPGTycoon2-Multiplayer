@@ -3,4 +3,5 @@
 namespace mt2mp::action_session {
 using GmPolicyIntent=game::gm_policy::Intent;
 using GmPolicyProof=game::gm_policy::Proof;
+inline bool ordered_gm_policy(const GmPolicyIntent& intent){return game::gm_policy::valid(intent);}
 }

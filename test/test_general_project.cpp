@@ -36,6 +36,20 @@ void policies(){std::string e;auto before=initial(),after=before;p::Intent i{p::
     i.command=p::Command::Start;auto wire=p::encode(i);need(p::codec::intent(wire)==i,e);wire["workers"]=uint64_t{1}<<40;bool rejected=false;try{p::codec::intent(wire);}catch(const std::runtime_error&){rejected=true;}need(rejected,"overflow workers decoded");
     wire=p::encode(proof(before));need(p::codec::proof(wire)==proof(before),e);wire["selected"]["afford"]=1;rejected=false;try{p::codec::proof(wire);}catch(const std::runtime_error&){rejected=true;}need(rejected,"integer bool decoded");
 }
+void research_families(){
+    for(const auto& key:{"parties","dungeons"}){std::string e;auto before=initial();before.catalogue[0].source={0,0,key,""};before.techs[0].key=key;
+        p::Intent intent{p::Command::Start,before.catalogue[0].source,0};auto after=before;after.progress.current=intent.source;after.catalogue[0].tech_flags[0]=after.techs[0].flags[0]=1;
+        need(p::transition(intent,before,after,e)&&p::effect(intent,proof(before),proof(after),e),std::string(key)+" original Start: "+e);
+        auto denied=before;denied.catalogue[0].choose=false;need(!p::before(intent,denied,e),"native prerequisite rejection lost");denied=before;denied.catalogue[0].afford=false;need(!p::before(intent,denied,e),"native affordability rejection lost");
+        before=after;intent.command=p::Command::Workers;intent.workers=1;after.progress.workers=1;need(p::transition(intent,before,after,e)&&p::effect(intent,proof(before),proof(after),e),e);
+        before=after;intent.command=p::Command::Commit;intent.workers=0;after.progress={};after.catalogue[0].owned=true;after.catalogue[0].tech_flags[1]=after.techs[0].flags[1]=1;
+        if(std::string(key)=="parties"){after.values[0].push_back({"Social",0,5,{}});}
+        else{after.inventory[31]="@DungeonExteriors";after.features[0]=1;after.packs.push_back({"dungeonboss",true,true});}
+        need(p::transition(intent,before,after,e)&&p::effect(intent,proof(before),proof(after),e),std::string(key)+" native deployment shape: "+e);
+        need(proof(before).ownership_sha256!=proof(after).ownership_sha256,"complete modifier/feature/inventory/ArtPack effects lost from proof");
+        auto wrong=intent;wrong.source.tech="bridges";need(!p::effect(wrong,proof(before),proof(after),e),"foreign selected Tech proof admitted");
+    }
+}
 struct Memory {
     std::map<uintptr_t,uint8_t> bytes;std::map<uintptr_t,std::string> strings;
     template<class T>void put(uintptr_t at,const T& v){const auto* p=reinterpret_cast<const uint8_t*>(&v);for(size_t i=0;i<sizeof v;++i)bytes[at+i]=p[i];}
@@ -87,4 +101,4 @@ void controller(bool partial){Session hs(1),cs(2);Engine he,ce;ce.partial=partia
     need(host.receive(request.from,request.bytes.data(),request.bytes.size(),2,e)&&client.receive(result.from,result.bytes.data(),result.bytes.size(),2,e),e);need(he.executions==1&&ce.executions==1,"duplicate ordered delivery replayed original");need(!client.submit_general_project(id,i,3,e),"consumed original UUID replayed");
 }
 }
-int main(){try{character_catalogue_effect();policies();effects();codec_frame();bugs();controller(false);controller(true);std::cout<<checks<<" General project actual state/codec/effect checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}
+int main(){try{character_catalogue_effect();policies();research_families();effects();codec_frame();bugs();controller(false);controller(true);std::cout<<checks<<" General project actual state/codec/effect checks passed\n";return 0;}catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

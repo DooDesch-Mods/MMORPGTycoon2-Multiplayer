@@ -10,7 +10,7 @@ struct AbilityEffectRecord {
 struct AbilityRecord {
     std::array<std::string,8> text{};float item_value=0;int32_t item_kind=0;bool item_flag=false;
     std::array<int32_t,5> selectors{};std::array<float,4> color{};std::array<float,3> timing{};
-    std::array<bool,5> flags{};std::array<float,2> final_values{};int32_t level=0;bool final_flag=false;
+    int32_t animation=0;bool use_weapon=false;std::array<float,2> final_values{};int32_t level=0;bool final_flag=false;
     std::vector<AbilityEffectRecord> costs,effects;
     bool operator==(const AbilityRecord&)const=default;
 };
@@ -41,9 +41,15 @@ inline bool ability_adjusted_record(const AbilityRecord& before,const AbilityAdj
     else rows[size_t(change.index)].values[0]=value;
     return true;
 }
+inline bool ordered_ability_edit(const AbilityEditIntent& intent){return intent.adjustment.has_value()||!intent.record.effects.empty();}
+inline bool ability_adjustment_owner_equal(const CharacterRenameState& before,const CharacterRenameState& after){
+    // The complete Character record includes the edited Ability; its catalogue hash can change.
+    auto expected=after;expected.all_sha256=before.all_sha256;
+    return expected==before;
+}
 inline bool ability_edit_transition(const AbilityEditIntent& intent,const AbilityEditState& before,const AbilityEditState& after){
     if(intent.adjustment){AbilityRecord expected;
-        return before.count>0&&before.count==after.count&&before.owner==after.owner&&
+        return before.count>0&&before.count==after.count&&ability_adjustment_owner_equal(before.owner,after.owner)&&
             ability_adjusted_record(before.record,*intent.adjustment,expected)&&expected==intent.record&&after.record==expected&&
             before.all_sha256!=after.all_sha256;}
     if(after.record!=intent.record||before.count!=after.count||before.count==0||
@@ -51,9 +57,10 @@ inline bool ability_edit_transition(const AbilityEditIntent& intent,const Abilit
        before.owner.count!=after.owner.count||before.owner.day!=after.owner.day||before.owner.undo_count!=after.owner.undo_count||
        before.owner.attributes!=after.owner.attributes||before.owner.speed!=after.owner.speed||
        before.owner.boss_health!=after.owner.boss_health||before.owner.boss_phases!=after.owner.boss_phases||
-       before.owner.released!=after.owner.released)return false;
+       before.owner.released!=after.owner.released||before.owner.others_sha256!=after.owner.others_sha256||
+       !after.owner.edited||after.owner.rename_day!=before.owner.day)return false;
     for(size_t i=0;i<8;++i){const auto delta=int64_t(after.owner.release_edits[i])-before.owner.release_edits[i];
-        if(i==7?(delta<0||uint64_t(delta)>before.owner.count):delta!=0)return false;}
+        if(i==7?(delta<(before.owner.edited?1:2)||uint64_t(delta)>uint64_t(before.owner.count)+1):delta!=0)return false;}
     return before.record==intent.record||before.all_sha256!=after.all_sha256;
 }
 }

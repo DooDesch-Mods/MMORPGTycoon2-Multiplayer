@@ -11,6 +11,36 @@ SCHEMAS={'read_native_release':{'type':'object','properties':{},'additionalPrope
 DESCRIPTIONS={'read_native_release':'Read actual current ReleaseHUD/native Origin/version/changelog/Clock0 fixture state and retained receipts on owned GameUpdate. Read does not call RNG-consuming CanReleaseNow.',
  'native_initial_release_fixture':'Invoke original ReleaseHUD.DoCelebration once on actual idle Host/Clock0 before Controller initialization. Genuine native UI-command/engine fixture route, not a mouse-click or peer ACK proof. Inspect actual effect/settled state and retain token; no replay.'}
 SCHEMAS['read_release_planner_ui']={'type':'object','properties':{},'additionalProperties':False}
+SCHEMAS['read_native_rules_numeric_ui']={'type':'object','properties':{},'additionalProperties':False}
+SCHEMAS['read_native_rules_feature_events']={'type':'object','properties':{},'additionalProperties':False}
+SCHEMAS['read_native_gm_policy_ui']={'type':'object','properties':{},'additionalProperties':False}
+SCHEMAS['native_gm_policy_ui']={'type':'object','properties':{'command':{'type':'string','enum':['SelectPolicy','ToggleCheckLog','ToggleChatEnabled']},'token':{'type':'string','pattern':'^'+UUID+'$'},'snapshot_uuid':{'type':'string','pattern':'^'+UUID+'$'},'epoch':{'type':'integer','minimum':1,'maximum':18446744073709551615},'generation':{'type':'integer','minimum':1,'maximum':18446744073709551615},'expected_value':{'type':'boolean'}},'required':['command','token','snapshot_uuid','epoch','generation','expected_value'],'additionalProperties':False}
+POLICY_FIELDS={'enabled':None,'watchSeconds':3600,'checkLog':None,'isBannable':None,'banFavorites':None,'banInfluencers':None,'warnsBeforeBan':30}
+_policy_legacy=SCHEMAS['native_gm_policy_ui']
+_policy_generic=[]
+for _field,_max in POLICY_FIELDS.items():
+    _scalar={'type':'boolean'} if _max is None else {'type':'integer','minimum':0,'maximum':_max}
+    _props=dict(_policy_legacy['properties'],command={'const':'SetPolicy'},policy={'enum':['chat','cheat']},field={'const':_field},expected_value=_scalar,value=_scalar)
+    _policy_generic.append({'type':'object','properties':_props,'required':list(_props),'additionalProperties':False})
+SCHEMAS['native_gm_policy_ui']={'type':'object','oneOf':[_policy_legacy]+_policy_generic}
+DESCRIPTIONS['read_native_gm_policy_ui']='Read actual GM Chat/Cheat control readiness for all seven offered properties, complete policy/protected proof, full Ledger, portable ticket/master/manager/model state and diagnostic per-ticket observer callbacks. Observer lists are not canonical peer state.'
+DESCRIPTIONS['native_gm_policy_ui']='Select the original visible GM Policy tab or set an actual visible Chat/Cheat policy checkbox or spinner once through SetPolicy (policy, field, expected_value, value); legacy Chat toggles remain supported. Use the existing native_gm_ui Show route first. Capture precedes the gameplay member store; the consumed ordered action runs the complete native Notify/ApplyPolicy cascade. Require full canonical peer effects and ACK; never replay an attempted or unknown token.'
+DESCRIPTIONS['read_native_rules_feature_events']='Observe native FeatureEnabled event59 gate and exact linked recipient callback identities on idle original Go, with unchanged complete rules/protected proof and Ledger. Read only: no event, UI action or ordered Features admission. Empty recipients are an observation, not gameplay acceptance.'
+SCHEMAS['native_rules_numeric_ui']={'type':'object','properties':{
+    'command':{'type':'string','enum':['ShowCombat','ShowLevels','Seconds','XpPerMob','ApplyXP']},'token':{'type':'string','pattern':'^'+UUID+'$'},
+    'snapshot_uuid':{'type':'string','pattern':'^'+UUID+'$'},'epoch':{'type':'integer','minimum':1,'maximum':18446744073709551615},
+    'generation':{'type':'integer','minimum':1,'maximum':18446744073709551615},'expected':{'type':'integer','minimum':-1,'maximum':2147483647},'value':{'type':'integer','minimum':-1,'maximum':2147483647}},
+    'required':['command','token','snapshot_uuid','epoch','generation','expected','value'],'additionalProperties':False}
+DESCRIPTIONS['read_native_rules_numeric_ui']='Read actual Combat seconds and active Levels XP controls, complete gameplay proof, local XP draft and full Ledger without input.'
+DESCRIPTIONS['native_rules_numeric_ui']='Show an original Combat/Levels window, edit its actual visible Seconds or XP-per-mob PropertyPane via original SetText and focus-loss commit, or activate original ready XP Apply once. XP editing changes only the native local draft; Seconds and Apply capture gameplay before ordered execution. Read action UUID and both peers complete canonical evidence/ACK. Never replay an attempted or unknown token.'
+SCHEMAS['read_native_rules_ui']={'type':'object','properties':{},'additionalProperties':False}
+SCHEMAS['native_rules_ui']={'type':'object','properties':{
+    'command':{'type':'string','enum':['Show','ToggleDelay']},'token':{'type':'string','pattern':'^'+UUID+'$'},
+    'snapshot_uuid':{'type':'string','pattern':'^'+UUID+'$'},'epoch':{'type':'integer','minimum':1,'maximum':18446744073709551615},
+    'generation':{'type':'integer','minimum':1,'maximum':18446744073709551615},'expected_delay':{'type':'boolean'}},
+    'required':['command','token','snapshot_uuid','epoch','generation','expected_delay'],'additionalProperties':False}
+DESCRIPTIONS['read_native_rules_ui']='Read current complete Design rules, Tutorial and protected Management/RNG digests, full Ledger and actual Combat window checkbox readiness.'
+DESCRIPTIONS['native_rules_ui']='Show the original registered Combat Design window or activate its actual visible bound Respawn delay checkbox once. Capture occurs before gameplay mutation. Inspect game_rules operations and both peers canonical command evidence/ACK. A consumed or uncertain token never replays.'
 SCHEMAS['read_native_gm_ui']={'type':'object','properties':{},'additionalProperties':False}
 SCHEMAS['read_native_loan_ui']={'type':'object','properties':{},'additionalProperties':False}
 SCHEMAS['read_native_campaign_ui']={'type':'object','properties':{},'additionalProperties':False}
@@ -93,6 +123,56 @@ def validate(op,args):
             if type(args[k]) is not int or not 1<=args[k]<=18446744073709551615:bad('Loan UI requires positive uint64 binding')
         key=args['key']
         if not isinstance(key,str) or len(key.encode('utf-8'))>256 or '\0' in key or (bool(key)!=(args['command'] in ('Take','Repay'))):bad('Loan UI key differs from command')
+        return
+    if op=='read_native_gm_policy_ui':
+        if args:bad('GM policy UI read requires empty arguments')
+        return
+    if op=='native_gm_policy_ui':
+        common={'command','token','snapshot_uuid','epoch','generation','expected_value'}
+        generic=args.get('command')=='SetPolicy'
+        if set(args)!=(common|{'policy','field','value'} if generic else common):bad('GM policy UI requires exact command fields')
+        for k in ('token','snapshot_uuid'):
+            if not isinstance(args[k],str) or re.fullmatch(UUID,args[k]) is None:bad('GM policy UI requires canonical UUIDs')
+        for k in ('epoch','generation'):
+            if type(args[k]) is not int or not 1<=args[k]<=18446744073709551615:bad('GM policy UI requires positive uint64 binding')
+        if generic:
+            if args['policy'] not in ('chat','cheat') or not isinstance(args['field'],str) or args['field'] not in POLICY_FIELDS:bad('GM policy UI requires original policy/property')
+            maximum=POLICY_FIELDS[args['field']]
+            for k in ('expected_value','value'):
+                if maximum is None:
+                    if type(args[k]) is not bool:bad('GM policy checkbox requires boolean values')
+                elif type(args[k]) is not int or not 0<=args[k]<=maximum:bad('GM policy spinner value outside original range')
+            if args['value']==args['expected_value']:bad('GM policy UI requires an actual change')
+        elif args['command'] not in ('SelectPolicy','ToggleCheckLog','ToggleChatEnabled') or type(args['expected_value']) is not bool:bad('GM policy UI requires original command and boolean state')
+        return
+
+    if op=='read_native_rules_feature_events':
+        if args:bad('Feature event observation requires empty arguments')
+        return
+    if op=='read_native_rules_numeric_ui':
+        if args:bad('Design numeric read requires empty arguments')
+        return
+    if op=='native_rules_numeric_ui':
+        if set(args)!={'command','token','snapshot_uuid','epoch','generation','expected','value'} or args['command'] not in ('ShowCombat','ShowLevels','Seconds','XpPerMob','ApplyXP'):bad('Design numeric UI requires exact command and fields')
+        for key in ('token','snapshot_uuid'):
+            if not isinstance(args[key],str) or re.fullmatch(UUID,args[key]) is None:bad('Design numeric UI requires canonical UUIDs')
+        for key in ('epoch','generation'):
+            if type(args[key]) is not int or not 1<=args[key]<=18446744073709551615:bad('Design numeric UI requires positive uint64 binding')
+        edit=args['command'] in ('Seconds','XpPerMob')
+        for key in ('expected','value'):
+            if type(args[key]) is not int or (not 0<=args[key]<=2147483647 if edit else args[key]!=-1):bad('Design numeric value differs from command')
+        if edit and args['expected']==args['value']:bad('Design numeric edit must change its offered value')
+        return
+    if op=='read_native_rules_ui':
+        if args:bad('Design UI read requires empty arguments')
+        return
+    if op=='native_rules_ui':
+        if set(args)!={'command','token','snapshot_uuid','epoch','generation','expected_delay'} or args['command'] not in ('Show','ToggleDelay'):bad('Design UI requires exact command and fields')
+        for key in ('token','snapshot_uuid'):
+            if not isinstance(args[key],str) or re.fullmatch(UUID,args[key]) is None:bad('Design UI requires canonical UUIDs')
+        for key in ('epoch','generation'):
+            if type(args[key]) is not int or not 1<=args[key]<=18446744073709551615:bad('Design UI requires positive uint64 binding')
+        if type(args['expected_delay']) is not bool:bad('Design UI requires actual Respawn delay Boolean')
         return
     if op=='read_native_gm_ui':
         if args:bad('GM UI read requires empty arguments')

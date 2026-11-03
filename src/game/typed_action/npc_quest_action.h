@@ -22,6 +22,9 @@ struct NpcQuestState {
     std::array<uint64_t,4> global_random{};
     bool operator==(const NpcQuestState&) const=default;
 };
+inline bool ordered_quest_destination(const NpcQuestIntent& intent){
+    return intent.family==QuestDestinationFamily::Building&&intent.region>=0&&intent.destination_region==intent.region;
+}
 inline bool npc_quest_record_transition(const NpcQuestIntent& intent,const npc_quest_records::Record& after){
     auto expected=intent.before;
     expected.destination_key=intent.destination_key;expected.action=intent.action;

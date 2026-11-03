@@ -6,8 +6,8 @@ uintptr_t replay_receiver=0;uint32_t original_calls=0;std::string cause,last_act
 constexpr npc_quest_list_ui_codes::Code ui_code{0x6b51c0,4250,"aa46c765e1353ad394627575ec4b7b18b23d9e7e9ea8cda9b31da5a7880c7407",
     {0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x38,0x02,0,0,0x0f,0x11,0xb4,0x24,0xd0,0x01,0,0,0x0f,0x11,0xbc,0x24,0xe0}};
 struct Sample {character_rename::Sample character;uintptr_t costume=0;std::vector<std::array<uintptr_t,3>> local; a::CostumeEditState value;};
-struct Pending {a::Binding binding;std::string snapshot;a::CostumeEditIntent intent;};
-struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false;uint32_t calls=0;std::string cause;};
+struct Pending {a::Binding binding;std::string snapshot;a::CostumeEditIntent intent;std::optional<a::Context> context;std::string diagnostic_token;};
+struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false,ordered=false;uint32_t calls=0;std::string cause;};
 std::optional<Pending> pending;std::map<std::string,Operation> operations;
 bool entry(void*,void*);
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[CostumeEdit] {}",error);}return false;}
@@ -91,21 +91,56 @@ bool prepare(uintptr_t draft,const a::CostumeRecord& record,std::string& error){
 }
 bool same_local(const Sample& before,const Sample& after){return character_rename::same_local(before.character,after.character)&&before.costume==after.costume&&before.local==after.local;}
 bool same_menu_identity(const Sample& before,const Sample& after){return same_local(before,after);}
+bool ordered_mode(){return typed_action_runtime::controller_status().value("ordered",false);}
+bool ordered_scope(const a::Binding& binding,const a::Request& request,std::string& error){
+    if(request.action!=a::Action::EditCharacterCostume||!a::ordered_costume_edit(request.costume_edit))
+        return fail(error,"Ordered Costume weapon scope requires an original category checkbox intent");
+    a::Context context;if(!a::selected_session().current(context,error))return false;
+    if(Config::instance().is_host!=(context.role==a::Role::Host))return fail(error,"Ordered Costume weapon actual role differs");
+    return a::tick_commands::authority::matches(context,binding,request,error);
+}
+bool execution_admission(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error){
+    if(a::tick_commands::authority::active()){
+        if(authority)return fail(error,"Ordered Costume weapon execution forbids Host state and RNG adoption");
+        return ordered_scope(binding,request,error);
+    }
+    return !ordered_mode()||fail(error,"Ordered Costume weapon execution requires consumed command scope");
+}
+bool current_capture(const Pending& saved,a::Binding& binding,std::string& error){
+    if(saved.snapshot!=net::current_snapshot_id())return fail(error,"Costume weapon captured Snapshot changed");
+    if(!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding)
+        return fail(error,error.empty()?"Costume weapon captured native Binding changed":error);
+    if(!saved.context)return !ordered_mode()||fail(error,"Ordered Costume weapon captured Context absent");
+    if(!ordered_mode())return fail(error,"Costume weapon captured mode changed required=ordered");
+    a::Context actual;if(!a::selected_session().current(actual,error))return false;
+    return actual==*saved.context||fail(error,"Costume weapon captured actual Session changed");
+}
+bool ordered_protected(const Sample& before,const Sample& after,std::string& error){
+    for(const auto* name:{"actors_sha256","bosses_sha256","release_sha256","other_definitions_sha256","other_actors_sha256","quests_sha256","art_store_sha256"}){
+        const auto old=before.character.proof.find(name),now=after.character.proof.find(name);
+        if(old==before.character.proof.end()||now==after.character.proof.end()||!old->is_string()||!now->is_string())
+            return fail(error,std::string("Ordered Costume weapon complete protected proof absent field=")+name);
+        const auto digest=old->get<std::string>();
+        if(digest.size()!=64||!std::all_of(digest.begin(),digest.end(),[](char c){return (c>='0'&&c<='9')||(c>='a'&&c<='f');})||*old!=*now)
+            return fail(error,std::string("Ordered Costume weapon protected original state differs field=")+name);
+    }
+    return before.character.money==after.character.money||fail(error,"Ordered Costume weapon complete Ledger changed");
+}
 bool entry(void* receiver,void* record)try{
     if(!original){fault=true;return reject("Costume original unavailable");}if(!net::session_wire::connected())return original(receiver,record);
     Memory memory;std::string error;a::ui_diagnostic::Api api;bool relevant=false;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error)){fault=true;return reject(error);}
     auto seh=quest_list::label(api.label_equals,record,"Apply",relevant);if(seh){fault=true;return reject("Costume Apply label SEH="+std::to_string(seh));}
-    bool weapon=false;if(!relevant){seh=quest_list::label(api.label_equals,record,"WeaponCategory",weapon);if(seh){fault=true;return reject("Costume weapon label SEH="+std::to_string(seh));}}if(!relevant&&!weapon)return original(receiver,record);
+    bool weapon=false;if(!relevant&&!command_token_label::read(memory,record,"WeaponCategory",weapon,error)){fault=true;return reject(error);}if(!relevant&&!weapon)return original(receiver,record);
     if(replaying){if(uintptr_t(receiver)!=replay_receiver||original_calls){fault=true;return reject("Costume original-once receiver/count differs");}++original_calls;return original(receiver,record);}
-    const auto controller=typed_action_runtime::controller_status();a::Binding binding;const auto snapshot=net::current_snapshot_id();
-    if(!ready||fault||pending||building_status::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!typed_action_runtime::network_binding(snapshot,binding,error))return reject(error.empty()?"Costume capture requires idle bound Mainthread Controller":error);
+    const auto controller=typed_action_runtime::controller_status();a::Binding binding;std::optional<a::Context> context;const auto snapshot=net::current_snapshot_id();
+    if(!ready||fault||pending||building_status::pending_ui()||dungeon_config::pending_ui()||dungeon_sound::pending_ui()||dungeon_gizmo::pending_ui()||dungeon_palette::pending_ui()||dungeon_light::pending_ui()||quest_list::pending_ui()||character_rename::pending_ui()||ability_edit::pending_ui()||GetCurrentThreadId()!=state.thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!code(memory,error)||!(weapon?character_rename::capture_binding(snapshot,binding,context,error):typed_action_runtime::network_binding(snapshot,binding,error)))return reject(error.empty()?"Costume capture requires idle bound Mainthread Controller":error);
     uintptr_t outer=0,live=0,draft=0,owner=0;if(!window(memory,outer,live,draft,owner,error)||outer!=uintptr_t(receiver)||!live||!draft)return reject(error.empty()?"Costume captured Window current draft absent":error);
     if(!owner)return original(receiver,record);
     a::CostumeEditIntent intent;if(!field(memory,owner,0x2c,intent.kind,error)||!field(memory,owner,0x30,intent.id,error))return reject(error);
     Sample before;if(!read_record(memory,weapon?live:draft,intent.record,error)||!sample(memory,binding,snapshot,intent,before,error)||before.costume!=live||before.character.selected!=owner)return reject(error.empty()?"Costume captured owner/draft census differs":error);
     if(weapon){a::CostumeWeaponIntent checkbox;if(!read_weapon_command(memory,uintptr_t(record),checkbox,error))return reject(error);std::vector<std::string> after;if(!a::costume_weapon_after(before.value.weapon_categories,checkbox,after))return reject("Costume weapon checkbox is unchanged");intent.weapon_category=std::move(checkbox);
         seh=weapon_dirty(outer);if(seh||!weapon_dirty_readback(memory,outer,error)){fault=true;return reject(error.empty()?"Costume weapon original dirty tail SEH="+std::to_string(seh):error);}}
-    if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent};++captures;return true;
+    if(!quest_bridge::sha256(record_json(before.value.record).dump(),intent.before_sha256,error))return reject(error);pending=Pending{binding,snapshot,intent,context,character_rename::native_edit_input_token()};++captures;return true;
 }catch(const std::exception& exception){fault=true;return reject(std::string("Costume capture boundary: ")+exception.what());}catch(...){fault=true;return reject("Costume capture non-standard exception");}
 }
 bool pending_ui(){return pending.has_value()||replaying;}
@@ -128,19 +163,23 @@ bool enable(std::string& error){
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+ui_code.rva,receipt,error))return false;generation=receipt.generation;if(!code(memory,error))return false;ready=true;return true;
 }
 void tick(){if(!pending)return;const auto saved=*pending;pending.reset();std::string error;a::Binding binding;
-    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,error)||binding!=saved.binding){fault=true;reject(error.empty()?"Costume captured world changed":error);return;}
+    if(!ready||fault||!current_capture(saved,binding,error)){fault=true;reject(error.empty()?"Costume captured world changed":error);return;}
     const auto id=action_runtime::uuid(error);if(id.empty()||!typed_action_runtime::submit_costume_edit(id,saved.intent,error)){fault=true;reject(error);return;}++submitted;last_action=id;
+    if(!saved.diagnostic_token.empty()&&!character_rename::native_edit_submitted(saved.diagnostic_token,id,error)){fault=true;reject(error);}
 }
 a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::Evidence* authority,std::string& error)try{
     if(!ready||fault||GetCurrentThreadId()!=state.thread||request.action!=a::Action::EditCharacterCostume){error="Costume edit runtime unavailable";return a::Outcome::RejectedNoEffect;}
     if(operations.contains(request.action_uuid)){error="Costume edit already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();if(!controller.value("pending",false)||controller.value("locked",true)||controller.value("action_uuid",std::string{})!=request.action_uuid){error="Costume edit requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,error))return a::Outcome::RejectedNoEffect;
+    const bool ordered=a::tick_commands::authority::active();
     Memory memory;Sample before;const auto& intent=request.costume_edit;std::string prior_sha;
     if(!code(memory,error)||!sample(memory,binding,request.snapshot_uuid,intent,before,error)||!quest_bridge::sha256(record_json(before.value.record).dump(),prior_sha,error))return a::Outcome::RejectedNoEffect;
     if(prior_sha!=intent.before_sha256){error="Costume edit actual current record differs from captured prior";return a::Outcome::RejectedNoEffect;}
     if(!a::costume_edit_wire_fits(request,before.value,before.character.money,error))return a::Outcome::RejectedNoEffect;
+    if(ordered&&!ordered_protected(before,before,error))return a::Outcome::RejectedNoEffect;
     if(authority){auto portable=before.value;portable.owner.global_random=authority->costume_edit_before.owner.global_random;if(portable!=authority->costume_edit_before||before.character.money!=authority->before){error="Costume Client actual prior owner/census/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
-    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;
+    auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.ordered=ordered;
     const auto unknown=[&](const std::string& why){replaying=false;replay_receiver=0;error=op.cause=why.empty()?"Costume edit failed without cause":why;return a::Outcome::Unknown;};
     uintptr_t outer=0;
     if(!intent.weapon_category){
@@ -152,8 +191,9 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     Sample prepared;if(!sample(memory,binding,request.snapshot_uuid,intent,prepared,error))return unknown(error);auto portable=prepared.value;portable.owner.global_random=before.value.owner.global_random;
     if(!same_menu_identity(before,prepared)||portable!=before.value)return unknown("Costume owned UI preparation changed live gameplay");
     }else if(intent.record!=before.value.record)return unknown("Costume weapon intent changed an unrelated live Costume");
-    const auto desired_rng=authority?authority->costume_edit_before.owner.global_random:before.value.owner.global_random;op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Costume Host RNG adoption SEH="+std::to_string(seed));
+    const auto desired_rng=authority?authority->costume_edit_before.owner.global_random:before.value.owner.global_random;if(!ordered){op.seed_attempted=true;const auto seed=action_runtime::seed(state.image,desired_rng);if(seed)return unknown("Costume Host RNG adoption SEH="+std::to_string(seed));}
     if(!sample(memory,binding,request.snapshot_uuid,intent,op.before,error)||op.before.value.owner.global_random!=desired_rng)return unknown(error.empty()?"Costume Host RNG readback differs":error);
+    if(ordered&&!ordered_protected(op.before,op.before,error))return unknown(error);
     op.evidence.before=op.before.character.money;op.evidence.costume_edit_before=op.before.value;
     if(intent.weapon_category){op.attempted=true;
         const auto native=weapon_original(op.before.character.selected,*intent.weapon_category,op.calls,op.returned);
@@ -163,7 +203,8 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     a::ui_diagnostic::Receipt receipt;op.attempted=true;replaying=true;replay_receiver=outer;original_calls=0;const bool returned=a::ui_diagnostic::process_calls().command(api,command_window,receipt,error);op.calls=original_calls;op.returned=receipt.ui_command_returned;replaying=false;replay_receiver=0;
     if(!returned||!op.returned||op.calls!=1||!receipt.record_cleanup_confirmed)return unknown(error.empty()?"Costume original transaction lacks exact once/cleanup receipt":error);
     }
-    if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::costume_edit_transition(intent,op.before.value,op.after.value))return unknown(error.empty()?"Costume original effect/owner/census/ledger/Undo differs":error);
+    if(!sample(memory,binding,request.snapshot_uuid,intent,op.after,error)||!same_local(op.before,op.after)||!a::costume_edit_transition(intent,op.before.value,op.after.value)||
+       (ordered?!ordered_protected(op.before,op.after,error):(intent.weapon_category&&op.before.value.owner!=op.after.value.owner)))return unknown(error.empty()?"Costume original effect/owner/census/ledger/Undo differs":error);
     op.evidence.after=op.after.character.money;op.evidence.costume_edit_after=op.after.value;if(authority){auto expected=*authority;expected.retirement_confirmed=false;if(op.evidence!=expected)return unknown("Costume Client original result differs from Host");}
     op.confirmed=true;return a::Outcome::Confirmed;
 }catch(const std::exception& exception){replaying=false;replay_receiver=0;error=std::string("Costume perform boundary: ")+exception.what();return a::Outcome::Unknown;}catch(...){replaying=false;replay_receiver=0;error="Costume perform non-standard exception";return a::Outcome::Unknown;}
@@ -171,5 +212,5 @@ bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& re
     if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.returned||found->second.calls!=1)return fail(error,"Costume observation lacks exact confirmed original-once receipt");
     const auto& op=found->second;Memory memory;Sample now;if(!sample(memory,binding,request.snapshot_uuid,request.costume_edit,now,error)||!same_local(op.after,now)||now.value!=op.after.value)return fail(error,error.empty()?"Costume current result differs before ACK":error);result=op.evidence;result.retirement_confirmed=op.retired;return true;}
 bool retire(const a::Binding& binding,const a::Request& request,std::string& error){a::Evidence ignored;if(!observe(binding,request,ignored,error))return false;auto& op=operations.at(request.action_uuid);if(op.retired)return fail(error,"Costume receipt already retired");op.retired=true;return true;}
-json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"prepared",op.prepared},{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"cause",op.cause}};return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
+json status(){json rows=json::object();for(const auto& [id,op]:operations)rows[id]={{"prepared",op.prepared},{"attempted",op.attempted},{"returned",op.returned},{"original_calls",op.calls},{"confirmed",op.confirmed},{"retired",op.retired},{"seed_attempted",op.seed_attempted},{"ordered",op.ordered},{"owner_kind",op.request.costume_edit.kind},{"owner_id",op.request.costume_edit.id},{"rng_before",op.before.value.owner.global_random},{"rng_after",op.after.value.owner.global_random},{"cause",op.cause}};return {{"enabled",ready},{"fault",fault},{"pending_ui",pending_ui()},{"captures",captures},{"submitted",submitted},{"rejected",rejected},{"last_action",last_action},{"cause",cause},{"operations",rows}};}
 }

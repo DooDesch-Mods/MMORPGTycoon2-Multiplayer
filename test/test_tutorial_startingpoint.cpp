@@ -26,6 +26,9 @@ bool read_research(const std::string& key,StartingpointSnapshot& out,nlohmann::j
 #include <string>
 using json=nlohmann::json;
 using World=mt2mp::game::building_mixed_identity::opened_file::CurrentWorld;
+namespace general_project_runtime {
+bool research_ui_snapshot(const std::string&,tutorial_development::StartingpointSnapshot&,std::string& e){e="unexpected generic Research read in legacy fixture";return false;}
+}
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 // Exercise the actual admission and inventory checks with the retained native baseline.
 #include "startingpoint_guards.inc"

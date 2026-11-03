@@ -28,7 +28,7 @@ native=a.root/'src/game/tutorial_replication/native.cpp'
 research=a.root/'src/game/tutorial_replication/research_native.inc'
 starting=a.root/'src/game/tutorial_replication/startingpoint_native.inc'
 assert 'read_startingpoint(snapshot,diagnostic,e,true,true)' in body(native,'bool native_state(')
-assert 'display_native::capture(c,b,snapshot,out.staff_display,e,true)' in body(native,'bool native_state(')
+assert 'display_native::capture(c,b,snapshot,out.staff_display,e,true,ordered_read)' in body(native,'bool native_state(')
 pre=body(native,'static bool preflight_local(')
 assert 'PageReadScope pages;' in pre and 'native_state(c,b,local,native,e,true)' in pre
 assert '"startingpoint",true)' in pre
@@ -38,7 +38,7 @@ assert 'bool share_reader_metadata=false;' in starting.read_text()
 assert 'read_research(key,out,diagnostic,e,creating||key=="bridges",share_reader_metadata)' in starting.read_text()
 assert 'read_startingpoint(first,diagnostic,e,false,true)' in body(research,'bool research_capture(')
 assert 'read_research("bridges",current,diagnostic,e,true,true)' in body(research,'bool research_capture(')
-assert 'display_native::capture(c,b,current,out.staff_display,e,true)' in body(research,'bool research_capture(')
+assert 'display_native::capture(c,b,current,out.staff_display,e,true,ordered_read)' in body(research,'bool research_capture(')
 admit=body(staff,'bool admit(')
 assert 'read_research(key,s,d,e,true,!install&&share_metadata)' in admit
 assert 'read_owners(s,owners,e,!install&&share_metadata)' in admit

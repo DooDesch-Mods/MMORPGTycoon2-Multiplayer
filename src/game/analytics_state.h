@@ -30,8 +30,10 @@ inline bool valid(const State& s,std::string& e){
                 if(!std::isfinite(std::bit_cast<float>(bits))){e="Analytics Reason position is not finite";return false;}
         }return true;
     };
-    if(!day(s.today))return false;int32_t previous=-1;
-    for(const auto& row:s.history){if(row.day<=previous||row.day>=s.today.day){e="Analytics retained history Day order differs";return false;}if(!day(row))return false;previous=row.day;}
+    if(!day(s.today))return false;
+    // Native rollover appends the prior Day before assigning the requested day.
+    // Equal and backward requests retain their original array order and payload.
+    for(const auto& row:s.history)if(!day(row))return false;
     e.clear();return true;
 }
 inline nlohmann::json encode(const Day& d){auto rows=nlohmann::json::array();for(const auto& row:d.reasons)rows.push_back({{"type",row.type},{"positions",row.positions}});return {{"day",d.day},{"reasons",rows}};}

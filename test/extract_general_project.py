@@ -8,4 +8,5 @@ for start,end in [('bool original_route(','bool capture_ui('),('bool apply_progr
  body=text[text.index(start):text.index(end)] if end else text[text.index(start):text.rfind('\n}')]
  parts.append(body)
 a.output.mkdir(parents=True,exist_ok=True);target=a.output/'general_project_actual.inc';target.write_text('\n'.join(parts),encoding='utf-8')
+(a.output/'research_ui_snapshot_actual.inc').write_text(text[text.index('bool research_ui_snapshot('):text.index('bool observe_pending_ui(')],encoding='utf-8')
 (a.output/'general_project_actual.json').write_text(json.dumps({'source_sha256':hashlib.sha256(source.read_bytes()).hexdigest(),'actual_sha256':hashlib.sha256(target.read_bytes()).hexdigest(),'functions':['original_route','admit_bug_birth','apply_progress']},indent=2)+'\n',encoding='utf-8')

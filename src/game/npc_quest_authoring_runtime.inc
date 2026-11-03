@@ -1,11 +1,12 @@
 namespace quest_authoring {
 namespace {
 using SetDisplay=void(*)(void*,void*);
-struct Pending {a::Binding binding;std::string snapshot,owner,token;a::NpcQuestIntent intent;};
+struct Pending {a::Binding binding;std::string snapshot,owner,token;a::NpcQuestIntent intent;std::optional<a::Context> context;};
 struct Operation {
     a::Binding binding;a::Request request;Pin pin;qr::Witness before,after;d::Sample sample;
     uintptr_t owner=0,quest=0,destination=0,graph=0;uint64_t destination_uid=0;
-    a::Evidence evidence;bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false;
+    a::Evidence evidence;json refs_before;std::string targets_before;bool ordered=false;
+    bool attempted=false,returned=false,seed_attempted=false,confirmed=false,retired=false;
     std::string cause;
 };
 SetDisplay original=nullptr;bool installed=false,ready=false,fault=false;
@@ -13,6 +14,7 @@ std::optional<Pending> pending;std::map<std::string,Operation> operations;
 std::map<std::string,json> jobs;std::string ui_token,cause,last_action;uint64_t captures=0,submitted=0,rejected=0;
 void entry(void*,void*);
 bool reject(const std::string& why){++rejected;if(cause!=why){cause=why;LOG_ERROR("[NPCQuestEdit] {}",why);}return false;}
+#include "npc_quest_ordered_destination.inc"
 bool codes(Memory& m,bool hooked,std::string& e){
     for(const auto& c:npc_quest_authoring_codes::values){
         if(c.rva==0x4db155)continue;
@@ -152,7 +154,7 @@ void capture(uintptr_t caller,void* display,void* destination_pointer)try{
         if(original)original(display,destination_pointer);else {fault=true;reject("Quest display original unavailable");}return;
     }
     std::string e;a::Binding binding;const auto snapshot=net::current_snapshot_id();Memory m;
-    if(!ready||fault||pending||GetCurrentThreadId()!=state.thread||!codes(m,true,e)||!typed_action_runtime::network_binding(snapshot,binding,e)){
+    if(!ready||fault||pending||GetCurrentThreadId()!=state.thread||!codes(m,true,e)||!capture_binding(snapshot,binding,e)){
         reject(e.empty()?"Quest player capture requires ready idle Controller":e);return;}
     uintptr_t quest=0,npc=0,region=0;uint64_t uid=0;int32_t region_id=-1;std::string key;
     if(!field(m,uintptr_t(display),0x1b0,quest,e)||!field(m,quest,0xb8,npc,e)||!field(m,npc,0x18,uid,e)||
@@ -167,7 +169,9 @@ void capture(uintptr_t caller,void* display,void* destination_pointer)try{
     if(!target_intent(m,binding,snapshot,uintptr_t(destination_pointer),intent,e)){reject(e);return;}
     auto expected=intent.before;expected.destination_key=intent.destination_key;expected.action=intent.action;expected.monsters_to_kill=intent.kills;expected.monster_type=intent.monster_type;
     if(!a::npc_quest_record_transition(intent,expected)){reject("Quest destination edit is an original no-op");return;}
-    pending=Pending{binding,snapshot,key,ui_token,intent};++captures;
+    std::optional<a::Context> context;if(!capture_context(snapshot,binding,context,e)){reject(e);return;}
+    if(context&&!a::ordered_quest_destination(intent)){reject("Ordered Quest destination lacks implemented complete effect scope");return;}
+    pending=Pending{binding,snapshot,key,ui_token,intent,context};++captures;
     if(!ui_token.empty()){auto& job=jobs.at(ui_token);job["captured"]=true;job["caller_rva"]="0x5ce471";}
 }catch(const std::exception& x){fault=true;reject(std::string("Quest capture boundary: ")+x.what());}
  catch(...){fault=true;reject("Quest capture non-standard exception");}
@@ -196,8 +200,13 @@ bool npc_destination(uintptr_t pointer,std::string& key,std::string& e){
 }
 bool direct_destination(uintptr_t pointer,std::string& key,std::string& e){
     key.clear();Memory m;Pin p;uint64_t uid=0;uintptr_t region=0;int32_t saved=-1;
-    if(!state.ready||GetCurrentThreadId()!=state.thread||!host::resolve_lookup(m.process,state.image,exe_sha,p.api,e))return false;
-    host::NativeOrigin origin;host::Reader reader(m.process,origin,state.image,state.thread,p.api);
+    uintptr_t image=0;uint32_t thread=0;std::string sha;
+    if(!native::read_resolver_receipt(image,thread,sha,e))return fail(e,e.empty()?"Quest direct Monster native resolver unavailable":e);
+    if(!image)return fail(e,"Quest direct Monster native resolver image is null");
+    if(sha!=exe_sha)return fail(e,"Quest direct Monster pinned executable differs");
+    if(!thread||GetCurrentThreadId()!=thread)return fail(e,"Quest direct Monster requires native resolver Mainthread");
+    if(!host::resolve_lookup(m.process,image,exe_sha,p.api,e))return fail(e,e.empty()?"Quest direct Monster pinned full UID lookup unavailable":e);
+    host::NativeOrigin origin;host::Reader reader(m.process,origin,image,thread,p.api);
     if(!reader.current(p.world,true,e)||!field(m,pointer,0x18,uid,e)||!field(m,pointer,0x178,region,e))return false;
     uintptr_t actor_shard=0;
     if(!field(m,pointer,0x170,actor_shard,e))return false;
@@ -218,15 +227,15 @@ bool direct_destination(uintptr_t pointer,std::string& key,std::string& e){
             return !exception||fail(cause,"Quest Dungeon Monster full UID lookup SEH="+std::to_string(exception));};
         auto resolve=[&](const identity::Scope& actual,uintptr_t object,uint64_t full_uid,std::string& canonical,std::string& cause){return identity::registry.resolve(actual,object,full_uid,canonical,cause);};
         dungeon_monster_reference::Witness reference;
-        if(!dungeon_monster_reference::read(at,find,resolve,state.image,actual_scope,pool->scene,pool->managers[2],pointer,reference,e))return false;
+        if(!dungeon_monster_reference::read(at,find,resolve,image,actual_scope,pool->scene,pool->managers[2],pointer,reference,e))return false;
         host::WorldState after;
         if(!reader.current(after,true,e)||!action_runtime::same_world(p.world,after))return fail(e,e.empty()?"Quest Dungeon direct Monster world changed during reference binding":e);
         key=reference.key;return true;
     }
     if(!field(m,region,0x834,saved,e))return false;
-    p.region.image=state.image;p.region.map=uintptr_t(p.world.origin.map);p.region.root=p.world.root;p.region.saved_region=saved;
+    p.region.image=image;p.region.map=uintptr_t(p.world.origin.map);p.region.root=p.world.root;p.region.saved_region=saved;
     const auto at=[&](uintptr_t object,size_t offset,auto& value,std::string& cause){return field(m,object,offset,value,cause);};
-    if(!region_saved_identity::resolve(state.image,p.region.map,p.region.root,saved,region,p.region.region,at,e))return false;
+    if(!region_saved_identity::resolve(image,p.region.map,p.region.root,saved,region,p.region.region,at,e))return false;
     d::Sample sample;if(!d::sample(m,p.region,sample,e))return false;
     const auto found=std::find_if(sample.state.monsters.begin(),sample.state.monsters.end(),[&](const auto& row){return row.pointer==pointer&&row.uid==uid;});
     if(found==sample.state.monsters.end()||found->zone||!full_uid(m,p,*found,e))return fail(e,e.empty()?"Quest direct Monster current full UID/owner absent":e);
@@ -259,7 +268,7 @@ void tick(){
         job["unknown"]=controller.value("outcome",0)==int(a::Outcome::Unknown);job["cause"]=controller.value("cause",std::string{});}}
     if(!pending)return;auto saved=*pending;pending.reset();std::string e;a::Binding binding;
     const auto failed=[&](){fault=true;reject(e);if(!saved.token.empty()){auto& job=jobs.at(saved.token);job["terminal"]=true;job["unknown"]=true;job["cause"]=e;}};
-    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,e)||binding!=saved.binding){if(e.empty())e="Quest capture world or Mainthread changed";failed();return;}
+    if(!ready||fault||saved.snapshot!=net::current_snapshot_id()||!typed_action_runtime::network_binding(saved.snapshot,binding,e)||binding!=saved.binding||!current_capture(saved,e)){if(e.empty())e="Quest capture world or Mainthread changed";failed();return;}
     const auto id=action_runtime::uuid(e);
     if(id.empty()||!typed_action_runtime::submit_npc_quest(id,saved.owner,saved.intent,e)){failed();return;}
     ++submitted;last_action=id;if(!saved.token.empty()){jobs.at(saved.token)["submitted"]=true;jobs.at(saved.token)["action_uuid"]=id;}
@@ -269,16 +278,20 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     if(operations.contains(request.action_uuid)){e="Quest edit already attempted; no replay";return a::Outcome::Unknown;}
     const auto controller=typed_action_runtime::controller_status();
     if(!controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid){e="Quest edit requires exact pending Controller";return a::Outcome::RejectedNoEffect;}
+    if(!execution_admission(binding,request,authority,e))return a::Outcome::RejectedNoEffect;
+    const bool ordered=a::tick_commands::authority::active();json refs_before;std::string targets_before;
     Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness before;d::Sample sample;a::NpcQuestState value;
     uintptr_t quest=0,target=0;uint64_t target_uid=0;const auto& intent=request.npc_quest;
     if(!codes(m,true,e)||!owner(m,binding,request.snapshot_uuid,request.canonical_record_key,intent.region,local,p,e)||
        !destination(m,binding,request.snapshot_uuid,intent.destination_region,intent.family,intent.destination_key,target,target_uid,e)||
-       !state_read(m,binding,request.snapshot_uuid,p,local.object,intent.before.sequence_id,before,sample,value,quest,e))return a::Outcome::RejectedNoEffect;
+       !state_read(m,binding,request.snapshot_uuid,p,local.object,intent.before.sequence_id,before,sample,value,quest,e)||
+       !complete_effect(ordered,binding,request,before,value,refs_before,targets_before,e))return a::Outcome::RejectedNoEffect;
     auto actual=intent;if(!target_intent(m,binding,request.snapshot_uuid,target,actual,e)||actual!=intent||value.record!=intent.before||sample.undo.active_graph){
         if(e.empty())e="Quest edit intent, original destination semantics, before row or Undo differs";return a::Outcome::RejectedNoEffect;}
     if(authority){auto local_before=value;local_before.global_random=authority->quest_before.global_random;
         if(local_before!=authority->quest_before||ledger(sample.money)!=authority->before){e="Quest Client before row/global order/Undo/ledger differs from Host";return a::Outcome::RejectedNoEffect;}}
     auto& op=operations.try_emplace(request.action_uuid).first->second;op.binding=binding;op.request=request;op.pin=p;op.owner=local.object;op.quest=quest;op.destination=target;op.destination_uid=target_uid;
+    op.ordered=ordered;op.refs_before=refs_before;op.targets_before=targets_before;
     const auto unknown=[&](const std::string& why){e=op.cause=why.empty()?"Quest edit failed without cause":why;return a::Outcome::Unknown;};
     if(authority){op.seed_attempted=true;const auto seh=action_runtime::seed(state.image,authority->quest_before.global_random);
         if(seh)return unknown("Quest Host RNG adoption SEH="+std::to_string(seh));
@@ -288,9 +301,10 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     op.before=before;op.sample=sample;op.evidence.before=ledger(sample.money);op.evidence.quest_before=value;
     op.attempted=true;const auto seh=set_destination(quest,target,intent.action,intent.kills);
     if(seh)return unknown("Quest original SetDestination SEH="+std::to_string(seh));op.returned=true;
-    Pin after_pin;action_runtime::ui::LocalBinding after_local;d::Sample after;a::NpcQuestState final;uintptr_t after_quest=0;
+    Pin after_pin;action_runtime::ui::LocalBinding after_local;d::Sample after;a::NpcQuestState final;uintptr_t after_quest=0;json refs_after;std::string targets_after;
     if(!owner(m,binding,request.snapshot_uuid,request.canonical_record_key,intent.region,after_local,after_pin,e)||after_local!=local||!same_world(p.world,after_pin.world)||
        !state_read(m,binding,request.snapshot_uuid,after_pin,local.object,intent.before.sequence_id,op.after,after,final,after_quest,e)||after_quest!=quest||
+       !complete_effect(ordered,binding,request,op.after,final,refs_after,targets_after,e)||!protected_effect(op,after,refs_after,targets_after,e)||
        !npc_quest_authoring_read::transition(before,op.after,quest,target,target_uid,intent,e)||!inverse(m,op,after,e))return unknown(e.empty()?"Quest original changed current owner or slot identity":e);
     op.evidence.quest_after=final;op.evidence.after=ledger(after.money);op.evidence.undo_confirmed=true;op.graph=after.undo.undo.back();
     if(!a::npc_quest_transition(intent,value,final)||op.evidence.before!=op.evidence.after||sample.state.region_random!=after.state.region_random||
@@ -302,9 +316,11 @@ bool observe(const a::Binding& binding,const a::Request& request,a::Evidence& ou
     const auto found=operations.find(request.action_uuid);
     if(found==operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed||!found->second.returned)
         return fail(e,"Quest observation lacks exact confirmed original-once receipt");
-    const auto& op=found->second;Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness now;d::Sample sample;a::NpcQuestState value;uintptr_t quest=0;
+    const auto& op=found->second;if(op.ordered&&!ordered_scope(binding,request,e))return false;
+    json refs;std::string targets;Memory m;Pin p;action_runtime::ui::LocalBinding local;qr::Witness now;d::Sample sample;a::NpcQuestState value;uintptr_t quest=0;
     if(!owner(m,binding,request.snapshot_uuid,request.canonical_record_key,request.npc_quest.region,local,p,e)||local.object!=op.owner||!same_world(p.world,op.pin.world)||
-       !state_read(m,binding,request.snapshot_uuid,p,local.object,request.npc_quest.before.sequence_id,now,sample,value,quest,e)||quest!=op.quest||value!=op.evidence.quest_after||
+       !state_read(m,binding,request.snapshot_uuid,p,local.object,request.npc_quest.before.sequence_id,now,sample,value,quest,e)||quest!=op.quest||
+       !complete_effect(op.ordered,binding,request,now,value,refs,targets,e)||!protected_effect(op,sample,refs,targets,e)||value!=op.evidence.quest_after||
        ledger(sample.money)!=op.evidence.after||sample.undo.undo.empty()||sample.undo.undo.back()!=op.graph||!inverse(m,op,sample,e)||
        !npc_quest_authoring_read::transition(op.before,now,op.quest,op.destination,op.destination_uid,request.npc_quest,e))return fail(e,e.empty()?"Quest current original receipt differs before ACK":e);
     out=op.evidence;out.retirement_confirmed=op.retired;return true;

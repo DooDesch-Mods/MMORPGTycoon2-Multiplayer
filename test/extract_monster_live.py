@@ -35,6 +35,10 @@ reader=source('src/game/object_identity/remove_runtime/copy/world_prop_reader.cp
 write('monster_live_world_reader.inc','\n'.join(body(reader,x) for x in ['bool fail(std::string& e,const char*','struct Busy {','template<class T>bool at(','bool vt(']).replace('~Busy(){b=false;}}','~Busy(){b=false;}};')+'\n'+body(reader,'bool Reader::current(')+'\n')
 for path,guard in json.loads((a.source_root/'test/party_timing_source_guard.json').read_text()).items():
  timed="\n".join(body(source(path),anchor) for anchor in guard["anchors"])
+ for delta in guard.get('semantic_replacements',[]):
+  before,after=delta['before'],delta['after']
+  assert timed.count(after)==1,(path,'Admitted semantic boundary differs',delta['name'])
+  timed=timed.replace(after,before)
  for before,after in reversed(guard['replacements']):
   assert timed.count(after)==1,(path,'Party timing boundary differs',after)
   timed=timed.replace(after,before)

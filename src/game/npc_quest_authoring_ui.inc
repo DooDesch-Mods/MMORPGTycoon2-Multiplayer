@@ -29,6 +29,9 @@ bool native_ui(const json& args,json& result,std::string& e)try{
     if(!token_valid(token)||!npc_target_key::valid(key)||jobs.contains(token)||jobs.size()>=64||region<0||region>INT32_MAX||target_region<0||target_region>INT32_MAX||sequence<0||sequence>4095||
        (family_text!="building"&&family_text!="zone"&&family_text!="monster"&&family_text!="npc"))return fail(e,"Quest target UI token, canonical key, family or integer outside domain");
     const auto family=family_text=="npc"?a::QuestDestinationFamily::NPC:family_text=="monster"?a::QuestDestinationFamily::DirectMonster:family_text=="zone"?a::QuestDestinationFamily::Zone:a::QuestDestinationFamily::Building;
+    const auto controller=typed_action_runtime::controller_status();
+    if(controller.value("ordered",false)&&(family!=a::QuestDestinationFamily::Building||target_region!=region))
+        return fail(e,"Ordered Quest target UI requires a same-Region Building target");
     a::Binding binding;Memory m;Pin p;action_runtime::ui::LocalBinding local;const auto snapshot=net::current_snapshot_id();
     if(!ready||fault||pending_ui()||GetCurrentThreadId()!=state.thread||!codes(m,true,e)||!typed_action_runtime::network_binding(snapshot,binding,e)||
        !owner(m,binding,snapshot,key,int32_t(region),local,p,e))return fail(e,e.empty()?"Quest target UI requires idle bound Mainthread":e);

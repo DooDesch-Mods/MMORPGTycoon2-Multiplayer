@@ -10,9 +10,21 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
     const action::Evidence* authority,std::string& error){
     namespace sample=npc_probe::dungeon_building;
     using A=action::Action;
+    const bool ordered=action::tick_commands::authority::active();
     const bool history=request.action==A::UndoBuilding||request.action==A::RedoBuilding;
+    action::Context context;
+    if(ordered&&(authority||!action::tick_commands::ordered_dungeon_action(request)||
+       !action::selected_session().current(context,error)||
+       Config::instance().is_host!=(context.role==action::Role::Host)||
+       !action::tick_commands::authority::matches(context,binding,request,error))){
+        if(error.empty())error="Ordered Dungeon action requires current consumed original command without Host state";
+        return action::Outcome::RejectedNoEffect;
+    }
+    if(!ordered&&typed_action_runtime::controller_status().value("ordered",false)){
+        error="Ordered Dungeon action requires current consumed command scope";return action::Outcome::RejectedNoEffect;
+    }
     if(!request.dungeon_building||!action::valid_dungeon_building_scene(request.dungeon_scene)||
-       !current(binding,request.snapshot_uuid,error)||!live_state_||active_dungeon_building_){
+       !current(binding,request.snapshot_uuid,error)||(!ordered&&!live_state_)||active_dungeon_building_){
         if(error.empty())error="Dungeon Building requires its current idle Engine and Party owner";
         return action::Outcome::RejectedNoEffect;
     }
@@ -22,10 +34,10 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
     if(dungeon_buildings_.size()>=action::history_limit){
         error="Dungeon Building retained original receipt limit reached";return action::Outcome::RejectedNoEffect;
     }
-    action::Context context;uint64_t revision=0;
+    uint64_t revision=0;
     if(!action::selected_session().current(context,error)||
        !ui_move_runtime::contract::pending(typed_action_runtime::status(),request,revision,error)||
-       (context.role==action::Role::Client)!=(authority!=nullptr)||
+       (!ordered&&(context.role==action::Role::Client)!=(authority!=nullptr))||
        (authority&&!authority->dungeon_building_effect)){
         if(error.empty())error="Dungeon Building current role or complete Host proof differs";
         return action::Outcome::RejectedNoEffect;
@@ -61,7 +73,7 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
             return action::Outcome::RejectedNoEffect;
         }
     }
-    auto operation=std::make_unique<DungeonOperation>();operation->request=request;operation->binding=binding;
+    auto operation=std::make_unique<DungeonOperation>();operation->request=request;operation->binding=binding;operation->ordered=ordered;
     if(!read_ledger(operation->ledger_before,error))return action::Outcome::RejectedNoEffect;
     if(authority&&operation->ledger_before!=authority->before){
         error="Dungeon Building complete Client Ledger BEFORE differs from Host";return action::Outcome::RejectedNoEffect;
@@ -91,9 +103,22 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
                 if(error.empty())error="Dungeon Building current target scene differs from request";
                 return action::Outcome::RejectedNoEffect;
             }
+            if(ordered){
+                dungeon_scene_identity_runtime::Census census;std::vector<sample::BuildingOwner> owners;
+                if(!sample::read_owners(operation->before,census,owners,error))return action::Outcome::RejectedNoEffect;
+                const auto pool=std::find_if(census.pools.begin(),census.pools.end(),[&](const auto& row){return row.scene.owner.key==request.dungeon_scene;});
+                if(target.state.type!="DungeonPortal"||pool==census.pools.end()||pool->scene.owner.type!=1||
+                   std::count_if(census.pools.begin(),census.pools.end(),[&](const auto& row){
+                       return row.scene.owner.exterior_key==pool->scene.owner.exterior_key;})!=1){
+                    error="Ordered Dungeon edit requires actual Portal in its exact editable template without live Instances";
+                    return action::Outcome::RejectedNoEffect;
+                }
+            }
         }
     }
-    if(!live_state_->begin_dungeon_building(request,error))return action::Outcome::RejectedNoEffect;
+    if(ordered){
+        if(!ordered_dungeon_scenes_.bind(context,binding,error)||!ordered_dungeon_scenes_.prepare(context,binding,error))return action::Outcome::RejectedNoEffect;
+    }else if(!live_state_->begin_dungeon_building(request,error))return action::Outcome::RejectedNoEffect;
     const auto prior_random=operation->before.value.random;
     if(authority&&!sample::seed(binding,request.snapshot_uuid,authority->dungeon_building_effect->before.random,error)){
         const auto original=error;std::string cancellation;
@@ -108,14 +133,14 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
     if(request.action==A::PlaceBuilding)outcome=perform_place(binding,request,authority,error);
     else if(request.action==A::MoveBuilding)outcome=perform_move(binding,request,authority,error);
     else if(request.action==A::RemoveSnapshotBuilding)
-        outcome=perform_remove(binding,request,authority?action::ui_capture::ReplayPurpose::ConfirmedHostApplication:
+        outcome=perform_remove(binding,request,ordered?action::ui_capture::ReplayPurpose::OrderedExecution:authority?action::ui_capture::ReplayPurpose::ConfirmedHostApplication:
             action::ui_capture::ReplayPurpose::HostExecution,authority,error);
     else if(history)outcome=perform_building_history(binding,request,authority,error);
     else error="Dungeon Building original action family is invalid";
     if(outcome!=action::Outcome::Confirmed){
         if(outcome==action::Outcome::RejectedNoEffect){
             const auto original=error;std::string cancellation;
-            if(!live_state_->cancel_dungeon_building(request,cancellation)||
+            if(!(ordered?ordered_dungeon_scenes_.cancel_prepare(context,binding,cancellation):live_state_->cancel_dungeon_building(request,cancellation))||
                (authority&&!sample::seed(binding,request.snapshot_uuid,prior_random,cancellation))){
                 error=cancellation+" original="+original;return action::Outcome::Unknown;
             }
@@ -142,7 +167,10 @@ action::Outcome perform_dungeon_building(const action::Binding& binding,const ac
        !dungeon_building_graph::held(saved.before,request.canonical_record_key,saved.inverse_graph,held_node,error))
         return action::Outcome::Unknown;
     bool publication_attempted=false;
-    if(!live_state_->finish_dungeon_building(request,authority?&authority->dungeon_building_effect->mapping:nullptr,
+    if(ordered){
+        dungeon_scene_identity_runtime::Census admitted;
+        if(!ordered_dungeon_scenes_.confirm_template(context,binding,request,nullptr,saved.effect.mapping,admitted,publication_attempted,error,held_node))return action::Outcome::Unknown;
+    }else if(!live_state_->finish_dungeon_building(request,authority?&authority->dungeon_building_effect->mapping:nullptr,
         saved.effect.mapping,publication_attempted,error,held_node))return action::Outcome::Unknown;
     std::vector<uintptr_t> inverse_operations;sample::Snapshot after_seed;
     if(!dungeon_building_graph::operations(saved.inverse_graph,inverse_operations,error)||
@@ -187,7 +215,11 @@ bool observe_dungeon_building(const action::Binding& binding,const action::Reque
        !found->second->confirmed||!current(binding,request.snapshot_uuid,error)){
         if(error.empty())error="Dungeon Building observation has no complete original action receipt";return false;
     }
-    const auto& saved=*found->second;npc_probe::dungeon_building::Snapshot actual;
+    const auto& saved=*found->second;
+    if(saved.ordered){action::Context context;
+        if(!action::selected_session().current(context,error)||!action::tick_commands::authority::matches(context,binding,request,error))return false;
+    }
+    npc_probe::dungeon_building::Snapshot actual;
     if(!npc_probe::dungeon_building::capture(binding,request.snapshot_uuid,actual,error,&saved.after)||
        actual.value!=saved.effect.after){
         if(error.empty())error="Dungeon Building current complete authored/Quest/reference state differs";return false;

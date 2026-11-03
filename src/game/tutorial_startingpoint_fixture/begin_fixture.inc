@@ -3,7 +3,7 @@ DWORD pay_project(uintptr_t image,uintptr_t project,bool& accepted){
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool begin_snapshot(const Pin& owner,tutorial_development::StartingpointSnapshot& s,json& diagnostic,std::string& e){
-    if(!tutorial_development::read_research(owner.tech_key,s,diagnostic,e,true))return false;
+    if(owner.generic?!general_project_runtime::research_ui_snapshot(owner.tech_key,s,e):!tutorial_development::read_research(owner.tech_key,s,diagnostic,e,true))return false;
     // Compare the same public diagnostic shape on both sides of the private
     // selected snapshot. read() also includes the getter eligibility section.
     if(!tutorial_development::read(diagnostic,e))return false;

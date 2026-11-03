@@ -16,6 +16,7 @@ namespace typed_action_runtime {nlohmann::json controller_status(){return {{"sta
 bool network_binding(const std::string&,a::Binding& out,std::string&){out={3,4};return true;}}
 bool rename_handled=false,rename_failed=false;
 namespace character_rename {bool pending_ui(){return false;}
+bool capture_binding(const std::string& snapshot,a::Binding& binding,std::optional<a::Context>& context,std::string& error){context.reset();return typed_action_runtime::network_binding(snapshot,binding,error);}
 bool presentation(void*,void*,uintptr_t,bool& handled,std::string& error){handled=rename_handled;
     return !rename_failed||fail(error,"Rename exact presentation scope failed");}
 bool preview_presentation(void*,void*,void(*)(void*,void*),bool& handled,std::string&){handled=false;return true;}}
@@ -24,7 +25,7 @@ namespace character_membership {bool import_presentation(void*,void*,uintptr_t,b
 namespace costume_edit {bool pending_ui(){return false;}}
 namespace quest_list {uint32_t label(uintptr_t,void*,const char*,bool& out){out=label_ok;return 0;}}
 struct Sample {uintptr_t prototype=0x300;struct Owner {uintptr_t selected=0x200;} character;a::AbilityEditState value;};
-struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;};
+struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;std::optional<a::Context> context;};
 std::optional<Pending> pending;
 struct ViewTail {bool armed=false,preserve=false;uintptr_t view=0;uint32_t calls=0;};ViewTail view_tail;
 void selected_original(void*,void*){++native_originals;}

@@ -74,5 +74,22 @@ void run(){const auto base=baseline();auto target=base;target.counters={7,8,9,10
     reset(base);auto wire=values::encode(base);values::State decoded;need(values::decode(wire,decoded,e)&&decoded==base,"Statistics full typed codec roundtrip");wire["counters"].push_back(1);need(!values::decode(wire,decoded,e),"incomplete counter block accepted");
     wire=values::encode(base);wire["today"]["reasons"][0]["positions"][0][0]=uint32_t{0x7f800000};need(!values::decode(wire,decoded,e),"nonfinite native position accepted");
     reset(base);memory.put(state_owner+0x208,uintptr_t{1});need(!sample(runtime,context,binding,owners,actual,pin,e),"foreign State Analytics owner accepted");
+    auto saved=base;saved.today.day=1;saved.history={{0,{}},{1,{}}};saved.today.reasons[0].positions.push_back(saved.today.reasons[0].positions[0]);
+    const auto rollover=[](values::State value,int32_t next){value.history.push_back(value.today);value.today={next,{}};while(value.history.size()>10)value.history.erase(value.history.begin());return value;};
+    const auto equal=rollover(saved,1),backward=rollover(saved,0),retained=rollover(base,1);
+    for(const auto& value:{saved,equal,backward,retained}){
+        e.clear();reset(value);need(sample(runtime,context,binding,owners,actual,pin,e)&&actual==value,"native equal/backward Day history read lost array order or records: "+e);
+        values::State roundtrip;need(values::decode(values::encode(actual),roundtrip,e)&&roundtrip==value,"native repeated/backward Day history codec lost payload: "+e);
+        reset(base);receipt={};need(adopt(runtime,context,binding,value,receipt,e),"native repeated/backward Day history projection rejected: "+e);
+        need(sample(runtime,context,binding,owners,actual,pin,e)&&actual==value,"native repeated/backward history projection sorted or dropped records");
+    }
+    need(equal.history.size()==3&&equal.history[1].day==1&&equal.history[2]==saved.today&&equal.today.day==1,"native equal-day rollover record pattern differs");
+    need(backward.history.size()==3&&backward.history[2]==saved.today&&backward.today.day==0,"native backward rollover record pattern differs");
+    need(retained.history.size()==10&&retained.history.front()==base.history[1]&&retained.history.back()==base.today&&retained.today.day==1,"native rollover trim changed survivor order/payload");
+    auto reordered=saved;std::swap(reordered.history[0],reordered.history[1]);need(values::encode(reordered)!=values::encode(saved),"native history order disappeared from protected payload");
+    auto invalid=saved;invalid.history.push_back({-1,{}});need(!values::valid(invalid,e),"negative native history Day accepted");
+    invalid=saved;while(invalid.history.size()<11)invalid.history.push_back(saved.today);need(!values::valid(invalid,e),"native history retention bound removed");
+    invalid=saved;invalid.history[0].reasons={{2,{{uint32_t{0x7f800000},0,0}}}};need(!values::valid(invalid,e),"nonfinite retained history payload accepted");
+    invalid=saved;invalid.history[0].reasons={{2,{}},{2,{}}};need(!values::valid(invalid,e),"duplicate retained history Reason accepted");
 }
 }

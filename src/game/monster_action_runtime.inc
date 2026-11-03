@@ -126,7 +126,7 @@ bool capture_idle(const json& controller,std::string& e){
 bool full_uid(Memory& m,const Pin& p,const monster_zone_read::Monster& row,std::string& e){
     uintptr_t found=0,ap=0,proxy=0;uint64_t actual=0;const auto seh=lookup(p.api.find,row.uid,found);
     if(seh||found!=row.pointer||!field(m,row.pointer,0x18,actual,e)||actual!=row.uid||
-       !field(m,row.pointer,0,ap,e)||ap!=state.image+0x16c0770||!field(m,row.pointer,0x8d8,proxy,e)||(!row.zone&&proxy))
+       !p.region.image||!field(m,row.pointer,0,ap,e)||ap!=p.region.image+0x16c0770||!field(m,row.pointer,0x8d8,proxy,e)||(!row.zone&&proxy))
         return fail(e,e.empty()?"Monster full UID/class/current-manager/null-Zone proxy differs SEH="+std::to_string(seh):e);
     return true;
 }
@@ -535,6 +535,7 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
 #include "monster_live_runtime.inc"
 #include "npc_quest_authoring_runtime.inc"
 #include "npc_quest_list_runtime.inc"
+#include "command_token_label.inc"
 #include "quest_history_runtime.inc"
 #include "monster_history_runtime.inc"
 #include "character_membership_runtime.inc"
@@ -550,4 +551,5 @@ bool retire(const a::Binding& binding,const a::Request& request,std::string& e){
 #include "dungeon_gizmo_runtime.inc"
 #include "dungeon_input_runtime.inc"
 #include "building_status_runtime.inc"
+#include "character_offered_ui.inc"
 }

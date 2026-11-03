@@ -1,10 +1,10 @@
 namespace {
 namespace rules=game_rules;
 struct RulesRoute {uintptr_t rva;size_t bytes,stolen;const char* sha;Ui original=nullptr;release_ui_owner::Owner owner;};
-struct RulesPending {a::Context context;a::Binding binding;a::GameRulesIntent intent;std::string id;};
+struct RulesPending {a::Context context;a::Binding binding;a::GameRulesIntent intent;std::string id;bool ordered=false;};
 struct RulesRuntime {std::array<RulesRoute,3> routes{{
 #include "game_rules_route_pins.inc"
-    }};std::optional<RulesPending> pending;std::map<std::string,Receipt> operations;
+    }};std::optional<RulesPending> pending;std::map<std::string,Receipt> operations;std::map<std::string,nlohmann::json> ui_proofs;bool ui_unknown=false;
 };
 RulesRuntime design_rules;
 bool rules_routes(Runtime& r,std::string& error){for(const auto& route:design_rules.routes){const auto& owner=route.owner;MT2FW_MT2_RouteReceipt actual{};actual.size=sizeof actual;
@@ -29,16 +29,41 @@ bool rules_values(Runtime& r,rules::State& value,rules::Pin& pin,std::string& er
 bool rules_proof(Runtime& r,const a::Context& context,const a::Binding& binding,Local& local,rules::Pin& pin,a::GameRulesProof& proof,a::Ledger& ledger,std::string& error){
     management_simulation::LiveState state;if(!primary_read(r,context,binding,local,state,error)||!rules_values(r,proof.state,pin,error)||pin.software!=local.software)return fail(error,error.empty()?"Design current Software/Clock binding differs":error);
     tutorial_replication::State tutorial;if(!tutorial_replication::capture(context,binding,tutorial,error))return false;const auto encoded=tutorial_replication::encode(tutorial).dump();proof.tutorial_sha256=mt2mp::sha256(std::vector<unsigned char>(encoded.begin(),encoded.end()));ledger=live::ledger(local.pin.values);
+    proof.protected_sha256.clear();
+    if(typed_action_runtime::controller_status().value("ordered",false)){
+        uintptr_t random=0,final_random=0;std::array<uint64_t,4> before{},after{};int32_t extra=0,final_extra=0;
+        if(!at(r,r.image,0x164b250,random,error)||!at(r,random,0,before,error)||!at(r,random,0x20,extra,error))return false;
+        state.rules.reset();const auto protected_state=nlohmann::json{{"management",management_simulation::encode(state)},{"random",before},{"random_extra",extra}}.dump();
+        proof.protected_sha256=mt2mp::sha256(std::vector<unsigned char>(protected_state.begin(),protected_state.end()));
+        if(!at(r,r.image,0x164b250,final_random,error)||!at(r,final_random,0,after,error)||!at(r,final_random,0x20,final_extra,error)||random!=final_random||before!=after||extra!=final_extra)return fail(error,error.empty()?"Design protected RNG owner/values changed during capture":error);
+    }
     rules::State checked;rules::Pin current;if(!rules_values(r,checked,current,error)||checked!=proof.state||current!=pin)return fail(error,error.empty()?"Design native owners/values changed during complete tutorial capture":error);return rules::valid(proof)||fail(error,"Design complete native proof invalid");
 }
+bool rules_capture_binding(const std::string& snapshot,a::Binding& binding,bool& ordered,std::string& error){
+    ordered=typed_action_runtime::controller_status().value("ordered",false);
+    if(ordered){
+        bool inside=false;if(!typed_action_runtime::original_go_admission(inside,error))return false;
+        if(inside)return typed_action_runtime::read_binding(snapshot,binding,error);
+    }
+    return typed_action_runtime::network_binding(snapshot,binding,error);
+}
+bool rules_scope(const a::Context& context,const a::Binding& binding,const a::Request& request,std::string& error){
+    if(request.action!=a::Action::GameRules||!a::ordered_game_rules(request.game_rules)||
+       Config::instance().is_host!=(context.role==a::Role::Host))return fail(error,"Ordered Design scope requires actual role and Respawn/XP rules");
+    return a::tick_commands::authority::matches(context,binding,request,error);
+}
 bool rules_queue(Runtime& r,const rules::Intent& intent,std::string& error){
-    if(!rules::valid(intent))return fail(error,"Design requested native rule change invalid");const auto controller=typed_action_runtime::controller_status();a::Context context;a::Binding binding;
-    if(!r.ready||r.replay||GetCurrentThreadId()!=r.thread||r.pending||policy_pending()||design_rules.pending||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!a::selected_session().current(context,error)||!typed_action_runtime::network_binding(context.snapshot_uuid,binding,error)||!rules_routes(r,error))return fail(error,error.empty()?"Design normal UI requires idle bound Controller":error);
+    if(!rules::valid(intent))return fail(error,"Design requested native rule change invalid");const auto controller=typed_action_runtime::controller_status();a::Context context;a::Binding binding;bool ordered=false;
+    if(!r.ready||r.replay||GetCurrentThreadId()!=r.thread||r.pending||policy_pending()||design_rules.pending||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||!a::selected_session().current(context,error)||!rules_capture_binding(context.snapshot_uuid,binding,ordered,error)||!rules_routes(r,error))return fail(error,error.empty()?"Design normal UI requires idle bound Controller":error);
+    if(ordered&&(!a::ordered_game_rules(intent)||Config::instance().is_host!=(context.role==a::Role::Host)))return fail(error,"Ordered Design capture requires actual role and Respawn/XP rules");
     Local local;rules::Pin pin;a::GameRulesProof before;a::Ledger money;if(!rules_proof(r,context,binding,local,pin,before,money,error))return false;if(before.state!=intent.before)return fail(error,"Design captured complete before state differs");
-    auto id=uuid(error);if(id.empty())return false;design_rules.pending=RulesPending{context,binding,intent,id};++r.captures;return true;
+    auto id=uuid(error);if(id.empty())return false;design_rules.pending=RulesPending{context,binding,intent,id,ordered};++r.captures;return true;
 }
 bool rules_active(Runtime& r){return !r.replay&&net::session_wire::connected()&&typed_action_runtime::controller_status().value("started",false);}
 bool rules_matches(Runtime& r,void* record,const char* name,bool& matches,std::string& error){const auto exception=rules::native::command(r.image,record,name,matches);return !exception||fail(error,"Design original command read SEH="+std::to_string(exception));}
+#include "rules_numeric_diagnostics.h"
+namespace numeric_diagnostics=rules_numeric_diagnostics;
+nlohmann::json* rules_numeric_trace=nullptr;
 bool rules_xp_entry(void* receiver,void* record){auto* r=published.load(std::memory_order_acquire);const auto original=design_rules.routes[0].original;
     if(!r||!original)throw std::runtime_error("Design original XP command was not published");if(!rules_active(*r))return original(receiver,record);
     std::string error;bool matches=false;if(!rules_matches(*r,record,"Apply",matches,error)){reject(*r,error);return true;}if(!matches)return original(receiver,record);
@@ -49,14 +74,16 @@ bool rules_xp_entry(void* receiver,void* record){auto* r=published.load(std::mem
     const auto exception=rules::native::buttons(r->image,receiver,false);if(exception){design_rules.pending.reset();reject(*r,"Design original XP button consumption SEH="+std::to_string(exception)+"; gameplay not submitted");}return true;
 }
 bool rules_property_entry(void* receiver,void* record){auto* r=published.load(std::memory_order_acquire);const auto original=design_rules.routes[1].original;
-    if(!r||!original)throw std::runtime_error("Design original property command was not published");if(!rules_active(*r))return original(receiver,record);
-    std::string error;bool matches=false;if(!rules_matches(*r,record,"ValueEdited",matches,error)){reject(*r,error);return true;}if(!matches)return original(receiver,record);
-    uintptr_t value=0,owner=0,design=0;if(!at(*r,uintptr_t(receiver),0x450,value,error)){reject(*r,error);return true;}if(!value)return original(receiver,record);
-    if(!at(*r,value,8,owner,error)||!at(*r,r->image,0x13df9e0,design,error)){reject(*r,error);return true;}if(!design||owner!=design+0x1c0)return original(receiver,record);
-    uintptr_t scalar=0,edit=0;std::string name,source;if(!ap(*r,uintptr_t(receiver),0x1701d20,error)||!ap(*r,value,0x17496b0,error)||!at(*r,value,0x38,scalar,error)||scalar!=owner+0x18||!text(*r,value+0x18,name,32,error)||name!="seconds"||!at(*r,uintptr_t(receiver),0x458,edit,error)||!ap(*r,edit,0x1703290,error)||!text(*r,edit+0x2d0,source,128,error)){reject(*r,error.empty()?"Design Respawn bound property owner/name/edit pane differs":error);return true;}
-    int32_t desired=0;bool parsed=false;const auto exception=rules::native::parse(r->image,source,desired,parsed);if(exception){reject(*r,"Design original property integer parse SEH="+std::to_string(exception));return true;}if(!parsed)return original(receiver,record);
-    rules::Intent intent;rules::Pin pin;if(!rules_values(*r,intent.before,pin,error)){reject(*r,error);return true;}if(desired==intent.before.respawn_seconds)return original(receiver,record);intent.after=intent.before;intent.after.respawn_seconds=desired;intent.command=rules::Command::RespawnSeconds;
-    if(!rules_queue(*r,intent,error))reject(*r,error);return true;
+    if(rules_numeric_trace){auto& route=(*rules_numeric_trace)["route"];route["calls"]=route.value("calls",0)+1;route["receiver"]=uintptr_t(receiver);}
+    if(!r||!original)throw std::runtime_error("Design original property command was not published");if(rules_numeric_trace)numeric_diagnostics::route(rules_numeric_trace,"entered",{{"replay",r->replay},{"connected",net::session_wire::connected()},{"controller_started",typed_action_runtime::controller_status().value("started",false)}});
+    if(!rules_active(*r)){numeric_diagnostics::route(rules_numeric_trace,"forwarded_inactive");return original(receiver,record);}
+    std::string error;bool matches=false;if(!rules_matches(*r,record,"ValueEdited",matches,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected",{{"cause",error}});reject(*r,error);return true;}numeric_diagnostics::route(rules_numeric_trace,"command_read",{{"matched_value_edited",matches}});if(!matches){numeric_diagnostics::route(rules_numeric_trace,"forwarded_other_command");return original(receiver,record);}
+    uintptr_t value=0,owner=0,design=0;if(!at(*r,uintptr_t(receiver),0x450,value,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected",{{"cause",error}});reject(*r,error);return true;}if(!value){numeric_diagnostics::route(rules_numeric_trace,"forwarded_no_value");return original(receiver,record);}
+    if(!at(*r,value,8,owner,error)||!at(*r,r->image,0x13df9e0,design,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected",{{"cause",error}});reject(*r,error);return true;}numeric_diagnostics::route(rules_numeric_trace,"model_read",{{"value",value},{"owner",owner},{"design",design}});if(!design||owner!=design+0x1c0){numeric_diagnostics::route(rules_numeric_trace,"forwarded_foreign_model");return original(receiver,record);}
+    uintptr_t scalar=0,edit=0,direct_value=0;std::string name,source;if(!ap(*r,uintptr_t(receiver),0x1701d20,error)||!ap(*r,value,0x17496b0,error)||!at(*r,value,0x38,scalar,error)||scalar!=owner+0x18||!text(*r,value+0x18,name,32,error)||name!="seconds"||!at(*r,uintptr_t(receiver),0x458,edit,error)||!ap(*r,edit,0x1703290,error)||!at(*r,edit,0x4a0,direct_value,error)||direct_value||!text(*r,edit+0x2d0,source,128,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected_binding",{{"cause",error.empty()?"Design Respawn bound property owner/name/edit pane differs":error}});reject(*r,error.empty()?"Design Respawn bound property owner/name/edit pane differs":error);return true;}
+    int32_t desired=0;bool parsed=false;const auto exception=rules::native::parse(r->image,source,desired,parsed);if(exception){numeric_diagnostics::route(rules_numeric_trace,"rejected_parse_exception",{{"exception",exception}});reject(*r,"Design original property integer parse SEH="+std::to_string(exception));return true;}numeric_diagnostics::route(rules_numeric_trace,"integer_read",{{"parsed",parsed},{"desired",desired}});if(!parsed){numeric_diagnostics::route(rules_numeric_trace,"forwarded_unparsed_integer");return original(receiver,record);}
+    rules::Intent intent;rules::Pin pin;if(!rules_values(*r,intent.before,pin,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected",{{"cause",error}});reject(*r,error);return true;}numeric_diagnostics::route(rules_numeric_trace,"current_read",{{"current",intent.before.respawn_seconds}});if(desired==intent.before.respawn_seconds){numeric_diagnostics::route(rules_numeric_trace,"forwarded_unchanged_value");return original(receiver,record);}intent.after=intent.before;intent.after.respawn_seconds=desired;intent.command=rules::Command::RespawnSeconds;
+    if(!rules_queue(*r,intent,error)){numeric_diagnostics::route(rules_numeric_trace,"rejected_queue",{{"cause",error}});reject(*r,error);}else numeric_diagnostics::route(rules_numeric_trace,"queued");return true;
 }
 bool rules_features_entry(void* receiver,void* record){auto* r=published.load(std::memory_order_acquire);const auto original=design_rules.routes[2].original;
     if(!r||!original)throw std::runtime_error("Design original Features command was not published");if(!rules_active(*r))return original(receiver,record);
@@ -79,22 +106,22 @@ bool rules_enable(Runtime& r,std::string& error){const Ui entries[]{&rules_xp_en
     }return rules_routes(r,error);
 }
 bool rules_pending(){return design_rules.pending.has_value();}
-void rules_reset(){design_rules.pending.reset();design_rules.operations.clear();}
-void rules_tick(Runtime& r){if(!design_rules.pending)return;const auto pending=*design_rules.pending;design_rules.pending.reset();std::string error;a::Context context;a::Binding binding;
-    if(!a::selected_session().current(context,error)||context!=pending.context||!typed_action_runtime::network_binding(context.snapshot_uuid,binding,error)||binding!=pending.binding||!typed_action_runtime::submit_game_rules(pending.id,pending.intent,error)){reject(r,error.empty()?"Design saved normal UI binding changed":error);return;}++r.submitted;
+void rules_reset(){design_rules.pending.reset();design_rules.operations.clear();design_rules.ui_proofs.clear();design_rules.ui_unknown=false;}
+void rules_tick(Runtime& r){if(!design_rules.pending)return;const auto pending=*design_rules.pending;design_rules.pending.reset();std::string error;a::Context context;a::Binding binding;bool ordered=false;
+    if(!a::selected_session().current(context,error)||context!=pending.context||!rules_capture_binding(context.snapshot_uuid,binding,ordered,error)||binding!=pending.binding||ordered!=pending.ordered||(ordered&&!a::ordered_game_rules(pending.intent))||!typed_action_runtime::submit_game_rules(pending.id,pending.intent,error)){reject(r,error.empty()?"Design saved normal UI binding changed":error);return;}++r.submitted;
 }
 a::Outcome rules_perform(const a::Binding& binding,const a::Request& request,const a::Evidence* host,std::string& error){
     auto* r=published.load(std::memory_order_acquire);if(!r||!r->ready||request.action!=a::Action::GameRules||!rules::valid(request.game_rules)){error="Design runtime/action unavailable";return a::Outcome::RejectedNoEffect;}
     if(design_rules.operations.contains(request.action_uuid)){error="Design original token already attempted; no replay";return a::Outcome::Unknown;}
     if(design_rules.operations.size()>=a::history_limit){auto oldest=design_rules.operations.end();for(auto it=design_rules.operations.begin();it!=design_rules.operations.end();++it)if(it->second.retired&&(oldest==design_rules.operations.end()||it->second.request.host_revision<oldest->second.request.host_revision))oldest=it;
         if(oldest==design_rules.operations.end()){error="Design unretired original receipt capacity reached";return a::Outcome::RejectedNoEffect;}design_rules.operations.erase(oldest);}
-    const auto controller=typed_action_runtime::controller_status();a::Context context;
-    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(context,error)||context.snapshot_uuid!=request.snapshot_uuid||(context.role==a::Role::Client)!=(host!=nullptr)||!rules_routes(*r,error)){if(error.empty())error="Design original requires exact Controller/Context/role";return a::Outcome::RejectedNoEffect;}
+    const auto controller=typed_action_runtime::controller_status();a::Context context;const bool ordered=a::tick_commands::authority::active();
+    if(!controller.value("pending",false)||controller.value("action_uuid",std::string{})!=request.action_uuid||!a::selected_session().current(context,error)||context.snapshot_uuid!=request.snapshot_uuid||(ordered?(host||!rules_scope(context,binding,request,error)):(controller.value("ordered",false)||(context.role==a::Role::Client)!=(host!=nullptr)))||!rules_routes(*r,error)){if(error.empty())error="Design original requires exact Controller/Context/role";return a::Outcome::RejectedNoEffect;}
     Local local;rules::Pin pin;a::GameRulesProof before;a::Ledger money;if(!rules_proof(*r,context,binding,local,pin,before,money,error))return a::Outcome::RejectedNoEffect;
     if(before.state!=request.game_rules.before){error="Design actual complete before rules differ from captured intent";return a::Outcome::RejectedNoEffect;}
     if(host&&(!host->game_rules_before||!host->game_rules_after||*host->game_rules_before!=before||host->before!=money||host->after!=money)){error="Design Client complete before rules/tutorial/Ledger differs from Host";return a::Outcome::RejectedNoEffect;}
     live::NativePort port(context,binding,nullptr);if(!port.current_owners(local.pin,error))return a::Outcome::RejectedNoEffect;
-    auto& receipt=design_rules.operations.emplace(request.action_uuid,Receipt{binding,request}).first->second;receipt.evidence.before=money;receipt.evidence.game_rules_before=before;
+    auto& receipt=design_rules.operations.emplace(request.action_uuid,Receipt{binding,request}).first->second;receipt.ordered=ordered;receipt.evidence.before=money;receipt.evidence.game_rules_before=before;
     r->replay=true;receipt.attempted=true;const auto native=rules::native::change(r->image,pin,request.game_rules);r->replay=false;receipt.returned=native.returned;
     auto unknown=[&](const std::string& cause){error=receipt.cause=cause;return a::Outcome::Unknown;};
     if(native.exception||!native.returned)return unknown("Design original rule application/cascade failed SEH="+std::to_string(native.exception)+"; no replay");
@@ -106,9 +133,12 @@ a::Outcome rules_perform(const a::Binding& binding,const a::Request& request,con
 bool rules_observe(const a::Binding& binding,const a::Request& request,a::Evidence& out,std::string& error){auto* r=published.load(std::memory_order_acquire);if(!r)return fail(error,"Design receipt owner absent");const auto found=design_rules.operations.find(request.action_uuid);
     if(found==design_rules.operations.end()||found->second.binding!=binding||found->second.request!=request||!found->second.confirmed)return fail(error,"Design exact confirmed original receipt absent");
     Local local;rules::Pin pin;a::Context context;a::GameRulesProof actual;a::Ledger ledger;if(!a::selected_session().current(context,error))return false;if(context.snapshot_uuid!=request.snapshot_uuid)return fail(error,"Design receipt current saved snapshot differs");
+    if(typed_action_runtime::controller_status().value("ordered",false)!=found->second.ordered)return fail(error,"Design retained execution mode changed");
+    if(found->second.ordered&&!rules_scope(context,binding,request,error))return false;
     if(!rules_proof(*r,context,binding,local,pin,actual,ledger,error))return false;if(actual!=*found->second.evidence.game_rules_after||ledger!=found->second.evidence.after)return fail(error,"Design actual complete rules/tutorial/Ledger differs before receipt retirement");out=found->second.evidence;out.retirement_confirmed=found->second.retired;error.clear();return true;
 }
 bool rules_retire(const a::Binding& binding,const a::Request& request,std::string& error){a::Evidence actual;if(!rules_observe(binding,request,actual,error))return false;design_rules.operations.at(request.action_uuid).retired=true;error.clear();return true;}
+nlohmann::json rules_status(){nlohmann::json rows=nlohmann::json::object();for(const auto& [id,op]:design_rules.operations)rows[id]={{"ordered",op.ordered},{"attempted",op.attempted},{"returned",op.returned},{"confirmed",op.confirmed},{"retired",op.retired},{"cause",op.cause},{"intent",rules::encode(op.request.game_rules)},{"before",op.evidence.game_rules_before?rules::encode(*op.evidence.game_rules_before):nlohmann::json(nullptr)},{"after",op.evidence.game_rules_after?rules::encode(*op.evidence.game_rules_after):nlohmann::json(nullptr)}};return {{"pending",design_rules.pending.has_value()},{"ui_unknown",design_rules.ui_unknown},{"ui_proofs",design_rules.ui_proofs},{"operations",rows}};}
 bool rules_adopt(Runtime& r,const rules::State& desired,live::ManagementReceipt& receipt,std::string& error){
     rules::State before;rules::Pin pin;if(!rules::valid(desired)||!rules_values(r,before,pin,error))return fail(error,error.empty()?"Design authoritative values invalid":error);
     if(before.available!=desired.available)return fail(error,"Design required current technology ownership differs; original project transaction missing");

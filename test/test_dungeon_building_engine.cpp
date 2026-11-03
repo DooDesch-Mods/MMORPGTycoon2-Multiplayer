@@ -1,6 +1,7 @@
 #include "dungeon_building_fixture.h"
 #include "multiplayer_world/world_state.h"
 #include "ui_remove/ui_capture.h"
+#include "typed_action/ordered_building_family.h"
 #include <iostream>
 #include <map>
 #include <memory>
@@ -18,8 +19,8 @@ void need(bool value,const std::string& cause){++checks;if(!value)throw std::run
 std::string fail_at;
 std::vector<std::string> calls;
 unsigned originals=0,retirements=0,phase=0;
-bool client=false,bad_after=false;
-bool contained=false,target_alive=false,bad_census=false;
+bool client=false,bad_after=false,ordered=false,scope_valid=true;
+bool contained=false,target_alive=false,bad_census=false,live_instances=false,wrong_portal=false;
 uintptr_t target_pointer=0x2000,current_graph=0x6000;
 uint64_t requested_revision=1;
 const void* expected_consumed=nullptr;
@@ -28,7 +29,7 @@ unsigned history_seed_calls=0,child_publications=0;
 const std::string contained_key=mt2mp::game::scene_clone::birth_key(dto::source_id,mt2mp::game::scene_clone::Family::Building,0);
 struct GraphExpectation {
     action::DungeonBuildingState value;action::BuildingState destination;
-    std::string sha;int32_t cash=0;bool destroying=false;
+    std::string sha;int32_t cash=0;bool destroying=false,moving=false;
 };
 std::map<uintptr_t,GraphExpectation> graphs;
 action::Request request;
@@ -40,7 +41,16 @@ bool step(const std::string& name,std::string& error){
     return true;
 }
 }
+struct Config {bool is_host=true;static Config& instance(){static Config value;return value;}};
 namespace mt2mp::action_session {
+namespace tick_commands::authority {
+bool active(){return fixture::ordered;}
+bool matches(const Context& context,const Binding& binding,const Request& request,std::string& error){
+    if(!fixture::ordered||!fixture::scope_valid||binding!=Binding{1,2}||request!=fixture::request||
+       context.role!=(fixture::client?Role::Client:Role::Host)) {error="Consumed Dungeon creation scope differs";return false;}
+    return true;
+}
+}
 class FixtureSession final:public Session {
 public:
     bool current(Context& out,std::string& error)override{
@@ -50,7 +60,10 @@ public:
 };
 Session& selected_session(){static FixtureSession value;return value;}
 }
-namespace dungeon_scene_identity_runtime {struct Census {};}
+namespace dungeon_scene_identity_runtime {
+struct Owner {std::string key,exterior_key;int type=1;};
+struct Scene {Owner owner;};struct Pool {Scene scene;};struct Census {std::vector<Pool> pools;};
+}
 namespace npc_probe::dungeon_building {
 struct BuildingOwner {std::string key,scene;uintptr_t object=0;uint64_t uid=0;action::BuildingState state;};
 struct Local {std::vector<BuildingOwner> owners;const void* history_source=nullptr;};
@@ -62,8 +75,9 @@ Snapshot current(){
     if(fixture::contained){
         if(fixture::bad_census&&fixture::phase)out.local->owners.front().state.x+=1;
         if(fixture::target_alive)out.local->owners.push_back({fixture::contained_key,root_key+"/template",
-            fixture::target_pointer,0x200000007ULL,fixture::dto::object(false)});
-    }else if(fixture::phase)out.local->owners.push_back({fixture::request.canonical_record_key,"world",0x2000,0x200000007ULL,fixture::request.building});
+            fixture::target_pointer,0x200000007ULL,fixture::phase&&fixture::request.action==action::Action::MoveBuilding?fixture::request.building:fixture::dto::object(false)});
+        if(fixture::target_alive&&fixture::wrong_portal)out.local->owners.back().state.type="Inn";
+    }else if(fixture::phase)out.local->owners.push_back({fixture::request.canonical_record_key,fixture::request.dungeon_scene,0x2000,0x200000007ULL,fixture::request.building});
     return out;
 }
 bool capture(const action::Binding&,const std::string&,Snapshot& out,std::string& error,const Snapshot* previous=nullptr){
@@ -109,8 +123,12 @@ bool seed(const action::Binding&,const std::string&,const std::array<uint64_t,4>
     if(!fixture::step("seed",error))return false;
     (fixture::phase?fixture::effect.after:fixture::effect.before).random=random;return true;
 }
-bool read_owners(const Snapshot& sample,dungeon_scene_identity_runtime::Census&,std::vector<BuildingOwner>& out,std::string& error){
-    if(!sample.local){error="fixture local owners absent";return false;}out=sample.local->owners;return true;
+bool read_owners(const Snapshot& sample,dungeon_scene_identity_runtime::Census& census,std::vector<BuildingOwner>& out,std::string& error){
+    if(!sample.local){error="fixture local owners absent";return false;}out=sample.local->owners;
+    const auto exterior=std::string("action:")+fixture::dto::source_id;
+    census.pools={{{{exterior+"/template",exterior,1}}}};
+    if(fixture::live_instances)census.pools.push_back({{{exterior+"/instance/0",exterior,2}}});
+    return true;
 }
 }
 namespace dungeon_building_graph {
@@ -132,21 +150,24 @@ bool read(const npc_probe::dungeon_building::Snapshot& sample,const std::string&
           const action::BuildingState& destination,Proof& out,std::string& error){
     if(fixture::contained){
         const auto expected=fixture::graphs.find(graph);
-        fixture::need(expected!=fixture::graphs.end()&&key==fixture::contained_key&&!moving&&
+        fixture::need(expected!=fixture::graphs.end()&&key==fixture::contained_key&&moving==expected->second.moving&&
             destroying==expected->second.destroying&&destination==expected->second.destination&&
             sample.local&&sample.local->owners.size()==2&&sample.value==expected->second.value,
             "Contained Engine lost complete retained inverse owner/value/direction/destination");
         fixture::need(sample.local->owners.back().key==fixture::contained_key&&
             sample.local->owners.back().scene==std::string("action:")+fixture::dto::source_id+"/template"&&
             sample.local->owners.back().uid==0x200000007ULL,"Contained inverse proof lost saved local full UID/scene/key");
-        if(!fixture::step("inverse",error))return false;out={expected->second.sha,0,{{expected->second.cash}}};return true;
+        if(!fixture::step("inverse",error))return false;out={expected->second.sha,0,{}};if(!moving)out.cash.push_back({expected->second.cash});return true;
     }
     fixture::need(graph==0x6000&&destroying&&!moving&&sample.local&&sample.local->owners.size()==2,
                   "Engine did not prove the original complete inverse against new current owners");
     if(!fixture::step("inverse",error))return false;out={fixture::effect.inverse,0,{{50}}};return true;
 }
 }
-namespace typed_action_runtime {nlohmann::json status(){return {};}}
+namespace typed_action_runtime {
+nlohmann::json status(){return {};}
+nlohmann::json controller_status(){return {{"ordered",fixture::ordered}};}
+}
 namespace ui_move_runtime::contract {
 bool pending(const nlohmann::json&,const action::Request&,uint64_t& revision,std::string& error){
     if(!fixture::step("pending",error))return false;revision=fixture::requested_revision;return true;
@@ -182,13 +203,24 @@ struct Party {
         attempted=true;if(!fixture::step("mapping",error))return false;out=fixture::effect.mapping;return true;
     }
 };
+struct OrderedScenes {
+    bool bind(const action::Context&,const action::Binding&,std::string& error){return fixture::step("ordered-bind",error);}
+    bool prepare(const action::Context&,const action::Binding&,std::string& error){return fixture::step("begin",error);}
+    bool cancel_prepare(const action::Context&,const action::Binding&,std::string& error){return fixture::step("cancel",error);}
+    bool confirm_template(const action::Context&,const action::Binding&,const action::Request& request,
+        const mt2mp::game::scene_clone::Mapping* authority,mt2mp::game::scene_clone::Mapping& mapping,
+        dungeon_scene_identity_runtime::Census&,bool& attempted,std::string& error,uintptr_t held){
+        fixture::need(!authority&&!held&&action::tick_commands::ordered_dungeon_action(request),"Ordered scene publication adopted Host mapping or foreign scope");
+        attempted=true;if(!fixture::step("mapping",error))return false;mapping=fixture::effect.mapping;return true;
+    }
+};
 struct NativeEngine {
     struct DungeonOperation {
         action::Request request;action::Binding binding;action::Ledger ledger_before,ledger_after;
         npc_probe::dungeon_building::Snapshot before,after;
         action::DungeonBuildingEffect effect;npc_probe::dungeon_building::Snapshot inverse_sample;
         action::BuildingState inverse_destination;uintptr_t inverse_graph=0;
-        bool inverse_destroying=false,inverse_moving=false,confirmed=false,retired=false,removal_finalized=false;
+        bool inverse_destroying=false,inverse_moving=false,confirmed=false,retired=false,removal_finalized=false,ordered=false;
     };
     struct Building {action::BuildingState object_before,state;};
     struct Removed {action::BuildingState object_before;};
@@ -197,7 +229,7 @@ struct NativeEngine {
     std::map<std::string,Building> buildings_;
     std::map<std::string,Removed> operations_;
     std::map<std::string,History> history_;
-    world_state::Table world_;Party party;Party* live_state_=&party;
+    world_state::Table world_;Party party;Party* live_state_=&party;OrderedScenes ordered_dungeon_scenes_;
     const action::Request* active_dungeon_building_=nullptr;
     bool current(const action::Binding&,const std::string&,std::string& error){return fixture::step("current",error);}
     bool read_ledger(action::Ledger& value,std::string& error){
@@ -212,7 +244,17 @@ struct NativeEngine {
         if(fixture::fail_at=="original"){error="original partial effect";return action::Outcome::Unknown;}
         return action::Outcome::Confirmed;
     }
-    action::Outcome perform_move(const action::Binding&,const action::Request&,const action::Evidence*,std::string&){throw std::runtime_error("unexpected Move");}
+    action::Outcome perform_move(const action::Binding&,const action::Request& request,const action::Evidence* authority,std::string& error){
+        fixture::need(fixture::contained&&fixture::ordered&&!authority&&active_dungeon_building_&&*active_dungeon_building_==request,
+            "Portal Move lost exact consumed scope or adopted Host state");
+        if(fixture::fail_at=="reject-original"){error="original rejected before effect";return action::Outcome::RejectedNoEffect;}
+        ++fixture::originals;fixture::calls.push_back("original");fixture::phase=1;
+        buildings_[request.action_uuid]={fixture::dto::object(false),request.building};
+        fixture::GraphExpectation proof;proof.value=fixture::effect.after;proof.destination=fixture::dto::object(false);
+        proof.sha=fixture::effect.inverse;proof.moving=true;fixture::graphs[fixture::current_graph]=proof;
+        if(fixture::fail_at=="original"){error="original partial move effect";return action::Outcome::Unknown;}
+        return action::Outcome::Confirmed;
+    }
     action::Outcome contained_original(const action::Request& request,bool restoring,std::string& error){
         fixture::need(fixture::contained&&active_dungeon_building_&&*active_dungeon_building_==request,
             "Contained original executed outside exact prepared request scope");
@@ -234,8 +276,9 @@ struct NativeEngine {
     action::Outcome perform_remove(const action::Binding&,const action::Request& request,action::ui_capture::ReplayPurpose purpose,
         const action::Evidence* authority,std::string& error){
         if(!fixture::contained)throw std::runtime_error("unexpected Remove");
-        fixture::need(purpose==(fixture::client?action::ui_capture::ReplayPurpose::ConfirmedHostApplication:action::ui_capture::ReplayPurpose::HostExecution)&&
-            ((authority!=nullptr)==fixture::client),"Contained Remove lost actual Host/Client original purpose");
+        fixture::need(purpose==(fixture::ordered?action::ui_capture::ReplayPurpose::OrderedExecution:
+            fixture::client?action::ui_capture::ReplayPurpose::ConfirmedHostApplication:action::ui_capture::ReplayPurpose::HostExecution)&&
+            ((authority!=nullptr)==(fixture::client&&!fixture::ordered)),"Contained Remove lost actual consumed/Host/Client original purpose");
         return contained_original(request,false,error);
     }
     action::Outcome perform_building_history(const action::Binding&,const action::Request& request,const action::Evidence* authority,std::string& error){
@@ -255,8 +298,8 @@ struct NativeEngine {
 };
 namespace fixture {
 std::unique_ptr<NativeEngine> setup(bool peer){
-    fail_at.clear();calls.clear();originals=retirements=phase=0;client=peer;bad_after=false;
-    contained=target_alive=bad_census=false;target_pointer=0x2000;current_graph=0x6000;requested_revision=1;
+    fail_at.clear();calls.clear();originals=retirements=phase=0;client=peer;bad_after=false;ordered=false;scope_valid=true;Config::instance().is_host=!peer;
+    contained=target_alive=bad_census=live_instances=wrong_portal=false;target_pointer=0x2000;current_graph=0x6000;requested_revision=1;
     expected_consumed=expected_full_seed=nullptr;history_seed_calls=child_publications=0;graphs.clear();
     request=dto::request(action::Action::PlaceBuilding,true);ledger=dto::money();effect=dto::effect(request);
     auto engine=std::make_unique<NativeEngine>();std::string error;
@@ -384,7 +427,100 @@ void contained_cases(){
             "contained Client published different complete active Quest references");
     }
 }
+std::unique_ptr<NativeEngine> setup_edit(bool peer,bool move){
+    auto engine=setup_contained(peer);ordered=true;engine->live_state_=nullptr;
+    if(move){request=dto::request(action::Action::MoveBuilding,false);request.canonical_record_key=contained_key;
+        request.building.x+=3;request.building.z+=2;effect=dto::effect(request);}
+    return engine;
+}
+void ordered_edit_cases(){
+    for(bool move:{false,true})for(bool peer:{false,true}){
+        auto engine=setup_edit(peer,move);std::string error;const auto before=ledger;
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Confirmed,error);
+        const auto& saved=*engine->dungeon_buildings_.at(request.action_uuid);
+        need(originals==1&&saved.ordered&&saved.confirmed&&engine->world_.revision()==1&&
+             std::count(calls.begin(),calls.end(),"seed")==0&&child_publications==1,
+             "Ordered Portal edit lost original once/full publication or adopted RNG");
+        need(engine->world_.rows().at(contained_key).state.alive==move&&
+             (move?engine->world_.rows().at(contained_key).state==request.building:ledger.cash==before.cash+25)&&
+             (move?ledger==before:saved.removal_finalized)&&saved.inverse_moving==move,
+             "Ordered Portal move/refund/tombstone/inverse semantics differ");
+        auto evidence=std::make_unique<action::Evidence>();
+        need(engine->observe_dungeon_building({1,2},request,*evidence,error)&&evidence->dungeon_building_effect==effect,error);
+        need(engine->retire_dungeon_building({1,2},request,error)&&retirements==1,error);
+        need(!engine->retire_dungeon_building({1,2},request,error)&&retirements==1,"Portal edit retired twice");
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Unknown&&originals==1,"Portal edit replayed");
+    }
+    for(bool move:{false,true})for(int mode=0;mode<6;++mode){
+        auto engine=setup_edit(true,move);std::string error;auto host=contained_authority();
+        if(mode==0)wrong_portal=true;if(mode==1)live_instances=true;if(mode==2)scope_valid=false;
+        if(mode==3)request.dungeon_scene=std::string("action:")+dto::source_id+"/instance/0";
+        if(mode==4)request.canonical_record_key="action:77777777-7777-4777-8777-777777777777";
+        need(engine->perform_dungeon_building({1,2},request,mode==5?host.get():nullptr,error)==action::Outcome::RejectedNoEffect&&originals==0,
+             "Foreign Portal type/scene/owner/instance/scope/Host state reached original");
+    }
+    for(bool move:{false,true})for(const std::string failure:{"ordered-bind","original","mapping","publish-children","capture-after","inverse","ledger-after"}){
+        auto engine=setup_edit(true,move);fail_at=failure;std::string error;const bool before=failure=="ordered-bind";
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==(before?action::Outcome::RejectedNoEffect:action::Outcome::Unknown)&&
+            originals==(before?0u:1u)&&engine->world_.revision()==0&&!error.empty(),"Failed Portal edit published or lost cause");
+        if(!before){fail_at.clear();need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Unknown&&originals==1,"Unknown Portal edit replayed");}
+    }
+    ordered=false;
+}
+void ordered_cases(){
+    for(bool portal:{false,true})for(bool peer:{false,true}){
+        auto engine=setup(peer);ordered=true;engine->live_state_=nullptr;std::string error;
+        if(portal){request=dto::request(action::Action::PlaceBuilding,false);effect=dto::effect(request);}
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Confirmed,error);
+        need(originals==1&&engine->world_.revision()==1&&engine->world_.rows().size()==2&&
+             std::count(calls.begin(),calls.end(),"seed")==0&&engine->dungeon_buildings_.at(request.action_uuid)->ordered,
+             "Ordered placement lost full World publication, original-once receipt or adopted RNG");
+        if(portal){
+            const auto& saved=*engine->dungeon_buildings_.at(request.action_uuid);
+            need(saved.after.local->owners.back().scene==request.dungeon_scene&&
+                 saved.after.local->owners.back().state.type=="DungeonPortal"&&
+                 saved.effect.before.authored.size()==1&&saved.effect.after.authored.size()==1&&
+                 saved.effect.before.authored!=saved.effect.after.authored&&
+                 saved.effect.before.random==std::array<uint64_t,4>{1,2,3,4}&&
+                 saved.effect.after.random==std::array<uint64_t,4>{5,6,7,8}&&
+                 saved.ledger_after.cash==saved.ledger_before.cash-50,
+                 "Portal lost template ownership, complete authored change, actual RNG or original cash boundary");
+        }
+        auto observed=std::make_unique<action::Evidence>();
+        need(engine->observe_dungeon_building({1,2},request,*observed,error)&&observed->dungeon_building_effect==effect,error);
+        need(engine->retire_dungeon_building({1,2},request,error)&&retirements==1,error);
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Unknown&&originals==1,"Ordered original creation replayed");
+        scope_valid=false;need(!engine->observe_dungeon_building({1,2},request,*observed,error),"Ordered creation observation escaped consumed scope");
+    }
+    for(int mode=0;mode<9;++mode){
+        auto engine=setup(mode==1);ordered=true;engine->live_state_=nullptr;auto host=authority();std::string error;
+        if(mode==0)scope_valid=false;if(mode==1)Config::instance().is_host=true;
+        if(mode==2)request.dungeon_scene="foreign/template";if(mode==3)request.building.type="DungeonPortal";
+        if(mode>=5){request=dto::request(action::Action::PlaceBuilding,false);
+            if(mode==5)request.dungeon_scene=std::string("action:")+dto::source_id+"/instance/0";
+            if(mode==6)request.building.type="StartingPoint";
+            if(mode==7)request.action=action::Action::MoveBuilding;
+            if(mode==8)request.dungeon_scene="foreign/template";}
+        need(engine->perform_dungeon_building({1,2},request,mode==4?host.get():nullptr,error)==action::Outcome::RejectedNoEffect&&originals==0,
+             "Foreign ordered creation Context/family/Host evidence executed");
+    }
+    for(bool portal:{false,true})for(const std::string failure:{"ordered-bind","begin","original","mapping","inverse-operations","publish-children","capture-after","inverse","ledger-after"}){
+        auto engine=setup(true);ordered=true;engine->live_state_=nullptr;fail_at=failure;std::string error;
+        if(portal){request=dto::request(action::Action::PlaceBuilding,false);effect=dto::effect(request);}
+        const bool before=failure=="ordered-bind"||failure=="begin";
+        need(engine->perform_dungeon_building({1,2},request,nullptr,error)==(before?action::Outcome::RejectedNoEffect:action::Outcome::Unknown)&&
+             originals==(before?0u:1u)&&engine->world_.revision()==0&&error==(failure=="original"?"original partial effect":"original fixture failure: "+failure),
+             "Ordered creation failure lost cause or published partial World: "+failure);
+        if(!before){fail_at.clear();need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::Unknown&&originals==1,"Unknown ordered creation replayed");}
+    }
+    auto engine=setup(true);ordered=true;engine->live_state_=nullptr;fail_at="reject-original";std::string error;
+    need(engine->perform_dungeon_building({1,2},request,nullptr,error)==action::Outcome::RejectedNoEffect&&originals==0&&
+         std::count(calls.begin(),calls.end(),"cancel")==1&&std::count(calls.begin(),calls.end(),"seed")==0,
+         "Ordered no-effect rejection lost prepared Scene cancellation or seeded RNG");
+    ordered=false;
+}
 void cases(){
+    ordered_edit_cases();
     for(bool peer:{false,true}){
         auto engine=setup(peer);auto host=authority();std::string error;
         need(engine->perform_dungeon_building({1,2},request,peer?host.get():nullptr,error)==action::Outcome::Confirmed,error);
@@ -436,5 +572,5 @@ void cases(){
     }
 }
 }
-int main()try{fixture::cases();fixture::contained_cases();std::cout<<fixture::checks<<" actual Dungeon Engine boundary checks passed\n";return 0;}
+int main()try{fixture::cases();fixture::contained_cases();fixture::ordered_cases();std::cout<<fixture::checks<<" actual Dungeon Engine boundary checks passed\n";return 0;}
 catch(const std::exception& error){std::cerr<<error.what()<<'\n';return 1;}

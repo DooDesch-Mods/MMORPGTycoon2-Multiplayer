@@ -478,8 +478,8 @@ bool prepare_load(const std::filesystem::path& native_path,const std::string& id
     if(host_active||client_active)return q::fail(error,"Monster companion prepare requires idle observer");
     prepared={};prepared_region_rng_sha.clear();prepared_uuid.clear();prepared_present=false;prepared_sha.clear();prepared_bytes=0;
     auto path=native_path;path+=".monsters.json";
-    std::error_code ec;const bool exists=std::filesystem::exists(path,ec);
-    if(ec)return q::fail(error,"Monster companion existence check failed: "+ec.message());
+    bool exists=false;
+    if(!net::snapshot_file_exists(path,exists,error))return false;
     if(exists){
         net::SnapshotFileHandle file;uint64_t size=0;
         if(!file.open(path,GENERIC_READ,OPEN_EXISTING,error)||!net::snapshot_file_length(file.get(),size,error))return false;

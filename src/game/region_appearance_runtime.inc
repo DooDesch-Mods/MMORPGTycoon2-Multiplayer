@@ -69,7 +69,7 @@ bool appearance_capture(Runtime& r,void* window,void* record,bool& handled,std::
     handled=false;
     static constexpr const char* commands[]{"ColorTint","ColorLight","ColorAmbient","SkyColor","FXChange","ColorRegionFX"};
     size_t which=6;
-    for(size_t i=0;i<6;++i){bool match=false;const auto seh=label_is(r.image,record,commands[i],match);
+    for(size_t i=0;i<6;++i){bool match=false;const auto seh=i==4?selection_label_is(r.image,record,commands[i],match):label_is(r.image,record,commands[i],match);
         if(seh)return fail(e,"region appearance command read failed SEH="+std::to_string(seh));if(match){which=i;break;}}
     if(which==6)return true;
     handled=true;

@@ -1,5 +1,6 @@
 #pragma once
 #include "typed_action/action_session.h"
+#include "character_edit_ui_api.h"
 struct MT2FW_MT2_ServiceV2;
 namespace mt2mp::game::npc_probe::monster_action_runtime::character_rename {
 bool enable(std::string&);
