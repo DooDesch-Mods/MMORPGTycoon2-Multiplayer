@@ -568,6 +568,13 @@ uint64_t current_world_epoch() {
     if(snapshot_host()) return valid_id(outbound_id)?software_epoch(outbound_id):0;
     return !receiving&&!load_pending&&!last_loaded.empty()?incoming_epoch:0;
 }
+uint64_t current_world_epoch(game::building_mixed_identity::opened_file::ReadOriginTransaction& transaction) {
+    if(snapshot_failed||!snapshot_world_valid) return 0;
+    if(ordered_snapshot){OrderedSnapshotIdentity proof;std::string error;
+        return ordered_load_acknowledged&&read_ordered_snapshot(proof,error,transaction)&&proof.loaded?software_epoch(proof.snapshot_uuid):0;
+    }
+    return current_world_epoch();
+}
 void invalidate_snapshot_world(const std::string& reason) {
     if(ordered_snapshot&&ordered_failure.empty())ordered_failure="Ordered preload invalidated: "+reason;
 #ifndef MT2MP_SNAPSHOT_TEST

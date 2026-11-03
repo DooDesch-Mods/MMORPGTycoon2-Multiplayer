@@ -1,5 +1,6 @@
 #include "sidecar_adapter.h"
 #include "recovery_read_scope.h"
+#include "../native_open_witness.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/net/local_session.h"
 #include "mt2mp/net/snapshot_sync.h"
@@ -16,17 +17,20 @@ bool SidecarTransport::send(uint64_t target,const std::vector<uint8_t>& bytes,st
     if(!net::session_wire::send(channel,bytes.data(),uint32_t(bytes.size()),target)){cause="Sidecar refused action packet: "+client.failure_reason();return false;}
     cause.clear();return true;
 }
-bool LocalSession::current(Context& out,std::string& cause) {
-    if(recovery_read::selected)return recovery_read::local(out,cause);
-    if(net::ordered_snapshot_selected()){
-        net::OrderedSnapshotIdentity proof;if(!net::read_ordered_snapshot(proof,cause))return false;
+static bool ordered_local_context(Context& out,std::string& cause) {
+        game::building_mixed_identity::opened_file::ReadOriginTransaction transaction;
+        net::OrderedSnapshotIdentity proof;if(!net::read_ordered_snapshot(proof,cause,transaction))return false;
         const auto progress=net::snapshot_progress();
-        if(!proof.loaded||!proof.world_epoch||!net::current_world_epoch()||progress.value("phase",std::string{})!="active"||!progress.value("world_authority_valid",false)){
+        if(!proof.loaded||!proof.world_epoch||!net::current_world_epoch(transaction)||progress.value("phase",std::string{})!="active"||!progress.value("world_authority_valid",false)){
             cause="Ordered local action session awaits native load and peer bootstrap agreement";return false;
         }
+        if(!transaction.finish(cause))return false;
         out={proof.session,proof.local_peer,1,proof.peer_mask,proof.local_peer==1?Role::Host:Role::Client,proof.snapshot_uuid};
         cause.clear();return true;
-    }
+}
+bool LocalSession::current(Context& out,std::string& cause) {
+    if(recovery_read::selected)return recovery_read::local(out,cause);
+    if(net::ordered_snapshot_selected())return ordered_local_context(out,cause);
     const auto& config=Config::instance();auto& transport=net::SidecarClient::instance();
     if(!config.local_test){cause="local action adapter requires local_test; Steam action transport not implemented";return false;}
     if(!net::local_session_connected()||!transport.connected()||!transport.ready()){cause="local action session disconnected: "+transport.failure_reason();return false;}

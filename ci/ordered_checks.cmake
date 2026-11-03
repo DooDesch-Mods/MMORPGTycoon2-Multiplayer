@@ -76,6 +76,25 @@ if(WIN32)
     add_test(NAME read_origin_transaction COMMAND test_read_origin_transaction)
     set_tests_properties(read_origin_transaction PROPERTIES TIMEOUT 60 LABELS ordered WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
     set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+        "${MT2MP_SOURCE_ROOT}/src/game/typed_action/sidecar_adapter.cpp"
+        "${MT2MP_SOURCE_ROOT}/src/net/snapshot_sync.cpp"
+        "${MT2MP_SOURCE_ROOT}/test/extract_ordered_local_context.py")
+    execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${MT2MP_SOURCE_ROOT}/test/extract_ordered_local_context.py"
+        --root "${MT2MP_SOURCE_ROOT}" --output "${read_origin_generated}" COMMAND_ERROR_IS_FATAL ANY)
+    add_executable(test_ordered_local_context "${MT2MP_SOURCE_ROOT}/test/test_ordered_local_context.cpp")
+    target_include_directories(test_ordered_local_context PRIVATE "${read_origin_generated}"
+        "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include"
+        "${MT2MP_ORDERED_FRAMEWORK_SDK}/include" "${MT2MP_ORDERED_FRAMEWORK_SDK}/adapters/mt2/sdk")
+    target_compile_features(test_ordered_local_context PRIVATE cxx_std_20)
+    target_compile_definitions(test_ordered_local_context PRIVATE MT2MP_FRAMEWORK_PLUGIN WIN32_LEAN_AND_MEAN NOMINMAX)
+    if(MSVC)
+        target_compile_options(test_ordered_local_context PRIVATE /W4 /WX /utf-8 /EHsc /permissive-)
+    endif()
+    set_target_properties(test_ordered_local_context PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/framework-write-fixture")
+    add_dependencies(test_ordered_local_context framework_physfs_fixture)
+    add_test(NAME ordered_local_context COMMAND test_ordered_local_context)
+    set_tests_properties(ordered_local_context PROPERTIES TIMEOUT 60 LABELS ordered WORKING_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}")
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
         "${MT2MP_SOURCE_ROOT}/src/net/ordered_snapshot_load.inc"
         "${ordered_test_root}/extract_bootstrap.py")
     execute_process(COMMAND "${Python3_EXECUTABLE}" -X utf8 "${ordered_test_root}/extract_bootstrap.py"

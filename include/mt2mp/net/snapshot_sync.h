@@ -96,6 +96,7 @@ bool fail_host_world(const std::string& expected_snapshot,const std::string& cau
 std::string current_snapshot_id();
 // Snapshot epoch only; native adapters must also verify their bound world receivers.
 uint64_t current_world_epoch();
+uint64_t current_world_epoch(game::building_mixed_identity::opened_file::ReadOriginTransaction&);
 // Suspend snapshot authority before a local native load replaces its world.
 void invalidate_snapshot_world(const std::string& reason);
 // Read only on the native game thread while the incoming normal load is pending.
