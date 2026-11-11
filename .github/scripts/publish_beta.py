@@ -8,7 +8,7 @@ import re
 import urllib.error
 import urllib.parse
 import urllib.request
-from build_beta import validate
+from framework_beta import validate
 
 REPOSITORY = 'DooDesch-Mods/MMORPGTycoon2-Multiplayer'
 

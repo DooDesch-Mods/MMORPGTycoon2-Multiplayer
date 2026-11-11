@@ -7,7 +7,7 @@ import ctypes
 from ctypes import wintypes
 from pathlib import Path
 from local_acceptance import AcceptanceRunner, AcceptanceError, ROOT, read_json, utc, log
-from local_test import WindowsProcesses
+from framework_local_test import WindowsProcesses
 
 
 def main():

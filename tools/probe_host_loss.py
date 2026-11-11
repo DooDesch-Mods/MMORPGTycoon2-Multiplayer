@@ -4,7 +4,7 @@ import time
 import argparse
 import sys
 from pathlib import Path
-from local_test import ROOT, RuntimeLock, WindowsProcesses
+from framework_local_test import ROOT, RuntimeLock, WindowsProcesses
 
 root = ROOT / "_MPTest"
 sys.path.insert(0,str(ROOT / "tools/mcp"))

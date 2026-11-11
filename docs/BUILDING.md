@@ -25,10 +25,10 @@ The [Windows workflow](../.github/workflows/windows.yml) runs the game-independe
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
 ```powershell
-python -X utf8 tools/build.py --mode framework --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.17 --target MT2MultiplayerPlugin
+python -X utf8 tools/build.py --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.17 --target MT2MultiplayerPlugin
 ```
 
-Current development source requires Framework Runtime 0.5.7 and its matching native SDK. Arrange the frozen SDK with its `include` and `adapters/mt2/sdk` directories. A mutable Framework checkout and the Lua authoring SDK are not required. Framework mode writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. It uses a separate build directory from the standalone tools. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
+Current development source requires Framework Runtime 0.5.7 and its matching native SDK. Arrange the frozen SDK with its `include` and `adapters/mt2/sdk` directories. A mutable Framework checkout and the Lua authoring SDK are not required. The build writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.
 
 The Framework version defaults to `mod.json`; an explicit version must match it. A matching CMake cache skips the redundant configure step while retaining CMake's automatic regeneration. Use `--reconfigure` to configure explicitly. The build writes `build/framework/build-receipt.json` with the exact DLL hash and version.
 
@@ -37,17 +37,10 @@ For a local DLL iteration, add `--native-only`. This selects only `MT2Multiplaye
 Package that local plugin with the canonical manifest:
 
 ```powershell
-python -X utf8 tools/package.py --mode vortex --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip
+python -X utf8 tools/package.py --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip
 ```
 
 Packaging reads back every ZIP entry and rejects a changed DLL or mismatched manifest version. Keep a copy of a package before the next build if you need its exact bytes later.
 
-To build the legacy standalone tools:
-
-```powershell
-cmake -S . -B build/mod -A x64 -DMT2MP_BUILD_TESTS=OFF -DCMAKE_POLICY_VERSION_MINIMUM=3.5
-cmake --build build/mod --config Release --target MT2_Multiplayer wsock32 steam_api64 mt2mp_sidecar --parallel 2
-```
-
-The separate CI test entry avoids linking every test to the injected mod DLL. Launcher and MCP tools require a legally installed copy of the game and explicit local runtime paths. CI does not run these tools.
+The separate CI test entry avoids linking every test to the plugin DLL. Launcher and MCP tools require a legally installed copy of the game and explicit local runtime paths. CI does not run these tools.
 

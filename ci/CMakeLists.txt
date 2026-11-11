@@ -214,11 +214,9 @@ include("${CMAKE_CURRENT_LIST_DIR}/empty_network_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/client_leave_checks.cmake")
 
-include("${CMAKE_CURRENT_LIST_DIR}/original_saves_checks.cmake")
 
 
 
-include("${CMAKE_CURRENT_LIST_DIR}/private_save_parent_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/named_world_checks.cmake")
 

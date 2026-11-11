@@ -2,37 +2,279 @@
 from __future__ import annotations
 
 import argparse
+import ctypes
+from ctypes import wintypes
 import hashlib
+import json
 import math
 import os
 from pathlib import Path
 import re
 import secrets
 import shutil
+import socket
 import subprocess
 import sys
 import time
 import uuid
 
-# The stage and promoted tool use the same existing process and lock implementation.
-for ancestor in Path(__file__).resolve().parents:
-    if (ancestor / "tools/local_test.py").is_file():
-        sys.path.insert(0, str(ancestor / "tools"))
-        break
-import local_test as legacy
-from local_test import (LaunchError, ROOT, DEFAULT_SOURCE, EXPECTED_EXE_SHA256, STEAM_APP_ID,
-                        WindowsProcesses, RuntimeLock, atomic_json, read_json, read_status_json,
-                        safe_path, sha256, log, reserve_ports, check_processes, wait_marker, log_tail,
-                        )
+ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_EXE_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
+MOD_UI_ASSETS = ("entry.win", "lobby.win", "browser.win", "multiplayer.png",
+                 "materials/mt2mp_desktop_multiplayer.mat")
+STEAM_APP_ID = "486860"
 
 MODULES = {"MT2.exe": "game/MT2.exe", "steam_api64.dll": "game/steam_api64.dll",
            "WSOCK32.dll": "game/WSOCK32.dll", "MT2Framework.dll": "game/MT2Framework.dll",
            "MT2MultiplayerPlugin.dll": "profile/mods/doodesch.multiplayer/MT2MultiplayerPlugin.dll"}
 
 
+class LaunchError(RuntimeError):
+    pass
+
+
+def log(level, message):
+    print(f"{level}: {message}", flush=True)
+
+
+def atomic_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + ".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, path)
+
+
+def read_json(path):
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def read_status_json(path):
+    """Allow the game's atomic status replacement while this handle is open."""
+    if os.name != "nt":
+        return read_json(path)
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, ctypes.c_void_p,
+                               wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    api.CreateFileW.restype = wintypes.HANDLE
+    api.ReadFile.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.c_void_p]
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    handle = api.CreateFileW(str(path), 0x80000000, 0x1 | 0x2 | 0x4, None, 3, 0x80, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        chunks, size = [], 0
+        buffer = ctypes.create_string_buffer(65536)
+        count = wintypes.DWORD()
+        while True:
+            if not api.ReadFile(handle, buffer, len(buffer), ctypes.byref(count), None):
+                raise ctypes.WinError(ctypes.get_last_error())
+            if not count.value:
+                break
+            chunks.append(buffer.raw[:count.value])
+            size += count.value
+            if size > 1024 * 1024:
+                raise ValueError(f"status file exceeds 1048576 bytes: {path}")
+    finally:
+        if not api.CloseHandle(handle):
+            log("error", f"close status handle path={path} failed: {ctypes.WinError(ctypes.get_last_error())}")
+    return json.loads(b"".join(chunks).decode("utf-8"))
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def same_path(left, right):
+    return os.path.normcase(os.path.normpath(str(left))) == os.path.normcase(os.path.normpath(str(right)))
+
+
+def safe_path(path, root):
+    """Reject junctions and symlinks before writing into an owned runtime."""
+    root, path = Path(os.path.abspath(root)), Path(os.path.abspath(path))
+    if not path.is_relative_to(root):
+        raise LaunchError(f"path outside test root: {path}")
+    for item in (root, *path.relative_to(root).parents):
+        candidate = item if item == root else root / item
+        if candidate.is_symlink() or (hasattr(candidate, "is_junction") and candidate.is_junction()):
+            raise LaunchError(f"runtime path redirects outside its directory: {candidate}")
+    if path.is_symlink() or (hasattr(path, "is_junction") and path.is_junction()):
+        raise LaunchError(f"runtime path redirects outside its directory: {path}")
+    return path
+
+
+class WindowsProcesses:
+    QUERY = 0x1000
+    TERMINATE = 0x0001
+    SYNCHRONIZE = 0x00100000
+
+    def __init__(self):
+        if os.name != "nt":
+            raise LaunchError("local game launch requires Windows")
+        self.api = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.api.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        self.api.OpenProcess.restype = wintypes.HANDLE
+        self.api.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.api.GetProcessTimes.argtypes = [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4
+        self.api.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+        self.api.GetExitCodeProcess.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]
+        self.api.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+        self.api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+
+    def _identity(self, handle, pid):
+        times = [wintypes.FILETIME() for _ in range(4)]
+        if not self.api.GetProcessTimes(handle, *(ctypes.byref(value) for value in times)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        buffer = ctypes.create_unicode_buffer(32768)
+        size = wintypes.DWORD(len(buffer))
+        if not self.api.QueryFullProcessImageNameW(handle, 0, buffer, ctypes.byref(size)):
+            raise ctypes.WinError(ctypes.get_last_error())
+        return {"pid": pid, "process_start_time": str((times[0].dwHighDateTime << 32) | times[0].dwLowDateTime),
+                "executable_path": buffer.value}
+
+    def identity(self, process):
+        return self._identity(int(process._handle), process.pid)
+
+    def _exited(self, handle, pid):
+        wait = self.api.WaitForSingleObject(handle, 0)
+        if wait not in (0, 258):
+            raise LaunchError(f"process state pid={pid} wait={wait} required=0 or 258")
+        if wait == 0:
+            code = wintypes.DWORD()
+            if not self.api.GetExitCodeProcess(handle, ctypes.byref(code)):
+                raise ctypes.WinError(ctypes.get_last_error())
+            return f"exited:{code.value}"
+        return None
+
+    def inspect(self, record, terminate=False):
+        rights = self.QUERY | self.SYNCHRONIZE | (self.TERMINATE if terminate else 0)
+        handle = self.api.OpenProcess(rights, False, record["pid"])
+        if not handle:
+            error = ctypes.get_last_error()
+            if error == 87:
+                return "exited"
+            raise LaunchError(f"OpenProcess pid={record['pid']} failed: {ctypes.WinError(error)}")
+        try:
+            exited = self._exited(handle, record["pid"])
+            if exited:
+                return exited
+            try:
+                identity = self._identity(handle, record["pid"])
+            except OSError:
+                exited = self._exited(handle, record["pid"])
+                if exited:
+                    return exited
+                raise
+            if identity["process_start_time"] != record["process_start_time"] or not same_path(identity["executable_path"], record["executable_path"]):
+                return "identity-mismatch"
+            exited = self._exited(handle, record["pid"])
+            if exited:
+                return exited
+            if terminate:
+                if not self.api.TerminateProcess(handle, 1):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                result = self.api.WaitForSingleObject(handle, 5000)
+                if result != 0:
+                    raise LaunchError(f"termination pid={record['pid']} wait={result} required=0")
+                code = wintypes.DWORD()
+                if not self.api.GetExitCodeProcess(handle, ctypes.byref(code)):
+                    raise ctypes.WinError(ctypes.get_last_error())
+                return f"stopped:{code.value}"
+            return "alive"
+        finally:
+            if not self.api.CloseHandle(handle):
+                log("error", f"close process handle pid={record['pid']} failed: {ctypes.WinError(ctypes.get_last_error())}")
+
+
+class RuntimeLock:
+    def __init__(self, root):
+        self.name = "Local\\MT2MP-" + hashlib.sha256(str(root.resolve()).casefold().encode()).hexdigest()
+
+    def __enter__(self):
+        self.api = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.api.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+        self.api.CreateMutexW.restype = wintypes.HANDLE
+        self.api.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        self.api.ReleaseMutex.argtypes = [wintypes.HANDLE]
+        self.api.CloseHandle.argtypes = [wintypes.HANDLE]
+        self.handle = self.api.CreateMutexW(None, False, self.name)
+        if not self.handle:
+            raise ctypes.WinError(ctypes.get_last_error())
+        result = self.api.WaitForSingleObject(self.handle, 0)
+        if result not in (0, 0x80):
+            self.api.CloseHandle(self.handle)
+            raise LaunchError(f"test launcher/stop already operates on this runtime: wait={result}")
+        return self
+
+    def __exit__(self, *exc):
+        if not self.api.ReleaseMutex(self.handle):
+            log("error", f"release runtime lock failed: {ctypes.WinError(ctypes.get_last_error())}")
+        if not self.api.CloseHandle(self.handle):
+            log("error", f"close runtime lock failed: {ctypes.WinError(ctypes.get_last_error())}")
+
+def reserve_ports(ports):
+    sockets = []
+    try:
+        for port in ports:
+            endpoint = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sockets.append(endpoint)
+            if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+                endpoint.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+            endpoint.bind(("127.0.0.1", port))
+            endpoint.listen(1)
+        return sockets
+    except OSError as error:
+        for endpoint in sockets:
+            endpoint.close()
+        raise LaunchError(f"exclusive loopback port preflight failed port={port}: {error}") from error
+
+
+def log_tail(path):
+    if not path.exists():
+        return "log not created"
+    with path.open("rb") as stream:
+        stream.seek(max(0, path.stat().st_size - 8192))
+        return stream.read().decode("utf-8", errors="replace")
+
+
+def check_processes(started):
+    for process, record in started:
+        code = process.poll()
+        if code is not None:
+            raise LaunchError(f"{record['role']} pid={process.pid} exited code={code}; log={record['log_path']}\n{log_tail(Path(record['log_path']))}")
+
+
+def wait_marker(path, marker, started, timeout):
+    deadline = time.monotonic() + timeout
+    while True:
+        check_processes(started)
+        if marker in log_tail(path):
+            log("info", f"{marker} acknowledged log={path}")
+            return
+        if time.monotonic() >= deadline:
+            raise LaunchError(f"sidecar readiness timed out marker={marker} required={timeout}s log={path}\n{log_tail(path)}")
+        time.sleep(0.1)
+
+
 def validate_manifest(manifest, root):
-    legacy.validate_manifest(manifest, root)
-    for record in manifest["processes"]:
+    if manifest.get("schema_version") != 1 or manifest.get("owner") != {"kind": "MPTest", "run_id": manifest.get("run_id")}:
+        raise LaunchError("invalid local runtime manifest ownership")
+    uuid.UUID(manifest["run_id"])
+    if not same_path(manifest.get("test_root", ""), root):
+        raise LaunchError("manifest test_root does not match selected runtime")
+    for record in manifest.get("processes", []):
+        if record.get("owner") != manifest["owner"] or record.get("run_id") != manifest["run_id"]:
+            raise LaunchError("process record ownership mismatch")
+        if type(record.get("pid")) is not int or record["pid"] <= 0 or not isinstance(record.get("process_start_time"), str) or not record["process_start_time"].isdigit():
+            raise LaunchError("invalid process identity record")
+        runtime = safe_path(Path(record["runtime_root"]), root)
+        executable = safe_path(Path(record["executable_path"]), root)
+        if executable.parent != runtime / "game" or executable.name not in ("MT2.exe", "mt2mp_sidecar.exe"):
+            raise LaunchError("manifest process executable is not an owned game/sidecar")
+    for record in manifest.get("processes", []):
         if record["role"] != "game":
             if Path(record["executable_path"]).name != "mt2mp_sidecar.exe":
                 raise LaunchError("sidecar record cannot select a game executable")
@@ -50,17 +292,39 @@ def validate_manifest(manifest, root):
 
 
 def check_inactive(root, processes):
-    path = safe_path(root / "run.json", root)
-    if path.exists():
-        validate_manifest(read_json(path), root)
-    return legacy.check_inactive(root, processes)
+    manifest_path = safe_path(root / "run.json", root)
+    if not manifest_path.exists():
+        return
+    manifest = read_json(manifest_path)
+    validate_manifest(manifest, root)
+    for record in manifest["processes"]:
+        state = processes.inspect(record)
+        if state == "alive":
+            raise LaunchError(f"previous run still owns live {record['role']} pid={record['pid']}; stop it with --stop")
+        log("info", f"previous {record['role']} pid={record['pid']} state={state}")
+    return manifest
 
 
 def stop_manifest(root, processes):
     path = safe_path(root / "run.json", root)
-    if path.exists():
-        validate_manifest(read_json(path), root)
-    return legacy.stop_manifest(root, processes)
+    if not path.exists():
+        log("info", f"no owned local run manifest: {path}")
+        return 0
+    manifest = read_json(path)
+    validate_manifest(manifest, root)
+    failures = 0
+    for record in reversed(manifest["processes"]):
+        try:
+            state = processes.inspect(record, terminate=True)
+            record["stop_state"] = state
+            log("warn" if state == "identity-mismatch" else "info", f"stop {record['role']} pid={record['pid']} state={state}")
+        except (OSError, LaunchError) as error:
+            failures += 1
+            record["stop_error"] = str(error)
+            log("error", f"stop {record['role']} pid={record['pid']}: {error}")
+    manifest["state"] = "stop-failed" if failures else "stopped"
+    atomic_json(path, manifest)
+    return 1 if failures else 0
 
 
 def archive_previous(root, manifest):
@@ -166,7 +430,7 @@ def source_files(source, args, metagame=None):
                     raise LaunchError(f"unexpected package DLL: {path}")
                 files[f"profile/mods/{identifier}/{relative}"] = path
         files[f"profile/mods/{identifier}/{entry}"] = explicit or package / entry
-    for name in legacy.MOD_UI_ASSETS:
+    for name in MOD_UI_ASSETS:
         files["game/mt2mp_ui/" + name] = ROOT / "mt2mp_ui" / name
     if metagame is not None:
         fixture_source, _ = metagame_bytes(metagame)
@@ -277,12 +541,12 @@ def game_readiness(status, record, expected_data, expected_account=None):
     if not isinstance(actual, str) or not Path(actual).is_absolute():
         return f"PHYSFS write_dir={actual!r} required=absolute private game-data path"
     actual_path = Path(actual)
-    account_child = (legacy.same_path(actual_path.parent, expected_data)
+    account_child = (same_path(actual_path.parent, expected_data)
                      and re.fullmatch(r"[0-9]{1,20}", actual_path.name) is not None)
     if (any(part in (".", "..") for part in actual.replace("\\", "/").split("/"))
-            or not (legacy.same_path(actual_path, expected_data) or account_child)):
+            or not (same_path(actual_path, expected_data) or account_child)):
         return f"PHYSFS write_dir={actual!r} required={str(expected_data)!r} or its direct numeric account child"
-    if expected_account is not None and not legacy.same_path(actual_path, expected_data / expected_account):
+    if expected_account is not None and not same_path(actual_path, expected_data / expected_account):
         return f"metagame fixture PHYSFS write_dir={actual!r} required={str(expected_data / expected_account)!r}"
     safe_path(actual_path, Path(record["runtime_root"]))
     if not actual_path.is_dir():
@@ -297,7 +561,7 @@ def game_readiness(status, record, expected_data, expected_account=None):
 def framework_initialization_failure(record):
     runtime = Path(record["runtime_root"])
     profile = safe_path(runtime / "profile", runtime)
-    if record.get("role") != "game" or not legacy.same_path(profile, Path(record["framework_profile"])):
+    if record.get("role") != "game" or not same_path(profile, Path(record["framework_profile"])):
         raise ValueError("Framework status profile differs from launched game identity")
     path = safe_path(profile / "status.json", runtime)
     status = read_status_json(path)
@@ -515,7 +779,7 @@ def parser():
     result.add_argument("--expected-run-id", help="Exact existing run required for Client restart")
     result.add_argument("--players", type=int, choices=(2,), default=2)
     result.add_argument("--force-host-window-focus", action="store_true", help="Enable SDL original force-raise only in the owned Host test process; actual focus readback is still required")
-    result.add_argument("--source", type=Path, default=DEFAULT_SOURCE)
+    result.add_argument("--source", type=Path, help="Installed MMORPG Tycoon 2 game directory (required to launch)")
     result.add_argument("--test-root", type=Path, default=ROOT / "_MPTest/framework-local")
     result.add_argument("--candidate-binary", type=Path)
     result.add_argument("--multiplayer-package", type=Path)
@@ -533,9 +797,9 @@ def parser():
 
 def main(argv=None):
     args = parser().parse_args(argv)
-    if not args.stop and not args.restart_client and (not all((args.candidate_binary, args.multiplayer_package, args.framework_runtime, args.sidecar))
+    if not args.stop and not args.restart_client and (not all((args.source, args.candidate_binary, args.multiplayer_package, args.framework_runtime, args.sidecar))
                           or not re.fullmatch(r"[0-9a-f]{64}", args.stock_steam_sha256 or "")):
-        log("error", "launch requires explicit candidate binary, Multiplayer package, Framework runtime, sidecar and stock Steam SHA256")
+        log("error", "launch requires explicit game source, candidate binary, Multiplayer package, Framework runtime, sidecar and stock Steam SHA256")
         return 2
     if not (0 < args.ready_timeout <= 4294967.295) or not (1 <= args.relay_port <= 65535) or not (1 <= args.control_port <= 65534):
         log("error", "invalid timeout or port range")

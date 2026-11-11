@@ -476,7 +476,7 @@ class AcceptanceRunner:
             expected = self.summary.get("runtime_run_id")
             if expected is not None and current.get("run_id") != expected:
                 raise AcceptanceError(f"cleanup refused: runtime run changed actual={current.get('run_id')} required={expected}")
-            self.command("cleanup-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/stop_local_test.py"), "--test-root", str(self.root)])
+            self.command("cleanup-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/framework_local_test.py"), "--stop", "--test-root", str(self.root)])
             self.summary["cleanup"] = {"requested": True, "state": "confirmed", "run_id": current.get("run_id")}
         except Exception as error:
             self.summary["cleanup"] = {"requested": True, "state": "failed", "cause": f"{type(error).__name__}: {error}"}
@@ -489,9 +489,6 @@ class AcceptanceRunner:
             input_record = read_json(self.root / "host/diagnostics" / f"snapshot-{self.args.snapshot_id}.json")
             verified = validate_snapshot(input_record, self.args.snapshot_id, self.root / "host")
             self.checked("input-snapshot-file", verified)
-            if self.args.restart:
-                self.command("restart-stop-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/stop_local_test.py"), "--test-root", str(self.root)])
-                self.command("restart-start-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/local_test.py"), "--test-root", str(self.root), "--ready-timeout", str(self.args.ready_timeout)])
             self.load_manifests()
             self.poll_title("host")
             loaded = self.single("host-load", "host", "game_load_snapshot", {"snapshot_id": self.args.snapshot_id})
@@ -548,7 +545,6 @@ def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--snapshot-id", type=lambda value: str(uuid.UUID(value)), required=True)
     result.add_argument("--test-root", type=Path, default=ROOT / "_MPTest")
-    result.add_argument("--restart", action="store_true")
     result.add_argument("--cleanup", action="store_true")
     result.add_argument("--place-type", default="StartingPoint")
     result.add_argument("--place-variant", default="base")

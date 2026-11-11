@@ -13,8 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description='Build the mod and selected affected checks, or all targets by default.')
 parser.add_argument('--target', action='append', help='CMake target to build; repeat for several targets')
 parser.add_argument('--version', help='Full version to embed in a local tester build')
-parser.add_argument('--mode', choices=('standalone', 'framework'), default='standalone')
-parser.add_argument('--framework-sdk', type=Path, help='Framework SDK source tree for the native plugin')
+parser.add_argument('--framework-sdk', type=Path, required=True, help='Framework SDK source tree for the native plugin')
 parser.add_argument('--native-only', action='store_true',
                     help='Build only the Framework DLL without configuring source tests; run affected checks separately')
 parser.add_argument('--reconfigure', action='store_true', help='Run configure even when the selected CMake cache already matches')
@@ -25,26 +24,21 @@ parser.add_argument('--no-node-reuse', action='store_true',
 args = parser.parse_args()
 if args.version and not re.fullmatch(r'\d+\.\d+\.\d+(?:-beta\.[1-9]\d*)?', args.version):
     parser.error('version must be X.Y.Z or X.Y.Z-beta.N')
-if args.mode == 'framework' and args.framework_sdk is None:
-    parser.error('framework mode requires --framework-sdk')
-if args.mode != 'framework' and args.framework_sdk is not None:
-    parser.error('--framework-sdk requires --mode framework')
 if args.native_only:
-    if args.mode != 'framework' or args.target not in (None, ['MT2MultiplayerPlugin']):
-        parser.error('--native-only requires Framework mode and only the MT2MultiplayerPlugin target')
+    if args.target not in (None, ['MT2MultiplayerPlugin']):
+        parser.error('--native-only requires only the MT2MultiplayerPlugin target')
     args.target = ['MT2MultiplayerPlugin']
-sdk = args.framework_sdk.resolve() if args.framework_sdk else None
+sdk = args.framework_sdk.resolve()
 version = args.version
-if sdk is not None:
-    for header in ('include/mt2fw/plugin.h', 'adapters/mt2/sdk/native_services.h',
-                   'adapters/mt2/sdk/native_routes.h', 'adapters/mt2/sdk/native_ownership.h'):
-        if not (sdk / header).is_file():
-            parser.error('required Framework SDK header missing: ' + str(sdk / header))
-    manifest = json.loads((ROOT / 'mod.json').read_text(encoding='utf-8'))
-    version = version or manifest['version']
-    if version != manifest['version']:
-        parser.error('Framework build version must match mod.json; update the manifest before building a new version')
-build = ROOT / ('build/framework' if args.mode == 'framework' else 'build')
+for header in ('include/mt2fw/plugin.h', 'adapters/mt2/sdk/native_services.h',
+               'adapters/mt2/sdk/native_routes.h', 'adapters/mt2/sdk/native_ownership.h'):
+    if not (sdk / header).is_file():
+        parser.error('required Framework SDK header missing: ' + str(sdk / header))
+manifest = json.loads((ROOT / 'mod.json').read_text(encoding='utf-8'))
+version = version or manifest['version']
+if version != manifest['version']:
+    parser.error('Framework build version must match mod.json; update the manifest before building a new version')
+build = ROOT / 'build/framework'
 
 
 def matching_cache():
@@ -62,7 +56,6 @@ def matching_cache():
         key, value = line.split('=', 1)
         cache[key.split(':', 1)[0]] = value
     expected = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
-                'MT2MP_FRAMEWORK_PLUGIN': 'ON' if sdk else 'OFF',
                 'MT2MP_BUILD_TESTS': 'OFF' if args.native_only else 'ON'}
     if version:
         expected['MT2MP_BUILD_VERSION'] = version
@@ -70,7 +63,7 @@ def matching_cache():
         return False
     if Path(cache.get('CMAKE_HOME_DIRECTORY', '')).resolve() != ROOT:
         return False
-    return sdk is None or Path(cache.get('MT2_FRAMEWORK_SDK', '')).resolve() == sdk
+    return Path(cache.get('MT2_FRAMEWORK_SDK', '')).resolve() == sdk
 
 
 configure_required = not matching_cache()
@@ -81,9 +74,8 @@ history.mkdir(parents=True, exist_ok=False)
 before = inputs(ROOT, sdk)
 commands = [
     [cmake, "-S", str(ROOT), "-B", str(build), "-G", "Visual Studio 17 2022", "-A", "x64",
-     "-DMT2MP_FRAMEWORK_PLUGIN=" + ('ON' if sdk else 'OFF'),
      "-DMT2MP_BUILD_TESTS=" + ('OFF' if args.native_only else 'ON'),
-     *(["-DMT2_FRAMEWORK_SDK=" + str(sdk)] if sdk else []),
+     "-DMT2_FRAMEWORK_SDK=" + str(sdk),
      *(["-DMT2MP_BUILD_VERSION=" + version] if version else [])],
     [cmake, "--build", str(build), "--config", "Release", "--parallel", str(args.jobs),
      *(["--target", *args.target] if args.target else []),
@@ -109,7 +101,7 @@ except RuntimeError as error:
     print('error: ' + str(error), flush=True)
     (history / 'invalid-inputs.log').write_text(str(error) + '\n', encoding='utf-8')
     sys.exit(1)
-if sdk is not None and (not args.target or 'MT2MultiplayerPlugin' in args.target):
+if not args.target or 'MT2MultiplayerPlugin' in args.target:
     binary = build / 'bin/Release/MT2MultiplayerPlugin.dll'
     if not binary.is_file():
         raise RuntimeError('Successful Framework target did not produce its plugin DLL: ' + str(binary))

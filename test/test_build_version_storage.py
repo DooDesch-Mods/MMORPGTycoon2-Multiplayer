@@ -13,8 +13,8 @@ class BuildVersionStorageTests(unittest.TestCase):
     def test_version_is_not_a_target_wide_definition(self):
         root = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
         plugin = (ROOT / "cmake/framework_plugin.cmake").read_text(encoding="utf-8")
-        self.assertLess(root.index("set_property(SOURCE src/core/config.cpp"), root.index("if(MT2MP_FRAMEWORK_PLUGIN)"))
-        for text in [root[root.index("target_compile_definitions(MT2_Multiplayer"):], plugin]:
+        self.assertLess(root.index("set_property(SOURCE src/core/config.cpp"), root.index("include(cmake/framework_plugin.cmake)"))
+        for text in [root, plugin]:
             self.assertNotIn('MT2MP_BUILD_VERSION="${MT2MP_BUILD_VERSION}"', text)
         self.assertNotIn("MT2MP_BUILD_VERSION", (ROOT / "include/mt2mp/core/config.h").read_text(encoding="utf-8"))
 

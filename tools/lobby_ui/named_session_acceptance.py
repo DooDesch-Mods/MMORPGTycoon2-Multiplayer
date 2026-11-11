@@ -7,7 +7,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from local_acceptance import AcceptanceError, AcceptanceRunner, ROOT, compare_ledgers, hash_file, read_json, utc
-from local_test import safe_path
+from framework_local_test import safe_path
 from lobby_ui.native_local_acceptance import button, observe, ready, left
 from time_mouse_acceptance import main as check_hud_buttons
 

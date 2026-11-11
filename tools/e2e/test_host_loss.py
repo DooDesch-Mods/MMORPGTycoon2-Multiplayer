@@ -7,7 +7,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from tools.e2e.host_loss import AcceptanceError, ended, owned_host
-from local_test import LaunchError
+from framework_local_test import LaunchError
 
 
 class HostLossChecks(unittest.TestCase):
