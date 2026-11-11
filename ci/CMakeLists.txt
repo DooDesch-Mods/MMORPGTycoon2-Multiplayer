@@ -53,6 +53,16 @@ if(WIN32)
 
 endif()
 
+add_executable(test_control_input "${MT2MP_SOURCE_ROOT}/tests/test_control_input.cpp")
+target_include_directories(test_control_input PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
+target_compile_features(test_control_input PRIVATE cxx_std_20)
+target_compile_definitions(test_control_input PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+if(MSVC)
+    target_compile_options(test_control_input PRIVATE /W4 /WX /utf-8 /EHsc)
+endif()
+add_test(NAME control_input COMMAND test_control_input)
+set_tests_properties(control_input PROPERTIES TIMEOUT 60)
+
 include("${CMAKE_CURRENT_LIST_DIR}/dropin_proof_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/dropin_write_dir_checks.cmake")
