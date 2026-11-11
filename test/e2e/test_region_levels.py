@@ -3,7 +3,7 @@ import argparse,copy,importlib.util,sys,unittest
 sys.dont_write_bytecode=True
 from tools.e2e import region_levels as levels
 from unittest import mock
-from test.e2e.test_region_properties import engine,state,cash
+from test_region_properties import engine,state,cash
 
 def args():return argparse.Namespace(region_id=67,min_level=3,max_level=5,setup=Path('offline-setup'),freeze=Path('offline-freeze'))
 def actor(complete=False):return {'counts':[2,1,3],'roster_sha256':'c'*64,'levels_sha256':('e' if complete else 'd')*64,'expected_sha256':'e'*64,'global_random':[101,102,103,104] if complete else [1,2,3,4]}

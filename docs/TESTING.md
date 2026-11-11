@@ -41,7 +41,6 @@ The script leaves the owned instances open for inspection. Stop them through
 
 ```powershell
 python -B -X utf8 -m unittest discover -s test/lobby_ui -p test_wizard_automation.py
-ctest --test-dir build/framework -C Release -R "^lobby_(handoff|wizard_automation)$" --output-on-failure
 ```
 
 The automation tests exercise the production driver with controlled MCP replies:

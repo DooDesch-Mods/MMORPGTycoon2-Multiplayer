@@ -20,56 +20,12 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  route:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      run_checks: ${{ steps.route.outputs.run_checks }}
-    env:
-      ROUTE_CANDIDATE: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && github.workflow == 'Windows source checks' && github.repository == 'DooDesch-Mods/MMORPGTycoon2-Multiplayer' && inputs.beta_release != true }}
-      PUSH_BEFORE: ${{ github.event.before }}
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        if: env.ROUTE_CANDIDATE == 'true' && github.event.before != '0000000000000000000000000000000000000000'
-        with:
-          persist-credentials: false
-      - name: Route checks to the beta caller for milestone pushes
-        id: route
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import os
-          import re
-          import subprocess
-
-          run_checks = True
-          before = os.environ.get('PUSH_BEFORE', '')
-          if os.environ['ROUTE_CANDIDATE'] == 'true' and before != '0' * 40:
-              after = os.environ['GITHUB_SHA']
-              if not all(re.fullmatch(r'[0-9a-f]{40}', value) for value in (before, after)):
-                  raise ValueError('Invalid push commit range')
-              subprocess.run(['git', 'fetch', '--no-tags', '--depth=1', 'origin', before], check=True)
-              changed = subprocess.check_output(['git', 'diff', '--no-renames', '--name-only', '-z', before, after]).split(b'\0')
-              changed = [path for path in changed if path]
-              # GitHub path filters inspect at most 300 files. Larger or initial pushes retain standalone checks.
-              run_checks = not (len(changed) <= 300 and b'.github/beta-milestone.json' in changed)
-          owner = 'standalone or reusable checks' if run_checks else 'Early Beta release workflow'
-          print(f'Windows check owner: {owner}')
-          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'run_checks={str(run_checks).lower()}\n')
-          PY
-  source-tests:
-    needs: route
-    if: needs.route.outputs.run_checks == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3, 4, 5, 6, 7]
+  build:
     runs-on: windows-2022
-    timeout-minutes: 30
+    timeout-minutes: 90
     env:
       SCCACHE_DIR: ${{ github.workspace }}/.ci-cache/sccache
-      SCCACHE_CACHE_SIZE: 512M
+      SCCACHE_CACHE_SIZE: 4G
       SCCACHE_DIRECT: 'false'
     defaults:
       run:
@@ -84,188 +40,10 @@ jobs:
           architecture: x64
           cache: pip
           cache-dependency-path: tools/mcp/requirements.txt
-      - name: Install embedded SDK test dependencies
+      - name: Install Python test dependencies
         run: |
           python -m pip install --disable-pip-version-check -r tools/mcp/requirements.txt
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Read pinned Framework SDK identity
-        id: ordered_sdk
-        run: |
-          $pin = Get-Content -LiteralPath .github/framework-sdk.json -Raw | ConvertFrom-Json
-          if ($pin.repository -ne 'DooDesch-Mods/MMORPGTycoon2-ModFramework' -or $pin.revision -notmatch '^[0-9a-f]{40}$') { throw 'Invalid Framework SDK identity' }
-          "revision=$($pin.revision)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-      - name: Read pinned public Framework SDK
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: DooDesch-Mods/MMORPGTycoon2-ModFramework
-          ref: ${{ steps.ordered_sdk.outputs.revision }}
-          path: .ci-deps/framework
-          persist-credentials: false
-      - name: Restore compiled source-test objects
-        id: source_cache
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .ci-cache/sccache
-          key: source-tests-sccache-v1-${{ runner.os }}-x64-msvc-shard-${{ matrix.shard }}-${{ github.sha }}
-          restore-keys: |
-            source-tests-sccache-v1-${{ runner.os }}-x64-msvc-shard-${{ matrix.shard }}-
-      - name: Install pinned compiler cache
-        uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
-        with:
-          version: v0.18.0
-      - name: Build and run C++ source tests
-        run: |
-          $python = Join-Path $env:pythonLocation 'python.exe'
-          if (-not (Test-Path -LiteralPath $python -PathType Leaf)) { throw 'Configured Python interpreter not found' }
-          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
-          $visualStudio = & $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
-          if ($LASTEXITCODE -or -not $visualStudio) { throw 'Visual Studio 2022 C++ toolchain not found' }
-          Import-Module (Join-Path $visualStudio 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
-          Enter-VsDevShell -VsInstallPath $visualStudio -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
-          $parallel = [Math]::Min(4, [Environment]::ProcessorCount)
-          sccache --zero-stats
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          Write-Output "Building C++ tests with Ninja, MSVC x64 and $parallel workers"
-          # Only compiler outputs are cached. Configure, generated fixtures, linking and every selected test still run.
-          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2MP_ORDERED_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python .github/scripts/source_checks.py run --build .ci-build/tests --config Release --index ${{ matrix.shard }} --count 8 --parallel $parallel --commit $env:GITHUB_SHA
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Record compiler cache hits and misses
-        if: always()
-        run: |
-          if (-not (Get-Command sccache -ErrorAction SilentlyContinue)) { throw 'Compiler cache setup did not complete; statistics unavailable' }
-          sccache --show-stats
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          New-Item -ItemType Directory -Force -Path .ci-build/tests | Out-Null
-          sccache --show-stats --stats-format=json | Out-File -LiteralPath .ci-build/tests/source-cache-${{ matrix.shard }}.json -Encoding utf8
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Save compiled source-test objects
-        if: ${{ !cancelled() && steps.source_cache.outcome == 'success' && steps.source_cache.outputs.cache-hit != 'true' }}
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: .ci-cache/sccache
-          key: ${{ steps.source_cache.outputs.cache-primary-key }}
-      - name: Keep source-check shard evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: source-check-shard-${{ matrix.shard }}
-          retention-days: 7
-          path: |
-            .ci-build/tests/source-shard-${{ matrix.shard }}.json
-            .ci-build/tests/source-shard-${{ matrix.shard }}.xml
-            .ci-build/tests/source-cache-${{ matrix.shard }}.json
-          if-no-files-found: error
-  python-tests:
-    needs: route
-    if: needs.route.outputs.run_checks == 'true'
-    runs-on: windows-2022
-    timeout-minutes: 30
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.13'
-          architecture: x64
-          cache: pip
-          cache-dependency-path: tools/mcp/requirements.txt
-      - name: Install diagnostic test dependencies
-        run: |
-          python -m pip install --disable-pip-version-check -r tools/mcp/requirements.txt
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Run Python source and packaging tests
-        run: |
-          python -m unittest discover -s test -p test_build_input_guard.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_build_commands.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 -m unittest discover -s test/mcp -p test_installed_profile.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tools/mcp'
-          python -X utf8 -m unittest discover -s test/mcp -p test_status_publication.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 -m unittest discover -s test/mcp -p test_runtime.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 -m unittest discover -s test/mcp -p test_read_retry.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 -m unittest discover -s test/mcp -p test_tutorial_observer.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_tutorial_network_tab.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_monster_zone_probe.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_monster_zone_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_developer_staff.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_developer_retirement.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_developer_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_gm_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_loan_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_campaign_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_release_planner_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_service_sync_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_service_price_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_bug_policy.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_bug_fix_ui.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_bug_completion_readback.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_bug_repair_acceptance.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_research_acceptance.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/mcp/test_subscriber.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/test_local_acceptance.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 -m unittest discover -s test/e2e -p test_building_history.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_source_checks.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_beta_milestone.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_beta_release.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_framework_beta.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s tools/packaging -p test_package.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-  compile:
-    needs: route
-    if: needs.route.outputs.run_checks == 'true'
-    runs-on: windows-2022
-    timeout-minutes: 45
-    env:
-      SCCACHE_DIR: ${{ github.workspace }}/.ci-cache/native-sccache
-      SCCACHE_CACHE_SIZE: 512M
-      SCCACHE_DIRECT: 'false'
-    defaults:
-      run:
-        shell: pwsh
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          persist-credentials: false
-      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
-        with:
-          python-version: '3.13'
-          architecture: x64
       - name: Read pinned Framework SDK identity
         id: sdk
         run: |
@@ -310,43 +88,68 @@ jobs:
           if ($library.PSIsContainer -or ($library.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $library.Length -le 0) {
             throw 'SDL import library must be a nonempty regular file'
           }
-      - name: Restore compiled native objects
-        id: native_cache
+      - name: Restore compiled objects
+        id: object_cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: .ci-cache/native-sccache
-          key: native-sccache-v1-${{ runner.os }}-x64-msvc-release-${{ github.sha }}
+          path: .ci-cache/sccache
+          key: windows-sccache-v2-${{ runner.os }}-x64-msvc-${{ github.sha }}
           restore-keys: |
-            native-sccache-v1-${{ runner.os }}-x64-msvc-release-
+            windows-sccache-v2-${{ runner.os }}-x64-msvc-
       - name: Install pinned compiler cache
         uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
         with:
           version: v0.18.0
-      - name: Compile native Framework plugin
+      - name: Build plugin, build and run C++ tests
         env:
           BUILD_COMMIT: ${{ github.sha }}
         run: |
+          $python = Join-Path $env:pythonLocation 'python.exe'
           $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
           $visualStudio = & $vswhere -latest -products * -version '[17.0,18.0)' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
           if ($LASTEXITCODE -or -not $visualStudio) { throw 'Visual Studio 2022 C++ toolchain not found' }
           Import-Module (Join-Path $visualStudio 'Common7/Tools/Microsoft.VisualStudio.DevShell.dll')
           Enter-VsDevShell -VsInstallPath $visualStudio -SkipAutomaticLocation -DevCmdArguments '-arch=x64 -host_arch=x64'
+          $parallel = [Environment]::ProcessorCount
           sccache --zero-stats
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python .github/scripts/framework_beta.py build --ci-ninja --sdk .ci-deps/framework --commit $env:BUILD_COMMIT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Record native compiler cache statistics
+          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2MP_ORDERED_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          cmake --build .ci-build/tests --parallel $parallel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          ctest --test-dir .ci-build/tests -C Release --no-tests=error --output-on-failure --timeout 60 -j $parallel
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Run Python tests
+        run: |
+          $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tools/mcp'
+          # One process per file: the test/mcp modules share module state and fail when loaded together.
+          # Files without a TestCase are scripts and run directly.
+          $failed = 0
+          foreach ($f in Get-ChildItem test, tools -Recurse -File -Filter 'test_*.py') {
+            if (Select-String -Quiet -SimpleMatch 'TestCase' -LiteralPath $f.FullName) {
+              python -X utf8 -m unittest discover -s $f.DirectoryName -p $f.Name
+            } else {
+              python -X utf8 $f.FullName
+            }
+            if ($LASTEXITCODE) { Write-Host "::error::$($f.FullName) failed with exit code $LASTEXITCODE"; $failed++ }
+          }
+          if ($failed) { Write-Host "::error::$failed Python test files failed"; exit 1 }
+      - name: Record compiler cache statistics
         if: always()
         run: |
           if (-not (Get-Command sccache -ErrorAction SilentlyContinue)) { throw 'Compiler cache setup did not complete; statistics unavailable' }
           sccache --show-stats
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-      - name: Save compiled native objects
-        if: ${{ !cancelled() && steps.native_cache.outcome == 'success' && steps.native_cache.outputs.cache-hit != 'true' }}
+      # main saves after every push; other refs save only when nothing was restored, so PRs read main's
+      # cache and the repository stays under the 10 GB cache limit. always() keeps a timed-out cold build.
+      - name: Save compiled objects
+        if: ${{ always() && steps.object_cache.outcome == 'success' && steps.object_cache.outputs.cache-hit != 'true' && (github.ref == 'refs/heads/main' || steps.object_cache.outputs.cache-matched-key == '') }}
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
-          path: .ci-cache/native-sccache
-          key: ${{ steps.native_cache.outputs.cache-primary-key }}
+          path: .ci-cache/sccache
+          key: ${{ steps.object_cache.outputs.cache-primary-key }}
       - name: Keep exact native build for packaging
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -358,31 +161,3 @@ jobs:
           include-hidden-files: true
           retention-days: 7
           compression-level: 0
-  build:
-    if: ${{ always() && (needs.route.result != 'success' || needs.route.outputs.run_checks != 'false') }}
-    needs: [route, source-tests, python-tests, compile]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        if: needs.source-tests.result == 'success'
-        with:
-          persist-credentials: false
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
-        if: needs.source-tests.result == 'success'
-        with:
-          pattern: source-check-shard-*
-          path: .ci-build/source-check-receipts
-          merge-multiple: true
-      - name: Require complete source-check coverage
-        if: needs.source-tests.result == 'success'
-        run: python3 .github/scripts/source_checks.py verify --receipts .ci-build/source-check-receipts --commit "$GITHUB_SHA"
-      - name: Require all Windows checks
-        env:
-          SOURCE_TESTS_RESULT: ${{ needs.source-tests.result }}
-          COMPILE_RESULT: ${{ needs.compile.result }}
-          PYTHON_TESTS_RESULT: ${{ needs.python-tests.result }}
-        run: |
-          if [ "$SOURCE_TESTS_RESULT" != success ] || [ "$PYTHON_TESTS_RESULT" != success ] || [ "$COMPILE_RESULT" != success ]; then
-            echo "::error::Windows checks failed: source-tests=$SOURCE_TESTS_RESULT python-tests=$PYTHON_TESTS_RESULT compile=$COMPILE_RESULT"
-            exit 1
-          fi
