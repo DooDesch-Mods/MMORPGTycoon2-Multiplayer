@@ -13,7 +13,7 @@ These targets run in the existing Windows source-test shards. They compile the c
 | `ordered_bootstrap` | Once-only initial covered witness, held zero-step owner readback, physical membership agreement, duplicates, mismatch/timeout before activation |
 | `ordered_lifecycle` | Registered proof identity, actual unbind acknowledgment, BUSY/invalid receipt retention, no callback after retirement, independent second owner |
 
-Configure the existing `ci` project with `MT2MP_ORDERED_FRAMEWORK_SDK` pointing at the Framework checkout selected by `.github/framework-sdk.json`. It defaults to `MT2_FRAMEWORK_SDK` when that option is already supplied. On Windows, a missing SDK is a configure error. The workflow checks out that exact revision for source tests as it does for the plugin build.
+Configure the existing `ci` project with `MT2_FRAMEWORK_SDK` pointing at a checkout of the Framework tag in `.github/framework-sdk.json`. A missing SDK is a configure error. The workflow checks out that tag for source tests as it does for the plugin build.
 
 After building the source tests, run `ctest --test-dir <build> -C Release -L ordered --output-on-failure` for this group. Release builds keep bootstrap assertions enabled. The existing source-shard collector registers every executable and verifies complete coverage; no separate test runner is required.
 

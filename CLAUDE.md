@@ -6,24 +6,26 @@ Native Multiplayer plugin (`MT2MultiplayerPlugin.dll`) for the MT2 Mod Framework
 
 ## Layout
 
-- `mod.json` - plugin id and version; the version must equal the build version.
+- `mod.json` - plugin id and the only copy of the version; CMake, packaging and the release tag read it.
 - `src/game/` game integration, shared actions, UI. `src/net/` transport and sync. `src/core/` plugin entry, profile, config.
 - `cmake/framework_plugin.cmake` - the only product (plus the `mt2mp_sidecar` relay for the local two-client test).
 - `test/`, `ci/` - game-independent tests and their CMake. `tools/mcp`, `tools/e2e` - MCP bridge and scripted game runs.
-- `.github/framework-sdk.json` - pinned Framework SDK revision and header hashes.
+- `.github/framework-sdk.json` - the only Framework pin (a tag). CI, `cmake/framework_pin.cmake` and packaging read it; the pinned SDK also supplies MinHook, nlohmann/json and SDL3.
+- `listing/` - Nexus page text; updated on Nexus by hand, never from CI.
 
 ## Commands
 
-- Plugin: `python -X utf8 tools/build.py --framework-sdk <sdk> --native-only` (tests: drop `--native-only`).
-- Source tests: `cmake -S ci -B build/unit -A x64 -DMT2MP_ORDERED_FRAMEWORK_SDK=<sdk>`, build, then `ctest --test-dir build/unit -C Release`.
+- SDK: `git clone --depth 1 --branch <pinned tag> https://github.com/DooDesch-Mods/MMORPGTycoon2-ModFramework build/framework-sdk`.
+- Plugin: `python -X utf8 tools/build.py --framework-sdk build/framework-sdk --native-only` (tests: drop `--native-only`).
+- Source tests: `cmake -S ci -B build/unit -A x64 -DMT2_FRAMEWORK_SDK=build/framework-sdk`, build, then `ctest --test-dir build/unit -C Release`.
 - Python tests: `pip install -r tools/mcp/requirements.txt`, set `PYTHONPATH=tools/mcp`, then run each `test_*.py` under `test/` and `tools/` in its own process (loop in [docs/BUILDING.md](docs/BUILDING.md)); `test/mcp` fails when discovered as one directory.
-- Package: `python -X utf8 tools/package.py --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip`.
+- Package: `python -X utf8 tools/package.py --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --framework-sdk build/framework-sdk --output artifacts/Multiplayer-local.zip`.
 - Two local game instances: `tools/framework_local_test.py` (needs a game copy; never touches the installed game folder).
 
 ## Traps
 
-- `tools/build.py` hard-codes `C:\Program Files\CMake\bin\cmake.exe`.
-- Releases are built only from a `v*-beta.*` tag (`beta.yml`); never publish from a branch.
+- Release: version in `mod.json` plus a `## <version>` section in `CHANGELOG.md`, merge, then push tag `v<version>`. `release.yml` builds, creates the GitHub release and uploads to Nexus. Never publish from a branch.
+- Raising the pin raises the minimum Framework Runtime players need.
 
 ## Rules
 

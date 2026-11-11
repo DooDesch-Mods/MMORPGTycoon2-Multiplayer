@@ -18,9 +18,13 @@ set(MT2MP_SOURCE_ROOT "${CMAKE_CURRENT_LIST_DIR}/.." CACHE PATH "Canonical sourc
 
 get_filename_component(MT2MP_SOURCE_ROOT "${MT2MP_SOURCE_ROOT}" REALPATH)
 
+include("${MT2MP_SOURCE_ROOT}/cmake/framework_pin.cmake")
+# "vendor/nlohmann/json.hpp" and <MinHook.h> resolve against the pinned SDK's third_party.
+include_directories("${MT2_FRAMEWORK_SDK}/third_party" "${MT2_FRAMEWORK_VENDOR}/minhook/include")
+
 if(MSVC)
     # Keep project warnings strict; bundled third-party headers have their own policy.
-    add_compile_options("/external:I${MT2MP_SOURCE_ROOT}/include/vendor" /external:W0)
+    add_compile_options("/external:I${MT2MP_SOURCE_ROOT}/include/vendor" "/external:I${MT2_FRAMEWORK_VENDOR}" /external:W0)
     # Source-body fixtures use the supported game executable stack reserve.
     add_link_options(/STACK:2097152)
 endif()

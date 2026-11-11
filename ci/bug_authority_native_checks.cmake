@@ -12,7 +12,7 @@ if(WIN32)
         target_compile_options(test_bug_authority_${group} PRIVATE /W4 /WX /EHsc /bigobj)
         target_compile_definitions(test_bug_authority_${group} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
         target_include_directories(test_bug_authority_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game"
-            "${MT2MP_SOURCE_ROOT}/include" "${MT2MP_SOURCE_ROOT}/include/vendor/minhook/include")
+            "${MT2MP_SOURCE_ROOT}/include")
         add_test(NAME bug_authority_${group} COMMAND test_bug_authority_${group})
         set_tests_properties(bug_authority_${group} PROPERTIES TIMEOUT 60)
     endforeach()

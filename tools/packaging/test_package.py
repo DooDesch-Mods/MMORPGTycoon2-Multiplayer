@@ -23,13 +23,16 @@ class VortexPackageTests(unittest.TestCase):
         self.root = Path(self.temp.name).resolve()
         self.build = self.root / "build"
         self.build.mkdir()
-        for relative in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "include/vendor/minhook/LICENSE.txt",
-                         "include/vendor/imgui/LICENSE.txt", "include/vendor/nlohmann/LICENSE.MIT",
-                         "include/vendor/SDL3/LICENSE.txt"):
+        self.sdk = self.root / "sdk"
+        for relative in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "include/vendor/imgui/LICENSE.txt",
+                         "sdk/third_party/vendor/minhook/LICENSE.txt", "sdk/third_party/vendor/nlohmann/LICENSE.MIT",
+                         "sdk/third_party/vendor/SDL3/LICENSE.txt"):
             file = self.root / relative
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text("notice " + relative)
         (self.root / "tools/packaging").mkdir(parents=True)
+        (self.root / ".github").mkdir()
+        (self.root / ".github/framework-sdk.json").write_text('{"tag": "v0.5.8"}', encoding="utf-8")
         self.freeze = self.root / "freeze.json"
         self.plugin = self.root / "selected-mod"
         self.plugin.mkdir()
@@ -57,7 +60,7 @@ class VortexPackageTests(unittest.TestCase):
         self.freeze.write_text(json.dumps(self.frozen), encoding="utf-8")
 
     def collect(self, **changes):
-        options = {"multiplayer_package": self.plugin}
+        options = {"multiplayer_package": self.plugin, "framework_sdk": self.sdk}
         options.update(changes)
         return package.collect(self.root, self.build, self.freeze, **options)
 
@@ -110,7 +113,7 @@ class VortexPackageTests(unittest.TestCase):
         self.assertFalse(metadata["online_acceptance_passed"])
         self.assertEqual(metadata["installation"], {"manager": "vortex", "game_id": "mmorpgtycoon2",
             "mod_id": "doodesch.multiplayer", "framework_runtime_required": True, "framework_runtime_included": False,
-            "framework_min_version": "0.5.7", "manual_target": "<profile>/mods/doodesch.multiplayer",
+            "framework_min_version": "0.5.8", "manual_target": "<profile>/mods/doodesch.multiplayer",
             "manual_requires_configured_framework": True, "game_root_extraction_supported": False})
         self.assertNotIn("framework_version", metadata)
         text = entries["README.md"].decode("utf-8")
@@ -143,7 +146,7 @@ class VortexPackageTests(unittest.TestCase):
 
     def test_missing_and_empty_required_inputs_rejected(self):
         for file in (self.binary, self.plugin / "mod.json", self.freeze,
-                     self.root / "include/vendor/nlohmann/LICENSE.MIT", self.icon):
+                     self.sdk / "third_party/vendor/nlohmann/LICENSE.MIT", self.icon):
             content = file.read_bytes()
             for empty in (False, True):
                 with self.subTest(file=file.name, empty=empty):
@@ -216,7 +219,7 @@ class VortexPackageTests(unittest.TestCase):
 
     def test_cli_emits_selected_vortex_package(self):
         args = ["package.py", "--freeze", str(self.freeze), "--build", str(self.build),
-                "--multiplayer-package", str(self.plugin), "--output", str(self.root / "artifacts/tester.zip")]
+                "--multiplayer-package", str(self.plugin), "--framework-sdk", str(self.sdk), "--output", str(self.root / "artifacts/tester.zip")]
         output = io.StringIO()
         with patch.object(package, "ROOT", self.root), patch.object(sys, "argv", args), contextlib.redirect_stdout(output):
             self.assertEqual(package.main(), 0)

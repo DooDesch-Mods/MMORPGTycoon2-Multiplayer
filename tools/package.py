@@ -10,13 +10,20 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 GAME_SHA256 = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"
-FRAMEWORK_MIN_VERSION = "0.5.7"
 
 
-def vortex_readme(root, version):
+def framework_min_version(root):
+    """The pinned Framework tag without its "v" is the minimum runtime the plugin accepts."""
+    tag = json.loads(regular_bytes(root / ".github/framework-sdk.json"))["tag"]
+    if not re.fullmatch(r"v\d+\.\d+\.\d+", tag):
+        raise ValueError("Framework pin must be a tag vMAJOR.MINOR.PATCH: " + tag)
+    return tag[1:]
+
+
+def vortex_readme(root, version, framework_version):
     text = regular_bytes(root / "tools/packaging/README.template.md").decode("utf-8")
     for token, value in (("{{MULTIPLAYER_VERSION}}", version),
-                         ("{{FRAMEWORK_MIN_VERSION}}", FRAMEWORK_MIN_VERSION)):
+                         ("{{FRAMEWORK_MIN_VERSION}}", framework_version)):
         if token not in text:
             raise ValueError("Vortex README template lacks required token: " + token)
         text = text.replace(token, value)
@@ -42,9 +49,13 @@ def regular_bytes(path):
     return data
 
 
-def collect(root, build, freeze, multiplayer_package=None, release_version=None):
+def collect(root, build, freeze, multiplayer_package=None, release_version=None, framework_sdk=None):
     if multiplayer_package is None:
         raise ValueError("vortex mode requires explicit --multiplayer-package")
+    if framework_sdk is None:
+        raise ValueError("license texts require explicit --framework-sdk")
+    framework_version = framework_min_version(root)
+    vendor = Path(framework_sdk) / "third_party/vendor"
     frozen_bytes = regular_bytes(freeze)
     frozen = json.loads(frozen_bytes)
     if not isinstance(frozen, dict):
@@ -79,13 +90,13 @@ def collect(root, build, freeze, multiplayer_package=None, release_version=None)
     notices = {
         "LICENSE.md": root / "LICENSE.md",
         "THIRD_PARTY_NOTICES.md": root / "THIRD_PARTY_NOTICES.md",
-        "licenses/MinHook.txt": root / "include/vendor/minhook/LICENSE.txt",
+        "licenses/MinHook.txt": vendor / "minhook/LICENSE.txt",
         "licenses/DearImGui.txt": root / "include/vendor/imgui/LICENSE.txt",
-        "licenses/nlohmann-json.txt": root / "include/vendor/nlohmann/LICENSE.MIT",
-        "licenses/SDL3.txt": root / "include/vendor/SDL3/LICENSE.txt",
+        "licenses/nlohmann-json.txt": vendor / "nlohmann/LICENSE.MIT",
+        "licenses/SDL3.txt": vendor / "SDL3/LICENSE.txt",
     }
     entries.update({name: regular_bytes(source) for name, source in notices.items()})
-    entries["README.md"] = vortex_readme(root, version)
+    entries["README.md"] = vortex_readme(root, version, framework_version)
     metadata = {
         "schema_version": 2, "version": version, "candidate": "framework-native-plugin",
         "package_mode": "vortex", "stage": "early-beta",
@@ -93,7 +104,7 @@ def collect(root, build, freeze, multiplayer_package=None, release_version=None)
         "required_game_exe_sha256": GAME_SHA256,
         "installation": {"manager": "vortex", "game_id": "mmorpgtycoon2", "mod_id": mod["id"],
                          "framework_runtime_required": True, "framework_runtime_included": False,
-                         "framework_min_version": FRAMEWORK_MIN_VERSION,
+                         "framework_min_version": framework_version,
                          "manual_target": "<profile>/mods/doodesch.multiplayer",
                          "manual_requires_configured_framework": True,
                          "game_root_extraction_supported": False},
@@ -141,12 +152,13 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--version")
     parser.add_argument("--multiplayer-package", required=True, type=Path, help="Exact selected Multiplayer mod.json directory")
+    parser.add_argument("--framework-sdk", required=True, type=Path, help="Framework checkout at the pinned tag (license texts)")
     args = parser.parse_args()
     try:
         output = args.output.resolve()
         if not output.is_relative_to(ROOT / "artifacts"):
             raise ValueError("private packages must be written under project artifacts/")
-        entries, manifest = collect(ROOT, args.build, args.freeze, args.multiplayer_package, args.version)
+        entries, manifest = collect(ROOT, args.build, args.freeze, args.multiplayer_package, args.version, args.framework_sdk)
         write_package(entries, output)
         print(json.dumps({"status": "payload-verified", "output": str(output), "files": len(entries),
                           "package_mode": manifest["package_mode"]}))

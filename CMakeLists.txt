@@ -1,6 +1,10 @@
 cmake_minimum_required(VERSION 3.20)
-project(MT2_Multiplayer VERSION 0.1.0 LANGUAGES CXX)
-set(MT2MP_BUILD_VERSION "${PROJECT_VERSION}" CACHE STRING "Full mod build version")
+project(MT2_Multiplayer LANGUAGES CXX)
+# mod.json holds the only Multiplayer version.
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/mod.json")
+file(READ "${CMAKE_CURRENT_SOURCE_DIR}/mod.json" mod_json)
+string(JSON MT2MP_BUILD_VERSION GET "${mod_json}" version)
+message(STATUS "Multiplayer version ${MT2MP_BUILD_VERSION}")
 set_property(SOURCE src/core/config.cpp APPEND PROPERTY COMPILE_DEFINITIONS
     "MT2MP_BUILD_VERSION=\"${MT2MP_BUILD_VERSION}\"")
 # Keep version changes out of every other compile command and the shared PCH.
@@ -30,4 +34,5 @@ endif()
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+include(cmake/framework_pin.cmake)
 include(cmake/framework_plugin.cmake)

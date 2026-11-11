@@ -3,7 +3,7 @@ if(WIN32)
         "${MT2MP_SOURCE_ROOT}/test/test_empty_network.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/native_network.cpp"
         "${MT2MP_SOURCE_ROOT}/src/game/network_identity.cpp")
-    target_include_directories(test_empty_network PRIVATE "${MT2MP_SOURCE_ROOT}/include" "${MT2MP_SOURCE_ROOT}/include/vendor" "${MT2MP_SOURCE_ROOT}/src/game")
+    target_include_directories(test_empty_network PRIVATE "${MT2MP_SOURCE_ROOT}/include" "${MT2MP_SOURCE_ROOT}/include/vendor" "${MT2_FRAMEWORK_VENDOR}" "${MT2MP_SOURCE_ROOT}/src/game")
     target_compile_definitions(test_empty_network PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX MT2MP_NETWORK_TEST MT2MP_NETWORK_IDENTITY_TEST)
     target_compile_features(test_empty_network PRIVATE cxx_std_20)
     target_link_libraries(test_empty_network PRIVATE bcrypt)

@@ -1,0 +1,82 @@
+name: Release
+
+# A pushed tag v<mod.json version> builds, packages and publishes that version.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/windows.yml
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write # Create the GitHub release.
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      TAG: ${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: multiplayer-framework-build
+          path: dist
+      - name: Check tag, ZIP and changelog
+        id: release
+        run: |
+          version="$(jq -r .version mod.json)"
+          if [ "$TAG" != "v$version" ]; then echo "::error::Tag $TAG differs from mod.json version $version"; exit 1; fi
+          zip="dist/artifacts/MMORPGTycoon2-Multiplayer-v$version-windows-x64.zip"
+          if [ ! -s "$zip" ]; then echo "::error::Release ZIP $zip is missing"; exit 1; fi
+          awk -v heading="## $version" '$0 == heading {found=1; next} found && /^## / {exit} found {print}' CHANGELOG.md > dist/changes.md
+          if ! grep -q '[^[:space:]]' dist/changes.md; then echo "::error::CHANGELOG.md has no section ## $version"; exit 1; fi
+          {
+            echo '> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer).'
+            echo
+            cat dist/changes.md
+          } > dist/notes.md
+          (cd "$(dirname "$zip")" && sha256sum "$(basename "$zip")") > dist/SHA256SUMS.txt
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          echo "info: release $TAG checked: $zip"
+      - name: Create GitHub release
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            echo "info: GitHub release $TAG exists; not changed"
+          else
+            prerelease=()
+            case "$TAG" in *-*) prerelease=(--prerelease) ;; esac
+            gh release create "$TAG" "${{ steps.release.outputs.zip }}" dist/SHA256SUMS.txt --repo "$GITHUB_REPOSITORY" \
+              --verify-tag "${prerelease[@]}" --title "MMORPG Tycoon 2 Multiplayer ${{ steps.release.outputs.version }}" \
+              --notes-file dist/notes.md
+            echo "info: GitHub release $TAG created"
+          fi
+      - name: Upload file version to Nexus
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2 # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: '8177136'
+          mod_id: '19121194401820'
+          filename: ${{ steps.release.outputs.zip }}
+          version: ${{ steps.release.outputs.version }}
+          display_name: MMORPG Tycoon 2 Multiplayer - Early Beta
+          description: >-
+            Build an MMO world with a friend through Steam. Install the Framework Runtime required by this
+            release's notes. Use the MMORPG Tycoon 2 Vortex Extension. Close both games before updating.
+            Early Beta - expect bugs and desyncs.
+          category: main
+          archive_existing_version: true
+          update_mod_version: true
+          primary_mod_manager_download: true
+          allow_mod_manager_download: true
