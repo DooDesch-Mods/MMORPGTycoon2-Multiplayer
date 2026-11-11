@@ -25,7 +25,7 @@ The [Windows workflow](../.github/workflows/windows.yml) runs the game-independe
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
 ```powershell
-python -X utf8 tools/build.py --framework-sdk C:/path/to/ModFramework --version 0.1.0-beta.17 --target MT2MultiplayerPlugin
+python -X utf8 tools/build.py --framework-sdk C:/path/to/ModFramework --target MT2MultiplayerPlugin
 ```
 
 Current development source requires Framework Runtime 0.5.7 and its matching native SDK. Arrange the frozen SDK with its `include` and `adapters/mt2/sdk` directories. A mutable Framework checkout and the Lua authoring SDK are not required. The build writes `build/framework/bin/Release/MT2MultiplayerPlugin.dll` and does not build a second loader or MinHook runtime. Source, build recipe, assembly and consumed SDK headers are checked for changes during compilation.

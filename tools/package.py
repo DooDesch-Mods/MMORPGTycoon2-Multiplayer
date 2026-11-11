@@ -14,7 +14,7 @@ FRAMEWORK_MIN_VERSION = "0.5.7"
 
 
 def vortex_readme(root, version):
-    text = regular_bytes(root / "tools/packaging/VORTEX_TEST.md").decode("utf-8")
+    text = regular_bytes(root / "tools/packaging/README.template.md").decode("utf-8")
     for token, value in (("{{MULTIPLAYER_VERSION}}", version),
                          ("{{FRAMEWORK_MIN_VERSION}}", FRAMEWORK_MIN_VERSION)):
         if token not in text:
