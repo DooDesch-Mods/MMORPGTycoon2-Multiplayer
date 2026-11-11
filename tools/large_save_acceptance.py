@@ -442,9 +442,6 @@ class LargeSaveRunner(AcceptanceRunner):
         try:
             original = self.input_snapshot()
             self.checked("authorized-imported-copy", original)
-            if self.args.restart:
-                self.command("restart-stop-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/stop_local_test.py"), "--test-root", str(self.root)])
-                self.command("restart-start-owned", [sys.executable, "-X", "utf8", str(self.workspace / "tools/local_test.py"), "--test-root", str(self.root), "--players", str(self.args.players), "--ready-timeout", str(self.args.ready_timeout)])
             self.load_manifests()
             resume_id = getattr(self.args, 'resume_native_load', None)
             resumed = None
@@ -569,7 +566,6 @@ class LargeSaveRunner(AcceptanceRunner):
 def parser():
     result = argparse.ArgumentParser(description=__doc__)
     result.add_argument("--test-root", type=Path, default=ROOT / "_MPTest")
-    result.add_argument("--restart", action="store_true")
     result.add_argument("--players", type=int, choices=(2, 3, 4), default=2)
     result.add_argument("--step-timeout", type=float, default=20)
     result.add_argument("--ready-timeout", type=float, default=180)
@@ -588,8 +584,6 @@ def parser():
 
 def main(argv=None):
     arguments = parser().parse_args(argv)
-    if arguments.resume_native_load and arguments.restart:
-        parser().error('--resume-native-load cannot restart the owned runtime')
     arguments.cleanup = False
     arguments.snapshot_id = INPUT_ID
     for name in ("step_timeout", "ready_timeout", "action_timeout", "transfer_idle_timeout", "transfer_timeout", "poll_interval"):

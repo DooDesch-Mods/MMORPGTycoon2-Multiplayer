@@ -339,7 +339,7 @@ class FrameworkLauncherTests(unittest.TestCase):
         launcher.atomic_json(path, receipt)
         assets = self.home / "mt2mp_ui"
         assets.mkdir(exist_ok=True)
-        for name in launcher.legacy.MOD_UI_ASSETS:
+        for name in launcher.MOD_UI_ASSETS:
             (assets / name).parent.mkdir(parents=True, exist_ok=True)
             (assets / name).write_bytes(b"fixture UI asset")
         return source, receipt, path

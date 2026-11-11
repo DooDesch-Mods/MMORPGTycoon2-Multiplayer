@@ -9,7 +9,7 @@ import psutil
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
-from local_test import read_status_json
+from framework_local_test import read_status_json
 parser = argparse.ArgumentParser()
 parser.add_argument('--seconds', type=float, default=20)
 parser.add_argument('--output', type=Path, required=True)

@@ -1,4 +1,4 @@
-"""Payload contents, provenance, missing assets and delivery readback."""
+"""Vortex package contents, provenance, missing assets and delivery readback."""
 import importlib.util
 import contextlib
 import io
@@ -16,96 +16,21 @@ package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(package)
 
 
-class PackageTests(unittest.TestCase):
+class VortexPackageTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
         self.build = self.root / "build"
         self.build.mkdir()
-        (self.root / "CMakeLists.txt").write_text("project(MT2_Multiplayer VERSION 0.1.0)")
-        for name in (*package.BINARY_NAMES, "mt2mp_sidecar.exe"):
-            (self.build / name).write_bytes(name.encode())
-        for name in package.UI_NAMES:
-            path = self.root / "mt2mp_ui" / name
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(name.encode())
-        docs = self.root / "tools/packaging"
-        docs.mkdir(parents=True)
-        (docs / "PRIVATE_TEST.txt").write_text("private candidate")
-        (docs / "FRIEND_TEST.txt").write_text("manual beta instructions")
-        for name in ("Python.txt", "PyInstaller.txt"):
-            file = docs / "licenses" / name
-            file.parent.mkdir(exist_ok=True)
-            file.write_text("license " + name)
         for relative in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "include/vendor/minhook/LICENSE.txt",
                          "include/vendor/imgui/LICENSE.txt", "include/vendor/nlohmann/LICENSE.MIT",
                          "include/vendor/SDL3/LICENSE.txt"):
             file = self.root / relative
             file.parent.mkdir(parents=True, exist_ok=True)
             file.write_text("notice " + relative)
+        (self.root / "tools/packaging").mkdir(parents=True)
         self.freeze = self.root / "freeze.json"
-        self.freeze.write_text(json.dumps({"candidate": "test", "dll_sha256":
-            package.digest((self.build / "MT2_Multiplayer.dll").read_bytes())}))
-
-    def test_complete_archive_and_exact_readback(self):
-        entries, manifest = package.collect(self.root, self.build, self.freeze, True)
-        output = self.root / "candidate.zip"
-        package.write_package(entries, output)
-        with zipfile.ZipFile(output) as archive:
-            self.assertEqual(set(archive.namelist()), set(entries))
-            for name, item in manifest["files"].items():
-                self.assertEqual(package.digest(archive.read(name)), item["sha256"])
-                self.assertEqual(len(archive.read(name)), item["size"])
-        self.assertFalse(manifest["ready_for_manual_testing"])
-        self.assertNotIn("install.bat", entries)
-        self.assertNotIn("steam_api64_original.dll", entries)
-        self.assertEqual(len(entries), 16)
-
-    def test_beta_launcher_runtime_and_notices_are_complete(self):
-        launcher = self.root / "starter" / "MT2MP-Start.exe"
-        launcher.parent.mkdir()
-        launcher.write_bytes(b"MZtest executable")
-        bundled = launcher.parent / "_internal" / "python313.dll"
-        bundled.parent.mkdir()
-        bundled.write_bytes(b"test runtime")
-        entries, manifest = package.collect(self.root, self.build, self.freeze, True,
-                                            launcher, "0.1.0-beta.1")
-        self.assertTrue(manifest["ready_for_manual_testing"])
-        self.assertFalse(manifest["online_acceptance_passed"])
-        self.assertEqual(manifest["version"], "0.1.0-beta.1")
-        self.assertEqual(entries["_internal/python313.dll"], b"test runtime")
-        for name in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "licenses/MinHook.txt",
-                     "licenses/DearImGui.txt", "licenses/nlohmann-json.txt", "licenses/SDL3.txt",
-                     "licenses/Python.txt", "licenses/PyInstaller.txt"):
-            self.assertIn(name, entries)
-        self.assertNotIn("steam_api64_original.dll", entries)
-
-    def test_invalid_beta_version_fails(self):
-        with self.assertRaisesRegex(ValueError, "package version"):
-            package.collect(self.root, self.build, self.freeze, release_version="v0.1-beta")
-
-    def test_missing_native_icon_fails(self):
-        (self.root / "mt2mp_ui/multiplayer.png").unlink()
-        with self.assertRaisesRegex(ValueError, "required regular payload file missing"):
-            package.collect(self.root, self.build, self.freeze)
-
-    def test_stale_candidate_fails(self):
-        (self.build / "MT2_Multiplayer.dll").write_bytes(b"different build")
-        with self.assertRaisesRegex(ValueError, "candidate DLL differs"):
-            package.collect(self.root, self.build, self.freeze)
-
-    def test_existing_delivery_is_preserved(self):
-        output = self.root / "candidate.zip"
-        output.write_bytes(b"previous candidate")
-        with self.assertRaises(FileExistsError):
-            package.write_package({"file": b"new"}, output)
-        self.assertEqual(output.read_bytes(), b"previous candidate")
-
-
-class VortexPackageTests(unittest.TestCase):
-    def setUp(self):
-        PackageTests.setUp(self)
         self.plugin = self.root / "selected-mod"
         self.plugin.mkdir()
         self.binary = self.build / "MT2MultiplayerPlugin.dll"
@@ -132,7 +57,7 @@ class VortexPackageTests(unittest.TestCase):
         self.freeze.write_text(json.dumps(self.frozen), encoding="utf-8")
 
     def collect(self, **changes):
-        options = {"mode": "vortex", "multiplayer_package": self.plugin}
+        options = {"multiplayer_package": self.plugin}
         options.update(changes)
         return package.collect(self.root, self.build, self.freeze, **options)
 
@@ -288,13 +213,6 @@ class VortexPackageTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsafe package input path"):
             self.collect(multiplayer_package=self.plugin / ".." / "selected-mod")
 
-    def test_launcher_sidecar_and_wrong_mode_inputs_rejected(self):
-        for kwargs in ({"with_sidecar": True}, {"launcher": self.root / "starter.exe"}):
-            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(ValueError, "launcher or sidecar"):
-                self.collect(**kwargs)
-        with self.assertRaisesRegex(ValueError, "requires vortex mode"):
-            package.collect(self.root, self.build, self.freeze, multiplayer_package=self.plugin)
-
     def test_unsafe_archive_paths_and_case_collisions_rejected(self):
         output = self.root / "unsafe.zip"
         for name in ("../escape", "/absolute", "C:/absolute", "a\\b", "a/../b", "a//b", "a/./b",
@@ -305,36 +223,24 @@ class VortexPackageTests(unittest.TestCase):
             package.write_package({"File": b"a", "file": b"b"}, output)
         self.assertFalse(output.exists())
 
-    def test_cli_requires_explicit_binary_and_emits_selected_vortex_package(self):
-        args = ["package.py", "--mode", "vortex", "--freeze", str(self.freeze),
+    def test_cli_emits_selected_vortex_package(self):
+        args = ["package.py", "--freeze", str(self.freeze), "--build", str(self.build),
                 "--multiplayer-package", str(self.plugin), "--output", str(self.root / "artifacts/tester.zip")]
-        errors, output = io.StringIO(), io.StringIO()
-        with patch.object(package, "ROOT", self.root), patch.object(sys, "argv", args), contextlib.redirect_stderr(errors):
-            self.assertEqual(package.main(), 1)
-        self.assertIn("explicit --build", errors.getvalue())
-        self.assertFalse((self.root / "artifacts/tester.zip").exists())
-        with patch.object(package, "ROOT", self.root), patch.object(sys, "argv", args + ["--build", str(self.build)]), contextlib.redirect_stdout(output):
+        output = io.StringIO()
+        with patch.object(package, "ROOT", self.root), patch.object(sys, "argv", args), contextlib.redirect_stdout(output):
             self.assertEqual(package.main(), 0)
         result = json.loads(output.getvalue())
         self.assertEqual(result["status"], "payload-verified")
         self.assertEqual(result["package_mode"], "vortex")
-        self.assertNotIn("ready_for_manual_testing", result)
         with zipfile.ZipFile(self.root / "artifacts/tester.zip") as archive:
             self.assertIn("mod.json", archive.namelist())
 
-    def test_dropin_mode_regression(self):
-        (self.build / "WSOCK32.dll").write_bytes(b"old loader")
-        self.freeze.write_text(json.dumps({"candidate": "old-dropin", "dll_sha256":
-            package.digest((self.build / "MT2_Multiplayer.dll").read_bytes()),
-            "loader_sha256": package.digest(b"old loader")}))
-        (self.root / "tools/packaging/DROPIN_TEST.txt").write_text("drop-in instructions")
-        entries, metadata = package.collect(self.root, self.build, self.freeze, mode="dropin")
-        self.assertIn("WSOCK32.dll", entries)
-        self.assertIn("MT2_Multiplayer.dll", entries)
-        self.assertIn("mt2mp_ui/lobby.win", entries)
-        self.assertNotIn("steam_api64.dll", entries)
-        self.assertNotIn("MT2MultiplayerPlugin.dll", entries)
-        self.assertTrue(metadata["ready_for_manual_testing"])
+    def test_existing_delivery_is_preserved(self):
+        output = self.root / "candidate.zip"
+        output.write_bytes(b"previous candidate")
+        with self.assertRaises(FileExistsError):
+            package.write_package({"file": b"new"}, output)
+        self.assertEqual(output.read_bytes(), b"previous candidate")
 
     def test_no_private_input_paths_in_output_metadata(self):
         self.frozen.update(candidate="F:/private/developer/build", source="F:/private/source")

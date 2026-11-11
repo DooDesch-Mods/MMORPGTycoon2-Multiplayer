@@ -112,7 +112,7 @@ class SavedMCPAcceptanceTests(unittest.TestCase):
             return subprocess.CompletedProcess(command, 1 if failed else 0)
         self.commands.append(command)
         kwargs["stdout"].write("owned command fixture\n")
-        return subprocess.CompletedProcess(command, 1 if self.fail_cleanup and command[3].endswith("stop_local_test.py") else 0)
+        return subprocess.CompletedProcess(command, 1 if self.fail_cleanup and command[3].endswith("framework_local_test.py") else 0)
 
     def response(self, peer, tool, arguments):
         if tool == "game_load_snapshot":
@@ -254,7 +254,7 @@ class SavedMCPAcceptanceTests(unittest.TestCase):
         self.assertEqual(summary["error"]["step"], "guard-ledger-before-placement")
         self.assertFalse(any(tool == "game_place_test_building" for _, tool, _ in self.calls))
         self.assertEqual(len(self.commands), 1)
-        self.assertTrue(self.commands[0][3].endswith("stop_local_test.py"))
+        self.assertTrue(self.commands[0][3].endswith("framework_local_test.py"))
         self.assertEqual(summary["cleanup"]["state"], "confirmed")
 
     def test_failed_placement_preserves_original_cause_and_is_never_replayed(self):
@@ -290,23 +290,16 @@ class SavedMCPAcceptanceTests(unittest.TestCase):
         self.assertIn("native WORLD_ACTIVE", summary["error"]["cause"])
         self.assertFalse(any(tool == "game_place_test_building" for _, tool, _ in self.calls))
 
-    def test_wrong_snapshot_hash_blocks_restart_and_all_mcp_calls(self):
+    def test_wrong_snapshot_hash_blocks_all_mcp_calls(self):
         path = self.root / "host/diagnostics" / f"snapshot-{self.input_id}.json"
         record = acceptance.read_json(path)
         record["sha256"] = "0" * 64
         acceptance.write_json(path, record)
-        code, summary = self.execute("--restart")
+        code, summary = self.execute()
         self.assertEqual(code, 1)
         self.assertIn("SHA256 differs", summary["error"]["cause"])
         self.assertEqual(self.calls, [])
         self.assertEqual(self.commands, [])
-
-    def test_explicit_restart_runs_owned_stop_then_start(self):
-        code, summary = self.execute("--restart")
-        self.assertEqual(code, 0)
-        self.assertTrue(self.commands[0][3].endswith("stop_local_test.py"))
-        self.assertTrue(self.commands[1][3].endswith("local_test.py"))
-        self.assertEqual(len(self.commands), 2)
 
     def test_timeout_keeps_original_partial_receipt_without_mutation_retry(self):
         self.timeout_tool = "game_place_test_building"

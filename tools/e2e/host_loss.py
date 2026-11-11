@@ -8,7 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'tools'))
 sys.path.insert(0, str(ROOT))
 from local_acceptance import AcceptanceError, AcceptanceRunner, extract_result, log, read_json, utc
-from local_test import RuntimeLock, WindowsProcesses, same_path, validate_manifest
+from framework_local_test import RuntimeLock, WindowsProcesses, same_path, validate_manifest
 from tools.e2e.run import preflight
 from runtime import FRAMEWORK_PLUGIN_KIND, manifest_runtime_kind
 

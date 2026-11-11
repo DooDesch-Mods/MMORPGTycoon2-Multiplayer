@@ -48,7 +48,7 @@ def build(root, sdk, commit, ci_ninja=False):
                   "-DCMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE=" + str(output / "bin/Release")]
                  if ci_ninja else ["-G", "Visual Studio 17 2022", "-A", "x64"])
     subprocess.run(["cmake", "-S", str(root), "-B", str(output), *generator,
-                    "-DMT2MP_BUILD_TESTS=OFF", "-DMT2MP_FRAMEWORK_PLUGIN=ON",
+                    "-DMT2MP_BUILD_TESTS=OFF",
                     "-DMT2_FRAMEWORK_SDK=" + str(sdk.resolve()), "-DMT2MP_BUILD_VERSION=" + version], check=True)
     command = ["cmake", "--build", str(output), "--config", "Release", "--target",
                "MT2MultiplayerPlugin", "--parallel", "2"]
@@ -80,7 +80,7 @@ def package(root, build_dir, tag, commit, output):
     spec = importlib.util.spec_from_file_location("framework_package", root / "tools/package.py")
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
-    entries, manifest = builder.collect(root, build_dir, receipt_path, mode="vortex",
+    entries, manifest = builder.collect(root, build_dir, receipt_path,
                                         multiplayer_package=root, release_version=version)
     manifest.update(source_commit=commit, release_tag=tag, sdk_commit=pin["revision"])
     entries["package.json"] = (json.dumps(manifest, indent=2) + "\n").encode("utf-8")

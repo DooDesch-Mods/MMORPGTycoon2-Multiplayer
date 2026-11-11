@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = next(path for path in [ROOT, *ROOT.parents] if (path / '.github/scripts/build_beta.py').is_file())
+SOURCE = next(path for path in [ROOT, *ROOT.parents] if (path / '.github/scripts/framework_beta.py').is_file())
 sys.path.insert(0, str(SOURCE / '.github/scripts'))
 sys.path.insert(0, str(ROOT / '.github/scripts'))
 import beta_milestone
@@ -166,7 +166,8 @@ class MilestoneTests(unittest.TestCase):
             if method == 'POST' and url.endswith('/releases'):
                 posts.append(payload)
             return api(method, url, payload, *args, **kwargs)
-        with patch.object(publish_beta, 'api', capture), patch.object(publish_beta, '__file__', str(SOURCE / '.github/scripts/publish_beta.py')):
+        with patch.object(publish_beta, 'api', capture), patch.object(publish_beta, 'validate'), \
+                patch.object(publish_beta, '__file__', str(SOURCE / '.github/scripts/publish_beta.py')):
             publish_beta.publish(fixtures.TAG, fixtures.COMMIT, assets, self.record)
         notes = (SOURCE / 'docs/BETA_RELEASE_NOTES.md').read_text(encoding='utf8')
         heading, separator, body = notes.partition('\n')

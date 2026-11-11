@@ -14,7 +14,6 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".github/scripts"))
 import framework_beta
-import build_beta
 
 COMMIT = "a" * 40
 TAG = "v0.1.0-beta.13"
@@ -67,7 +66,7 @@ class FrameworkReleaseTests(unittest.TestCase):
 
     def test_exact_framework_package_and_existing_publisher_validator(self):
         self.package()
-        manifest = build_beta.validate(self.archive, TAG + "@" + COMMIT)
+        manifest = framework_beta.validate(self.archive, TAG + "@" + COMMIT)
         self.assertEqual(manifest["package_mode"], "vortex")
         self.assertEqual(manifest["sdk_commit"], self.pin["revision"])
         with zipfile.ZipFile(self.archive) as zipped:
@@ -140,11 +139,6 @@ class FrameworkReleaseTests(unittest.TestCase):
         self.rewrite(edit)
         with self.assertRaisesRegex(ValueError, "installation or validation scope differs"):
             framework_beta.validate(self.archive, TAG + "@" + COMMIT)
-
-    def test_other_package_mode_cannot_accept_framework_payload(self):
-        self.package()
-        with self.assertRaisesRegex(ValueError, "mode differs"):
-            build_beta.validate(self.archive, TAG + "@" + COMMIT, "dropin")
 
     def test_modified_sdk_is_rejected_before_cmake(self):
         sdk = self.root / "sdk"

@@ -34,7 +34,7 @@ class BuildCommandTests(unittest.TestCase):
     def cache(self, tests):
         self.build.mkdir(parents=True, exist_ok=True)
         values = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
-                  'MT2MP_FRAMEWORK_PLUGIN': 'ON', 'MT2_FRAMEWORK_SDK': str(self.sdk),
+                  'MT2_FRAMEWORK_SDK': str(self.sdk),
                   'MT2MP_BUILD_VERSION': '0.1.0-beta.23', 'CMAKE_HOME_DIRECTORY': str(self.root)}
         if tests is not None:
             values['MT2MP_BUILD_TESTS'] = tests
@@ -43,11 +43,8 @@ class BuildCommandTests(unittest.TestCase):
         (self.build / 'CMakeFiles/generate.stamp').write_text('generated', encoding='utf-8')
         (self.build / 'MT2_Multiplayer.sln').write_text('generated', encoding='utf-8')
 
-    def invoke(self, extra=(), mode=True, configure_failure=False):
-        argv = [str(self.root / 'tools/build.py')]
-        if mode:
-            argv += ['--mode', 'framework', '--framework-sdk', str(self.sdk)]
-        argv += list(extra)
+    def invoke(self, extra=(), configure_failure=False):
+        argv = [str(self.root / 'tools/build.py'), '--framework-sdk', str(self.sdk), *extra]
 
         def cmake(command, **kwargs):
             self.calls.append(command)
@@ -127,12 +124,6 @@ class BuildCommandTests(unittest.TestCase):
     def test_other_target_is_rejected_before_any_cmake_call(self):
         with self.assertRaises(SystemExit) as failure:
             self.invoke(['--native-only', '--target', 'test_optional_contract'])
-        self.assertEqual(failure.exception.code, 2)
-        self.assertEqual(self.calls, [])
-
-    def test_standalone_native_only_is_rejected_before_any_cmake_call(self):
-        with self.assertRaises(SystemExit) as failure:
-            self.invoke(['--native-only'], mode=False)
         self.assertEqual(failure.exception.code, 2)
         self.assertEqual(self.calls, [])
 

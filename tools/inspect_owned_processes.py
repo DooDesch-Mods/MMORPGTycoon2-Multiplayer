@@ -1,6 +1,6 @@
 """Read exact process identities from the current owned test manifest."""
 import json
-from local_test import ROOT, RuntimeLock, WindowsProcesses
+from framework_local_test import ROOT, RuntimeLock, WindowsProcesses
 
 root=ROOT / "_MPTest"
 with RuntimeLock(root):

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 import uuid
-from local_test import WindowsProcesses
+from framework_local_test import WindowsProcesses
 
 ROOT = Path(__file__).resolve().parents[1]
 
