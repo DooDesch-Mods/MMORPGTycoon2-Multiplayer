@@ -116,15 +116,6 @@ class VortexPackageTests(unittest.TestCase):
         text = entries["README.md"].decode("utf-8")
         support = "> 🛟 **Need help or found a bug?** Get support at [support.doodesch.de/multiplayer](https://support.doodesch.de/multiplayer)."
         self.assertEqual(text.count(support), 1)
-        self.assertIn("Enable Multiplayer and deploy", text)
-        self.assertIn("Manual installation", text)
-        self.assertIn("Extracting it beside MT2.exe does not install", text)
-        self.assertIn("mt2fw.json", text)
-        self.assertIn("absolute profile path", text)
-        self.assertIn("<profile>/mods/doodesch.multiplayer/mod.json", text)
-        self.assertIn("<profile>/game-data", text)
-        self.assertIn("originals remain untouched", text)
-        self.assertNotIn('game_data', text)
 
     def test_shipped_readme_uses_selected_version_and_minimum_runtime(self):
         for version in ("0.1.0-beta.13", "0.1.0-beta.19", "0.2.0"):

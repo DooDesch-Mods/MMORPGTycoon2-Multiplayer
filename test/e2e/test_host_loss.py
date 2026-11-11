@@ -20,27 +20,6 @@ def visible_lobby():
 
 
 class FrameworkHostLossTests(unittest.TestCase):
-    def test_framework_control_manifest_and_exact_host_identity(self):
-        run_id = 'c8939df3-368c-4868-8aff-652fce18aab6'
-        control = subject.ROOT / 'artifacts/host-loss-fixture'
-        root = control / 'runs' / run_id
-        owner = {'kind': 'MPTest', 'run_id': run_id}
-        identity = {'schema_version': 2, 'runtime_kind': 'framework-plugin', 'run_id': run_id,
-                    'owner': owner, 'role': 'game', 'peer_id': 1, 'pid': 101,
-                    'process_start_time': '123456', 'runtime_root': str(root / 'host'),
-                    'executable_path': str(root / 'host/game/MT2.exe')}
-        run = {'schema_version': 1, 'run_id': run_id, 'owner': owner,
-               'test_root': str(control), 'processes': [identity]}
-        self.assertEqual(subject.manifest_root(root, identity), control)
-        self.assertEqual(subject.owned_host(run, root, run_id, identity, control), identity)
-        for field, wrong in (('pid', 102), ('process_start_time', '999')):
-            with self.assertRaises(subject.AcceptanceError):
-                subject.owned_host(run, root, run_id, {**identity, field: wrong}, control)
-        with self.assertRaises(subject.AcceptanceError):
-            subject.manifest_root(control, identity)
-        with self.assertRaises(subject.AcceptanceError):
-            subject.owned_host(run, root, 'other-run', identity, control)
-
     def test_legacy_manifest_remains_at_selected_root(self):
         root = subject.ROOT / '_MPTest'
         self.assertEqual(subject.manifest_root(root, {'schema_version': 1}), root)

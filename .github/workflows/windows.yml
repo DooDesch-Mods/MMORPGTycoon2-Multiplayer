@@ -232,7 +232,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 test/mcp/test_subscriber.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -X utf8 test/local_acceptance_test.py
+          python -X utf8 test/test_local_acceptance.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -X utf8 -m unittest discover -s test/e2e -p test_building_history.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
