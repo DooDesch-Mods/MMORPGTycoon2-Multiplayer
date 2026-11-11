@@ -126,14 +126,16 @@ jobs:
           $env:PYTHONPATH = Join-Path $env:GITHUB_WORKSPACE 'tools/mcp'
           # One process per file: the test/mcp modules share module state and fail when loaded together.
           # Files without a TestCase are scripts and run directly.
+          $failed = 0
           foreach ($f in Get-ChildItem test, tools -Recurse -File -Filter 'test_*.py') {
             if (Select-String -Quiet -SimpleMatch 'TestCase' -LiteralPath $f.FullName) {
               python -X utf8 -m unittest discover -s $f.DirectoryName -p $f.Name
             } else {
               python -X utf8 $f.FullName
             }
-            if ($LASTEXITCODE) { Write-Host "::error::$($f.FullName) failed"; exit $LASTEXITCODE }
+            if ($LASTEXITCODE) { Write-Host "::error::$($f.FullName) failed with exit code $LASTEXITCODE"; $failed++ }
           }
+          if ($failed) { Write-Host "::error::$failed Python test files failed"; exit 1 }
       - name: Record compiler cache statistics
         if: always()
         run: |
