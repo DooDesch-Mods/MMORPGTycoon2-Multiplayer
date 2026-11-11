@@ -10,16 +10,6 @@ python -m unittest discover -s test -p test_build_input_guard.py
 python -m unittest discover -s test -p test_build_commands.py
 ```
 
-For changes limited to query attribution, use the dedicated entry and build directory:
-
-```powershell
-cmake -S ci/query-attribution -B build/query-attribution -A x64
-cmake --build build/query-attribution --config Release --target test_query_attribution --parallel 2
-ctest --test-dir build/query-attribution -C Release --output-on-failure --no-tests=error
-```
-
-This entry runs the existing query source checks and extraction without configuring unrelated tests. Its source dependencies still regenerate extracted fixtures. The `ci` entry remains the full suite; the two entries use separate build directories.
-
 The [Windows workflow](../.github/workflows/windows.yml) runs the game-independent tests and builds the native Framework plugin. It does not launch the game or load the plugin. A successful build does not prove gameplay behavior.
 
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:

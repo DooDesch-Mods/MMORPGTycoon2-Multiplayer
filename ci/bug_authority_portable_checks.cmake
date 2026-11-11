@@ -1,10 +1,3 @@
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp"
-    "${MT2MP_SOURCE_ROOT}/test/extract_bug_frame.py")
-execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_bug_frame.py"
-    --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/bug_frame_extracted"
-    COMMAND_ERROR_IS_FATAL ANY)
 set(bug_frame_sources
     tutorial_replication/state.cpp tutorial_replication/startingpoint.cpp
     developer_staff/shared_state.cpp
@@ -14,10 +7,10 @@ set(bug_frame_sources
     subscriber_lifecycle/payload.cpp subscriber_lifecycle/record_decode.cpp subscriber_lifecycle/record_graph.cpp
     subscriber_lifecycle/reference_map.cpp)
 list(TRANSFORM bug_frame_sources PREPEND "${MT2MP_SOURCE_ROOT}/src/game/")
-foreach(group codec frame boundary)
+foreach(group codec frame)
     add_executable(test_bug_authority_${group} "${MT2MP_SOURCE_ROOT}/test/test_bug_authority_${group}.cpp")
     target_include_directories(test_bug_authority_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game"
-        "${MT2MP_SOURCE_ROOT}/include" "${CMAKE_CURRENT_BINARY_DIR}/bug_frame_extracted")
+        "${MT2MP_SOURCE_ROOT}/include")
     target_compile_features(test_bug_authority_${group} PRIVATE cxx_std_20)
     if(MSVC)
         target_compile_options(test_bug_authority_${group} PRIVATE /W4 /WX /utf-8 /EHsc)

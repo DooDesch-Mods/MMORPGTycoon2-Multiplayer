@@ -22,7 +22,6 @@ Native Multiplayer plugin (`MT2MultiplayerPlugin.dll`) for the MT2 Mod Framework
 
 ## Traps
 
-- Many source tests cut function bodies out of production files by text markers at CMake configure time. Moving or renaming a function can fail `ci/` with "update the affected body test".
 - `tools/mcp` shadows the pip package `mcp` when `tools/` is on `PYTHONPATH`; point `PYTHONPATH` at `tools/mcp`.
 - `tools/build.py` hard-codes `C:\Program Files\CMake\bin\cmake.exe`.
 - Releases are built only from a `v*-beta.*` tag (`beta.yml`); never publish from a branch.

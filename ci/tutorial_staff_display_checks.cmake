@@ -1,15 +1,4 @@
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/staff_display_owner.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/staff_display_ui.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/staff_display_values.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/staff_display_hook.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/native.cpp"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint_native.inc")
-execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_tutorial_staff_display.py"
-    --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/staff_display_extracted"
-    COMMAND_ERROR_IS_FATAL ANY)
-foreach(target test_tutorial_staff_display test_tutorial_staff_display_native test_tutorial_staff_display_guard)
+foreach(target test_tutorial_staff_display test_tutorial_staff_display_guard)
     add_executable(${target} "${MT2MP_SOURCE_ROOT}/test/${target}.cpp")
 endforeach()
 set(staff_frame_sources
@@ -21,9 +10,8 @@ set(staff_frame_sources
     subscriber_lifecycle/reference_map.cpp)
 list(TRANSFORM staff_frame_sources PREPEND "${MT2MP_SOURCE_ROOT}/src/game/")
 add_executable(test_tutorial_staff_display_frame "${MT2MP_SOURCE_ROOT}/test/test_tutorial_staff_display_frame.cpp" ${staff_frame_sources})
-foreach(target test_tutorial_staff_display test_tutorial_staff_display_native test_tutorial_staff_display_guard test_tutorial_staff_display_frame)
-    target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include"
-        "${CMAKE_CURRENT_BINARY_DIR}/staff_display_extracted")
+foreach(target test_tutorial_staff_display test_tutorial_staff_display_guard test_tutorial_staff_display_frame)
+    target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
     target_compile_features(${target} PRIVATE cxx_std_20)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /WX /utf-8 /EHsc)

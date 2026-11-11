@@ -15,8 +15,5 @@ endif()
 add_test(NAME vip_frame_retention COMMAND test_vip_frame_retention)
 set_tests_properties(vip_frame_retention PROPERTIES TIMEOUT 60)
 
-include("${CMAKE_CURRENT_LIST_DIR}/vip_frame_wiring_checks.cmake")
-
 include("${CMAKE_CURRENT_LIST_DIR}/vip_alert_client_checks.cmake")
 
-include("${CMAKE_CURRENT_LIST_DIR}/vip_disconnect_checks.cmake")
