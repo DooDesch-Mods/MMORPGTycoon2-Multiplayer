@@ -252,4 +252,3 @@ include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ordered_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/startup_calendar_checks.cmake")
 
-include("${CMAKE_CURRENT_LIST_DIR}/source_shards.cmake")

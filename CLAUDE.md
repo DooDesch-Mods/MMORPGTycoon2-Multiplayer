@@ -15,14 +15,13 @@ Native Multiplayer plugin (`MT2MultiplayerPlugin.dll`) for the MT2 Mod Framework
 ## Commands
 
 - Plugin: `python -X utf8 tools/build.py --framework-sdk <sdk> --native-only` (tests: drop `--native-only`).
-- Source tests: `cmake -S ci -B build/unit -A x64`, build, then `ctest --test-dir build/unit -C Release`.
-- Python tests: the commands in the `python-tests` job of `.github/workflows/windows.yml`; run `pip install -r tools/mcp/requirements.txt` first.
+- Source tests: `cmake -S ci -B build/unit -A x64 -DMT2MP_ORDERED_FRAMEWORK_SDK=<sdk>`, build, then `ctest --test-dir build/unit -C Release`.
+- Python tests: `pip install -r tools/mcp/requirements.txt`, set `PYTHONPATH=tools/mcp`, then run each `test_*.py` under `test/` and `tools/` in its own process (loop in [docs/BUILDING.md](docs/BUILDING.md)); `test/mcp` fails when discovered as one directory.
 - Package: `python -X utf8 tools/package.py --build build/framework/bin/Release --freeze build/framework/build-receipt.json --multiplayer-package . --output artifacts/Multiplayer-local.zip`.
 - Two local game instances: `tools/framework_local_test.py` (needs a game copy; never touches the installed game folder).
 
 ## Traps
 
-- `tools/mcp` shadows the pip package `mcp` when `tools/` is on `PYTHONPATH`; point `PYTHONPATH` at `tools/mcp`.
 - `tools/build.py` hard-codes `C:\Program Files\CMake\bin\cmake.exe`.
 - Releases are built only from a `v*-beta.*` tag (`beta.yml`); never publish from a branch.
 

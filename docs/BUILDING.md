@@ -3,14 +3,23 @@
 Building requires Windows x64, Visual Studio 2022 with C++, the Windows SDK and MASM, CMake, and Python 3. The mod build needs an import library matching the included SDL 3.2.24 headers. CI builds that library from pinned official SDL source without using a game DLL.
 
 ```powershell
-cmake -S ci -B build/unit -A x64
-cmake --build build/unit --config Release --parallel 2
-ctest --test-dir build/unit -C Release --output-on-failure --no-tests=error
-python -m unittest discover -s test -p test_build_input_guard.py
-python -m unittest discover -s test -p test_build_commands.py
+cmake -S ci -B build/unit -A x64 -DMT2MP_ORDERED_FRAMEWORK_SDK=C:/path/to/ModFramework
+cmake --build build/unit --config Release --parallel
+ctest --test-dir build/unit -C Release --output-on-failure --no-tests=error -j 8
+python -m pip install -r tools/mcp/requirements.txt
+$env:PYTHONPATH = "$PWD/tools/mcp"
+foreach ($f in Get-ChildItem test, tools -Recurse -File -Filter 'test_*.py') {
+  if (Select-String -Quiet -SimpleMatch 'TestCase' -LiteralPath $f.FullName) {
+    python -X utf8 -m unittest discover -s $f.DirectoryName -p $f.Name
+  } else {
+    python -X utf8 $f.FullName
+  }
+}
 ```
 
-The [Windows workflow](../.github/workflows/windows.yml) runs the game-independent tests and builds the native Framework plugin. It does not launch the game or load the plugin. A successful build does not prove gameplay behavior.
+Each Python test file runs in its own process; the `test/mcp` modules share module state and fail when loaded together.
+
+The [Windows workflow](../.github/workflows/windows.yml) runs the same commands in one job and builds the native Framework plugin. It does not launch the game or load the plugin. A successful build does not prove gameplay behavior.
 
 Once the SDL3 import library is available at `include/vendor/SDL3/lib/x64/SDL3.lib`:
 
