@@ -51,9 +51,10 @@ def build(root, sdk, commit, ci_ninja=False):
                     "-DMT2MP_BUILD_TESTS=OFF",
                     "-DMT2_FRAMEWORK_SDK=" + str(sdk.resolve()), "-DMT2MP_BUILD_VERSION=" + version], check=True)
     command = ["cmake", "--build", str(output), "--config", "Release", "--target",
-               "MT2MultiplayerPlugin", "--parallel", "2"]
+               "MT2MultiplayerPlugin", "--parallel"]
+    # Ninja without a job count uses every core of the runner.
     if not ci_ninja:
-        command += ["--", "/nodeReuse:false"]
+        command += ["2", "--", "/nodeReuse:false"]
     subprocess.run(command, check=True)
     require_unchanged(root, before, sdk)
     binary = output / "bin/Release/MT2MultiplayerPlugin.dll"
