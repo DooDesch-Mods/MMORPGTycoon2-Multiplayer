@@ -1,1 +1,0 @@
-{"timeout_seconds":40,"calls":[{"tool":"game_inspect_engine","arguments":{}},{"tool":"game_capture_frame","arguments":{}}]}

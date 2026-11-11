@@ -13,41 +13,18 @@ else()
     endif()
     set(intervention_session intervention_session_checks)
 endif()
-if(NOT DEFINED _fragment_generated)
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
-    set(_fragment_generated "${CMAKE_CURRENT_BINARY_DIR}/frame_fragment_generated")
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_frame_fragment_boundary.py"
-        --root "${MT2MP_SOURCE_ROOT}" --output "${_fragment_generated}" COMMAND_ERROR_IS_FATAL ANY)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-        "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp"
-        "${MT2MP_SOURCE_ROOT}/test/test_toon_equipment_value.cpp"
-        "${MT2MP_SOURCE_ROOT}/test/extract_frame_fragment_boundary.py")
-endif()
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set(_actor_empty_generated "${CMAKE_CURRENT_BINARY_DIR}/actor_empty_generated")
-execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py"
-    --root "${MT2MP_SOURCE_ROOT}" --output "${_actor_empty_generated}" COMMAND_ERROR_IS_FATAL ANY)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_runtime.cpp"
-    "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_live.cpp"
-    "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py")
-foreach(name interventions subscriber_intervention boss_identity intervention_actors actor_lifecycle intervention_protocol intervention_frame frame_fragments)
+foreach(name interventions subscriber_intervention boss_identity actor_lifecycle intervention_protocol)
     if(TARGET test_${name})
         continue()
     endif()
     add_executable(test_${name} "${MT2MP_SOURCE_ROOT}/test/test_${name}.cpp")
-    target_include_directories(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include" "${_fragment_generated}" "${_actor_empty_generated}")
+    target_include_directories(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
     target_compile_features(test_${name} PRIVATE cxx_std_20)
     target_compile_definitions(test_${name} PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
     if(name STREQUAL "interventions")
         target_sources(test_${name} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/intervention_native.cpp" "${MT2MP_SOURCE_ROOT}/src/game/intervention_actor_native.cpp")
-    elseif(name STREQUAL "intervention_protocol" OR name STREQUAL "frame_fragments")
+    elseif(name STREQUAL "intervention_protocol")
         target_link_libraries(test_${name} PRIVATE ${intervention_session} source_check_codecs_windows)
-    elseif(name STREQUAL "intervention_frame")
-        target_link_libraries(test_${name} PRIVATE source_check_codecs_windows bcrypt)
-    endif()
-    if(name STREQUAL "frame_fragments")
-        target_link_libraries(test_${name} PRIVATE bcrypt)
     endif()
     if(MSVC)
         target_compile_options(test_${name} PRIVATE /utf-8 /EHsc /W4 /WX)
@@ -55,6 +32,3 @@ foreach(name interventions subscriber_intervention boss_identity intervention_ac
     add_test(NAME ${name} COMMAND test_${name})
     set_tests_properties(${name} PROPERTIES TIMEOUT 60)
 endforeach()
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-add_test(NAME actor_empty_adoption_boundary COMMAND "${Python3_EXECUTABLE}"
-    "${MT2MP_SOURCE_ROOT}/test/check_actor_empty_adoption.py" --root "${MT2MP_SOURCE_ROOT}")

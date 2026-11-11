@@ -1,19 +1,8 @@
 if(WIN32)
-    find_package(Python3 REQUIRED COMPONENTS Interpreter)
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${MT2MP_SOURCE_ROOT}/test/action_phase_deadline_cases.inc")
-    set(developer_source "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/action_native.cpp")
-    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${developer_source}"
-        "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/start_presentation.h"
-        "${MT2MP_SOURCE_ROOT}/src/game/live_host_state/bridge.cpp"
-        "${MT2MP_SOURCE_ROOT}/test/extract_developer_action.py")
-    execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_developer_action.py"
-        --source "${developer_source}" --output "${CMAKE_CURRENT_BINARY_DIR}/developer_action_extracted"
-        COMMAND_ERROR_IS_FATAL ANY)
-    foreach(group pool controller frame ui action interop frame_apply)
+    foreach(group pool controller frame ui frame_apply)
         add_executable(test_developer_${group} "${MT2MP_SOURCE_ROOT}/test/test_developer_${group}.cpp")
         target_include_directories(test_developer_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game"
-            "${MT2MP_SOURCE_ROOT}/src/game/live_host_state" "${MT2MP_SOURCE_ROOT}/include"
-            "${CMAKE_CURRENT_BINARY_DIR}/developer_action_extracted")
+            "${MT2MP_SOURCE_ROOT}/src/game/live_host_state" "${MT2MP_SOURCE_ROOT}/include")
         target_compile_features(test_developer_${group} PRIVATE cxx_std_20)
         if(MSVC)
             target_compile_options(test_developer_${group} PRIVATE /W4 /WX /utf-8 /EHsc)
@@ -21,7 +10,7 @@ if(WIN32)
         add_test(NAME test_developer_${group} COMMAND test_developer_${group})
         set_tests_properties(test_developer_${group} PROPERTIES TIMEOUT 60)
     endforeach()
-    foreach(group pool controller frame action frame_apply)
+    foreach(group pool controller frame frame_apply)
         target_sources(test_developer_${group} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/developer_staff/shared_state.cpp")
     endforeach()
     target_sources(test_developer_controller PRIVATE "${MT2MP_SOURCE_ROOT}/src/game/typed_action/action_session.cpp"

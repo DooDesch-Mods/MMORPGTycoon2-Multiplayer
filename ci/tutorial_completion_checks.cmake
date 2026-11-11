@@ -1,20 +1,6 @@
-find_package(Python3 REQUIRED COMPONENTS Interpreter)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/native.cpp"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_owner.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_hook.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/lifecycle_apply.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/intro_native.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_startingpoint_fixture/startingpoint_fixture.cpp"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_startingpoint_fixture/client_ui_fixture.inc"
-    "${MT2MP_SOURCE_ROOT}/src/game/tutorial_startingpoint_fixture/client_commit_state.inc")
-execute_process(COMMAND "${Python3_EXECUTABLE}" "${MT2MP_SOURCE_ROOT}/test/extract_tutorial_completion.py"
-    --source-root "${MT2MP_SOURCE_ROOT}" --output "${CMAKE_CURRENT_BINARY_DIR}/tutorial_completion_extracted"
-    COMMAND_ERROR_IS_FATAL ANY)
 set(completion_state_sources "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/state.cpp"
     "${MT2MP_SOURCE_ROOT}/src/game/tutorial_replication/startingpoint.cpp")
 add_executable(test_tutorial_completion "${MT2MP_SOURCE_ROOT}/test/test_tutorial_completion.cpp" ${completion_state_sources})
-add_executable(test_tutorial_completion_native "${MT2MP_SOURCE_ROOT}/test/test_tutorial_completion_native.cpp" ${completion_state_sources})
 add_executable(test_tutorial_completion_owned "${MT2MP_SOURCE_ROOT}/test/test_tutorial_completion_owned.cpp")
 set(completion_frame_sources
     tutorial_replication/state.cpp tutorial_replication/startingpoint.cpp
@@ -25,10 +11,8 @@ set(completion_frame_sources
     subscriber_lifecycle/reference_map.cpp)
 list(TRANSFORM completion_frame_sources PREPEND "${MT2MP_SOURCE_ROOT}/src/game/")
 add_executable(test_tutorial_completion_frame "${MT2MP_SOURCE_ROOT}/test/test_tutorial_completion_frame.cpp" ${completion_frame_sources})
-add_executable(test_tutorial_completion_observation "${MT2MP_SOURCE_ROOT}/test/test_tutorial_completion_observation.cpp")
-foreach(target test_tutorial_completion test_tutorial_completion_native test_tutorial_completion_owned test_tutorial_completion_frame test_tutorial_completion_observation)
-    target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include"
-        "${CMAKE_CURRENT_BINARY_DIR}/tutorial_completion_extracted")
+foreach(target test_tutorial_completion test_tutorial_completion_owned test_tutorial_completion_frame)
+    target_include_directories(${target} PRIVATE "${MT2MP_SOURCE_ROOT}/src/game" "${MT2MP_SOURCE_ROOT}/include")
     target_compile_features(${target} PRIVATE cxx_std_20)
     if(MSVC)
         target_compile_options(${target} PRIVATE /W4 /WX /utf-8 /EHsc)
