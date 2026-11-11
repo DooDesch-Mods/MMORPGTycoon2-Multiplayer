@@ -181,10 +181,6 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Run Python source and packaging tests
         run: |
-          python tools/render_roadmap.py --check
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          python -m unittest discover -s test -p test_roadmap.py
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_build_input_guard.py
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python -m unittest discover -s test -p test_build_commands.py

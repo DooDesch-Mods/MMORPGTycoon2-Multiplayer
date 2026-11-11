@@ -52,5 +52,12 @@ node_modules/
 !/tools/mcp/
 !/tools/sidecar/
 !/tools/packaging/
+# Tracked files that CI checks or tests read
+!/tools/astra_edit_actions/
+!/tools/chat_slice/
+!/tools/developer_staff_slice/
+!/tools/engine_analysis/
+!/tools/fps_diagnosis/
+!/tools/lobby_ui/
 
 # _drafts is excluded locally through .git/info/exclude.

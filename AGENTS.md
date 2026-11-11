@@ -40,15 +40,6 @@ Inspect acknowledgements, logs and real game captures. State the tested scope
 accurately; local peers do not establish separate-account online compatibility.
 Documentation-only changes do not require replaying unchanged gameplay tests.
 
-Public roadmap stages and feature coverage originate in `docs/roadmap.json`.
-Run `python tools/render_roadmap.py` after changing it. Its `--check` mode verifies
-the README, text roadmap and desktop/mobile SVGs without writing. Each concrete
-feature has one stable ID and one status: released, experimental in the download,
-verified in a development build, implemented, or planned. Keep its scope and
-evidence reference current. Experimental means shipped with incomplete in-game
-confirmation. Development confirmation does not change the download. A successful
-build alone does not establish in-game confirmation.
-
 ## Prepare a release
 
 Keep the manifest, package version, release tag and changelog consistent. Package
