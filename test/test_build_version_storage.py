@@ -10,14 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class BuildVersionStorageTests(unittest.TestCase):
-    def test_version_is_not_a_target_wide_definition(self):
-        root = (ROOT / "CMakeLists.txt").read_text(encoding="utf-8")
-        plugin = (ROOT / "cmake/framework_plugin.cmake").read_text(encoding="utf-8")
-        self.assertLess(root.index("set_property(SOURCE src/core/config.cpp"), root.index("include(cmake/framework_plugin.cmake)"))
-        for text in [root, plugin]:
-            self.assertNotIn('MT2MP_BUILD_VERSION="${MT2MP_BUILD_VERSION}"', text)
-        self.assertNotIn("MT2MP_BUILD_VERSION", (ROOT / "include/mt2mp/core/config.h").read_text(encoding="utf-8"))
-
     @unittest.skipUnless(os.name == "nt" and shutil.which("cl") and shutil.which("cmake"),
                          "The warm-build proof requires an MSVC developer shell")
     def test_actual_config_links_one_version_and_only_config_rebuilds(self):

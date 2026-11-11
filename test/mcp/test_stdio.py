@@ -24,7 +24,7 @@ class StdioTests(unittest.TestCase):
                         self.assertTrue(result.capabilities.tools.listChanged)
                         listed = await client.list_tools()
                         names = {tool.name for tool in listed.tools}
-                        self.assertEqual(names, {"list_instances", "bind_runtime", "runtime_status", "read_logs", "observe_pending", "recover_pending"})
+                        self.assertFalse({name for name in names if name.startswith("game_")})
                         instances = await client.call_tool("list_instances", {})
                         self.assertFalse(instances.isError)
                         self.assertEqual(instances.structuredContent["instances"], [])

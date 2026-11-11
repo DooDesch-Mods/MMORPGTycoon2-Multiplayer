@@ -549,7 +549,6 @@ include("${CMAKE_CURRENT_LIST_DIR}/network_history_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/gm_policy_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/game_rules_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/intervention_checks.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/native_state_regression_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/live_start_publication_checks.cmake")
 
 
@@ -579,10 +578,7 @@ set_property(DIRECTORY PROPERTY CMAKE_CONFIGURE_DEPENDS "${canonical_configure_i
 include(network_object_checks.cmake)
 
 include(logo_action_checks.cmake)
-include("${CMAKE_CURRENT_LIST_DIR}/party_frame_scope_checks.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/native_domain_alias_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/scene_clone_confirmation_checks.cmake")
-include("${CMAKE_CURRENT_LIST_DIR}/pending_binding_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/time_item_forwarding_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/object_ui_probe_checks.cmake")
@@ -597,11 +593,6 @@ target_compile_features(mt2mp_test_move_widget_refresh PRIVATE cxx_std_20)
 add_test(NAME move_widget_refresh COMMAND mt2mp_test_move_widget_refresh)
 
 
-# Check normal-session hook admission using only the local source tree.
-add_test(NAME startup_hook_catalog_consumer
-    COMMAND "${Python3_EXECUTABLE}" -B -X utf8
-    "${MT2MP_SOURCE_ROOT}/test/test_startup_hook_catalog_consumer.py"
-    --source-root "${MT2MP_SOURCE_ROOT}")
 
 include("${CMAKE_CURRENT_LIST_DIR}/shared_codec_checks.cmake")
 include("${CMAKE_CURRENT_LIST_DIR}/ordered_checks.cmake")

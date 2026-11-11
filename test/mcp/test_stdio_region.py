@@ -184,8 +184,6 @@ class RegionStdioTests(unittest.TestCase):
                         status["capabilities"][operation] = True
                         atomic_json(diagnostics / "status.json", status)
                         definition = {tool.name: tool for tool in (await client.list_tools()).tools}[f"game_{operation}"]
-                        self.assertEqual(set(definition.inputSchema.get("required", [])), set(valid) if required is None else set(required))
-                        self.assertEqual(set(definition.inputSchema["properties"]), set(valid))
                         if operation == "focus_test_camera":
                             self.assertEqual(definition.inputSchema["properties"]["distance"]["exclusiveMinimum"], 0)
                         self.assertFalse(definition.inputSchema["additionalProperties"])

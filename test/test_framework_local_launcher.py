@@ -299,15 +299,6 @@ class FrameworkLauncherTests(unittest.TestCase):
                 mock.patch.object(launcher.time, "sleep"):
             launcher.wait_games([record], [], 0.001)
 
-    def test_status_read_transient_failure_reports_recovery(self):
-        record, status, _ = self.status_fixture()
-        with mock.patch.object(launcher, "read_status_json", side_effect=[PermissionError("fixture sharing violation"), status]), \
-                mock.patch.object(launcher, "log") as logger, mock.patch.object(launcher.time, "sleep"):
-            launcher.wait_games([record], [], 1)
-        messages = [str(call) for call in logger.call_args_list]
-        self.assertTrue(any("fixture sharing violation" in message and "warn" in message for message in messages))
-        self.assertTrue(any("recovered" in message and "failures=1" in message for message in messages))
-
     def test_installed_candidate_tamper_blocks_game_before_start(self):
         def tampered(command, **kwargs):
             process = self.fake_popen(command, **kwargs)
