@@ -7,10 +7,6 @@ on:
   pull_request:
   workflow_dispatch:
   workflow_call:
-    inputs:
-      beta_release:
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -48,46 +44,15 @@ jobs:
         id: sdk
         run: |
           $pin = Get-Content -LiteralPath .github/framework-sdk.json -Raw | ConvertFrom-Json
-          if ($pin.repository -ne 'DooDesch-Mods/MMORPGTycoon2-ModFramework' -or $pin.revision -notmatch '^[0-9a-f]{40}$') { throw 'Invalid Framework SDK identity' }
-          "revision=$($pin.revision)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if ($pin.repository -ne 'DooDesch-Mods/MMORPGTycoon2-ModFramework' -or $pin.tag -notmatch '^v\d+\.\d+\.\d+$') { throw 'Invalid Framework SDK pin' }
+          "tag=$($pin.tag)" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
       - name: Read pinned public Framework SDK
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           repository: DooDesch-Mods/MMORPGTycoon2-ModFramework
-          ref: ${{ steps.sdk.outputs.revision }}
+          ref: ${{ steps.sdk.outputs.tag }}
           path: .ci-deps/framework
           persist-credentials: false
-      - name: Restore SDL import library
-        id: sdl_import
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: include/vendor/SDL3/lib/x64/SDL3.lib
-          key: Windows-x64-windows2022-msvc14-SDL-a8589a84226a6202831a3d49ff4edda4acab9acd-schema-v1
-      - name: Read official SDL source
-        if: steps.sdl_import.outputs.cache-hit != 'true'
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          repository: libsdl-org/SDL
-          ref: a8589a84226a6202831a3d49ff4edda4acab9acd # release-3.2.24
-          path: .ci-deps/sdl
-          persist-credentials: false
-      - name: Build external SDL import library
-        if: steps.sdl_import.outputs.cache-hit != 'true'
-        run: |
-          cmake -S .ci-deps/sdl -B .ci-build/sdl -A x64 -DSDL_SHARED=ON -DSDL_STATIC=OFF -DSDL_TEST_LIBRARY=OFF -DSDL_TESTS=OFF
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake --build .ci-build/sdl --config Release --target SDL3-shared --parallel 2
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          $libraries = @(Get-ChildItem -LiteralPath .ci-build/sdl -Recurse -File -Filter SDL3.lib)
-          if ($libraries.Count -ne 1) { throw "Expected exactly one SDL import library, found $($libraries.Count)" }
-          New-Item -ItemType Directory -Force -Path include/vendor/SDL3/lib/x64 | Out-Null
-          Copy-Item -LiteralPath $libraries[0].FullName -Destination include/vendor/SDL3/lib/x64/SDL3.lib
-      - name: Verify SDL import library
-        run: |
-          $library = Get-Item -LiteralPath include/vendor/SDL3/lib/x64/SDL3.lib -ErrorAction Stop
-          if ($library.PSIsContainer -or ($library.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $library.Length -le 0) {
-            throw 'SDL import library must be a nonempty regular file'
-          }
       - name: Restore compiled objects
         id: object_cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
@@ -115,7 +80,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python .github/scripts/framework_beta.py build --ci-ninja --sdk .ci-deps/framework --commit $env:BUILD_COMMIT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2MP_ORDERED_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
+          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build .ci-build/tests --parallel $parallel
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
@@ -136,6 +101,14 @@ jobs:
             if ($LASTEXITCODE) { Write-Host "::error::$($f.FullName) failed with exit code $LASTEXITCODE"; $failed++ }
           }
           if ($failed) { Write-Host "::error::$failed Python test files failed"; exit 1 }
+      - name: Package release ZIP
+        run: |
+          $version = (Get-Content -LiteralPath mod.json -Raw | ConvertFrom-Json).version
+          $zip = "artifacts/MMORPGTycoon2-Multiplayer-v$version-windows-x64.zip"
+          python -X utf8 tools/package.py --build .ci-build/mod-forced/bin/Release --freeze .ci-build/mod-forced/bin/Release/framework-build.json --multiplayer-package . --framework-sdk .ci-deps/framework --output $zip
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          python -m zipfile -l $zip
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Record compiler cache statistics
         if: always()
         run: |
@@ -150,13 +123,14 @@ jobs:
         with:
           path: .ci-cache/sccache
           key: ${{ steps.object_cache.outputs.cache-primary-key }}
-      - name: Keep exact native build for packaging
+      - name: Keep exact native build and release ZIP
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: multiplayer-framework-build
           path: |
             .ci-build/mod-forced/bin/Release/MT2MultiplayerPlugin.dll
             .ci-build/mod-forced/bin/Release/framework-build.json
+            artifacts/MMORPGTycoon2-Multiplayer-v*-windows-x64.zip
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 7

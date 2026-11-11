@@ -12,17 +12,15 @@ Host a Steam lobby and invite a friend to build alongside you in MMORPG Tycoon 2
 
 **Early Beta:** Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of your saves.
 
-**Early Beta 30** adds shared ability editing, Base XP and GM chat settings, and improves monster editing after loading a save. Both players need Beta 30 and MT2 Mod Framework Runtime 0.5.7. Close the game, update and enable both mods in Vortex, then deploy before starting through Steam.
-
 [Start playing](#start-playing)
 
-Beta 30 retains the locally tested actions from earlier betas. In a small local two-player world, tests also covered one ability edit, Base XP changes, GM Chat Enabled with an empty queue, and placing, moving and removing monsters after loading. The shared simulation routes other supported actions, but source routing does not confirm every scenario in game. Some management actions, connected travel services, modular construction and dungeons remain incomplete. Separate-account online play, large worlds and four players still need acceptance testing. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
+The [changelog](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/blob/main/CHANGELOG.md) lists what each release adds and what was tested in game. The shared simulation routes the supported actions, but source routing does not confirm every scenario in game. Some management actions, connected travel services, modular construction and dungeons remain incomplete. Separate-account online play, large worlds and four players still need acceptance testing. [Beta 23 remains available](https://github.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/releases/tag/v0.1.0-beta.23).
 
 ![A shared building in MMORPG Tycoon 2.](https://raw.githubusercontent.com/DooDesch-Mods/MMORPGTycoon2-Multiplayer/main/docs/images/building-together.png)
 
 ## Start playing
 
-Early Beta 30 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.7 and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
+Multiplayer requires Windows x64, the supported Steam build of MMORPG Tycoon 2, the MT2 Mod Framework Runtime version named in the release notes and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

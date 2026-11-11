@@ -35,7 +35,7 @@ class BuildCommandTests(unittest.TestCase):
         self.build.mkdir(parents=True, exist_ok=True)
         values = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
                   'MT2_FRAMEWORK_SDK': str(self.sdk),
-                  'MT2MP_BUILD_VERSION': '0.1.0-beta.23', 'CMAKE_HOME_DIRECTORY': str(self.root)}
+                  'CMAKE_HOME_DIRECTORY': str(self.root)}
         if tests is not None:
             values['MT2MP_BUILD_TESTS'] = tests
         (self.build / 'CMakeCache.txt').write_text('\n'.join(key + ':STRING=' + value for key, value in values.items()), encoding='utf-8')
@@ -61,7 +61,7 @@ class BuildCommandTests(unittest.TestCase):
             return SimpleNamespace(returncode=0)
 
         with patch.object(sys, 'argv', argv), patch.object(sys, 'path', [str(self.root / 'tools'), *sys.path]), \
-                patch('subprocess.run', side_effect=cmake), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+                patch('shutil.which', return_value='cmake'), patch('subprocess.run', side_effect=cmake), contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             runpy.run_path(argv[0], run_name='__main__')
 
     def receipt(self):
