@@ -22,7 +22,7 @@ Beta 30 retains the locally tested actions from earlier betas. In a small local 
 
 ## Start playing
 
-Early Beta 28 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.5 and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
+Early Beta 30 requires Windows x64, the supported Steam build of MMORPG Tycoon 2, MT2 Mod Framework Runtime 0.5.7 and the [MMORPG Tycoon 2 Vortex Extension](https://www.nexusmods.com/site/mods/2465). Both players need matching Multiplayer and dependency versions. The Framework SDK is only needed to build the mod.
 
 1. Close the game and install the Framework Runtime and Vortex Extension.
 2. Install the [Multiplayer ZIP](https://www.nexusmods.com/mmorpgtycoon2/mods/28?tab=files) in Vortex for MMORPG Tycoon 2.

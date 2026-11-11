@@ -26,7 +26,7 @@ class FrameworkReleaseTests(unittest.TestCase):
         self.root = Path(temporary.name)
         paths = ["tools/package.py", ".github/framework-sdk.json", "mod.json",
                  "assets/ui/desktop_multiplayer/multiplayer.png",
-                 "LICENSE.md", "THIRD_PARTY_NOTICES.md", "tools/packaging/VORTEX_TEST.md",
+                 "LICENSE.md", "THIRD_PARTY_NOTICES.md", "tools/packaging/README.template.md",
                  "include/vendor/minhook/LICENSE.txt", "include/vendor/imgui/LICENSE.txt",
                  "include/vendor/nlohmann/LICENSE.MIT", "include/vendor/SDL3/LICENSE.txt"]
         for name in paths:

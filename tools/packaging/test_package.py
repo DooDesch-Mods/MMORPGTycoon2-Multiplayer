@@ -43,8 +43,8 @@ class VortexPackageTests(unittest.TestCase):
                        "files": {"MT2MultiplayerPlugin.dll": {"bytes": self.binary.stat().st_size,
                                  "sha256": package.digest(self.binary.read_bytes())}}}
         self.write_freeze()
-        (self.root / "tools/packaging/VORTEX_TEST.md").write_bytes(
-            (MODULE.parent / "packaging/VORTEX_TEST.md").read_bytes())
+        (self.root / "tools/packaging/README.template.md").write_bytes(
+            (MODULE.parent / "packaging/README.template.md").read_bytes())
         self.icon = self.root / "assets/ui/desktop_multiplayer/multiplayer.png"
         self.icon.parent.mkdir(parents=True)
         self.icon_bytes = (MODULE.parent.parent / "assets/ui/desktop_multiplayer/multiplayer.png").read_bytes()
@@ -141,7 +141,7 @@ class VortexPackageTests(unittest.TestCase):
                 self.assertNotIn("0.2.5", text)
 
     def test_unversioned_readme_template_is_rejected(self):
-        template = self.root / "tools/packaging/VORTEX_TEST.md"
+        template = self.root / "tools/packaging/README.template.md"
         template.write_text("stale hardcoded beta instructions", encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "README template lacks required token"):
             self.collect()

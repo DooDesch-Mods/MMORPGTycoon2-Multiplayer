@@ -36,6 +36,6 @@ The Framework stores game data, including saves, in `<profile>/game-data`. This 
 
 Check that both players use the version shown at the top of this README. If Multiplayer does not appear, check Framework setup and the mod folder location before replacing files. Open Report a problem in the Multiplayer window to send technical details privately.
 
-Older standalone Multiplayer loaders need the documented migration to the Framework installation. Do not overwrite an unknown WSOCK32.dll or Steam DLL. Shared edits and other gameplay systems remain in development; package integrity checks do not prove a complete online game session.
+Remove an older standalone Multiplayer loader or Steam proxy before installing this plugin. Do not overwrite an unknown WSOCK32.dll or Steam DLL. Shared edits and other gameplay systems remain in development; package integrity checks do not prove a complete online game session.
 
 The archive contains no game files, Steam DLL, Framework runtime, Profiler, sidecar, Python or legacy UI files. The Multiplayer license and third-party notices are included. MT2 Mod Framework and MMORPG Tycoon 2 retain their respective licenses and rights.
