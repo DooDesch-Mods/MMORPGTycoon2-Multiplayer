@@ -2,7 +2,6 @@
 #include "mt2mp/net/chat_runtime.h"
 #include "mt2mp/net/session_wire.h"
 #include "mt2mp/core/logger.h"
-#include "mt2mp/overlay/chat_focus.h"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -102,11 +101,6 @@ bool send(uint8_t selected, const uint8_t* bytes, uint32_t size, uint64_t target
 }
 
 int main() {
-    mt2mp::overlay::ChatFocus focus;
-    assert(!focus.visible() && !focus.typing()); focus.toggle();
-    assert(focus.visible() && focus.typing() && focus.take_focus_request());
-    assert(!focus.take_focus_request()); focus.set_input_active(false); assert(!focus.typing());
-    focus.request_input_focus(); assert(focus.take_focus_request()); focus.close(); assert(!focus.visible());
     std::string error;
     Packet packet; packet.kind = Kind::Request; packet.session = 99; packet.origin = 2;
     packet.sequence = 1; packet.conversation = 1; packet.challenge = packet.origin_admission = 1;

@@ -46,7 +46,7 @@ def identity(state,peer,run_id,dll_sha):
 def ready(state,peer,run_id,dll_sha,mask,epoch=None,keys=KEYS):
     identity(state,peer,run_id,dll_sha)
     guards=state.get('guards',{})
-    for key in ('owned_world','main_thread','world_active','session_connected','panel_input_clear','overlay_hidden','no_pending_operation','hook_origins_guarded'):
+    for key in ('owned_world','main_thread','world_active','session_connected','panel_input_clear','no_pending_operation','hook_origins_guarded'):
         need(guards.get(key) is True,f'time input guard failed peer={peer} guard={key} actual={guards.get(key)!r} required=true')
     readiness=state.get('key_readiness',{})
     for key in keys:

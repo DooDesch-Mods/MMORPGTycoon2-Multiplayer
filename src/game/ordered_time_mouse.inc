@@ -4,8 +4,8 @@ bool ordered_current(ordered_time_input::Current& owner,uint64_t& sequence,uint6
     if(GetCurrentThreadId()!=game_thread)return fail(e,"ordered_time_mouse_wrong_game_thread");
     native_time_input::Context guard;
     if(!io.context(guard,e))return false;
-    if(!guard.owned_test||!guard.overlay_hidden||!guard.no_pending_operation)
-        return fail(e,"ordered_time_mouse_owned_runtime_overlay_or_pending_guard_failed");
+    if(!guard.owned_test||!guard.no_pending_operation)
+        return fail(e,"ordered_time_mouse_owned_runtime_or_pending_guard_failed");
     if(!typed_action_runtime::read_ordered_time_input(owner,sequence,revision,captured,e)||
        !native_open_runtime::read_current_world(world,e))return false;
     if(!owner.ordered||owner.context.snapshot_uuid!=world.uuid||owner.binding.native_epoch!=world.world_epoch||

@@ -4,7 +4,6 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/core/logger.h"
-#include "mt2mp/overlay/lobby_overlay.h"
 #include "vendor/nlohmann/json.hpp"
 #include <atomic>
 #include <chrono>
@@ -26,7 +25,6 @@ uint64_t local_peer = 0, session_id = 0, sequence = 0;
 uint64_t announced_host_generation=0;
 clock::time_point started{}, last_send{};
 std::string status = "Relay wird verbunden";
-std::atomic<bool> end_notice{false};
 std::string host_left_snapshot, published_leave_snapshot, publish_leave_error;
 bool departure_snapshot(const std::string& value) {
     if(value.size()!=36)return false;
@@ -38,7 +36,7 @@ bool departure_snapshot(const std::string& value) {
 }
 void end_session(const std::string& reason) {
     if (ended) return;
-    ended = true; connected = false; peers.clear(); status = reason; end_notice = true;
+    ended = true; connected = false; peers.clear(); status = reason;
     LOG_NET_ERROR("[LOCAL] SESSION_ENDED: {}", reason);
     SidecarClient::instance().request_disconnect(reason);
 }
@@ -163,7 +161,7 @@ bool start_local_session() {
         std::lock_guard lock(state_mutex);
         if (session_started) { LOG_NET_ERROR("[LOCAL] Session start refused: existing session cannot be implicitly reset; no reconnect"); return false; }
         session_started = true;
-        peers.clear(); connected = ended = false; end_notice = false;
+        peers.clear(); connected = ended = false;
         local_peer = config.peer_id; session_id = config.session_id; is_host = config.is_host; sequence = 0;announced_host_generation=0;
         uint64_t instance=0;
         const auto result=BCryptGenRandom(nullptr,reinterpret_cast<PUCHAR>(&instance),sizeof instance,BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -181,7 +179,6 @@ bool start_local_session() {
     return transport.init(session_id, local_peer, is_host);
 }
 void tick_local_session() {
-    if (end_notice.exchange(false)) overlay::LobbyOverlay::instance().set_visible(true);
     if (local_session_connected()) SidecarClient::instance().tick();
 }
 bool local_session_connected() { std::lock_guard lock(state_mutex); return connected && !ended && SidecarClient::instance().connected(); }

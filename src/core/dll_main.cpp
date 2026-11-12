@@ -27,10 +27,6 @@
 #include "mt2mp/hooks/hook_renderer.h"
 #include "mt2mp/hooks/hook_input.h"
 #include "mt2mp/hooks/hook_window.h"
-#include "mt2mp/overlay/gl_overlay.h"
-#include "mt2mp/overlay/notification_overlay.h"
-#include "mt2mp/overlay/lobby_overlay.h"
-#include "mt2mp/overlay/chat_overlay.h"
 #include "mt2mp/net/local_session.h"
 #include "mt2mp/net/sidecar_client.h"
 #include "mt2mp/net/session_wire.h"
@@ -271,10 +267,8 @@ static DWORD render_thread=0;
 static DWORD engine_thread=0;
 static json pending_frame;
 static json pending_world;
-static json pending_overlay;
 static json pending_crash_dismiss;
 static std::chrono::steady_clock::time_point crash_dismiss_started;
-static std::chrono::steady_clock::time_point overlay_started;
 static std::chrono::steady_clock::time_point world_started;
 static json deferred_response;
 static std::string diagnostic_failure;
@@ -289,7 +283,7 @@ static json pending_camera;
 static std::chrono::steady_clock::time_point camera_started;
 static bool diagnostic_executor_idle() {
     return deferred_response.is_null()&&pending_frame.is_null()&&pending_world.is_null()&&
-        pending_overlay.is_null()&&pending_crash_dismiss.is_null()&&pending_snapshot.is_null()&&
+        pending_crash_dismiss.is_null()&&pending_snapshot.is_null()&&
         pending_placement.is_null()&&pending_load.is_null()&&pending_camera.is_null();
 }
 static net::SnapshotLoadWatch load_watch;
@@ -347,8 +341,7 @@ static bool time_input_context(void*,game::native_time_input::Context& out,std::
         world.active_mode_index==3&&world.in_game_state==4&&!world.quitting&&!world.title_transition_pending;
     out.time_active=runtime.phase==game::time_runtime::Phase::Active&&runtime.hook_mask==3&&
         runtime.controller.started&&!runtime.controller.write_locked&&state.present&&!state.uncertain&&!runtime.presentation_uncertain;
-    out.overlay_hidden=!overlay::LobbyOverlay::instance().is_visible();
-    out.no_pending_operation=pending_frame.is_null()&&pending_world.is_null()&&pending_overlay.is_null()&&
+    out.no_pending_operation=pending_frame.is_null()&&pending_world.is_null()&&
         pending_crash_dismiss.is_null()&&pending_snapshot.is_null()&&pending_placement.is_null()&&pending_load.is_null()&&
         pending_camera.is_null()&&net::pending_snapshot_load_id().empty()&&world.saves_in_progress<=0;
     return true;
@@ -1270,8 +1263,7 @@ static json status(bool inspect_native_economy) {
         {"software_sync",net::software_sync_status()},
         {"placement_status",net::diagnostic_placement_status()},
         {"world_ready",false},{"blocker","Engine-Replikation noch nicht bewiesen"},
-        {"overlay_visible",overlay::LobbyOverlay::instance().is_visible()},
-        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"toggle_overlay",false},{"resync_world",net::session_wire::connected()&&!game::session_reload::busy()}}}};
+        {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"resync_world",net::session_wire::connected()&&!game::session_reload::busy()}}}};
     if(!installed_proof_receipt.is_null())result["installed_proof"]=installed_proof_receipt;
 #ifdef MT2MP_FRAMEWORK_PLUGIN
     result["runtime_kind"]="framework-plugin";
@@ -1293,9 +1285,6 @@ static json status(bool inspect_native_economy) {
 #endif
     result["capabilities"]["read_chat"]=true;
     result["capabilities"]["send_chat"]=net::chat::Runtime::instance().snapshot().connected;
-    result["capabilities"]["read_chat_ui"]=render_thread!=0;
-    result["capabilities"]["native_chat_ui_key"]=render_thread!=0;
-    result["capabilities"]["native_chat_ui_text"]=render_thread!=0;
     result["in_game"]=game::native::in_game();
     result["native_free"]=game::native_free_diagnostics::status();
     result["native_remove"]=game::remove_diagnostics::status();
@@ -1669,7 +1658,6 @@ static json status(bool inspect_native_economy) {
         result["native_open_origin"]=std::move(opened);
     }
 #ifdef MT2MP_FRAMEWORK_PLUGIN
-    for(const char* name:{"read_chat_ui","native_chat_ui_key","native_chat_ui_text"})result["capabilities"][name]=false;
     const auto input=framework_input::read();
     result["framework_input"]={{"subscribed",input.subscribed},{"healthy",input.healthy},{"thread",input.owner_thread},
         {"received",input.received},{"forwarded",input.forwarded},{"rejected",input.rejected},{"error",input.error}};
@@ -1689,20 +1677,6 @@ static json chat_status() {
             {"delivery",delivery},{"expected_peer_mask",entry.expected_mask},{"ack_peer_mask",entry.ack_mask}});
     }
     return {{"connected",snapshot.connected},{"session",snapshot.session},{"conversation",snapshot.conversation},{"retired",snapshot.retired},{"local_peer",snapshot.local_peer},{"entries",entries}};
-}
-static json chat_ui_status() {
-    const auto ui=overlay::ChatOverlay::instance().ui_snapshot();
-    const auto input=hooks::read_chat_input_state();
-    SDL_Window* window=hooks::get_game_window();
-    return {{"visible",ui.visible},{"typing",ui.typing},{"rendered_visible",ui.rendered_visible},
-        {"input_active",ui.input_active},{"rendered_frames",ui.rendered_frames},{"draft",ui.draft},
-        {"sdl_text_input_active",window&&SDL_TextInputActive(window)},
-        {"relative_mouse_mode",window&&SDL_GetWindowRelativeMouseMode(window)},
-        {"hook_overlay_active",input.overlay_active},{"hook_text_input_requested",input.text_input_requested},
-        {"f9_consumed",input.f9_consumed},{"escape_consumed",input.escape_consumed},
-        {"enter_captured",input.enter_captured},{"text_captured",input.text_captured},
-        {"key_forwarded",input.key_forwarded},{"probe_forwarded",input.probe_forwarded},
-        {"text_pending",input.text_pending}};
 }
 static void diagnostics_tick() {
     if(runtime_root.empty()) return;
@@ -1807,18 +1781,6 @@ static void diagnostics_tick() {
                 if(title) response["result"]={{"state","title_active"},{"report_uploaded",false},{"engine",status()}};
                 else response["error"]={{"code",timeout?"CRASH_DISMISS_TIMEOUT":"ENGINE_REJECTED"},{"message",timeout?"TitelmenÃ¼ nach Crash-Dialog nicht innerhalb von 15 Sekunden aktiv":error}};
                 pending_crash_dismiss=nullptr; respond(dir,response);
-            }
-            return;
-        }
-        if(!pending_overlay.is_null()) {
-            bool visible=overlay::LobbyOverlay::instance().is_visible();
-            bool changed=visible!=pending_overlay.at("previous").get<bool>();
-            bool timeout=now-overlay_started>std::chrono::seconds(5);
-            if(changed||timeout) {
-                json response={{"schema_version",1},{"id",pending_overlay.at("id")},{"run_id",run_id},{"ok",changed}};
-                if(changed) response["result"]={{"state","SDL_F10_processed"},{"visible",visible},{"engine",status()}};
-                else response["error"]={{"code","OVERLAY_EVENT_TIMEOUT"},{"message","SDL-F10-Ereignis hat die Overlay-Sichtbarkeit nicht geÃ¤ndert"}};
-                respond(dir,response); pending_overlay=nullptr;
             }
             return;
         }
@@ -2166,50 +2128,6 @@ static void diagnostics_tick() {
             if(!request.at("args").is_object()||!request.at("args").empty())throw std::runtime_error("resync_world requires empty object arguments");
             std::string error;response["ok"]=game::session_reload::request_resync(error);response["result"]=game::session_reload::status();
             if(!response["ok"].get<bool>())response["error"]={{"code","WORLD_RESYNC_REJECTED"},{"message",error}};
-        }
-        else if(operation=="read_chat_ui"||operation=="native_chat_ui_key"||operation=="native_chat_ui_text") {
-            const auto& args=request.at("args");
-            SDL_Window* window=hooks::get_game_window();
-            if(!window)throw std::runtime_error("chat UI game window unavailable");
-            if(operation=="read_chat_ui") {
-                if(!args.is_object()||!args.empty())throw std::runtime_error("read_chat_ui requires empty object arguments");
-                response["ok"]=true;response["result"]=chat_ui_status();
-            } else if(operation=="native_chat_ui_key") {
-                if(!args.is_object()||args.size()!=1||!args.contains("key")||!args.at("key").is_string())throw std::runtime_error("native_chat_ui_key requires exactly one key string");
-                const std::string key=args.at("key").get<std::string>();
-                const auto before=chat_ui_status();
-                SDL_Scancode scancode=SDL_SCANCODE_UNKNOWN;
-                SDL_Keycode keycode=SDLK_UNKNOWN;
-                if(key=="F9") { scancode=SDL_SCANCODE_F9;keycode=SDLK_F9; }
-                else if(key=="F10") { scancode=SDL_SCANCODE_F10;keycode=SDLK_F10; }
-                else if(key=="ENTER") { scancode=SDL_SCANCODE_RETURN;keycode=SDLK_RETURN; }
-                else if(key=="ESCAPE") { scancode=SDL_SCANCODE_ESCAPE;keycode=SDLK_ESCAPE; }
-                else if(key!="PROBE")throw std::runtime_error("native_chat_ui_key accepts F9, F10, ENTER, ESCAPE or PROBE");
-                if((key=="ENTER"||key=="ESCAPE")&&(!before.at("visible").get<bool>()||!before.at("input_active").get<bool>()))
-                    throw std::runtime_error("chat input field is not active");
-                if(key=="PROBE"&&(before.at("visible").get<bool>()||overlay::LobbyOverlay::instance().is_visible()))
-                    throw std::runtime_error("close chat and lobby before forwarding probe");
-                SDL_Event event{};
-                event.type=key=="PROBE"?SDL_EVENT_KEY_UP:SDL_EVENT_KEY_DOWN;
-                event.key.windowID=SDL_GetWindowID(window);
-                event.key.scancode=scancode;event.key.key=keycode;event.key.down=key!="PROBE";
-                if(!SDL_PushEvent(&event))throw std::runtime_error("SDL chat key queue failed: "+std::string(SDL_GetError()));
-                if(key!="PROBE") {
-                    event.type=SDL_EVENT_KEY_UP;event.key.down=false;
-                    if(!SDL_PushEvent(&event))throw std::runtime_error("SDL chat key up queue failed after down queued: "+std::string(SDL_GetError()));
-                }
-                response["ok"]=true;response["result"]={{"state","queued"},{"key",key},{"before",before}};
-            } else {
-                if(!args.is_object()||args.size()!=1||!args.contains("text")||!args.at("text").is_string())throw std::runtime_error("native_chat_ui_text requires exactly one text string");
-                const std::string value=args.at("text").get<std::string>();
-                if(!net::chat::valid_text(value))throw std::runtime_error("chat UI text must be 1 to 240 valid UTF-8 bytes without controls");
-                const auto before=chat_ui_status();
-                if(!before.at("visible").get<bool>()||!before.at("input_active").get<bool>()||!SDL_TextInputActive(window))
-                    throw std::runtime_error("chat input field and SDL text input must be active");
-                std::string error;
-                if(!hooks::queue_chat_ui_text(value,error))throw std::runtime_error(error);
-                response["ok"]=true;response["result"]={{"state","queued"},{"utf8_bytes",value.size()},{"before",before}};
-            }
         }
         else if(operation=="read_chat"||operation=="send_chat") {
             const auto& args=request.at("args");
@@ -2985,9 +2903,6 @@ static void diagnostics_tick() {
             if(response["ok"].get<bool>()) response["result"]=status();
             else response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
         }
-        else if(operation=="toggle_overlay") {
-            throw std::runtime_error("toggle_overlay retired; use native_chat_ui_key F10 and read_native_lobby visibility confirmation");
-        }
         else if(operation=="create_test_world") {
             // Keep diagnostic world folders short enough for native metadata paths.
             std::string name="MPTest"+id.substr(0,16); std::string error;
@@ -3276,7 +3191,7 @@ static void diagnostics_tick() {
         }
         ++diagnostic_failure_count;
         if(!deferred_response.is_null()) return;
-        json* pending=!pending_snapshot.is_null()?&pending_snapshot:!pending_world.is_null()?&pending_world:!pending_overlay.is_null()?&pending_overlay:!pending_crash_dismiss.is_null()?&pending_crash_dismiss:!pending_placement.is_null()?&pending_placement:!pending_load.is_null()?&pending_load:!pending_camera.is_null()?&pending_camera:nullptr;
+        json* pending=!pending_snapshot.is_null()?&pending_snapshot:!pending_world.is_null()?&pending_world:!pending_crash_dismiss.is_null()?&pending_crash_dismiss:!pending_placement.is_null()?&pending_placement:!pending_load.is_null()?&pending_load:!pending_camera.is_null()?&pending_camera:nullptr;
         if(pending||!request_in_progress.empty()) {
             json failure={{"schema_version",1},{"id",pending?pending->at("id"):json(request_in_progress)},{"run_id",run_id},{"ok",false},{"error",{{"code","DIAGNOSTIC_FAILED"},{"message",diagnostic_failure}}}};
             if(pending==&pending_load) {
@@ -3439,13 +3354,10 @@ bool initialize(HMODULE module) {
         }
 #ifndef MT2MP_FRAMEWORK_PLUGIN
         if(!hooks::install_renderer_hooks()) throw std::runtime_error("SDL_GL_SwapWindow hook failed");
-        if(!hooks::install_input_hooks()) throw std::runtime_error("SDL3 input hooks failed");
         if(!hooks::install_window_hooks()) throw std::runtime_error("SDL3 window hooks failed");
         hooks::set_render_callback([]() {
             DWORD thread=GetCurrentThreadId();
             if(!render_thread) { render_thread=thread; LOG_INFO("[RUNTIME] Game render thread={}",thread); }
-            overlay::NotificationOverlay::instance().update(1.0f/60.0f);
-            overlay::GLOverlay::instance().render();
             capture_frame();
         });
 #endif

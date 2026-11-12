@@ -12,7 +12,7 @@ struct Context {
     uint64_t epoch=0,revision=0;
     uint32_t peer=0,window_id=0;
     uintptr_t owned_window=0;
-    bool owned_test=false,world_owned=false,time_active=false,overlay_hidden=false,no_pending_operation=false;
+    bool owned_test=false,world_owned=false,time_active=false,no_pending_operation=false;
 };
 struct Config {uintptr_t image=0;uint32_t game_thread=0;std::string executable_sha256;};
 struct Event {uint32_t window_id=0,scancode=0,keycode=0;bool down=false;uintptr_t owned_window=0;uint64_t timestamp_ns=0;};

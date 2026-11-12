@@ -10,7 +10,7 @@ from tools.e2e import host_loss as subject
 
 def disconnected():
     return {'session_connected': False, 'peer_count': 0, 'game_thread_ready': True,
-            'session_status': 'Sitzung beendet: Host nicht erreichbar', 'overlay_visible': False}
+            'session_status': 'Sitzung beendet: Host nicht erreichbar'}
 
 
 def visible_lobby():
@@ -38,10 +38,6 @@ class FrameworkHostLossTests(unittest.TestCase):
         self.assertFalse(subject.ended(engine, changed))
         self.assertFalse(subject.ended({**engine, 'session_connected': True}, lobby))
         self.assertFalse(subject.ended({**engine, 'session_status': 'Verbunden'}, lobby))
-
-    def test_legacy_notice_still_requires_overlay(self):
-        self.assertFalse(subject.ended(disconnected()))
-        self.assertTrue(subject.ended({**disconnected(), 'overlay_visible': True}))
 
     def test_cli_forwards_explicit_root_and_candidate(self):
         with patch.object(subject, 'execute', return_value=0) as execute:

@@ -27,7 +27,6 @@
 #include "mt2mp/hooks/hook_engine.h"
 #include "mt2mp/net/session_wire.h"
 #include "mt2mp/net/snapshot_sync.h"
-#include "mt2mp/overlay/notification_overlay.h"
 #include <Windows.h>
 #include "mt2mp/hooks/minhook_backend.h"
 #include <bcrypt.h>
@@ -193,8 +192,7 @@ std::string action_uuid(std::string& error) {
 }
 void reject(Runtime& runtime,const std::string& cause) {
     ++runtime.rejected;
-    if(runtime.cause!=cause){runtime.cause=cause;LOG_ERROR("[UIBuild] Capture rejected cause={}",cause);
-        overlay::NotificationOverlay::instance().show("Bauen abgelehnt: "+cause,overlay::NotificationType::Error,10.0f);}
+    if(runtime.cause!=cause){runtime.cause=cause;LOG_ERROR("[UIBuild] Capture rejected cause={}",cause);}
 }
 bool submit_scene_intent(Runtime&,uintptr_t,const void*,std::string&);
 bool scene_purchase_entry(int32_t category,const void* position) {

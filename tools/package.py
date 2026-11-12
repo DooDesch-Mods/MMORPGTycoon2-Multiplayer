@@ -91,7 +91,6 @@ def collect(root, build, freeze, multiplayer_package=None, release_version=None,
         "LICENSE.md": root / "LICENSE.md",
         "THIRD_PARTY_NOTICES.md": root / "THIRD_PARTY_NOTICES.md",
         "licenses/MinHook.txt": vendor / "minhook/LICENSE.txt",
-        "licenses/DearImGui.txt": root / "include/vendor/imgui/LICENSE.txt",
         "licenses/nlohmann-json.txt": vendor / "nlohmann/LICENSE.MIT",
         "licenses/SDL3.txt": vendor / "SDL3/LICENSE.txt",
     }

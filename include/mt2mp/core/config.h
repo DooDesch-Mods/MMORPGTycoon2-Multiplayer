@@ -22,10 +22,6 @@ constexpr int HEARTBEAT_TIMEOUT_MS = 10000;
 // Region locking
 constexpr int REGION_LOCK_TIMEOUT_SEC = 30;
 
-// Overlay
-constexpr uint16_t OVERLAY_TOGGLE_KEY = 0; // F10 scancode, set at runtime
-constexpr float CURSOR_INTERP_SPEED = 15.0f;
-
 // Paths (populated at runtime)
 struct Config {
     std::string game_dir;
@@ -33,8 +29,6 @@ struct Config {
     std::string log_file;
     std::string original_steam_dll;
     bool is_host = false;
-    bool overlay_visible = false;
-    bool chat_visible = false;
     bool local_test = false;
     bool installed_profile_verified = false;
     bool framework_profile_verified = false;

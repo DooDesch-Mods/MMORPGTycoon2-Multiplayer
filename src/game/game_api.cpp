@@ -5,7 +5,6 @@
 #include "mt2mp/net/steam_matchmaking.h"
 #include "mt2mp/net/steam_networking.h"
 #include "mt2mp/net/save_transfer.h"
-#include "mt2mp/overlay/notification_overlay.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/core/config.h"
 
