@@ -58,9 +58,9 @@ jobs:
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: .ci-cache/sccache
-          key: windows-sccache-v2-${{ runner.os }}-x64-msvc-${{ github.sha }}
+          key: windows-sccache-v3-${{ runner.os }}-x64-msvc-${{ github.sha }}
           restore-keys: |
-            windows-sccache-v2-${{ runner.os }}-x64-msvc-
+            windows-sccache-v3-${{ runner.os }}-x64-msvc-
       - name: Install pinned compiler cache
         uses: mozilla-actions/sccache-action@fd02668681acd5f960e1372061bee5e3e987195c # v0.0.11
         with:
@@ -80,7 +80,7 @@ jobs:
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           python .github/scripts/ci_build.py build --ci-ninja --sdk .ci-deps/framework --commit $env:BUILD_COMMIT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
+          cmake -S ci -B .ci-build/tests -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=cl -DCMAKE_CXX_COMPILER_LAUNCHER=sccache -DMT2MP_CI_FORCE_HEADER=ON -DCMAKE_POLICY_DEFAULT_CMP0141=NEW '-DCMAKE_MSVC_DEBUG_INFORMATION_FORMAT=$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>' "-DPython3_EXECUTABLE=$python" "-DMT2_FRAMEWORK_SDK=$env:GITHUB_WORKSPACE/.ci-deps/framework"
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           cmake --build .ci-build/tests --parallel $parallel
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
