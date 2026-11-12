@@ -191,7 +191,9 @@ def manifest_runtime_kind(manifest: dict) -> str:
 
 
 def selected_multiplayer_module(manifest: dict) -> str:
-    return "MT2MultiplayerPlugin.dll" if manifest_runtime_kind(manifest) == FRAMEWORK_PLUGIN_KIND else "MT2_Multiplayer.dll"
+    if manifest_runtime_kind(manifest) != FRAMEWORK_PLUGIN_KIND:
+        raise RuntimeErrorDetail("invalid_manifest", "Multiplayer module selection requires explicit schema-2 plugin binding")
+    return "MT2MultiplayerPlugin.dll"
 
 
 def framework_module_paths(manifest: dict) -> dict[str, Path]:

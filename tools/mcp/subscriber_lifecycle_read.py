@@ -197,12 +197,10 @@ def sample(read, image, serialized_id, include_scenario_vips=False, include_camp
 
 
 def modules_guard(manifest, modules):
-    directory = Path(manifest['executable_path']).parent
     expected = manifest.get('installed_binary_sha256')
     require(isinstance(expected, dict) and expected.get('MT2.exe') == INSTALLED_EXE_SHA256, 'Exact supported executable manifest hash missing/different')
     rows = {}
-    paths = framework_module_paths(manifest) if manifest.get('schema_version') == 2 else {name: directory / name for name in ('MT2.exe', 'MT2_Multiplayer.dll')}
-    for name, path in paths.items():
+    for name, path in framework_module_paths(manifest).items():
         path = path.resolve()
         selected = [m for m in modules if Path(m['path']).resolve() == path]
         require(len(selected) == 1 and selected[0]['base'] and selected[0]['size'] > 0, f'Exact loaded module missing/duplicated: {name}')

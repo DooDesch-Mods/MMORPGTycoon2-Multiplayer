@@ -150,18 +150,6 @@ class FixedLifecycle(unittest.TestCase):
         self.assertTrue(server.BASE['read_subscriber_lifecycle'][2]);r.request.assert_not_called()
         self.assertIn('read_subscriber_lifecycle',run_job.ALLOWED_TOOLS)
 
-    def test_exact_loaded_module_file_hash(self):
-        root=ROOT/'tools'/'test-only-module-path'; rows=[]; hashes={}; files={}
-        for i,name in enumerate(('MT2.exe','MT2_Multiplayer.dll')):
-            p=root/name;files[p]=name.encode();hashes[name]=hashlib.sha256(files[p]).hexdigest()
-            rows.append({'path':str(p),'base':0x140000000+i*0x10000000,'size':0x2000000})
-        manifest={'executable_path':str(root/'MT2.exe'),'installed_binary_sha256':hashes}
-        with patch.object(reader,'INSTALLED_EXE_SHA256',hashes['MT2.exe']),patch.object(Path,'open',lambda p,mode:io.BytesIO(files[p])):
-            self.assertEqual(reader.modules_guard(manifest,rows)['MT2.exe']['sha256'],hashes['MT2.exe'])
-            with self.assertRaisesRegex(RuntimeErrorDetail,'missing/duplicated'):reader.modules_guard(manifest,rows+rows[:1])
-            files[root/'MT2_Multiplayer.dll']=b'changed'
-            with self.assertRaisesRegex(RuntimeErrorDetail,'hash changed'):reader.modules_guard(manifest,rows)
-
     def test_primary_and_cleanup_failures_preserved(self):
         r=reader.ProcessRead.__new__(reader.ProcessRead);r.handle=1;r.kernel=Mock();r.kernel.CloseHandle.return_value=0
         with patch.object(reader.ctypes,'get_last_error',return_value=5):

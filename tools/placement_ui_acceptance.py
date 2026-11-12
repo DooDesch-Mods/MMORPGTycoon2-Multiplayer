@@ -12,15 +12,12 @@ def validate_candidate(runner, frozen, candidate_binary):
     for peer in ('host', 'client-1'):
         path = runner.manifests[peer]
         identity = read_json(path)
-        if manifest_runtime_kind(identity) == FRAMEWORK_PLUGIN_KIND:
-            bound = Runtime(runner.root).bind(str(path))
-            if bound.get('process_identity_verified') is not True:
-                raise AcceptanceError('exact Framework process identity is not verified: ' + peer)
-            receipt = candidate_binary_receipt(identity, candidate_binary)
-        elif candidate_binary is not None:
-            receipt = candidate_binary_receipt(identity, candidate_binary)
-        else:
-            receipt = {'module': 'MT2_Multiplayer.dll', 'sha256': identity['installed_binary_sha256']['MT2_Multiplayer.dll']}
+        if manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
+            raise AcceptanceError('runtime is not a Framework plugin runtime: ' + peer)
+        bound = Runtime(runner.root).bind(str(path))
+        if bound.get('process_identity_verified') is not True:
+            raise AcceptanceError('exact Framework process identity is not verified: ' + peer)
+        receipt = candidate_binary_receipt(identity, candidate_binary)
         if receipt['sha256'] != frozen['dll_sha256']:
             raise AcceptanceError('installed DLL differs from freeze: ' + peer)
         runner.checked('selected-candidate-' + peer, receipt)

@@ -97,20 +97,13 @@ def preflight(runner, placement_path, freeze, runtime_factory=Runtime, candidate
         if bound.get("process_identity_verified") is not True:
             raise AcceptanceError(f"{peer} PID/creation identity unverified")
         identity = read_json(manifest)
-        if manifest_runtime_kind(identity) == FRAMEWORK_PLUGIN_KIND or candidate_binary is not None:
-            receipt = candidate_binary_receipt(identity, candidate_binary)
-            actual = receipt['sha256']
-            if actual != expected_dll:
-                raise AcceptanceError(f"{peer} selected DLL differs from candidate freeze")
-            if manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
-                if hash_file(Path(identity['runtime_root']) / 'game' / 'MT2_Multiplayer.dll') != actual:
-                    raise AcceptanceError(f"{peer} installed DLL differs from explicit candidate")
-            runner.checked('selected-candidate-' + peer, receipt)
-        else:
-            installed = identity.get("installed_binary_sha256", {}).get("MT2_Multiplayer.dll")
-            actual = hash_file(Path(identity["runtime_root"]) / "game" / "MT2_Multiplayer.dll")
-            if installed != expected_dll or actual != expected_dll:
-                raise AcceptanceError(f"{peer} exact installed DLL differs from candidate freeze")
+        if manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
+            raise AcceptanceError(f"{peer} runtime is not a Framework plugin runtime")
+        receipt = candidate_binary_receipt(identity, candidate_binary)
+        actual = receipt['sha256']
+        if actual != expected_dll:
+            raise AcceptanceError(f"{peer} selected DLL differs from candidate freeze")
+        runner.checked('selected-candidate-' + peer, receipt)
         identities[peer] = {"pid": identity["pid"], "process_start_time": identity["process_start_time"],
                             "dll_sha256": actual}
     runner.checked("placement-and-exact-runtime", {"placement": str(placement_path),

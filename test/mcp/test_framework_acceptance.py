@@ -99,9 +99,6 @@ class FrameworkAcceptanceTests(unittest.TestCase):
         self.assertEqual({value["module"] for value in runner.summary["candidate_binaries"].values()},{"MT2MultiplayerPlugin.dll"})
         self.assertEqual(len(runner.calls),6)
 
-    def test_observer_legacy_default_artifact_remains_legacy(self):
-        self.legacy();candidate=self.workspace/"build/bin/Release/MT2_Multiplayer.dll";candidate.parent.mkdir(parents=True);candidate.write_bytes(b"legacy-fixture")
-        code,runner=self.observer();self.assertEqual(code,0);self.assertEqual(runner.summary["candidate_binaries"]["host"]["module"],"MT2_Multiplayer.dll")
 
 
 if __name__=="__main__":unittest.main()
