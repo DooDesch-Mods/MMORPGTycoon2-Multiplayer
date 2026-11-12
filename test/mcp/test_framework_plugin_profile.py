@@ -185,12 +185,6 @@ class FrameworkPluginTests(unittest.TestCase):
         self.error("candidate_mismatch",lambda:candidate_binary_receipt(self.manifest,wrong))
         plugin.write_bytes(b"changed");self.error("candidate_mismatch",lambda:candidate_binary_receipt(self.manifest,plugin))
 
-    def test_legacy_helper_keeps_selected_legacy_filename(self):
-        path=self.root/"game/MT2_Multiplayer.dll";path.write_bytes(b"legacy")
-        value={"schema_version":1,"runtime_root":str(self.root),"installed_binary_sha256":{path.name:hashlib.sha256(path.read_bytes()).hexdigest()}}
-        self.assertEqual(manifest_runtime_kind(value),"standalone")
-        self.assertEqual(runtime_diagnostic_directory(value),self.root/"diagnostics")
-        self.assertEqual(candidate_binary_receipt(value,path)["module"],"MT2_Multiplayer.dll")
 
 
 if __name__=="__main__":unittest.main()

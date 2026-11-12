@@ -240,20 +240,6 @@ class FrameworkAdmissionTests(unittest.TestCase):
                     (history.AcceptanceError, RuntimeErrorDetail), error):
                 history.preflight(self.runner, self.placement, self.freeze, self.binding, candidate_binary=selected)
 
-    def test_legacy_default_keeps_real_installed_file_hash_check(self):
-        for path in self.manifests.values():
-            identity = json.loads(path.read_text(encoding='utf-8'))
-            identity.update(schema_version=1, installed_binary_sha256={'MT2_Multiplayer.dll': self.digest})
-            del identity['runtime_kind']
-            path.write_text(json.dumps(identity), encoding='utf-8')
-            installed = Path(identity['runtime_root']) / 'game/MT2_Multiplayer.dll'
-            installed.parent.mkdir()
-            installed.write_bytes(self.candidate.read_bytes())
-        self.assertEqual(history.preflight(self.runner, self.placement, self.freeze, self.binding)[0], MUTATION)
-        (self.root / 'client-1/game/MT2_Multiplayer.dll').write_bytes(b'changed installed file')
-        with self.assertRaisesRegex(history.AcceptanceError, 'exact installed DLL differs'):
-            history.preflight(self.runner, self.placement, self.freeze, self.binding)
-
     def test_cli_forwards_explicit_candidate_without_inferring_framework_build(self):
         with patch.object(history, 'execute', return_value=0) as execute:
             self.assertEqual(history.main(['--placement', 'placement.json', '--freeze', 'freeze.json',

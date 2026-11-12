@@ -12,10 +12,8 @@ struct MouseState {
 
 using InputEventObserver = void(*)(void* event);
 void set_input_event_observer(InputEventObserver observer);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 // Only an accepted SDK copy can reach this passive diagnostic forwarding path.
 void forward_framework_input_event(void* event);
-#endif
 
 const MouseState& get_mouse_state();
 

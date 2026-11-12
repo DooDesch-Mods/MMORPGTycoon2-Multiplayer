@@ -34,7 +34,7 @@ class BuildCommandTests(unittest.TestCase):
     def cache(self, tests):
         self.build.mkdir(parents=True, exist_ok=True)
         values = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
-                  'MT2_FRAMEWORK_SDK': str(self.sdk),
+                  'MT2_FRAMEWORK_SDK': str(self.sdk), 'MT2MP_DIAGNOSTICS': 'ON',
                   'CMAKE_HOME_DIRECTORY': str(self.root)}
         if tests is not None:
             values['MT2MP_BUILD_TESTS'] = tests

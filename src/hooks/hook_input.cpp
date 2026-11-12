@@ -7,7 +7,6 @@ static MouseState mouse;
 
 void set_input_event_observer(InputEventObserver observer) { input_observer = observer; }
 
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 void forward_framework_input_event(void* raw) {
     const auto* event = static_cast<const SDL_Event*>(raw);
     if (!event) return;
@@ -18,7 +17,6 @@ void forward_framework_input_event(void* raw) {
     }
     if (input_observer) input_observer(raw);
 }
-#endif
 
 const MouseState& get_mouse_state() { return mouse; }
 }

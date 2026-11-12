@@ -1,16 +1,13 @@
 #pragma once
 #include "mt2mp/core/hash.h"
 #include "mt2mp/hooks/code_body_digest.h"
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
 #include "mt2mp/hooks/framework_backend.h"
-#endif
 #include <algorithm>
 #include <cstring>
 
 namespace mt2mp::hooks::framework {
 namespace original_body_detail {
 inline bool restore_prefix(uintptr_t entry,std::vector<unsigned char>& body,std::string& error){
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
     auto& backend=process_backend();MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
     if(!backend.read_route(reinterpret_cast<void*>(entry),receipt)){error=backend.error();return false;}
     const auto count=std::min(body.size(),sizeof receipt.current);
@@ -18,9 +15,6 @@ inline bool restore_prefix(uintptr_t entry,std::vector<unsigned char>& body,std:
     std::memcpy(body.data(),receipt.pristine,count);
     // Authenticate the changed prefix; the caller still checks every original byte, including long tails.
     return backend.verify_code(entry,body.data(),count,error);
-#else
-    (void)entry;(void)body;error="Original body mismatch requires authenticated Framework route";return false;
-#endif
 }
 }
 inline bool verify_original_hash(uintptr_t entry,const void* observed,size_t size,const char* expected,std::string& error,CodeBodyDigest* memo=nullptr){

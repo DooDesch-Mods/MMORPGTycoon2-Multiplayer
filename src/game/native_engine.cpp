@@ -1,8 +1,6 @@
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/hooks/framework_backend.h"
 #include "mt2mp/core/framework_open_paths.h"
 #include "save_companion_retirement.h"
-#endif
 #include "mt2mp/game/native_engine.h"
 #include "mt2mp/hooks/original_body.h"
 #include "initial_release/release_entry.h"
@@ -738,13 +736,9 @@ bool initialize(std::string& error) {
         if (!readable(address, guard.size))
             return fail(error, "native prologue guard unreadable RVA=" + std::to_string(guard.rva));
         if (std::memcmp(address, guard.bytes, guard.size)) {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             std::string route_error;
             if (hooks::framework::verify_code(base + guard.rva, guard.bytes, guard.size, route_error)) continue;
             return fail(error, "native prologue guard rejected RVA=" + std::to_string(guard.rva) + "; " + route_error);
-#else
-            return fail(error, "native prologue guard rejected RVA=" + std::to_string(guard.rva));
-#endif
         }
     }
     resolved_executable_sha256=digest;
@@ -2445,7 +2439,6 @@ bool dispatch_command(const std::string&, std::string& error) {
 }
 
 bool retire_autosave_companion(std::string& error) {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     try {
         const auto binding=framework_open_paths::bind(framework_open_paths::absolute(Config::instance().runtime_root));
         const auto write=framework_open_paths::live_write(binding);
@@ -2454,7 +2447,6 @@ bool retire_autosave_companion(std::string& error) {
         framework_open_paths::unchanged(binding);
         LOG_INFO("[Native] Autosave companion retirement acknowledged {}",receipt.dump());
     }catch(const std::exception& problem){return fail(error,std::string("return to title companion retirement failed before native autosave: ")+problem.what());}
-#endif
     error.clear();return true;
 }
 

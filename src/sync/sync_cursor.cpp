@@ -2,7 +2,6 @@
 #include "mt2mp/net/net_manager.h"
 #include "mt2mp/net/packet_serializer.h"
 #include "mt2mp/hooks/hook_input.h"
-#include "mt2mp/hooks/hook_shard.h"
 #include "mt2mp/game/player_info.h"
 #include "mt2mp/core/config.h"
 
@@ -32,7 +31,7 @@ void CursorSync::send_update() {
 void CursorSync::on_remote_cursor(uint64_t steam_id, uint32_t shard_id,
                                    float x, float y, float z, uint8_t type) {
     game::PlayerRegistry::instance().update_cursor(
-        steam_id, x, y, z, type, hooks::get_current_shard());
+        steam_id, x, y, z, type, "");
 }
 
 void CursorSync::interpolate(float dt) {

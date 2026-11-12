@@ -317,10 +317,8 @@ bool enable(std::string& e){
     state.thread=thread;Memory m;if(!code(m,false,e))return false;
     const auto hook_failure=[&](const char* operation,MH_STATUS status){
         state.cause=std::string("Monster Release ")+operation+" status="+std::to_string(status);
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
         const auto& upstream=mt2mp::hooks::framework::process_backend().error();
         if(!upstream.empty())state.cause+=" cause="+upstream;
-#endif
         return fail(e,state.cause);
     };
     const auto created=MH_CreateHook(reinterpret_cast<void*>(state.image+0x5bf3c0),reinterpret_cast<void*>(&release_entry),reinterpret_cast<void**>(&state.release));

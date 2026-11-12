@@ -67,9 +67,8 @@ endif()
 add_test(NAME control_input COMMAND test_control_input)
 set_tests_properties(control_input PROPERTIES TIMEOUT 60)
 
-include("${CMAKE_CURRENT_LIST_DIR}/dropin_proof_checks.cmake")
 
-include("${CMAKE_CURRENT_LIST_DIR}/dropin_write_dir_checks.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/framework_write_dir_checks.cmake")
 
 include("${CMAKE_CURRENT_LIST_DIR}/snapshot_world_path_checks.cmake")
 

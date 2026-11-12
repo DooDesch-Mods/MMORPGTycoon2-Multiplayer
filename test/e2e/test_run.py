@@ -117,63 +117,6 @@ class SharedReadyTests(unittest.TestCase):
                     inspect_receipt(receipt, "client-1")
 
 
-class PreflightTests(unittest.TestCase):
-    def test_exact_process_and_installed_dll_before_native_inspect(self):
-        with tempfile.TemporaryDirectory(dir=Path(__file__).parent) as temporary:
-            root = Path(temporary) / "_MPTest"
-            digest = hashlib.sha256(b"candidate").hexdigest()
-            manifests = {}
-            for peer in run.PEERS:
-                peer_root = root / peer
-                game = peer_root / "game"
-                game.mkdir(parents=True)
-                (game / "MT2_Multiplayer.dll").write_bytes(b"candidate")
-                manifest = peer_root / "instance.json"
-                manifest.write_text(json.dumps({"schema_version": 1, "runtime_root": str(peer_root), "pid": 123,
-                                                "process_start_time": "456",
-                                                "installed_binary_sha256": {"MT2_Multiplayer.dll": digest}}), encoding="utf-8")
-                manifests[peer] = manifest
-            freeze = Path(temporary) / "freeze.json"
-            setup = Path(temporary) / "setup.json"
-            freeze.write_text(json.dumps({"dll_sha256": digest}), encoding="utf-8")
-            setup.write_text(json.dumps({"passed": True, "runtime_run_id": "run"}), encoding="utf-8")
-
-            class Runner:
-                def __init__(self):
-                    self.root = root
-                    self.summary = {}
-                    self.manifests = manifests
-                    self.inspected = []
-
-                def load_manifests(self):
-                    self.summary["runtime_run_id"] = "run"
-
-                def checked(self, *args):
-                    pass
-
-                def inspect(self, label, peer):
-                    self.inspected.append(peer)
-                    return engine()
-
-            class Identity:
-                def __init__(self, root):
-                    pass
-
-                def bind(self, path):
-                    return {"process_identity_verified": True}
-
-            runner = Runner()
-            run.preflight(runner, freeze, setup, Identity)
-            self.assertEqual(runner.inspected, list(run.PEERS))
-            (root / "client-1" / "game" / "MT2_Multiplayer.dll").write_bytes(b"changed")
-            runner.inspected.clear()
-            with self.assertRaisesRegex(run.AcceptanceError, "installed DLL differs"):
-                run.preflight(runner, freeze, setup, Identity)
-            with self.assertRaisesRegex(run.AcceptanceError, "installed DLL differs"):
-                run.preflight(runner, freeze, setup, Identity, candidate_binary=root / "host/game/MT2_Multiplayer.dll")
-            self.assertEqual(runner.inspected, [])
-
-
 class DispatchTests(unittest.TestCase):
     def args(self):
         return argparse.Namespace(scenario="building-ui", setup=Path("fixture.json"), freeze=Path("freeze.json"),

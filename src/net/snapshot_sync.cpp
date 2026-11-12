@@ -1,6 +1,4 @@
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_open_paths.h"
-#endif
 #include "mt2mp/core/runtime_paths.h"
 #include "mt2mp/net/snapshot_sync.h"
 #include "client_save_export_session.h"
@@ -131,15 +129,7 @@ static std::filesystem::path write_root() {
     auto function=module?reinterpret_cast<const char*(*)()>(GetProcAddress(module,"PHYSFS_getWriteDir")):nullptr;
     const char* path=function?function():nullptr;
     if(!path) throw std::runtime_error("PHYSFS write directory unavailable");
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     return framework_open_paths::verified_write_root(framework_open_paths::absolute(Config::instance().runtime_root),path);
-#else
-    auto root=std::filesystem::weakly_canonical(path);
-    auto owned=std::filesystem::weakly_canonical(Config::instance().user_data_dir);
-    auto relative=root.lexically_relative(owned);
-    if(relative.empty()||relative.native().find(L"..")!=std::wstring::npos) throw std::runtime_error("PHYSFS directory outside owned test root");
-    return root;
-#endif
 }
 static void fail(const std::string& error) {
     if(snapshot_failed) {
@@ -321,12 +311,8 @@ static void receive_control(uint64_t sender,const uint8_t* data,uint32_t length)
         game::native::SoftwareCache software;
         if(!ordered_snapshot)software=parse_initial_software_cache(value.at("software"));
         std::string error;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         const auto write=write_root();
         auto path=framework_open_paths::snapshot(framework_open_paths::absolute(Config::instance().runtime_root),snapshot_world_path::utf8(write).c_str(),world_name,id,true);
-#else
-        auto path=snapshot_world_path::physical(write_root(),world_name,id); std::filesystem::create_directories(path.parent_path());
-#endif
         auto staging=path; staging+=".incoming";
         if(!buffer.begin(value.at("bytes").get<uint64_t>(),uint32_t(chunks),staging,path,hash,error)) throw std::runtime_error(error);
         if(!monsters.is_null()){
@@ -366,11 +352,7 @@ static void receive_chunk(uint64_t sender,const uint8_t* data,uint32_t length) {
         message({{"type","snapshot_chunk_ack"},{"id",id},{"next",buffer.received_count()+(incoming_monsters.is_null()?0:monster_buffer.received_count())}},1);
         if(!buffer.committed()||(!incoming_monsters.is_null()&&!monster_buffer.committed()))return;
         auto path=buffer.target();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         auto runtime=framework_open_paths::absolute(Config::instance().runtime_root);
-#else
-        auto runtime=std::filesystem::path(Config::instance().runtime_root);
-#endif
         { std::ofstream stream(runtime_paths::diagnostics(runtime)/("snapshot-"+id+".json")); stream<<json{{"snapshot_id",id},{"bytes",buffer.size()},{"sha256",incoming_hash},{"path",snapshot_world_path::utf8(path)},{"world_name",incoming_world_name}}.dump(2); stream.close(); if(!stream) throw std::runtime_error("snapshot manifest write failed"); }
         receiving=false; status="Snapshot vollständig geprüft";
         LOG_NET_INFO("[SNAPSHOT] VERIFIED id={} bytes={} sha256={}",id,buffer.size(),incoming_hash);

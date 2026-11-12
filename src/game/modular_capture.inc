@@ -50,9 +50,7 @@ bool enable(std::string& e){auto* r=published.load(std::memory_order_acquire);if
     const auto failed=[&](){for(size_t i=0;i<enabled.size();++i)if(enabled[i]){const auto result=MH_DisableHook(reinterpret_cast<void*>(r->image+rvas[i]));if(result!=MH_OK)e+="; Modular owned route disable="+std::to_string(result);}reject(e);return false;};
     for(size_t i=0;i<rvas.size();++i){void* original=nullptr;const auto target=reinterpret_cast<void*>(r->image+rvas[i]);const auto guard=std::find_if(std::begin(modular_code::guards),std::end(modular_code::guards),[&](const auto& row){return row.rva==rvas[i];});if(guard==std::end(modular_code::guards)){e="Modular original route guard is absent";return failed();}route_owners[i]={r->image+rvas[i],detours[i],0,1,modular_code::route_stolen(rvas[i]),std::vector<unsigned char>(guard->original,guard->original+guard->bytes)};
         if(!hooks::create_hook(target,reinterpret_cast<void*>(detours[i]),&original)||!original){e="Modular named CreateHook failed index="+std::to_string(i);return failed();}originals[i]=uintptr_t(original);route_owners[i].trampoline=uintptr_t(original);const auto status=MH_EnableHook(target);if(status!=MH_OK){e="Modular named EnableHook failed index="+std::to_string(i)+" original="+MH_StatusToString(status);return failed();}enabled[i]=true;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         MT2FW_MT2_RouteReceipt receipt{};auto& backend=hooks::framework::process_backend();if(!backend.read_route(target,receipt)||!receipt.generation){e="Modular enabled route receipt unavailable: "+backend.error();return failed();}route_owners[i].generation=receipt.generation;
-#endif
     }
     if(!code(*r,e))return failed();installed=true;e.clear();return true;
 }

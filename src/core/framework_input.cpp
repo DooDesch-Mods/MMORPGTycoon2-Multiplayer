@@ -1,4 +1,3 @@
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_input.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_input.h"
@@ -150,4 +149,3 @@ State read() {
     return state;
 }
 }
-#endif

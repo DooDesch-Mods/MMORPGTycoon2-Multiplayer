@@ -77,11 +77,7 @@ uint32_t apply(Runtime* r,uintptr_t software,uintptr_t logo){
     __try{r->set(reinterpret_cast<void*>(software),reinterpret_cast<void*>(logo));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 std::string hook_cause(){
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     return hooks::framework::process_backend().error();
-#else
-    return {};
-#endif
 }
 }
 bool enable(std::string& e){

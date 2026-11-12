@@ -1,10 +1,7 @@
 #include "native_open_witness.h"
 #include "mt2mp/net/snapshot_world_path.h"
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_open_paths.h"
-#endif
 #ifndef MT2MP_MIXED_OPEN_TEST
-#include "mt2mp/core/installed_profile.h"
 #endif
 #include "mt2mp/game/native_engine.h"
 #ifndef WIN32_LEAN_AND_MEAN
@@ -33,7 +30,6 @@ HANDLE held=INVALID_HANDLE_VALUE;
 uintptr_t image=0;
 Lookup real_dir=nullptr,mount_point=nullptr;
 std::filesystem::path configured_root,physical;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 framework_open_paths::Binding configured_paths;
 std::filesystem::path configured_write;
 framework_open_paths::WriteOrigin configured_write_origin;
@@ -57,7 +53,6 @@ bool framework_binding(std::string& error,framework_open_paths::AttributeReader&
     }
     catch(const std::exception& problem) {error=problem.what();return false;}
 }
-#endif
 std::string virtual_name;
 void* native_file=nullptr;void* native_stream=nullptr;void* native_reader=nullptr;
 void* native_task=nullptr;void* native_mode=nullptr;
@@ -185,9 +180,7 @@ std::filesystem::path utf8_path(const std::string& value) {
     return std::filesystem::path(wide);
 }
 bool mapped_file(std::string& error) {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(!framework_binding(error))return fail(error,error);
-#endif
     std::string source,mount,again;
     if(!lookup_string(real_dir,virtual_name,source,error)||!lookup_string(mount_point,source,mount,error)||
        !lookup_string(real_dir,virtual_name,again,error))return false;
@@ -289,13 +282,11 @@ bool world_fields(WorldWitness& w,std::string& error) {
     return true;
 }
 bool world_witness(WorldWitness& w,std::string& error) {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     {
         mt2mp::game::live_host_state::apply_timing::Scope timing(
             mt2mp::game::live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
         if(!framework_binding(error,timed_account_attributes))return fail(error,error);
     }
-#endif
     return world_fields(w,error);
 }
 
@@ -335,33 +326,16 @@ bool initialize(const std::filesystem::path& runtime_root,std::string& error) {
     if(held!=INVALID_HANDLE_VALUE)return init_fail(error,"initialize_while_file_held");
     try {
         const auto candidate=absolute_path(runtime_root);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         const auto candidate_paths=framework_open_paths::bind(candidate);
         if(init_phase==InitPhase::Ready)framework_open_paths::unchanged(configured_paths);
-#endif
         if(init_phase==InitPhase::Ready){
             if(path_equal(candidate,configured_root))return true;
             return init_fail(error,"immutable_initialization_root_changed");
         }
         if(!no_reparse(candidate,error))return init_fail(error,error);
-#ifndef MT2MP_FRAMEWORK_PLUGIN
-        const auto component=candidate.filename().wstring();
-        const bool client=component.rfind(L"client-",0)==0&&component.size()>7&&
-            std::all_of(component.begin()+7,component.end(),[](wchar_t c){return c>=L'0'&&c<=L'9';});
-#endif
         std::filesystem::path expected_game=candidate/L"game";
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         expected_game=candidate_paths.game;
         configured_paths=candidate_paths;
-#else
-#ifndef MT2MP_MIXED_OPEN_TEST
-        if(const auto* installed=installed_profile::get()){
-            if(!path_equal(candidate,absolute_path(installed->runtime_root)))return init_fail(error,"runtime_root_not_verified_installed_profile");
-            expected_game=installed->game_dir;
-        }else
-#endif
-        if(candidate.parent_path().filename()!=L"_MPTest"||(component!=L"host"&&!client))return init_fail(error,"runtime_root_not_MPTest_instance");
-#endif
         if(tested){configured_root=candidate;init_phase=InitPhase::Ready;return true;}
         if(!native::ready())return init_fail(error,"native_exact_build_resolver_unavailable");
         image=reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
@@ -422,27 +396,19 @@ bool begin(const std::filesystem::path& runtime_root,const std::string& steam_id
     if(held!=INVALID_HANDLE_VALUE)return fail(error,"begin_while_previous_file_held");
     if(init_phase!=InitPhase::Ready||installed_hooks!=required_hooks)return fail(error,"begin_unconfirmed_initialization_or_hooks cause="+init_error);
     if(!net::snapshot_world_path::valid_folder(world_name)||!generation||generation<=retired_generation||!string_format(uuid,true)||!string_format(sha,false)||!bytes||
-#ifdef MT2MP_FRAMEWORK_PLUGIN
        (steam_id.size()>20||!std::all_of(steam_id.begin(),steam_id.end(),[](char c){return c>='0'&&c<='9';})))
-#else
-       steam_id.size()<17||steam_id.size()>20||!std::all_of(steam_id.begin(),steam_id.end(),[](char c){return c>='0'&&c<='9';}))
-#endif
         return fail(error,"invalid_owned_file_receipt_uuid_SHA_bytes_generation_user");
     try {
         if(!real_dir||!mount_point||!path_equal(absolute_path(runtime_root),configured_root))
             return fail(error,"owned_runtime_unconfigured_or_changed");
         if(!tested){native::WorldStatus world;if(!native::read_world_status(world,error))return fail(error,"begin_not_native_game_thread cause="+error);}
         const auto name=L"snapshot-"+std::wstring(uuid.begin(),uuid.end())+L".vrz";
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         const auto measured=framework_open_paths::live_write(configured_paths);
         const auto expected_write=steam_id.empty()?configured_paths.data:configured_paths.data/std::wstring(steam_id.begin(),steam_id.end());
         if(!private_profile::equal(measured,expected_write))return fail(error,"Framework native open measured write root changed before begin");
         configured_write=measured;
         configured_write_origin.clear();
         const auto route_name=measured.lexically_relative(configured_root)/L"save"/net::snapshot_world_path::utf8_path(world_name)/name;
-#else
-        const auto route_name=std::filesystem::path(L"data")/std::wstring(steam_id.begin(),steam_id.end())/L"save"/net::snapshot_world_path::utf8_path(world_name)/name;
-#endif
         physical=absolute_path(configured_root/route_name);
         const auto expected=(configured_root/route_name).lexically_normal();
         if(!path_equal(physical,expected))return fail(error,"snapshot_path_reparse_or_alias");
@@ -657,9 +623,7 @@ bool ReadOriginTransaction::check(std::string& error) {
         error="current_world_read_origin_unavailable";return false;
     }
     if(owner_!=&current||root_!=configured_root||file_!=physical
-#ifdef MT2MP_FRAMEWORK_PLUGIN
        ||write_!=configured_write
-#endif
     ){error="read_origin_transaction_owner_changed";return false;}
     return true;
 }
@@ -670,16 +634,12 @@ bool ReadOriginTransaction::admit(uint64_t generation,std::string& error) {
     generation_=generation;epoch_=current.origin_world_epoch;
     revision_=live_host_state::apply_timing::original_call_revision;
     owner_=&current;root_=configured_root;file_=physical;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     write_=configured_write;
-#endif
     if(!check(error))return false;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     {
         live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
         if(!framework_binding(error,timed_account_attributes))return fail(error,error);
     }
-#endif
     if(!check(error))return false;
     bound_=true;return true;
 }
@@ -690,12 +650,10 @@ bool ReadOriginTransaction::finish(std::string& error) {
     if(GetCurrentThreadId()!=thread_){error="current_world_read_wrong_thread";return false;}
     if(bound_){
         if(!check(error))return false;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         {
             live_host_state::apply_timing::Scope timing(live_host_state::apply_timing::Part::NativeOpenFrameworkBinding);
             if(!framework_binding(error,timed_account_attributes))return fail(error,error);
         }
-#endif
         if(!check(error))return false;
     }
     finished_=true;failed_=false;error.clear();return true;

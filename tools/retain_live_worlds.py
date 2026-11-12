@@ -231,14 +231,13 @@ def observe_client_autosave_wait(runner, timeout_seconds=360):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--expected-run-id',required=True)
-    parser.add_argument('--expected-dll-sha256')
     parser.add_argument('--candidate-binary',type=Path)
     parser.add_argument('--test-root',type=Path,default=ROOT/'_MPTest')
     parser.add_argument('--verify-client-save-wait',action='store_true')
     parser.add_argument('--wait-seconds',type=float,default=30)
     parser.add_argument('--peer',choices=('both','host','client-1'),default='both')
     args=parser.parse_args(); args.players=2; args.cleanup=False; args.step_timeout=45
-    if not args.candidate_binary and (args.verify_client_save_wait or not args.expected_dll_sha256):parser.error('An explicit candidate binary is required for save overlap; retention requires candidate or expected standalone DLL hash')
+    if not args.candidate_binary:parser.error('An explicit candidate binary is required')
     if not 1 <= args.wait_seconds <= 120:parser.error('wait-seconds must be between 1 and 120')
     runner=AcceptanceRunner(args); runner.summary['scope']='retain current owned worlds as complete local files, peer='+args.peer+'; no distribution, action replay or fresh regression claim'
     try:
@@ -252,7 +251,7 @@ def main():
         for peer in peers:
             manifest=read_json(runner.manifests[peer])
             if args.candidate_binary:candidate_binary_receipt(manifest,args.candidate_binary)
-            elif manifest_runtime_kind(manifest)==FRAMEWORK_PLUGIN_KIND or manifest['installed_binary_sha256']['MT2_Multiplayer.dll']!=args.expected_dll_sha256: raise AcceptanceError('owned retention DLL differs or explicit Framework candidate absent: '+peer)
+            else: raise AcceptanceError('explicit Framework candidate absent: '+peer)
             engine=runner.inspect(peer+'-read-before-retention',peer)
             controller=engine.get('typed_actions',{})
             if controller.get('locked') or controller.get('pending'): raise AcceptanceError('native action unresolved before retention: '+peer)

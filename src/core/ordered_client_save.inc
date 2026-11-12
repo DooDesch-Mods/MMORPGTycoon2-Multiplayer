@@ -14,13 +14,9 @@ static std::filesystem::path local_target(const json& request,std::string& nativ
     std::string error;
     if(!game::native::original_save_target(request.at("mode").get<uintptr_t>(),request.at("filename").get<std::string>(),
         request.at("kind").get<uint32_t>(),request.at("option").get<bool>(),native_target,error))throw std::runtime_error(error);
-    const auto write=status(false).at("write_dir").get<std::string>();
+    const auto write=physfs_write_dir();
     if(write.empty())throw std::runtime_error("Client original Save PHYSFS write directory is unavailable");
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     return net::snapshot_world_path::physical_original(framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),write.c_str()),native_target);
-#else
-    return net::snapshot_world_path::physical_original(std::filesystem::path(write),native_target);
-#endif
 }
 static files::Publication publish(const files::Receiver& receiver,std::string& error)try{
     if(!publication||local_request.is_null()||ordinary_save_id.empty()||receiver.receipt().at("nonce")!=ordinary_save_id){

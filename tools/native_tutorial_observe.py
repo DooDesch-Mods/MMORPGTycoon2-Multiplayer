@@ -32,10 +32,9 @@ try:
     candidates = {}
     for peer, manifest in runner.manifests.items():
         identity = read_json(manifest)
-        candidate = args.candidate_binary
-        if candidate is None and manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
-            candidate = ROOT / 'build/bin/Release/MT2_Multiplayer.dll'
-        candidates[peer] = candidate_binary_receipt(identity, candidate)
+        if manifest_runtime_kind(identity) != FRAMEWORK_PLUGIN_KIND:
+            raise AcceptanceError('Runtime is not a Framework plugin runtime: ' + peer)
+        candidates[peer] = candidate_binary_receipt(identity, args.candidate_binary)
     expected = candidates['host']['sha256']
     if any(value['sha256'] != expected or value['module'] != candidates['host']['module'] for value in candidates.values()):
         raise AcceptanceError('Observer candidate differs between peers')

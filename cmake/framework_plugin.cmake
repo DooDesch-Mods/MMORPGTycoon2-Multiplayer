@@ -16,6 +16,10 @@ target_include_directories(MT2MultiplayerPlugin PRIVATE include src/game include
     "${MT2_FRAMEWORK_SDK}/include" "${MT2_FRAMEWORK_SDK}/adapters/mt2/sdk" "${MT2_FRAMEWORK_VENDOR}/SDL3/include")
 target_compile_definitions(MT2MultiplayerPlugin PRIVATE MT2MP_FRAMEWORK_PLUGIN
     MT2MP_EXPORTS NOMINMAX WIN32_LEAN_AND_MEAN ${MT2_FRAMEWORK_VERSION_DEFINITIONS})
+option(MT2MP_DIAGNOSTICS "Compile the MCP diagnostic mailbox and its probe operations; release builds leave it off" OFF)
+if(MT2MP_DIAGNOSTICS)
+    target_compile_definitions(MT2MultiplayerPlugin PRIVATE MT2MP_DIAGNOSTICS)
+endif()
 target_link_libraries(MT2MultiplayerPlugin PRIVATE "${MT2_FRAMEWORK_VENDOR}/SDL3/lib/x64/SDL3.lib" opengl32 ws2_32 bcrypt version)
 if(MSVC)
     target_compile_options(MT2MultiplayerPlugin PRIVATE
