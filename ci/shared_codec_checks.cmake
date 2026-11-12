@@ -31,8 +31,13 @@ foreach(archive source_check_codecs source_check_codecs_windows)
     target_compile_features(${archive} PRIVATE cxx_std_20)
     if(MSVC)
         target_compile_options(${archive} PRIVATE /W4 /WX /utf-8 /EHsc /Gy)
-        target_precompile_headers(${archive} PRIVATE
-            "${MT2_FRAMEWORK_VENDOR}/nlohmann/json.hpp")
+        if(MT2MP_CI_FORCE_HEADER)
+            # sccache does not cache MSVC precompiled-header compiles; a forced include stays cacheable.
+            target_compile_options(${archive} PRIVATE "/FI${MT2_FRAMEWORK_VENDOR}/nlohmann/json.hpp")
+        else()
+            target_precompile_headers(${archive} PRIVATE
+                "${MT2_FRAMEWORK_VENDOR}/nlohmann/json.hpp")
+        endif()
     endif()
 endforeach()
 target_compile_definitions(source_check_codecs_windows PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
