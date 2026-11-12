@@ -39,8 +39,7 @@ struct Adapter::Impl {
         if(!c.owned_test)return reject(e,"time_input_owned_MPTest_required");
         if(!c.world_owned)return reject(e,"time_input_world_ownership_missing");
         if(!c.time_active)return reject(e,"time_input_runtime_not_active");
-        if(!c.overlay_hidden)return reject(e,"time_input_overlay_visible");
-        if(!c.no_pending_operation)return reject(e,"time_input_other_operation_pending");
+            if(!c.no_pending_operation)return reject(e,"time_input_other_operation_pending");
         if(!c.owned_window||!c.window_id)return reject(e,"time_input_owned_window_missing");
         if(c.peer<1||c.peer>4)return reject(e,"time_input_peer_out_of_range");
         if(!c.epoch)return reject(e,"time_input_epoch_zero");

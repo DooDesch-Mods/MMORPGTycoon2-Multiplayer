@@ -396,9 +396,6 @@ OP_SCHEMAS = {
         ("direction","snapshot_uuid","expected_host_revision","target_action_uuid")),
     "read_chat": EMPTY,
     "send_chat": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
-    "read_chat_ui": EMPTY,
-    "native_chat_ui_key": object_schema({"key": {"type": "string", "enum": ["F9", "F10", "ENTER", "ESCAPE", "PROBE"]}}, ("key",)),
-    "native_chat_ui_text": object_schema({"text": {"type": "string", "minLength": 1, "maxLength": 240}}, ("text",)),
     "inspect_engine": EMPTY,
     "resync_world": EMPTY,
     "read_network_state": EMPTY,
@@ -470,7 +467,6 @@ OP_SCHEMAS = {
     "capture_frame": EMPTY,
     "create_test_world": EMPTY,
     "exit_game": EMPTY,
-    "toggle_overlay": EMPTY,
     "dismiss_crash_report": EMPTY,
     "probe_building_placement": PLACEMENT,
     "place_test_building": PLACEMENT,
@@ -535,9 +531,6 @@ OP_DESCRIPTIONS = {
     "send_chat": "Queue one bounded in-game chat message in the bound session. The immediate receipt confirms queue admission only; use read_chat for recipient acknowledgement.",
     "native_building_history_ui": "Invoke one guarded original native Undo or Redo entry on the bound Mainthread. The receipt proves UI intent admission only; read both peers and never replay Unknown.",
     "read_building_history_ui": "Read native Undo and Redo stack depths, current shared graph targets, hook counters and Controller receipt without mutation.",
-    "read_chat_ui": "Read actual chat window rendering, ImGui input focus, draft text, SDL text-input state and hook event counters.",
-    "native_chat_ui_key": "Queue one F9, F10, Enter or Escape key through the existing SDL hook, or a harmless key-up probe after closing overlays. F10 requests the native Multiplayer panel toggle; read_native_lobby confirms actual application. Read chat UI counters for other key consumption or forwarding.",
-    "native_chat_ui_text": "Queue bounded UTF-8 text through SDL text input only while the actual chat field is active. Read the rendered draft afterward.",
     "inspect_engine": "Inspect verified engine metadata on the game thread.",
     "resync_world": "Request a fresh shared snapshot through the existing Host and owned native load path. The receipt confirms queue admission only. Observe game_status.world_reload for completion/failure; never replay a timed-out request.",
     "read_network_state": "Read native network capacity and bounded node samples; observation indices are local and not portable IDs.",
@@ -576,7 +569,6 @@ OP_DESCRIPTIONS = {
     "capture_frame": "Capture the native rendered game framebuffer to an owned diagnostic artifact.",
     "create_test_world": "Create the owned MPTestWorld through a verified native game-thread capability.",
     "exit_game": "Request graceful native shutdown of the bound owned test instance.",
-    "toggle_overlay": "Retired legacy ImGui operation. Use native_chat_ui_key with F10 and read_native_lobby for the native Multiplayer panel acknowledgement.",
     "dismiss_crash_report": "Dismiss the active crash report through native CrashReport::Command Cancel (Don't Upload).",
     "probe_building_placement": "Probe native MPTest diagnostic building placement without purchasing or editing.",
     "place_test_building": "Send a scoped MPTest diagnostic placement request to the host and wait for host result and local replica.",
@@ -650,7 +642,7 @@ def tools_for(runtime: Runtime) -> list[types.Tool]:
         available = set()
     for op in sorted(available):
         tools.append(types.Tool(name=f"game_{op}", description=OP_DESCRIPTIONS[op], inputSchema=OP_SCHEMAS[op],
-                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_character_edit_ui", "read_native_gm_policy_ui", "read_native_rules_feature_events", "read_native_rules_numeric_ui", "read_character_rename", "read_dungeon_config_ui", "read_native_rules_ui", "read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat_ui", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
+                                annotations=types.ToolAnnotations(readOnlyHint=op in {"read_character_edit_ui", "read_native_gm_policy_ui", "read_native_rules_feature_events", "read_native_rules_numeric_ui", "read_character_rename", "read_dungeon_config_ui", "read_native_rules_ui", "read_ordered_world", "read_terrain_tab", "read_toon_motion_trace", "read_native_service_sync_ui", "read_native_campaign_ui", "read_native_loan_ui", "read_native_gm_ui", "read_release_planner_ui", "read_vip_alert_owners", "read_native_bug_fix_ui", "read_subscriber_weapon", "read_bug_c_policy", "read_native_developer_retirement", "read_native_developers", "read_npc_region", "read_prices", "read_chat", "read_node_observer", "read_native_release", "read_native_loans", "read_native_lobby", "status", "inspect_engine", "probe_building_placement", "read_subscriber_needs", "read_network_state", "read_tutorial", "read_tutorial_development", "read_tutorial_progress", "read_tutorial_movement", "read_tutorial_movement_focus", "read_subscriber_candidates", "read_time_ui", "read_building_catalog", "read_time_acceptance", "read_time_input", "read_time_mouse", "read_native_free", "read_remove_bindings", "read_build_ui", "read_building_history_ui", "read_move_ui", "read_object_ui", "read_cancel_tool"},
                                                                  destructiveHint=op in MUTATIONS,
                                                                  idempotentHint=False, openWorldHint=False)))
     return tools
@@ -730,20 +722,6 @@ def dispatch(runtime: Runtime, name: str, arguments: dict) -> dict:
                 raise RuntimeErrorDetail("invalid_args", "tutorial close requires positive local origin and index" + str(expected_indices))
         if op == "read_chat" and (not isinstance(arguments, dict) or arguments):
             raise RuntimeErrorDetail("invalid_args", "read_chat requires empty object arguments")
-        if op == "read_chat_ui" and (not isinstance(arguments, dict) or arguments):
-            raise RuntimeErrorDetail("invalid_args", "read_chat_ui requires empty object arguments")
-        if op == "native_chat_ui_key" and (not isinstance(arguments, dict) or set(arguments) != {"key"} or arguments["key"] not in ("F9", "F10", "ENTER", "ESCAPE", "PROBE")):
-            raise RuntimeErrorDetail("invalid_args", "native_chat_ui_key requires F9, F10, ENTER, ESCAPE or PROBE")
-        if op == "native_chat_ui_text":
-            if not isinstance(arguments, dict) or set(arguments) != {"text"} or not isinstance(arguments["text"], str):
-                raise RuntimeErrorDetail("invalid_args", "native_chat_ui_text requires exactly one text string")
-            chat_ui_text = arguments["text"]
-            try:
-                chat_ui_bytes = len(chat_ui_text.encode("utf-8"))
-            except UnicodeEncodeError as exc:
-                raise RuntimeErrorDetail("invalid_args", "native_chat_ui_text requires valid UTF-8") from exc
-            if not 1 <= chat_ui_bytes <= 240 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in chat_ui_text):
-                raise RuntimeErrorDetail("invalid_args", "native_chat_ui_text requires 1 to 240 UTF-8 bytes without controls")
         if op == "send_chat":
             if not isinstance(arguments, dict) or set(arguments) != {"text"} or not isinstance(arguments["text"], str):
                 raise RuntimeErrorDetail("invalid_args", "send_chat requires exactly one text string")

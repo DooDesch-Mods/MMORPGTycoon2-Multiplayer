@@ -5,8 +5,6 @@
 #include "mt2mp/net/steam_networking.h"
 #include "mt2mp/game/player_info.h"
 #include "mt2mp/game/save_differ.h"
-#include "mt2mp/hooks/hook_input.h"
-#include "mt2mp/overlay/notification_overlay.h"
 #include "mt2mp/core/config.h"
 #include "mt2mp/core/logger.h"
 
@@ -38,8 +36,6 @@ bool SyncController::init() {
     nm.register_handler(net::PacketType::HANDSHAKE_RESPONSE,
         [](uint64_t sender, const net::Packet& p) {
             LOG_NET_INFO("Handshake response from {} - connected!", sender);
-            overlay::NotificationOverlay::instance().show(
-                "Connected!", overlay::NotificationType::Success);
 
             if (!SyncController::instance().is_active()) {
                 SyncController::instance().on_session_start(Config::instance().is_host);
@@ -82,8 +78,6 @@ bool SyncController::init() {
     nm.register_handler(net::PacketType::SAVE_COMPLETE,
         [](uint64_t sender, const net::Packet& p) {
             LOG_SYNC_INFO("Save transfer complete from {}", sender);
-            overlay::NotificationOverlay::instance().show(
-                "World state received!", overlay::NotificationType::Success, 5.0f);
         });
 
     // ── Cursor ───────────────────────────────────────────────
@@ -108,8 +102,6 @@ bool SyncController::init() {
             auto local = game::SaveStateTracker::instance().current_hash();
             if (local != 0 && cs.hash != 0 && cs.hash != local) {
                 LOG_SYNC_INFO("DESYNC! Local=0x{:08X} Remote=0x{:08X}", local, cs.hash);
-                overlay::NotificationOverlay::instance().show(
-                    "Desync detected!", overlay::NotificationType::Warning);
             }
         });
 

@@ -200,7 +200,7 @@ json read(uint64_t completed_frames,uint64_t ui_updates) {
         {"guards",{{"owned_world",context.owned_test&&context.world_owned&&bindings.epoch==runtime.epoch},{"main_thread",GetCurrentThreadId()==bound_thread},
             {"world_active",context.time_active&&runtime.phase==time_runtime::Phase::Active},{"session_connected",net::local_session_connected()},
             {"native_keybindings",all_ready},{"panel_input_clear",bindings.panel_visible&&bindings.input_clear},
-            {"overlay_hidden",context.overlay_hidden},{"no_pending_operation",context.no_pending_operation},{"keys_released",all_released},
+            {"no_pending_operation",context.no_pending_operation},{"keys_released",all_released},
             {"hook_origins_guarded",runtime.hook_mask==3}}},
         {"keybindings",{{"SPACE",bindings.bindings[0].axis},{"F1",bindings.bindings[1].axis},{"F2",bindings.bindings[2].axis},
             {"F3",bindings.bindings[3].axis},{"F4",bindings.bindings[4].axis}}},

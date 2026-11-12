@@ -3,7 +3,6 @@
 #include "mt2mp/sync/sync_controller.h"
 #include "mt2mp/game/player_info.h"
 #include "mt2mp/game/save_differ.h"
-#include "mt2mp/overlay/notification_overlay.h"
 #include "mt2mp/core/logger.h"
 #include "mt2mp/core/config.h"
 
@@ -89,8 +88,6 @@ void NetManager::on_packet_received(uint64_t sender, const uint8_t* data, uint32
             game::PlayerRegistry::instance().add(info);
             LOG_NET_INFO("Added player {} to registry from packet", sender);
 
-            overlay::NotificationOverlay::instance().show(
-                "Player connected!", overlay::NotificationType::Success, 5.0f);
         }
 
         // Advance connection state

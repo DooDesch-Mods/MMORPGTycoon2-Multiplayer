@@ -36,13 +36,11 @@ def owned_host(run, root, expected_run, identity, control_root=None):
     return host
 
 
-def ended(engine, lobby=None):
+def ended(engine, lobby):
     disconnected = (engine.get('session_connected') is False and engine.get('peer_count') == 0
                     and engine.get('game_thread_ready') is True
                     and isinstance(engine.get('session_status'), str)
                     and engine['session_status'].startswith('Sitzung beendet:'))
-    if lobby is None:
-        return disconnected and engine.get('overlay_visible') is True
     ui = lobby.get('framework_ui', {})
     return (disconnected and lobby.get('entry_owner') == 'framework_native_app'
             and lobby.get('panel_registered') is True and lobby.get('panel_visible') is True
@@ -63,7 +61,6 @@ def execute(args, runner_factory=AcceptanceRunner, processes_factory=WindowsProc
         if before.get('session_connected') is not True or before.get('peer_count') != 1:
             raise AcceptanceError('Host-loss needs an actually connected two-peer Client')
         identity = read_json(runner.manifests['host'])
-        framework = manifest_runtime_kind(identity) == FRAMEWORK_PLUGIN_KIND
         processes = processes_factory()
         control_root = manifest_root(runner.root, identity)
         with RuntimeLock(control_root):
@@ -85,12 +82,10 @@ def execute(args, runner_factory=AcceptanceRunner, processes_factory=WindowsProc
             remaining = deadline - now()
             if remaining <= 2:
                 break
-            calls = [{'tool': 'game_inspect_engine', 'arguments': {}}]
-            if framework:
-                calls.append({'tool': 'game_read_native_lobby', 'arguments': {}})
+            calls = [{'tool': 'game_inspect_engine', 'arguments': {}}, {'tool': 'game_read_native_lobby', 'arguments': {}}]
             receipt = runner.job('host-loss-client-' + str(poll), 'client-1', calls, remaining=remaining)
             last = extract_result(receipt, 'game_inspect_engine')
-            lobby = extract_result(receipt, 'game_read_native_lobby') if framework else None
+            lobby = extract_result(receipt, 'game_read_native_lobby')
             if ended(last, lobby):
                 runner.checked('client-visible-session-ended', {'before': before, 'after': last, 'native_lobby': lobby})
                 runner.capture('client-1')

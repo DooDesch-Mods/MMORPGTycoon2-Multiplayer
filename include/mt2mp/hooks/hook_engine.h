@@ -31,7 +31,6 @@ bool disable_all();
 
 // Install specific hook groups
 bool install_renderer_hooks();
-bool install_input_hooks();
 bool install_edit_manager_hooks();
 bool install_game_hooks();
 bool install_save_hooks();

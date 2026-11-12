@@ -24,7 +24,7 @@ class VortexPackageTests(unittest.TestCase):
         self.build = self.root / "build"
         self.build.mkdir()
         self.sdk = self.root / "sdk"
-        for relative in ("LICENSE.md", "THIRD_PARTY_NOTICES.md", "include/vendor/imgui/LICENSE.txt",
+        for relative in ("LICENSE.md", "THIRD_PARTY_NOTICES.md",
                          "sdk/third_party/vendor/minhook/LICENSE.txt", "sdk/third_party/vendor/nlohmann/LICENSE.MIT",
                          "sdk/third_party/vendor/SDL3/LICENSE.txt"):
             file = self.root / relative
@@ -76,7 +76,7 @@ class VortexPackageTests(unittest.TestCase):
     def test_root_layout_and_exact_archive_readback(self):
         entries, metadata = self.collect()
         expected = {"mod.json", "MT2MultiplayerPlugin.dll", "README.md", "LICENSE.md",
-                    "THIRD_PARTY_NOTICES.md", "licenses/MinHook.txt", "licenses/DearImGui.txt",
+                    "THIRD_PARTY_NOTICES.md", "licenses/MinHook.txt",
                     "licenses/nlohmann-json.txt", "licenses/SDL3.txt", "assets/multiplayer.png", "package.json"}
         self.assertEqual(set(entries), expected)
         self.assertEqual(set(metadata["files"]), expected - {"package.json"})

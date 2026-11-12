@@ -3,7 +3,6 @@
 | Component | Included material | License and retained notice |
 | --- | --- | --- |
 | MinHook 1.3.3 | Required C sources, headers and CMake files, taken from the pinned Framework SDK | BSD-style notices, including Hacker Disassembler Engine: Framework SDK `third_party/vendor/minhook/LICENSE.txt` |
-| Dear ImGui | Core C++ files and SDL3/OpenGL3 backends | MIT: `include/vendor/imgui/LICENSE.txt`; embedded imstb notices remain in their headers |
 | nlohmann/json 3.12.0 | `json.hpp` from the pinned Framework SDK | MIT: Framework SDK `third_party/vendor/nlohmann/LICENSE.MIT`; SPDX/copyright in the header retained |
 | SDL 3 | Headers and import library from the pinned Framework SDK | zlib: Framework SDK `third_party/vendor/SDL3/LICENSE.txt` and header notices |
 

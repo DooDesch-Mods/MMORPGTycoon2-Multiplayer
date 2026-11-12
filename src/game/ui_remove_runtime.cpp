@@ -23,7 +23,6 @@
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_engine.h"
 #include "mt2mp/net/session_wire.h"
-#include "mt2mp/overlay/notification_overlay.h"
 #include <Windows.h>
 #include <bcrypt.h>
 #include "mt2mp/hooks/minhook_backend.h"
@@ -216,9 +215,8 @@ public:
         else if(std::string_view(level)=="warn")LOG_WARN("[UIRemove] {}: {}",operation,error);
         else LOG_INFO("[UIRemove] {}: {}",operation,error);
     }
-    void show_rejection(const std::string& error)noexcept override {
-        overlay::NotificationOverlay::instance().show("Entfernen abgelehnt: "+error,overlay::NotificationType::Error,10.0f);
-    }
+    // Capture logs the cause before this call; the plugin has no in-game notice for it.
+    void show_rejection(const std::string&)noexcept override {}
 };
 struct Runtime {
     Services services;ui::Capture capture{services};ui::Publication publication;

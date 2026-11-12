@@ -23,7 +23,7 @@ JSON_SHARING_WAIT_SECONDS = 0.25
 JSON_SHARING_POLL_SECONDS = 0.01
 STATUS_PUBLICATION_WAIT_SECONDS = 0.25
 STATUS_PUBLICATION_POLL_SECONDS = 0.01
-OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot", "capture_frame", "set_time_scale", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "probe_building_placement", "place_test_building", "purchase_test_region", "focus_test_camera", "read_subscriber_needs"}
+OPS = {"status", "inspect_engine", "capture_snapshot", "capture_local_snapshot", "capture_frame", "set_time_scale", "load_snapshot", "execute_action", "create_test_world", "exit_game", "dismiss_crash_report", "probe_building_placement", "place_test_building", "purchase_test_region", "focus_test_camera", "read_subscriber_needs"}
 OPS.add("append_subscriber_record_probe")
 OPS.add("insert_marketing_record_probe")
 OPS.add("read_subscriber_weapon")
@@ -31,7 +31,7 @@ OPS.add("read_toon_motion_trace")
 OPS.add("native_periodic_countdown")
 OPS.add("read_vip_alert_owners")
 OPS.add("resync_world")
-MUTATIONS = {"native_gm_policy_ui", "set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "toggle_overlay", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
+MUTATIONS = {"native_gm_policy_ui", "set_time_scale", "capture_local_snapshot", "load_snapshot", "execute_action", "create_test_world", "exit_game", "dismiss_crash_report", "place_test_building", "purchase_test_region", "focus_test_camera"}
 MUTATIONS.add("append_subscriber_record_probe")
 MUTATIONS.add("resync_world")
 MUTATIONS.add("native_periodic_countdown")
@@ -132,8 +132,6 @@ MUTATIONS.update({"arm_subscriber_needs", "apply_subscriber_needs", "disarm_subs
 OPS.update({"read_native_lobby", "native_lobby_button"})
 OPS.update({"read_chat", "send_chat"})
 MUTATIONS.add("send_chat")
-OPS.update({"read_chat_ui", "native_chat_ui_key", "native_chat_ui_text"})
-MUTATIONS.update({"native_chat_ui_key", "native_chat_ui_text"})
 OPS.update({"read_native_loans", "native_take_loan_fixture", "native_loan_payment"})
 OPS.update({"read_bug_c_policy", "native_bug_c_policy"})
 MUTATIONS.add("native_bug_c_policy")
