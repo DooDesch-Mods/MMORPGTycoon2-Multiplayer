@@ -863,6 +863,12 @@ static void respond(const std::filesystem::path& dir,const json& response);
 #ifdef MT2MP_DIAGNOSTICS
 static json status(bool inspect_native_economy=true);
 #endif
+static std::string physfs_write_dir() {
+    using GetWriteDir=const char*(*)();
+    auto physfs=GetModuleHandleA("libphysfs.dll");
+    auto getter=physfs?reinterpret_cast<GetWriteDir>(GetProcAddress(physfs,"PHYSFS_getWriteDir")):nullptr;
+    return getter&&getter()?getter():"";
+}
 #include "ordered_client_save.inc"
 static uint64_t positive_integer(const json& value,const char* name) {
     if(!value.is_number_integer()||(value.is_number_unsigned()?value.get<uint64_t>()==0:value.get<int64_t>()<=0))
@@ -1127,12 +1133,6 @@ bool retire(const void* owner,std::string& error) {
 }
 
 static std::string env(const char* name) { char value[32768]; DWORD n=GetEnvironmentVariableA(name,value,sizeof(value)); return n&&n<sizeof(value)?std::string(value,n):""; }
-static std::string physfs_write_dir() {
-    using GetWriteDir=const char*(*)();
-    auto physfs=GetModuleHandleA("libphysfs.dll");
-    auto getter=physfs?reinterpret_cast<GetWriteDir>(GetProcAddress(physfs,"PHYSFS_getWriteDir")):nullptr;
-    return getter&&getter()?getter():"";
-}
 static void init_paths() {
     auto& cfg=Config::instance();
     framework_runtime::configure();
