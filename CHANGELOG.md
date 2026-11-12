@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-beta.31
+
+### Changed
+
+- Requires MT2 Mod Framework Runtime 0.6.0. Update the Runtime before this release; older Runtimes do not load it.
+- Remove the unused in-game overlay and the development diagnostics from the plugin. Gameplay is unchanged.
+
+Both players need Early Beta 31 and MT2 Mod Framework Runtime 0.6.0. Close the game, update both mods in Vortex and deploy before starting through Steam.
+
+This release was checked for loading in game with Framework Runtime 0.6.0. Two-player sessions were not retested for this release.
+
 ## 0.1.0-beta.30
 
 ### Added
