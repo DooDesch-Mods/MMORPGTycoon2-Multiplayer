@@ -10,14 +10,10 @@ uint64_t captures=0,submitted=0,rejected=0;std::string cause;json last_source_re
 void reject(const std::string& e){++rejected;if(cause!=e){cause=e;LOG_ERROR("[Modular] {}",e);}}
 bool code(Runtime& r,std::string& e){for(const auto& guard:modular_code::guards){std::vector<unsigned char> bytes(guard.bytes);if(!r.memory.read(r.image+guard.rva,bytes.data(),bytes.size(),e))return false;
     const auto owner=std::find_if(route_owners.begin(),route_owners.end(),[&](const auto& row){return row.entry==r.image+guard.rva&&row.trampoline;});if(owner!=route_owners.end()){auto copy=[&](uintptr_t p,void* out,size_t count,std::string& why){return r.memory.read(p,out,count,why);};auto hash=[](const auto& value){return mt2mp::sha256(value);};if(!release_ui_owner::verify(*owner,copy,hash,guard.sha,e)){e="Modular owned route RVA="+std::to_string(guard.rva)+": "+e;return false;}
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         MT2FW_MT2_RouteReceipt receipt{};auto& backend=hooks::framework::process_backend();if(!backend.read_route(reinterpret_cast<void*>(owner->entry),receipt)||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.entry!=owner->entry||receipt.detour!=owner->detour||receipt.trampoline!=owner->trampoline||receipt.generation!=owner->generation)return q::fail(e,"Modular current named route owner/generation differs: "+backend.error());
-#endif
         continue;}
     if(!std::memcmp(bytes.data(),guard.original,bytes.size()))continue;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(hooks::framework::verify_code(r.image+guard.rva,guard.original,guard.bytes,e))continue;
-#endif
     return q::fail(e,e.empty()?"Modular original complete native body differs RVA="+std::to_string(guard.rva):e);
     }return true;}
 bool call(Runtime& r,calls::Work& work,std::string& e){work.image=r.image;uint32_t exception=0;{live_host_state::apply_timing::PageReadScope boundary(live_host_state::apply_timing::PageBoundary::OriginalCall);exception=calls::invoke(work);}if(exception||work.cleanup||!work.returned)return q::fail(e,"Modular original operation="+std::to_string(int(work.op))+" SEH="+std::to_string(exception)+" cleanup="+std::to_string(work.cleanup)+"; no replay");return true;}

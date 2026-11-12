@@ -127,9 +127,7 @@
 #include "mt2mp/net/snapshot_sync.h"
 #include <Windows.h>
 #include "mt2mp/hooks/minhook_backend.h"
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/hooks/framework_backend.h"
-#endif
 #include <intrin.h>
 #include <bcrypt.h>
 #include <atomic>

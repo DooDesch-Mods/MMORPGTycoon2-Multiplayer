@@ -1,5 +1,4 @@
 #pragma once
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include <native_ownership.h>
 #include <cstdint>
 #include <string>
@@ -32,4 +31,3 @@ bool unbind(std::string& error);
 bool ready();
 State read();
 }
-#endif

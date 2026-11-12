@@ -51,7 +51,7 @@ def matching_cache():
         key, value = line.split('=', 1)
         cache[key.split(':', 1)[0]] = value
     expected = {'CMAKE_GENERATOR': 'Visual Studio 17 2022', 'CMAKE_GENERATOR_PLATFORM': 'x64',
-                'MT2MP_BUILD_TESTS': 'OFF' if args.native_only else 'ON'}
+                'MT2MP_BUILD_TESTS': 'OFF' if args.native_only else 'ON', 'MT2MP_DIAGNOSTICS': 'ON'}
     if any(cache.get(key) != value for key, value in expected.items()):
         return False
     if Path(cache.get('CMAKE_HOME_DIRECTORY', '')).resolve() != ROOT:
@@ -84,6 +84,7 @@ before = inputs(ROOT, sdk)
 commands = [
     [cmake, "-S", str(ROOT), "-B", str(build), "-G", "Visual Studio 17 2022", "-A", "x64",
      "-DMT2MP_BUILD_TESTS=" + ('OFF' if args.native_only else 'ON'),
+     "-DMT2MP_DIAGNOSTICS=ON",
      "-DMT2_FRAMEWORK_SDK=" + str(sdk)],
     [cmake, "--build", str(build), "--config", "Release", "--parallel", str(args.jobs),
      *(["--target", *args.target] if args.target else []),

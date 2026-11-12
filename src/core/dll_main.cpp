@@ -4,27 +4,21 @@
 #include "mt2mp/core/dll_main.h"
 #include "save_purpose.h"
 #include "countdown_owner.h"
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_runtime.h"
 #include "mt2mp/core/framework_input.h"
 #include "../game/coop_cursor/production.h"
-#endif
 #include "mt2mp/core/runtime_paths.h"
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_open_paths.h"
-#endif
 #include "mt2mp/core/game_update_pair.h"
 #include <array>
 #include <optional>
 #include <bit>
 #include "mt2mp/core/config.h"
-#include "mt2mp/core/installed_profile.h"
 #include "mt2mp/core/private_profile_paths.h"
 #include "mt2mp/net/steam_module.h"
 #include <map>
 #include "mt2mp/core/logger.h"
 #include "mt2mp/hooks/hook_engine.h"
-#include "mt2mp/hooks/hook_renderer.h"
 #include "mt2mp/hooks/hook_input.h"
 #include "mt2mp/hooks/hook_window.h"
 #include "mt2mp/net/local_session.h"
@@ -54,9 +48,7 @@
 #include "../game/selected_snapshot.h"
 #include "mt2mp/net/steam_matchmaking.h"
 #include <bcrypt.h>
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "../game/ordered_startup.h"
-#endif
 #include "mt2mp/net/snapshot_world_path.h"
 #include "mt2mp/net/snapshot_buffer.h"
 #include "mt2mp/net/software_sync.h"
@@ -142,8 +134,6 @@
 #include <psapi.h>
 #include <intrin.h>
 
-namespace mt2mp::hooks {void set_game_window_ptr(SDL_Window*);}
-namespace mt2mp::installed_profile {const std::filesystem::path& diagnostic_root();}
 namespace mt2mp {
 using json=nlohmann::json;
 static HMODULE g_module=nullptr;
@@ -160,7 +150,6 @@ static void subscriber_remove(void* manager,void* subscriber){game::subscriber_r
 static uintptr_t native_image_begin=0,native_image_end=0;
 static std::string runtime_root,run_id,last_request,last_mailbox_request;
 static std::string loaded_dll_sha256;
-static json installed_proof_receipt;
 static uint64_t completed_game_updates=0;
 static bool tutorial_movement_ready=false;
 static json tutorial_movement_receipt() {
@@ -336,7 +325,7 @@ static bool time_input_context(void*,game::native_time_input::Context& out,std::
     auto* window=hooks::get_game_window();
     out.epoch=runtime.epoch;out.revision=state.revision;out.peer=static_cast<uint32_t>(cfg.peer_id);
     out.owned_window=reinterpret_cast<uintptr_t>(window);out.window_id=window?SDL_GetWindowID(window):0;
-    out.owned_test=owned_native_profile&&(!cfg.installed_profile_verified||installed_profile::get()!=nullptr)&&!runtime_root.empty()&&!run_id.empty()&&!loaded_dll_sha256.empty();
+    out.owned_test=owned_native_profile&&!cfg.installed_profile_verified&&!runtime_root.empty()&&!run_id.empty()&&!loaded_dll_sha256.empty();
     out.world_owned=runtime.epoch!=0&&runtime.epoch==net::current_world_epoch()&&world.world_present&&
         world.active_mode_index==3&&world.in_game_state==4&&!world.quitting&&!world.title_transition_pending;
     out.time_active=runtime.phase==game::time_runtime::Phase::Active&&runtime.hook_mask==3&&
@@ -405,9 +394,7 @@ static void initialize_instance_hooks() {
                 throw std::runtime_error(instance_initialization_error);
             instance_hooks_ready=true;
             LOG_INFO("[DungeonInstance] Native hooks ready game_thread={}",GetCurrentThreadId());
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             LOG_INFO("[RUNTIME] REQUIRED_ENGINE_ROUTES_READY provider=Framework");
-#endif
         }catch(const std::exception& error) {
             instance_initialization_error=error.what();
             LOG_ERROR("[DungeonInstance] Required initialization failed cause={}; no automatic retry",instance_initialization_error);
@@ -873,7 +860,9 @@ static void ordinary_save_tick(){
 void ordered_snapshot_diagnostics(){diagnostics_tick();}
 static void write_json(const std::filesystem::path& path,const json& data);
 static void respond(const std::filesystem::path& dir,const json& response);
+#ifdef MT2MP_DIAGNOSTICS
 static json status(bool inspect_native_economy=true);
+#endif
 #include "ordered_client_save.inc"
 static uint64_t positive_integer(const json& value,const char* name) {
     if(!value.is_number_integer()||(value.is_number_unsigned()?value.get<uint64_t>()==0:value.get<int64_t>()<=0))
@@ -1001,7 +990,6 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
     game::npc_probe::tick_original_monster_zone_ui();
     game::npc_probe::monster_action_runtime::character_rename::tick_original_ui();
     game::ui_network_runtime::tick_original_input();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(game::ordered_startup::selected()) {
         std::string ordered_error;
         if(game::ordered_startup::retiring()){
@@ -1017,7 +1005,6 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         if(game::ordered_startup::started()){GameUpdateWorkScope traced(game_update_pair::Section::OrderedDiagnostics);diagnostics_tick();}
         frame.live.close();return;
     }
-#endif
     if(!native_lobby_attempted) {
         native_lobby_attempted=true;
         native_lobby_initialized=game::native_lobby::initialize(std::filesystem::path(Config::instance().game_dir)/"mt2mp_ui",reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr)),native_lobby_error);
@@ -1028,9 +1015,7 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         std::string observed;
         if(!game::native_lobby::tick(observed)&&native_lobby_error!=observed){native_lobby_error=observed;LOG_ERROR("[NativeLobby] Native menu tick failed: {}",observed);}
     }
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(game::ordered_startup::selected()){frame.live.close();return;}
-#endif
     if(owned_native_profile) {
         initialize_instance_hooks();
         if(Config::instance().local_test||net::session_wire::connected())initialize_time_hooks();
@@ -1038,14 +1023,10 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         {FrameTimingScope measured(FrameTimingPart::Transport);GameUpdateWorkScope traced(game_update_pair::Section::Transport);
         if(Config::instance().local_test)net::tick_local_session();
         else {std::string wire_error;if(!net::session_wire::tick(wire_error)&&!wire_error.empty()&&!wire_error.starts_with("info:"))native_lobby_error=wire_error;}
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         if(game::ordered_startup::selected()){frame.live.close();return;}
-#endif
         net::chat::Runtime::instance().tick();
         net::tick_snapshot_sync(); net::tick_diagnostic_placement(); net::tick_software_sync();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         game::coop_cursor::production::tick();
-#endif
         }
         // Drain queued action messages before evaluating their phase deadlines.
         {FrameTimingScope measured(FrameTimingPart::Typed);GameUpdateWorkScope traced(game_update_pair::Section::Typed);game::typed_action_runtime::tick_after_transport();}
@@ -1061,9 +1042,7 @@ static void game_update_after(GameUpdateFrame& frame,float dt) {
         game::native_free_diagnostics::drain_logs();}
         {FrameTimingScope measured(FrameTimingPart::Diagnostics);GameUpdateWorkScope traced(game_update_pair::Section::Diagnostics);diagnostics_tick();}
         frame.live.close();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         if(game::ordered_startup::selected())return;
-#endif
         if(!game::lobby_prepare::leaving())game::session_reload::tick();
         std::string lobby_error;
         {FrameTimingScope measured(FrameTimingPart::Prepare);GameUpdateWorkScope traced(game_update_pair::Section::Prepare);if((game::lobby_prepare::leaving()||!game::session_reload::busy())&&!game::lobby_prepare::tick(lobby_error))native_lobby_error=lobby_error;}
@@ -1148,39 +1127,18 @@ bool retire(const void* owner,std::string& error) {
 }
 
 static std::string env(const char* name) { char value[32768]; DWORD n=GetEnvironmentVariableA(name,value,sizeof(value)); return n&&n<sizeof(value)?std::string(value,n):""; }
+static std::string physfs_write_dir() {
+    using GetWriteDir=const char*(*)();
+    auto physfs=GetModuleHandleA("libphysfs.dll");
+    auto getter=physfs?reinterpret_cast<GetWriteDir>(GetProcAddress(physfs,"PHYSFS_getWriteDir")):nullptr;
+    return getter&&getter()?getter():"";
+}
 static void init_paths() {
     auto& cfg=Config::instance();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     framework_runtime::configure();
     runtime_root=cfg.runtime_root;run_id=cfg.run_id;owned_native_profile=true;
-#else
-    if(const auto* installed=installed_profile::get()){
-        cfg.game_dir=installed->game_dir.string();cfg.user_data_dir=installed->user_data_dir.string();
-        runtime_root=installed->runtime_root.string();run_id=installed->run_id;
-        cfg.installed_profile_verified=true;cfg.diagnostic_mailbox_enabled=!installed_profile::diagnostic_root().empty();cfg.local_test=false;
-        cfg.original_steam_dll=(installed->game_dir/L"steam_api64.dll").string();
-        cfg.log_file=(installed->runtime_root/L"mt2mp.log").string();owned_native_profile=true;
-    }else{
-        char path[32768];const auto length=GetModuleFileNameA(nullptr,path,sizeof(path));
-        if(!length||length>=sizeof(path))throw std::runtime_error("GetModuleFileName failed or truncated");
-        cfg.game_dir=std::filesystem::path(path).parent_path().string();
-        cfg.log_file=cfg.game_dir+"/mt2mp.log";cfg.original_steam_dll=cfg.game_dir+"/steam_api64_original.dll";
-        cfg.user_data_dir=env("MT2MP_TEST_ROOT");cfg.local_test=!cfg.user_data_dir.empty();
-        if(cfg.local_test){
-            runtime_root=env("MT2MP_RUNTIME_ROOT");run_id=env("MT2MP_RUN_ID");
-            cfg.peer_id=std::stoull(env("MT2MP_PEER_ID"));cfg.session_id=std::stoull(env("MT2MP_SESSION_ID"));
-            cfg.session_token=env("MT2MP_SESSION_TOKEN");cfg.is_host=cfg.peer_id==1;
-            auto control=std::stoul(env("MT2MP_CONTROL_PORT"));
-            if(cfg.peer_id<1||cfg.peer_id>4||control<1||control>65535||runtime_root.empty()||run_id.empty())throw std::runtime_error("invalid local runtime configuration");
-            cfg.sidecar_control_port=uint16_t(control);
-        }
-        owned_native_profile=cfg.local_test;cfg.diagnostic_mailbox_enabled=owned_native_profile;
-        if(owned_native_profile&&env("MT2MP_TRANSPORT")=="steam")cfg.local_test=false;
-    }
-#endif
     cfg.runtime_root=runtime_root;cfg.run_id=run_id;
     game::lobby_operations::configure(run_id,diagnostic_executor_idle);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     game::lobby_prepare::configure_ordered_entry([](const std::string& file,std::string& error){
         try{
             if(!engine_thread||engine_thread!=GetCurrentThreadId()||!native_image_begin){error="public ordered entry requires bound native game thread/image";return false;}
@@ -1188,7 +1146,7 @@ static void init_paths() {
             if(!framework_runtime::ordered_services(steps,patches,error))return false;
             std::filesystem::path write;std::string id;
             if(!file.empty()){
-                const auto actual_root=status(false).at("write_dir").get<std::string>();
+                const auto actual_root=physfs_write_dir();
                 write=framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),actual_root.c_str());
                 std::array<unsigned char,16> bytes{};
                 const auto result=BCryptGenRandom(nullptr,bytes.data(),ULONG(bytes.size()),BCRYPT_USE_SYSTEM_PREFERRED_RNG);
@@ -1208,7 +1166,6 @@ static void init_paths() {
         }catch(const std::exception& cause){error=std::string("public ordered world selection failed: ")+cause.what();return false;}
     });
     net::configure_ordered_client_entry(&game::lobby_prepare::admit_ordered_client);
-#endif
 }
 static void write_json(const std::filesystem::path& path,const json& data) {
     auto temporary=path; temporary+=".tmp";
@@ -1219,12 +1176,18 @@ static void write_json(const std::filesystem::path& path,const json& data) {
 }
 static void respond(const std::filesystem::path& dir,const json& response) {
     if(game::lobby_operations::receive(response)) {last_request=response.at("id").get<std::string>();return;}
+#ifdef MT2MP_DIAGNOSTICS
     deferred_response=response;
     last_request=response.at("id").get<std::string>();
     write_json(dir/"status.json",status());
     write_json(dir/"response.json",response);
     deferred_response=nullptr;
+#else
+    last_request=response.at("id").get<std::string>();
+    LOG_WARN("[NativeLobby] Operation response has no waiting owner id={}",last_request);
+#endif
 }
+#ifdef MT2MP_DIAGNOSTICS
 static json read_request(const std::filesystem::path& path) {
     HANDLE file=CreateFileW(path.c_str(),GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE|FILE_SHARE_DELETE,nullptr,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
     if(file==INVALID_HANDLE_VALUE) throw std::runtime_error("open request failed Win32="+std::to_string(GetLastError()));
@@ -1237,24 +1200,16 @@ static json read_request(const std::filesystem::path& path) {
     if(cause||read!=bytes.size()) throw std::runtime_error("request read incomplete bytes="+std::to_string(read)+" required="+std::to_string(bytes.size())+" Win32="+std::to_string(cause));
     return json::parse(bytes);
 }
+#endif
+#ifdef MT2MP_DIAGNOSTICS
 static json status(bool inspect_native_economy) {
     auto& cfg=Config::instance();
-    using GetWriteDir=const char*(*)();
-    auto physfs=GetModuleHandleA("libphysfs.dll");
-    auto getter=physfs?reinterpret_cast<GetWriteDir>(GetProcAddress(physfs,"PHYSFS_getWriteDir")):nullptr;
-    std::string write_dir=getter&&getter()?getter():"";
+    std::string write_dir=physfs_write_dir();
     game::native::WorldStatus world; std::string world_error;
     bool world_status_valid=game::native::read_world_status(world,world_error);
     auto capabilities=game::native::capabilities();
-    const auto presents=hooks::render_present_snapshot();
     json result={{"schema_version",1},{"run_id",run_id},{"pid",GetCurrentProcessId()},{"frame_timing",frame_timing_status()},
-        {"render_presents",{{"schema",1},{"unit","nanoseconds"},{"completed",presents.completed},
-            {"sampled_monotonic_ns",presents.sampled_monotonic_ns},
-            {"last_completed_monotonic_ns",presents.last_completed_monotonic_ns},
-            {"window_identity",presents.window_identity},
-            {"overlay_calls",presents.overlay_calls},{"overlay_total_ns",presents.overlay_total_ns},
-            {"swap_returns",presents.swap_returns},{"swap_total_ns",presents.swap_total_ns},
-            {"swap_failed",presents.swap_failed}}},
+        {"render_presents",{{"available",false},{"cause","Presentation belongs to Framework; use its profiler"}}},
         {"game_thread_ready",engine_thread!=0},{"game_thread_id",engine_thread},{"render_thread_id",render_thread},{"peer_id",cfg.peer_id},
         {"session_connected",net::session_wire::connected()},{"peer_count",net::session_wire::peers()},
         {"session_status",net::local_session_status()},{"write_dir",write_dir},
@@ -1264,8 +1219,6 @@ static json status(bool inspect_native_economy) {
         {"placement_status",net::diagnostic_placement_status()},
         {"world_ready",false},{"blocker","Engine-Replikation noch nicht bewiesen"},
         {"capabilities",{{"status",true},{"inspect_engine",true},{"capture_snapshot",capabilities.snapshot_request},{"set_time_scale",capabilities.clock},{"load_snapshot",capabilities.load_request},{"execute_action",capabilities.action_replay},{"probe_building_placement",capabilities.clock},{"place_test_building",capabilities.clock&&net::session_wire::connected()&&net::current_world_epoch()!=0},{"capture_frame",render_thread!=0},{"create_test_world",world_status_valid&&world.active_mode_index==2&&!world.title_transition_pending},{"dismiss_crash_report",world_status_valid&&world.crash_report_active&&!world.crash_report_dismiss_pending},{"resync_world",net::session_wire::connected()&&!game::session_reload::busy()}}}};
-    if(!installed_proof_receipt.is_null())result["installed_proof"]=installed_proof_receipt;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     result["runtime_kind"]="framework-plugin";
     result["capabilities"]["select_ordered_world"]=capabilities.load_request&&net::session_wire::connected()&&!game::ordered_startup::selected();
     result["capabilities"]["read_ordered_world"]=true;
@@ -1280,9 +1233,6 @@ static json status(bool inspect_native_economy) {
     result["ordered_snapshot"]=game::typed_action_runtime::ordered_snapshot_status();
     result["framework_profile"]=private_profile::utf8(framework_runtime::paths().profile);
     result["installed_binary_sha256"]=framework_runtime::modules();
-    result["render_presents"]["available"]=false;
-    result["render_presents"]["cause"]="Presentation belongs to Framework; use its profiler";
-#endif
     result["capabilities"]["read_chat"]=true;
     result["capabilities"]["send_chat"]=net::chat::Runtime::instance().snapshot().connected;
     result["in_game"]=game::native::in_game();
@@ -1657,12 +1607,10 @@ static json status(bool inspect_native_economy) {
         }
         result["native_open_origin"]=std::move(opened);
     }
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     const auto input=framework_input::read();
     result["framework_input"]={{"subscribed",input.subscribed},{"healthy",input.healthy},{"thread",input.owner_thread},
         {"received",input.received},{"forwarded",input.forwarded},{"rejected",input.rejected},{"error",input.error}};
     if(!framework_input::ready())for(const char* name:{"native_time_key","read_time_input","tutorial_movement","tutorial_movement_complete","read_tutorial_movement","tutorial_camera_complete","read_tutorial_camera","tutorial_movement_focus","read_tutorial_movement_focus"})result["capabilities"][name]=false;
-#endif
     return result;
 }
 static json chat_status() {
@@ -1678,12 +1626,11 @@ static json chat_status() {
     }
     return {{"connected",snapshot.connected},{"session",snapshot.session},{"conversation",snapshot.conversation},{"retired",snapshot.retired},{"local_peer",snapshot.local_peer},{"entries",entries}};
 }
+#endif
 static void diagnostics_tick() {
     if(runtime_root.empty()) return;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     // Installed lobby loads and captures share this executor with optional diagnostics.
     if(!Config::instance().diagnostic_mailbox_enabled&&!game::lobby_operations::pending()&&ordinary_save_id.empty())return;
-#endif
     static auto last=std::chrono::steady_clock::time_point{};
     auto now=std::chrono::steady_clock::now();
     if(now-last<std::chrono::milliseconds(100)) return; last=now;
@@ -1704,6 +1651,7 @@ static void diagnostics_tick() {
         } recovery;
         auto dir=runtime_paths::diagnostics(runtime_root);
         static auto last_status=std::chrono::steady_clock::time_point{};
+#ifdef MT2MP_DIAGNOSTICS
         if(Config::instance().diagnostic_mailbox_enabled&&now-last_status>=std::chrono::seconds(1)) { write_json(dir/"status.json",status(false)); last_status=now; }
         if(!deferred_response.is_null()) { write_json(dir/"response.json",deferred_response); deferred_response=nullptr; return; }
         if(!pending_frame.is_null()) return;
@@ -1723,6 +1671,7 @@ static void diagnostics_tick() {
             }
             return;
         }
+#endif
         if(!pending_load.is_null()) {
             bool active=game::native::in_game();
             game::native::WorldStatus world; std::string world_error;
@@ -1751,7 +1700,10 @@ static void diagnostics_tick() {
                     }
                     game::normal_load_identity::Status identity; std::string identity_error;
                     if(!game::normal_load_identity::finalize(identity,identity_error)) LOG_WARN("[MCP] Loaded world identity observation incomplete snapshot={}: {}",pending_load.at("snapshot_id").get<std::string>(),identity_error);
-                    response["result"]={{"state","snapshot_world_active"},{"snapshot_id",pending_load.at("snapshot_id")},{"engine",status()}};
+                    response["result"]={{"state","snapshot_world_active"},{"snapshot_id",pending_load.at("snapshot_id")}};
+#ifdef MT2MP_DIAGNOSTICS
+                    response["result"]["engine"]=status();
+#endif
                 }
                 else response["error"]={{"code","SNAPSHOT_LOAD_TIMEOUT"},{"message",timeout_cause}};
                 load_watch.finish(now);
@@ -1760,6 +1712,7 @@ static void diagnostics_tick() {
             }
             return;
         }
+#ifdef MT2MP_DIAGNOSTICS
         if(!pending_placement.is_null()) {
             bool complete=false; json result; std::string error;
             bool success=net::poll_diagnostic_placement(pending_placement.at("id"),complete,result,error);
@@ -1805,6 +1758,7 @@ static void diagnostics_tick() {
             }
             return;
         }
+#endif
         if(!pending_ordered_snapshot.empty()){
             const auto barrier=game::typed_action_runtime::ordered_snapshot_status();
             if(barrier.value("phase",std::string())=="failed"||!barrier.value("runtime_failure",std::string()).empty()){
@@ -1932,12 +1886,18 @@ static void diagnostics_tick() {
             }else if(!complete_snapshot(completion_error))throw std::runtime_error(completion_error);
             if(!completion_pass_finished||ordinary_save_id.empty())return;
         }
+#ifdef MT2MP_DIAGNOSTICS
         auto request_path=dir/"request.json";
+#endif
         json request;
         const bool internal_request=game::lobby_operations::take_request(request);
         if(!internal_request) {
+#ifdef MT2MP_DIAGNOSTICS
             if(!Config::instance().diagnostic_mailbox_enabled||(game::lobby_operations::pending()&&ordinary_save_id.empty())||!std::filesystem::exists(request_path))return;
             request=read_request(request_path);
+#else
+            return;
+#endif
         }
         auto id=request.at("id").get<std::string>(); if(!internal_request&&id==last_mailbox_request) return;
         if(request.at("run_id")!=run_id) { if(!internal_request)last_mailbox_request=id; last_request=id; LOG_INFO("[MCP] Previous-run request skipped: id={}",id); return; }
@@ -1962,6 +1922,7 @@ static void diagnostics_tick() {
         if(!internal_request)last_mailbox_request=id;
         auto operation=request.at("op").get<std::string>();
         json response={{"schema_version",1},{"id",id},{"run_id",run_id}};
+#ifdef MT2MP_DIAGNOSTICS
         if(game::tutorial_movement::camera_unresolved()&&operation!="read_tutorial_camera"&&operation!="read_tutorial_progress"&&operation!="status"&&operation!="capture_frame")
             throw std::runtime_error("tutorial_camera_input_unresolved; competing operation rejected");
         if(game::tutorial_movement::receipt().down_attempted&&!game::tutorial_movement::receipt().axis_released&&
@@ -2953,7 +2914,9 @@ static void diagnostics_tick() {
                 throw std::runtime_error("Original Save command lacks exact retained native request: "+retained.dump());
             response["ok"]=true;response["result"]={{"state","original-save-request-retained"},{"request",retained}};
         }
-        else if(operation=="capture_snapshot"||operation=="capture_local_snapshot"||operation=="capture_recovery_snapshot"||operation=="save_native") {
+        else
+#endif
+        if(operation=="capture_snapshot"||operation=="capture_local_snapshot"||operation=="capture_recovery_snapshot"||operation=="save_native") {
             const bool ordinary=operation=="save_native";
             const bool recovery_capture=operation=="capture_recovery_snapshot";
             if(recovery_capture&&(!internal_request||!Config::instance().is_host||
@@ -2978,25 +2941,16 @@ static void diagnostics_tick() {
             auto capture=[id,dir,distribute,ordinary,asynchronous,original,recovery_capture](std::string& error)->bool {
                 bool snapshot_observer_begun=false,snapshot_network_observer_begun=false,native_async_attempted=false;json response;
                 try{
-            auto current=status();
-            auto actual_root=current.at("write_dir").get<std::string>();
+            auto actual_root=physfs_write_dir();
             if(actual_root.empty()) throw std::runtime_error("PHYSFS write directory unavailable");
             std::string world_name;
             if(!game::native::read_active_world_folder(world_name,error)) throw std::runtime_error(error);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             snapshot_path=framework_open_paths::snapshot(framework_open_paths::absolute(runtime_root),actual_root.c_str(),world_name,id,true);
-#else
-            snapshot_path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,id);
-#endif
             std::string native_target;
             if(ordinary){
                 if(!game::native::original_save_target(original.at("mode").get<uintptr_t>(),original.at("filename").get<std::string>(),
                     original.at("kind").get<uint32_t>(),original.at("option").get<bool>(),native_target,error))throw std::runtime_error(error);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
                 snapshot_path=net::snapshot_world_path::physical_original(framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),actual_root.c_str()),native_target);
-#else
-                snapshot_path=net::snapshot_world_path::physical_original(std::filesystem::path(actual_root),native_target);
-#endif
             }else std::filesystem::create_directories(snapshot_path.parent_path());
             if(recovery_capture){
                 net::OrderedSnapshotIdentity proof;
@@ -3082,7 +3036,7 @@ static void diagnostics_tick() {
             if(capture(error)){last_request=id;return;}
             response["ok"]=false;response["error"]={{"code","ENGINE_REJECTED"},{"message",error}};
         }
-#ifdef MT2MP_FRAMEWORK_PLUGIN
+#ifdef MT2MP_DIAGNOSTICS
         else if(operation=="select_ordered_world"||operation=="read_ordered_world"||operation=="prepare_ordered_session") {
             if(internal_request)throw std::runtime_error("Private ordered startup requires the owned diagnostic mailbox");
             const auto& args=request.at("args");
@@ -3122,7 +3076,7 @@ static void diagnostics_tick() {
                 throw std::runtime_error("selected snapshot import requires internal Host lobby request");
             auto snapshot_id=selected?id:load_args.at("snapshot_id").get<std::string>();
             if(snapshot_id.size()!=36||snapshot_id.find_first_not_of("0123456789abcdef-")!=std::string::npos) throw std::runtime_error("invalid snapshot id");
-            auto actual_root=status().at("write_dir").get<std::string>();
+            auto actual_root=physfs_write_dir();
             json record;
             if(selected) {
                 game::native::WorldStatus world;std::string error;
@@ -3131,11 +3085,7 @@ static void diagnostics_tick() {
                     throw std::runtime_error("selected snapshot import requires Title active_mode="+std::to_string(world.active_mode_index)+" required=2");
                 if(world.title_transition_pending)
                     throw std::runtime_error("selected snapshot import requires idle Title title_transition_pending="+std::to_string(world.title_transition_pending)+" required=0");
-#ifdef MT2MP_FRAMEWORK_PLUGIN
                 const auto write=framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),actual_root.c_str());
-#else
-                const auto write=std::filesystem::weakly_canonical(actual_root);
-#endif
                 record=game::selected_snapshot::copy(write,load_args.at("selected_file").get<std::string>(),snapshot_id,
                     net::snapshot_max_bytes,net::hash_snapshot_file);
                 write_json(dir/("snapshot-"+snapshot_id+".json"),record);
@@ -3144,11 +3094,7 @@ static void diagnostics_tick() {
                 std::ifstream stream(manifest);stream>>record;
             }
             const auto world_name=net::snapshot_world_path::from_manifest(record);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             auto path=framework_open_paths::snapshot(framework_open_paths::absolute(runtime_root),actual_root.c_str(),world_name,snapshot_id,false);
-#else
-            auto path=net::snapshot_world_path::physical(std::filesystem::path(actual_root),world_name,snapshot_id);
-#endif
             if(record.at("snapshot_id").get<std::string>()!=snapshot_id) throw std::runtime_error("local snapshot manifest UUID differs");
             if(record.contains("world_name")&&record.contains("path")&&std::filesystem::weakly_canonical(net::snapshot_world_path::utf8_path(record.at("path").get<std::string>()))!=std::filesystem::weakly_canonical(path)) throw std::runtime_error("local snapshot manifest path differs from owned world folder");
             const auto expected=record.at("bytes").get<uint64_t>();
@@ -3158,11 +3104,7 @@ static void diagnostics_tick() {
             if(!net::hash_snapshot_file(path,digest,length,error)) throw std::runtime_error("local snapshot hash failed: "+error);
             if(length!=expected||digest!=record.at("sha256").get<std::string>()) throw std::runtime_error("local snapshot incomplete or SHA256 differs");
             uint64_t origin_generation=0;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             if(!game::native_open_runtime::prepare(framework_open_paths::absolute(runtime_root),snapshot_id,digest,expected,origin_generation,error,world_name))
-#else
-            if(!game::native_open_runtime::prepare(runtime_root,snapshot_id,digest,expected,origin_generation,error,world_name))
-#endif
                 throw std::runtime_error("native snapshot origin preparation failed: "+error);
             try {
             if(!suspend_time("MCP verified local snapshot replaces world",error)) throw std::runtime_error("time authority retire before load failed: "+error);
@@ -3209,47 +3151,10 @@ static void diagnostics_tick() {
         }
     }
 }
-static void publish_installed_proof(){
-    const auto* profile=installed_profile::get();
-    const auto& proof=installed_profile::diagnostic_root();
-    if(!profile||proof.empty())return;
-    FILETIME creation{},exit{},kernel{},user{};
-    if(!GetProcessTimes(GetCurrentProcess(),&creation,&exit,&kernel,&user))throw std::runtime_error("drop-in proof process start query failed Win32="+std::to_string(GetLastError()));
-    const auto start=std::to_string((uint64_t(creation.dwHighDateTime)<<32)|creation.dwLowDateTime);
-    const auto exe=private_profile::module_file(nullptr);
-    if(!private_profile::equal(exe,proof/L"game/MT2.exe"))throw std::runtime_error("drop-in proof executable identity differs");
-    json modules=json::object();
-    const std::pair<const char*,HMODULE> actual[]={{"executable",GetModuleHandleW(nullptr)},
-        {"loader",GetModuleHandleW((profile->game_dir/L"WSOCK32.dll").c_str())},{"mod",g_module},{"steam",net::steam_module()}};
-    const std::map<std::string,std::filesystem::path> expected={{"executable",exe},{"loader",profile->game_dir/L"WSOCK32.dll"},
-        {"mod",profile->game_dir/L"MT2_Multiplayer.dll"},{"steam",profile->game_dir/L"steam_api64.dll"}};
-    for(const auto& [name,module]:actual){
-        if(!module)throw std::runtime_error("drop-in proof loaded module missing: "+std::string(name));
-        const auto path=private_profile::module_file(module);
-        if(!private_profile::equal(path,expected.at(name)))throw std::runtime_error("drop-in proof actual module path differs: "+std::string(name));
-        std::string hash,error;uint64_t bytes=0;
-        if(!net::hash_snapshot_file(path,hash,bytes,error)||!bytes)throw std::runtime_error("drop-in proof module hash failed: "+std::string(name)+" cause="+error);
-        modules[name]={{"path",path.string()},{"sha256",hash},{"bytes",bytes}};
-    }
-    installed_proof_receipt={{"acceptance_root",proof.string()},{"game_dir",profile->game_dir.string()},
-        {"runtime_root",profile->runtime_root.string()},{"user_data_dir",profile->user_data_dir.string()},
-        {"diagnostic_mailbox_enabled",Config::instance().diagnostic_mailbox_enabled},{"local_test",Config::instance().local_test},
-        {"isolation_flags",3},{"process_start_time",start},{"modules",modules}};
-    if(!Config::instance().diagnostic_mailbox_enabled||Config::instance().local_test)throw std::runtime_error("drop-in proof diagnostic policy differs");
-    json manifest={{"schema_version",1},{"profile","installed_dropin_proof"},{"run_id",run_id},{"pid",GetCurrentProcessId()},
-        {"process_start_time",start},{"runtime_root",profile->runtime_root.string()},{"executable_path",exe.string()},
-        {"owner",{{"kind","MPTest"},{"run_id",run_id}}},{"installed_proof",installed_proof_receipt}};
-    write_json(profile->runtime_root/L"instance.json",manifest);
-    LOG_INFO("[DropinProof] Owned installed manifest published root={} local_test=false",profile->runtime_root.string());
-}
 bool initialize(HMODULE module) {
     try {
         g_module=module; init_paths(); Logger::instance().init(
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             private_profile::utf8(framework_runtime::paths().data)
-#else
-            Config::instance().installed_profile_verified?runtime_root:Config::instance().game_dir
-#endif
         );
         if(owned_native_profile) {
             wchar_t dll_path[32768];
@@ -3264,9 +3169,6 @@ bool initialize(HMODULE module) {
         if(!hooks::init()) throw std::runtime_error("MinHook initialization failed");
         std::string native_error;
         if(!game::native::initialize(native_error)) throw std::runtime_error(native_error);
-#ifndef MT2MP_FRAMEWORK_PLUGIN
-        if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::GameUpdate),reinterpret_cast<void*>(&game_update),reinterpret_cast<void**>(&original_game_update))) throw std::runtime_error("native game Update hook failed");
-#endif
         if(owned_native_profile&&Config::instance().local_test&&!install_engine_timing_hooks(native_error))
             throw std::runtime_error(native_error);
         if(owned_native_profile) {
@@ -3281,11 +3183,7 @@ bool initialize(HMODULE module) {
             if(!game::render_pool_guard::initialize(native_image_begin,image_info.SizeOfImage,native_error))
                 throw std::runtime_error("native render pool guard initialization failed: "+native_error);
             if(!game::tutorial_replication::initialize(native_image_begin,native_error))throw std::runtime_error("tutorial initialization failed: "+native_error);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             if(!game::native_open_runtime::initialize(framework_open_paths::absolute(runtime_root),native_image_begin,native_error))
-#else
-            if(!game::native_open_runtime::initialize(runtime_root,native_image_begin,native_error))
-#endif
                 throw std::runtime_error("native snapshot origin initialization failed: "+native_error);
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::ClockUpdate),reinterpret_cast<void*>(&clock_update),reinterpret_cast<void**>(&original_clock_update))) throw std::runtime_error("native pending-load clock pause hook failed");
             if(!game::normal_load_identity::initialize(native_error)) throw std::runtime_error(native_error);
@@ -3352,15 +3250,6 @@ bool initialize(HMODULE module) {
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::SubscriberBrainTick),reinterpret_cast<void*>(&brain_tick),reinterpret_cast<void**>(&original_brain_tick))) throw std::runtime_error("native subscriber Brain Tick observation hook failed");
             if(!hooks::create_hook(game::native::entrypoint(game::native::EntryPoint::SubscriberUpdateNeeds),reinterpret_cast<void*>(&update_needs),reinterpret_cast<void**>(&original_update_needs))) throw std::runtime_error("native subscriber UpdateNeeds observation hook failed");
         }
-#ifndef MT2MP_FRAMEWORK_PLUGIN
-        if(!hooks::install_renderer_hooks()) throw std::runtime_error("SDL_GL_SwapWindow hook failed");
-        if(!hooks::install_window_hooks()) throw std::runtime_error("SDL3 window hooks failed");
-        hooks::set_render_callback([]() {
-            DWORD thread=GetCurrentThreadId();
-            if(!render_thread) { render_thread=thread; LOG_INFO("[RUNTIME] Game render thread={}",thread); }
-            capture_frame();
-        });
-#endif
         if(owned_native_profile) {
             net::initialize_snapshot_sync();
             net::initialize_software_sync();
@@ -3382,12 +3271,7 @@ bool initialize(HMODULE module) {
             game::subscriber_lifecycle_append::set_lookup_hook_ready(true);
             game::party_live_native::set_lookup_hook_ready(true);
         }
-        publish_installed_proof();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         LOG_INFO("[RUNTIME] ENGINE_ROUTES_INSTALLED provider=Framework; required Instance hooks pending bound GameUpdate");
-#else
-        LOG_INFO("[RUNTIME] REQUIRED_HOOKS_READY SDL3 input renderer window");
-#endif
         return true;
     } catch(const std::exception& error) { LOG_ERROR("[RUNTIME] Initialization failed: {}",error.what()); return false; }
     catch(...) { LOG_ERROR("[RUNTIME] Initialization failed: unknown exception"); return false; }
@@ -3410,29 +3294,13 @@ void shutdown() {
     game::building_capture_identity::cancel("runtime shutdown");
     game::network_identity::invalidate_world("runtime shutdown");
     game::normal_load_identity::shutdown();
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     LOG_INFO("[Framework] Owned routes disabled; original storage retained until process exit");
-#else
-    hooks::cleanup();
-#endif
     Logger::instance().shutdown();
 }
 HMODULE get_module_handle() { return g_module; }
 }
 
-#ifndef MT2MP_FRAMEWORK_PLUGIN
-extern "C" __declspec(dllexport) bool MT2MP_InitInstalled(HMODULE module,const mt2mp::installed_profile::Receipt* receipt) {
-    std::string error;
-    if(!receipt||!mt2mp::installed_profile::accept(*receipt,error))return false;
-    return mt2mp::initialize(module);
-}
-extern "C" __declspec(dllexport) bool MT2MP_Init(HMODULE module) { return mt2mp::initialize(module); }
-extern "C" __declspec(dllexport) void MT2MP_Shutdown() { mt2mp::shutdown(); }
-extern "C" __declspec(dllexport) void MT2MP_Tick() {}
 
-#endif
-
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 namespace mt2mp::framework_runtime {
 void render_capture(){
     const auto thread=GetCurrentThreadId();
@@ -3444,4 +3312,3 @@ void render_capture(){
     capture_frame();
 }
 }
-#endif

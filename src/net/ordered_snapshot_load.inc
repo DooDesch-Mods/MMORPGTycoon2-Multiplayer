@@ -193,11 +193,7 @@ static bool ordered_covered_same(const OrderedSnapshotIdentity& before,const MT2
 }
 static void ordered_export_covered(const OrderedSnapshotIdentity& proof,const std::string& digest,const json& details){
     try{
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         const auto runtime=framework_open_paths::absolute(Config::instance().runtime_root);
-#else
-        const auto runtime=std::filesystem::path(Config::instance().runtime_root);
-#endif
         const auto directory=runtime_paths::diagnostics(runtime);std::filesystem::create_directories(directory);
         const auto path=directory/("initial-world-"+proof.snapshot_uuid+"-"+std::to_string(proof.session)+"-"+std::to_string(proof.local_peer)+".json");
         std::ofstream stream(path,std::ios::binary|std::ios::trunc);

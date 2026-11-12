@@ -250,9 +250,7 @@ bool enable(std::string& e){
     if(installed)return fail(e,"Quest capture earlier installation failed: "+cause);installed=true;
     if(!codes(m,false,e))return false;
     const auto failure=[&](const char* step,MH_STATUS value){cause=std::string("Quest display ")+step+" status="+std::to_string(value);
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
         const auto& upstream=mt2mp::hooks::framework::process_backend().error();if(!upstream.empty())cause+=" cause="+upstream;
-#endif
         return fail(e,cause);};
     auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4db150),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
     if(result!=MH_OK||!original)return failure("CreateHook",result);

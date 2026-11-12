@@ -206,11 +206,7 @@ void reject(Runtime& r,const std::string& e){++r.rejected;if(r.cause!=e){r.cause
 uint32_t hire_afford(uintptr_t image,uintptr_t business,bool& affordable)noexcept{__try{affordable=reinterpret_cast<bool(*)(void*,int32_t)>(image+0x54d00)(reinterpret_cast<void*>(business),500);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t campaign_afford(uintptr_t image,uintptr_t business,int32_t amount,bool& affordable)noexcept{__try{affordable=reinterpret_cast<bool(*)(void*,int32_t)>(image+0x54d00)(reinterpret_cast<void*>(business),amount);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 std::string hook_cause(){
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     return hooks::framework::process_backend().error();
-#else
-    return {};
-#endif
 }
 bool capture(Runtime& r,void* receiver,const a::ManagementIntent& intent,uintptr_t expected_owner){
     std::string e;const auto controller=typed_action_runtime::controller_status();a::Context c;a::Binding b;bool ordered=false;

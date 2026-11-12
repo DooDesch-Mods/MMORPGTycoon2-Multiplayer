@@ -37,15 +37,11 @@ bool live_hooks(std::string& e){
         auto& hook=*pair.first;const auto target=reinterpret_cast<void*>(state.image+hook.rva);
         auto result=MH_CreateHook(target,pair.second,&hook.original);
         if(result!=MH_OK||!hook.original){std::string cause="Monster live hook prepare RVA="+std::to_string(hook.rva)+" status="+std::to_string(result);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             cause+=" original="+hooks::framework::process_backend().error();
-#endif
             return rejected(cause);}
         result=MH_EnableHook(target);
         if(result!=MH_OK){std::string cause="Monster live hook enable RVA="+std::to_string(hook.rva)+" status="+std::to_string(result);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             cause+=" original="+hooks::framework::process_backend().error();
-#endif
             return rejected(cause);}
         if(!m.copy(state.image+hook.rva,hook.entry.data(),hook.entry.size(),e)||
            !m.copy(uintptr_t(hook.original),hook.trampoline.data(),hook.trampoline.size(),e))return rejected(e);

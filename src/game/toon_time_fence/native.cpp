@@ -125,13 +125,11 @@ void update(uintptr_t toon,float dt){
 bool camera_gate_impl(std::string& error){
     std::lock_guard lock(installation);
     if(camera_ready){
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
         MT2FW_MT2_RouteReceipt camera_receipt{},travel_receipt{},attribute_receipt{};
         if(!hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3ea462),camera_receipt)||
            !hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3b7b37),travel_receipt)||
            !hooks::framework::process_backend().read_route(reinterpret_cast<void*>(image+0x3a0942),attribute_receipt))
             return fail(error,"Toon gate Framework ownership changed: "+hooks::framework::process_backend().error());
-#endif
         std::array<unsigned char,16> entry{},travel_entry{},attribute_entry{};std::array<unsigned char,64> trampoline{},travel_trampoline{},attribute_trampoline{};
         if(!memory.copy(image+0x3ea462,entry.data(),entry.size(),error)||
            !memory.copy(mt2mp_toon_gate_original,trampoline.data(),trampoline.size(),error)||

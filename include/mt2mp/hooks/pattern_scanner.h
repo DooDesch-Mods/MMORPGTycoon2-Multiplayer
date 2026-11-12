@@ -28,6 +28,16 @@ uintptr_t find_pattern(const std::string& pattern);
 // Find function by searching for a string reference in .rdata,
 // then finding the LEA instruction that references it,
 // then walking back to the function prologue.
+// Known anchors in MT2.exe (each string is referenced inside the named function):
+//   "= SHARD:"                              ShardManager::SetShard(this, const char* name)
+//   "set mode:"                             Game::SetMode
+//   ">> PAUSE"                              Clock::Pause
+//   "==> EDIT BEGINS:"                      EditManager::BeginEdit
+//   "!! MMO save:"                          ModeInGame::Save
+//   "Loading compressed binary save file"   ModeInGame::LoadBinary(this, const char* path)
+//   "LOAD BEGINS" / "LOAD ENDS"             ModeInGame load begin and end
+// Saves are written through libphysfs.dll (PHYSFS_openWrite/writeBytes/close) as zlib-compressed
+// "user/save/<GameName>/autosave.vrz" plus a ".meta.vrz" sidecar.
 uintptr_t find_function_by_string(const char* search_string);
 
 // Find the function prologue (push rbp / sub rsp) walking backwards from addr

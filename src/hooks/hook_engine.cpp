@@ -1,5 +1,4 @@
 #include "mt2mp/hooks/hook_engine.h"
-#include "mt2mp/hooks/pattern_scanner.h"
 #include "mt2mp/core/logger.h"
 #include "../game/object_identity/native_free_runtime/native_free_runtime.h"
 #include "../game/object_identity/remove_runtime/remove_runtime.h"
@@ -69,59 +68,6 @@ bool create_hook(void* target, void* detour, void** original) {
         return false;
     }
     g_hooks.push_back({target, detour, original, "unnamed", false});
-    return true;
-}
-
-bool create_hook_by_pattern(const std::string& pattern, void* detour, void** original, const char* name) {
-    uintptr_t addr = find_pattern(pattern);
-    if (!addr) {
-        LOG_ERROR("Pattern not found for hook: {}", name);
-        return false;
-    }
-    LOG_INFO("Hook '{}' pattern found at 0x{:X}", name, addr);
-
-    if (!create_hook(reinterpret_cast<void*>(addr), detour, original)) {
-        return false;
-    }
-    g_hooks.back().name = name;
-    return true;
-}
-
-bool create_hook_by_string(const char* search_string, void* detour, void** original, const char* name) {
-    uintptr_t addr = find_function_by_string(search_string);
-    if (!addr) {
-        LOG_ERROR("Function not found by string for hook: {} (string: \"{}\")", name, search_string);
-        return false;
-    }
-    LOG_INFO("Hook '{}' function found at 0x{:X}", name, addr);
-
-    if (!create_hook(reinterpret_cast<void*>(addr), detour, original)) {
-        return false;
-    }
-    g_hooks.back().name = name;
-    return true;
-}
-
-bool create_hook_by_import(const char* module_name, const char* func_name, void* detour, void** original) {
-    HMODULE mod = GetModuleHandleA(module_name);
-    if (!mod) {
-        LOG_ERROR("Module not found: {}", module_name);
-        return false;
-    }
-
-    void* target = reinterpret_cast<void*>(GetProcAddress(mod, func_name));
-    if (!target) {
-        LOG_ERROR("Function not found: {}!{}", module_name, func_name);
-        return false;
-    }
-
-    LOG_INFO("Import hook: {}!{} at 0x{:X}", module_name, func_name,
-        reinterpret_cast<uintptr_t>(target));
-
-    if (!create_hook(target, detour, original)) {
-        return false;
-    }
-    g_hooks.back().name = func_name;
     return true;
 }
 

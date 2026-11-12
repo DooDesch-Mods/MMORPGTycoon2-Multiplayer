@@ -61,19 +61,11 @@ bool current_capture(const Pending& saved,std::string& e){
     return capture_context(saved.snapshot,saved.binding,actual,e)&&(actual==saved.context||fail(e,"Ordered Quest captured Session changed"));
 }
 bool read_route(uintptr_t entry,MT2FW_MT2_RouteReceipt& route,std::string& e){
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
     auto& backend=mt2mp::hooks::framework::process_backend();
     if(!backend.read_route(reinterpret_cast<void*>(entry),route))return fail(e,backend.error());return true;
-#else
-    (void)entry;(void)route;return fail(e,"Quest list owned route requires the Framework backend");
-#endif
 }
 bool verify_code(uintptr_t entry,const void* bytes,size_t count,std::string& e){
-#if defined(MT2MP_FRAMEWORK_PLUGIN)
     return mt2mp::hooks::framework::process_backend().verify_code(entry,bytes,count,e);
-#else
-    (void)entry;(void)bytes;(void)count;return fail(e,"Quest list owned code verification requires Framework");
-#endif
 }
 bool checkbox_original(uintptr_t entry,std::string& bytes,std::string& e){
     if(entry!=state.image+0x6a1780||bytes.size()!=153)return fail(e,"Quest checkbox original body extent or entry differs");
@@ -393,9 +385,6 @@ bool enable(std::string& e){
         for(const auto& [id,op]:operations)if(!op.retired)return fail(e,"Quest list unretired action="+id);
         if(!verify_ui(guards::npc.rva,false,e)||!verify_ui(guards::selector.rva,true,e))return false;operations.clear();jobs.clear();cause.clear();return true;}
     if(installed)return fail(e,"Quest list earlier installation failed: "+cause);installed=true;
-#if !defined(MT2MP_FRAMEWORK_PLUGIN)
-    return fail(e,"Quest list normal capture requires exact Framework named routes");
-#else
     Memory m;if(!inner_codes(m,e)||!verify_ui(guards::npc.rva,false,e)||!verify_ui(guards::selector.rva,true,e))return false;
     const auto install=[&](uintptr_t rva,void* detour,Hook& hook){
         const auto entry=reinterpret_cast<void*>(state.image+rva);auto code=MH_CreateHook(entry,detour,reinterpret_cast<void**>(&hook.original));
@@ -406,7 +395,6 @@ bool enable(std::string& e){
     };
     if(!install(guards::npc.rva,reinterpret_cast<void*>(&npc_entry),npc_hook)||!install(guards::selector.rva,reinterpret_cast<void*>(&selector_entry),selector_hook)){
         cause=e;fault=true;return false;}ready=true;return true;
-#endif
 }
 void tick(){
     const auto controller=typed_action_runtime::controller_status();

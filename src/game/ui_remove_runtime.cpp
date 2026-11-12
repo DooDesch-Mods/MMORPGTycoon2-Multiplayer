@@ -33,9 +33,7 @@
 #include <charconv>
 #include <algorithm>
 #include <stdexcept>
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "mt2mp/core/framework_runtime.h"
-#endif
 
 namespace mt2mp::game::ui_remove_runtime {
 namespace {
@@ -70,7 +68,6 @@ ui::LocalBinding local_binding(const remove_diagnostics::LocalTarget& value) {
     return {value.manager,value.object,value.uid,value.world_epoch,value.world_generation,value.snapshot_id,value.record_key,
         value.normal_building,value.normal_scenery};
 }
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 struct FrameworkRemoveInvocation {
     MT2FW_MT2_RemoveCall call{};
     MT2FW_MT2_RemoveNext next=nullptr;
@@ -78,16 +75,13 @@ struct FrameworkRemoveInvocation {
     FrameworkRemoveInvocation* previous=nullptr;
     bool attempted=false,returned=false;
 };
-#endif
 struct Runtime;
 class Services final:public ui::Services {
 public:
     uint32_t thread=0;uintptr_t image=0;ProcessMemory memory;
     ui::Intent last_intent;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     FrameworkRemoveInvocation* framework_invocation=nullptr;
     uintptr_t framework_trampoline=0;
-#endif
     bool on_game_thread()noexcept override{return thread&&GetCurrentThreadId()==thread;}
     ui::Policy policy(std::string& error)override {
         if(!on_game_thread()){error="UI Remove policy requires bound Mainthread";return ui::Policy::Unavailable;}
@@ -197,7 +191,6 @@ public:
         return typed_action_runtime::authorize_ui_replay(replay,error);
     }
     void original(ui::DestroyProps function,void* manager,ui::NativePropArray* array)override {
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         auto* current=framework_invocation;
         if(!on_game_thread()||!current||!current->next||!current->invocation||current->attempted||
            current->call.manager!=manager||current->call.array!=array||uintptr_t(function)!=framework_trampoline)
@@ -206,9 +199,6 @@ public:
         const auto result=current->next(current->invocation);
         if(result!=MT2FW_MT2_OK)throw std::runtime_error("UI Remove Framework original did not return result="+std::to_string(result)+"; no replay");
         current->returned=true;
-#else
-        function(manager,array);
-#endif
     }
     void log(const char* level,const char* operation,const std::string& error)noexcept override {
         if(std::string_view(level)=="error")LOG_ERROR("[UIRemove] {}: {}",operation,error);
@@ -221,18 +211,14 @@ public:
 struct Runtime {
     Services services;ui::Capture capture{services};ui::Publication publication;
     bool attempted=false,created=false,enabled=false;std::string cause;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     uint64_t framework_remove_token=0,framework_remove_generation=0,framework_remove_invocation=0;
     uintptr_t framework_remove_detour=0;
-#endif
     std::map<std::string,json> diagnostics;
     Runtime(){services.thread=GetCurrentThreadId();publication.capture=&capture;publication.memory=&services.memory;
         publication.game_thread=services.thread;publication.entry_error=&entry_error;}
 };
 std::atomic<Runtime*> published{nullptr};
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "framework_remove_authority.inc"
-#endif
 bool ledger(action_session::Ledger& out,std::string& error) {
     native::SimulationState value;if(!native::read_simulation_state(value,error))return false;
     out={value.cash,value.clock.flat_day,int32_t(value.record_present),value.record_day,value.record_cash,value.record_income,value.record_expense,
@@ -330,7 +316,6 @@ bool enable(std::string& error)try {
     if(!removal.read_actual_hook_mask(mask,error))return fail();
     if(mask!=15){error="UI Remove actual removal hook mask="+std::to_string(mask)+" required=15";return fail();}
     runtime->services.image=actual.image;runtime->publication.image=actual.image;
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(std::string_view(actual.executable.sha256.data())!=ui::contract::exe_sha256){error="UI Remove exact Framework executable identity differs";return fail();}
     if(!framework_remove_route(*runtime,error))return fail();
     runtime->services.framework_trampoline=runtime->publication.trampoline;
@@ -339,24 +324,11 @@ bool enable(std::string& error)try {
     const auto result=routes.remove_bind(routes.context,&framework_remove,runtime,&runtime->framework_remove_token);
     if(result!=MT2FW_MT2_OK||!runtime->framework_remove_token){error="UI Remove Framework authority binding failed result="+std::to_string(result);return fail();}
     runtime->created=true;
-#else
-    if(!ui::validate_unpatched(runtime->services.memory,actual.image,actual.executable.sha256.data(),error))return fail();
-    void* original=nullptr;
-    if(!hooks::create_hook(reinterpret_cast<void*>(actual.image+ui::contract::destroy_props_rva),
-        reinterpret_cast<void*>(ui::entry_address()),&original)){error="UI Remove shared MinHook CreateHook failed; see original HookEngine cause";return fail();}
-    runtime->created=true;runtime->publication.trampoline=uintptr_t(original);
-    if(!ui::publish_disabled(runtime->publication,actual.executable.sha256.data(),error))return fail();
-    if(!runtime->capture.set_enabled(true,error))return fail();
-    const auto result=MH_EnableHook(reinterpret_cast<void*>(actual.image+ui::contract::destroy_props_rva));
-    if(result!=MH_OK){error="UI Remove MH_EnableHook: "+std::string(MH_StatusToString(result));return fail();}
-    if(!ui::enabled_route(runtime->publication,error))return fail();
-#endif
     runtime->enabled=true;runtime->cause.clear();
     LOG_INFO("[UIRemove] Normal DestroyProps capture enabled Mainthread={} targetRVA={}",actual.main_thread,ui::contract::destroy_props_rva);
     error.clear();return true;
 }catch(const std::exception& failure){error=failure.what();LOG_ERROR("[UIRemove] Installation exception cause={}",error);return false;}
 catch(...){error="UI Remove installation nonstandard exception";LOG_ERROR("[UIRemove] Installation exception cause={}",error);return false;}
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 bool framework_retire(std::string& error)try {
     auto* runtime=published.load(std::memory_order_acquire);
     if(!runtime||(!runtime->framework_remove_token&&!runtime->enabled)){error.clear();return true;}
@@ -371,7 +343,6 @@ bool framework_retire(std::string& error)try {
     runtime->enabled=false;error.clear();return true;
 }catch(const std::exception& problem){error=std::string("Framework Remove authority retirement exception: ")+problem.what();return false;}
 catch(...){error="Framework Remove authority retirement nonstandard exception";return false;}
-#endif
 bool enabled()noexcept {
     const auto* runtime=published.load(std::memory_order_acquire);return runtime&&runtime->services.thread==GetCurrentThreadId()&&runtime->enabled;
 }
@@ -382,11 +353,7 @@ bool make_replay(const std::string& snapshot,const std::string& key,const std::s
     ui::ReplayPurpose purpose,ui::Replay& out,std::string& error) {
     out={};auto* runtime=published.load(std::memory_order_acquire);
     if(!enabled()){error="UI Remove actual capture is not enabled on Mainthread";return false;}
-#ifdef MT2MP_FRAMEWORK_PLUGIN
     if(!runtime->framework_remove_token||!framework_remove_route(*runtime,error))return false;
-#else
-    if(!ui::validate_own_enabled_route(runtime->services.memory,runtime->services.image,runtime->publication.trampoline,uintptr_t(ui::entry_address()),error))return false;
-#endif
     remove_diagnostics::LocalTarget target;
     if(!remove_diagnostics::resolve_record_target(snapshot,key,target,error))return false;
     std::string scene;bool dungeon=false;

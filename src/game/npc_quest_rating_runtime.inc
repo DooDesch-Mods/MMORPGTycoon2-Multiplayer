@@ -107,9 +107,7 @@ bool rating_enable(std::string& e){
     if(!r::code(m,false,e))return rejected(e);
     auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4d6a10),reinterpret_cast<void*>(&r::entry),reinterpret_cast<void**>(&r::original));
     const auto hook_error=[&](const char* operation){std::string why=std::string("Quest rating ")+operation+" status="+std::to_string(status);
-#ifdef MT2MP_FRAMEWORK_PLUGIN
         why+=" original="+hooks::framework::process_backend().error();
-#endif
         return rejected(why);};
     if(status!=MH_OK||!r::original)return hook_error("prepare");
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x4d6a10));if(status!=MH_OK)return hook_error("enable");

@@ -2,7 +2,6 @@
 #define NOMINMAX
 #endif
 #include "production.h"
-#ifdef MT2MP_FRAMEWORK_PLUGIN
 #include "runtime.h"
 #include "native_read.h"
 #include "mt2mp/core/config.h"
@@ -186,4 +185,3 @@ json status(){
         {"display_failed",s.display_failed},{"read_failed",s.read_failed},{"cause",last_error}};
 }
 }
-#endif

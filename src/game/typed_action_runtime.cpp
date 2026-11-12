@@ -2039,11 +2039,7 @@ bool bind_ordered_steps(const MT2FW_MT2_StepServiceDraftV1& service,const action
     runtime->ordered_steps->snapshot_diagnostic([](const nlohmann::json& identity,const nlohmann::json& projection){
         auto owner=identity;owner["pid"]=GetCurrentProcessId();nlohmann::json receipt;
         try{
-#ifdef MT2MP_FRAMEWORK_PLUGIN
             const auto root=framework_open_paths::absolute(Config::instance().runtime_root);
-#else
-            const auto root=std::filesystem::path(Config::instance().runtime_root);
-#endif
             receipt=snapshot_observation_diagnostic::write(runtime_paths::diagnostics(root),owner,projection);
         }catch(const std::exception& cause){receipt=owner;receipt["written"]=false;receipt["error"]=cause.what();}
         if(!receipt.value("written",false))LOG_WARN("[SNAPSHOT] Save covered diagnostic unavailable nonce={} cause={}",identity.at("nonce").get<std::string>(),receipt.value("error",std::string{}));
