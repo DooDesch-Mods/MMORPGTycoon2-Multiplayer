@@ -9,7 +9,7 @@
 
 ### Known issues
 
-- Loading a very large saved world (a save file of about 120 MB) can close the host's game shortly after the world finishes loading. Smaller saved worlds load normally.
+- Very large saved worlds (about 120 MB) need about 4 GB of memory per game. With too little free memory the game can close while loading.
 
 Both players need Early Beta 32 and MT2 Mod Framework Runtime 0.6.2. Close the game, update both mods in Vortex and deploy before starting through Steam.
 
