@@ -25,19 +25,19 @@
 
 namespace mt2mp::game::native {
 namespace {
-constexpr char expected_hash[] = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr char expected_hash[] = "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 std::string resolved_executable_sha256;
-constexpr uintptr_t clock_slot = 0x13df9a0;
-constexpr uintptr_t mode_slot = 0x13df320;
-constexpr uintptr_t game_slot = 0x13df8f0;
-constexpr uintptr_t string_construct = 0x49e090;
-constexpr uintptr_t string_dispose = 0x11bd1e0;
-constexpr uintptr_t save_absolute = 0x4a0570;
-constexpr uintptr_t time_scale = 0x259d70;
-constexpr uintptr_t title_command = 0x4b9be0;
-constexpr uintptr_t pane_command = 0x770300;
-constexpr uintptr_t software_slot = 0x13df500;
-constexpr uintptr_t subscriber_manager_slot = 0x13df690;
+constexpr uintptr_t clock_slot = 0x13eb9a0;
+constexpr uintptr_t mode_slot = 0x13eb320;
+constexpr uintptr_t game_slot = 0x13eb8f0;
+constexpr uintptr_t string_construct = 0x4a3580;
+constexpr uintptr_t string_dispose = 0x11c8b80;
+constexpr uintptr_t save_absolute = 0x4a5a60;
+constexpr uintptr_t time_scale = 0x25ce30;
+constexpr uintptr_t title_command = 0x4bf820;
+constexpr uintptr_t pane_command = 0x777e20;
+constexpr uintptr_t software_slot = 0x13eb500;
+constexpr uintptr_t subscriber_manager_slot = 0x13eb690;
 struct AtomicDayTickCounters {
     std::atomic<uint64_t> entered{0}, forwarded{0}, accepted{0};
     std::atomic<uint64_t> receiver_guard_rejected{0}, wrong_thread{0}, deferred_logs{0};
@@ -190,14 +190,14 @@ using FloatMethod = void(*)(void*, float);
 DWORD focus_camera_native(void* camera, float x, float y, float z, float distance) {
     const float position[3] = {x, y, z};
     __try {
-        reinterpret_cast<void(*)(void*, const float*, float)>(image.load() + 0x64150)(camera, position, distance);
+        reinterpret_cast<void(*)(void*, const float*, float)>(image.load() + 0x649d0)(camera, position, distance);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
 
 DWORD subtract_building_expense(void* business, int32_t amount, bool& applied) {
     __try {
-        applied = reinterpret_cast<bool(*)(void*, int32_t, int32_t)>(image.load() + 0x54d80)(business, amount, 6);
+        applied = reinterpret_cast<bool(*)(void*, int32_t, int32_t)>(image.load() + 0x55280)(business, amount, 6);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -221,7 +221,7 @@ DWORD call_string(uintptr_t method, void* receiver, const char* text) {
 
 DWORD invoke_owned_save(uintptr_t base,void* receiver,const void* value,uintptr_t method,bool option,std::string& cause){
     cause.clear();
-    try{if(method==0x4a0580)reinterpret_cast<void(*)(void*)>(base+method)(receiver);
+    try{if(method==0x4a5a70)reinterpret_cast<void(*)(void*)>(base+method)(receiver);
         else reinterpret_cast<void(*)(void*,const void*,bool)>(base+method)(receiver,value,option);return 0;}
     catch(const std::exception& error){cause=error.what();return 0xe06d7363;}
     catch(...){cause="unknown C++ exception in original Save";return 0xe06d7363;}
@@ -260,9 +260,9 @@ DWORD call_void(uintptr_t method, void* receiver) {
 DWORD find_region(float x, float z, void*& region) {
     const float position[3]{x, 0, z};
     void* shard = nullptr;
-    if (!read_at(singleton(0x13df440), 0x60, shard)) return ERROR_INVALID_ADDRESS;
+    if (!read_at(singleton(0x13eb440), 0x60, shard)) return ERROR_INVALID_ADDRESS;
     __try {
-        region = reinterpret_cast<void*(*)(void*, const void*, void*)>(image.load() + 0x5089b0)(shard, position, nullptr);
+        region = reinterpret_cast<void*(*)(void*, const void*, void*)>(image.load() + 0x50eb00)(shard, position, nullptr);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -276,18 +276,18 @@ RegionPurchaseResult purchase_region_native(void* region, void* business, int32_
     bool string_live = false;
     bool edit_live = false;
     __try {
-        result.affordable = reinterpret_cast<bool(*)(void*, int)>(base + 0x54d00)(business, price);
+        result.affordable = reinterpret_cast<bool(*)(void*, int)>(base + 0x55200)(business, price);
         if (result.affordable) {
             reinterpret_cast<ConstructString>(base + string_construct)(&label, "MPTest region purchase");
             string_live = true;
-            reinterpret_cast<void(*)(const void*)>(base + 0x265300)(&label);
+            reinterpret_cast<void(*)(const void*)>(base + 0x268400)(&label);
             edit_live = true;
-            result.charged = reinterpret_cast<bool(*)(void*, int, int)>(base + 0x54d80)(business, price, 7);
-            if (result.charged) reinterpret_cast<void(*)(void*)>(base + 0x353a50)(region);
+            result.charged = reinterpret_cast<bool(*)(void*, int, int)>(base + 0x55280)(business, price, 7);
+            if (result.charged) reinterpret_cast<void(*)(void*)>(base + 0x358770)(region);
         }
     } __except (EXCEPTION_EXECUTE_HANDLER) { result.exception = GetExceptionCode(); }
     if (edit_live) {
-        __try { reinterpret_cast<void(*)()>(base + 0x265650)(); }
+        __try { reinterpret_cast<void(*)()>(base + 0x268750)(); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!result.exception) result.exception = GetExceptionCode(); }
     }
     if (string_live) {
@@ -299,7 +299,7 @@ RegionPurchaseResult purchase_region_native(void* region, void* business, int32_
 
 DWORD first_game_type(void* window, void*& type) {
     __try {
-        auto** item = reinterpret_cast<void**(*)(void*, int)>(image.load() + 0xb3c000)(
+        auto** item = reinterpret_cast<void**(*)(void*, int)>(image.load() + 0xb48860)(
             static_cast<unsigned char*>(window) + 0x4f8, 0);
         type = item ? *item : nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
@@ -310,21 +310,21 @@ DWORD find_typed_object(uint64_t uid, uintptr_t type_rtti, void*& prop, bool* ob
     const auto base = image.load();
     if (object_found) *object_found = false;
     __try {
-        auto* object = reinterpret_cast<void*(*)(uint64_t)>(base + 0x47ce20)(uid);
+        auto* object = reinterpret_cast<void*(*)(uint64_t)>(base + 0x481f60)(uid);
         if (object_found) *object_found = object != nullptr;
-        prop = object ? reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x12654f0)(
-            object, reinterpret_cast<void*>(base + 0x1673900), reinterpret_cast<void*>(base + type_rtti), 0) : nullptr;
+        prop = object ? reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x1270eb0)(
+            object, reinterpret_cast<void*>(base + 0x1678ee0), reinterpret_cast<void*>(base + type_rtti), 0) : nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
 
-DWORD find_prop(uint64_t uid, void*& prop) { return find_typed_object(uid, 0x166be50, prop); }
+DWORD find_prop(uint64_t uid, void*& prop) { return find_typed_object(uid, 0x1671430, prop); }
 
 DWORD cast_dungeon(void* object, void*& dungeon) {
     const auto base = image.load();
     __try {
-        dungeon = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x12654f0)(
-            object, reinterpret_cast<void*>(base + 0x1673900), reinterpret_cast<void*>(base + 0x164e3d0), 0);
+        dungeon = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x1270eb0)(
+            object, reinterpret_cast<void*>(base + 0x1678ee0), reinterpret_cast<void*>(base + 0x16539b0), 0);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -332,15 +332,15 @@ DWORD cast_dungeon(void* object, void*& dungeon) {
 DWORD cast_dungeon_instance(void* object, void*& instance) {
     const auto base = image.load();
     __try {
-        instance = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x12654f0)(
-            object, reinterpret_cast<void*>(base + 0x1657270), reinterpret_cast<void*>(base + 0x16650e0), 0);
+        instance = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(base + 0x1270eb0)(
+            object, reinterpret_cast<void*>(base + 0x165c850), reinterpret_cast<void*>(base + 0x1669da0), 0);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
 
 DWORD find_subscriber_native(void* manager, int32_t serialized_id, void*& subscriber) {
     __try {
-        subscriber = reinterpret_cast<void*(*)(void*, int32_t)>(image.load() + 0x2ee130)(manager, serialized_id);
+        subscriber = reinterpret_cast<void*(*)(void*, int32_t)>(image.load() + 0x2f1930)(manager, serialized_id);
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -349,7 +349,7 @@ bool is_world_prop(const void* prop) {
     void* active_shard = nullptr;
     void* shard = nullptr;
     void* region = nullptr;
-    return prop && read_at(singleton(0x13df440), 0x60, active_shard) && active_shard &&
+    return prop && read_at(singleton(0x13eb440), 0x60, active_shard) && active_shard &&
         read_at(prop, 0x170, shard) && shard == active_shard && read_at(prop, 0x178, region) && region;
 }
 
@@ -370,18 +370,18 @@ DWORD move_prop_native(void* prop, const unsigned char* transform) {
     __try {
         reinterpret_cast<ConstructString>(base + string_construct)(&label, "MPTest move");
         string_live = true;
-        reinterpret_cast<void(*)(const void*)>(base + 0x265300)(&label);
+        reinterpret_cast<void(*)(const void*)>(base + 0x268400)(&label);
         edit_live = true;
-        reinterpret_cast<void(*)(void*, void*, const void*)>(base + 0x55e8e0)(action, prop, transform);
+        reinterpret_cast<void(*)(void*, void*, const void*)>(base + 0x564f70)(action, prop, transform);
         action_live = true;
-        reinterpret_cast<void(*)(void*, void*)>(base + 0x55ed80)(action, nullptr);
+        reinterpret_cast<void(*)(void*, void*)>(base + 0x565410)(action, nullptr);
     } __except (EXCEPTION_EXECUTE_HANDLER) { exception = GetExceptionCode(); }
     if (action_live) {
-        __try { reinterpret_cast<void(*)(void*)>(base + 0xcf1600)(action); }
+        __try { reinterpret_cast<void(*)(void*)>(base + 0xcfcd40)(action); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!exception) exception = GetExceptionCode(); }
     }
     if (edit_live) {
-        __try { reinterpret_cast<void(*)()>(base + 0x265650)(); }
+        __try { reinterpret_cast<void(*)()>(base + 0x268750)(); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!exception) exception = GetExceptionCode(); }
     }
     if (string_live) {
@@ -430,15 +430,15 @@ IslandProbe probe_root_island(void* shard, const float* position) {
     __try {
         do {
             int32_t type = -1;
-            auto* map = singleton(0x13df8c0);
-            if (island_lock_unknown.load() || !has_vtable(map, 0x1742850) ||
-                shard != static_cast<unsigned char*>(map) + 0x1c0 || !has_vtable(shard, 0x174ad10) ||
+            auto* map = singleton(0x13eb8c0);
+            if (island_lock_unknown.load() || !has_vtable(map, 0x1748bf0) ||
+                shard != static_cast<unsigned char*>(map) + 0x1c0 || !has_vtable(shard, 0x17510b0) ||
                 !read_at(shard, 0x48, type) || type != 0 || !read_at(map, 0x2b0, manager) || !manager) break;
             void* lock = nullptr;
             if (!read_at(manager, 0, lock) || !lock) break;
             result.stage = 18;
             result.lock_attempted = true;
-            reinterpret_cast<void(*)(void*)>(base + 0xa0b120)(manager);
+            reinterpret_cast<void(*)(void*)>(base + 0xa15ce0)(manager);
             result.lock_returned = true;
             held = true;
             result.stage = 19;
@@ -446,9 +446,9 @@ IslandProbe probe_root_island(void* shard, const float* position) {
             int32_t count = -1, capacity = -1, dim_x = 0, dim_z = 0;
             float size = 0, origin_x = 0, origin_z = 0;
             void* cells = nullptr;
-            if (!has_vtable(static_cast<unsigned char*>(manager) + 0x10, 0x1704be0) ||
-                !has_vtable(static_cast<unsigned char*>(manager) + 0x68, 0x1749030) ||
-                !has_vtable(hash, 0x17471d0) || !read_at(hash, 8, cells) ||
+            if (!has_vtable(static_cast<unsigned char*>(manager) + 0x10, 0x170af80) ||
+                !has_vtable(static_cast<unsigned char*>(manager) + 0x68, 0x174f3d0) ||
+                !has_vtable(hash, 0x174d570) || !read_at(hash, 8, cells) ||
                 !read_at(hash, 0x10, count) || !read_at(hash, 0x14, capacity) ||
                 !read_at(hash, 0x18, size) || !read_at(hash, 0x1c, origin_x) || !read_at(hash, 0x24, origin_z) ||
                 !read_at(hash, 0x28, dim_x) || !read_at(hash, 0x2c, dim_z) ||
@@ -464,17 +464,17 @@ IslandProbe probe_root_island(void* shard, const float* position) {
             const auto* cell = static_cast<unsigned char*>(cells) + size_t(int64_t(z) * dim_x + x) * 0x18;
             int32_t islands = -1, allocated = -1;
             void* pointers = nullptr;
-            if (!has_vtable(cell, 0x1748fd0) || !read_at(cell, 8, pointers) || !read_at(cell, 0x10, islands) ||
+            if (!has_vtable(cell, 0x174f370) || !read_at(cell, 8, pointers) || !read_at(cell, 0x10, islands) ||
                 !read_at(cell, 0x14, allocated) || islands < 0 || allocated < islands ||
                 (islands && !readable(pointers, size_t(islands) * sizeof(void*)))) break;
             result.stage = 20;
-            result.island_found = reinterpret_cast<void*(*)(void*, const float*)>(base + 0x27b290)(manager, position) != nullptr;
+            result.island_found = reinterpret_cast<void*(*)(void*, const float*)>(base + 0x27e560)(manager, position) != nullptr;
             result.lookup_returned = true;
             result.stage = result.island_found ? 10 : 21;
         } while (false);
     } __except (EXCEPTION_EXECUTE_HANDLER) { result.exception = GetExceptionCode(); }
     if (held) {
-        __try { reinterpret_cast<void(*)(void*)>(base + 0xa0b140)(manager); }
+        __try { reinterpret_cast<void(*)(void*)>(base + 0xa15d00)(manager); }
         __except (EXCEPTION_EXECUTE_HANDLER) { result.unlock_exception = GetExceptionCode(); }
     }
     if ((result.lock_attempted && !result.lock_returned) || result.unlock_exception) island_lock_unknown.store(true);
@@ -503,21 +503,21 @@ PlacementResult place_building_native(const char* type_text, const char* variant
             strings = 1;
             reinterpret_cast<ConstructString>(base + string_construct)(&variant, variant_text);
             strings = 2;
-            auto* models = reinterpret_cast<void*(*)()>(base + 0xb318b0)();
-            auto* selected = reinterpret_cast<void*(*)(void*, const void*, const void*)>(base + 0x251650)(models, &type, &variant);
+            auto* models = reinterpret_cast<void*(*)()>(base + 0xb3da20)();
+            auto* selected = reinterpret_cast<void*(*)(void*, const void*, const void*)>(base + 0x254590)(models, &type, &variant);
             result.stage = 1;
             if (!selected) break;
-            auto* art = reinterpret_cast<void*(*)()>(base + 0xb24600)();
+            auto* art = reinterpret_cast<void*(*)()>(base + 0xb2feb0)();
             result.stage = 2;
-            if (reinterpret_cast<bool(*)(void*, const void*)>(base + 0x3ca80)(art, &type)) break;
-            auto* footprint = reinterpret_cast<void*(*)(void*, const void*, const void*)>(base + 0x251a30)(models, &type, &variant);
+            if (reinterpret_cast<bool(*)(void*, const void*)>(base + 0x3cd60)(art, &type)) break;
+            auto* footprint = reinterpret_cast<void*(*)(void*, const void*, const void*)>(base + 0x254970)(models, &type, &variant);
             result.stage = 3;
             if (!readable(footprint, 0x98)) break;
-            reinterpret_cast<void(*)(void*)>(base + 0xf1810)(shape);
+            reinterpret_cast<void(*)(void*)>(base + 0xf2880)(shape);
             shape_live = true;
-            reinterpret_cast<void(*)(void*, const void*)>(base + 0xf9c30)(shape, footprint);
-            reinterpret_cast<void(*)(void*)>(base + 0xf3600)(shape);
-            if (!reinterpret_cast<bool(*)(void*)>(base + 0xf1440)(shape)) break;
+            reinterpret_cast<void(*)(void*, const void*)>(base + 0xfaca0)(shape, footprint);
+            reinterpret_cast<void(*)(void*)>(base + 0xf4670)(shape);
+            if (!reinterpret_cast<bool(*)(void*)>(base + 0xf24b0)(shape)) break;
             std::memcpy(bounds, shape + 0x20, sizeof(bounds));
             for (size_t offset : {size_t(4), size_t(16)}) {
                 float value;
@@ -528,19 +528,19 @@ PlacementResult place_building_native(const char* type_text, const char* variant
                 value += z;
                 std::memcpy(bounds + offset + 8, &value, 4);
             }
-            auto* shard_manager = reinterpret_cast<void*(*)()>(base + 0xb28340)();
+            auto* shard_manager = reinterpret_cast<void*(*)()>(base + 0xb33df0)();
             void* shard = nullptr;
             result.stage = 4;
             if (!read_at(shard_manager, 0x60, shard) || !shard ||
-                !reinterpret_cast<bool(*)(void*, const void*)>(base + 0x508540)(shard, position)) break;
-            position[1] = reinterpret_cast<float(*)(void*, const void*)>(base + 0x508450)(shard, bounds);
+                !reinterpret_cast<bool(*)(void*, const void*)>(base + 0x50e690)(shard, position)) break;
+            position[1] = reinterpret_cast<float(*)(void*, const void*)>(base + 0x50e5a0)(shard, bounds);
             if (!std::isfinite(position[1])) break;
             result.ground_y = position[1];
             if (!purchase && apply && std::abs(position[1] - expected_y) > 0.01f) {
                 result.stage = 11;
                 break;
             }
-            auto* region = reinterpret_cast<void*(*)(void*, const void*, void*)>(base + 0x5089b0)(shard, position, nullptr);
+            auto* region = reinterpret_cast<void*(*)(void*, const void*, void*)>(base + 0x50eb00)(shard, position, nullptr);
             unsigned char active = 0;
             void* buildings = nullptr;
             void* path_manager = nullptr;
@@ -568,11 +568,11 @@ PlacementResult place_building_native(const char* type_text, const char* variant
                 result.stage = island.stage == 10 ? 22 : island.stage;
                 break;
             }
-            reinterpret_cast<void(*)(void*, const void*, const void*, const void*)>(base + 0x9ff370)(transform, rotation, position, scale);
-            reinterpret_cast<void(*)(void*, const void*)>(base + 0xf9840)(shape, transform);
+            reinterpret_cast<void(*)(void*, const void*, const void*, const void*)>(base + 0xa09f30)(transform, rotation, position, scale);
+            reinterpret_cast<void(*)(void*, const void*)>(base + 0xfa8b0)(shape, transform);
             result.stage = 6;
-            if (reinterpret_cast<void*(*)(void*, const void*)>(base + 0x250790)(buildings, shape)) break;
-            reinterpret_cast<void(*)(void*, void*, const void*)>(base + 0x2b6170)(paths, path_manager, shape);
+            if (reinterpret_cast<void*(*)(void*, const void*)>(base + 0x2536d0)(buildings, shape)) break;
+            reinterpret_cast<void(*)(void*, void*, const void*)>(base + 0x2b9770)(paths, path_manager, shape);
             int32_t path_count = 0;
             std::memcpy(&path_storage, paths + 8, 8);
             std::memcpy(&path_count, paths + 16, 4);
@@ -584,30 +584,30 @@ PlacementResult place_building_native(const char* type_text, const char* variant
             }
             reinterpret_cast<ConstructString>(base + string_construct)(&label, "MPTest building placement");
             strings = 3;
-            reinterpret_cast<void(*)(const void*)>(base + 0x265300)(&label);
+            reinterpret_cast<void(*)(const void*)>(base + 0x268400)(&label);
             edit_live = true;
             result.stage = 8;
             if (purchase) {
-                result.purchased = reinterpret_cast<bool(*)(const void*, const void*)>(base + 0x40bb10)(&type, position);
+                result.purchased = reinterpret_cast<bool(*)(const void*, const void*)>(base + 0x4106d0)(&type, position);
                 if (!result.purchased) break;
             }
             result.stage = 9;
-            result.building = reinterpret_cast<void*(*)(void*, const void*, const void*, const void*, void*, void*, void*, bool)>(base + 0x24ed30)(
+            result.building = reinterpret_cast<void*(*)(void*, const void*, const void*, const void*, void*, void*, void*, bool)>(base + 0x251c70)(
                 buildings, &type, &variant, transform, nullptr, nullptr, nullptr, false);
             if (!result.building) break;
             result.stage = 10;
         } while (false);
     } __except (EXCEPTION_EXECUTE_HANDLER) { result.exception = GetExceptionCode(); }
     if (edit_live) {
-        __try { reinterpret_cast<void(*)()>(base + 0x265650)(); }
+        __try { reinterpret_cast<void(*)()>(base + 0x268750)(); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!result.exception) result.exception = GetExceptionCode(); }
     }
     if (path_storage) {
-        __try { reinterpret_cast<void(*)(void*)>(base + 0xa01280)(path_storage); }
+        __try { reinterpret_cast<void(*)(void*)>(base + 0xa0be40)(path_storage); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!result.exception) result.exception = GetExceptionCode(); }
     }
     if (shape_live) {
-        __try { reinterpret_cast<void(*)(void*)>(base + 0xf15a0)(shape); }
+        __try { reinterpret_cast<void(*)(void*)>(base + 0xf2610)(shape); }
         __except (EXCEPTION_EXECUTE_HANDLER) { if (!result.exception) result.exception = GetExceptionCode(); }
     }
     for (unsigned i = strings; i > 0; --i) {
@@ -656,80 +656,80 @@ bool initialize(std::string& error) {
     const auto base = reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr));
     struct Guard { uintptr_t rva; const char* bytes; size_t size; };
     const Guard guards[] = {
-        {0x507b20, "\x53\x48\x83\xec\x20\x83\x79\x48\x02", 9},
-        {0x508190, "\x56\x53\x48\x83\xec\x28\x48\x89\xcb\x48\x89\xd6", 12},
-        {0xb5d90, "\x57\x56\x53\x48\x83\xec\x20\x48\x83\x79\x38\x00\x48\x89\x51\x30", 16},
-        {0xb6530, "\x56\x53\x48\x83\xec\x48\x48\x83\x79\x38\x00\x48\x89\xcb", 14},
-        {0xa2dc0, "\x57\x56\x53\x48\x83\xec\x20\x8b\x81\xc8\x04\x00\x00", 13},
-        {0x64150, "\x56\x53\x48\x83\xec\x38\x48\x89\xce", 9},
-        {0x68670, "\x48\x8b\x81\x98\x00\x00\x00", 7},
-        {0x686e0, "\x31\xc0\xeb\x10\x0f\x1f\x40\x00", 8},
-        {0x68ea0, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53", 12},
-        {0x2de7f0, "\x53\x48\x83\xec\x20\x48\x83\x3d\x93\x0e\x10\x01\x00", 13},
-        {0x2de820, "\x53\x48\x83\xec\x20\x48\x83\x3d\x63\x0e\x10\x01\x00", 13},
-        {0x2de360, "\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\x88\x00\x00\x00", 15},
-        {0x2de6b0, "\x57\x56\x53\x48\x83\xec\x70\x0f\x11\x74\x24\x20", 12},
-        {0x2ee130, "\x4c\x63\x49\x48\x45\x85\xc9\x7e\x37\x4c\x8b\x51\x40", 13},
-        {0xc06c00, "\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce", 12},
-        {0x57570, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\xe8\xa1\xe6\xff\xff", 15},
-        {0x2eb530, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xc8\x00\x00\x00", 19},
-        {0x395ee0, "\xf3\x0f\x5f\x15\x40\x6e\x0f\x01\xf3\x0f\x5d\x15\x40\x6e\x0f\x01", 16},
-        {0x395f00, "\x48\x63\xd2\xf3\x0f\x58\x54\x91\x18\xf3\x0f\x5f\x15\x17\x6e\x0f\x01", 17},
-        {0x3960a0, "\xf3\x0f\x10\x0d\x80\x6c\x0f\x01\x0f\x10\x52\x18\x0f\x10\x41\x18", 16},
-        {0x396120, "\xf3\x0f\x10\x0d\x00\x6c\x0f\x01\x0f\x10\x52\x18\x0f\x10\x41\x18", 16},
-        {0x394a20, "\x55\x57\x56\x53\x48\x81\xec\x98\x00\x00\x00", 11},
-        {0x38f620, "\x41\x54\x55\x57\x56\x53\x48\x83\xec\x40", 10},
-        {0x2e7630, "\x31\xc0\x48\x8b\x91\x80\x00\x00\x00\x48\x85\xd2\x74\x07\x0f\xb6\x82\x25\x08\x00\x00\xc3", 22},
-        {0x66340, "\x48\x8b\x81\x8c\x00\x00\x00", 7},
-        {0x463ce0, "\x55\x57\x56\x53\x48\x81\xec\x98\x00\x00\x00", 11},
-        {0x259d70, "\x56\x53\x48\x83\xec\x48\x0f\x2f\x49\x58", 10},
-        {0x4a0570, "\x41\xb8\x01\x00\x00\x00\xe9\x15\xff\xff\xff", 11},
-        {0x49e090, "\x55\x57\x56\x53\x48\x83\xec\x38", 8},
-        {0x11bd1e0, "\x48\x8b\x01\x48\x83\xc1\x10\x48\x39\xc8", 10},
-        {0xa0bc80, "\x48\x83\xec\x28\xe8\xff\x37\x07\x00", 9},
-        {0x4b9be0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x4b8770, "\x55\x57\x56\x53\x48\x81\xec\x88\x00\x00\x00", 11},
-        {0x770300, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0xb3c000, "\x41\x54\x55\x57\x56\x53\x48\x81\xec\x80\x02\x00\x00", 13},
-        {0x47ce20, "\x53\x45\x31\xc0\x48\x85\xc9", 7},
-        {0x55e8e0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x55ed80, "\x55\x57\x56\x53\x48\x83\xec\x48", 8},
-        {0x9563b0, "\xc6\x05\xa9\x5d\x2f\x01\x01\xc3", 8},
-        {0x4913b0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0xb318b0, "\x57\x56\x53\x48\x83\xc4\x80\x48", 8},
-        {0x251650, "\x53\x48\x83\xec\x20\x4c\x89\xc3", 8},
-        {0xb24600, "\x55\x57\x56\x53\x48\x81\xec\x48", 8},
-        {0x3ca80, "\x41\x54\x55\x57\x56\x53\x48\x83", 8},
-        {0x251a30, "\x56\x53\x48\x83\xec\x28\x48\x89", 8},
-        {0xf1810, "\x56\x53\x48\x83\xec\x28\x48\x89", 8},
-        {0xf9c30, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0xf3600, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0xf1440, "\x48\x83\x79\x18\x00\x74\x09\x8b", 8},
-        {0xb28340, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x508540, "\x48\x83\xec\x38\x8b\x41\x48\x83", 8},
-        {0x508450, "\x53\x48\x83\xec\x30\x8b\x41\x48", 8},
-        {0x5089b0, "\x48\x83\xec\x38\x8b\x41\x48\x4c", 8},
-        {0x27b290, "\x48\x83\xc1\x28\xe9\x67\x48\x00\x00", 9},
-        {0xa0b120, "\x48\x8b\x09\xe9\x18\x42\x07\x00", 8},
-        {0xa0b140, "\x48\x8b\x09\xe9\xf8\x40\x07\x00", 8},
-        {0x9ff370, "\x49\x8b\x00\xf3\x0f\x6f\x02\x48", 8},
-        {0xf9840, "\x57\x56\x53\x48\x83\xec\x20\x8b", 8},
-        {0x250790, "\x41\x54\x55\x57\x56\x53\x48\x81", 8},
-        {0x2b6170, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x40bb10, "\x55\x57\x56\x53\x48\x81\xec\x88", 8},
-        {0x24ed30, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0xa01280, "\xe9\x63\x03\x09\x00\x66\x66\x2e", 8},
-        {0xf15a0, "\x56\x53\x48\x83\xec\x28\x48\x8d", 8},
-        {0x54d00, "\x0f\xb6\x81\xf0\x00\x00\x00\x84", 8},
-        {0x54d80, "\xb8\x01\x00\x00\x00\x66\x0f\x6e", 8},
-        {0x353a50, "\x56\x53\x48\x83\xec\x28\x80\xb9", 8},
-        {0x9ca0e0, "\x56\x53\x48\x83\xec\x28\x8b\x41\x30\xc6\x41\x6f\x00\x48\x89\xce", 16},
-        {0x9cb150, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xe8", 16},
-        {0x4a1bb0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x259450, "\x41\x54\x55\x57\x56\x53", 6},
-        {0x4a2f90, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
-        {0x265300, "\x57\x56\x53\x48\x83\xec\x40", 7},
-        {0x265650, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x50dc70, "\x53\x48\x83\xec\x20\x83\x79\x48\x02", 9},
+        {0x50e2e0, "\x56\x53\x48\x83\xec\x28\x48\x89\xcb\x48\x89\xd6", 12},
+        {0xb6a90, "\x57\x56\x53\x48\x83\xec\x20\x48\x83\x79\x38\x00\x48\x89\x51\x30", 16},
+        {0xb7230, "\x56\x53\x48\x83\xec\x48\x48\x83\x79\x38\x00\x48\x89\xcb", 14},
+        {0xa3ac0, "\x57\x56\x53\x48\x83\xec\x20\x8b\x81\xc8\x04\x00\x00", 13},
+        {0x649d0, "\x56\x53\x48\x83\xec\x38\x48\x89\xce", 9},
+        {0x68f70, "\x48\x8b\x81\x98\x00\x00\x00", 7},
+        {0x68fe0, "\x31\xc0\xeb\x10\x0f\x1f\x40\x00", 8},
+        {0x697a0, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53", 12},
+        {0x2e1fb0, "\x53\x48\x83\xec\x20\x48\x83\x3d\xd3\x96\x10\x01\x00", 13},
+        {0x2e1fe0, "\x53\x48\x83\xec\x20\x48\x83\x3d\xa3\x96\x10\x01\x00", 13},
+        {0x2e1b10, "\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\x88\x00\x00\x00", 15},
+        {0x2e1e70, "\x57\x56\x53\x48\x83\xec\x70\x0f\x11\x74\x24\x20", 12},
+        {0x2f1930, "\x4c\x63\x49\x48\x45\x85\xc9\x7e\x37\x4c\x8b\x51\x40", 13},
+        {0xc13310, "\x56\x53\x48\x83\xec\x28\x48\x63\xda\x48\x89\xce", 12},
+        {0x57a70, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\xe8\xa1\xe6\xff\xff", 15},
+        {0x2eed30, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xc8\x00\x00\x00", 19},
+        {0x39a9e0, "\xf3\x0f\x5f\x15\xc0\xb9\x0f\x01\xf3\x0f\x5d\x15\xc0\xb9\x0f\x01", 16},
+        {0x39aa00, "\x48\x63\xd2\xf3\x0f\x58\x54\x91\x18\xf3\x0f\x5f\x15\x97\xb9\x0f\x01", 17},
+        {0x39aba0, "\xf3\x0f\x10\x0d\x00\xb8\x0f\x01\x0f\x10\x52\x18\x0f\x10\x41\x18", 16},
+        {0x39ac20, "\xf3\x0f\x10\x0d\x80\xb7\x0f\x01\x0f\x10\x52\x18\x0f\x10\x41\x18", 16},
+        {0x399520, "\x55\x57\x56\x53\x48\x81\xec\x98\x00\x00\x00", 11},
+        {0x394120, "\x41\x54\x55\x57\x56\x53\x48\x83\xec\x40", 10},
+        {0x2eae30, "\x31\xc0\x48\x8b\x91\x80\x00\x00\x00\x48\x85\xd2\x74\x07\x0f\xb6\x82\x25\x08\x00\x00\xc3", 22},
+        {0x66c40, "\x48\x8b\x81\x8c\x00\x00\x00", 7},
+        {0x468d00, "\x55\x57\x56\x53\x48\x81\xec\x98\x00\x00\x00", 11},
+        {0x25ce30, "\x56\x53\x48\x83\xec\x48\x0f\x2f\x49\x58", 10},
+        {0x4a5a60, "\x41\xb8\x01\x00\x00\x00\xe9\x15\xff\xff\xff", 11},
+        {0x4a3580, "\x55\x57\x56\x53\x48\x83\xec\x38", 8},
+        {0x11c8b80, "\x48\x8b\x01\x48\x83\xc1\x10\x48\x39\xc8", 10},
+        {0xa168e0, "\x48\x83\xec\x28\xe8\xbf\x3c\x07\x00", 9},
+        {0x4bf820, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x4be3b0, "\x55\x57\x56\x53\x48\x81\xec\x88\x00\x00\x00", 11},
+        {0x777e20, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0xb48860, "\x41\x54\x55\x57\x56\x53\x48\x81\xec\x80\x02\x00\x00", 13},
+        {0x481f60, "\x53\x45\x31\xc0\x48\x85\xc9", 7},
+        {0x564f70, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x565410, "\x55\x57\x56\x53\x48\x83\xec\x48", 8},
+        {0x95f510, "\xc6\x05\x49\x3c\x2f\x01\x01\xc3", 8},
+        {0x4966b0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0xb3da20, "\x57\x56\x53\x48\x83\xc4\x80\x48", 8},
+        {0x254590, "\x53\x48\x83\xec\x20\x4c\x89\xc3", 8},
+        {0xb2feb0, "\x55\x57\x56\x53\x48\x81\xec\x48", 8},
+        {0x3cd60, "\x41\x54\x55\x57\x56\x53\x48\x83", 8},
+        {0x254970, "\x56\x53\x48\x83\xec\x28\x48\x89", 8},
+        {0xf2880, "\x56\x53\x48\x83\xec\x28\x48\x89", 8},
+        {0xfaca0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0xf4670, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0xf24b0, "\x48\x83\x79\x18\x00\x74\x09\x8b", 8},
+        {0xb33df0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x50e690, "\x48\x83\xec\x38\x8b\x41\x48\x83", 8},
+        {0x50e5a0, "\x53\x48\x83\xec\x30\x8b\x41\x48", 8},
+        {0x50eb00, "\x48\x83\xec\x38\x8b\x41\x48\x4c", 8},
+        {0x27e560, "\x48\x83\xc1\x28\xe9\xf7\x48\x00\x00", 9},
+        {0xa15ce0, "\x48\x8b\x09\xe9\x78\x47\x07\x00", 8},
+        {0xa15d00, "\x48\x8b\x09\xe9\x58\x46\x07\x00", 8},
+        {0xa09f30, "\x49\x8b\x00\xf3\x0f\x6f\x02\x48", 8},
+        {0xfa8b0, "\x57\x56\x53\x48\x83\xec\x20\x8b", 8},
+        {0x2536d0, "\x41\x54\x55\x57\x56\x53\x48\x81", 8},
+        {0x2b9770, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x4106d0, "\x55\x57\x56\x53\x48\x81\xec\x88", 8},
+        {0x251c70, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0xa0be40, "\xe9\xe3\x08\x09\x00\x66\x66\x2e", 8},
+        {0xf2610, "\x56\x53\x48\x83\xec\x28\x48\x8d", 8},
+        {0x55200, "\x0f\xb6\x81\xf0\x00\x00\x00\x84", 8},
+        {0x55280, "\xb8\x01\x00\x00\x00\x66\x0f\x6e", 8},
+        {0x358770, "\x56\x53\x48\x83\xec\x28\x80\xb9", 8},
+        {0x9d3ca0, "\x56\x53\x48\x83\xec\x28\x8b\x41\x30\xc6\x41\x6f\x00\x48\x89\xce", 16},
+        {0x9d4d10, "\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xe8", 16},
+        {0x4a70a0, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x25c510, "\x41\x54\x55\x57\x56\x53", 6},
+        {0x4a8480, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
+        {0x268400, "\x57\x56\x53\x48\x83\xec\x40", 7},
+        {0x268750, "\x41\x57\x41\x56\x41\x55\x41\x54", 8},
     };
     for (const auto& guard : guards) {
         auto* address = reinterpret_cast<const void*>(base + guard.rva);
@@ -744,7 +744,7 @@ bool initialize(std::string& error) {
     resolved_executable_sha256=digest;
     image.store(base);
     error.clear();
-    LOG_INFO("[Native] Resolver ready for build 24993678 sha256={}; live acceptance pending", digest);
+    LOG_INFO("[Native] Resolver ready for build 26719430 sha256={}; live acceptance pending", digest);
     return true;
 }
 
@@ -761,15 +761,15 @@ Capabilities capabilities() {
 }
 
 void* entrypoint(EntryPoint point) {
-    constexpr uintptr_t addresses[] = {0x463ce0, 0x4a1bb0, 0x259450, 0x4a2f90, 0x265300, 0x265650, 0x2de7f0, 0x2de820,
-        0x2de360, 0x2de6b0, 0x57570, 0x2eb530, 0x395ee0, 0x395f00, 0x3960a0, 0x396120, 0x394a20, 0x38f620, 0x9ca0e0, 0x9cb150};
+    constexpr uintptr_t addresses[] = {0x468d00, 0x4a70a0, 0x25c510, 0x4a8480, 0x268400, 0x268750, 0x2e1fb0, 0x2e1fe0,
+        0x2e1b10, 0x2e1e70, 0x57a70, 0x2eed30, 0x39a9e0, 0x39aa00, 0x39aba0, 0x39ac20, 0x399520, 0x394120, 0x9d3ca0, 0x9d4d10};
     const auto index = static_cast<unsigned>(point);
     if (!ready() || index >= std::size(addresses)) return nullptr;
     return reinterpret_cast<void*>(image.load() + addresses[index]);
 }
 
 bool bind_game_thread() {
-    if (!ready() || !reinterpret_cast<bool(*)()>(image.load() + 0xa0bc80)()) {
+    if (!ready() || !reinterpret_cast<bool(*)()>(image.load() + 0xa168e0)()) {
         LOG_ERROR("[Native] Thread binding rejected: engine vsThread::IsMainThread is false or resolver is not ready");
         return false;
     }
@@ -792,8 +792,8 @@ bool in_game() {
     void* world = nullptr;
     int mode_state = -1;
     unsigned char quitting = 1;
-    return has_vtable(game, 0x1743730) && read_at(game, 0x28, active_mode) && active_mode == mode &&
-        has_vtable(mode, 0x16e6720) && read_at(mode, 0x58, world) && world &&
+    return has_vtable(game, 0x1749ad0) && read_at(game, 0x28, active_mode) && active_mode == mode &&
+        has_vtable(mode, 0x16ecac0) && read_at(mode, 0x58, world) && world &&
         read_at(mode, 0x2c4, mode_state) && (mode_state == 0 || mode_state == 4) &&
         read_at(mode, 0x304, quitting) && !quitting;
 }
@@ -804,13 +804,13 @@ DayTickGuard day_receiver_guard(void* receiver, DayTickLeaf leaf, int32_t day, i
     if (!game_thread.load() || game_thread.load() != GetCurrentThreadId()) return DayTickGuard::WrongThread;
     if (!in_game()) return DayTickGuard::NoActiveWorld;
     if (leaf == DayTickLeaf::BusinessFinances) {
-        const auto* business = singleton(0x13df220);
+        const auto* business = singleton(0x13eb220);
         if (!business) return DayTickGuard::SingletonUnavailable;
-        if (!has_vtable(business, 0x16d97d0)) return DayTickGuard::SingletonVtableMismatch;
+        if (!has_vtable(business, 0x16dfb70)) return DayTickGuard::SingletonVtableMismatch;
         if (receiver != business) return DayTickGuard::ReceiverMismatch;
         if (day < 0) return DayTickGuard::DayArgumentInvalid;
     } else {
-        if (!has_vtable(receiver, 0x16e75e0)) return DayTickGuard::ReceiverVtableMismatch;
+        if (!has_vtable(receiver, 0x16ed980)) return DayTickGuard::ReceiverVtableMismatch;
         if (!read_at(receiver, 0x20, subscriber_id)) return DayTickGuard::SubscriberIdUnreadable;
         if (subscriber_id < 0) return DayTickGuard::SubscriberIdInvalid;
     }
@@ -858,12 +858,12 @@ SoftwareTickGuard software_receiver_guard(void* receiver, bool ticker_receiver) 
     if (!software) return SoftwareTickGuard::SingletonUnavailable;
     const auto* ticker = static_cast<const unsigned char*>(software) + 0x18;
     if (receiver != (ticker_receiver ? ticker : software)) return SoftwareTickGuard::ReceiverMismatch;
-    if (!has_vtable(software, 0x1715440)) return SoftwareTickGuard::PrimaryVtableMismatch;
-    if (!has_vtable(ticker, 0x1715500)) return SoftwareTickGuard::SecondaryVtableMismatch;
+    if (!has_vtable(software, 0x171b7e0)) return SoftwareTickGuard::PrimaryVtableMismatch;
+    if (!has_vtable(ticker, 0x171b8a0)) return SoftwareTickGuard::SecondaryVtableMismatch;
     uintptr_t primary_tick = 0, secondary_tick = 0;
     const auto* base = reinterpret_cast<const void*>(image.load());
-    if (!read_at(base, 0x17154f8, primary_tick) || primary_tick != image.load() + 0x2de7f0 ||
-        !read_at(base, 0x1715520, secondary_tick) || secondary_tick != image.load() + 0x2de820)
+    if (!read_at(base, 0x171b898, primary_tick) || primary_tick != image.load() + 0x2e1fb0 ||
+        !read_at(base, 0x171b8c0, secondary_tick) || secondary_tick != image.load() + 0x2e1fe0)
         return SoftwareTickGuard::TickSlotMismatch;
     return SoftwareTickGuard::Accepted;
 }
@@ -1019,8 +1019,8 @@ bool arm_software_replica(uint64_t epoch, std::string& error, const std::string&
     void* title = nullptr;
     void* active = nullptr;
     unsigned char pending = 1;
-    if (!has_vtable(game, 0x1743730) || !read_at(game, 0x350, title) ||
-        !has_vtable(title, 0x16dfba0) || !read_at(game, 0x28, active) || active != title ||
+    if (!has_vtable(game, 0x1749ad0) || !read_at(game, 0x350, title) ||
+        !has_vtable(title, 0x16e5f40) || !read_at(game, 0x28, active) || active != title ||
         !read_at(title, 0xd0, pending) || pending)
         return fail(error, "software replica arm rejected: idle native title mode required before load");
     if (software_replica.armed && software_replica.epoch == epoch)
@@ -1187,7 +1187,7 @@ bool subscriber_login_read(const void* subscriber, bool& logged_in) {
     logged_in = false;
     if (!toon) return true;
     unsigned char flag = 0;
-    if (!has_vtable(toon, 0x1744e80) || !read_at(toon, 0x825, flag) || flag > 1) return false;
+    if (!has_vtable(toon, 0x174b220) || !read_at(toon, 0x825, flag) || flag > 1) return false;
     logged_in = flag != 0;
     return true;
 }
@@ -1204,7 +1204,7 @@ bool read_subscriber_needs(int32_t serialized_id, SubscriberNeedsState& state, s
         return fail(error, operation + " rejected: world identity unavailable");
     auto* manager = singleton(subscriber_manager_slot);
     if (!manager) return fail(error, operation + " rejected: subscriber manager absent");
-    if (!has_vtable(manager, 0x1725f30))
+    if (!has_vtable(manager, 0x172c2d0))
         return fail(error, operation + " rejected: subscriber manager vtable mismatch");
     SubscriberNeedsState candidate;
     if (!read_at(manager, 0x48, candidate.subscriber_count))
@@ -1221,7 +1221,7 @@ bool read_subscriber_needs(int32_t serialized_id, SubscriberNeedsState& state, s
     const DWORD exception = find_subscriber_native(manager, serialized_id, subscriber);
     if (exception) return fail(error, operation + " lookup failed: native exception=" + std::to_string(exception));
     if (!subscriber) return fail(error, operation + " not found in native subscriber manager");
-    if (!has_vtable(subscriber, 0x16e75e0))
+    if (!has_vtable(subscriber, 0x16ed980))
         return fail(error, operation + " rejected: subscriber vtable mismatch");
     if (!read_at(subscriber, 0x20, candidate.serialized_id))
         return fail(error, operation + " rejected: returned serialized ID unreadable");
@@ -1231,14 +1231,14 @@ bool read_subscriber_needs(int32_t serialized_id, SubscriberNeedsState& state, s
     if (!read_at(subscriber, 0x88, brain))
         return fail(error, operation + " rejected: brain field unreadable");
     if (!brain) return fail(error, operation + " unavailable: subscriber has no active brain");
-    if (!has_vtable(brain, 0x16fdd50))
+    if (!has_vtable(brain, 0x17040f0))
         return fail(error, operation + " rejected: ToonBrainAI vtable mismatch");
     void* owner = nullptr;
     if (!read_at(brain, 0x28, owner))
         return fail(error, operation + " rejected: brain owner unreadable");
     if (owner != subscriber) return fail(error, operation + " rejected: brain owner differs from subscriber");
     const auto* needs = static_cast<const unsigned char*>(brain) + 0x180;
-    if (!has_vtable(needs, 0x16c0ce0))
+    if (!has_vtable(needs, 0x16c7080))
         return fail(error, operation + " rejected: NeedSet vtable mismatch");
     for (size_t index = 0; index < candidate.needs.size(); ++index) {
         if (!read_at(needs, 0x18 + index * sizeof(float), candidate.needs[index]))
@@ -1275,7 +1275,7 @@ bool read_subscriber_candidates(SubscriberCandidates& state, std::string& error)
     if (!read_at(singleton(mode_slot), 0x58, world) || !world)
         return fail(error, "subscriber scan rejected: world identity unavailable");
     auto* manager = singleton(subscriber_manager_slot);
-    if (!has_vtable(manager, 0x1725f30)) return fail(error, "subscriber scan rejected: manager vtable mismatch");
+    if (!has_vtable(manager, 0x172c2d0)) return fail(error, "subscriber scan rejected: manager vtable mismatch");
     if (!read_at(manager, 0x48, state.existing_count)) return fail(error, "subscriber scan rejected: count unreadable");
     if (state.existing_count < 0 || state.existing_count > 1000000)
         return fail(error, "subscriber scan rejected: count=" + std::to_string(state.existing_count) + " required=0..1000000");
@@ -1287,7 +1287,7 @@ bool read_subscriber_candidates(SubscriberCandidates& state, std::string& error)
         void* subscriber = nullptr;
         const std::string target = " slot=" + std::to_string(slot);
         if (!read_at(entries, static_cast<size_t>(slot) * sizeof(void*), subscriber) ||
-            !has_vtable(subscriber, 0x16e75e0))
+            !has_vtable(subscriber, 0x16ed980))
             return fail(error, "subscriber scan rejected: slot receiver invalid" + target);
         ++state.scanned_count;
         int32_t id = -1;
@@ -1350,7 +1350,7 @@ bool needs_binding_valid() {
     if (!software_replica.armed || !software_replica.bound || !software_replica.error.empty() ||
         software_replica.epoch != needs_replica.epoch || software_replica.world != needs_replica.world)
         return needs_reject("software policy epoch/world binding differs");
-    if (singleton(software_slot) != software_replica.software || !has_vtable(software_replica.software, 0x1715440))
+    if (singleton(software_slot) != software_replica.software || !has_vtable(software_replica.software, 0x171b7e0))
         return needs_reject("bound software singleton identity changed");
     if (!in_game()) return needs_reject("no active native world");
     void* world = nullptr;
@@ -1359,21 +1359,21 @@ bool needs_binding_valid() {
     int32_t id = -1;
     if (!read_at(singleton(mode_slot), 0x58, world) || world != needs_replica.world)
         return needs_reject("world identity changed");
-    if (singleton(subscriber_manager_slot) != needs_replica.manager || !has_vtable(needs_replica.manager, 0x1725f30))
+    if (singleton(subscriber_manager_slot) != needs_replica.manager || !has_vtable(needs_replica.manager, 0x172c2d0))
         return needs_reject("subscriber manager identity changed");
-    if (!has_vtable(needs_replica.subscriber, 0x16e75e0) || !read_at(needs_replica.subscriber, 0x20, id) || id != needs_replica.id)
+    if (!has_vtable(needs_replica.subscriber, 0x16ed980) || !read_at(needs_replica.subscriber, 0x20, id) || id != needs_replica.id)
         return needs_reject("subscriber type or serialized ID changed");
-    if (!read_at(needs_replica.subscriber, 0x88, brain) || brain != needs_replica.brain || !has_vtable(brain, 0x16fdd50))
+    if (!read_at(needs_replica.subscriber, 0x88, brain) || brain != needs_replica.brain || !has_vtable(brain, 0x17040f0))
         return needs_reject("subscriber brain identity changed");
     if (!read_at(brain, 0x28, owner) || owner != needs_replica.subscriber)
         return needs_reject("brain owner differs from subscriber");
-    if (!has_vtable(needs_replica.needs, 0x16c0ce0)) return needs_reject("embedded NeedSet type changed");
+    if (!has_vtable(needs_replica.needs, 0x16c7080)) return needs_reject("embedded NeedSet type changed");
     return true;
 }
 
 DWORD set_needs_native(void* receiver, const SubscriberNeeds& values, SubscriberNeedsReceipt& receipt) {
     __try {
-        const auto setter = reinterpret_cast<void(*)(void*, int32_t, float)>(image.load() + 0x395ee0);
+        const auto setter = reinterpret_cast<void(*)(void*, int32_t, float)>(image.load() + 0x39a9e0);
         for (int32_t index = 0; index < 7; ++index) {
             if (!needs_replica.error.empty()) break;
             needs_replica.permit_index = index;
@@ -1638,7 +1638,7 @@ bool pause_load_clock(void* receiver, bool& changed, ClockState& actual, std::st
     if (!check_thread(error)) return false;
     if (!receiver || receiver != singleton(clock_slot))
         return fail(error, "load pause rejected: clock receiver differs from singleton");
-    if (!has_vtable(receiver, 0x17499c0))
+    if (!has_vtable(receiver, 0x174fd60))
         return fail(error, "load pause rejected: clock receiver vtable differs");
     int32_t mode_state = -1;
     if (!read_at(singleton(mode_slot), 0x2c4, mode_state))
@@ -1683,7 +1683,7 @@ bool list_props(size_t limit, std::vector<PropState>& states, std::string& error
     if (!in_game()) return fail(error, "prop inventory rejected: no active world");
     if (!limit || limit > 128) return fail(error, "prop inventory rejected: limit must be 1..128");
     void* node = nullptr;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x1a363d0, node))
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x1a3d3d0, node))
         return fail(error, "prop inventory rejected: object registry is unreadable");
     size_t visited = 0;
     while (node && states.size() < limit) {
@@ -1715,19 +1715,19 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
     auto reject = [&](const char* cause) { return fail(error, std::string("building read rejected: ") + cause + target); };
     void* building = nullptr;
     bool object_found = false;
-    const DWORD exception = find_typed_object(uid, 0x1655090, building, &object_found);
+    const DWORD exception = find_typed_object(uid, 0x165a670, building, &object_found);
     if (exception) return fail(error, "building lookup failed: exception=" + std::to_string(exception) + target);
     if (!building) return reject(object_found ? "typed_uid_wrong_type" : "typed_uid_missing");
     void* active_shard = nullptr;
     void* shard = nullptr;
     void* region = nullptr;
-    if (!read_at(singleton(0x13df440), 0x60, active_shard)) return reject("outer_shard_unreadable");
+    if (!read_at(singleton(0x13eb440), 0x60, active_shard)) return reject("outer_shard_unreadable");
     if (!active_shard) return reject("outer_shard_missing");
     if (!read_at(building, 0x170, shard)) return reject("building_shard_unreadable");
     if (!read_at(building, 0x178, region)) return reject("region_unreadable");
     if (!region) return reject("region_missing");
     if (shard != active_shard) {
-        if (!has_vtable(shard, 0x174ad10) || !has_vtable(active_shard, 0x174ad10))
+        if (!has_vtable(shard, 0x17510b0) || !has_vtable(active_shard, 0x17510b0))
             return reject("outer_shard_mismatch: shard_vtable_invalid");
         int32_t shard_type = -1;
         if (!read_at(shard, 0x48, shard_type)) return reject("dungeon_shard_type_unreadable");
@@ -1738,7 +1738,7 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
         void* dungeon = nullptr;
         void* instance = nullptr;
         if (shard_type == 2) {
-            if (!read_at(shard, 0x20, instance) || !has_vtable(instance, 0x1719440))
+            if (!read_at(shard, 0x20, instance) || !has_vtable(instance, 0x171f7e0))
                 return reject("dungeon_instance_receiver_invalid");
             void* typed_instance = nullptr;
             const DWORD instance_exception = cast_dungeon_instance(instance, typed_instance);
@@ -1754,7 +1754,7 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
         } else if (!read_at(shard, 0x18, dungeon)) {
             return reject("dungeon_receiver_invalid");
         }
-        if (!has_vtable(dungeon, 0x16c0550))
+        if (!has_vtable(dungeon, 0x16c68f0))
             return reject("dungeon_receiver_invalid");
         void* typed_dungeon = nullptr;
         const DWORD dungeon_exception = cast_dungeon(dungeon, typed_dungeon);
@@ -1769,7 +1769,7 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
         if (shard_type == 2) {
             int32_t template_type = -1;
             void* template_owner = nullptr;
-            if (reverse_shard == shard || !has_vtable(reverse_shard, 0x174ad10) ||
+            if (reverse_shard == shard || !has_vtable(reverse_shard, 0x17510b0) ||
                 !read_at(reverse_shard, 0x48, template_type) || template_type != 1 ||
                 !read_at(reverse_shard, 0x18, template_owner) || template_owner != dungeon)
                 return reject("dungeon_instance_template_shard_reciprocity_mismatch");
@@ -1799,7 +1799,7 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
         uint64_t exterior_uid = 0;
         if (!read_at(exterior, 0x18, exterior_uid)) return reject("dungeon_exterior_uid_unreadable");
         void* typed_exterior = nullptr;
-        const DWORD exterior_exception = find_typed_object(exterior_uid, 0x1655090, typed_exterior);
+        const DWORD exterior_exception = find_typed_object(exterior_uid, 0x165a670, typed_exterior);
         if (exterior_exception) return fail(error, "dungeon exterior lookup failed: exception=" + std::to_string(exterior_exception) + target);
         if (typed_exterior != exterior) return reject("dungeon_exterior_registry_mismatch");
         void* reverse_dungeon = nullptr;
@@ -1837,7 +1837,7 @@ bool read_building(uint64_t uid, BuildingState& state, std::string& error) {
     if (!read_game_string(building, 0x788, state.variant)) return reject("variant_string_unreadable");
     if (state.dungeon_membership) {
         void* final_root = nullptr;
-        if (!in_game() || !read_at(singleton(0x13df440), 0x60, final_root) || final_root != active_shard)
+        if (!in_game() || !read_at(singleton(0x13eb440), 0x60, final_root) || final_root != active_shard)
             return reject("dungeon_loaded_world_changed_during_read");
     }
     return true;
@@ -1859,7 +1859,7 @@ bool list_world_props(size_t limit, std::vector<WorldPropState>& states, std::st
             return fail(error, "world inventory rejected: region activity unreadable or invalid");
         state.region_active = active != 0;
         void* building = nullptr;
-        exception = find_typed_object(prop.uid, 0x1655090, building);
+        exception = find_typed_object(prop.uid, 0x165a670, building);
         if (exception) return fail(error, "world inventory building lookup failed: exception=" + std::to_string(exception));
         state.building = building != nullptr;
         if (building && (!read_game_string(building, 0x768, state.type) ||
@@ -1874,10 +1874,10 @@ bool read_simulation_state(SimulationState& state, std::string& error) {
     if (!check_thread(error)) return false;
     state = {};
     if (!in_game()) return fail(error, "simulation state rejected: no active world");
-    const auto* business = singleton(0x13df220);
-    const auto* subscribers = singleton(0x13df690);
-    if (!has_vtable(singleton(clock_slot), 0x17499c0) || !has_vtable(business, 0x16d97d0) ||
-        !has_vtable(subscribers, 0x1725f30))
+    const auto* business = singleton(0x13eb220);
+    const auto* subscribers = singleton(0x13eb690);
+    if (!has_vtable(singleton(clock_slot), 0x174fd60) || !has_vtable(business, 0x16dfb70) ||
+        !has_vtable(subscribers, 0x172c2d0))
         return fail(error, "simulation state rejected: clock/business/subscriber identity differs");
     if (!read_clock(state.clock, error)) return false;
     void* record = nullptr;
@@ -1885,7 +1885,7 @@ bool read_simulation_state(SimulationState& state, std::string& error) {
         !read_at(subscribers, 0x90, state.logged_in_subscribers) || state.logged_in_subscribers < 0)
         return fail(error, "simulation state rejected: balance, ledger or subscriber count unreadable/invalid");
     if (record) {
-        if (!has_vtable(record, 0x1712bf0) || !read_at(record, 0x1c, state.record_day) ||
+        if (!has_vtable(record, 0x1718f90) || !read_at(record, 0x1c, state.record_day) ||
             !read_at(record, 0x20, state.record_cash) || !read_at(record, 0x28, state.record_income) ||
             !read_at(record, 0x2c, state.record_expense))
             return fail(error, "simulation state rejected: current ledger identity or fields differ");
@@ -1893,7 +1893,7 @@ bool read_simulation_state(SimulationState& state, std::string& error) {
         for (size_t i = 0; i < state.line_counts.size(); ++i) {
             const auto* item = static_cast<const unsigned char*>(record) + 0x30 + i * 0x48;
             int32_t category = -1;
-            if (!has_vtable(item, 0x171d0c0) || !read_at(item, 0x20, category) || category != int32_t(i) ||
+            if (!has_vtable(item, 0x1723460) || !read_at(item, 0x20, category) || category != int32_t(i) ||
                 !read_at(item, 0x18, state.line_counts[i]) || state.line_counts[i] < 0 ||
                 !read_at(item, 0x1c, state.line_income[i]))
                 return fail(error, "simulation state rejected: ledger line identity/count differs; category=" + std::to_string(i));
@@ -1933,11 +1933,11 @@ bool diagnostic_reconcile_building_ledger(const SimulationState& expected_before
     }
     int32_t saves = -1, edits = -1;
     if (!read_saves_in_progress(saves, error)) return false;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13beda0, edits) || saves != 0 || edits != 0)
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13cada0, edits) || saves != 0 || edits != 0)
         return fail(error, "ledger reconcile rejected: save/edit busy; saves=" + std::to_string(saves) + " edits=" + std::to_string(edits));
     void* record_before = nullptr;
     void* record_after = nullptr;
-    void* business = singleton(0x13df220);
+    void* business = singleton(0x13eb220);
     if (!read_at(business, 0x100, record_before)) return fail(error, "ledger reconcile rejected: current record unreadable");
     bool applied = false;
     LOG_INFO("[Native] Building ledger reconcile attempted amount={} record_day={}", amount, local.record_day);
@@ -1961,9 +1961,9 @@ bool read_camera_state(CameraState& state, std::string& error) {
     void* camera = nullptr;
     void* edit = nullptr;
     void* weight = nullptr;
-    if (!read_at(singleton(game_slot), 0x90, camera) || !has_vtable(camera, 0x1786c10))
+    if (!read_at(singleton(game_slot), 0x90, camera) || !has_vtable(camera, 0x178cfb0))
         return fail(error, "camera read rejected: native camera identity differs");
-    if (!read_at(camera, 0x128, edit) || !has_vtable(edit, 0x16e4cd0))
+    if (!read_at(camera, 0x128, edit) || !has_vtable(edit, 0x16eb070))
         return fail(error, "camera read rejected: edit camera identity differs");
     unsigned char pending = 0;
     if (!read_at(camera, 0x18, state.x) || !read_at(camera, 0x1c, state.y) || !read_at(camera, 0x20, state.z) ||
@@ -2047,7 +2047,7 @@ bool diagnostic_focus_camera(float x, float y, float z, float distance, CameraSt
     void* camera = nullptr;
     void* dungeon = nullptr;
     if (!read_at(singleton(game_slot), 0x90, camera) || !read_at(camera, 0x138, dungeon) ||
-        !has_vtable(dungeon, 0x1706640))
+        !has_vtable(dungeon, 0x170c9e0))
         return fail(error, "camera focus rejected: dungeon script identity differs");
     LOG_INFO("[Native] Diagnostic camera focus attempted x={} y={} z={} distance={}", x, y, z, distance);
     const DWORD exception = focus_camera_native(camera, x, y, z, distance);
@@ -2069,11 +2069,11 @@ bool read_region_state(float x, float z, RegionState& state, std::string& error)
     const DWORD exception = find_region(x, z, region);
     if (exception) return fail(error, "region lookup failed: exception=" + std::to_string(exception));
     if (!region) return fail(error, "region read rejected: no region at position");
-    const auto* business = singleton(0x13df220);
+    const auto* business = singleton(0x13eb220);
     void* config = nullptr;
     void* manager = nullptr;
     unsigned char owned = 0;
-    if (!has_vtable(region, 0x1787920) || !read_at(region, 0x830, state.type) ||
+    if (!has_vtable(region, 0x178dcc0) || !read_at(region, 0x830, state.type) ||
         !read_at(region, 0x850, owned) || owned > 1)
         return fail(error, "region read rejected: native identity/type/ownership differs");
     state.owned = owned != 0;
@@ -2081,8 +2081,8 @@ bool read_region_state(float x, float z, RegionState& state, std::string& error)
     state.building_manager_present = manager != nullptr;
     if (!read_at(region, 0x9a0, manager)) return fail(error, "region read rejected: path manager field unreadable");
     state.path_manager_present = manager != nullptr;
-    if (!has_vtable(business, 0x16d97d0) || !read_at(business, 0x108, config) ||
-        !has_vtable(config, 0x1712b30) || !read_at(config, 0x24, state.purchase_price) ||
+    if (!has_vtable(business, 0x16dfb70) || !read_at(business, 0x108, config) ||
+        !has_vtable(config, 0x1718ed0) || !read_at(config, 0x24, state.purchase_price) ||
         !read_at(business, 0x38, state.cash))
         return fail(error, "region read rejected: native business configuration differs");
     return true;
@@ -2098,8 +2098,8 @@ bool diagnostic_purchase_region(float x, float z, RegionState& state, std::strin
     if (state.purchase_price < 0) return fail(error, "region purchase rejected: native purchase price is negative");
     int32_t edits = -1, saves = -1;
     unsigned char locked = 1;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13beda0, edits) || edits != 0 ||
-        !read_at(reinterpret_cast<void*>(image.load()), 0x1a30742, locked) || locked ||
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13cada0, edits) || edits != 0 ||
+        !read_at(reinterpret_cast<void*>(image.load()), 0x1a37742, locked) || locked ||
         !read_saves_in_progress(saves, error) || saves != 0)
         return fail(error, "region purchase rejected: edit/save busy; edits=" + std::to_string(edits) +
             " locked=" + std::to_string(locked) + " saves=" + std::to_string(saves));
@@ -2109,7 +2109,7 @@ bool diagnostic_purchase_region(float x, float z, RegionState& state, std::strin
     const int32_t before = state.cash;
     const int32_t price = state.purchase_price;
     LOG_INFO("[Native] Diagnostic region purchase attempted x={} z={} price={} cash={}", x, z, price, before);
-    const auto result = purchase_region_native(region, singleton(0x13df220), price);
+    const auto result = purchase_region_native(region, singleton(0x13eb220), price);
     if (result.exception || !result.affordable || !result.charged)
         return fail(error, "region purchase failed: exception=" + std::to_string(result.exception) +
             " affordable=" + std::to_string(result.affordable) + " charged=" + std::to_string(result.charged));
@@ -2136,8 +2136,8 @@ bool diagnostic_move_prop(const PropState& expected, const PropState& target, st
     int32_t edits = -1;
     int32_t saves = -1;
     unsigned char locked = 1;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13beda0, edits) || edits != 0 ||
-        !read_at(reinterpret_cast<void*>(image.load()), 0x1a30742, locked) || locked ||
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13cada0, edits) || edits != 0 ||
+        !read_at(reinterpret_cast<void*>(image.load()), 0x1a37742, locked) || locked ||
         !read_saves_in_progress(saves, error) || saves != 0)
         return fail(error, "diagnostic move rejected: edit/snapshot busy; edits=" + std::to_string(edits) +
             " locked=" + std::to_string(locked) + " saves=" + std::to_string(saves));
@@ -2177,8 +2177,8 @@ static bool placement_operation(const std::string& type, const std::string& vari
     int32_t edits = -1;
     int32_t saves = -1;
     unsigned char locked = 1;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13beda0, edits) || edits != 0 ||
-        !read_at(reinterpret_cast<void*>(image.load()), 0x1a30742, locked) || locked ||
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13cada0, edits) || edits != 0 ||
+        !read_at(reinterpret_cast<void*>(image.load()), 0x1a37742, locked) || locked ||
         !read_saves_in_progress(saves, error) || saves != 0)
         return fail(error, "diagnostic placement rejected: edit/save busy; edits=" + std::to_string(edits) +
             " locked=" + std::to_string(locked) + " saves=" + std::to_string(saves));
@@ -2237,6 +2237,56 @@ bool diagnostic_replicate_building(const BuildingState& host, BuildingState& loc
         true, false, host.prop.y, local, error);
 }
 
+// Post-Create stall diagnostics. The in-game mode waits for the map, the map waits for the
+// title DigitalEffect (game+0x58), and the effect waits for the sequence that title Create
+// loads at effect+0x4f0. If the effect is already in state 2 when Create requests state 2, the
+// effect never transitions and never advances that sequence (next +0x50 stays 0, done +0x54).
+void log_digital_effect(const void* game, const char* when) {
+    uintptr_t effect = 0, sequence = 0;
+    int32_t current = -1, requested = -1, next = -1;
+    unsigned char done = 0;
+    if (!read_at(game, 0x58, effect) || !effect) {
+        LOG_WARN("[Startup] {}: DigitalEffect pointer unreadable or null", when);
+        return;
+    }
+    const auto* object = reinterpret_cast<const void*>(effect);
+    if (!read_at(object, 0x510, current) || !read_at(object, 0x514, requested) || !read_at(object, 0x4f0, sequence)) {
+        LOG_WARN("[Startup] {}: DigitalEffect fields unreadable effect={:#x}", when, effect);
+        return;
+    }
+    if (sequence && (!read_at(reinterpret_cast<const void*>(sequence), 0x50, next) ||
+                     !read_at(reinterpret_cast<const void*>(sequence), 0x54, done)))
+        LOG_WARN("[Startup] {}: DigitalEffect sequence fields unreadable sequence={:#x}", when, sequence);
+    LOG_INFO("[Startup] {}: DigitalEffect current={} requested={} sequence={:#x} next={} done={}",
+        when, current, requested, sequence, next, int(done));
+}
+
+// Called on the bound engine thread only, so plain statics are safe.
+void observe_startup(const void* game, const WorldStatus& state) {
+    static bool title_logged = false;
+    static bool stall_logged = false;
+    static ULONGLONG loading_since = 0;
+    if (state.title_transition_pending && !title_logged) {
+        log_digital_effect(game, "Title transition started");
+        title_logged = true;
+    } else if (!state.title_transition_pending && state.active_mode_index == 2) {
+        title_logged = false;
+    }
+    if (state.active_mode_index != 3 || state.in_game_state == 4) {
+        if (stall_logged) LOG_INFO("[Startup] In-game mode left loading state={} mode={}", state.in_game_state, state.active_mode_index);
+        loading_since = 0;
+        stall_logged = false;
+        return;
+    }
+    const auto now = GetTickCount64();
+    if (!loading_since) loading_since = now;
+    if (!stall_logged && now - loading_since > 30000) {
+        LOG_WARN("[Startup] In-game mode still loading after 30 s state={} required=4", state.in_game_state);
+        log_digital_effect(game, "In-game loading stalled");
+        stall_logged = true;
+    }
+}
+
 bool read_world_status(WorldStatus& state, std::string& error) {
     if (!check_thread(error)) return false;
     state = {};
@@ -2248,7 +2298,7 @@ bool read_world_status(WorldStatus& state, std::string& error) {
     void* title = nullptr;
     void* world = nullptr;
     unsigned char flag = 0;
-    if (!has_vtable(game, 0x1743730) || !read_at(game, 0x28, active) || !read_at(game, 0x350, title) ||
+    if (!has_vtable(game, 0x1749ad0) || !read_at(game, 0x28, active) || !read_at(game, 0x350, title) ||
         !read_at(game, 0x434, state.requested_mode_index))
         return fail(error, "world status rejected: game state is unreadable");
     if (state.requested_mode_index < 0 || state.requested_mode_index >= 30)
@@ -2261,7 +2311,7 @@ bool read_world_status(WorldStatus& state, std::string& error) {
     if (state.active_mode_index < 0)
         return fail(error, "world status rejected: active mode absent from native mode table");
     if (state.active_mode_index == 3) {
-        if (active != mode || !has_vtable(mode, 0x16e6720))
+        if (active != mode || !has_vtable(mode, 0x16ecac0))
             return fail(error, "world status rejected: active world mode identity differs");
         if (!read_at(mode, 0x58, world) || !read_at(mode, 0x2c4, state.in_game_state) ||
             !read_at(mode, 0x304, flag) || !read_at(mode, 0x30c, state.saves_in_progress))
@@ -2270,10 +2320,10 @@ bool read_world_status(WorldStatus& state, std::string& error) {
         state.quitting = flag != 0;
         world_available.store(in_game());
     }
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13beda0, state.edit_operations))
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x13cada0, state.edit_operations))
         return fail(error, "world status rejected: edit counter is unreadable");
     if (title && active == title) {
-        if (!has_vtable(title, 0x16dfba0))
+        if (!has_vtable(title, 0x16e5f40))
             return fail(error, "world status rejected: title mode identity differs");
         void* window = nullptr;
         if (!read_at(title, 0xd0, flag) || !read_at(title, 0x20, window))
@@ -2293,11 +2343,12 @@ bool read_world_status(WorldStatus& state, std::string& error) {
         }
     }
     if (state.active_mode_index == 26) {
-        if (!has_vtable(active, 0x171acc0) || !read_at(active, 0x21, flag) || flag > 1)
+        if (!has_vtable(active, 0x1721060) || !read_at(active, 0x21, flag) || flag > 1)
             return fail(error, "world status rejected: crash mode identity or pending flag differs");
         state.crash_report_active = true;
         state.crash_report_dismiss_pending = flag != 0;
     }
+    observe_startup(game, state);
     return true;
 }
 
@@ -2313,7 +2364,7 @@ bool request_dismiss_crash_report(std::string& error) {
     if (!read_at(singleton(game_slot), 0x28, mode) || !read_at(mode, 0x20, uploading) || uploading)
         return fail(error, "crash report dismissal rejected: upload state must be idle");
     LOG_INFO("[Native] Crash report dismissal attempted command=Cancel");
-    const DWORD exception = call_string(0x4913b0, mode, "Cancel");
+    const DWORD exception = call_string(0x4966b0, mode, "Cancel");
     if (exception) return fail(error, "crash report dismissal failed: exception=" + std::to_string(exception));
     unsigned char pending = 0;
     if (!read_at(mode, 0x20, uploading) || uploading || !read_at(mode, 0x21, pending) || pending != 1)
@@ -2379,7 +2430,7 @@ bool capture_snapshot(const std::string& filename, std::string& error, bool bloc
         stem=filename.substr(prefix.size(),filename.size()-prefix.size()-4);
     }
     LOG_INFO("[Native] Snapshot original attempted path={} blocking_held={}", filename,blocking_held);
-    const DWORD exception = blocking_held?call_owned_save(mode,stem.c_str(),0x4a1b40,true,error):call_string(save_absolute, mode, stem.c_str());
+    const DWORD exception = blocking_held?call_owned_save(mode,stem.c_str(),0x4a7030,true,error):call_string(save_absolute, mode, stem.c_str());
     if (exception) return fail(error, "snapshot original failed: native exception=" + std::to_string(exception)+(blocking_held&&!error.empty()?" cause="+error:std::string{}));
     if(blocking_held&&(!read_at(mode,0x30c,saves)||saves!=0))
         return fail(error,"held snapshot returned with saves in progress="+std::to_string(saves)+" required=0; no retry");
@@ -2392,7 +2443,7 @@ bool read_saves_in_progress(int32_t& count, std::string& error) {
     const auto* mode = singleton(mode_slot);
     void* active = nullptr;
     count = -1;
-    if (!read_at(singleton(game_slot), 0x28, active) || active != mode || !has_vtable(mode, 0x16e6720))
+    if (!read_at(singleton(game_slot), 0x28, active) || active != mode || !has_vtable(mode, 0x16ecac0))
         return fail(error, "save status rejected: in-game mode is not active");
     if (!read_at(mode, 0x30c, count) || count < 0)
         return fail(error, "save status rejected: native counter absent, unreadable or negative");
@@ -2459,7 +2510,7 @@ bool request_return_to_title(std::string& error,bool managed_autosave) {
     auto* mode = singleton(mode_slot);
     if (!managed_autosave&&!retire_autosave_companion(error)) return false;
     LOG_INFO("[Native] Return to title attempted; managed autosave completed={}",managed_autosave);
-    const DWORD exception = call_string(0x4a2f90, mode, "Quit");
+    const DWORD exception = call_string(0x4a8480, mode, "Quit");
     if (exception) return fail(error, "return to title native call failed: exception=" + std::to_string(exception));
     unsigned char quitting = 0;
     unsigned char desktop_exit = 1;
@@ -2478,10 +2529,10 @@ bool request_exit_game(std::string& error) {
             std::to_string(state.active_mode_index) + " pending=" + std::to_string(state.title_transition_pending) +
             " saves=" + std::to_string(state.saves_in_progress));
     LOG_INFO("[Native] Exit request attempted from idle title");
-    const DWORD exception = call_void(0x9563b0, nullptr);
+    const DWORD exception = call_void(0x95f510, nullptr);
     if (exception) return fail(error, "exit native call failed: exception=" + std::to_string(exception));
     unsigned char requested = 0;
-    if (!read_at(reinterpret_cast<void*>(image.load()), 0x1c4c160, requested) || !requested)
+    if (!read_at(reinterpret_cast<void*>(image.load()), 0x1c53160, requested) || !requested)
         return fail(error, "exit acknowledgement failed: native exit-request flag is false");
     LOG_INFO("[Native] Exit flag acknowledged; process termination pending");
     return true;
@@ -2493,7 +2544,7 @@ bool prepare_test_world(const std::string& name, std::string& error) {
     if (!test_world_objects(title, window, error)) return false;
     if (!valid_test_name(name)) return fail(error, "test world name rejected: MPTest prefix and ASCII letters/digits/_/- required");
     LOG_INFO("[Native] Test world preparation attempted name={}", name);
-    DWORD exception = call_void(0x4b8770, title);
+    DWORD exception = call_void(0x4be3b0, title);
     if (exception) return fail(error, "test world ShowCreateWindow failed: exception=" + std::to_string(exception));
     const std::string command = "MessageTo WindowName \"NewGame\" SetCreateGameName \"" + name + "\"";
     exception = call_string(pane_command, window, command.c_str());

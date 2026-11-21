@@ -22,18 +22,18 @@ bool read(Memory& memory,uintptr_t image,uintptr_t root,uintptr_t group,
           Bind&& bind,Region&& region,Find&& find,Key&& key,State& out,std::string& error){
     namespace q=npc_quest_targets;State next;uintptr_t parent=0,found=0;q::Bounds members;
     next.handle.object=group;
-    if(!q::typed(memory,image,group,0x1749de0,error)||!q::at(memory,group,0x18,next.handle.uid,error)||
+    if(!q::typed(memory,image,group,0x1750180,error)||!q::at(memory,group,0x18,next.handle.uid,error)||
        !q::at(memory,group,0x170,next.root,error)||!q::at(memory,group,0x178,next.region,error)||
        !q::at(memory,group,0x180,parent,error)||!find(next.handle.uid,found,error)||
        !region(next.region,next.row.region,error)||!group_reader::pose(memory,group,0x100,next.row.pose,error)||
-       !q::typed(memory,image,group+0x210,0x16ea660,error)||!q::bounds(memory,group+0x210,100000,members,error))return false;
+       !q::typed(memory,image,group+0x210,0x16f0a00,error)||!q::bounds(memory,group+0x210,100000,members,error))return false;
     if(!next.handle.uid||found!=group||next.root!=root||parent)
         return q::fail(error,"Affected Group full UID/root/parent differs");
     std::set<uintptr_t> records,objects;std::set<uint64_t> uids;std::set<std::string> keys;
     for(int32_t i=0;i<members.count;++i){uintptr_t record=0,actual_root=0,actual_parent=0;Member member;
-        if(!q::at(memory,members.data,size_t(i)*8,record,error)||!q::typed(memory,image,record,0x16fbc40,error)||
+        if(!q::at(memory,members.data,size_t(i)*8,record,error)||!q::typed(memory,image,record,0x1701fe0,error)||
            !q::at(memory,record,0x18,member.handle.object,error)||!group_reader::pose(memory,record,0x64,member.relative.relative,error)||
-           !q::typed(memory,image,member.handle.object,0x16c1390,error)||!q::at(memory,member.handle.object,0x18,member.handle.uid,error)||
+           !q::typed(memory,image,member.handle.object,0x16c7730,error)||!q::at(memory,member.handle.object,0x18,member.handle.uid,error)||
            !q::at(memory,member.handle.object,0x170,actual_root,error)||!q::at(memory,member.handle.object,0x180,actual_parent,error)||
            !group_reader::pose(memory,member.handle.object,0x100,member.prop.pose,error)||
            !bind(member.handle.object,member.handle.uid,member.prop.key,member.prop.region,error))return false;

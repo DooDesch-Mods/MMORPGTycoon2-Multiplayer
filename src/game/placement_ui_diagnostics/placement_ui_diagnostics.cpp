@@ -32,7 +32,7 @@ bool terminal(const Job& j){return j.receipt.phase==ui::Phase::Rejected||j.recei
 bool actual(Job& j,ui::Context& out,std::string& e){
     uintptr_t image=0;uint32_t actual_thread=0;std::string sha;
     if(!native::read_resolver_receipt(image,actual_thread,sha,e))return false;
-    if(actual_thread!=GetCurrentThreadId()||!image||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"build_ui_actual_module_mainthread_differs");
+    if(actual_thread!=GetCurrentThreadId()||!image||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"build_ui_actual_module_mainthread_differs");
     if(thread&&thread!=actual_thread)return fail(e,"build_ui_bound_thread_changed");
     building_mixed_identity::opened_file::CurrentWorld w;
     if(!native_open_runtime::read_current_world(w,e))return false;

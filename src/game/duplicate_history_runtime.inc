@@ -50,7 +50,7 @@ bool remember_history(Runtime& r,const Operation& op,std::string& e){
 bool history_local_selection(Runtime& r,const Sample& before,std::vector<Handle>& selection,std::array<uint8_t,9>& filter,uintptr_t& camera,std::string& e){
     std::vector<uintptr_t> raw,filtered;uintptr_t manager=0;
     if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,before.world.selection,0xc8,filter,e)||
-       !q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,camera,e))return false;
+       !q::at(r.memory,r.image,0x13eb440,manager,e)||!q::at(r.memory,manager,0x60,camera,e))return false;
     if(std::any_of(filter.begin(),filter.end(),[](auto n){return n>1;}))return q::fail(e,"Duplicate history local Selection filter invalid");
     for(auto pointer:raw){uint64_t uid=0;uintptr_t found=0;
         if(!q::at(r.memory,pointer,0x18,uid,e)||!uid||!group_edit::find(r,uid,found,e)||found!=pointer)return q::fail(e,e.empty()?"Duplicate history local Selection full UID differs":e);
@@ -62,15 +62,15 @@ bool history_restore(Runtime& r,const Sample& before,const std::vector<Handle>& 
     for(const auto& row:selection){uintptr_t found=0;if(!group_edit::find(r,row.uid,found,e))return false;
         if(found==row.object)desired.push_back(found);
         else if(found||!source.known.contains(row.uid))return q::fail(e,"Duplicate history changed unrelated selected full UID");}
-    const duplicate_calls::Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+    const duplicate_calls::Array array{r.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
     host::WorldState boundary;bool admitted=false;
     auto guard=[&](std::string& why){
         if(GetCurrentThreadId()!=r.thread||!r.ready||!request||request->snapshot_uuid!=net::current_snapshot_id())
             return q::fail(why,"Duplicate history local Selection RNG current thread/session differs");
         host::NativeOrigin origin;host::LookupApi api;host::WorldState current;
-        if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,why))return false;
+        if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,why))return false;
         host::Reader reader(r.memory.process,origin,r.image,r.thread,api);uintptr_t owner=0;
-        if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x164b250,owner,why))return false;
+        if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x1650830,owner,why))return false;
         if(!host::same_world(before.world.origin,current.origin)||current.root!=before.world.root||
            current.selection!=before.world.selection||!owner||owner!=before.random)
             return q::fail(why,"Duplicate history local Selection RNG current World/owner differs");
@@ -95,7 +95,7 @@ bool history_restore(Runtime& r,const Sample& before,const std::vector<Handle>& 
     }
     std::vector<uintptr_t> raw,filtered;std::array<uint8_t,9> actual{};uintptr_t manager=0,current=0;
     if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,before.world.selection,0xc8,actual,e)||
-       !q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,current,e))return false;
+       !q::at(r.memory,r.image,0x13eb440,manager,e)||!q::at(r.memory,manager,0x60,current,e))return false;
     return (desired==raw&&actual==filter&&current==camera)||q::fail(e,"Duplicate history restored local Selection/filter/camera differs");
 }
 bool history_survivors(const Sample& before,const Sample& after,const HistorySource& source,std::string& e){

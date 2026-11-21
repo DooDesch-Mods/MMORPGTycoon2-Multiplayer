@@ -59,10 +59,10 @@ public:
 bool guard(Reader& r,uintptr_t image,std::string& error){
     struct Entry{uintptr_t rva;std::array<unsigned char,16> bytes;};
     constexpr Entry entries[]={
-        {0x206df0,{0x56,0x53,0x48,0x83,0xec,0x28,0x48,0x63,0xda,0x48,0x89,0xce,0x85,0xdb,0x78,0x05}},
-        {0x52e610,{0x0f,0xb6,0x41,0x59,0x84,0xc0,0x75,0x04,0x0f,0xb6,0x41,0x5a,0xc3,0x90,0x66,0x90}},
-        {0xd31590,{0x48,0x8d,0x41,0x48,0xc3,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90}},
-        {0x52b7d0,{0x56,0x53,0x48,0x83,0xec,0x28,0x48,0x89,0xce,0x48,0x89,0xd3,0x48,0x85,0xd2,0x74}}};
+        {0x209880,{0x56,0x53,0x48,0x83,0xec,0x28,0x48,0x63,0xda,0x48,0x89,0xce,0x85,0xdb,0x78,0x05}},
+        {0x534b00,{0x0f,0xb6,0x41,0x59,0x84,0xc0,0x75,0x04,0x0f,0xb6,0x41,0x5a,0xc3,0x90,0x66,0x90}},
+        {0xd3ccd0,{0x48,0x8d,0x41,0x48,0xc3,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90,0x90}},
+        {0x531c50,{0x56,0x53,0x48,0x83,0xec,0x28,0x48,0x89,0xce,0x48,0x89,0xd3,0x48,0x85,0xd2,0x74}}};
     for(const auto& entry:entries){std::array<unsigned char,16> bytes{};if(!r.bytes(image+entry.rva,bytes.data(),bytes.size(),error))return false;
         if(bytes!=entry.bytes)return fail(error,"development native code guard differs RVA="+std::to_string(entry.rva));}return true;
 }
@@ -78,18 +78,18 @@ bool project(Reader& r,uintptr_t image,uintptr_t lounge,nlohmann::json& out,std:
     if(!std::isfinite(work))return fail(error,"development project work is not finite");
     out={{"present",current!=0},{"kind",nullptr},{"tech_key",nullptr},{"work",work},{"lines",lines},
          {"bugs_total",total},{"bugs_known",known},{"bugs_unknown",int64_t(total)-int64_t(known)},{"desired_workers",workers}};
-    if(current){int32_t kind=0;std::string key;if(!r.type(current,image+0x16e48c0,"DevProject",error)||!r.at(current,0x18,kind,error)||!r.string(current,0x20,key,error))return false;
+    if(current){int32_t kind=0;std::string key;if(!r.type(current,image+0x16eac60,"DevProject",error)||!r.at(current,0x18,kind,error)||!r.string(current,0x20,key,error))return false;
         if(kind<0||kind>3)return fail(error,"development project kind outside0..3");out["kind"]=kind;if(kind==0)out["tech_key"]=key;}return true;
 }
 bool technology(Reader& r,uintptr_t image,uintptr_t software,uintptr_t& tech,nlohmann::json& out,std::string& error,const std::string& selected){
-    tech=0;uintptr_t tree=0,record=0,linked=0;if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"TechTree",error))return false;
+    tech=0;uintptr_t tree=0,record=0,linked=0;if(!r.at(image,0x13eb250,tree,error)||!r.type(tree,image+0x16e27a0,"TechTree",error))return false;
     std::vector<uintptr_t> techs,records;if(!r.array(tree,0x10,techs,error)||!r.array(software,0x280,records,error))return false;
     for(auto candidate:techs){std::string key;if(!r.string(candidate,0x20,key,error))return false;if(key==selected){
         if(tech)return fail(error,"development startingpoint TechTree key duplicated");tech=candidate;}}
     if(!tech)return fail(error,"development startingpoint TechTree member absent");
-    std::string item_name;if(!r.type(tech,image+0x16dc330,"startingpoint TechItem",error)||!r.string(tech,0x1f0,item_name,error)||!r.at(tech,0x1e8,linked,error))return false;
+    std::string item_name;if(!r.type(tech,image+0x16e26d0,"startingpoint TechItem",error)||!r.string(tech,0x1f0,item_name,error)||!r.at(tech,0x1e8,linked,error))return false;
     if(item_name!=(selected=="startingpoint"?"@StartingPoints":"@Build Bridge"))return fail(error,"development startingpoint native itemTypeName differs");
-    for(auto candidate:records){std::string key;if(!r.type(candidate,image+0x16e79d0,"TechRecord",error)||!r.string(candidate,0x38,key,error))return false;
+    for(auto candidate:records){std::string key;if(!r.type(candidate,image+0x16edd70,"TechRecord",error)||!r.string(candidate,0x38,key,error))return false;
         if(key==selected){if(record)return fail(error,"development startingpoint SoftwareStatus record duplicated");record=candidate;}}
     if(linked!=record)return fail(error,"development startingpoint record is not owned by current SoftwareStatus");
     out={{"key",selected},{"item_type_name",item_name},{"record_present",record!=0},{"purchased",nullptr},{"deployed",nullptr},{"custom",nullptr},{"owned",nullptr}};
@@ -100,28 +100,29 @@ bool technology(Reader& r,uintptr_t image,uintptr_t software,uintptr_t& tech,nlo
 }
 bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::string& error,const std::string& selected){
     uintptr_t head=0,tail=0,target=0,previous=0;
-    if(!r.at(image,0x13e2050,head,error)||!r.at(image,0x13e2040,tail,error))return false;
+    if(!r.at(image,0x13ee040,head,error)||!r.at(image,0x13ee050,tail,error))return false;
     std::set<uintptr_t> types;
-    for(auto node=head;node;){uintptr_t back=0,next=0,table=0,getter=0;std::string name;
+    // The ItemType list links nodes at type+0x20: head, tail, back (+0x28) and next (+0x30) hold node addresses.
+    for(auto link=head;link;){const uintptr_t node=link-0x20;uintptr_t back=0,next=0,table=0,getter=0;std::string name;
         if(types.size()>=size_t(catalogue_limit)||!types.insert(node).second)return fail(error,"development ItemType catalogue cycle/count exceeds4096");
         if(!r.at(node,0x28,back,error)||!r.at(node,0x30,next,error)||!r.at(node,0,table,error)||!r.at(table,0xa8,getter,error))return false;
         if(back!=previous)return fail(error,"development ItemType catalogue previous link differs");
-        if(getter!=image+0xd31590)return fail(error,"development ItemType name getter unsupported");
+        if(getter!=image+0xd3ccd0)return fail(error,"development ItemType name getter unsupported");
         if(!r.string(node,0x48,name,error))return false;
         if(name==(selected=="startingpoint"?"@StartingPoints":"@Build Bridge")){if(target)return fail(error,"development StartingPoints ItemType catalogue key duplicated");target=node;}
-        previous=node;node=next;
+        previous=link;link=next;
     }
     if(previous!=tail)return fail(error,"development ItemType catalogue tail differs");
     if(!target)return fail(error,"development StartingPoints live ItemType catalogue member absent");
-    if(!r.type(target,image+0x173b7b0,"StartingPoints CursorBehaviour ItemType",error))return false;
+    if(!r.type(target,image+0x1741b50,"StartingPoints CursorBehaviour ItemType",error))return false;
     uintptr_t owned=0,slots=0;int32_t count=0;
-    if(!r.at(player,0x1d0,owned,error)||!r.type(owned,image+0x16df0f0,"Inventory",error)||!r.at(owned,8,slots,error)||!r.at(owned,0x10,count,error))return false;
+    if(!r.at(player,0x1d0,owned,error)||!r.type(owned,image+0x16e5490,"Inventory",error)||!r.at(owned,8,slots,error)||!r.at(owned,0x10,count,error))return false;
     if(count!=inventory_slots)return fail(error,"development Player inventory slot count="+std::to_string(count)+" required=200");
     std::array<uintptr_t,inventory_slots> items{};if(!r.bytes(slots,items.data(),sizeof(items),error))return false;
     std::set<uintptr_t> seen;matches=0;
     for(auto item:items){if(!item)continue;if(!seen.insert(item).second)return fail(error,"development Inventory item owner duplicated");
         uintptr_t type=0,proxy=0,proxy_target=0,type_proxy=0;
-        if(!r.type(item,image+0x17437f0,"Item",error)||!r.at(item,0x68,type,error)||!r.at(item,0x70,proxy,error))return false;
+        if(!r.type(item,image+0x1749b90,"Item",error)||!r.at(item,0x68,type,error)||!r.at(item,0x70,proxy,error))return false;
         if(!types.contains(type))return fail(error,"development Inventory ItemType is outside current catalogue");
         if(!proxy)return fail(error,"development Inventory Item weak proxy absent");
         if(!r.at(proxy,0,proxy_target,error)||!r.at(type,0x40,type_proxy,error))return false;
@@ -131,14 +132,14 @@ bool inventory(Reader& r,uintptr_t image,uintptr_t player,int32_t& matches,std::
 }
 bool source(Reader& r,uintptr_t image,uintptr_t address,ProjectSource& out,std::string& error){
     out.address=address;
-    if(!r.type(address,image+0x16e48c0,"catalogue DevProject",error)||!r.at(address,0x18,out.kind,error)||
+    if(!r.type(address,image+0x16eac60,"catalogue DevProject",error)||!r.at(address,0x18,out.kind,error)||
        !r.string(address,0x20,out.key,error)||!r.string(address,0x40,out.art,error)||!r.at(address,0x60,out.statistic,error))return false;
     return out.kind>=0&&out.kind<=3||fail(error,"development catalogue project kind outside0..3");
 }
 bool research_rows(Reader& r,Port& port,uintptr_t image,uintptr_t state,uintptr_t lounge,uintptr_t software,nlohmann::json& out,std::string& error){
     uintptr_t tree=0,business=0,cash=0,current=0;int32_t major=0,balance=0;uint8_t sandbox=0;
-    if(!r.at(image,0x13df250,tree,error)||!r.type(tree,image+0x16dc400,"research TechTree",error)||
-       !owner(r,image,state,0x1c0,0x13df220,0x16d97e0,"research Business",business,error)||
+    if(!r.at(image,0x13eb250,tree,error)||!r.type(tree,image+0x16e27a0,"research TechTree",error)||
+       !owner(r,image,state,0x1c0,0x13eb220,0x16dfb80,"research Business",business,error)||
        !r.at(business,0xf0,sandbox,error)||!r.at(business,0x100,cash,error)||!r.at(cash,0x20,balance,error)||
        !r.at(software,0x88,major,error)||!r.at(lounge,0xa8,current,error))return false;
     if(sandbox>1||major<0)return fail(error,"development research version/sandbox flag invalid");
@@ -147,7 +148,7 @@ bool research_rows(Reader& r,Port& port,uintptr_t image,uintptr_t state,uintptr_
     std::map<std::string,uintptr_t> by_key,by_record;
     for(auto address:techs){std::string key;if(!r.string(address,0x20,key,error))return false;
         if(key.empty()||!by_key.emplace(key,address).second)return fail(error,"development research Tech key empty/duplicated");}
-    for(auto address:records){std::string key;if(!r.type(address,image+0x16e79d0,"research TechRecord",error)||!r.string(address,0x38,key,error))return false;
+    for(auto address:records){std::string key;if(!r.type(address,image+0x16edd70,"research TechRecord",error)||!r.string(address,0x38,key,error))return false;
         if(key.empty()||!by_record.emplace(key,address).second)return fail(error,"development research record key empty/duplicated");}
     nlohmann::json rows=nlohmann::json::array();std::set<std::string> seen;
     for(auto address:projects){ProjectSource entry;if(!source(r,image,address,entry,error))return false;
@@ -189,8 +190,8 @@ bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& erro
     if(!r.array(lounge,0xd8,catalogue,error)||!r.at(lounge,0xd8,out.catalogue_data,error)||!r.at(lounge,0xe4,out.catalogue_capacity,error)||
        !r.array(lounge,0x70,developers,error)||!r.at(lounge,0x70,out.developer_data,error)||!r.at(lounge,0x7c,out.developer_capacity,error)||
        !r.at(lounge,0x57,out.automatic_workers,error)||!r.at(lounge,0x310,out.total_workers,error)||!r.at(snapshot.tech,0xb4,out.max_workers,error))return false;
-    if(!owner(r,image,reinterpret_cast<uintptr_t>(snapshot.origin.state),0x190,0x13df4f0,0x1714ed0,"ReleaseManager",out.release_manager,error)||
-       !r.at(out.release_manager,0x38,out.release_owner,error)||!r.type(out.release_owner,image+0x16c12b0,"Release",error)||
+    if(!owner(r,image,reinterpret_cast<uintptr_t>(snapshot.origin.state),0x190,0x13eb4f0,0x171b270,"ReleaseManager",out.release_manager,error)||
+       !r.at(out.release_manager,0x38,out.release_owner,error)||!r.type(out.release_owner,image+0x16c7650,"Release",error)||
        !r.array(out.release_owner,0x150,out.release_changes,error)||!r.at(out.release_owner,0x150,out.release_data,error)||
        !r.at(out.release_owner,0x15c,out.release_capacity,error))return false;
     if(out.automatic_workers>1||(out.automatic_workers&&(out.total_workers<0||out.max_workers<0)))
@@ -203,7 +204,7 @@ bool creation_owners(Reader& r,StartingpointSnapshot& snapshot,std::string& erro
     }
     if(!out.source)return fail(error,"startingpoint creation catalogue project absent");
     for(auto address:developers){DeveloperState entry;entry.address=address;
-        if(!r.type(address,image+0x17422e0,"Dev",error)||!r.at(address,0x4c4,entry.job,error))return false;
+        if(!r.type(address,image+0x1748680,"Dev",error)||!r.at(address,0x4c4,entry.job,error))return false;
         out.developers.push_back(entry);
     }
     if(snapshot.project){
@@ -224,12 +225,12 @@ bool observe(Port& port,nlohmann::json& result,std::string& error,StartingpointS
         Reader r(port);if(!guard(r,image,error))return false;
         const auto state=reinterpret_cast<uintptr_t>(before.state),mode=reinterpret_cast<uintptr_t>(before.mode);
         uintptr_t global_state=0,mode_state=0,owned_world=0,player=0,lounge=0,software=0;
-        if(!r.at(image,0x13df2a0,global_state,error)||!r.at(mode,0x58,mode_state,error)||!r.at(state,0x160,owned_world,error))return false;
+        if(!r.at(image,0x13eb2a0,global_state,error)||!r.at(mode,0x58,mode_state,error)||!r.at(state,0x160,owned_world,error))return false;
         if(global_state!=state||mode_state!=state||owned_world!=reinterpret_cast<uintptr_t>(before.world))return fail(error,"development GameState/Mode/World current owner differs");
-        if(!r.type(state,image+0x16de920,"GameState",error)||
-           !owner(r,image,mode,0x150,0x13df9f0,0x17873b0,"Player",player,error)||
-           !owner(r,image,state,0x180,0x13df290,0x16de6c0,"DevLounge",lounge,error)||
-           !owner(r,image,state,0x1c8,0x13df500,0x1715450,"SoftwareStatus",software,error))return false;
+        if(!r.type(state,image+0x16e4cc0,"GameState",error)||
+           !owner(r,image,mode,0x150,0x13eb9f0,0x178d750,"Player",player,error)||
+           !owner(r,image,state,0x180,0x13eb290,0x16e4a60,"DevLounge",lounge,error)||
+           !owner(r,image,state,0x1c8,0x13eb500,0x171b7f0,"SoftwareStatus",software,error))return false;
         nlohmann::json dev,tech;int32_t item_count=0;uintptr_t startingpoint=0;
         initial_release::StartingpointRelease release;
         if(!project(r,image,lounge,dev,error)||!technology(r,image,software,startingpoint,tech,error,selected)||

@@ -9,7 +9,7 @@ bool quest_npc(const Pin& p,const QuestOwner& owner,quest_state::Npc& out,std::s
     apply_timing::PageReadScope pages(apply_timing::page_read_scope==nullptr);
     QuestMemory read;
     quest_state::Npc row;row.key=owner.key;uintptr_t region=0;
-    if(!ap(owner.npc,p.image,0x1742980,e)||!at(owner.npc,0x178,region,e)||
+    if(!ap(owner.npc,p.image,0x1748d20,e)||!at(owner.npc,0x178,region,e)||
        !at(region,0x834,row.pose.region,e)||!at(owner.npc,0x6f8,row.level,e)||
        !at(owner.npc,0x80c,row.type,e))return false;
     if(!memory.copy(owner.npc+0x100,row.pose.orientation.data(),sizeof row.pose.orientation,e)||
@@ -115,7 +115,7 @@ bool quest_restore_pause(const Pin& p,std::string& e,const std::function<void()>
     if(status.saves_in_progress||status.edit_operations)return fail(e,"Quest pause restore requires closed Save/Edit scope actual_saves="+
         std::to_string(status.saves_in_progress)+" actual_edits="+std::to_string(status.edit_operations));
     uintptr_t clock=0;float pause=0,selected=0;
-    if(!at(p.image,0x13df9a0,clock,e)||clock!=p.clock||!ap(clock,p.image,0x17499d0,e)||
+    if(!at(p.image,0x13eb9a0,clock,e)||clock!=p.clock||!ap(clock,p.image,0x174fd70,e)||
        !at(clock,0x58,selected,e)||!at(clock,0x5c,pause,e))return fail(e,e.empty()?"Quest pause restore actual Clock owner differs":e);
     if(selected!=p.selected)return fail(e,"Quest pause restore selected speed changed");
     if(pause==p.pause)return true;
@@ -123,10 +123,10 @@ bool quest_restore_pause(const Pin& p,std::string& e,const std::function<void()>
     // The native SaveScope clears pause; Mode normally restores it next frame.
     constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};
     std::array<unsigned char,10> code{};
-    if(!memory.copy(p.image+0x259b70,code.data(),code.size(),e))return false;
-    if(!hooks::framework::verify_original_bytes(p.image+0x259b70,code.data(),expected.data(),expected.size(),e))return fail(e,"Quest pause restore original setter bytes differ: "+e);
+    if(!memory.copy(p.image+0x25cc30,code.data(),code.size(),e))return false;
+    if(!hooks::framework::verify_original_bytes(p.image+0x25cc30,code.data(),expected.data(),expected.size(),e))return fail(e,"Quest pause restore original setter bytes differ: "+e);
     if(before_set)before_set();
-    const auto exception=call_capture_pause(p.image+0x259b70,clock,p.pause);
+    const auto exception=call_capture_pause(p.image+0x25cc30,clock,p.pause);
     if(exception)return fail(e,"Quest pause restore original setter exception="+std::to_string(exception)+"; no replay");
     if(!at(clock,0x58,selected,e)||!at(clock,0x5c,pause,e)||selected!=p.selected||pause!=p.pause)
         return fail(e,e.empty()?"Quest pause restore native Clock readback differs; no replay":e);
@@ -171,15 +171,15 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
         return true;
     };
     const auto reserve=[&](uintptr_t array,int32_t capacity,std::string& error){
-        constexpr std::array<unsigned char,16> expected{0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0xb8,0xfe,0xff,0xff,0xff,0xff,0xff,0x1f};
+        constexpr std::array<unsigned char,16> expected{0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0xb8,0xfe,0xff,0xff,0xff,0xff,0xff,0xff};
         std::array<unsigned char,16> bytes{};
-        if(!memory.copy(p.image+0xe8080,bytes.data(),bytes.size(),error))return false;
+        if(!memory.copy(p.image+0xe90b0,bytes.data(),bytes.size(),error))return false;
         if(bytes!=expected)return fail(error,"DailyCount original Reserve entry differs");
         owner_proven=false;
         uint32_t exception=0;
         {
             apply_timing::PageReadScope original(apply_timing::PageBoundary::OriginalCall);
-            exception=quest_daily_reserve(p.image+0xe8080,array,capacity);
+            exception=quest_daily_reserve(p.image+0xe90b0,array,capacity);
         }
         return !exception||fail(error,"DailyCount original Reserve exception="+std::to_string(exception)+"; no replay");
     };
@@ -219,8 +219,8 @@ bool store_npc_counters(const Pin& p,const QuestOwner& owner,const quest_state::
     };
     QuestDailyWork work{body,exit_guard};mt2mp::subscriber_lifecycle::SaveScopeReceipt receipt;
     const mt2mp::subscriber_lifecycle::SaveScopeApi api{
-        reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x4a03a0),
-        reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x49f6f0)};
+        reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x4a5890),
+        reinterpret_cast<mt2mp::subscriber_lifecycle::SaveScopeCall>(p.image+0x4a4be0)};
     if(!mt2mp::subscriber_lifecycle::with_save_scope(api,world.mode,quest_daily_body,quest_daily_guard,&work,receipt,e))return false;
     return quest_restore_pause(p,e);
 }
@@ -236,7 +236,7 @@ bool quest_noop_weak(const Pin& pin,uintptr_t instance,QuestNoopWeak& out,std::s
     if(!instance||instance>UINTPTR_MAX-0x58||
        !at(instance,0,object_ap,e)||!at(instance,0x18,link_ap,e)||!at(instance,0x38,weak_ap,e))
         return fail(e,e.empty()?"Quest link Instance extent/read failed":e);
-    if(object_ap!=pin.image+0x17087e0||link_ap!=pin.image+0x1711c30||weak_ap!=pin.image+0x16f9f20)
+    if(object_ap!=pin.image+0x170eb80||link_ap!=pin.image+0x1717fd0||weak_ap!=pin.image+0x17002c0)
         return fail(e,"Quest link Instance/Weak addresspoints differ");
     if(!at(instance,0x30,out.id,e)||!at(instance,0x40,out.target,e)||!at(instance,0x48,out.proxy,e))return false;
     if(!out.proxy)return !out.target||fail(e,"Quest link target without Proxy");
@@ -249,7 +249,7 @@ bool quest_noop_weak(const Pin& pin,uintptr_t instance,QuestNoopWeak& out,std::s
     if(!out.target||out.target>UINTPTR_MAX-0x28||out.proxy_target!=out.target+0x18)
         return fail(e,"Quest link live Proxy target differs");
     if(!at(out.target,0,ap,e)||!at(out.target,0x20,proxy,e))return false;
-    return (ap==pin.image+0x174ac10&&proxy==out.proxy)||fail(e,"Quest link live Quest/Proxy binding differs");
+    return (ap==pin.image+0x1750fb0&&proxy==out.proxy)||fail(e,"Quest link live Quest/Proxy binding differs");
 }
 bool quest_noop_row(const Pin& pin,uintptr_t p,QuestNoopRow& out,std::string& e){
     apply_timing::PageReadScope pages;
@@ -257,7 +257,7 @@ bool quest_noop_row(const Pin& pin,uintptr_t p,QuestNoopRow& out,std::string& e)
     if(!p||p>UINTPTR_MAX-0xb0)return fail(e,"Progress row extent invalid");
     if(!at(p,0,ap,e)||!at(p,0x18,link_ap,e)||!at(p,0x38,weak_ap,e)||
        !at(p,0x40,out.npc,e)||!at(p,0x48,out.proxy,e))return false;
-    if(ap!=pin.image+0x172d130||link_ap!=pin.image+0x1711930||weak_ap!=pin.image+0x16f9de0)
+    if(ap!=pin.image+0x17334d0||link_ap!=pin.image+0x1717cd0||weak_ap!=pin.image+0x1700180)
         return fail(e,"Progress row/NPC Weak addresspoints differ");
     if(!out.proxy){if(out.npc)return fail(e,"Progress NPC target without Proxy");}
     else{
@@ -268,7 +268,7 @@ bool quest_noop_row(const Pin& pin,uintptr_t p,QuestNoopRow& out,std::string& e)
             if(!out.npc||out.npc>UINTPTR_MAX-0x30||out.proxy_target!=out.npc+0x20)
                 return fail(e,"Progress NPC live Weak target differs");
             if(!at(out.npc,0,npc_ap,e)||!at(out.npc,0x28,reverse,e))return false;
-            if(npc_ap!=pin.image+0x1742980||reverse!=out.proxy)return fail(e,"Progress NPC live AP/Proxy differs");
+            if(npc_ap!=pin.image+0x1748d20||reverse!=out.proxy)return fail(e,"Progress NPC live AP/Proxy differs");
         }
     }
     if(!quest_noop_weak(pin,p+0x58,out.quest,e)||!at(p,0x50,out.completed,e)||!at(p,0xa8,out.monsters,e)||
@@ -300,7 +300,7 @@ bool quest_fresh_link(void* user,const mt2mp::subscriber_lifecycle::ExternalLink
     if(uintptr_t(world.world)!=p.world||world.world_epoch!=p.binding.native_epoch||world.generation!=p.binding.native_generation||
        net::current_world_epoch()!=p.common_epoch)return fail(e,"Quest apply current World/epoch/generation differs");
     uintptr_t manager=0,data=0,toon=0,backlink=0;int32_t count=-1,capacity=-1,id=-1;
-    if(!at(p.image,0x13df690,manager,e)||!ap(manager,p.image,0x1725f40,e)||
+    if(!at(p.image,0x13eb690,manager,e)||!ap(manager,p.image,0x172c2e0,e)||
        !at(manager,0x40,data,e)||!at(manager,0x48,count,e)||!at(manager,0x4c,capacity,e)||
        count<0||capacity<count||count>1000000||(count&&!data))return fail(e,e.empty()?"Quest apply Subscriber census differs":e);
     size_t matches=0;
@@ -314,8 +314,8 @@ bool quest_fresh_link(void* user,const mt2mp::subscriber_lifecycle::ExternalLink
     }else{
         for(int32_t i=0;i<count;++i){uintptr_t pointer=0;if(!at(data,size_t(i)*8,pointer,e))return false;if(pointer==check.subscriber)++matches;}
     }
-    if(matches!=1||!ap(check.subscriber,p.image,0x16e75f0,e)||!at(check.subscriber,0x20,id,e)||id!=check.id||
-       !at(check.subscriber,0x80,toon,e)||toon!=check.toon||!ap(toon,p.image,0x1744e90,e)||
+    if(matches!=1||!ap(check.subscriber,p.image,0x16ed990,e)||!at(check.subscriber,0x20,id,e)||id!=check.id||
+       !at(check.subscriber,0x80,toon,e)||toon!=check.toon||!ap(toon,p.image,0x174b230,e)||
        !at(toon,0x940,backlink,e)||backlink!=check.subscriber)return fail(e,e.empty()?"Quest apply reciprocal Subscriber/Toon ownership differs":e);
     bool found=link.portable_key.empty()&&!link.object;
     if(!found){
@@ -331,12 +331,12 @@ bool quest_fresh_link(void* user,const mt2mp::subscriber_lifecycle::ExternalLink
         return fail(e,"Quest apply canonical NPC/Quest target is no longer bound");
     if(check.instance_member){
         npc_quest_visitor_reader::ArrayHeader header;QuestMemory read;
-        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16ee0e0||
+        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16f4480||
            header.count<0||header.capacity<header.count||header.count>100000||(header.count&&!header.data))
             return fail(e,e.empty()?"Quest apply Instance array differs":e);
         size_t instances=0;
         for(int32_t i=0;i<header.count;++i){uintptr_t pointer=0;if(!at(header.data,size_t(i)*8,pointer,e))return false;if(pointer==check.progress)++instances;}
-        if(instances!=1||!ap(check.progress,p.image,0x172d130,e))return fail(e,"Quest apply Instance owner is not a current Progress member");
+        if(instances!=1||!ap(check.progress,p.image,0x17334d0,e))return fail(e,"Quest apply Instance owner is not a current Progress member");
     }
     e.clear();return true;
 }
@@ -492,12 +492,12 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     const auto pointers=[&](std::vector<uintptr_t>& out,npc_quest_visitor_reader::ArrayHeader* captured=nullptr){
         apply_timing::PageReadScope pointer_pages(!scalar_only||!apply_timing::page_read_scope);
         QuestMemory read;npc_quest_visitor_reader::ArrayHeader header;
-        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16ee0e0||
+        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16f4480||
            header.count<0||header.count>100000||header.capacity<header.count||(header.count&&!header.data))
             return fail(e,e.empty()?"Quest apply Progress array header differs":e);
         if(captured)*captured=header;
         out.resize(size_t(header.count));
-        for(size_t i=0;i<out.size();++i)if(!at(header.data,i*8,out[i],e)||!ap(out[i],p.image,0x172d130,e))return false;
+        for(size_t i=0;i<out.size();++i)if(!at(header.data,i*8,out[i],e)||!ap(out[i],p.image,0x17334d0,e))return false;
         return true;
     };
     npc_quest_visitor_reader::ArrayHeader scalar_header;
@@ -507,7 +507,7 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
     const auto selected_pointer=[&](size_t row_index){
         apply_timing::PageReadScope pointer_pages(!scalar_only||!apply_timing::page_read_scope);
         QuestMemory read;npc_quest_visitor_reader::ArrayHeader header;
-        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16ee0e0||
+        if(!npc_quest_visitor_reader::read_header(read,toon,header,e)||header.ap!=p.image+0x16f4480||
            header.count<0||header.count>100000||header.capacity<header.count||(header.count&&!header.data))
             return fail(e,e.empty()?"Quest apply Progress array header differs":e);
         if(header.ap!=scalar_header.ap||header.data!=scalar_header.data||header.count!=scalar_header.count||
@@ -515,7 +515,7 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
             return fail(e,"Quest apply ordered Progress membership differs");
         uintptr_t pointer=0;if(!at(header.data,row_index*8,pointer,e))return false;
         if(pointer!=rows[row_index])return fail(e,"Quest apply ordered Progress membership differs");
-        return ap(pointer,p.image,0x172d130,e);
+        return ap(pointer,p.image,0x17334d0,e);
     };
     bool owners_current=same_weapon(*actual,*target);
     const auto current_row=[&](size_t row_index,const quest_state::Progress& wanted,bool& npc_matches,bool& quest_matches){
@@ -654,8 +654,8 @@ bool NativePort::store_quest_state(const Owners& before,size_t index,
 namespace {
 void npc_transform(uintptr_t image,uintptr_t npc,const subscriber_motion::Pose& target){
     alignas(4) std::array<std::byte,0x6c> transform{};
-    const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(image+0x9ff370);
-    const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(image+0xc67c80);
+    const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(image+0xa09f30);
+    const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(image+0xc733c0);
     construct(transform.data(),target.orientation.data(),target.position.data(),target.scale.data());
     set(npc+0x30,transform.data());
 }
@@ -704,9 +704,9 @@ bool NativePort::store_npc_pose(const Owners& before,size_t index,const quest_st
         std::array<uint32_t,3> spawn{},spawn_after{};
         if(old.pose.region!=target.pose.region)return fail(e,"NPC simulation transform fixed Region/callback differs: "+difference("npc["+old.key+"].pose.region",old.pose.region,target.pose.region));
         if(!at(npc,0x30,render,e))return false;
-        if(render!=p.image+0x1742e58)return fail(e,"NPC simulation transform fixed Region/callback differs: render class differs");
+        if(render!=p.image+0x17491f8)return fail(e,"NPC simulation transform fixed Region/callback differs: render class differs");
         if(!at(render,0x38,callback,e))return false;
-        if(callback!=p.image+0x3c2de0)return fail(e,"NPC simulation transform fixed Region/callback differs: callback differs");
+        if(callback!=p.image+0x3c78f0)return fail(e,"NPC simulation transform fixed Region/callback differs: callback differs");
         if(!at(npc,0x178,region,e)||!at(npc,0x490,follows,e))return false;
         if(follows)return fail(e,"NPC simulation transform fixed Region/callback differs: "+difference("npc["+old.key+"].follows_region",follows,uint8_t(0)));
         if(!memory.copy(npc+0x818,spawn.data(),sizeof spawn,e))return false;

@@ -133,7 +133,7 @@ CaptureResult record(Memory& memory,const action_session::Context& expected,cons
     };
     if(!lifetime())return CaptureResult::Failed;
     std::string captured;
-    const auto result=member::complete_record_capture(memory,selected.object,0xf62880,0xf628e0,value.owners,mode,captured,error);
+    const auto result=member::complete_record_capture(memory,selected.object,0xf6e340,0xf6e3a0,value.owners,mode,captured,error);
     if(result==CaptureResult::Failed||!lifetime())return CaptureResult::Failed;
     if(result==CaptureResult::NeedsExternalOwners)return result;
     original_record_sha=std::move(captured);error.clear();return CaptureResult::Complete;
@@ -169,14 +169,14 @@ bool read(const action_session::Binding& binding,const std::string& snapshot,Fam
     if(seh||registered!=actor)return fail(error,"Character complete Actor Record current FindUID differs SEH="+std::to_string(seh));
     const auto& selected=methods[size_t(family)];
     for(const auto& pin:character_membership_codes::helpers){
-        if(pin.rva!=selected[0]&&pin.rva!=selected[1]&&pin.rva!=0x9667c0&&pin.rva!=0x9676a0&&pin.rva!=0x89e580&&pin.rva!=0x89e5f0)continue;
+        if(pin.rva!=selected[0]&&pin.rva!=selected[1]&&pin.rva!=0x96f9e0&&pin.rva!=0x9708c0&&pin.rva!=0x8a76a0&&pin.rva!=0x8a7710)continue;
         std::vector<unsigned char> bytes(pin.bytes);if(!memory.copy(owner.image+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(mt2mp::sha256(bytes)!=pin.sha)return fail(error,"Character complete Actor original serializer body differs RVA="+std::to_string(pin.rva));
     }
     RecordMemory graph_memory(memory);Inspect value{graph_memory};
     const subscriber_lifecycle::CaptureApi calls{
-        reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x9676a0),
-        reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x89e5f0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x9708c0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(owner.image+0x8a7710),
         reinterpret_cast<subscriber_lifecycle::PrepareSave>(owner.image+selected[0]),reinterpret_cast<subscriber_lifecycle::SaveRecord>(owner.image+selected[1])};
     {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
         if(!subscriber_lifecycle::capture_original(calls,reinterpret_cast<const void*>(actor),inspect,&value,out.cleanup,error))return false;}

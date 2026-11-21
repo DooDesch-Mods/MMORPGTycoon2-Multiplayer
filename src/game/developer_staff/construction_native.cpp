@@ -61,7 +61,7 @@ bool actor(const Capture& c,size_t slot,Actor& out,std::string& e,bool share_met
     if(c.state.rows.size()!=50||c.local.developers.size()!=50||slot>=50)return fail(e,"Construction actor fixed50 absent");
     const auto p=c.local.developers[slot];uintptr_t ap=0,render=0,callback=0;
     if(!at(p,0,ap,e)||!at(p,0x30,render,e)||!at(render,0x38,callback,e))return false;
-    if(ap!=c.image+0x17422e0||render!=c.image+0x17426e0||callback!=c.image+0x3b13a0)return fail(e,"Construction actor class/transform callback differs");
+    if(ap!=c.image+0x1748680||render!=c.image+0x1748a80||callback!=c.image+0x3b5eb0)return fail(e,"Construction actor class/transform callback differs");
     out={};out.pose.id=c.state.rows[slot].id;
     if(!at(p,0x100,out.pose.orientation,e)||!at(p,0x11c,out.pose.scale,e)||!at(p,0x170,out.shard,e)||
        !at(p,0x178,out.region,e)||!at(p,0x488,out.quadtree,e)||!at(p,0x338,out.current,e)||!at(p,0x348,out.destination,e)||
@@ -86,8 +86,8 @@ bool quiet(const Actor& a,std::string& e){
 struct Target {remove_diagnostics::LocalTarget binding;uintptr_t region=0,shard=0;uint8_t active=0;int32_t state=0;};
 bool building(const Capture& c,const LocalJob& link,Target& out,std::string& e){
     uintptr_t selection=0,ap=0;
-    if(!at(c.image,0x13df630,selection,e)||!at(selection,0,ap,e))return false;
-    if(ap!=c.image+0x17205d0)return fail(e,"Construction SelectionManager class differs");
+    if(!at(c.image,0x13eb630,selection,e)||!at(selection,0,ap,e))return false;
+    if(ap!=c.image+0x1726970)return fail(e,"Construction SelectionManager class differs");
     // The retained job names one exact target; unrelated props are not inputs.
     action_session::Context context;if(!action_session::selected_session().current(context,e))return false;
     if(!remove_diagnostics::resolve_identity_destination(context.snapshot_uuid,link.building_key,out.binding,e))return false;
@@ -155,50 +155,50 @@ bool graph(const Capture& c,const std::vector<LocalJob>& links,State& out,job_ce
 bool code(const Capture& c,uintptr_t& dp,uintptr_t& jp,std::string& e){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Body bodies[]={
-        {0x4d0140,64,"be269dd99cc4585d34b5e7dceed29058d2db2c55efd7d12b07774864e8bbc9ef"},
-        {0x3b1cb0,176,"b17c3a82bfa769d5a0ee82b72cf8b542a0be0bcc548a1f0fb9779b31c796cce9"},
-        {0x4cf6e0,16,"1352ba185c1aadfff33882b525618d08126efe44082443f61bec24ef1b8f35b1"},
-        {0xb38120,16,"499f1f307c1cb989f968a6b7fcaec591e1828877223d0b0e7e8e8b76cde8c9ca"},
-        {0x967370,416,"2a6e4111f91e2c3cecb2aa35b99ed8d71f22a75f8300694f7d9ba6b086c01daa"},
-        {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
-        {0x1113d80,272,"dee54a7232d3aef27b73436213be00e802ba3cb997d4fb09a5f41f38468fafcc"},
-        {0x967740,432,"205a65bdce865e61ecf78e04774d5c8d8a88ffa0d46454369f01410d6834579f"},
-        {0x96d2c0,64,"f2d31e127b8ea951dc2775ada32c5fb90af88ab0455384aa4f18cfb4eabae95a"},
-        {0x8a1c70,128,"f803a22293cf408d76ed09a49c80764c6872b2ff069af07ea247a4c66365ce75"},
-        {0xd258b0,32,"92284a2bddcc708ff1be3237cb4371f99dcd33fb3697874d819255b81af22ab0"},
-        {0xd0fd10,672,"04893cac0714f4ce3a4f95f882fd1851e214348a695754ed67021050809cacfc"},
-        {0xd20ff0,32,"80e8d807ddd43641e558be3496b984967a19793b2e0af40ee184ef55a787941d"},
-        {0xe031d0,64,"fe055bdaa930a65e92bd59bd371d9de2b1c1ca1f145c88fc06ebfa53dc7660ae"},
-        {0xe03390,64,"de6c1492286a284636bc131c31fc626238709cb0aaf3fd1306ce9bf886b8c357"},
-        {0xe02b50,64,"a4a23a998cb00f1fa7784beca0190b7debb0d467ca9444cba7e3347d4e0279bf"},
-        {0xe02d10,64,"4214acb6b5c9101141f73f3e8ac4cb35cc42098f27b6ca584f595b20f69718e8"},
-        {0x3b1c00,176,"a607be569b8737a55d1f690fa9fc42a5af43475557f68da5f40dfb96870b3885"},
-        {0x3b1b50,176,"70d822dcde278c15da85a3e0b1ca44c0ab0aa2f94325434abfc8db767d4e3c09"},
-        {0x3b0cf0,240,"e96246ce8a52b623b720f8dc29f858689e14de3706462ee8edd10038b3f2ca80"},
-        {0x3b13a0,240,"2d0918f618bcf6cd3ecf6d39b821e0a695f463c6921c09392210ab6b736c00f2"},
-        {0x9ff370,64,"177129c348811abd9b0d6e9cef580ef6c4aa044ce3afc4fafa5bc1935213387f"},
-        {0xc67c80,240,"69bb662a4baf97906c2c5669ed569370a9b16b3c62c060664eee79407c5c325c"},
-        {0x25eb30,48,"d1d12e1ba77adf6276e1aab10e5492acad6449affe6c7c47a59164becffcbe65"},
-        {0x25eb00,48,"82126880703d8c8a8c813c8d72adc79985100c8482bfea94cb48c6aba370e0e8"},
-        {0x261080,336,"201c5d03a4c2036b3085a4e991a071859ff99f6285583ab42cb759716a91c35a"},
-        {0x261320,224,"6f94557821f9b76ba3aa6cc6c0403ae56f95f10ac1ea1109f5b543bf47e09b62"},
-        {0x40ab90,1056,"76fea89d8d3e254fbf9259679efc57db74c9242c89117dec1d93601959e218bb"},
-        {0x40a920,256,"90d38b047a2f449da7387a461942c6869c13c9dda9673c6a5d9d8ea511e3a341"},
-        {0xa91670,8,"a2cd879c472cf43a9bb3204f150fa4150c59a714d744434fb224bfb9ececb038"},
-        {0xc2e810,176,"9aa893e96fc125d33f182e51dd1ff11ec5164ed30cbd1cd62c2765da01cb20e2"},
-        {0x89e940,224,"c3dc4f40d9604953e71e4faf6d70671f6813bc45ba74ec7d8996b357712dc6f0"},
-        {0x89e480,256,"d95b690b624d4f2e5b1050ebe0fd0ddc7ea6f8a52f31ac6f60d00372a162cae5"}};
-    for(const auto& b:bodies){if(b.rva==0xc2e810){if(!bug_authority::verify_job_destructor(e))return false;continue;}std::vector<unsigned char> bytes(b.size);
+        {0x4d5ec0,64,"be269dd99cc4585d34b5e7dceed29058d2db2c55efd7d12b07774864e8bbc9ef"},
+        {0x3b67c0,176,"235825376f8f9a88e1f27d5a6935a5740fcf78caa8c1c0007a1baab7c7ffd02f"},
+        {0x4d5460,16,"1352ba185c1aadfff33882b525618d08126efe44082443f61bec24ef1b8f35b1"},
+        {0xb44980,16,"499f1f307c1cb989f968a6b7fcaec591e1828877223d0b0e7e8e8b76cde8c9ca"},
+        {0x970590,416,"708dc9f67619c74b41ea34856237e98209b298b0cc72613a4cf3b729999a5976"},
+        {0x9708c0,160,"182327238cd9e4972b16d4d21ec53c523fce5ef393eda38318e12cc9eb727642"},
+        {0x111f720,272,"646ae2ceb1adbb4b88d9e72b93f1c5cb83b4eda2a7e81c23c411c2aec65ee3d2"},
+        {0x970960,432,"4fc7f1d8b8354b5fe6fd40da2d12f0cfaead56bf99ef91c0fa31876a02b41075"},
+        {0x9764e0,64,"8e6bdd88aa12b82e34aa325e5d81376fdeff23e2b13612f173bbfc54d459149b"},
+        {0x8aad90,128,"9e2324bb66601dcf36f4a52631bb4e83b6af61890ab9aca15f971d2f0d246370"},
+        {0xd30ff0,32,"cfecd549f2e6fc6c689856fae8276d52e3e1b19f3f7eca1a5cb61d01400d9f6f"},
+        {0xd1b450,672,"86e506aa0a620c7a5235a38b0d338129da6efd581fdc853e6adf5153ab5d7858"},
+        {0xd2c730,32,"a843d1f8c6c07db57ec6471ed8be729b1b5759bd76320a7079d32267f88efa6f"},
+        {0xe0eae0,64,"7aebb57792c3a8c5a76cec58742dc3b02acf17f68f48530f685985427b252d9c"},
+        {0xe0eca0,64,"82ade05e5812ac2b083e69ca7c86ab5bbf3a49d23b4568c58881882c8ce4a666"},
+        {0xe0e460,64,"d32a9e32e262fb82ae3931d1ce775a7cced3d1ec6853c7487f2f39c9f52a24f5"},
+        {0xe0e620,64,"94fd5e44740600d68ec34fcdc82c2efce70fae279535d58e7a255ec43e2a78bf"},
+        {0x3b6710,176,"47efd3d68295a556ba32434e985f0986acc4720121bfb587ae427f87496bc94b"},
+        {0x3b6660,176,"2fc1cb96a3befebe0148244fc49f2afbdba3d4be5ba62d884f25476dfe8e7133"},
+        {0x3b5800,240,"9f91f8fd898efecb32d41ba9c0d7f24d29119449b31f6131c68f098795a640a1"},
+        {0x3b5eb0,240,"9e11a002fbdffee0a3d6fc39bec704195d71fc62672dde8859e26b006480ad72"},
+        {0xa09f30,64,"f86d30ff4d69957df166adf02c075ed160f76aed0b0355639e83f44feff47eb5"},
+        {0xc733c0,240,"69bb662a4baf97906c2c5669ed569370a9b16b3c62c060664eee79407c5c325c"},
+        {0x261c30,48,"d1d12e1ba77adf6276e1aab10e5492acad6449affe6c7c47a59164becffcbe65"},
+        {0x261c00,48,"82126880703d8c8a8c813c8d72adc79985100c8482bfea94cb48c6aba370e0e8"},
+        {0x264180,336,"63a5aa89a427a868cb7f44bfeb792fa8b49e877f8e006e0124a929a5fa0b41b2"},
+        {0x264420,224,"bd4d79952606a1033735ff4c6df3a552caeca941691dca7ac662486f7a11980f"},
+        {0x40f750,1056,"452763aa310f29e5c1a81402e5638580766d2e9203c498cf2d1025a5d5dd11c7"},
+        {0x40f4e0,256,"5de0c298af5c0f61f7a6f8da43947e2f901c2ebddde4e866f9ef8f74e3b4b63c"},
+        {0xa9c7b0,8,"0120f2ac7097c33adb611d188e7ecbd01622b154e7f666290fc938cdadc4d5c5"},
+        {0xc3b0c0,176,"c5e73e7399872d8d858a358992b94e179c6f770d20cf791ea9193e22ad912988"},
+        {0x8a7a60,224,"64a5757d73e600f486e4ec9695cc9a977076278730583797b858b6b21e1586c6"},
+        {0x8a75a0,256,"63413d005f548d64098fd9b9589b884df48926792e0d6c9fc850233c81fa70cd"}};
+    for(const auto& b:bodies){if(b.rva==0xc3b0c0){if(!bug_authority::verify_job_destructor(e))return false;continue;}std::vector<unsigned char> bytes(b.size);
         if(!memory.copy(c.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha)return fail(e,"Construction native full body differs RVA="+std::to_string(b.rva));}
     uintptr_t set_shard=0,shard_changed=0;
-    if(!at(c.image+0x17422e0,0x190,set_shard,e)||!at(c.image+0x17422e0,0x3b8,shard_changed,e))return false;
-    if(set_shard!=c.image+0x3b1cb0||shard_changed!=c.image+0xb38120)
+    if(!at(c.image+0x1748680,0x190,set_shard,e)||!at(c.image+0x1748680,0x3b8,shard_changed,e))return false;
+    if(set_shard!=c.image+0x3b67c0||shard_changed!=c.image+0xb44980)
         return fail(e,"Construction Developer SetShard dispatch differs");
-    if(!at(c.image,0x1a32148,dp,e)||!at(c.image,0x1a30a20,jp,e))return false;
+    if(!at(c.image,0x1a39148,dp,e)||!at(c.image,0x1a37a20,jp,e))return false;
     struct Property{uintptr_t object,ap,offset;};
-    const Property properties[]={{dp,0x1729040,0x4c8},{jp,0x1728f60,0xb8},
-        {c.image+0x13c8f40,0x16d2410,0x4d9},{c.image+0x13c8fc0,0x16c9a40,0x4c4},{c.image+0x13cbf80,0x16cf9a0,0x7e1}};
+    const Property properties[]={{dp,0x172f3e0,0x4c8},{jp,0x172f300,0xb8},
+        {c.image+0x13d4f40,0x16d87b0,0x4d9},{c.image+0x13d4fc0,0x16cfde0,0x4c4},{c.image+0x13d7f80,0x16d5d40,0x7e1}};
     for(const auto& p:properties){uintptr_t ap=0,offset=0;
         if(!at(p.object,0,ap,e)||!at(p.object,0x38,offset,e))return false;
         if(ap!=c.image+p.ap||offset!=p.offset)return fail(e,"Construction original property class/offset differs");}

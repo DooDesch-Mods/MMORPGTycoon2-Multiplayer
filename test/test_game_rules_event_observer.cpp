@@ -6,12 +6,12 @@
 namespace observer=mt2mp::game::game_rules::event_observer;
 namespace {
 constexpr uintptr_t fixture_image=0x10000000;
-constexpr uintptr_t fixture_table=fixture_image+0x1a2dd00+59*56;
+constexpr uintptr_t fixture_table=fixture_image+0x1a34d00+59*56;
 std::map<uintptr_t,uint64_t> fixture_memory;
 unsigned fixture_checks=0,fixture_head_reads=0;
 bool fixture_change=false;
 void need(bool value,const char* cause){++fixture_checks;if(!value)throw std::runtime_error(cause);}
-void reset(){fixture_memory={{fixture_image+0x13b9820,1},{fixture_table+0x10,0},{fixture_table+0x18,0}};fixture_head_reads=0;fixture_change=false;}
+void reset(){fixture_memory={{fixture_image+0x13c5820,1},{fixture_table+0x10,0},{fixture_table+0x18,0}};fixture_head_reads=0;fixture_change=false;}
 void recipient(uintptr_t node,uintptr_t next,uintptr_t listener,uintptr_t vtable,uintptr_t callback){
     fixture_memory[node]=next;fixture_memory[node+8]=listener;
     if(listener){fixture_memory[listener]=vtable;if(vtable)fixture_memory[vtable]=callback;}
@@ -28,8 +28,8 @@ bool observe(observer::State& state,std::string& error){error.clear();return obs
 int main(){try{
     observer::State actual;std::string error;
     reset();need(observe(actual,error),"empty list");need(actual.enabled==1&&actual.recipients.empty()&&actual.count==0,"empty exact state");
-    fixture_memory[fixture_image+0x13b9820]=0;need(observe(actual,error)&&actual.enabled==0,"disabled event gate is observed");
-    fixture_memory[fixture_image+0x13b9820]=2;need(!observe(actual,error)&&error=="Feature event59 gate/list extent invalid","invalid gate rejected");
+    fixture_memory[fixture_image+0x13c5820]=0;need(observe(actual,error)&&actual.enabled==0,"disabled event gate is observed");
+    fixture_memory[fixture_image+0x13c5820]=2;need(!observe(actual,error)&&error=="Feature event59 gate/list extent invalid","invalid gate rejected");
     reset();fixture_memory[fixture_table+0x10]=0x1000;fixture_memory[fixture_table+0x18]=2;
     recipient(0x1000,0x1100,0x2000,0x3000,0x5000);recipient(0x1100,0,0,0,0);
     need(observe(actual,error),"complete list including native null listener");

@@ -5,7 +5,7 @@ bool npc_key(npc_census::Memory& memory,uintptr_t image,uintptr_t npc,std::strin
     uintptr_t ap=0;uint64_t uid=0;int32_t type=-1;
     if(!npc_census::field(memory,npc,0,ap,error)||!npc_census::field(memory,npc,0x18,uid,error)||
        !npc_census::field(memory,npc,0x80c,type,error))return false;
-    if(ap!=image+0x1742980||!uid||type!=0)
+    if(ap!=image+0x1748d20||!uid||type!=0)
         return fail(error,"Visitor Quest diagnostic NPC class, UID or type differs");
     key="npc-local:"+std::to_string(uid);return true;
 }
@@ -17,7 +17,7 @@ bool identity(npc_census::Memory& memory,uintptr_t image,visitor::Kind kind,uint
     int32_t sequence=-1,count=-1,capacity=-1;
     if(!npc_census::field(memory,target,0,ap,error)||!npc_census::field(memory,target,0x84,sequence,error)||
        !npc_census::field(memory,target,0xb8,npc,error)||!npc_census::field(memory,target,0xc0,proxy,error))return false;
-    if(ap!=image+0x174ac10||sequence<0||!npc||!proxy)
+    if(ap!=image+0x1750fb0||sequence<0||!npc||!proxy)
         return fail(error,"Visitor Quest diagnostic live Quest or owner differs");
     if(!npc_census::field(memory,proxy,0,weak_target,error))return false;
     if(weak_target!=npc+0x20)
@@ -66,7 +66,7 @@ bool header(npc_census::Memory& memory,uintptr_t image,uintptr_t region,Header& 
        !npc_census::field(memory,value.manager,0x28,value.data,error)||
        !npc_census::field(memory,value.manager,0x30,value.count,error)||
        !npc_census::field(memory,value.manager,0x34,value.capacity,error))return false;
-    if(ap!=image+0x16fde30||updating||value.count<0||value.capacity<value.count||
+    if(ap!=image+0x17041d0||updating||value.count<0||value.capacity<value.count||
        value.count>1000000||(value.count&&!value.data)||
        value.data>UINTPTR_MAX-size_t(value.count)*sizeof(uintptr_t))
         return fail(error,"Visitor Quest diagnostic ToonManager is updating or array bounds differ");
@@ -84,7 +84,7 @@ bool read(npc_census::Memory& memory,uintptr_t image,uintptr_t region,json& outp
         if(!toon||!seen.insert(toon).second)
             return fail(error,"Visitor Quest diagnostic ToonManager contains null or duplicate receiver");
         if(!npc_census::field(memory,toon,0,ap,error)||!npc_census::field(memory,toon,0x940,subscriber,error))return false;
-        if(ap!=image+0x1744e90)return fail(error,"Visitor Quest diagnostic Toon class differs");
+        if(ap!=image+0x174b230)return fail(error,"Visitor Quest diagnostic Toon class differs");
         if(!subscriber){++unowned;continue;}
         uintptr_t backlink=0;int32_t id=-1;
         if(!npc_census::field(memory,subscriber,0x80,backlink,error)||!npc_census::field(memory,subscriber,0x20,id,error))return false;

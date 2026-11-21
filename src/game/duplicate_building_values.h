@@ -31,9 +31,9 @@ bool localized(Port& port,uintptr_t building,std::string& sha,LocalizedReceipt& 
 enum class OwnedKind:uint8_t {Layout=1,Plan=2,Bugs=3};
 struct Methods {uintptr_t addresspoint=0,prepare=0,save=0;};
 inline bool methods(OwnedKind kind,Methods& out,std::string& e){
-    if(kind==OwnedKind::Layout)out={0x1712a60,0xf8c370,0xf8c3d0};
-    else if(kind==OwnedKind::Plan)out={0x16fea40,0xf29ab0,0xf29b10};
-    else if(kind==OwnedKind::Bugs)out={0x1705640,0xf5d680,0xf5d6e0};
+    if(kind==OwnedKind::Layout)out={0x1718e00,0xf97e30,0xf97e90};
+    else if(kind==OwnedKind::Plan)out={0x1704de0,0xf355b0,0xf35610};
+    else if(kind==OwnedKind::Bugs)out={0x170b9e0,0xf69140,0xf691a0};
     else return npc_quest_targets::fail(e,"Duplicate original owned payload kind invalid");
     return true;
 }

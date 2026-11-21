@@ -1,9 +1,9 @@
 namespace {
 struct RulesUi {uintptr_t window=0,checkbox=0;bool visible=false,ready=false;};
 bool rules_ui_find(Runtime& r,const rules::Pin& pin,RulesUi& out,std::string& e){
-    out={};uintptr_t data=0;int32_t count=0,capacity=0;if(!at(r,r.image,0x1a3c478,data,e)||!at(r,r.image,0x1a3c480,count,e)||!at(r,r.image,0x1a3c484,capacity,e))return false;
+    out={};uintptr_t data=0;int32_t count=0,capacity=0;if(!at(r,r.image,0x1a43478,data,e)||!at(r,r.image,0x1a43480,count,e)||!at(r,r.image,0x1a43484,capacity,e))return false;
     if(count<0||count>1024||capacity<count||capacity>65536||(!data&&count))return fail(e,"Design UI registry extent invalid");std::vector<uintptr_t> windows(size_t(count),0);if(count&&!r.memory.copy(data,windows.data(),windows.size()*sizeof(uintptr_t),e))return false;
-    for(auto window:windows){uintptr_t klass=0;if(!at(r,window,0,klass,e))return false;if(klass!=r.image+0x16ff0a0)continue;
+    for(auto window:windows){uintptr_t klass=0;if(!at(r,window,0,klass,e))return false;if(klass!=r.image+0x1705440)continue;
         std::string name;uintptr_t logic=1;uint8_t shown=0;if(!text(r,window+0x1b0,name,256,e)||!at(r,window,0x318,logic,e)||!at(r,window,0x45f,shown,e))return false;
         if(name!="design_combat"||logic||shown>1)continue;if(out.window)return fail(e,"Design UI has multiple Combat windows");out.window=window;out.visible=shown!=0;
     }
@@ -11,8 +11,8 @@ bool rules_ui_find(Runtime& r,const rules::Pin& pin,RulesUi& out,std::string& e)
     std::vector<uintptr_t> pending{out.window};std::set<uintptr_t> seen;
     while(!pending.empty()){const auto pane=pending.back();pending.pop_back();if(!seen.insert(pane).second||seen.size()>512)return fail(e,"Design UI child cycle or extent invalid");
         uintptr_t klass=0;if(!at(r,pane,0,klass,e))return false;
-        if(klass==r.image+0x16d98c0){uintptr_t value=0,owner=0,scalar=0;if(!at(r,pane,0x3c8,value,e))return false;
-            if(value){if(!ap(r,value,0x1749610,e)||!at(r,value,8,owner,e))return false;if(owner==pin.design+0x1c0){std::string name;
+        if(klass==r.image+0x16dfc60){uintptr_t value=0,owner=0,scalar=0;if(!at(r,pane,0x3c8,value,e))return false;
+            if(value){if(!ap(r,value,0x174f9b0,e)||!at(r,value,8,owner,e))return false;if(owner==pin.design+0x1c0){std::string name;
                 if(!text(r,value+0x18,name,32,e)||name!="delayForToons"||!at(r,value,0x38,scalar,e)||scalar!=owner+0x1c)return fail(e,e.empty()?"Design UI Respawn binding differs":e);
                 if(out.checkbox)return fail(e,"Design UI has multiple Respawn delay controls");out.checkbox=pane;
             }}
@@ -24,7 +24,7 @@ bool rules_ui_find(Runtime& r,const rules::Pin& pin,RulesUi& out,std::string& e)
     uint8_t clickable=0;if(!at(r,out.checkbox,0x174,clickable,e)||clickable>1)return fail(e,e.empty()?"Design UI checkbox clickable flag invalid":e);out.ready=out.ready&&clickable==1;return true;
 }
 uint32_t rules_ui_toggle(uintptr_t image,uintptr_t checkbox,bool desired,bool& returned)noexcept{
-    __try{reinterpret_cast<void(*)(void*,bool)>(image+0x6a1780)(reinterpret_cast<void*>(checkbox),desired);returned=true;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,bool)>(image+0x6a8a80)(reinterpret_cast<void*>(checkbox),desired);returned=true;return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool rules_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){
@@ -47,7 +47,7 @@ bool rules_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std::string
         if(design_rules.ui_unknown||design_rules.ui_proofs.size()>=64||r->replay||r->pending||policy_pending()||rules_pending()||intervention_pending()||control_input::runtime::pending()||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true))return fail(e,"Design UI requires idle unlocked owners");
         if(args.at("snapshot_uuid").get<std::string>()!=context.snapshot_uuid||args.at("epoch").get<uint64_t>()!=binding.native_epoch||args.at("generation").get<uint64_t>()!=binding.native_generation||args.at("expected_delay").get<bool>()!=before.state.respawn_delay||!ui.window)return fail(e,"Design UI actual identity/value/window differs");
         if(!rules_routes(*r,e)||!policy_route_code(*r,e))return false;
-        if(command=="Show"){if(!hud_time_runtime::verify_window_show_hook(r->image+0x81ec20,e)||!loan_ui_body(*r,0x6bf990,467,"e41f9ed9d4a7af627ff4b5ad82faad352928e50a5928e5b1eb33c835c697fb37",e))return false;}
+        if(command=="Show"){if(!hud_time_runtime::verify_window_show_hook(r->image+0x827210,e)||!loan_ui_body(*r,0x6c6d60,467,"5cf2e3a48e7b45c4d2a6d7c2af2d77e1e014d85b80092ec897e02f6788d4e1b3",e))return false;}
         else if(!ui.visible||!ui.ready)return fail(e,"Design UI actual Respawn delay control is not visible and clickable");
         out["token"]=token;out["command"]=command;out["ui_attempted"]=true;out["unknown"]=true;design_rules.ui_unknown=true;design_rules.ui_proofs.emplace(token,out);
         const auto captures=r->captures;bool ok=false;

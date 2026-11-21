@@ -36,7 +36,7 @@ bool allowed_category(placement_ui_probe::Memory& m,const Plan& p,std::string& e
     return matches==1||fail(e,"Weapon category is absent or ambiguous in actual CharacterType");
 }
 bool model_for(placement_ui_probe::Memory& m,Plan& p,std::string& e){
-    if(!get(m,p.image,0x13df6e0,p.manager,e)||!get(m,p.image,0x13df4d0,p.rez_manager,e))return false;
+    if(!get(m,p.image,0x13eb6e0,p.manager,e)||!get(m,p.image,0x13eb4d0,p.rez_manager,e))return false;
     uintptr_t cats=0;int32_t n=0;if(!array(m,p.manager,0x60,cats,n,e))return false;
     uintptr_t category=0;for(int32_t i=0;i<n;++i){std::string key;const auto at=cats+static_cast<size_t>(i)*0x78;
         if(!text(m,at,key,e))return false;if(key==p.category){if(category)return fail(e,"Weapon catalogue category is ambiguous");category=at;}}

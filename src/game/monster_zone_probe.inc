@@ -61,28 +61,28 @@ bool sample(Memory& memory,const q::World& w,Sample& out,std::string& e){
     ReadMemory m{memory};uintptr_t manager=0,release=0;
     return z::read(m,w,out.state,e)&&native::read_simulation_state(out.money,e)&&
         undo_probe::read_undo(memory.process,w.image,out.undo,e)&&
-        q::at(m,w.image,0x13df4f0,manager,e)&&q::typed(m,w.image,manager,0x1714ed0,e)&&
-        q::at(m,manager,0x38,release,e)&&q::typed(m,w.image,release,0x16c12b0,e)&&
+        q::at(m,w.image,0x13eb4f0,manager,e)&&q::typed(m,w.image,manager,0x171b270,e)&&
+        q::at(m,manager,0x38,release,e)&&q::typed(m,w.image,release,0x16c7650,e)&&
         q::at(m,release,0x120,out.release_edits,e);
 }
 bool tool(Memory& m,uintptr_t image,uintptr_t& brush,uintptr_t& cursor,std::string& e){
     brush=0;uintptr_t player=0,inventory=0,ap=0;
     npc_census::InventoryHeader header,after;
-    if(!field(m,image,0x13df9f0,player,e)||!field(m,player,0,ap,e)||ap!=image+0x17873b0||
-       !field(m,player,0x1d0,inventory,e)||!field(m,inventory,0,ap,e)||ap!=image+0x16df0f0||
-       !field(m,image,0x13df9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=image+0x1786dd0||
+    if(!field(m,image,0x13eb9f0,player,e)||!field(m,player,0,ap,e)||ap!=image+0x178d750||
+       !field(m,player,0x1d0,inventory,e)||!field(m,inventory,0,ap,e)||ap!=image+0x16e5490||
+       !field(m,image,0x13eb9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=image+0x178d170||
        !npc_census::read_inventory_header(m,inventory,header,e))return fail(e,e.empty()?"zone probe Player/inventory/cursor differs":e);
     std::set<uintptr_t> unique;
     for(int32_t i=0;i<header.count;++i){
         uintptr_t item=0,type=0,weak=0,target=0,owned=0,value=0;
         if(!field(m,header.items,size_t(i)*8,item,e))return false;if(!item)continue;
-        if(!unique.insert(item).second||!field(m,item,0,ap,e)||ap!=image+0x17437f0||
+        if(!unique.insert(item).second||!field(m,item,0,ap,e)||ap!=image+0x1749b90||
            !field(m,item,0x68,type,e)||!field(m,item,0x70,weak,e)||!field(m,weak,0,target,e)||
            !field(m,type,0x40,owned,e)||target!=type+0x38||owned!=weak||!field(m,type,0,ap,e))
             return fail(e,e.empty()?"zone probe inventory weak owner differs":e);
-        if(ap!=image+0x173b7b0)continue;
+        if(ap!=image+0x1741b50)continue;
         if(!field(m,type,0x160,value,e)||!field(m,value,0,ap,e))return false;
-        if(ap!=image+0x172fa80)continue;
+        if(ap!=image+0x1735e20)continue;
         int32_t kind=-1;if(!field(m,value,0x178,kind,e))return false;if(kind!=1)continue;
         if(brush&&brush!=value)return fail(e,"zone probe MonsterZone tool ambiguous");brush=value;
     }
@@ -109,7 +109,7 @@ bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,js
             if(!field(m,data,size_t(i)*8,p,e)||!p||!seen.insert(p).second||!field(m,p,0,type,e))return fail(e,e.empty()?"Zone diagnostic window membership differs":e);
             members.push_back(p);
             if(p==window)result["brush_members"]=result.at("brush_members").get<int>()+1;
-            if(type!=image+0x17321a0&&p!=window)continue;
+            if(type!=image+0x1738540&&p!=window)continue;
             std::string id;if(!name(m,p+0x1b0,id,e))return false;
             if(id=="character_theme")result["named_members"]=result.at("named_members").get<int>()+1;
             result["theme_windows"].push_back({{"index",i},{"class_rva",class_rva(type)},{"name",id},{"is_brush_window",p==window}});
@@ -123,7 +123,7 @@ bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,js
     };
     // These are the array fields read by original WindowRegistry::Find/AddWindow.
     if(!scan(mode,0xa0,0xa8,0xac,256,out["mode"])||
-       !scan(image,0x1a3c478,0x1a3c480,0x1a3c484,1024,out["registry"]))return false;
+       !scan(image,0x1a43478,0x1a43480,0x1a43484,1024,out["registry"]))return false;
     uintptr_t after_window=0,after_ap=0;std::string after_name;
     if(!field(m,brush,0x5d8,after_window,e))return false;
     if(after_window!=window)return fail(e,"Zone diagnostic brush window changed");
@@ -136,16 +136,16 @@ bool theme_ownership(Memory& m,uintptr_t image,uintptr_t mode,uintptr_t brush,js
 
 bool options(Memory& m,uintptr_t image,uintptr_t brush,uintptr_t& window,std::vector<Option>& available,json& selected,std::string& e){
     available.clear();selected=nullptr;uintptr_t ap=0,list=0,data=0,current=0;int32_t count=0;
-    if(!field(m,brush,0x5d8,window,e)||!field(m,window,0,ap,e)||ap!=image+0x17321a0||
-       !field(m,window,0x4e8,list,e)||!field(m,list,0,ap,e)||ap!=image+0x172b1d0||
+    if(!field(m,brush,0x5d8,window,e)||!field(m,window,0,ap,e)||ap!=image+0x1738540||
+       !field(m,window,0x4e8,list,e)||!field(m,list,0,ap,e)||ap!=image+0x1731570||
        !field(m,list,0x348,data,e)||!field(m,list,0x350,count,e))return fail(e,e.empty()?"zone probe ThemeWindow/List differs":e);
     if(count<0||count>256||(count&&!data))return fail(e,"zone probe ThemeList count differs");
     std::set<std::array<int32_t,2>> ids;
     for(int32_t i=0;i<count;++i){uintptr_t entry=0;Option o;
-        if(!field(m,data,size_t(i)*8,entry,e)||!field(m,entry,0,ap,e)||ap!=image+0x1738b10||
+        if(!field(m,data,size_t(i)*8,entry,e)||!field(m,entry,0,ap,e)||ap!=image+0x173eeb0||
            !field(m,entry,0x338,o.character,e))return fail(e,e.empty()?"zone probe ThemeSelector differs":e);
         if(!o.character)continue;
-        if(!field(m,o.character,0,ap,e)||ap!=image+0x1705990||!field(m,o.character,0x2c,o.id,e))return fail(e,e.empty()?"zone probe CharacterType differs":e);
+        if(!field(m,o.character,0,ap,e)||ap!=image+0x170bd30||!field(m,o.character,0x2c,o.id,e))return fail(e,e.empty()?"zone probe CharacterType differs":e);
         if(o.id[0]!=1||o.id[1]<0||!ids.insert(o.id).second)return fail(e,"zone probe Monster catalogue ID invalid/duplicate");
         available.push_back(o);
     }
@@ -157,8 +157,8 @@ bool options(Memory& m,uintptr_t image,uintptr_t brush,uintptr_t& window,std::ve
 }
 uint32_t input(uintptr_t image,unsigned step,uintptr_t brush,uintptr_t cursor,const std::array<float,3>& point)noexcept{
     __try{
-        if(step==2)reinterpret_cast<void(*)(void*,void*,const float*,float)>(image+0x5ef800)(reinterpret_cast<void*>(brush),reinterpret_cast<void*>(cursor),point.data(),0.f);
-        else reinterpret_cast<void(*)(void*,void*,const float*)>(image+(step==0?0x5f00b0:step==1?0x5ef6a0:0x5eea20))(reinterpret_cast<void*>(brush),reinterpret_cast<void*>(cursor),point.data());
+        if(step==2)reinterpret_cast<void(*)(void*,void*,const float*,float)>(image+0x5f5f50)(reinterpret_cast<void*>(brush),reinterpret_cast<void*>(cursor),point.data(),0.f);
+        else reinterpret_cast<void(*)(void*,void*,const float*)>(image+(step==0?0x5f6800:step==1?0x5f5df0:0x5f5170))(reinterpret_cast<void*>(brush),reinterpret_cast<void*>(cursor),point.data());
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -166,7 +166,7 @@ struct TabAttempt {host::opened::CurrentWorld origin;uintptr_t root=0;monster_zo
 std::optional<TabAttempt> tab_attempt;
 uint32_t press_tab(uintptr_t image,const monster_zone_tab::Pin& p)noexcept{
     const float position[2]{};
-    __try{reinterpret_cast<void(*)(void*,void*,const void*)>(image+0x57c950)(reinterpret_cast<void*>(p.tab),reinterpret_cast<void*>(p.cursor),position);return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*,const void*)>(image+0x583000)(reinterpret_cast<void*>(p.tab),reinterpret_cast<void*>(p.cursor),position);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 std::map<std::string,json> attempts;

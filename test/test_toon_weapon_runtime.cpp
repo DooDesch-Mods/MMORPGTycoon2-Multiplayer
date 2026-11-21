@@ -52,15 +52,15 @@ unsigned checks=0;
 void need(bool okay,const char* cause){++checks;if(!okay)throw std::runtime_error(cause);}
 template<class T>void put(void* object,size_t offset,T value){std::memcpy(static_cast<char*>(object)+offset,&value,sizeof value);}
 struct World {
-    std::unique_ptr<unsigned char[]> image=std::make_unique<unsigned char[]>(0x13df700);
+    std::unique_ptr<unsigned char[]> image=std::make_unique<unsigned char[]>(0x13eb700);
     std::array<unsigned char,0x60> manager{};std::array<unsigned char,0xb0> subscriber{};std::array<unsigned char,0xa00> toon{};
     uintptr_t data=uintptr_t(subscriber.data());std::string category="swords";rt::Runtime runtime;
     World(){
         fixture::fence={};fixture::scale=0;fixture::refresh_calls=0;rt::weapon_image=uintptr_t(image.get());
-        put(image.get(),0x13df690,uintptr_t(manager.data()));put(manager.data(),0,rt::weapon_image+0x1725f40);
+        put(image.get(),0x13eb690,uintptr_t(manager.data()));put(manager.data(),0,rt::weapon_image+0x172c2e0);
         put(manager.data(),0x40,uintptr_t(&data));put(manager.data(),0x48,int32_t(1));put(manager.data(),0x4c,int32_t(1));
-        put(subscriber.data(),0,rt::weapon_image+0x16e75f0);put(subscriber.data(),0x20,int32_t(59));put(subscriber.data(),0x80,uintptr_t(toon.data()));
-        put(toon.data(),0,rt::weapon_image+0x1744e90);put(toon.data(),0x940,data);put(toon.data(),0x4b0,int32_t(12));put(toon.data(),0x4d8,int32_t(-10));
+        put(subscriber.data(),0,rt::weapon_image+0x16ed990);put(subscriber.data(),0x20,int32_t(59));put(subscriber.data(),0x80,uintptr_t(toon.data()));
+        put(toon.data(),0,rt::weapon_image+0x174b230);put(toon.data(),0x940,data);put(toon.data(),0x4b0,int32_t(12));put(toon.data(),0x4d8,int32_t(-10));
         put(toon.data(),0x4b8,uintptr_t(category.c_str()));put(toon.data(),0x4c0,uint64_t(category.size()));
         runtime.controller.context={1,2,1,3,action::Role::Client,"common"};runtime.controller.binding={2,3};runtime.session.context=runtime.controller.context;
         auto& state=runtime.live_state->state;state.day.frame.session=1;state.day.frame.snapshot="common";state.day.frame.epoch=7;

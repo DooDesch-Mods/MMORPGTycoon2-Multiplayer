@@ -17,18 +17,18 @@ struct Memory {
 constexpr uintptr_t image=0x140000000,region=0x30000;
 void actor(Memory& m,uintptr_t object,uintptr_t ap,int32_t level,bool npc=false,int32_t bucket=0){
     m.set(object,image+ap);m.set(object+0x178,region);m.set(object+0x100,std::array<float,10>{0,0,0,1,float(object),8,9,1,1,1});
-    m.set(object+(ap==0x1745ce0?0x360:0x6f8),level);m.set(object+0x4a4,std::array<int32_t,2>{3,4});
+    m.set(object+(ap==0x174c080?0x360:0x6f8),level);m.set(object+0x4a4,std::array<int32_t,2>{3,4});
     if(npc){m.set(object+0x80c,bucket);m.set(object+0x890,int32_t(8));m.set(object+0x870,int32_t(2));}
 }
 Memory fixture(){Memory m;
-    m.set(region+0x998,uintptr_t(0x40000));m.set(0x40000,image+0x16e6aa0);m.set(0x400c8,region);
-    m.set(region+0x988,uintptr_t(0x41000));m.set(0x41000,image+0x1714100);m.set(0x41080,region);
-    m.set(region+0x968,uintptr_t(0x42000));m.set(0x42000,image+0x16fe170);m.set(0x420f0,region);
+    m.set(region+0x998,uintptr_t(0x40000));m.set(0x40000,image+0x16ece40);m.set(0x400c8,region);
+    m.set(region+0x988,uintptr_t(0x41000));m.set(0x41000,image+0x171a4a0);m.set(0x41080,region);
+    m.set(region+0x968,uintptr_t(0x42000));m.set(0x42000,image+0x1704510);m.set(0x420f0,region);
     for(int i=0;i<3;++i){const auto off=0x40040+uintptr_t(i)*0x30;m.set(off,uintptr_t(i<2?0x50000+uintptr_t(i)*16:0));m.set(off+8,int32_t(i<2?1:0));m.set(off+12,int32_t(4));}
     m.set(0x41040,uintptr_t(0x51000));m.set(0x41048,int32_t(1));m.set(0x4104c,int32_t(4));
     for(int i=0;i<4;++i){const auto off=0x42020+uintptr_t(i)*0x30;m.set(off,uintptr_t(i==3?0x52000:0));m.set(off+8,int32_t(i==3?1:0));m.set(off+12,int32_t(4));}
     m.set(0x50000,uintptr_t(0x60000));m.set(0x50010,uintptr_t(0x61000));m.set(0x51000,uintptr_t(0x62000));m.set(0x52000,uintptr_t(0x63000));
-    actor(m,0x60000,0x1742980,20,true);actor(m,0x61000,0x1742980,12,true,1);actor(m,0x62000,0x16c0770,9);actor(m,0x63000,0x1745ce0,1);return m;
+    actor(m,0x60000,0x1748d20,20,true);actor(m,0x61000,0x1748d20,12,true,1);actor(m,0x62000,0x16c6b10,9);actor(m,0x63000,0x174c080,1);return m;
 }
 bool run(Memory& m,Census& c,std::string& e,std::array<int32_t,2> range={2,4}){return census(image,region,range,c,[&](uintptr_t p,size_t o,auto& v,std::string& error){return m.read(p,o,v,error);},e);}
 }
@@ -40,7 +40,7 @@ int main(){try{
     auto local=c;m.set(0x60018,uint64_t(99999));m.set(0x60830,int32_t(99));check(run(m,c,e)&&c.roster==local.roster&&c.levels==local.levels,"local UIDs leaked into canonical census");
     m.set(0x606f8,int32_t(14));m.set(0x60890,int32_t(4));m.set(0x626f8,int32_t(4));m.set(0x63360,int32_t(2));
     check(run(m,c,e)&&c.levels==local.expected&&c.expected==c.levels&&c.roster==local.roster,"actual clamped readback differs from projected original effects");
-    for(unsigned which=0;which<10;++which){auto bad=fixture();if(which==0)bad.set(0x400c8,uintptr_t(0));if(which==1)bad.set(0x60000,image+0x1742988);if(which==2)bad.set(0x60178,uintptr_t(0));if(which==3)bad.set(0x6080c,int32_t(2));if(which==4)bad.set(0x40048,int32_t(5));if(which==5)bad.set(0x40048,int32_t(-1));if(which==6)bad.set(0x40040,uintptr_t(0));if(which==7)bad.set(0x50010,uintptr_t(0x60000));if(which==8)bad.set(0x60100,std::numeric_limits<float>::infinity());if(which==9)bad.changed=true;e.clear();Census rejected;check(!run(bad,rejected,e)&&!e.empty(),"invalid membership/array/pose/concurrent census accepted");}
+    for(unsigned which=0;which<10;++which){auto bad=fixture();if(which==0)bad.set(0x400c8,uintptr_t(0));if(which==1)bad.set(0x60000,image+0x1748d28);if(which==2)bad.set(0x60178,uintptr_t(0));if(which==3)bad.set(0x6080c,int32_t(2));if(which==4)bad.set(0x40048,int32_t(5));if(which==5)bad.set(0x40048,int32_t(-1));if(which==6)bad.set(0x40040,uintptr_t(0));if(which==7)bad.set(0x50010,uintptr_t(0x60000));if(which==8)bad.set(0x60100,std::numeric_limits<float>::infinity());if(which==9)bad.changed=true;e.clear();Census rejected;check(!run(bad,rejected,e)&&!e.empty(),"invalid membership/array/pose/concurrent census accepted");}
     auto sale=fixture();Census sold;check(run(sale,sold,e,{0,0}),e);
     check(sold.expected[0][1]==10&&sold.expected[0][2]==0&&sold.expected[1][1]==10&&sold.expected[2][1]==0&&sold.expected[3][1]==0,
         "sale zero range must retain NPC offset and clamp Monster/Zone/Quest to zero");

@@ -66,18 +66,18 @@ bool returns(const JobCall& call,bool& attempted,const char* name,std::string& e
 bool properties(const Capture& capture,std::string& e){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Body bodies[]={
-        {0xd00b60,304,"a637aae8dd61640db66a77efb5465bf8f4e9cb7af0aa8db6ad652748d23cc995"},
-        {0xd10a60,304,"4cd2a69f35951e37fc58ef452e60efe447745033393411c626bec980d6747193"},
-        {0xd20ff0,32,"80e8d807ddd43641e558be3496b984967a19793b2e0af40ee184ef55a787941d"},
-        {0x426830,16,"84038befb3ab6f3e3abbfb09b01942bcdbf1492076e814220f033ee87a159db1"},
-        {0x39d020,96,"ae19e77552b1e5f24a021305a0c49e42f4318459b6e3fa96cf7ca87f1b3c5f91"},
-        {0x40ab90,1056,"76fea89d8d3e254fbf9259679efc57db74c9242c89117dec1d93601959e218bb"},
-        {0x2817a0,96,"29b374120b45c5491394a14655dc51f4a3fcfee060ea3b9f7c7781581a61c0d6"},
-        {0xe8080,288,"6d7c8326e01c886f5fd3115cb51b04fe002baed6c687c3fc27ee356b126fa9f9"}};
+        {0xd0c2a0,304,"6793a2c4aec1b7a0e78e78744d178314d0a406f3104b0aee5f7a9bdb38ce4e3f"},
+        {0xd1c1a0,304,"96d66f54bc2c1ba4a91132f6332c87ffc38b3b1a579138221d2ee16cdf3e444d"},
+        {0xd2c730,32,"a843d1f8c6c07db57ec6471ed8be729b1b5759bd76320a7079d32267f88efa6f"},
+        {0x42b610,16,"84038befb3ab6f3e3abbfb09b01942bcdbf1492076e814220f033ee87a159db1"},
+        {0x3a1b20,96,"96ea5041b2ce68c563ad93f6ff1df354de47b748ec1d4b8456f71734575b5c5e"},
+        {0x40f750,1056,"452763aa310f29e5c1a81402e5638580766d2e9203c498cf2d1025a5d5dd11c7"},
+        {0x284b00,96,"1a42bab0fb94f10cc09d9e7ae5527e5b1f47d160f7efac58806e3bc6b2d55101"},
+        {0xe90b0,288,"94e6ee002731ce9c82c745053887811cb1090991147f29690983d73721d45355"}};
     for(const auto& body:bodies){std::vector<unsigned char> bytes(body.size);if(!runtime().memory.copy(capture.image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=body.sha)return fail(e,"Bug-work original full body differs RVA="+std::to_string(body.rva));}
     struct Property{uintptr_t rva,ap,offset;};
-    for(const auto& p:{Property{0x13cc040,0x16c8070,0x7a8},Property{0x13ca640,0x16c9b20,0x838},Property{0x13cb940,0x16cf9a0,0xbd0}}){
+    for(const auto& p:{Property{0x13d8040,0x16ce410,0x7a8},Property{0x13d6640,0x16cfec0,0x838},Property{0x13d7940,0x16d5d40,0xbd0}}){
         uintptr_t ap=0,offset=0;if(!field(capture.image+p.rva,0,ap,e)||!field(capture.image+p.rva,0x38,offset,e))return false;
         if(ap!=capture.image+p.ap||offset!=p.offset)return fail(e,"Bug-work parent original property class/offset differs");}
     return native_code(e);
@@ -94,14 +94,14 @@ public:
         const char* building[]={"state offline","state maintenance","state online"};
         const char* npc[]={"onlineState Offline","onlineState Maintenance","onlineState Online"};
         const bool b=owner.kind==ParentKind::Building;
-        work_property(owner.image,owner.image+(b?0x13cc040:0x13ca640),b?0xd00b60:0xd10a60,owner.object,b?building[value]:npc[value],&call);
+        work_property(owner.image,owner.image+(b?0x13d8040:0x13d6640),b?0xd0c2a0:0xd1c1a0,owner.object,b?building[value]:npc[value],&call);
         bool ignored=false;return returns(call,ignored,"parent state Load",e);
     }
     bool detail(const ParentOwner& owner,const ParentVisual& before,const ParentVisual& target,bool& attempted,std::string& e)override{
         attempted=false;if(!authorize(owner,e))return false;
         if(owner.kind==ParentKind::Building){
             if(before.bandwidth!=target.bandwidth){JobCall call;work_bandwidth(owner.image,owner.object,target.bandwidth,&call);if(!returns(call,attempted,"SetBandwidthCost",e))return false;}
-            if(before.user_set!=target.user_set){JobCall call;work_property(owner.image,owner.image+0x13cb940,0xd20ff0,owner.object,target.user_set?"userSetState true":"userSetState false",&call);
+            if(before.user_set!=target.user_set){JobCall call;work_property(owner.image,owner.image+0x13d7940,0xd2c730,owner.object,target.user_set?"userSetState true":"userSetState false",&call);
                 if(!returns(call,attempted,"userSetState Load",e)||!call.accepted||!call.record_confirmed||!call.cleanup_confirmed)return fail(e,e.empty()?"Bug-work userSetState property not accepted":e);}
         }else{
             uint32_t exception=0;const uint8_t old=before.tint_override?1:0,next=target.tint_override?1:0;
@@ -109,7 +109,7 @@ public:
             if(old!=next){attempted=true;if(!work_store(owner.object+0x6c0,&old,&next,1,&exception))return fail(e,"Bug-work NPC tint flag compare/store failed SEH="+std::to_string(exception));}
         }return true;
     }
-    bool refresh(const ParentOwner& owner,JobCall& call,std::string& e)override{work_unary(owner.image+(owner.kind==ParentKind::Building?0x40ab90:0x39d020),owner.object,&call);bool ignored=false;return returns(call,ignored,"parent visual refresh",e);}
+    bool refresh(const ParentOwner& owner,JobCall& call,std::string& e)override{work_unary(owner.image+(owner.kind==ParentKind::Building?0x40f750:0x3a1b20),owner.object,&call);bool ignored=false;return returns(call,ignored,"parent visual refresh",e);}
 };
 }
 bool capture_work(const Capture& capture,const census::Census& queue,WorkState& out,std::vector<uintptr_t>& bound,std::string& e){
@@ -185,7 +185,7 @@ bool authorize_job(const JobLease& owner,std::string& e){
     const auto* bug=r.lifetimes.pointer(owner.bug);uintptr_t parent=0,collection=0;
     if(!bug||!work_parent(bug->row,parent,collection,e))return fail(e,e.empty()?"Bug Job selected lease has no live witnessed Bug":e);
     uintptr_t region=0,queue=0,singleton=0;if(!field(parent,0x178,region,e)||
-        !field(reinterpret_cast<uintptr_t>(c.pin.origin.state),0x1a8,queue,e)||!field(c.image,0x13df230,singleton,e))return false;
+        !field(reinterpret_cast<uintptr_t>(c.pin.origin.state),0x1a8,queue,e)||!field(c.image,0x13eb230,singleton,e))return false;
     return (owner.image==c.image&&owner.thread==c.thread&&owner.snapshot==r.context.snapshot_uuid&&owner.epoch==r.binding.native_epoch&&owner.generation==r.binding.native_generation&&
         owner.parent==parent&&owner.region==region&&owner.queue==queue&&queue==singleton)||fail(e,"Bug Job selected lease changed");
 }
@@ -215,7 +215,7 @@ bool erase_aborted(const Capture& capture,uintptr_t pointer,bool& attempted,std:
     attempted=true;if(!live_host_state::compare_fixed_i32(before.queue+0x28,int32_t(before.jobs.size()),int32_t(expected.jobs.size()),e))return false;
     Capture now;census::Census after;if(!capture_current(now,e)||!census::read(reader(),now,after,e)||after!=expected||!runtime().memory.copy(pointer,check.data(),check.size(),e)||check!=body)
         return fail(e,e.empty()?"Bug Job selected invalid erase changed another owner":e);
-    JobCall call;work_unary(capture.image+0xc2e810,pointer,&call);if(!returns(call,attempted,"selected invalid destructor",e))return false;
+    JobCall call;work_unary(capture.image+0xc3b0c0,pointer,&call);if(!returns(call,attempted,"selected invalid destructor",e))return false;
     return capture_current(now,e)&&census::read(reader(),now,after,e)&&(after==expected||fail(e,"Bug Job original invalid destructor changed surviving graph"));
 }
 bool apply_counter(const Capture& capture,uintptr_t queue,size_t offset,const JobCounter& target,bool& attempted,std::string& e){
@@ -246,7 +246,7 @@ bool begin_work(const Capture& capture,const WorkState& target,bool& attempted,s
                 retained.lease={capture.image,queue.queue,0,0,0,capture.thread,r.context.snapshot_uuid,job_key(row.birth),r.binding.native_epoch,r.binding.native_generation};
                 auto& birth=retained.calls;construct_job(capture.image,&birth);retained.attempted=birth.allocate.attempted||birth.construct.attempted;
                 if(!returns(birth.allocate,attempted,"aborted Job allocation",e)||!returns(birth.construct,attempted,"aborted Job constructor",e)||!birth.job)return false;
-                auto& abort=birth.configure;work_unary(capture.image+0x2817a0,birth.job,&abort);if(!returns(abort,attempted,"Job Abort",e))return false;
+                auto& abort=birth.configure;work_unary(capture.image+0x284b00,birth.job,&abort);if(!returns(abort,attempted,"Job Abort",e))return false;
                 if(!set_job_pose(capture,birth.job,row,attempted,e))return false;
                 auto& insert=birth.insert;insert_job(capture.image,queue.queue,birth.job,&insert);if(!returns(insert,attempted,"aborted Job insertion",e))return false;
                 if(!r.jobs.born({row,birth.job,0,0,false},e))return false;
@@ -258,7 +258,7 @@ bool begin_work(const Capture& capture,const WorkState& target,bool& attempted,s
         int32_t type=0;if(!field(local->job,0x18,type,e))return false;
         if(type==7&&row.type==0){auto owner=lease(capture,*local,queue.queue,e);if(!e.empty())return false;
             subscriber_lifecycle_append::BugPairReceipt pair;const bool ok=services.detach(owner,local->job,pair,e);attempted|=pair.attempted;if(!ok)return false;
-            JobCall abort;work_unary(capture.image+0x2817a0,local->job,&abort);if(!returns(abort,attempted,"selected Job Abort",e))return false;
+            JobCall abort;work_unary(capture.image+0x284b00,local->job,&abort);if(!returns(abort,attempted,"selected Job Abort",e))return false;
         }else if(type!=row.type)return fail(e,"Bug Job target reverses an original abort");
         if(!set_job_pose(capture,local->job,row,attempted,e))return false;
     }

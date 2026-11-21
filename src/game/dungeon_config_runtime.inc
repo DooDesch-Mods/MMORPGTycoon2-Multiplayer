@@ -5,8 +5,8 @@ using Command=a::ui_diagnostic::UiCommand;
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;bool installed=false,ready=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;std::string cause,last_action,ui_token;
 std::map<std::string,json> ui_jobs;
-constexpr npc_quest_list_ui_codes::Code ui_code{0x6aea60,348,"d83bc1cc9ba2ec0cb1a974ad81ba102ce240e141ab298b4593493ae648a53ce5",
-    {0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48,0x48,0x8d,0x5c,0x24,0x20,0x48,0x89,0xd6,0x48,0x89,0xcf,0x48,0x8d,0x15,0xed,0x80,0xe6,0,0x48,0x89,0xd9,0xe8,0x6e,0xed}};
+constexpr npc_quest_list_ui_codes::Code ui_code{0x6b5d80,348,"5c7c4e1c10769cba6e3f40297322de23210225222e40733f81c72f088b51a331",
+    {0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48,0x48,0x8d,0x5c,0x24,0x20,0x48,0x89,0xd6,0x48,0x89,0xcf,0x48,0x8d,0x15,0x2d,0x7a,0xe6,0x00,0x48,0x89,0xd9,0xe8,0x6e,0xed}};
 struct Sample {host::WorldState world;dungeon_config_reader::Local local;uintptr_t business=0,config=0; a::DungeonConfigState value;a::Ledger money;undo_probe::UndoWitness undo;};
 struct Pending {a::Binding binding;std::string snapshot;a::DungeonConfigIntent intent;std::optional<a::Context> context;std::string token;};
 struct UiPreparation {json args;a::Binding binding;std::optional<a::Context> context;Sample before;uintptr_t window=0,button=0,page=0,view=0;std::string label;uint64_t deadline=0;};
@@ -43,7 +43,7 @@ bool code(Memory& memory,std::string& error){
     if(!quest_bridge::sha256(bytes,hash,error)||hash!=ui_code.sha)return fail(error,error.empty()?"Dungeon config original outer UI transaction body differs":error);
     for(const auto& pin:dungeon_config_codes::helpers){
         bytes.assign(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
-        const bool economic_helper=pin.rva==0x54d80;
+        const bool economic_helper=pin.rva==0x55280;
         if(economic_helper){
             MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
             if(!quest_list::read_route(state.image+pin.rva,receipt,error))return false;
@@ -63,28 +63,28 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     uintptr_t exterior=0;uint64_t uid=0;if(!reader.current(out.world,true,error)||!action_runtime::bound(out.world,binding,snapshot,error)||!remove_diagnostics::resolve_current_building_identity(snapshot,intent.key,exterior,uid,error))return false;
     auto at=[&](uintptr_t object,size_t offset,auto& value,std::string& e){return field(memory,object,offset,value,e);};
     if(!dungeon_config_reader::read(at,state.image,out.world.root,exterior,uid,out.value,out.local,error))return false;
-    uintptr_t ap=0;uint8_t sandbox=2;if(!field(memory,state.image,0x13df220,out.business,error)||!field(memory,out.business,0,ap,error)||ap!=state.image+0x16d97e0||!field(memory,out.business,0x108,out.config,error)||!field(memory,out.config,0,ap,error)||ap!=state.image+0x1712b40||!field(memory,out.config,0x30,out.value.price,error)||out.value.price<0||!field(memory,out.business,0xf0,sandbox,error)||sandbox>1)return fail(error,error.empty()?"Dungeon config current Business/config/price/sandbox differs":error);out.value.sandbox=sandbox!=0;
-    native::SimulationState money;uintptr_t random=0;if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error)||out.undo.active_graph||!field(memory,state.image,0x164b250,random,error)||!field(memory,random,0,out.value.global_random,error))return fail(error,error.empty()?"Dungeon config ledger/Undo/global RNG differs":error);
+    uintptr_t ap=0;uint8_t sandbox=2;if(!field(memory,state.image,0x13eb220,out.business,error)||!field(memory,out.business,0,ap,error)||ap!=state.image+0x16dfb80||!field(memory,out.business,0x108,out.config,error)||!field(memory,out.config,0,ap,error)||ap!=state.image+0x1718ee0||!field(memory,out.config,0x30,out.value.price,error)||out.value.price<0||!field(memory,out.business,0xf0,sandbox,error)||sandbox>1)return fail(error,error.empty()?"Dungeon config current Business/config/price/sandbox differs":error);out.value.sandbox=sandbox!=0;
+    native::SimulationState money;uintptr_t random=0;if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error)||out.undo.active_graph||!field(memory,state.image,0x1650830,random,error)||!field(memory,random,0,out.value.global_random,error))return fail(error,error.empty()?"Dungeon config ledger/Undo/global RNG differs":error);
     out.money=ledger(money);out.value.undo_count=uint32_t(out.undo.undo.size());return true;
 }
-uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"instance_config_window",22};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t find_window(uintptr_t& outer)noexcept{__try{const quest_list::QuestTitleView name{"instance_config_window",22};outer=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& owner,int32_t& desired,int32_t& cost,std::string& error){
-    const auto seh=find_window(outer);uintptr_t ap=0;if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x173bee0||!field(memory,outer,0x510,owner,error)||!field(memory,outer,0x508,desired,error)||!field(memory,outer,0x50c,cost,error))return fail(error,error.empty()?"Dungeon config actual named native Window differs SEH="+std::to_string(seh):error);return true;
+    const auto seh=find_window(outer);uintptr_t ap=0;if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x1742280||!field(memory,outer,0x510,owner,error)||!field(memory,outer,0x508,desired,error)||!field(memory,outer,0x50c,cost,error))return fail(error,error.empty()?"Dungeon config actual named native Window differs SEH="+std::to_string(seh):error);return true;
 }
 uint32_t find_spinner(uintptr_t outer,uintptr_t& spinner)noexcept{__try{
-    const quest_list::QuestTitleView name{"instances_count",15};spinner=reinterpret_cast<uintptr_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x81d860)(reinterpret_cast<void*>(outer),name);return 0;
+    const quest_list::QuestTitleView name{"instances_count",15};spinner=reinterpret_cast<uintptr_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x825e50)(reinterpret_cast<void*>(outer),name);return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool input_guard(Memory& memory,uintptr_t outer,uintptr_t& spinner,std::string& error){
-    uintptr_t method=0,cached=0;if(!field(memory,state.image+0x173bee0,0xf0,method,error)||method!=state.image+0x81d860)return fail(error,error.empty()?"Dungeon config original Window FindPane entry differs":error);
+    uintptr_t method=0,cached=0;if(!field(memory,state.image+0x1742280,0xf0,method,error)||method!=state.image+0x825e50)return fail(error,error.empty()?"Dungeon config original Window FindPane entry differs":error);
     const auto seh=find_spinner(outer,spinner);auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& e){return field(memory,base,offset,out,e);};
     if(seh)return fail(error,"Dungeon config original named Spinner lookup SEH="+std::to_string(seh));
     if(!dungeon_config_input::spinner(read,state.image,spinner,error)||!field(memory,outer,0x4f8,cached,error))return false;
     return !cached||cached==spinner||fail(error,"Dungeon config cached Spinner differs from original named lookup");
 }
 uint32_t prepare(uintptr_t outer,uintptr_t owner,int32_t desired)noexcept{__try{
-    reinterpret_cast<void(*)(void*,void*)>(state.image+0x6aebc0)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(owner));
+    reinterpret_cast<void(*)(void*,void*)>(state.image+0x6b5ee0)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(owner));
     *reinterpret_cast<int32_t*>(outer+0x508)=desired;
-    reinterpret_cast<void(*)(void*)>(state.image+0x6adc90)(reinterpret_cast<void*>(outer));return 0;
+    reinterpret_cast<void(*)(void*)>(state.image+0x6b4fb0)(reinterpret_cast<void*>(outer));return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool same_local(const Sample& before,const Sample& after){return same_world(before.world,after.world)&&before.local==after.local&&before.business==after.business&&before.config==after.config&&before.undo==after.undo;}
 bool entry(void* receiver,void* record)try{

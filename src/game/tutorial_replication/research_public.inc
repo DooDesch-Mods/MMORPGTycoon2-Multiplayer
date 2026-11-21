@@ -11,7 +11,7 @@ bool submit_client_research_commit(void* lounge,std::string& e){
         return fail(e,e.empty()?"Research Commit intent requires joined Client":e);
     if(!typed_action_runtime::network_binding(c.snapshot_uuid,b,e))return false;
     tutorial_development::StartingpointSnapshot before,after;
-    if(!research_snapshot(c,b,before,e)||!startingpoint_clock(e)||!complete_entry(e)||!verify_commit_entry(image+0x25fb10,e))return false;
+    if(!research_snapshot(c,b,before,e)||!startingpoint_clock(e)||!complete_entry(e)||!verify_commit_entry(image+0x262c10,e))return false;
     if(before.lounge!=reinterpret_cast<uintptr_t>(lounge)||!before.project||!before.row||
        !before.row->project_present||!before.row->purchased||before.row->deployed||before.row->custom)
         return fail(e,"Research Commit intent current native project differs");
@@ -65,7 +65,7 @@ bool commit_research(const action_session::Context& c,const action_session::Bind
     const research::Row& expected,bool& attempted,std::string& e){
     attempted=false;
     if(c.role!=action_session::Role::Host||load.armed)return fail(e,"Research original Commit requires Host");
-    if(!research::valid(expected,e)||!verify_commit_entry(image+0x25fb10,e)||!startingpoint_code(e)||!complete_entry(e))return false;
+    if(!research::valid(expected,e)||!verify_commit_entry(image+0x262c10,e)||!startingpoint_code(e)||!complete_entry(e))return false;
     tutorial_development::StartingpointSnapshot before,again,after;
     if(!research_snapshot(c,b,before,e))return false;
     const auto& row=expected.value;

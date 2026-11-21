@@ -11,12 +11,12 @@ enum class Shape:uint8_t {Cells,Paint,Door,Key,Monster,Zones,GizmoMove,Gizmos,Sc
 struct Policy {Shape shape=Shape::Cells;uint32_t cash=0,targets=1;bool operator==(const Policy&)const=default;};
 struct Descriptor {Kind kind;uintptr_t ap,method;size_t end;};
 inline constexpr std::array<Descriptor,12> descriptors{{
-    {Kind::Paint,0x1713270,0x53eaf0,0xd8},{Kind::Layout,0x1719190,0x53f490,0x158},
-    {Kind::Scenery,0x1706590,0x55a3c0,0x141},{Kind::Monster,0x1706550,0x5507c0,0x178},
-    {Kind::Zone,0x16e4a00,0x55bd50,0x150},{Kind::EditZone,0x16e4980,0x55c710,0x150},
-    {Kind::Gizmo,0x16fb990,0x54c680,0x18c},{Kind::Door,0x17191d0,0x54c920,0x180},
-    {Kind::Destroy,0x16de860,0x53e1c0,0xc0},{Kind::Quests,0x1713330,0x563f50,0xe0},
-    {Kind::Cash,0x1786fb0,0x53ccf0,0xc8},{Kind::Move,0x1786ff0,0x55ed80,0xe8}}};
+    {Kind::Paint,0x1719610,0x5450b0,0xd8},{Kind::Layout,0x171f530,0x545a50,0x158},
+    {Kind::Scenery,0x170c930,0x560a50,0x141},{Kind::Monster,0x170c8f0,0x556dd0,0x178},
+    {Kind::Zone,0x16eada0,0x5623e0,0x150},{Kind::EditZone,0x16ead20,0x562da0,0x150},
+    {Kind::Gizmo,0x1701d30,0x552c60,0x18c},{Kind::Door,0x171f570,0x552f00,0x180},
+    {Kind::Destroy,0x16e4c00,0x544780,0xc0},{Kind::Quests,0x17196d0,0x56a5e0,0xe0},
+    {Kind::Cash,0x178d350,0x543270,0xc8},{Kind::Move,0x178d390,0x565410,0xe8}}};
 struct Node {
     uintptr_t pointer=0;Kind kind=Kind::Paint;uint64_t uid=0;
     std::array<std::vector<uint64_t>,3> dependencies;
@@ -55,7 +55,7 @@ template<class Read>bool uid_set(Read& at,uintptr_t object,std::vector<uint64_t>
 }
 template<class Memory,class Read,class Copy,class Values,class Owner>
 bool read(Memory& memory,Read& at,Copy& copy,Values& values,Owner& owner,uintptr_t image,uintptr_t pointer,Graph& out,std::string& error,Policy policy={}){
-    out={};q::Bounds array;if(!q::typed(memory,image,pointer+0x18,0x16e2dc0,error)||!q::bounds(memory,pointer+0x18,100000,array,error)||!array.count)
+    out={};q::Bounds array;if(!q::typed(memory,image,pointer+0x18,0x16e9160,error)||!q::bounds(memory,pointer+0x18,100000,array,error)||!array.count)
         return q::fail(error,error.empty()?"Dungeon original complete DoGraph node array is empty":error);
     Graph next;next.pointer=pointer;duplicate_history::Graph membership;std::set<uintptr_t> unique;size_t paints=0,layouts=0,cash=0,targets=0;
     for(int32_t i=0;i<array.count;++i){Node node;uintptr_t ap=0,method=0;
@@ -95,7 +95,7 @@ bool read(Memory& memory,Read& at,Copy& copy,Values& values,Owner& owner,uintptr
             if(!paint&&!actor&&node.kind!=Kind::Cash)return q::fail(error,"Dungeon input graph contains a node outside its original tool contract");
         }
         for(size_t set=0;set<3;++set)if(!uid_set(at,node.pointer+8+set*0x28,node.dependencies[set],error))return false;
-        q::Bounds regions;if(!q::typed(memory,image,node.pointer+0xa0,0x1749040,error)||!q::bounds(memory,node.pointer+0xa0,4096,regions,error))return false;
+        q::Bounds regions;if(!q::typed(memory,image,node.pointer+0xa0,0x174f3e0,error)||!q::bounds(memory,node.pointer+0xa0,4096,regions,error))return false;
         for(int32_t r=0;r<regions.count;++r){uintptr_t region=0;if(!at(regions.data,size_t(r)*8,region,error)||!owner(node,region,error))return false;node.regions.push_back(region);}
         if(!q::unchanged(memory,node.pointer+0xa0,4096,regions,error))return false;
         node.payload.resize(descriptor->end-0x80);if(!copy(node.pointer+0x80,node.payload.data(),node.payload.size(),error))return false;

@@ -55,8 +55,8 @@ bool move_spawn(Memory& memory,uintptr_t image,uintptr_t object,uintptr_t region
        !field(memory,object,0x810,marker,error)||!field(memory,object,0x818,point,error)||
        !field(memory,object,0x178,owner,error)||!field(memory,object,0x490,follow,error))return false;
     uintptr_t notify=0;
-    if(ap!=image+0x1742980||!actor_pointer||owner!=region||follow!=0||
-       !field(memory,ap,0x2a0,notify,error)||notify!=image+0x3c2a40)
+    if(ap!=image+0x1748d20||!actor_pointer||owner!=region||follow!=0||
+       !field(memory,ap,0x2a0,notify,error)||notify!=image+0x3c7550)
         return fail(error,"NPC Move NotifyMoved class, Actor or callback differs");
     npc_move_visibility::Snapshot visible;
     const auto read_field=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){
@@ -82,7 +82,7 @@ bool move_inverse(Memory& memory,uintptr_t image,uintptr_t graph,uint64_t uid,
         uintptr_t operation=0,ap=0;uint64_t actual_uid=0;
         if(!field(memory,data,size_t(index)*8,operation,error)||
            !field(memory,operation,0,ap,error))return false;
-        if(ap!=image+0x1786ff0)continue;
+        if(ap!=image+0x178d390)continue;
         if(!field(memory,operation,0xb8,actual_uid,error))return false;
         if(actual_uid!=uid)continue;
         std::array<float,4> rotation{};std::array<float,3> position{},scale{};
@@ -108,7 +108,7 @@ uint32_t move_input(uintptr_t image,uintptr_t behaviour,uintptr_t cursor,
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t move_set_on_map(uintptr_t image,uintptr_t object) noexcept {
-    __try {reinterpret_cast<void(__fastcall*)(void*,bool)>(image+0x3c2a00)(
+    __try {reinterpret_cast<void(__fastcall*)(void*,bool)>(image+0x3c7510)(
         reinterpret_cast<void*>(object),true);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -423,10 +423,10 @@ bool native_move_ui(const json& args,json& result,std::string& error) {
                 std::to_string(guard.rva));
     }
     uintptr_t command=0;
-    if(!field(memory,state.image+0x1707d20,0x168,command,error)||
-       command!=state.image+0x759ad0)
+    if(!field(memory,state.image+0x170e0c0,0x168,command,error)||
+       command!=state.image+0x761550)
         return fail(error,"NPC Move InfoWindow exact UICommand slot differs");
-    api.command=reinterpret_cast<action::ui_diagnostic::UiCommand>(state.image+0x759ad0);
+    api.command=reinterpret_cast<action::ui_diagnostic::UiCommand>(state.image+0x761550);
     api.destroy_label="Move";
     action::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,
         binding.native_epoch,binding.native_generation,exe_sha,
@@ -463,20 +463,20 @@ bool native_move_ui(const json& args,json& result,std::string& error) {
     job["record_cleanup_confirmed"]=receipt.record_cleanup_confirmed;
     uintptr_t cursor=0,behaviour=0,ap=0,records=0,ghost=0,selected_object=0;
     int32_t count=0,capacity=0;unsigned char flags[2]{};
-    if(!field(memory,state.image,0x13df9d0,cursor,error)||!cursor||
+    if(!field(memory,state.image,0x13eb9d0,cursor,error)||!cursor||
        !field(memory,cursor,0x190,behaviour,error)||!behaviour||
-       !field(memory,behaviour,0,ap,error)||ap!=state.image+0x172f1f0||
+       !field(memory,behaviour,0,ap,error)||ap!=state.image+0x1735590||
        !field(memory,behaviour,0x460,records,error)||
        !field(memory,behaviour,0x468,count,error)||
        !field(memory,behaviour,0x46c,capacity,error)||
        count!=1||capacity<1||!records||
        !field(memory,records,8,ghost,error)||
        !field(memory,records,0x10,selected_object,error)||
-       !field(memory,ghost,0,ap,error)||ap!=state.image+0x1705230||
+       !field(memory,ghost,0,ap,error)||ap!=state.image+0x170b5d0||
        selected_object!=local.object||
        !memory.copy(behaviour+0x400,flags,2,error)||flags[0]!=1||flags[1]!=0)
         return unknown(error.empty()?"NPC Move original cursor, ghost or selected record differs":error);
-    const std::array<uintptr_t,3> steps{0x5c0200,0x5c05c0,0x5c01e0};
+    const std::array<uintptr_t,3> steps{0x5c69a0,0x5c6d60,0x5c6980};
     for(size_t index=0;index<steps.size();++index){
         job["input_step"]=index==0?"MouseOver":index==1?"Press":"Release";
         const auto seh=move_input(state.image,behaviour,cursor,point,steps[index]);

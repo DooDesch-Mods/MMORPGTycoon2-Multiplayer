@@ -26,12 +26,12 @@ bool row_read(const dungeon_scene_identity_runtime::World& world,const Row& row,
         return scenery_kiss::read_action_prop(row.uid,value,error)&&scene_current(world,error);}
     uintptr_t image=0;uint32_t thread=0;std::string hash;
     if(!native::read_resolver_receipt(image,thread,hash,error)||thread!=GetCurrentThreadId()||
-       hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+       hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
         if(error.empty())error="Scene Building exact Mainthread resolver differs";return false;}
     host::ProcessMemory memory;host::NativeOrigin origin;host::LookupApi api;
     if(!host::resolve_lookup(memory,image,hash,api,error))return false;
     host::Reader reader(memory,origin,image,thread,api);prop_lease::Prop prop;
-    if(!reader.prop(reinterpret_cast<void*>(row.object),row.uid,prop,error)||prop.class_addresspoint!=image+0x16d93c0||
+    if(!reader.prop(reinterpret_cast<void*>(row.object),row.uid,prop,error)||prop.class_addresspoint!=image+0x16df760||
        !scenery_kiss::read_action_prop(row.uid,value,error)||value.prop.uid!=row.uid||
        (!value.dungeon_membership&&!value.dungeon_instance_membership)){
         if(error.empty())error="Scene Building original class/full UID/typed current owner differs";return false;}
@@ -46,7 +46,7 @@ bool exact_bound(const Bound& bound,const State& phase,const Row& row,bool retir
         bound.world==prop_lease::World{phase.world.world_epoch,phase.world.generation,phase.world.world,phase.world.map}&&
         bound.uid==row.uid&&bound.object==row.object&&bound.revoked==retired&&!bound.unknown&&
         (!row.scenery||(bound.scene_owner==row.scene&&bound.scene_manager==row.manager&&bound.scene_shard==row.shard&&bound.scene_region==row.region))&&
-        bound.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+(row.scenery?0x16c1390:0x16d93c0);
+        bound.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+(row.scenery?0x16c7730:0x16df760);
 }
 }
 bool resolve(const dungeon_scene_identity_runtime::World& world,uintptr_t object,uint64_t uid,std::string& key,std::string& error){
@@ -82,7 +82,7 @@ bool preview(const dungeon_scene_identity_runtime::World& world,const std::vecto
         fresh.entry=++phase->next_entry;fresh.generation=phase->generation;
         fresh.world={world.world_epoch,world.generation,world.world,world.map};
         fresh.metadata=building_metadata(value);fresh.object=row.object;fresh.scene_owner=row.scenery?row.scene:std::string{};
-        if(row.scenery){fresh.scene_manager=row.manager;fresh.scene_shard=row.shard;fresh.scene_region=row.region;}fresh.class_addresspoint=uintptr_t(GetModuleHandleW(nullptr))+(row.scenery?0x16c1390:0x16d93c0);
+        if(row.scenery){fresh.scene_manager=row.manager;fresh.scene_shard=row.shard;fresh.scene_region=row.region;}fresh.class_addresspoint=uintptr_t(GetModuleHandleW(nullptr))+(row.scenery?0x16c7730:0x16df760);
         (*phase->registry_copy.after)[key]=std::move(fresh);return true;
     };
     for(const auto& row:born)if(!admit(row,nullptr))return false;

@@ -54,13 +54,13 @@ bool restore_source(Runtime& r,const Pending& value,std::string& e){
 }
 void position_entry(void* object,const void* point){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x5b040b){set_position(object,point);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x5b6bab){set_position(object,point);return;}
     try{std::string e;if(!capture(*r,uintptr_t(object),uintptr_t(point),e))reject(e);}
     catch(const std::exception& x){reject(std::string("District title capture: ")+x.what());}
 }
 uint32_t invoke(uintptr_t image,uintptr_t object,const action::DistrictTitleIntent& intent,uint32_t& steps){
     __try{set_position(reinterpret_cast<void*>(object),intent.position.data());steps|=1;
-        reinterpret_cast<void(__fastcall*)(void*)>(image+0x418470)(reinterpret_cast<void*>(object));steps|=2;return 0;}
+        reinterpret_cast<void(__fastcall*)(void*)>(image+0x41d1b0)(reinterpret_cast<void*>(object));steps|=2;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -70,8 +70,8 @@ bool enable(std::string& e){
     if(!r||!r->image||r->thread!=GetCurrentThreadId()){e=install_cause="District title requires bound Mainthread";return false;}
     constexpr std::array<uint8_t,16> expected{0x56,0x53,0x48,0x83,0xec,0x38,0x48,0x8b,0x99,0x78,0x03,0x00,0x00,0x48,0x85,0xdb};
     std::array<uint8_t,16> actual{};
-    if(!r->memory.read(r->image+0x418470,actual.data(),actual.size(),e)||actual!=expected){e=install_cause=e.empty()?"District title original presentation prefix differs":e;return false;}
-    const auto target=reinterpret_cast<void*>(r->image+0x4173c0);
+    if(!r->memory.read(r->image+0x41d1b0,actual.data(),actual.size(),e)||actual!=expected){e=install_cause=e.empty()?"District title original presentation prefix differs":e;return false;}
+    const auto target=reinterpret_cast<void*>(r->image+0x41c100);
     const auto created=MH_CreateHook(target,reinterpret_cast<void*>(&position_entry),reinterpret_cast<void**>(&set_position));
     if(created!=MH_OK||!set_position){e=install_cause="District title hook create failed status="+std::to_string(created)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
     const auto enabled=MH_EnableHook(target);

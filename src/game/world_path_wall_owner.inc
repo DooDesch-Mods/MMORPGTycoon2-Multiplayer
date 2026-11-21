@@ -3,9 +3,9 @@ struct WallShardNative {
     region::Runtime& runtime;
     bool verify(std::string& error){
         constexpr wall_private_native::Code codes[]={
-            {0x4cf6e0,16,"1352ba185c1aadfff33882b525618d08126efe44082443f61bec24ef1b8f35b1"},
-            {0x4d0230,272,"b59d706d6dd8524b9bad98bcd2a7640a384f5364ca085a44fc81ac6bc0eec831"},
-            {0x557cc0,480,"22c76f4cf31a025933fc70dc9d2b90d1bcd3271806b0de07bf9e0c6bdee80232"}};
+            {0x4d5460,16,"1352ba185c1aadfff33882b525618d08126efe44082443f61bec24ef1b8f35b1"},
+            {0x4d5fb0,272,"836241a7a989761f4331843d16ca196b05d97758dce993308e3e609e132622f6"},
+            {0x55e350,480,"4dd5a9e6bb06e224229932fb6d8f6facf599202857460b72ace07beb4460477e"}};
         for(const auto& pin:codes){
             std::string bytes(pin.size,'\0');
             if(!runtime.memory.copy(runtime.image+pin.rva,bytes.data(),bytes.size(),error)||
@@ -16,13 +16,13 @@ struct WallShardNative {
     }
     bool read(uintptr_t path,uintptr_t& shard,std::string& error){
         uintptr_t ap=0,setter=0;
-        if(!region::at(runtime,path,0,ap,error)||ap!=runtime.image+0x1743f10||
-           !region::at(runtime,ap,0x190,setter,error)||setter!=runtime.image+0x4cf6e0)
+        if(!region::at(runtime,path,0,ap,error)||ap!=runtime.image+0x174a2b0||
+           !region::at(runtime,ap,0x190,setter,error)||setter!=runtime.image+0x4d5460)
             return wall_history_owner::reject(error,"Path address point or original SetShard slot differs: "+error);
         return region::at(runtime,path,0x170,shard,error);
     }
     static uint32_t call(uintptr_t image,uintptr_t path,uintptr_t shard){
-        __try{reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x4cf6e0)(path,shard);return 0;}
+        __try{reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x4d5460)(path,shard);return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     bool set(uintptr_t path,uintptr_t shard,std::string& error){

@@ -18,15 +18,15 @@ bool allocation(uintptr_t address,void*& owner,std::string& e){
 }
 uint32_t permission_calls(uintptr_t image,uintptr_t art,const void* filename,uintptr_t shard,const void* position,int32_t category,bool& locked,uintptr_t& region,int32_t& cost){
     __try{
-        locked=reinterpret_cast<bool(__fastcall*)(void*,const void*)>(image+0x3cbe0)(reinterpret_cast<void*>(art),filename);
+        locked=reinterpret_cast<bool(__fastcall*)(void*,const void*)>(image+0x3cec0)(reinterpret_cast<void*>(art),filename);
         if(locked)return 0;
-        region=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,void*)>(image+0x5089b0)(reinterpret_cast<void*>(shard),position,nullptr));
-        cost=reinterpret_cast<int32_t(__fastcall*)(int32_t)>(image+0x4470b0)(category);return 0;
+        region=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,void*)>(image+0x50eb00)(reinterpret_cast<void*>(shard),position,nullptr));
+        cost=reinterpret_cast<int32_t(__fastcall*)(int32_t)>(image+0x44c0c0)(category);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool validate_ui_bytes(native::Memory& memory,uintptr_t image,const std::array<uintptr_t,6>& originals,const std::array<uintptr_t,6>& entries,bool enabled,std::string& e){
-    if(!image||image>(std::numeric_limits<uintptr_t>::max)()-0x17396b0)return fail(e,"scenery UI image range invalid");
+    if(!image||image>(std::numeric_limits<uintptr_t>::max)()-0x173fa50)return fail(e,"scenery UI image range invalid");
     for(size_t i=0;i<6;++i){const auto& c=ui_codes[i];const auto target=image+c.rva;
         if(!originals[i]||!equals(memory,originals[i],c.bytes,c.span,e))return false;
         constexpr unsigned char jump[]{0xff,0x25,0,0,0,0};uintptr_t continuation=0;
@@ -64,7 +64,7 @@ bool create_permission(native::host::ProcessMemory& memory,uintptr_t image,uintp
     manager=0;cost=-1;if(!shard||category<0||category>=47)return fail(e,"scenery Create actual world or category invalid");
     if(!valid_state(state,e))return false;
     for(size_t i=6;i<std::size(ui_codes);++i){const auto& c=ui_codes[i];if(!equals(memory,image+c.rva,c.bytes,c.size,e))return false;}
-    uintptr_t art=0;if(!memory.copy(image+0x13df2d0,&art,8,e))return false;
+    uintptr_t art=0;if(!memory.copy(image+0x13eb2d0,&art,8,e))return false;
     if(!art)return fail(e,"scenery actual ArtLibrary unavailable");
     struct String {const char* data;size_t size;unsigned char rest[16];} filename{state.variant.data(),state.variant.size(),{}};
     const std::array<float,3> position{state.x,state.y,state.z};bool locked=true;uintptr_t region=0;
@@ -79,8 +79,8 @@ bool permission_binding(native::Memory& memory,uintptr_t image,uintptr_t shard,u
     unsigned char owned=0;uintptr_t ap=0,manager_region=0,manager_shard=0,art_after=0;
     if(!memory.copy(region+0x850,&owned,1,e)||!memory.copy(region+0x960,&manager,8,e))return false;
     if(owned!=1||!manager)return fail(e,"scenery actual region not owned or manager missing");
-    if(!memory.copy(manager,&ap,8,e)||!memory.copy(manager+0x900,&manager_region,8,e)||!memory.copy(manager+0x908,&manager_shard,8,e)||!memory.copy(image+0x13df2d0,&art_after,8,e))return false;
-    if(ap!=image+0x17152d0||manager_region!=region||manager_shard!=shard||art_after!=art)return fail(e,"scenery actual permission ownership changed");
+    if(!memory.copy(manager,&ap,8,e)||!memory.copy(manager+0x900,&manager_region,8,e)||!memory.copy(manager+0x908,&manager_shard,8,e)||!memory.copy(image+0x13eb2d0,&art_after,8,e))return false;
+    if(ap!=image+0x171b670||manager_region!=region||manager_shard!=shard||art_after!=art)return fail(e,"scenery actual permission ownership changed");
     return true;
 }
 }

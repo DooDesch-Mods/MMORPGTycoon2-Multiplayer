@@ -48,7 +48,7 @@ struct Peer {
     }
     tw::Message state(uint64_t epoch_value,uint64_t revision,float scale){tw::Message m{};m.kind=tw::Kind::State;m.epoch=epoch_value;m.peer=1;m.state={true,false,revision,{scale,1}};return m;}
     tw::Report receive(const tw::Message& m,uint8_t sender=1){std::array<uint8_t,64> bytes{};check(tw::encode(m,bytes,error),"encode_fixture_packet");return runtime.receive(sender,bytes.data(),bytes.size());}
-    HookResult activate(size_t index,uintptr_t caller=0x58095c){return runtime.on_activate(reinterpret_cast<void*>(Fixture::type(index)),reinterpret_cast<void*>(Fixture::item(index)),caller);}
+    HookResult activate(size_t index,uintptr_t caller=0x58711c){return runtime.on_activate(reinterpret_cast<void*>(Fixture::type(index)),reinterpret_cast<void*>(Fixture::item(index)),caller);}
     HookResult update(size_t index){return runtime.on_update(reinterpret_cast<void*>(Fixture::type(index)),reinterpret_cast<void*>(Fixture::item(index)));}
 };
 }
@@ -59,7 +59,7 @@ int main(){try{
         check(client.f.writes==0&&client.set_calls==0,"readonly_no_native_effect");
         check(!client.runtime.tick(client.error)&&client.error=="time_hooks_not_ready","hooks_required_before_controller");
         check(client.activate(1).decision==Decision::Suppress,"initial_client_known_activate_no_local_unpause");
-        auto foreign=client.runtime.on_activate(reinterpret_cast<void*>(Fixture::type(0)),reinterpret_cast<void*>(Fixture::item(1)),0x58095c);
+        auto foreign=client.runtime.on_activate(reinterpret_cast<void*>(Fixture::type(0)),reinterpret_cast<void*>(Fixture::item(1)),0x58711c);
         check(!foreign.matched&&foreign.decision==Decision::Forward,"foreign_pair_original");
         client.hooks();client.tick();check(client.runtime.submit(tw::Intent::Normal).code==tw::Code::NoState,"no_state_no_request");
         client.f.current=9;check(!client.runtime.tick(client.error)&&client.error=="wrong_game_thread","runtime_wrong_thread");
@@ -177,7 +177,7 @@ int main(){try{
     }
     {
         Peer host(true);host.hooks();host.tick();host.f.put(Fixture::clock+0x58,3.0f);host.f.put(Fixture::clock+0x5c,0.0f);host.tick();
-        check(host.activate(1,0x4a2d93).request_queued,"keyboard_toggle_captured");host.tick();
+        check(host.activate(1,0x4a8283).request_queued,"keyboard_toggle_captured");host.tick();
         check(host.f.get<float>(Fixture::clock+0x58)==1&&host.f.get<float>(Fixture::clock+0x5c)==0,"toggle_uses_host_modal_effective_scale");
         check(host.activate(1,0x12345).decision==Decision::Suppress&&!host.activate(1,0x12345).request_queued,"unknown_ui_origin_not_executed");
         check(host.runtime.set_hook_mask(0,host.error)&&host.status().phase==rt::Phase::Retiring,"hook_removal_retires_epoch");

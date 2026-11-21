@@ -6,29 +6,29 @@ void cancel_command(uintptr_t image,uintptr_t window,CancelCall& out){
     initial_release::Record record{};
     constexpr char command[]="CancelTechConfirm";
     __try{
-        reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,command);out.constructed=true;
-        out.label_confirmed=reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,command);
+        reinterpret_cast<initial_release::RecordCtor>(image+0x970590)(&record,command);out.constructed=true;
+        out.label_confirmed=reinterpret_cast<initial_release::RecordEquals>(image+0x111f720)(&record,command);
         if(out.label_confirmed){
             out.attempted=true;
-            out.accepted=reinterpret_cast<initial_release::UiCommand>(image+0x6c7b70)(reinterpret_cast<void*>(window),&record);
+            out.accepted=reinterpret_cast<initial_release::UiCommand>(image+0x6cef90)(reinterpret_cast<void*>(window),&record);
             out.returned=true;
         }
     }__except(EXCEPTION_EXECUTE_HANDLER){out.fault=GetExceptionCode();}
     if(out.constructed){
-        __try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);out.cleanup_confirmed=true;}
+        __try{reinterpret_cast<initial_release::RecordDtor>(image+0x9708c0)(&record);out.cleanup_confirmed=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_fault=GetExceptionCode();}
     }
 }
 bool cancel_code(uintptr_t image,std::string& e){
     using namespace initial_release::bytes;
-    const Guard guards[]={{0x967370,body_967370,sizeof body_967370},
-        {0x9676a0,body_9676a0,sizeof body_9676a0},{0x1113d80,body_1113d80,sizeof body_1113d80}};
+    const Guard guards[]={{0x970590,body_967370,sizeof body_967370},
+        {0x9708c0,body_9676a0,sizeof body_9676a0},{0x111f720,body_1113d80,sizeof body_1113d80}};
     for(const auto& guard:guards){
         std::vector<uint8_t> actual(guard.size);
         if(!memory.copy(image+guard.rva,actual.data(),actual.size(),e))return false;
         if(std::memcmp(actual.data(),guard.data,guard.size))return fail(e,"Bridges Cancel record body differs RVA="+std::to_string(guard.rva));
     }
-    return developer_staff::action_runtime::verify_entry(image+0x6c7b70,e);
+    return developer_staff::action_runtime::verify_entry(image+0x6cef90,e);
 }
 bool cancel_window(Pin& p,std::string& e){
     uint8_t visible=0;

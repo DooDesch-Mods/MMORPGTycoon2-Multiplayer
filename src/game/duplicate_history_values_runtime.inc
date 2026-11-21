@@ -31,9 +31,9 @@ bool history_owned_record(Runtime& r,uintptr_t pointer,duplicate_building_values
     if(stored)return duplicate_building_values::stored(memory,pointer,{100000,1000000,32*1024*1024,100000},sha,e);
     auto capture=[&](uintptr_t object,uintptr_t prepare,uintptr_t save,subscriber_lifecycle::Graph& graph,std::string& why){
         namespace native_record=subscriber_lifecycle;RecordCapture result{memory};native_record::CaptureReceipt receipt;
-        const native_record::CaptureApi api{reinterpret_cast<native_record::Construct>(r.image+0x9667c0),
-            reinterpret_cast<native_record::Construct>(r.image+0x9676a0),reinterpret_cast<native_record::Construct>(r.image+0x89e580),
-            reinterpret_cast<native_record::Construct>(r.image+0x89e5f0),reinterpret_cast<native_record::PrepareSave>(r.image+prepare),
+        const native_record::CaptureApi api{reinterpret_cast<native_record::Construct>(r.image+0x96f9e0),
+            reinterpret_cast<native_record::Construct>(r.image+0x9708c0),reinterpret_cast<native_record::Construct>(r.image+0x8a76a0),
+            reinterpret_cast<native_record::Construct>(r.image+0x8a7710),reinterpret_cast<native_record::PrepareSave>(r.image+prepare),
             reinterpret_cast<native_record::SaveRecord>(r.image+save)};
         if(!native_record::capture_original(api,reinterpret_cast<const void*>(object),inspect_record,&result,receipt,why))return false;
         graph=std::move(result.graph);return true;
@@ -60,8 +60,8 @@ bool history_building_inverse(Runtime& r,uintptr_t node,const duplicate_building
     auto record=[&](uintptr_t p,bool stored,std::string& sha,std::string& why){
         using Kind=duplicate_building_values::OwnedKind;Kind kind=Kind::Bugs;
         if(!stored){uintptr_t ap=0;if(!q::at(r.memory,p,0,ap,why))return false;
-            if(ap==r.image+0x1712a60)kind=Kind::Layout;
-            else if(ap==r.image+0x16fea40)kind=Kind::Plan;
+            if(ap==r.image+0x1718e00)kind=Kind::Layout;
+            else if(ap==r.image+0x1704de0)kind=Kind::Plan;
             else return q::fail(why,"Duplicate Make Building owned value is not its original Layout/Plan");}
         return history_owned_record(r,p,kind,stored,sha,why);
     };
@@ -152,7 +152,7 @@ bool history_building_plan(Runtime& r,const action::Binding& binding,const Sampl
     auto find=[&](uint64_t uid,uintptr_t& pointer,std::string& why){return group_edit::find(r,uid,pointer,why);};
     auto text=[&](uintptr_t p,std::string& value,std::string& why){return prop_text::text(r,p,value,why);};
     auto building_target=[&](uintptr_t pointer,bool& include,std::string& why){uintptr_t ap=0;uint64_t uid=0;include=false;
-        if(!q::at(r.memory,pointer,0,ap,why))return false;if(ap!=r.image+0x16de860)return true;
+        if(!q::at(r.memory,pointer,0,ap,why))return false;if(ap!=r.image+0x16e4c00)return true;
         if(!q::at(r.memory,pointer,0xb8,uid,why))return false;const auto target=known.find(uid);
         if(target==known.end())return q::fail(why,"Duplicate Building history Destroy target absent");
         include=target->second.row.family==Family::Building;return true;};
@@ -160,7 +160,7 @@ bool history_building_plan(Runtime& r,const action::Binding& binding,const Sampl
        !duplicate_history::projected_order(r.memory,r.image,graph,original,building_target,ordered,e))return false;
     out.undo_cash=original.cash;
     for(auto pointer:ordered){uintptr_t ap=0;uint64_t uid=0;
-        if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x16de860)continue;
+        if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x16e4c00)continue;
         if(!q::at(r.memory,pointer,0xb8,uid,e))return false;
         const auto target=known.find(uid);if(target==known.end())return q::fail(e,"Duplicate Building history sorted Destroy target absent");
         if(target->second.row.family!=Family::Building)continue;
@@ -216,21 +216,21 @@ bool history_building_graph(Runtime& r,uintptr_t graph,const std::map<uint64_t,d
     HistoryQuestMemory memory(r);
     auto related=[&](uintptr_t pointer,uintptr_t ap,std::string& why){uint64_t uid=0;
         if(!q::at(r.memory,pointer,0xb8,uid,why))return false;
-        if(ap==r.image+0x1737830){const auto value=expected.service_removal.saved.find(uid);
+        if(ap==r.image+0x173dbd0){const auto value=expected.service_removal.saved.find(uid);
             if(value==expected.service_removal.saved.end()||!services.insert(uid).second)
                 return q::fail(why,"Duplicate MakeService inverse full UID is foreign or repeated");
             return duplicate_service_history::inverse(r.memory,r.image,pointer,value->second,find,why);
         }
-        if(ap==r.image+0x16de8a0){const auto child=children.find(uid);child_npc::MakeNPCInverse inverse;
+        if(ap==r.image+0x16e4c40){const auto child=children.find(uid);child_npc::MakeNPCInverse inverse;
             if(child==children.end()||!npcs.insert(uid).second)
                 return q::fail(why,"Duplicate MakeNPC inverse full UID is foreign or repeated");
             return child_npc::validate_make_npc(lease,pointer,*child->second,inverse,why);
         }
         uintptr_t method=0;const auto owner=owners.find(uid);
-        if(ap!=r.image+0x1713330||owner==owners.end()||!quests.insert(uid).second)
+        if(ap!=r.image+0x17196d0||owner==owners.end()||!quests.insert(uid).second)
             return q::fail(why,"Duplicate SetNPCQuests inverse full UID/class is foreign or repeated");
         if(!q::at(r.memory,ap,0x10,method,why))return false;
-        if(method!=r.image+0x563f50)return q::fail(why,"Duplicate SetNPCQuests inverse original Do method differs");
+        if(method!=r.image+0x56a5e0)return q::fail(why,"Duplicate SetNPCQuests inverse original Do method differs");
         return monster_quest_retirement::inverse(memory,r.image,pointer,*owner->second,why);
     };
     duplicate_history::Graph nodes;std::vector<uintptr_t> ordered;
@@ -242,10 +242,10 @@ bool history_building_graph(Runtime& r,uintptr_t graph,const std::map<uint64_t,d
             std::to_string(expected.service_removal.saved.size())+" quests="+std::to_string(quests.size())+" required="+std::to_string(owners.size())+
             " npcs="+std::to_string(npcs.size())+" required="+std::to_string(children.size()));
     auto quest_target=[&](uintptr_t pointer,bool& include,std::string& why){uintptr_t ap=0;
-        if(!q::at(r.memory,pointer,0,ap,why))return false;include=ap==r.image+0x1713330;return true;};
+        if(!q::at(r.memory,pointer,0,ap,why))return false;include=ap==r.image+0x17196d0;return true;};
     if(!duplicate_history::projected_order(r.memory,r.image,graph,nodes,quest_target,ordered,e))return false;
     for(auto pointer:ordered){uintptr_t ap=0;uint64_t uid=0;
-        if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x1713330)continue;
+        if(!q::at(r.memory,pointer,0,ap,e))return false;if(ap!=r.image+0x17196d0)continue;
         if(!q::at(r.memory,pointer,0xb8,uid,e))return false;
         const auto owner=owners.find(uid);if(owner==owners.end())return q::fail(e,"Duplicate sorted Quest inverse owner is foreign");
         quest_order.push_back(owner->second->pointer);

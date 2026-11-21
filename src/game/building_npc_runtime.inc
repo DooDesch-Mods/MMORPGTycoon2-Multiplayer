@@ -18,7 +18,7 @@ bool lease(const child::Lease& expected,opened::CurrentWorld& world,std::string&
 struct Lookup {
     host::LookupApi api;
     bool initialize(std::string& error){host::ProcessMemory process;
-        return host::resolve_lookup(process,image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,error);}
+        return host::resolve_lookup(process,image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,error);}
     bool operator()(uint64_t uid,uintptr_t& pointer,std::string& error){pointer=0;const auto code=find_call(api.find,uid,pointer);
         return !code||q::fail(error,"Building child NPC full UID lookup exception="+std::to_string(code));}
 };
@@ -91,12 +91,12 @@ bool binding(const child::Lease& expected,const child::Receipt& before,ChildBind
 bool code(std::string& error){
     struct Pin {uintptr_t rva;size_t size;const char* sha;};
     const Pin pins[]{
-        {0x9667c0,181,"f061a1fe2ca42b75546e22e95981092d682869382e859ed5b10af7ecd80ba6c9"},
-        {0x9676a0,148,"7f6e66c76e2be9e2d7f43ab04d8721cc060f16ddcd111a422605af135ab1bb4a"},
-        {0x89e580,106,"fc9d17c2e62785b1cfd9e4bb59ae1568cb603f1e232cb30ce48d429581f73646"},
-        {0x89e5f0,151,"0808e0234ca17c59c1fd755944f300a0145c52953160aa8231eef3006665e690"},
-        {0x10ecae0,87,"52f1b850ad131c46f7d249b5b6365e5c289a571e83c0a6d4996c36647dd36bc2"},
-        {0x10ecb40,409,"4a5445004eb0a955a6b8fb7a84c77341f2001af6fa5fa20489039ebe472c621e"}};
+        {0x96f9e0,181,"c17476a1733c67fd3eb338f89df6eeabf441b55f6478187288fa9c71cab2e532"},
+        {0x9708c0,148,"bb4624bbc533d99539535f19391f65e947168a081318a35d4e7eae53082253f9"},
+        {0x8a76a0,104,"84dedde177d3b1f6c787f0781bc69a770830098429da33ac063fc70fbf24eb6c"},
+        {0x8a7710,151,"ad04a9466902eea3b1bb7a50a2c321e6deebeae5690738e7653efed5719777ea"},
+        {0x10f8480,87,"f607fc29ae5236794cdaa10e67816bd0698741b2f104760f403c6a7d0a607406"},
+        {0x10f84e0,409,"e12ed44c45f4df9ba1070943b3dc1150d3f396c3888bb4620034238fccdfdf77"}};
     for(const auto& pin:pins){std::vector<unsigned char> bytes(pin.size);
         if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(mt2mp::sha256(bytes)!=pin.sha)return q::fail(error,"Building child NPC original capture helper full body differs rva="+std::to_string(pin.rva));
@@ -120,7 +120,7 @@ bool witness(const opened::CurrentWorld& world,const child::OwnerResolver& exter
        !at(ap,0xa8,name_method,error))return false;
     const character_definition_identity::Definition* definition=nullptr;
     for(const auto& candidate:definitions.definitions)if(candidate.object==type)definition=&candidate;
-    if(!definition||definition->deleted||!definition->uid||!character_definition_identity::matches_actor(*definition,receipt.child.row)||name_method!=image+0xe3f530)
+    if(!definition||definition->deleted||!definition->uid||!character_definition_identity::matches_actor(*definition,receipt.child.row)||name_method!=image+0xe4b020)
         return q::fail(error,"Building child NPC current Character definition/virtual name owner differs");
     Lookup lookup;uintptr_t registered=0;
     if(!lookup.initialize(error)||!lookup(definition->uid,registered,error))return false;
@@ -140,9 +140,9 @@ bool witness(const opened::CurrentWorld& world,const child::OwnerResolver& exter
     };
     Capture captured;subscriber_lifecycle::CaptureReceipt cleanup;
     const subscriber_lifecycle::CaptureApi api{
-        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9676a0),
-        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x89e5f0),
-        reinterpret_cast<subscriber_lifecycle::PrepareSave>(image+0x10ecae0),reinterpret_cast<subscriber_lifecycle::SaveRecord>(image+0x10ecb40)};
+        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9708c0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x8a7710),
+        reinterpret_cast<subscriber_lifecycle::PrepareSave>(image+0x10f8480),reinterpret_cast<subscriber_lifecycle::SaveRecord>(image+0x10f84e0)};
     {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
         if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(receipt.child.row.local_pointer),inspect,&captured,cleanup,error))return false;}
     duplicate_records::Witness complete;
@@ -206,7 +206,7 @@ bool append(int32_t id,uintptr_t region,const npc_census::State& census_rows,Fin
         if(bound.history_detached){
             uintptr_t parent_registered=0,parent_ap=0,parent_region=0,parent_root=0;uint64_t parent_uid=0,parent_child=0;
             if(!find(receipt.parent.uid,parent_registered,error)||parent_registered!=receipt.parent.object||
-               !at(parent_registered,0,parent_ap,error)||parent_ap!=image+0x16d93c0||
+               !at(parent_registered,0,parent_ap,error)||parent_ap!=image+0x16df760||
                !at(parent_registered,0x18,parent_uid,error)||parent_uid!=receipt.parent.uid||
                !at(parent_registered,0x170,parent_root,error)||parent_root!=reinterpret_cast<uintptr_t>(origin.map)+0x1c0||
                !at(parent_registered,0x178,parent_region,error)||parent_region!=region||

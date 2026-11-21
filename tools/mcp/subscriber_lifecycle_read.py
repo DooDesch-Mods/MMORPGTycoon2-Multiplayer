@@ -73,30 +73,30 @@ def campaign_boost_sample(get, ap, image, mode, state):
         return {'data': data, 'count': count, 'capacity': capacity, 'members': members}
 
     marketing = get(state, 0x1d0)
-    require(marketing and marketing == get(image, 0x13df2c0), 'Marketing current GameState singleton differs')
-    ap(marketing, 0x16dfa60, 'Marketing')
+    require(marketing and marketing == get(image, 0x13eb2c0), 'Marketing current GameState singleton differs')
+    ap(marketing, 0x16e5e00, 'Marketing')
     campaigns = array(marketing, 0x70, 'Campaign')
     awards = array(marketing, 0x40, 'Award')
     rows = []
     for campaign in campaigns['members']:
-        ap(campaign, 0x16e3d50, 'Campaign')
+        ap(campaign, 0x16ea0f0, 'Campaign')
         rows.append({'address': campaign, 'type': get(campaign, 0x50, 'i'),
                      'start_day': get(campaign, 0x54, 'i'), 'duration_days': get(campaign, 0x58, 'i')})
     hud = get(mode, 0x128)
-    require(hud and hud == get(image, 0x13df8b0), 'Boost current Mode HUD singleton differs')
-    ap(hud, 0x1742750, 'HUD')
+    require(hud and hud == get(image, 0x13eb8b0), 'Boost current Mode HUD singleton differs')
+    ap(hud, 0x1748af0, 'HUD')
     window = get(hud, 0xb8)
     out = {'marketing': marketing, 'campaigns': {**campaigns, 'rows': rows}, 'awards': awards,
            'hud': hud, 'window': window, 'window_present': bool(window)}
     if not window:
         return out
-    ap(window, 0x16fa4d0, 'BoostWindow')
-    ap(window + 0x508, 0x16e1770, 'BoostView store')
+    ap(window, 0x1700870, 'BoostWindow')
+    ap(window + 0x508, 0x16e7b10, 'BoostView store')
     views = array(window, 0x510, 'BoostView')
     panes = array(window, 0x300, 'BoostWindow pane')
     bindings = []
     for view in views['members']:
-        ap(view, 0x16dd8a0, 'BoostView')
+        ap(view, 0x16e3c40, 'BoostView')
         campaign, award = get(view, 0x328), get(view, 0x320)
         # A stale binding is evidence. Only current owner members were dereferenced above.
         bindings.append({'address': view, 'campaign': campaign, 'award': award,
@@ -115,30 +115,30 @@ def sample(read, image, serialized_id, include_scenario_vips=False, include_camp
         return struct.unpack('<' + fmt, read(p + off, struct.calcsize('<' + fmt)))[0]
     def ap(p, rva, label):
         require(get(p) == image + rva, f'{label} addresspoint differs required_rva={rva}')
-    mode, game = get(image, 0x13df320), get(image, 0x13df8f0)
-    ap(game, 0x1743740, 'Game'); ap(mode, 0x16e6730, 'Mode')
+    mode, game = get(image, 0x13eb320), get(image, 0x13eb8f0)
+    ap(game, 0x1749ae0, 'Game'); ap(mode, 0x16ecad0, 'Mode')
     require(get(game, 0x28) == mode and get(mode, 0x2c4, 'i') == 4, 'Active Mode owner/state differs')
-    state = get(mode, 0x58); ap(state, 0x16de920, 'GameState')
-    require(get(image, 0x13df2a0) == state, 'GameState singleton differs')
-    world = get(state, 0x160); ap(world, 0x174aef0, 'World')
-    map_ = get(world, 0x158); ap(map_, 0x1742860, 'Map')
-    require(get(image, 0x13df9c0) == world and get(image, 0x13df8c0) == map_, 'World/Map singleton differs')
-    root = map_ + 0x1c0; ap(root, 0x174ad20, 'Root Shard')
+    state = get(mode, 0x58); ap(state, 0x16e4cc0, 'GameState')
+    require(get(image, 0x13eb2a0) == state, 'GameState singleton differs')
+    world = get(state, 0x160); ap(world, 0x1751290, 'World')
+    map_ = get(world, 0x158); ap(map_, 0x1748c00, 'Map')
+    require(get(image, 0x13eb9c0) == world and get(image, 0x13eb8c0) == map_, 'World/Map singleton differs')
+    root = map_ + 0x1c0; ap(root, 0x17510c0, 'Root Shard')
     require(get(root, 0x48, 'i') == 0, 'Root Shard type differs')
-    manager = get(state, 0x1b8); ap(manager, 0x1725f40, 'SubscriberManager')
-    require(get(image, 0x13df690) == manager, 'SubscriberManager singleton differs')
+    manager = get(state, 0x1b8); ap(manager, 0x172c2e0, 'SubscriberManager')
+    require(get(image, 0x13eb690) == manager, 'SubscriberManager singleton differs')
     data, count, capacity, next_id = get(manager, 0x40), get(manager, 0x48, 'i'), get(manager, 0x4c, 'i'), get(manager, 0x68, 'i')
     require(0 <= count <= 1000000 and count <= capacity <= 1000000 and next_id >= 0 and (not count or data), 'SubscriberManager array bounds differ')
     members, ids, selected = [], set(), 0
     for i in range(count):
-        sub = get(data, i * 8); ap(sub, 0x16e75f0, 'Subscriber')
+        sub = get(data, i * 8); ap(sub, 0x16ed990, 'Subscriber')
         actual = get(sub, 0x20, 'i')
         require(0 <= actual < next_id and actual not in ids and sub not in members, 'Subscriber cohort identity duplicated/invalid')
         ids.add(actual); members.append(sub)
         if actual == serialized_id:
             selected = sub
     require(selected, f'Subscriber serialized_id={serialized_id} absent')
-    toon = get(selected, 0x80); ap(toon, 0x1744e90, 'Toon')
+    toon = get(selected, 0x80); ap(toon, 0x174b230, 'Toon')
     require(get(toon, 0x940) == selected, 'Toon reciprocal Subscriber differs')
     uid = get(toon, 0x18); require(uid != 0, 'Toon UID absent')
     shard, region, last = get(toon, 0x170), get(toon, 0x178), get(toon, 0x9a8)
@@ -151,7 +151,7 @@ def sample(read, image, serialized_id, include_scenario_vips=False, include_camp
     def region_fields(p):
         if not p:
             return {'present': False, 'address': 0}
-        ap(p, 0x1787930, 'Region')
+        ap(p, 0x178dcd0, 'Region')
         return {'present': True, 'address': p, 'saved_id': get(p, 0x834, 'i'), 'shard': get(p, 0x70),
                 'owned': get(p, 0x850, 'B'), 'root_member': p in regions, 'toon_manager': get(p, 0x9c0)}
     result = {'game': game, 'mode': mode, 'state': state, 'world': world, 'map': map_, 'root': root,
@@ -168,8 +168,8 @@ def sample(read, image, serialized_id, include_scenario_vips=False, include_camp
                 all(0 <= schedule[k] <= 23 for k in ('connect_hour', 'disconnect_hour')),
                 'Subscriber adjusted play hours or VIP logout boolean invalid')
         result['play_schedule'] = schedule
-        log = get(state, 0x1e8); ap(log, 0x16fd7b0, 'ScenarioLog')
-        require(get(image, 0x13df330) == log, 'ScenarioLog singleton differs')
+        log = get(state, 0x1e8); ap(log, 0x1703b50, 'ScenarioLog')
+        require(get(image, 0x13eb330) == log, 'ScenarioLog singleton differs')
         instance_data, instance_count, instance_capacity = get(log, 0x20), get(log, 0x28, 'i'), get(log, 0x2c, 'i')
         require(0 <= instance_count <= 64 and instance_capacity >= instance_count and (not instance_count or instance_data),
                 'ScenarioLog current array bounds differ')
@@ -178,9 +178,9 @@ def sample(read, image, serialized_id, include_scenario_vips=False, include_camp
         cohort = dict(result['cohort'])
         vips = []
         for instance in instances:
-            if get(instance) != image + 0x1730e90:
+            if get(instance) != image + 0x1737230:
                 continue
-            require(get(image + 0x1730e90, 0xa0) == image + 0x4f85b0, 'VIP Update virtual slot differs')
+            require(get(image + 0x1737230, 0xa0) == image + 0x4fe550, 'VIP Update virtual slot differs')
             subscriber = get(instance, 0x68)
             require(not subscriber or subscriber in cohort, 'VIP Subscriber is outside actual current cohort')
             started, complete = get(instance, 0x98, 'B'), get(instance, 0x38, 'B')

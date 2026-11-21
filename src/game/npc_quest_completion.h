@@ -37,7 +37,7 @@ bool read(npc_census::Memory& memory,uintptr_t image,const Owners& owners,const 
     for(int32_t i=0;i<census.manager_count;++i){
         uintptr_t quest=0,ap=0;int32_t total=-1;
         if(!get(memory,value.data,size_t(i)*8,quest,"completion member",e)||!unique.insert(quest).second||
-           !get(memory,quest,0,ap,"completion Quest class",e)||ap!=image+0x174ac10||
+           !get(memory,quest,0,ap,"completion Quest class",e)||ap!=image+0x1750fb0||
            !npc_quest_records::manager_member(memory,image,value.manager,quest,e)||
            !get(memory,quest,0x1c4,total,"completion Quest lifetime total",e))
             return fail(e,e.empty()?"Quest completion global member class/membership differs":e);
@@ -46,7 +46,7 @@ bool read(npc_census::Memory& memory,uintptr_t image,const Owners& owners,const 
         value.quests.push_back(quest);if(total>0)++value.derived;
     }
     uintptr_t manager=0,data=0;int32_t count=-1,capacity=-1,completed=-1;
-    if(!get(memory,image,0x13df410,manager,"completion manager reread",e)||
+    if(!get(memory,image,0x13eb410,manager,"completion manager reread",e)||
        !get(memory,value.manager,0x30,data,"completion array reread",e)||
        !get(memory,value.manager,0x38,count,"completion count reread",e)||
        !get(memory,value.manager,0x3c,capacity,"completion capacity reread",e)||

@@ -74,18 +74,18 @@ void guards(){
 }
 void routes(){
     cursor::Scope scope;scope.exterior=true;scope.cursor=0x1000;scope.building=0x2000;std::string error;
-    need(cursor::route(scope,false,0x5944e5,scope.cursor,0)==cursor::Route::Suppressed,"original behaviour not scoped");
-    need(cursor::route(scope,true,0x5944f5,scope.cursor,scope.building)==cursor::Route::Suppressed&&cursor::complete(scope,error),
+    need(cursor::route(scope,false,0x59ac95,scope.cursor,0)==cursor::Route::Suppressed,"original behaviour not scoped");
+    need(cursor::route(scope,true,0x59aca5,scope.cursor,scope.building)==cursor::Route::Suppressed&&cursor::complete(scope,error),
          "original ordered selection not scoped");
-    need(cursor::route(scope,true,0x5944f5,scope.cursor,scope.building)==cursor::Route::Rejected&&!cursor::complete(scope,error),
+    need(cursor::route(scope,true,0x59aca5,scope.cursor,scope.building)==cursor::Route::Rejected&&!cursor::complete(scope,error),
          "reentrant original completion accepted");
     for(unsigned scenario=0;scenario<5;++scenario){
         cursor::Scope test;test.exterior=true;test.cursor=0x1000;test.building=0x2000;
         const bool selected=scenario==0;
-        need(cursor::route(test,selected,selected?0x5944f5:0x5944e5,
+        need(cursor::route(test,selected,selected?0x59aca5:0x59ac95,
              scenario==1?0x1001:test.cursor,scenario==2?1:0)==cursor::Route::Rejected||scenario>2,
              "wrong caller order/owner/argument accepted");
-        if(scenario==3){test={};test.exterior=false;need(cursor::route(test,false,0x5944e5,0,0)==cursor::Route::Forward,"ordinary Build intercepted");}
+        if(scenario==3){test={};test.exterior=false;need(cursor::route(test,false,0x59ac95,0,0)==cursor::Route::Forward,"ordinary Build intercepted");}
         if(scenario==4){test={};test.exterior=true;need(cursor::route(test,false,0x5944e6,0,0)==cursor::Route::Forward,"foreign native caller intercepted");}
     }
     cursor::Scope missing;missing.exterior=true;need(!cursor::complete(missing,error),"missing original calls accepted");
@@ -93,9 +93,9 @@ void routes(){
 void completion(){
     constexpr uintptr_t image=0x140000000ULL,owner=0x10000,build=0x20000,default_tool=0x30000,selection=0x40000,target=0x50000;
     for(unsigned scenario=0;scenario<8;++scenario){
-        Memory memory;memory.put(image+0x13df9d0,owner);memory.put(owner,image+0x1786dd0);
+        Memory memory;memory.put(image+0x13eb9d0,owner);memory.put(owner,image+0x178d170);
         memory.put(owner+0x190,build);memory.put(owner+0x198,default_tool);memory.put(owner+0x148,selection);
-        memory.put(build,image+0x17327d0);memory.put(default_tool,image+0x17391a0);
+        memory.put(build,image+0x1738b70);memory.put(default_tool,image+0x173f540);
         if(scenario==1)memory.put(owner+0x190,uintptr_t{0x60000});
         if(scenario==2)memory.put(build,uintptr_t{1});
         unsigned switches=0,selections=0,readbacks=0;local::Receipt receipt;std::string error;

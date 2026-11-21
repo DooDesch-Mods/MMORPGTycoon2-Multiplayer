@@ -12,8 +12,8 @@
 
 namespace mt2mp::game::marketing_authority::notice_hook {
 namespace {
-constexpr uintptr_t rva=0x518290;constexpr size_t extent=5968;
-constexpr const char* sha="7ac283fbadada906dd43eb1b8ea92646e3bfecafa06f192d41953b0a450f663b";
+constexpr uintptr_t rva=0x51e570;constexpr size_t extent=5968;
+constexpr const char* sha="4efa96ef47c05a3b3bbe150a1a622ab4582c6273fa09bfa05516471b9d8b09d1";
 uintptr_t image=0;Original original=nullptr;Observer* observer=nullptr;
 std::atomic<uint32_t> thread=0;std::atomic<bool> wrong_thread=false;
 bool attempted=false,ready=false;std::string installation_error;std::mutex installation;

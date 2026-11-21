@@ -106,15 +106,15 @@ bool command_scope(const action::Binding& binding,const action::Request& request
 uint32_t unary(Unary fn,void* receiver){__try{fn(receiver);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t binary(Binary fn,void* receiver,const void* parameter){__try{fn(receiver,parameter);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t shape_get(uintptr_t image,uintptr_t region,int32_t style,void* out,bool& constructed) {
-    __try{reinterpret_cast<void*(*)(void*,void*,int32_t)>(image+0x362450)(out,reinterpret_cast<void*>(region+0x78),style);constructed=true;return 0;}
+    __try{reinterpret_cast<void*(*)(void*,void*,int32_t)>(image+0x366cb0)(out,reinterpret_cast<void*>(region+0x78),style);constructed=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t shape_make(uintptr_t image,poly::Storage& out,const poly::VectorView& paths,bool& constructed) {
     __try {
-        reinterpret_cast<Unary>(image+0xf1810)(&out);constructed=true;
+        reinterpret_cast<Unary>(image+0xf2880)(&out);constructed=true;
         auto* data=*reinterpret_cast<void**>(out.bytes.data()+0x18);
-        reinterpret_cast<Binary>(image+0xf7ed0)(data,&paths);
-        reinterpret_cast<Unary>(image+0xf3b60)(&out);return 0;
+        reinterpret_cast<Binary>(image+0xf8f40)(data,&paths);
+        reinterpret_cast<Unary>(image+0xf4bd0)(&out);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 json shape_json(const action::TerrainShape& shape) {
@@ -124,7 +124,7 @@ bool shapes(region::Runtime& r,uintptr_t receiver,std::array<action::TerrainShap
     for(int32_t i=0;i<4;++i) {
         poly::Storage shape;bool constructed=false;const auto seh=shape_get(r.image,receiver,i,&shape,constructed);
         bool read=false;if(!seh)read=poly::read(r.memory,uintptr_t(&shape),out[size_t(i)],e);
-        const auto cleanup=constructed?unary(reinterpret_cast<Unary>(r.image+0xf15a0),&shape):0;
+        const auto cleanup=constructed?unary(reinterpret_cast<Unary>(r.image+0xf2610),&shape):0;
         if(seh||cleanup)return fail(e,"terrain original GetShapeOfStyle SEH="+std::to_string(seh)+" cleanup="+std::to_string(cleanup));
         if(!read)return false;
     }return true;
@@ -152,7 +152,7 @@ bool bug_rows(region::Runtime& r,uintptr_t receiver,action::TerrainState& out,st
                 if(collection) {
                     uintptr_t collection_ap=0,anchor=0;
                     if(!region::at(r,collection,0,collection_ap,e)||!region::at(r,collection,0x48,anchor,e))return false;
-                    if(collection_ap!=r.image+0x1705640)return fail(e,"terrain bug collection class differs");
+                    if(collection_ap!=r.image+0x170b9e0)return fail(e,"terrain bug collection class differs");
                     if(anchor!=target)return fail(e,"terrain bug collection anchor differs from containing prop");
                     uintptr_t objects=0;int32_t size=0,cap=0;
                     if(!region::at(r,collection,0x20,objects,e)||!region::at(r,collection,0x28,size,e)||!region::at(r,collection,0x2c,cap,e))return false;
@@ -160,7 +160,7 @@ bool bug_rows(region::Runtime& r,uintptr_t receiver,action::TerrainState& out,st
                     for(int32_t b=0;b<size;++b) {
                         uintptr_t bug=0,bug_ap=0,bug_anchor=0;std::array<uint8_t,27> values{};
                         if(!region::at(r,objects,size_t(b)*8,bug,e)||!region::at(r,bug,0,bug_ap,e)||!region::at(r,bug,0x50,bug_anchor,e)||!region::at(r,bug,0x2c,values,e))return false;
-                        if(bug_ap!=r.image+0x1742200)return fail(e,"terrain bug class differs");
+                        if(bug_ap!=r.image+0x17485a0)return fail(e,"terrain bug class differs");
                         if(bug_anchor!=target)return fail(e,"terrain bug anchor differs from containing prop");
                         // Six initialized 32-bit values and three flags. The local
                         // Bug ID at +0x28 and pointers at +0x48/+0x50 stay local.
@@ -178,8 +178,8 @@ bool bug_rows(region::Runtime& r,uintptr_t receiver,action::TerrainState& out,st
 }
 bool terrain_state(region::Runtime& r,const region::LocalView& view,action::TerrainState& out,uintptr_t& global,std::string& e,json* canonical_bugs=nullptr) {
     uintptr_t manager=0,release=0;
-    if(!region::at(r,r.image,0x164b250,global,e)||!global||!region::at(r,global,0,out.global_random,e)||
-       !region::at(r,r.image,0x13df4f0,manager,e)||!region::at(r,manager,0x38,release,e)||!region::at(r,release,0x120,out.release_edits,e))return false;
+    if(!region::at(r,r.image,0x1650830,global,e)||!global||!region::at(r,global,0,out.global_random,e)||
+       !region::at(r,r.image,0x13eb4f0,manager,e)||!region::at(r,manager,0x38,release,e)||!region::at(r,release,0x120,out.release_edits,e))return false;
     return contour_hash(r,view.region,out.contours_sha256,e)&&bug_rows(r,view.region,out,e,canonical_bugs);
 }
 bool inverse(region::Runtime& r,uintptr_t graph,uintptr_t receiver,const std::string& expected,std::string& e) {
@@ -189,7 +189,7 @@ bool inverse(region::Runtime& r,uintptr_t graph,uintptr_t receiver,const std::st
     size_t found=0;
     for(int32_t i=0;i<witness.operations;++i) {
         uintptr_t operation=0,ap=0;if(!region::at(r,array,size_t(i)*8,operation,e)||!region::at(r,operation,0,ap,e))return false;
-        if(ap!=r.image+0x1723330)continue;
+        if(ap!=r.image+0x17296d0)continue;
         uintptr_t target=0;if(!region::at(r,operation,0xb8,target,e)||target!=receiver)return fail(e,"terrain inverse region differs");
         json value=json::array();for(size_t style=0;style<4;++style){action::TerrainShape shape;if(!poly::read(r.memory,operation+0xc0+style*0x70,shape,e))return false;value.push_back(shape_json(shape));}
         std::string hash;if(!region::sha256(value.dump(),hash,e))return false;
@@ -221,7 +221,7 @@ uint32_t discard_capture(uintptr_t image,void* brush,uintptr_t graph) {
     __try {
         *reinterpret_cast<uintptr_t*>(static_cast<unsigned char*>(brush)+0x658)=0;
         terrain.end(brush);
-        if(graph){reinterpret_cast<Unary>(image+0x540b90)(reinterpret_cast<void*>(graph));reinterpret_cast<void(*)(void*,size_t)>(image+0x1264b60)(reinterpret_cast<void*>(graph),0x110);}return 0;
+        if(graph){reinterpret_cast<Unary>(image+0x547150)(reinterpret_cast<void*>(graph));reinterpret_cast<void(*)(void*,size_t)>(image+0x1270520)(reinterpret_cast<void*>(graph),0x110);}return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 void end_capture(void* brush,uint8_t finish) {
@@ -279,13 +279,13 @@ void finished_entry(void* brush,const void* shape){if(terrain.capture&&terrain.c
 void cancel_entry(void* brush,void* cursor){if(terrain.capture&&terrain.capture->brush==uintptr_t(brush))end_capture(brush,2);else terrain.cancel(brush,cursor);}
 uint32_t start_private(uintptr_t image,TerrainOperation& operation,uintptr_t receiver,const region::NativeString& label) {
     __try {
-        reinterpret_cast<Unary>(image+0x5e0ed0)(operation.brush->bytes);operation.constructed=true;
+        reinterpret_cast<Unary>(image+0x5e7620)(operation.brush->bytes);operation.constructed=true;
         *reinterpret_cast<uintptr_t*>(operation.brush->bytes+0x218)=receiver;
         *reinterpret_cast<int32_t*>(operation.brush->bytes+0x150)=operation.request.terrain.style;
         *reinterpret_cast<float*>(operation.brush->bytes+0x664)=operation.request.terrain.initial_area;
         terrain.start(operation.brush->bytes,&label);
         operation.graph=*reinterpret_cast<uintptr_t*>(operation.brush->bytes+0x658);
-        operation.native_cost=reinterpret_cast<int32_t(*)(void*)>(image+0x5dfdf0)(operation.brush->bytes);return 0;
+        operation.native_cost=reinterpret_cast<int32_t(*)(void*)>(image+0x5e6540)(operation.brush->bytes);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t stamp_private(TerrainOperation& operation,const action::TerrainStamp& stamp,const poly::Storage& shape) {
@@ -317,12 +317,12 @@ bool enable(std::string& e) {
     if(!terrain_settlement::enable(*r,e)||!native_code(*r,false,e))return false;
     struct Hook{uintptr_t rva;void* replacement;void** original;};
     const Hook hooks[]{
-        {0x5e0700,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&terrain.press)},
-        {0x5e03b0,reinterpret_cast<void*>(&start_entry),reinterpret_cast<void**>(&terrain.start)},
-        {0x5dfe70,reinterpret_cast<void*>(&paint_entry),reinterpret_cast<void**>(&terrain.paint)},
-        {0x5e04b0,reinterpret_cast<void*>(&end_entry),reinterpret_cast<void**>(&terrain.end)},
-        {0x5e0c20,reinterpret_cast<void*>(&finished_entry),reinterpret_cast<void**>(&terrain.finished)},
-        {0x5e06a0,reinterpret_cast<void*>(&cancel_entry),reinterpret_cast<void**>(&terrain.cancel)}};
+        {0x5e6e50,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&terrain.press)},
+        {0x5e6b00,reinterpret_cast<void*>(&start_entry),reinterpret_cast<void**>(&terrain.start)},
+        {0x5e65c0,reinterpret_cast<void*>(&paint_entry),reinterpret_cast<void**>(&terrain.paint)},
+        {0x5e6c00,reinterpret_cast<void*>(&end_entry),reinterpret_cast<void**>(&terrain.end)},
+        {0x5e7370,reinterpret_cast<void*>(&finished_entry),reinterpret_cast<void**>(&terrain.finished)},
+        {0x5e6df0,reinterpret_cast<void*>(&cancel_entry),reinterpret_cast<void**>(&terrain.cancel)}};
     for(const auto& h:hooks){const auto status=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.replacement,h.original);if(status!=MH_OK||!*h.original)return fail(e,"terrain MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
     if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"terrain hook",e))return false;
     if(!native_code(*r,true,e)||!height_enable(*r,e))return false;terrain.ready=true;return true;
@@ -399,7 +399,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
         auto seh=shape_make(r->image,shape,paths.view,constructed);action::TerrainShape actual;
         bool accepted=!seh&&poly::read(r->memory,uintptr_t(&shape),actual,e)&&actual==stamp.shape;
         if(accepted)seh=stamp_private(operation,stamp,shape);
-        const auto cleanup=constructed?unary(reinterpret_cast<Unary>(r->image+0xf15a0),&shape):0;
+        const auto cleanup=constructed?unary(reinterpret_cast<Unary>(r->image+0xf2610),&shape):0;
         if(!native_error(seh,"PolyShape/AddPaint",e)||!native_error(cleanup,"PolyShape destructor",e))return unknown();
         if(!accepted){e="terrain original PolyShape reconstruction differs: "+e;return unknown();}
     }
@@ -443,7 +443,7 @@ bool retire(const action::Binding& b,const action::Request& request,std::string&
     auto& operation=terrain.operations.at(request.action_uuid);auto* r=runtime(e);if(!r)return false;
     if(operation.retired)return fail(e,"terrain receipt already retired");
     if(!request.terrain.height&&!building_history_slice::remember_terrain(request.action_uuid,operation.graph,e))return false;
-    if(!native_error(unary(reinterpret_cast<Unary>(r->image+(request.terrain.height?0x5e12a0:0x5e0fd0)),operation.brush->bytes),"private brush destructor",e))return false;
+    if(!native_error(unary(reinterpret_cast<Unary>(r->image+(request.terrain.height?0x5e79f0:0x5e7720)),operation.brush->bytes),"private brush destructor",e))return false;
     operation.constructed=false;
     operation.retired=true;return true;
 }
@@ -476,16 +476,16 @@ namespace {
 uint32_t input_call(uintptr_t image,unsigned step,const placement_ui_probe::Binding& b,const std::array<float,3>& point) {
     __try {
         auto* brush=reinterpret_cast<void*>(b.behaviour);auto* cursor=reinterpret_cast<void*>(b.cursor);
-        if(step==0)reinterpret_cast<Unary>(image+0x580870)(reinterpret_cast<void*>(b.button));
-        else if(step==1)reinterpret_cast<Press>(image+0x5e0800)(brush,cursor,point.data());
-        else if(step==2)reinterpret_cast<Press>(image+0x5e0700)(brush,cursor,point.data());
-        else if(step==3)reinterpret_cast<void(*)(void*,void*,const void*,float)>(image+0x5e09b0)(brush,cursor,point.data(),0.0f);
-        else if(step==4)reinterpret_cast<Press>(image+0x5dfe30)(brush,cursor,point.data());
+        if(step==0)reinterpret_cast<Unary>(image+0x587030)(reinterpret_cast<void*>(b.button));
+        else if(step==1)reinterpret_cast<Press>(image+0x5e6f50)(brush,cursor,point.data());
+        else if(step==2)reinterpret_cast<Press>(image+0x5e6e50)(brush,cursor,point.data());
+        else if(step==3)reinterpret_cast<void(*)(void*,void*,const void*,float)>(image+0x5e7100)(brush,cursor,point.data(),0.0f);
+        else if(step==4)reinterpret_cast<Press>(image+0x5e6580)(brush,cursor,point.data());
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t point_region(uintptr_t image,uintptr_t shard,const std::array<float,3>& point,uintptr_t& receiver) {
-    __try{receiver=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x5089b0)(reinterpret_cast<void*>(shard),point.data(),nullptr));return 0;}
+    __try{receiver=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x50eb00)(reinterpret_cast<void*>(shard),point.data(),nullptr));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -515,7 +515,7 @@ bool native_stroke(const json& args,json& out,std::string& e) {
     const auto captured=terrain.captured;
     auto call=[&](unsigned step,const std::array<float,3>& point){job["attempted"]=job.at("attempted").get<unsigned>()+1;const auto seh=input_call(r->image,step,binding,point);if(seh){e="terrain original UI callback SEH="+std::to_string(seh)+" step="+std::to_string(step);job["cause"]=e;return false;}job["returned"]=job.at("returned").get<unsigned>()+1;return true;};
     bool ok=call(0,points.front());uintptr_t active=0,ap=0;
-    if(ok)ok=region::at(*r,binding.cursor,0x190,active,e)&&active==binding.behaviour&&region::at(*r,active,0,ap,e)&&ap==r->image+0x173f580;
+    if(ok)ok=region::at(*r,binding.cursor,0x190,active,e)&&active==binding.behaviour&&region::at(*r,active,0,ap,e)&&ap==r->image+0x1745920;
     if(ok)ok=call(1,points.front());
     if(ok)ok=call(2,points.front());
     if(ok&&(!terrain.capture||terrain.capture->brush!=binding.behaviour)){e="terrain original UI Press did not enter captured StartEdit";ok=false;}

@@ -42,7 +42,7 @@ struct Completion {
 }
 int main(){try{std::string e;const auto wanted=target();
     Memory memory;constexpr uintptr_t image=0x100000,quest=1000;
-    memory.put(quest,image+0x174ac10);memory.put(quest+0x1e0,image+0x1787870);
+    memory.put(quest,image+0x1750fb0);memory.put(quest+0x1e0,image+0x178dc10);
     for(size_t i=0;i<3;++i)memory.put(quest+0x1f8+i*4,wanted.rating_bits[i]);memory.put(quest+0x204,uint8_t(1));memory.put(quest+0x88,wanted.xp_reward);memory.put(quest+0x8c,wanted.gold_reward);
     q::Value read;need(q::read(memory,image,quest,read,e)&&read==wanted,e);
     for(int mode=0;mode<4;++mode){auto bad=memory;if(mode==0)bad.put(quest,image+1);if(mode==1)bad.put(quest+0x1e0,image+1);if(mode==2)bad.put(quest+0x204,uint8_t(2));if(mode==3)bad.put(quest+0x1f8,uint32_t(0x7fc00000));need(!q::read(bad,image,quest,read,e)&&!e.empty(),"actual reader admitted bad class/flag/nonfinite");}
@@ -54,9 +54,9 @@ int main(){try{std::string e;const auto wanted=target();
     for(unsigned f=1;f<=8;++f){Calls c;c.fail_guard=f;receipt=q::apply(c,quest,{},wanted);need(!receipt.confirmed&&receipt.unknown==(f>2)&&receipt.cause=="native owner generation changed","owner guard or Unknown wrong");}
     Calls ads;ads.ads_fail=true;receipt=q::apply(ads,quest,{},wanted);need(receipt.unknown&&receipt.advertisement_attempted&&!receipt.advertisement_returned&&receipt.cause=="original advertisement exception","advertisement failure looked confirmed");
     Calls drift;drift.readback_drift=true;receipt=q::apply(drift,quest,{},wanted);need(receipt.unknown&&!receipt.confirmed&&receipt.cause.find("readback")!=std::string::npos,"complete final readback not checked");
-    for(uintptr_t caller:{image+0x4d8f13,image+0x4d92a4}){Completion c;auto r=q::complete(c,quest,2000,caller,image);need(r.confirmed&&r.suppressed&&c.ads==1&&!c.originals&&r.before==r.after,"normal Client Tick clone did not preserve advertisement and authoritative value");}
-    Completion host;host.client=false;host.current={};auto r=q::complete(host,quest,2000,image+0x4d92a4,image);need(r.confirmed&&!r.suppressed&&host.originals==1&&!host.ads&&r.before!=r.after,"Host rating did not execute original once");
-    for(unsigned mode=0;mode<5;++mode){Completion c;if(mode==0)c.ownership_ok=false;if(mode==1)c.owner_changed=true;if(mode==2)c.ads_fail=true;if(mode==3)c.mutate=true;r=q::complete(c,quest,2000,image+(mode==4?0x4d92a5:0x4d92a4),image);need(!r.confirmed&&!r.cause.empty()&&!c.originals,"wrong owner/caller/effect allowed Client original rating");}
+    for(uintptr_t caller:{image+0x4dedd3,image+0x4df164}){Completion c;auto r=q::complete(c,quest,2000,caller,image);need(r.confirmed&&r.suppressed&&c.ads==1&&!c.originals&&r.before==r.after,"normal Client Tick clone did not preserve advertisement and authoritative value");}
+    Completion host;host.client=false;host.current={};auto r=q::complete(host,quest,2000,image+0x4df164,image);need(r.confirmed&&!r.suppressed&&host.originals==1&&!host.ads&&r.before!=r.after,"Host rating did not execute original once");
+    for(unsigned mode=0;mode<5;++mode){Completion c;if(mode==0)c.ownership_ok=false;if(mode==1)c.owner_changed=true;if(mode==2)c.ads_fail=true;if(mode==3)c.mutate=true;r=q::complete(c,quest,2000,image+(mode==4?0x4d92a5:0x4df164),image);need(!r.confirmed&&!r.cause.empty()&&!c.originals,"wrong owner/caller/effect allowed Client original rating");}
     for(unsigned mode=0;mode<2;++mode){Completion c;if(mode)c.member=false;else c.armed=false;r=q::complete(c,quest,2000,0,image);need(r.confirmed&&c.originals==1&&!c.ads,"unarmed/foreign original path did not forward once");}
     std::cout<<checks<<" actual Quest runtime reader/scalar/completion checks passed\n";return 0;
 }catch(const std::exception& x){std::cerr<<x.what()<<'\n';return 1;}}

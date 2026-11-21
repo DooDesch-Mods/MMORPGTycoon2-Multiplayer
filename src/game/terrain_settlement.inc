@@ -21,7 +21,7 @@ Json publication_boxes(const Scope& scope){
     return rows;
 }
 void published_call(void* map,const void* box,float duration,uintptr_t caller){
-    const bool scoped=active&&uintptr_t(map)==active->map&&caller==native_image+0x339951;
+    const bool scoped=active&&uintptr_t(map)==active->map&&caller==native_image+0x33da51;
     if(scoped&&active->boxes.size()<16){PublicationBox row;row.exception=publication_box(box,row);active->boxes.push_back(row);}
     original_published(map,box,scoped?0.0f:duration);
     if(scoped)++active->publications;
@@ -31,11 +31,11 @@ template<class T>T read(region::Runtime& r,uintptr_t address){T value{};std::str
 uint32_t native_call(uintptr_t image,unsigned call,uintptr_t receiver,uintptr_t argument=0,uint8_t flag=0){
     __try{
         switch(call){
-        case 0:reinterpret_cast<void(*)(void*,const void*)>(image+0x339700)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(argument));break;
-        case 1:reinterpret_cast<void(*)(void*,uint8_t)>(image+0x337060)(reinterpret_cast<void*>(receiver),flag);break;
-        case 2:reinterpret_cast<void(*)(void*,float)>(image+0x336f70)(reinterpret_cast<void*>(receiver),0.0f);break;
-        case 3:reinterpret_cast<void(*)(void*,bool)>(image+0x4424c0)(reinterpret_cast<void*>(receiver),flag);break;
-        case 4:reinterpret_cast<void(*)(void*,const void*)>(image+0x9f10d0)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(argument));break;
+        case 0:reinterpret_cast<void(*)(void*,const void*)>(image+0x33d800)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(argument));break;
+        case 1:reinterpret_cast<void(*)(void*,uint8_t)>(image+0x33b160)(reinterpret_cast<void*>(receiver),flag);break;
+        case 2:reinterpret_cast<void(*)(void*,float)>(image+0x33b070)(reinterpret_cast<void*>(receiver),0.0f);break;
+        case 3:reinterpret_cast<void(*)(void*,bool)>(image+0x4472a0)(reinterpret_cast<void*>(receiver),flag);break;
+        case 4:reinterpret_cast<void(*)(void*,const void*)>(image+0x9fb520)(reinterpret_cast<void*>(receiver),reinterpret_cast<void*>(argument));break;
         }
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -56,10 +56,10 @@ struct NativePort {
     NativePort(region::Runtime& owner):r(owner){
         const auto gl=GetModuleHandleW(L"opengl32.dll");context=gl?reinterpret_cast<Context>(GetProcAddress(gl,"wglGetCurrentContext")):nullptr;
         require(context&&(graphics=context()),"Terrain settlement requires current native GL context");
-        map=read<uintptr_t>(r,r.image+0x13df8c0);require(map&&read<uintptr_t>(r,map)==r.image+0x1742860,"Terrain settlement Map owner differs");
+        map=read<uintptr_t>(r,r.image+0x13eb8c0);require(map&&read<uintptr_t>(r,map)==r.image+0x1748c00,"Terrain settlement Map owner differs");
         require(read<int32_t>(r,map+0x3d4)==7,"Terrain settlement Map is not fully loaded");
         data=read<uintptr_t>(r,map+0x1a8);gpu=read<uintptr_t>(r,data+8);require(data&&gpu,"Terrain settlement MapData/GPU owner missing");
-        tasks=read<uintptr_t>(r,r.image+0x13df340);game=read<uintptr_t>(r,r.image+0x13df8f0);held();
+        tasks=read<uintptr_t>(r,r.image+0x13eb340);game=read<uintptr_t>(r,r.image+0x13eb8f0);held();
         region_saved_identity::Index index;std::string error;
         auto at=[&](uintptr_t object,size_t offset,auto& value,std::string& why){return region::at(r,object,offset,value,why);};
         const bool captured=region_saved_identity::capture(r.image,map,map+0x1c0,index,at,error);require(captured,"Terrain settlement complete Region census: "+error);
@@ -73,7 +73,7 @@ struct NativePort {
                 const auto array=read<uintptr_t>(r,manager+0x28+offset);
                 require(count>=0&&capacity>=count&&capacity<=1000000&&(!count||array),"Terrain settlement path array invalid");
                 for(int32_t i=0;i<count;++i){const auto road=read<uintptr_t>(r,array+size_t(i)*8);
-                    require(road&&read<uintptr_t>(r,road)==r.image+0x1743f10&&read<int32_t>(r,road+0x21c)==int32_t(type),"Terrain settlement Path type/address point differs");
+                    require(road&&read<uintptr_t>(r,road)==r.image+0x174a2b0&&read<int32_t>(r,road+0x21c)==int32_t(type),"Terrain settlement Path type/address point differs");
                     if(unique.insert(road).second){const auto uid=read<uint64_t>(r,road+0x18);require(uid!=0,"Terrain settlement Path UID missing");roads.push_back(road);road_uids.emplace(road,uid);}
                 }
             }
@@ -82,19 +82,19 @@ struct NativePort {
     uint64_t now(){return GetTickCount64();}
     void held(){
         require(action_session::tick_commands::authority::active()&&GetCurrentThreadId()==r.thread&&
-            reinterpret_cast<bool(*)()>(r.image+0xa0bc80)(),"Terrain settlement requires exact ordered native main thread");
+            reinterpret_cast<bool(*)()>(r.image+0xa168e0)(),"Terrain settlement requires exact ordered native main thread");
         require(context&&context()==graphics,"Terrain settlement native GL context changed");
-        require(read<uintptr_t>(r,r.image+0x13df8c0)==map&&read<uintptr_t>(r,map+0x1a8)==data&&read<uintptr_t>(r,data+8)==gpu,"Terrain settlement World/GPU changed");
-        require(read<uintptr_t>(r,r.image+0x13df8f0)==game&&read<uintptr_t>(r,r.image+0x13df340)==tasks&&game&&read<uintptr_t>(r,game)==r.image+0x1743740&&tasks&&read<uintptr_t>(r,game+0x68)==tasks&&
-            read<uintptr_t>(r,tasks)==r.image+0x16fdaf0,"Terrain settlement Game/Task owner changed");
+        require(read<uintptr_t>(r,r.image+0x13eb8c0)==map&&read<uintptr_t>(r,map+0x1a8)==data&&read<uintptr_t>(r,data+8)==gpu,"Terrain settlement World/GPU changed");
+        require(read<uintptr_t>(r,r.image+0x13eb8f0)==game&&read<uintptr_t>(r,r.image+0x13eb340)==tasks&&game&&read<uintptr_t>(r,game)==r.image+0x1749ae0&&tasks&&read<uintptr_t>(r,game+0x68)==tasks&&
+            read<uintptr_t>(r,tasks)==r.image+0x1703e90,"Terrain settlement Game/Task owner changed");
         const auto paused=read<uint8_t>(r,tasks+0xf8);const auto one=read<int32_t>(r,tasks+0x90),two=read<int32_t>(r,tasks+0xa8);
         require(paused==1&&one==0&&two==0,"Terrain settlement scheduler not held: paused="+std::to_string(paused)+" running_type1="+std::to_string(one)+" running_type2="+std::to_string(two));
-        require(!reinterpret_cast<bool(*)()>(r.image+0x265070)(),"Terrain settlement original EditManager remains locked");
+        require(!reinterpret_cast<bool(*)()>(r.image+0x268170)(),"Terrain settlement original EditManager remains locked");
     }
     State state(){
         State s;s.boxes=read<int32_t>(r,map+0x3c8);s.gpu=read<int32_t>(r,gpu+0xf48);const auto queued=read<uint8_t>(r,gpu+0xf40);
         require(s.boxes>=0&&s.boxes<=1000000&&s.gpu>=2&&s.gpu<=5&&queued<=1,"Terrain settlement invalid native pending state");s.queued=queued!=0;
-        for(auto road:roads){require(read<uintptr_t>(r,road)==r.image+0x1743f10&&read<uint64_t>(r,road+0x18)==road_uids.at(road),"Terrain settlement Path lifetime changed");const auto flag=read<uint8_t>(r,road+0x474);require(flag<=1,"Terrain settlement Path Plot flag invalid");s.plots=s.plots||flag;}
+        for(auto road:roads){require(read<uintptr_t>(r,road)==r.image+0x174a2b0&&read<uint64_t>(r,road+0x18)==road_uids.at(road),"Terrain settlement Path lifetime changed");const auto flag=read<uint8_t>(r,road+0x474);require(flag<=1,"Terrain settlement Path Plot flag invalid");s.plots=s.plots||flag;}
         return s;
     }
     void consume_boxes(){
@@ -139,36 +139,36 @@ bool enable(region::Runtime& r,std::string& error){
     if(installation_attempted){error="Terrain settlement hook installation already attempted";return false;}installation_attempted=true;
     struct Pin{uintptr_t rva;size_t bytes;const char* sha;};
     const Pin pins[]{
-        {0x508390,96,"2c3e6f9a181f6df74d573a59ca5915fc7776a2c7e73e854ab0ad4a0003224192"},
-        {0x508330,96,"f855ee1f7b4fb3ecc3666535c7966e661cbe84b3e3277471044292d27d3641bb"},
-        {0x32abb0,160,"fdf20902f36cb864884b2356018ee6e84103b8120ecd4fb1ddb2f1a8278b7dfa"},
-        {0x337440,1296,"8eb056729dd4d48406f3e00660e9bd56d50bb78a79b235100871124a203ae352"},
-        {0x337950,1536,"6bb4d6b44e46697f6ba864997719542fbc0c0981c2d737ba29802f90da6b0b77"},
-        {0xa26210,160,"2112e7bb3e51e9c9a77cd566245e37b67302625afdd9105ef593b6f08183882f"},
-        {0x9f5ae0,32,"14777700b3499ab6f56bb8ac6471c19c2a0d92033df8a1cd4de9f3822ecdc07f"},
-        {0x32c1e0,384,"df7056ebd3d2e00588047aa9a7535a0207c3823520786c5c48e0aff66d3ffe0d"},
-        {0x339910,128,"1dc61d947733227a5f22bdec430e30f90ef014483df52955c0c18c1acba7b32c"},
-        {0x34fa60,240,"ea872ac173da524fccedb9f8c4c9deeffe3d3a8f69905b3cf909cfaf9894a545"},
-        {0x2cc120,336,"6d3ff7213c387fb0203aae02c16ae7356d41860ea9c24ca86a0ac5eb56805e9c"},
-        {0x449330,16,"357bdcb217be20ac5e07d9c64de9d6e5b5ac373656a9fc335b395e2c2a92a241"},
-        {0x449030,768,"a9fe8e6334060cee8f09bad0734be2cf41a9e2a5465cf901b53c66a81dd57bcb"},
-        {0x32e890,5264,"5e6f092c80fc48bbb0fedc56b386af43f47040ccf3829989c25d9e97a2852db7"},
-        {0x339700,16,"36ff4fddc4b61d935d61c31a840e5c660e87b76002c227647171ebd6c7c90914"},
-        {0x337060,432,"9339e27827ee8c3cfd6c60c7401d6b37251bcbf9410b740e2a61762eb67e838e"},
-        {0x336f70,240,"e5d2ab70e87d8560cb9377eff2f4aa90f304e9a7964711d9f80485643cc37b89"},
-        {0x33c690,1168,"8e16898e542a4079d6c0f4a9979086d2d6c18b844e3798e88e9010f9a86e7035"},
-        {0x4424c0,4768,"201a69303e149be7f9a524d0504d2b4851fb8d4d6b3cc9db87a729dec19ba112"},
-        {0x9f10d0,224,"b287cec39ac2c9a40cc398570a528bd8cb70396e488d24c6f157b8908bd410d7"},
-        {0x9ccaf0,624,"94b30f55f7d0c628acbbd8d81f5a14a913dab3d1839ccc3dbafe46d1727c8ce4"},
-        {0x9ccd60,688,"643bb1f2b620ab1c7f7f17ea4fc42d3a5e127f3fb5753a1ef710fa9be1f7ed86"},
+        {0x50e4e0,96,"e17612808d32cdd246b9c9b83d29458be5197a1fed9fe72e2503dd07b527dc3b"},
+        {0x50e480,96,"514b36baee0c03ad84a8e99ab694ea32df35f6dbf4da37c6860cea4c1fc5a4ea"},
+        {0x32ec40,160,"a06c79c73ee2d7f9883d1f7b7b59222774b09272c785875140011ca338096091"},
+        {0x33b540,1296,"d73e70838dc5a74df8d90e3f42eba81d2ca048bd557624d65de581ecc8844db0"},
+        {0x33ba50,1536,"05db612e83b734488fdccfcfffbd0ddddadffcdbb7d41fa281a54e43838d3d2c"},
+        {0xa312c0,160,"a22f5616015cda23588a12f1f46854586d5e9470cad39510ba70a07f601bdd66"},
+        {0x9fff30,32,"3b236f08ecce59ddb62437851c30d3532b289235872bf311144b00ce55576b6b"},
+        {0x330270,384,"cd9f571d142fbcafdeacc12b1b90709b396352067d70eeab47dc6c7ed5d31a07"},
+        {0x33da10,128,"f7e7b6aeff408201f53453b92f7b24cae7cf12cf7c81fc6dad6d525ad26af0cb"},
+        {0x354160,240,"93c64b4cb1edc8f86404a50ad868dc6bbcc78a1e0a5ebe4c2581c04976670ec7"},
+        {0x2cf830,336,"8b8d6e262356cde238a346cd87188476b4917492616968fa83fbf2aa153bf582"},
+        {0x44e340,16,"357bdcb217be20ac5e07d9c64de9d6e5b5ac373656a9fc335b395e2c2a92a241"},
+        {0x44e040,768,"4b1d1cd11993f132a102249b9e633b1d5cc2d2c2896776d953293812c52e54dc"},
+        {0x332920,5264,"55ca106d58de5c32fdc1fc661706a1ecf3662ef4144040141475375e8dbb43c4"},
+        {0x33d800,16,"56ae262b65339db3b9606816764be050477f096a3828534675e93a7ae80b1106"},
+        {0x33b160,432,"eabe73ea6dd3df96545283a9bdeaadb75ace698175c2349cc430961d293c24b0"},
+        {0x33b070,240,"79f6e32d4023be3dab2da003ef361a4ce7262b7b08708429584bf96446992e1a"},
+        {0x340790,1168,"4ad5ed7c82a5b9abc997ca92c81b8e43ffe204ed8aa7ae9f33d5ade39c6ee994"},
+        {0x4472a0,4768,"80d4c10e59967e32422d1d72db3eaa3beac14642f23e4fd0a78a8579a1a91f50"},
+        {0x9fb520,224,"b287cec39ac2c9a40cc398570a528bd8cb70396e488d24c6f157b8908bd410d7"},
+        {0x9d66f0,624,"c29f1673139a0a548b109f2db896cac49ad2589d437a5be1ba0adf40ddb82a34"},
+        {0x9d6960,688,"878d4b55fce6a9c2b37e028a04189ca9104655b37fb398ea151be4b55c9b3d20"},
     };
     for(const auto& pin:pins){std::string bytes(pin.bytes,'\0'),hash;
         if(!r.memory.copy(r.image+pin.rva,bytes.data(),bytes.size(),error)||!region::sha256(bytes,hash,error))return false;
         if(hash!=pin.sha){error="Terrain settlement pinned native body differs RVA="+std::to_string(pin.rva);return false;}
     }
-    native_image=r.image;const auto result=MH_CreateHook(reinterpret_cast<void*>(r.image+0x32c1e0),reinterpret_cast<void*>(&published_entry),reinterpret_cast<void**>(&original_published));
+    native_image=r.image;const auto result=MH_CreateHook(reinterpret_cast<void*>(r.image+0x330270),reinterpret_cast<void*>(&published_entry),reinterpret_cast<void**>(&original_published));
     if(result!=MH_OK||!original_published){error="Terrain settlement Map publication hook failed status="+std::to_string(result);return false;}
-    struct Route{uintptr_t rva;};const Route routes[]{{0x32c1e0}};
+    struct Route{uintptr_t rva;};const Route routes[]{{0x330270}};
     if(!mt2mp::hooks::enable_prepared_routes(r.image,routes,"Terrain settlement publication",error))return false;
     installed=true;return true;
 }

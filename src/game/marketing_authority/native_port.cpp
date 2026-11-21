@@ -49,20 +49,20 @@ bool same_guards(const Pin& required,const Pin& measured,const char* phase,bool 
 }
 
 bool schedulers(const Pin& p,bool held,std::string& e){
-    for(const auto& row:{std::array<uintptr_t,4>{0x13df340,0x16fdaf0,0x68,0xf8},{0x13df350,0x16fdc40,0x150,0x28},{0x13df4a0,0x1709650,0x70,0x68}}){
+    for(const auto& row:{std::array<uintptr_t,4>{0x13eb340,0x1703e90,0x68,0xf8},{0x13eb350,0x1703fe0,0x150,0x28},{0x13eb4a0,0x170f9f0,0x70,0x68}}){
         uintptr_t singleton=0,owner=0;uint8_t paused=2;
         if(!at(p.image,row[0],singleton,e)||!at(uintptr_t(p.world.game),row[2],owner,e)||singleton!=owner||!addresspoint(owner,p.image,row[1],e)||!at(owner,row[3],paused,e))return fail(e,e.empty()?"Game scheduler owner differs":e);
         if(paused!=uint8_t(held))return fail(e,"scheduler pause measured="+std::to_string(paused)+" required="+std::to_string(held));
-        if(held&&row[0]==0x13df340){int32_t running=-1,waiting=-1;if(!at(owner,0xa8,running,e)||!at(owner,0x90,waiting,e))return false;if(running||waiting)return fail(e,"TaskManager not drained running="+std::to_string(running)+" waiting="+std::to_string(waiting));}
+        if(held&&row[0]==0x13eb340){int32_t running=-1,waiting=-1;if(!at(owner,0xa8,running,e)||!at(owner,0x90,waiting,e))return false;if(running||waiting)return fail(e,"TaskManager not drained running="+std::to_string(running)+" waiting="+std::to_string(waiting));}
     }return true;
 }
 bool read_once(const action_session::Context& c,const action_session::Binding& b,const live::Frame& f,bool held,Pin& p,std::string& e){
     p={};std::string hash;action_session::Context current;
     if(!native::read_resolver_receipt(p.image,p.thread,hash,e)||!action_session::selected_session().current(current,e)||!native_open_runtime::read_current_world(p.world,e))return false;
-    if(hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||p.image!=uintptr_t(GetModuleHandleW(nullptr))||p.thread!=GetCurrentThreadId()||current!=c||p.world.world_epoch!=b.native_epoch||p.world.generation!=b.native_generation||!p.world.world||!p.world.state||net::current_world_epoch()!=f.epoch||f.session!=c.session||f.snapshot!=c.snapshot_uuid)return fail(e,"current session/build/thread/world/Frame binding differs");
+    if(hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||p.image!=uintptr_t(GetModuleHandleW(nullptr))||p.thread!=GetCurrentThreadId()||current!=c||p.world.world_epoch!=b.native_epoch||p.world.generation!=b.native_generation||!p.world.world||!p.world.state||net::current_world_epoch()!=f.epoch||f.session!=c.session||f.snapshot!=c.snapshot_uuid)return fail(e,"current session/build/thread/world/Frame binding differs");
     native::WorldStatus status;if(!native::read_world_status(status,e))return false;
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.quitting||status.title_transition_pending||status.map_task_pending||status.edit_operations||status.saves_in_progress!=(held?1:0))return fail(e,"World effects guard measured saves="+std::to_string(status.saves_in_progress)+" required="+std::to_string(held));
-    if(!addresspoint(uintptr_t(p.world.state),p.image,0x16de920,e)||!read_snapshot(memory,p.image,uintptr_t(p.world.state),uintptr_t(p.world.mode),p.snapshot,e)||!native::read_simulation_state(p.finance,e)||!native::read_software_state(p.software,e)||!schedulers(p,held,e))return false;
+    if(!addresspoint(uintptr_t(p.world.state),p.image,0x16e4cc0,e)||!read_snapshot(memory,p.image,uintptr_t(p.world.state),uintptr_t(p.world.mode),p.snapshot,e)||!native::read_simulation_state(p.finance,e)||!native::read_software_state(p.software,e)||!schedulers(p,held,e))return false;
     if(p.finance.clock.flat_day!=f.values.calendar[3]||p.finance.clock.seconds!=f.values.calendar[4])return fail(e,"Marketing read requires already authoritative Day/time");
     if(c.role==action_session::Role::Client&&(p.finance.clock.time_scale!=0||!p.finance.clock.paused))return fail(e,"Client native Clock0 required");
     return true;
@@ -75,18 +75,18 @@ enum class Op {Allocate,AwardConstruct,AwardLoad,AwardAdd,CampaignStart,Campaign
 struct Call {Op op;uintptr_t image=0,target=0,record=0,context=0,result=0;int32_t type=0,duration=0;float pause=0;bool accepted=false;};
 uint32_t invoke(Call* c){__try{void* p=reinterpret_cast<void*>(c->target);
     switch(c->op){
-    case Op::Allocate:c->result=uintptr_t(reinterpret_cast<void*(*)(size_t)>(c->image+0xa02670)(0xa8));break;
-    case Op::AwardConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x51a9b0)(p);break;
-    case Op::AwardLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xceabb0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
-    case Op::AwardAdd:reinterpret_cast<void(*)(void*,void*)>(c->image+0xb5d8d0)(p,reinterpret_cast<void*>(c->result));break;
-    case Op::CampaignStart:c->accepted=reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(c->image+0x51c640)(p,c->type,c->duration);break;
-    case Op::CampaignLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xc7cf80)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
-    case Op::ContextConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x89e940)(p);break;
-    case Op::ContextDestroy:reinterpret_cast<void(*)(void*)>(c->image+0x89e480)(p);break;
-    case Op::Rebuild:reinterpret_cast<void(*)(void*)>(c->image+0x663880)(p);break;
-    case Op::PurgeAwards:reinterpret_cast<void(*)(void*)>(c->image+0x51b780)(p);break;
-    case Op::AbortCampaign:c->accepted=reinterpret_cast<bool(*)(void*,int32_t)>(c->image+0x51c510)(p,c->type);break;
-    case Op::RestorePause:reinterpret_cast<void(*)(void*,float)>(c->image+0x259b70)(p,c->pause);break;
+    case Op::Allocate:c->result=uintptr_t(reinterpret_cast<void*(*)(size_t)>(c->image+0xa0d230)(0xa8));break;
+    case Op::AwardConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x520d30)(p);break;
+    case Op::AwardLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xcf62d0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
+    case Op::AwardAdd:reinterpret_cast<void(*)(void*,void*)>(c->image+0xb6a130)(p,reinterpret_cast<void*>(c->result));break;
+    case Op::CampaignStart:c->accepted=reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(c->image+0x5229c0)(p,c->type,c->duration);break;
+    case Op::CampaignLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xc886b0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
+    case Op::ContextConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x8a7a60)(p);break;
+    case Op::ContextDestroy:reinterpret_cast<void(*)(void*)>(c->image+0x8a75a0)(p);break;
+    case Op::Rebuild:reinterpret_cast<void(*)(void*)>(c->image+0x66a990)(p);break;
+    case Op::PurgeAwards:reinterpret_cast<void(*)(void*)>(c->image+0x521b00)(p);break;
+    case Op::AbortCampaign:c->accepted=reinterpret_cast<bool(*)(void*,int32_t)>(c->image+0x522890)(p,c->type);break;
+    case Op::RestorePause:reinterpret_cast<void(*)(void*,float)>(c->image+0x25cc30)(p,c->pause);break;
     }
 }__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
 struct Resources {stage::NativeTree tree;stage::DecodeReceipt decode;uintptr_t context=0,award=0;std::unique_ptr<Resources> next;};
@@ -108,10 +108,10 @@ bool unchanged(Work& w,Pin& p,bool held,std::string& e){
     return same_guards(w.before,p,held?"held":"closed",true,e);
 }
 bool pins(uintptr_t image,std::string& e){
-    for(const auto& pin:native_pins){if(pin.rva==0x518290){if(!notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),e))return false;if(pin.rva==0x259b70){if(!hooks::framework::verify_original_hash(image+pin.rva,bytes.data(),bytes.size(),pin.sha,e))return fail(e,"body SHA differs RVA="+std::to_string(pin.rva)+" original="+e);}
+    for(const auto& pin:native_pins){if(pin.rva==0x51e570){if(!notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),e))return false;if(pin.rva==0x25cc30){if(!hooks::framework::verify_original_hash(image+pin.rva,bytes.data(),bytes.size(),pin.sha,e))return fail(e,"body SHA differs RVA="+std::to_string(pin.rva)+" original="+e);}
         else if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"body SHA differs RVA="+std::to_string(pin.rva));}
-    for(const auto& row:{std::array<uintptr_t,2>{0x13cfe20,0x98},{0x13cfde0,0x9c}}){uintptr_t offset=0;if(!at(image+row[0],0x38,offset,e)||offset!=row[1])return fail(e,"buzz native descriptor offset differs");}
-    for(const auto& pair:{std::pair<uintptr_t,uintptr_t>{0x1749880+0x70,0xceabb0},{0x1749880+0x80,0xb63070},{0x16e3d50+0x70,0xc7cf80},{0x16e3d50+0x80,0x5199e0}}){uintptr_t target=0;if(!at(image,pair.first,target,e)||target!=image+pair.second)return fail(e,"typed Load/Resolve slot differs");}
+    for(const auto& row:{std::array<uintptr_t,2>{0x13dbe20,0x98},{0x13dbde0,0x9c}}){uintptr_t offset=0;if(!at(image+row[0],0x38,offset,e)||offset!=row[1])return fail(e,"buzz native descriptor offset differs");}
+    for(const auto& pair:{std::pair<uintptr_t,uintptr_t>{0x174fc20+0x70,0xcf62d0},{0x174fc20+0x80,0xb6f8d0},{0x16ea0f0+0x70,0xc886b0},{0x16ea0f0+0x80,0x51fcc0}}){uintptr_t target=0;if(!at(image,pair.first,target,e)||target!=image+pair.second)return fail(e,"typed Load/Resolve slot differs");}
     return true;
 }
 bool cleanup_record(Work& w,std::string& e){return stage::destroy_records(w.records,w.resources->tree,w.resources->decode,e);}
@@ -154,9 +154,9 @@ bool apply_body(Work& w,std::string& e){Pin p;if(!unchanged(w,p,true,e))return f
             if(award&&w.resources->award==owner)w.resources->award=0;
         }
     }
-    for(const auto& field:{std::pair{"positiveBuzz",uintptr_t(0x13cfe20)},std::pair{"negativeBuzz",uintptr_t(0x13cfde0)}}){if(p.snapshot.values.at(field.first)==w.target.values.at(field.first))continue;
+    for(const auto& field:{std::pair{"positiveBuzz",uintptr_t(0x13dbe20)},std::pair{"negativeBuzz",uintptr_t(0x13dbde0)}}){if(p.snapshot.values.at(field.first)==w.target.values.at(field.first))continue;
         auto& r=*w.resources;if(!stage::decode_integer_record(w.records,memory,field.first,integer(w.target.values.at(field.first)),r.tree,r.decode,e))return false;
-        local::CallReceipt receipt;w.attempted=true;if(!local::load_scalar_property(reinterpret_cast<local::PropertyLoad>(image+0xd2cb70),reinterpret_cast<void*>(image+field.second),reinterpret_cast<void*>(p.snapshot.marketing),reinterpret_cast<void*>(r.tree.root),receipt,e))return false;
+        local::CallReceipt receipt;w.attempted=true;if(!local::load_scalar_property(reinterpret_cast<local::PropertyLoad>(image+0xd382b0),reinterpret_cast<void*>(image+field.second),reinterpret_cast<void*>(p.snapshot.marketing),reinterpret_cast<void*>(r.tree.root),receipt,e))return false;
         w.receipt["calls"].push_back({{"name",field.first},{"attempted",receipt.attempted},{"returned",receipt.returned},{"seh",receipt.seh}});
         if(!cleanup_record(w,e))return false;r.decode={};if(!unchanged(w,p,true,e))return false;
     }
@@ -175,7 +175,7 @@ bool execute(Work& w,std::string& e){
     w.receipt["origin"]={{"session",w.frame.session},{"epoch",w.frame.epoch},{"source_generation",w.frame.source_generation},{"snapshot_uuid",w.frame.snapshot},{"revision",w.frame.revision},{"local_epoch",w.binding.native_epoch},{"local_generation",w.binding.native_generation}};
     w.receipt["before"]=report(w.before.snapshot);w.receipt["target"]=w.target.values;
     w.receipt["guard_before"]={{"owners",owner_fields(w.before)},{"finance",finance_fields(w.before.finance,w.before.software)}};
-    local::SaveScopeReceipt scope;const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(w.before.image+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(w.before.image+0x49f6f0)};
+    local::SaveScopeReceipt scope;const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(w.before.image+0x4a5890),reinterpret_cast<local::SaveScopeCall>(w.before.image+0x4a4be0)};
     bool okay=false;try{okay=local::with_save_scope(api,w.before.world.mode,body,exit_guard,&w,scope,e);}catch(const std::exception& x){e=std::string("Marketing native scope C++: ")+x.what();}catch(...){e="Marketing native scope nonstandard exception";}
     w.attempted=w.attempted||scope.enter_attempted;w.unknown=w.unknown||scope.unknown;
     w.receipt["save_scope"]={{"enter_returned",scope.enter_returned},{"leave_returned",scope.leave_returned},{"exit_guard",scope.exit_guard_confirmed},{"unknown",scope.unknown},{"body_cause",scope.body_cause},{"cleanup_cause",scope.cleanup_cause}};

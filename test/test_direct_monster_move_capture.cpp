@@ -24,16 +24,16 @@ struct Services:mk::Services {
  void reject(const std::string& e)noexcept override{cause=e;}
 };
 Memory fixture(){Memory m;constexpr uintptr_t image=0x140000000,b=0x1000;
- m.put(b,image+0x172f1f0);m.put(b+0x401,uint8_t(1));m.put(b+0x499,uint8_t(0));m.put(b+0x458,image+0x1747300);
+ m.put(b,image+0x1735590);m.put(b+0x401,uint8_t(1));m.put(b+0x499,uint8_t(0));m.put(b+0x458,image+0x174d6a0);
  m.put(b+0x460,uintptr_t(0x2000));m.put(b+0x468,int32_t(1));m.put(b+0x46c,int32_t(1));m.put(0x2008,uintptr_t(0x3000));m.put(0x2010,uintptr_t(0x4000));
- m.put(0x4018,uint64_t(0x100000001ull));m.put(0x3000,image+0x1705230);m.put(0x3100,std::array<float,4>{0,0,0,1});m.put(0x3110,std::array<float,3>{10,20,30});m.put(0x311c,std::array<float,3>{1,1,1});return m;}
+ m.put(0x4018,uint64_t(0x100000001ull));m.put(0x3000,image+0x170b5d0);m.put(0x3100,std::array<float,4>{0,0,0,1});m.put(0x3110,std::array<float,3>{10,20,30});m.put(0x311c,std::array<float,3>{1,1,1});return m;}
 int main(){try{unsigned checks=0;
  for(auto family:{mk::Family::DirectMonster,mk::Family::Npc,mk::Family::Prop}){auto m=fixture();Services s;s.family=family;if(family==mk::Family::Prop){s.before.type="building";s.before.variant="test";}
-  mk::Capture capture(m,s,0x140000000);need(capture.purchase(0x1000,0x5c2a20)==mk::Route::Suppress&&s.submitted==1&&s.captured.family==family&&s.captured.after.x==10,s.cause);++checks;}
- {auto m=fixture();Services s;s.family=mk::Family::Prop;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c2a20)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_registry_state_invalid","empty type inferred as NPC");++checks;}
- {auto m=fixture();Services s;s.key="saved:0";mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c2a20)==mk::Route::Suppress&&!s.submitted&&!s.cause.empty(),"Monster saved fallback accepted");++checks;}
- {auto m=fixture();Services s;s.drift=true;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c2a20)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_capture_witness_changed","family drift accepted");++checks;}
- {auto m=fixture();Services s;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0)==mk::Route::Forward&&!s.bound,"foreign caller captured");s.main=false;need(c.purchase(0x1000,0x5c2a20)==mk::Route::Forward&&!s.bound,"foreign thread captured");checks+=2;}
- {auto m=fixture();Services s;m.put(0x1499,uint8_t(1));mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c2a20)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_duplicate_not_supported","duplicate captured");++checks;}
+  mk::Capture capture(m,s,0x140000000);need(capture.purchase(0x1000,0x5c91c0)==mk::Route::Suppress&&s.submitted==1&&s.captured.family==family&&s.captured.after.x==10,s.cause);++checks;}
+ {auto m=fixture();Services s;s.family=mk::Family::Prop;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c91c0)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_registry_state_invalid","empty type inferred as NPC");++checks;}
+ {auto m=fixture();Services s;s.key="saved:0";mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c91c0)==mk::Route::Suppress&&!s.submitted&&!s.cause.empty(),"Monster saved fallback accepted");++checks;}
+ {auto m=fixture();Services s;s.drift=true;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c91c0)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_capture_witness_changed","family drift accepted");++checks;}
+ {auto m=fixture();Services s;mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0)==mk::Route::Forward&&!s.bound,"foreign caller captured");s.main=false;need(c.purchase(0x1000,0x5c91c0)==mk::Route::Forward&&!s.bound,"foreign thread captured");checks+=2;}
+ {auto m=fixture();Services s;m.put(0x1499,uint8_t(1));mk::Capture c(m,s,0x140000000);need(c.purchase(0x1000,0x5c91c0)==mk::Route::Suppress&&!s.submitted&&s.cause=="move_duplicate_not_supported","duplicate captured");++checks;}
  std::cout<<checks<<" actual Move Purchase body cases passed\n";return 0;
  }catch(const std::exception& e){std::cerr<<e.what()<<'\n';return 1;}}

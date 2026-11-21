@@ -15,7 +15,7 @@ struct Memory {
     }
 };
 constexpr uintptr_t fixture_image=0x140000000,fixture_cursor=0x200000000,fixture_receiver=0x300000000,fixture_point=0x400000000;
-Memory memory(){Memory out;out.set(fixture_image+0x13df9d0,fixture_cursor);out.set(fixture_cursor,fixture_image+read::cursor_addresspoint);out.set(fixture_cursor+0x190,fixture_receiver);
+Memory memory(){Memory out;out.set(fixture_image+0x13eb9d0,fixture_cursor);out.set(fixture_cursor,fixture_image+read::cursor_addresspoint);out.set(fixture_cursor+0x190,fixture_receiver);
     out.set(fixture_receiver,fixture_image+read::addresspoint);out.set(fixture_receiver+0x3b1,uint8_t(1));out.set(fixture_receiver+0x148,int32_t(7));out.set(fixture_receiver+0x330,uintptr_t(0x500000000));
     std::array<unsigned char,0x6c> pose{};const std::array<float,10> values{0,0,0,1,2,3,4,1,1,1};std::memcpy(pose.data(),values.data(),40);out.set(fixture_receiver+0x338,pose);
     out.set(fixture_point,std::array<float,3>{22,33,44});return out;

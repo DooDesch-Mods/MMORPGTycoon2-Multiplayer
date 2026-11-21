@@ -27,7 +27,7 @@ bool ordered_tick(const OrderedView& view,const MT2FW_MT2_StepReceipt& receipt,s
         error.clear();return true;
     }
     void* game=nullptr;void* mode=nullptr;void* active=nullptr;
-    if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!read(game,title_active?0x350:0x358,mode)||!read(game,0x28,active)||mode!=active){
+    if(!read(reinterpret_cast<void*>(image),0x13eb8f0,game)||!read(game,title_active?0x350:0x358,mode)||!read(game,0x28,active)||mode!=active){
         error="Ordered lobby UI owner differs from actual active mode";return false;
     }
     if(ui_owner!=mode||ui_mode!=world.active_mode_index){

@@ -5,9 +5,9 @@
 namespace mt2mp::game::district_saved_identity {
 namespace read=npc_quest_targets;
 using read::at;using read::typed;using read::bounds;using read::unchanged;using read::fail;using read::Bounds;
-inline constexpr uintptr_t save_property_rva=0xddcee0,load_property_rva=0xddc9c0;
-inline constexpr uintptr_t load_children_return_rva=0xddca04;
-inline constexpr uintptr_t load_link_return_rva=0xddcd5a,load_inline_return_rva=0xddce18;
+inline constexpr uintptr_t save_property_rva=0xde87f0,load_property_rva=0xde82d0;
+inline constexpr uintptr_t load_children_return_rva=0xde8314;
+inline constexpr uintptr_t load_link_return_rva=0xde866a,load_inline_return_rva=0xde8728;
 inline constexpr size_t maximum_districts=100000;
 struct Record {
     uintptr_t pointer=0;uint64_t uid=0;int32_t child=-1,link_id=0;
@@ -22,19 +22,19 @@ inline std::string key(const std::string& sha,int32_t region,const Record& recor
 template<class Memory>
 bool property(Memory& memory,uintptr_t image,uintptr_t object,uintptr_t manager,std::string& error){
     uint64_t offset=0;
-    if(!typed(memory,image,object,0x1710190,error)||!typed(memory,image,manager,0x1719080,error)||
+    if(!typed(memory,image,object,0x1716530,error)||!typed(memory,image,manager,0x171f420,error)||
        !at(memory,object,0x38,offset,error))return false;
-    return (object==image+0x13bef60&&offset==0x18)||fail(error,"District saved property layout differs");
+    return (object==image+0x13caf60&&offset==0x18)||fail(error,"District saved property layout differs");
 }
 template<class Memory,class LinkId>
 bool observe(Memory& memory,uintptr_t image,uintptr_t manager,LinkId&& links,Pool& out,std::string& error){
     Pool result;result.manager=manager;Bounds initial;
-    if(!typed(memory,image,manager,0x1719080,error)||!typed(memory,image,manager+0x18,0x172d8e0,error)||
+    if(!typed(memory,image,manager,0x171f420,error)||!typed(memory,image,manager+0x18,0x1733c80,error)||
        !bounds(memory,manager+0x18,maximum_districts,initial,error))return false;
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;std::set<int32_t> ids;
     for(int32_t n=0;n<initial.count;++n){
         Record row;row.child=n;
-        if(!at(memory,initial.data,size_t(n)*8,row.pointer,error)||!typed(memory,image,row.pointer,0x16da000,error)||
+        if(!at(memory,initial.data,size_t(n)*8,row.pointer,error)||!typed(memory,image,row.pointer,0x16e03a0,error)||
            !at(memory,row.pointer,0x18,row.uid,error)||!links(row.pointer,row.link_id,error))return false;
         if(!row.uid||row.link_id<0||!pointers.insert(row.pointer).second||!uids.insert(row.uid).second||
            (row.link_id&&!ids.insert(row.link_id).second))return fail(error,"District saved pointer/full UID/link duplicate or invalid");
@@ -103,7 +103,7 @@ bool begin_load(Memory& memory,uintptr_t image,uintptr_t prop,uintptr_t manager,
                 LoadFrame& frame,std::string& error){
     frame={};if(!reader||!context)return fail(error,"District load reader/context absent");
     Bounds initial;
-    if(!property(memory,image,prop,manager,error)||!typed(memory,image,manager+0x18,0x172d8e0,error)||
+    if(!property(memory,image,prop,manager,error)||!typed(memory,image,manager+0x18,0x1733c80,error)||
        !bounds(memory,manager+0x18,maximum_districts,initial,error))return false;
     if(initial.count)return fail(error,"District native load requires initially empty array");
     frame.manager=manager;frame.reader=reader;frame.context=context;return true;
@@ -112,7 +112,7 @@ template<class Memory>
 bool registered(Memory& memory,uintptr_t image,LoadFrame& frame,uintptr_t caller,uintptr_t context,
                 int32_t id,uintptr_t object,std::string& error){
     uintptr_t actual_context=0;
-    if(!typed(memory,image,object,0x16da000,error)||!at(memory,object,8,actual_context,error))return false;
+    if(!typed(memory,image,object,0x16e03a0,error)||!at(memory,object,8,actual_context,error))return false;
     if(context!=actual_context)return fail(error,"District registered object context differs");
     return frame.registered(caller,context,id,object,error);
 }

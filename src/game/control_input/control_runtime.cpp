@@ -71,9 +71,9 @@ bool owner(Runtime& r,uintptr_t pointer,Target& target,std::string& error){inter
 }
 bool presentation(Runtime& r,uintptr_t actor,PresentationBinding& out,std::string& error){
     uintptr_t player{},input{},game{},camera{},settings{},selection{},bar{};
-    if(!at(r,r.image,0x13df9f0,player,error)||!ap(r,player,0x17873b0,error)||!at(r,player,0x1d8,bar,error)||!bar||
-       !at(r,r.image,0x13df990,input,error)||!ap(r,input,0x1749430,error)||!at(r,r.image,0x13df8f0,game,error)||!at(r,game,0x90,camera,error)||!ap(r,camera,0x1786c20,error)||
-       !at(r,r.image,0x13df1e0,settings,error)||!settings||!at(r,r.image,0x13df630,selection,error)||!selection)return fail(error,error.empty()?"Control local Player/action bar/input/camera/settings/selection unavailable":error);
+    if(!at(r,r.image,0x13eb9f0,player,error)||!ap(r,player,0x178d750,error)||!at(r,player,0x1d8,bar,error)||!bar||
+       !at(r,r.image,0x13eb990,input,error)||!ap(r,input,0x174f7d0,error)||!at(r,r.image,0x13eb8f0,game,error)||!at(r,game,0x90,camera,error)||!ap(r,camera,0x178cfc0,error)||
+       !at(r,r.image,0x13eb1e0,settings,error)||!settings||!at(r,r.image,0x13eb630,selection,error)||!selection)return fail(error,error.empty()?"Control local Player/action bar/input/camera/settings/selection unavailable":error);
     Target canonical;if(!owner(r,actor,canonical,error))return false;
     out={r.image,player,actor,input,camera,settings,selection};return true;
 }
@@ -114,7 +114,7 @@ bool verify_item_activate(uintptr_t image,size_t bytes,const std::string& sha,bo
     if(!r){error.clear();return true;}
     if(!r->ready||GetCurrentThreadId()!=r->thread||r->image!=image)return fail(error,"Control shared ItemActivate owner/image/Mainthread unavailable");
     const auto& route=r->routes[7];
-    if(route.rva!=0x207820||route.bytes!=bytes||route.sha!=sha||route.owner.entry!=image+route.rva)
+    if(route.rva!=0x20a2b0||route.bytes!=bytes||route.sha!=sha||route.owner.entry!=image+route.rva)
         return fail(error,"Control shared ItemActivate original fingerprint contract differs");
     if(!verify_route(*r,route,error))return false;
     owned=true;error.clear();return true;
@@ -124,7 +124,7 @@ bool verify_clock_time_scale(uintptr_t image,size_t bytes,const std::string& sha
     if(!r){error.clear();return true;}
     if(!r->ready||GetCurrentThreadId()!=r->thread||r->image!=image)return fail(error,"Control shared ClockTimeScale owner/image/Mainthread unavailable");
     const auto& route=r->routes[6];
-    if(route.rva!=0x259d70||route.bytes!=bytes||route.sha!=sha||route.owner.entry!=image+route.rva)
+    if(route.rva!=0x25ce30||route.bytes!=bytes||route.sha!=sha||route.owner.entry!=image+route.rva)
         return fail(error,"Control shared ClockTimeScale original fingerprint contract differs");
     if(!verify_route(*r,route,error))return false;
     owned=true;error.clear();return true;

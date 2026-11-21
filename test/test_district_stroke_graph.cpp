@@ -28,15 +28,15 @@ void node(Memory& memory,size_t index,uintptr_t ap,uintptr_t method){
     memory.put(object+0xb8,uid);
     for(size_t set=0;set<3;++set){const auto slot=object+8+set*0x28,table=object+0x400+set*0x80;
         memory.put(slot,table);memory.put(slot+8,int32_t(2));memory.put(slot+0xc,int32_t(31));memory.put(slot+0x18,table+0x40);memory.zero(table,48);}
-    if(ap==0x17132b0||ap==0x17132f0){memory.put(object+0xc0,region);memory.put(object+0xc8,root);
+    if(ap==0x1719650||ap==0x1719690){memory.put(object+0xc0,region);memory.put(object+0xc8,root);
         memory.put(object+0xf0,object+0x800);memory.zero(object+0x800,24);
         memory.put(object+0x160,object+0x900);memory.put(object+0x180,object+0x900);}
 }
 Memory fixture(){
     Memory memory;memory.zero(graph_pointer,0x110);
-    array(memory,graph_pointer,0x16e32d0,0,0);array(memory,graph_pointer+0x18,0x16e2dc0,graph_pointer+0x200,2);
-    array(memory,graph_pointer+0x30,0x1748aa0,graph_pointer+0x300,2);array(memory,graph_pointer+0x48,0x1748c50,0,0);
-    memory.put(graph_pointer+0x10c,uint8_t(1));node(memory,0,0x17132f0,0x549fc0);node(memory,1,0x16de860,0x53e1c0);
+    array(memory,graph_pointer,0x16e9670,0,0);array(memory,graph_pointer+0x18,0x16e9160,graph_pointer+0x200,2);
+    array(memory,graph_pointer+0x30,0x174ee40,graph_pointer+0x300,2);array(memory,graph_pointer+0x48,0x174eff0,0,0);
+    memory.put(graph_pointer+0x10c,uint8_t(1));node(memory,0,0x1719690,0x5505a0);node(memory,1,0x16e4c00,0x544780);
     for(size_t i=0;i<2;++i){memory.put(graph_pointer+0x200+i*8,node_base+i*0x1000);memory.put(graph_pointer+0x300+i*8,node_base+i*0x1000);}
     return memory;
 }
@@ -61,8 +61,8 @@ int main()try{
     malformed([](auto& copy){copy.put(graph_pointer+0x40,int32_t(1));});
     malformed([](auto& copy){copy.put(graph_pointer+0x308,node_base);});
     malformed([](auto& copy){copy.put(graph_pointer+0x208,node_base);});
-    malformed([](auto& copy){copy.put(node_base,image+0x1713330);});
-    malformed([](auto& copy){copy.put(image+0x17132f0+0x10,image+0x549fc1);});
+    malformed([](auto& copy){copy.put(node_base,image+0x17196d0);});
+    malformed([](auto& copy){copy.put(image+0x1719690+0x10,image+0x5505a1);});
     malformed([](auto& copy){copy.put(node_base+0xb8,uint64_t(0));});
     malformed([](auto& copy){copy.put(node_base+0x1bc,uint8_t(2));});
     malformed([](auto& copy){copy.put(node_base+0x1c4,uint32_t(0x7fc00000));});
@@ -72,12 +72,12 @@ int main()try{
     memory=fixture();need(graph::read(memory,image,graph_pointer,original,error),error);
     need(proof::graph(original,operation,root,{{region,17}},{{uid,key}},absent,canonical,keys,error)&&keys.at(uid)==key,error);
     need(proof::graph(original,operation,root,{{region,17}},{{uid&0xffffffffULL,key}},absent,canonical,keys,error)&&keys.at(uid)!=key,"truncated UID selected an existing alias");
-    const auto stored=proof::stored(original.nodes[0].stored,key,17);json edit=json::array({json::array({0x17132b0,stored,json::array()})});
+    const auto stored=proof::stored(original.nodes[0].stored,key,17);json edit=json::array({json::array({0x1719650,stored,json::array()})});
     auto changed=stored;changed[2]=1;
     need(transition::restores(edit,{{key,changed}},{{key,stored}},error),error);
     need(!transition::restores(edit,{},{{key,stored}},error),"Edit of missing target accepted");
     auto wrong=stored;wrong[5]="changed description";need(!transition::restores(edit,{{key,changed}},{{key,wrong}},error),"inverse payload drift accepted");
-    json cash=json::array({json::array({0x1786fb0,json::array({1,std::array<uint32_t,3>{}}),json::array()})});
+    json cash=json::array({json::array({0x178d350,json::array({1,std::array<uint32_t,3>{}}),json::array()})});
     need(!transition::restores(cash,{},{},error),"nonzero District refund accepted");
     action::DistrictState first;first.region=17;action::DistrictState other;other.region=18;
     state::Values before{{key,first},{"unrelated",other}},after=before;after[key].geo=2;

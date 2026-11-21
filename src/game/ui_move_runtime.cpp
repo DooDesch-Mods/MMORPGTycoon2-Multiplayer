@@ -177,12 +177,12 @@ bool ledger(action::Ledger& out,std::string& e){
 }
 bool world(Runtime& r,host::WorldState& out,std::string& e){
     host::NativeOrigin origin;host::LookupApi api;
-    if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,e))return false;
+    if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,e))return false;
     host::Reader reader(r.memory.process,origin,r.image,r.thread,api);return reader.current(out,true,e);
 }
 bool current_prop(Runtime& r,const remove_diagnostics::LocalTarget& target,host::WorldState& w,native::BuildingState& building,std::string& e){
     host::NativeOrigin origin;host::LookupApi api;
-    if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,e))return false;
+    if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,e))return false;
     host::Reader reader(r.memory.process,origin,r.image,r.thread,api);prop_lease::Prop prop;
     if(!reader.current(w,true,e)||!reader.prop(reinterpret_cast<void*>(target.object),target.uid,prop,e)||!scenery_kiss::read_action_prop(target.uid,building,e))return false;
     if(w.origin.world_epoch!=target.world_epoch||w.origin.generation!=target.world_generation||building.prop.uid!=target.uid||building.type!=target.type||building.variant!=target.variant){e="move native World, UID or type/variant changed";return false;}
@@ -197,7 +197,7 @@ bool current_prop(Runtime& r,const remove_diagnostics::LocalTarget& target,host:
 uint32_t can_move(uintptr_t image,uintptr_t target,bool& movable){
     __try{
         auto* object=reinterpret_cast<void*>(target);auto* table=*reinterpret_cast<uintptr_t**>(target);
-        const auto expected=(uintptr_t(table)==image+0x1742980||uintptr_t(table)==image+0x16c0770)?uintptr_t(0xd32130):
+        const auto expected=(uintptr_t(table)==image+0x1748d20||uintptr_t(table)==image+0x16c6b10)?uintptr_t(0xd3d870):
             scenery_kiss::can_move_rva(image,uintptr_t(table));
         if(!expected||table[0xd0/8]!=image+expected)return 0xE0010001;
         constexpr unsigned char original[]{0xb8,1,0,0,0,0xc3};
@@ -225,12 +225,12 @@ bool Services::active(move_kiss::Origin& o,std::string& e){
 bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t object,uint64_t uid,action::BuildingState& state,std::string& key,move_kiss::Family& family,std::string& e){
     uintptr_t object_ap=0;
     if(!runtime.memory.read(object,&object_ap,sizeof object_ap,e))return false;
-    if(object_ap==runtime.image+0x16c0770){
+    if(object_ap==runtime.image+0x16c6b10){
         family=move_kiss::Family::DirectMonster;
         return npc_probe::monster_action_runtime::move_capture_binding(o.snapshot_uuid,o.world_epoch,
             o.generation,object,uid,state,key,e);
     }
-    if(object_ap==runtime.image+0x1742980){
+    if(object_ap==runtime.image+0x1748d20){
         family=move_kiss::Family::Npc;
         return npc_probe::action_runtime::move_capture_binding(o.snapshot_uuid,o.world_epoch,
             o.generation,object,uid,state,key,e);
@@ -252,7 +252,7 @@ bool Services::bind_target(const move_kiss::Origin& o,uintptr_t ghost,uintptr_t 
     if(!runtime.memory.read(ghost_blueprint,&ap,sizeof ap,e)||!runtime.memory.read(ghost_blueprint+8,&shard,sizeof shard,e))return false;
     uintptr_t target_shard=w.root;
     if(dungeon&&!runtime.memory.read(target.object+0x170,&target_shard,sizeof target_shard,e))return false;
-    if(ap!=runtime.image+0x16dd870||shard!=target_shard){e="move native owned Ghost Blueprint class or shard differs";return false;}
+    if(ap!=runtime.image+0x16e3c10||shard!=target_shard){e="move native owned Ghost Blueprint class or shard differs";return false;}
     state=world_state::building_state(actual);key=target.record_key;return true;
 }
 bool Services::submit_move(const move_kiss::Intent& intent,std::string& e){
@@ -307,7 +307,7 @@ bool cleanup(Runtime& r,const move_kiss::Intent& i,std::string& e){
     if(!r.memory.read(i.behaviour,&c.addresspoint,sizeof c.addresspoint,e)||!r.memory.read(i.behaviour+0x460,&c.records,sizeof c.records,e)||
        !r.memory.read(i.behaviour+0x468,&c.count,sizeof c.count,e)||!r.memory.read(i.behaviour+0x46c,&c.capacity,sizeof c.capacity,e)||
        !r.memory.read(i.record,&c.owned_first,sizeof c.owned_first,e)||!r.memory.read(i.record+8,&c.owned_second,sizeof c.owned_second,e)||
-       !r.memory.read(i.behaviour+0x490,&c.options,sizeof c.options,e)||!r.memory.read(r.image+0x13df9d0,&cursor,sizeof cursor,e)||!cursor||
+       !r.memory.read(i.behaviour+0x490,&c.options,sizeof c.options,e)||!r.memory.read(r.image+0x13eb9d0,&cursor,sizeof cursor,e)||!cursor||
        !r.memory.read(cursor+0x190,&c.current_behaviour,sizeof c.current_behaviour,e))return false;
     return contract::cleaned(r.image,i,c,e);
 }
@@ -316,12 +316,12 @@ bool trampoline_route(Runtime& r,std::string& e){
     if(!r.memory.read(uintptr_t(r.original.load(std::memory_order_acquire)),trampoline,sizeof trampoline,e))return false;
     const unsigned char first[]{0x41,0x57,0x41,0x56,0x41,0x55};
     uintptr_t back=0;std::memcpy(&back,trampoline+12,8);
-    if(std::memcmp(trampoline,first,sizeof first)||std::memcmp(trampoline+6,"\xff\x25\0\0\0\0",6)||back!=r.image+0x5c25b6){e="move original trampoline bytes or return differ";return false;}
+    if(std::memcmp(trampoline,first,sizeof first)||std::memcmp(trampoline+6,"\xff\x25\0\0\0\0",6)||back!=r.image+0x5c8d56){e="move original trampoline bytes or return differ";return false;}
     return true;
 }
 bool hook_route(Runtime& r,std::string& e){
     unsigned char target[16]{},trampoline[20]{},relay[14]{};
-    const auto address=r.image+0x5c25b0,original=uintptr_t(r.original.load(std::memory_order_acquire));
+    const auto address=r.image+0x5c8d50,original=uintptr_t(r.original.load(std::memory_order_acquire));
     if(!r.memory.read(address,target,sizeof target,e)||!r.memory.read(original,trampoline,sizeof trampoline,e))return false;
     const unsigned char first[]{0x41,0x57,0x41,0x56,0x41,0x55};
     const unsigned char tail[]{0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xd8};
@@ -393,7 +393,7 @@ struct ExecuteServices final:move_kiss::ExecutionServices {
         for(int32_t index=0;index<measured.operations;++index){
             uintptr_t operation=0,ap=0;uint64_t uid=0;
             if(!runtime.memory.read(data+size_t(index)*8,&operation,sizeof operation,e)||!runtime.memory.read(operation,&ap,sizeof ap,e))return false;
-            if(ap!=runtime.image+0x1786ff0)continue;
+            if(ap!=runtime.image+0x178d390)continue;
             if(!runtime.memory.read(operation+0xb8,&uid,sizeof uid,e))return false;
             if(uid!=target.uid)continue;
             auto inverse=old.actual;
@@ -482,23 +482,23 @@ bool enable(std::string& e){
     if(!net::session_wire::connected()||!typed_action_runtime::status().value("started",false)){e="move hook requires connected session and started Controller";return failed();}
     if(!native::read_resolver_receipt(r->image,thread,sha,e)||thread!=r->thread||!move_kiss::resolve_calls(r->memory,r->image,sha,r->calls,e))return failed();
     const unsigned char expected[]{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xd8};unsigned char actual[sizeof expected]{};
-    if(!r->memory.read(r->image+0x5c25b0,actual,sizeof actual,e)||std::memcmp(actual,expected,sizeof actual)){if(e.empty())e="move Purchase entry differs";return failed();}
+    if(!r->memory.read(r->image+0x5c8d50,actual,sizeof actual,e)||std::memcmp(actual,expected,sizeof actual)){if(e.empty())e="move Purchase entry differs";return failed();}
     const unsigned char movable_code[]{0xb8,1,0,0,0,0xc3};unsigned char movable_actual[sizeof movable_code]{};
-    if(!r->memory.read(r->image+0xd31530,movable_actual,sizeof movable_actual,e)||std::memcmp(movable_actual,movable_code,sizeof movable_actual)){if(e.empty())e="move CanMove code differs";return failed();}
-    if(!r->memory.read(r->image+0xcf3130,movable_actual,sizeof movable_actual,e)||std::memcmp(movable_actual,movable_code,sizeof movable_actual)){if(e.empty())e="Scenery CanMove code differs";return failed();}
-    if(!r->memory.read(r->image+0xd32130,movable_actual,sizeof movable_actual,e)||
+    if(!r->memory.read(r->image+0xd3cc70,movable_actual,sizeof movable_actual,e)||std::memcmp(movable_actual,movable_code,sizeof movable_actual)){if(e.empty())e="move CanMove code differs";return failed();}
+    if(!r->memory.read(r->image+0xcfe870,movable_actual,sizeof movable_actual,e)||std::memcmp(movable_actual,movable_code,sizeof movable_actual)){if(e.empty())e="Scenery CanMove code differs";return failed();}
+    if(!r->memory.read(r->image+0xd3d870,movable_actual,sizeof movable_actual,e)||
        std::memcmp(movable_actual,movable_code,sizeof movable_actual)){
         if(e.empty())e="NPC CanMove code differs";return failed();}
     r->capture.emplace(r->memory,r->services,r->image);
     Purchase original=nullptr;
-    if(!hooks::create_hook(reinterpret_cast<void*>(r->image+0x5c25b0),reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&original))){e="move Purchase CreateHook failed";return failed();}
+    if(!hooks::create_hook(reinterpret_cast<void*>(r->image+0x5c8d50),reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&original))){e="move Purchase CreateHook failed";return failed();}
     r->original.store(original,std::memory_order_release);
     r->created=true;
     if(!trampoline_route(*r,e))return failed();
-    const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x5c25b0));
+    const auto result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x5c8d50));
     if(result!=MH_OK){e="move Purchase EnableHook failed: "+std::string(MH_StatusToString(result));return failed();}
     if(!hook_route(*r,e)){
-        const auto disabled=MH_DisableHook(reinterpret_cast<void*>(r->image+0x5c25b0));
+        const auto disabled=MH_DisableHook(reinterpret_cast<void*>(r->image+0x5c8d50));
         if(disabled!=MH_OK)e+="; own hook Disable failed: "+std::string(MH_StatusToString(disabled));
         return failed();
     }
@@ -558,7 +558,7 @@ bool move(const action::Request& req,action::BuildingState& state,json& receipt,
     if(!enabled()){e="move native runtime unavailable on Mainthread";return false;}
     if(r->last_ui_action==req.action_uuid&&!r->last_ui_cleaned){e="move captured UI cleanup unconfirmed";return false;}
     move_kiss::Calls current_calls;
-    if(!move_kiss::resolve_calls(r->memory,r->image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",current_calls,e)){
+    if(!move_kiss::resolve_calls(r->memory,r->image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",current_calls,e)){
         receipt={{"token",req.action_uuid},{"attempted",false},{"confirmed",false},{"error",e}};
         r->last_native=receipt;r->services.reject(e);return false;
     }

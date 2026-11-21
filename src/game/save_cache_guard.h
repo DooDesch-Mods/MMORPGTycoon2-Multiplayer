@@ -2,7 +2,7 @@
 #include <cstddef>
 #include <cstdint>
 namespace mt2mp::game::save_cache_guard {
-inline constexpr uintptr_t rva=0x7a1560, task_rva=0x1a3c048;
+inline constexpr uintptr_t rva=0x7a9760, task_rva=0x1a43048;
 inline constexpr size_t bytes=126;
-inline constexpr const char* sha256="e1c2e3f544ac74b446ec1c28543237db162962b4f4af507752ebd1a8dd3e9158";
+inline constexpr const char* sha256="97478923511112dc7019c5aa193513d67f75899d55aca6d41a0c24e240262c67";
 }

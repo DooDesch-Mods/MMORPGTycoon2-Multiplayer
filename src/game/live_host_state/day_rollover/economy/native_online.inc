@@ -8,12 +8,12 @@ struct OnlineCalls {
     bool (*login_empty)(uintptr_t)=nullptr;
 };
 OnlineCalls online_calls(uintptr_t image){
-    return {reinterpret_cast<void(*)(uintptr_t)>(image+0x3e9920),
-        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x2f0860),
-        reinterpret_cast<void(*)(uintptr_t)>(image+0x2ff930),
-        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x2ff3b0),
-        reinterpret_cast<int32_t(*)(uintptr_t)>(image+0x34f860),
-        reinterpret_cast<bool(*)(uintptr_t)>(image+0x28b860)};
+    return {reinterpret_cast<void(*)(uintptr_t)>(image+0x3ee430),
+        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x2f4060),
+        reinterpret_cast<void(*)(uintptr_t)>(image+0x303280),
+        reinterpret_cast<void(*)(uintptr_t,uintptr_t)>(image+0x302d00),
+        reinterpret_cast<int32_t(*)(uintptr_t)>(image+0x353f60),
+        reinterpret_cast<bool(*)(uintptr_t)>(image+0x28ec20)};
 }
 struct OnlineOwner {
     MotionOwner motion;
@@ -45,7 +45,7 @@ bool online_partition(const Owners& before,OnlineOwner& owner,std::string& e){
     if(all!=std::set<uintptr_t>(before.subscribers.begin(),before.subscribers.end()))return fail(e,"Subscriber lifecycle partitions differ from actual cohort");
     for(auto sub:before.subscribers){uintptr_t toon=0,reverse=0;uint8_t logged=0;
         if(!at(sub,0x80,toon,e))return false;
-        if(toon&&(!ap(toon,before.history.pin.image,0x1744e90,e)||!at(toon,0x940,reverse,e)||reverse!=sub||!at(toon,0x825,logged,e)||logged>1))return fail(e,e.empty()?"Subscriber lifecycle reciprocal Toon differs":e);
+        if(toon&&(!ap(toon,before.history.pin.image,0x174b230,e)||!at(toon,0x940,reverse,e)||reverse!=sub||!at(toon,0x825,logged,e)||logged>1))return fail(e,e.empty()?"Subscriber lifecycle reciprocal Toon differs":e);
         const auto& rows=logged?owner.on:owner.off;
         if(std::find(rows.begin(),rows.end(),sub)==rows.end())return fail(e,"Subscriber lifecycle Toon flag/manager partition differs");
     }
@@ -59,7 +59,7 @@ bool online_prepare(const Owners& before,size_t index,const std::optional<Motion
     out={};auto& owner=out.motion;uintptr_t reverse=0,shard=0,last=0,actor=0,render=0,callback=0;
     uint8_t generated=0,logged=0,logging_out=0,queued=0;int32_t region_id=-1,id=-1;
     if(!at(subscriber,0x20,id,e)||id!=before.state.subscribers[index].serialized_id||!at(subscriber,0x80,owner.toon,e)||
-       !ap(owner.toon,p.image,0x1744e90,e)||!at(owner.toon,0x18,out.uid,e)||!out.uid||
+       !ap(owner.toon,p.image,0x174b230,e)||!at(owner.toon,0x18,out.uid,e)||!out.uid||
        !at(owner.toon,0x940,reverse,e)||reverse!=subscriber||!at(owner.toon,0x824,generated,e)||
        !at(owner.toon,0x825,logged,e)||!at(owner.toon,0x9ed,logging_out,e)||!at(owner.toon,0x9ec,queued,e)||
        !at(owner.toon,0x6f0,actor,e))return fail(e,e.empty()?"Subscriber lifecycle native identity unreadable":e);
@@ -74,7 +74,7 @@ bool online_prepare(const Owners& before,size_t index,const std::optional<Motion
     }
     uintptr_t resolved=0;
     if(!motion_region(p,owner,region_id,owner.region,resolved,e)||!motion_manager(p,owner.region,owner.manager,out.registered,e)||
-       !at(owner.manager,0x18,resolved,e)||resolved!=owner.region||!at(owner.toon,0x30,render,e)||!at(render,0x38,callback,e)||callback!=p.image+0x3e82a0)return fail(e,e.empty()?"Subscriber lifecycle native Region/manager/callback differs":e);
+       !at(owner.manager,0x18,resolved,e)||resolved!=owner.region||!at(owner.toon,0x30,render,e)||!at(render,0x38,callback,e)||callback!=p.image+0x3ecdb0)return fail(e,e.empty()?"Subscriber lifecycle native Region/manager/callback differs":e);
     if(std::count(out.registered.begin(),out.registered.end(),owner.toon)!=(old?1:0))return fail(e,"Subscriber lifecycle native Region membership differs");
     if(!online_queues(owner.manager,{},calls,e)||!online_partition(before,out,e))return false;
     if(target){

@@ -39,7 +39,7 @@ bool same_ledger(const native::SimulationState& a,const native::SimulationState&
 
 bool test_world(Memory& memory,uintptr_t image,std::string& error) {
     uintptr_t game=0,data=0;size_t length=0;
-    if(!field(memory,image,0x13df8f0,game,error)||
+    if(!field(memory,image,0x13eb8f0,game,error)||
        !field(memory,game,0x470,data,error)||
        !field(memory,game,0x478,length,error))return false;
     if(!data||length<6||length>64||data>UINTPTR_MAX-length)
@@ -57,20 +57,20 @@ bool test_world(Memory& memory,uintptr_t image,std::string& error) {
 uint32_t map_region(uintptr_t image,uintptr_t map,const std::array<float,3>& point,
                     uintptr_t& result) noexcept {
     __try {result=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const float*,void*)>(
-        image+0x32a990)(reinterpret_cast<void*>(map),point.data(),nullptr));return 0;}
+        image+0x32ea20)(reinterpret_cast<void*>(map),point.data(),nullptr));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t shard_region(uintptr_t image,uintptr_t shard,const std::array<float,3>& point,
                       uintptr_t& result) noexcept {
     __try {result=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const float*,void*)>(
-        image+0x5089b0)(reinterpret_cast<void*>(shard),point.data(),nullptr));return 0;}
+        image+0x50eb00)(reinterpret_cast<void*>(shard),point.data(),nullptr));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t npc_input(uintptr_t image,uintptr_t behaviour,uintptr_t cursor,
                    const std::array<float,3>& point,bool release) noexcept {
     __try {
         reinterpret_cast<void(__fastcall*)(void*,void*,const float*)>(
-            image+(release?0x5c3ef0:0x5c4210))(
+            image+(release?0x5ca640:0x5ca960))(
                 reinterpret_cast<void*>(behaviour),reinterpret_cast<void*>(cursor),point.data());
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -85,9 +85,9 @@ bool point_and_cursor(Memory& memory,uintptr_t image,uintptr_t map,uintptr_t sha
     if(map_seh||shard_seh||from_map!=region||from_shard!=region)
         return fail(error,"NPC original point region differs map_seh="+
             std::to_string(map_seh)+" shard_seh="+std::to_string(shard_seh));
-    if(!field(memory,cursor,0,ap,error)||ap!=image+0x1786dd0||
+    if(!field(memory,cursor,0,ap,error)||ap!=image+0x178d170||
        !field(memory,cursor,0x190,current,error)||current!=behaviour||
-       !field(memory,behaviour,0,ap,error)||ap!=image+0x172b450)
+       !field(memory,behaviour,0,ap,error)||ap!=image+0x17317f0)
         return fail(error,error.empty()?"NPC original cursor/behavior owner differs":error);
     return true;
 }
@@ -145,7 +145,7 @@ bool place_probe(const json& args,json& result,std::string& error) {
         return fail(error,"NPC original probe tool absent or ambiguous");
     uintptr_t cursor=0,window=0,chosen=0,preview=0,selected_ptr=0;
     uint8_t alternate=1;
-    if(!field(memory,image,0x13df9d0,cursor,error)||!cursor||
+    if(!field(memory,image,0x13eb9d0,cursor,error)||!cursor||
        !field(memory,item.behaviour,0x3e1,alternate,error)||alternate!=0||
        !point_and_cursor(memory,image,uintptr_t(world_before.origin.map),
            world_before.root,region,cursor,item.behaviour,point,error))

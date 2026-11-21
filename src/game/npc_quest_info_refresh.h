@@ -41,11 +41,11 @@ bool read(Memory& m,String&& text,uintptr_t image,uintptr_t manager,uintptr_t np
     if(!at(m,manager,0xb8,owner.handler,e)||!at(m,manager,0xc0,owner.secondary,e))return false;
     if(!owner.handler){skip="local NPC Info handler is absent";return true;}
     if(!at(m,owner.handler,0,ap,e))return false;
-    if(ap!=image+0x1731820){skip="local selection has another Info handler";return true;}
+    if(ap!=image+0x1737bc0){skip="local selection has another Info handler";return true;}
     if(!at(m,owner.handler,0x10,owner.window,e))return false;
     if(!owner.window){skip="local NPC Info window is closed";return true;}
     if(!at(m,owner.window,0,ap,e))return false;
-    if(ap!=image+0x1707d20)return fail(e,"Quest Info refresh window class differs");
+    if(ap!=image+0x170e0c0)return fail(e,"Quest Info refresh window class differs");
     uint8_t visible=0;uintptr_t target=0;
     if(!at(m,owner.window,0x45f,visible,e)||!at(m,owner.window,0x550,target,e))return false;
     if(visible>1)return fail(e,"Quest Info refresh visibility is not a native bool");
@@ -62,11 +62,11 @@ bool read(Memory& m,String&& text,uintptr_t image,uintptr_t manager,uintptr_t np
     if(!owner.property)return fail(e,"Quest Info refresh count property is absent");
     uintptr_t property_owner=0;
     if(!at(m,owner.property,0,ap,e)||!at(m,owner.property,0x280,property_owner,e))return false;
-    if(ap!=image+0x1701d20||property_owner!=owner.window)return fail(e,"Quest Info refresh count property class/Window owner differs");
+    if(ap!=image+0x17080c0||property_owner!=owner.window)return fail(e,"Quest Info refresh count property class/Window owner differs");
     if(!at(m,owner.window,0x540,owner.view,e)||!at(m,owner.view,0,ap,e))return false;
     uintptr_t view_owner=0;
     if(!at(m,owner.view,0x280,view_owner,e))return false;
-    if(ap!=image+0x16dfe90||view_owner!=owner.window)return fail(e,"Quest Info refresh MultiView class/Window owner differs");
+    if(ap!=image+0x16e6230||view_owner!=owner.window)return fail(e,"Quest Info refresh MultiView class/Window owner differs");
     if(!at(m,owner.view,0x410,owner.active,e)||!at(m,owner.view,0x418,owner.next,e)||
        !at(m,owner.view,0x408,owner.transition,e)||!text(owner.view,0x3c8,owner.current_page,e)||
        !text(owner.view,0x3e8,owner.requested_page,e)||!at(m,owner.window,0x110,owner.position,e))return false;

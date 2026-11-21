@@ -111,8 +111,8 @@ bool history_retirement(const Bound& saved,std::string& error) {
 bool classify_normal_building(host::ProcessMemory& memory,uintptr_t image,const prop_lease::Prop& prop,
     const native::BuildingState& building,bool& supported,bool& scenery,std::string& cause,std::string& error) {
     supported=false;scenery=false;cause.clear();
-    if(prop.class_addresspoint==image+0x16c1390)return scenery_kiss::classify_scenery(image,prop.class_addresspoint,prop.uid,building,scenery,error);
-    if(prop.class_addresspoint!=image+0x16d93c0){error="native UI target actual Building class differs";return false;}
+    if(prop.class_addresspoint==image+0x16c7730)return scenery_kiss::classify_scenery(image,prop.class_addresspoint,prop.uid,building,scenery,error);
+    if(prop.class_addresspoint!=image+0x16df760){error="native UI target actual Building class differs";return false;}
     if(building.dungeon_membership||building.dungeon_instance_membership){cause="native UI target belongs to a separate dungeon world";return true;}
     const auto object=uintptr_t(prop.registry_object);uintptr_t definition=0,table=0,data=0;uint64_t length=0;uint32_t flags=0;
     if(!object||object>UINTPTR_MAX-0x398){error="native Building definition owner address overflows";return false;}
@@ -120,7 +120,7 @@ bool classify_normal_building(host::ProcessMemory& memory,uintptr_t image,const 
     if(!definition||definition>UINTPTR_MAX-0x170){error="native Building definition pointer unavailable or overflows";return false;}
     if(!memory.copy(definition,&table,sizeof table,error)||!memory.copy(definition+0x18,&data,sizeof data,error)||
        !memory.copy(definition+0x20,&length,sizeof length,error)||!memory.copy(definition+0x16c,&flags,sizeof flags,error))return false;
-    if(table!=image+0x172ae50){error="native Building definition class differs";return false;}
+    if(table!=image+0x17311f0){error="native Building definition class differs";return false;}
     if(!data||!length||length>256){error="native Building definition identifier span invalid";return false;}
     char name[256]{};if(!memory.copy(data,name,size_t(length),error))return false;
     if(std::string(name,size_t(length))!=building.type){error="native Building definition type differs from actual object";return false;}
@@ -324,7 +324,7 @@ bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,na
     if(readonly) {
         std::string hash;
         if(!native::read_resolver_receipt(heap.image,heap.main_thread,hash,error))return false;
-        if(hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){error="native refund resolver executable differs";return false;}
+        if(hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){error="native refund resolver executable differs";return false;}
         std::copy(hash.begin(),hash.end(),heap.executable.sha256.begin());
     } else {
         auto& free=native_free_runtime::Runtime::instance();
@@ -350,7 +350,7 @@ bool read_registered_building(uint64_t uid,host::opened::CurrentWorld& opened,na
     if(!classify_normal_building(memory,heap.image,prop,building,normal_building,normal_scenery,cause,error))return false;
     auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& why){if(base>UINTPTR_MAX-offset){why="Modular identity address overflow";return false;}return memory.copy(base+offset,&value,sizeof value,why);};
     if(!dungeon_scene.empty()){
-        if(modular||prop.class_addresspoint!=heap.image+0x16d93c0||
+        if(modular||prop.class_addresspoint!=heap.image+0x16df760||
            !dungeon_building_target(memory,heap.image,before.root,uintptr_t(actual),building,dungeon_scene,error))return false;
     }else if(modular){if(!modular_identity::read(at,heap.image,uintptr_t(actual),building,error))return false;}
     else if(!normal_building&&!normal_scenery){error=cause.empty()?"shared created target has no supported native family":cause;return false;}
@@ -372,7 +372,7 @@ bool attach_refunds(const host::opened::CurrentWorld& origin,json& rows,std::str
            row.at("x")!=before.prop.x||row.at("y")!=before.prop.y||row.at("z")!=before.prop.z){error="native refund complete World or registry metadata differs";return false;}
         uintptr_t image=0;uint32_t thread=0;std::string hash;
         if(!native::read_resolver_receipt(image,thread,hash,error))return false;
-        if(hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){error="native refund resolver executable differs";return false;}
+        if(hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){error="native refund resolver executable differs";return false;}
         host::ProcessMemory memory;native_refund::Receipt receipt;
         const bool okay=native_refund::read(memory,image,thread,object,uid,ap,receipt,error);
         auto& result=row["native_refund"];result={{"confirmed",false},{"attempted",receipt.attempted},{"returned",receipt.returned},
@@ -455,7 +455,7 @@ bool retire_undone_building(const std::string& snapshot,const std::string& key,u
     }
     host::opened::CurrentWorld opened;uintptr_t image=0;uint32_t thread=0;std::string hash;
     if(!current(opened,error)||!native::read_resolver_receipt(image,thread,hash,error)||
-       thread!=GetCurrentThreadId()||hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||
+       thread!=GetCurrentThreadId()||hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||
        found->second.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}) {
         if(error.empty())error="building undo current world differs";return false;
     }
@@ -498,7 +498,7 @@ bool history_target_absent(const std::string& snapshot,const std::string& key,ui
     }
     host::opened::CurrentWorld opened;uintptr_t image=0;uint32_t thread=0;std::string hash;
     if(!current(opened,error)||!native::read_resolver_receipt(image,thread,hash,error))return false;
-    if(thread!=GetCurrentThreadId()||hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||
+    if(thread!=GetCurrentThreadId()||hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||
        found->second.world!=prop_lease::World{opened.world_epoch,opened.generation,opened.world,opened.map}) {
         error="building history absence actual world/resolver differs";return false;
     }
@@ -700,7 +700,7 @@ bool resolve_clearing_scenery_key(const std::string& snapshot,uintptr_t object,u
         // The owned save/edit/graph boundary replaces only the mutation-idle receipt.
         std::string hash;
         if(!native::read_resolver_receipt(heap.image,heap.main_thread,hash,error))return false;
-        if(heap.main_thread!=GetCurrentThreadId()||hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+        if(heap.main_thread!=GetCurrentThreadId()||hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
             error="Clearing Scenery original resolver Mainthread/executable differs";return false;}
         std::copy(hash.begin(),hash.end(),heap.executable.sha256.begin());
     }else if(!native_free_runtime::Runtime::instance().read_actual_receipt(heap,error))return false;
@@ -714,7 +714,7 @@ bool resolve_clearing_scenery_key(const std::string& snapshot,uintptr_t object,u
        !read_metadata_prop(memory,reader,heap.image,before,reinterpret_cast<void*>(object),uid,prop,error)||
        !scenery_kiss::read_action_prop(uid,actual,error))return false;
     if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=reinterpret_cast<void*>(object)||
-       prop.class_addresspoint!=heap.image+0x16c1390||actual.prop.uid!=uid||actual.dungeon_membership||actual.dungeon_instance_membership||
+       prop.class_addresspoint!=heap.image+0x16c7730||actual.prop.uid!=uid||actual.dungeon_membership||actual.dungeon_instance_membership||
        (matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)||
        matched->metadata.at("type")!=actual.type||matched->metadata.at("variant")!=actual.variant||
        matched->metadata.at("x")!=actual.prop.x||matched->metadata.at("z")!=actual.prop.z||!std::isfinite(actual.prop.y)||
@@ -742,7 +742,7 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
     if(!reader.current(before,true,error)||!host::same_world(before.origin,opened)||
        !reader.prop(reinterpret_cast<void*>(object),uid,prop,error))return false;
     if(!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||prop.registry_object!=reinterpret_cast<void*>(object)||
-       (prop.class_addresspoint!=heap.image+0x16d93c0&&prop.class_addresspoint!=heap.image+0x16c1390)){error="current Building identity exact root/manager/RTTI/full UID proof differs";return false;}
+       (prop.class_addresspoint!=heap.image+0x16df760&&prop.class_addresspoint!=heap.image+0x16c7730)){error="current Building identity exact root/manager/RTTI/full UID proof differs";return false;}
     const Bound* matched=nullptr;
     for(const auto& [id,entry]:registry){(void)id;
         if(entry.generation!=registry_generation||entry.world!=expected||entry.uid!=uid||entry.revoked||entry.unknown)continue;
@@ -751,7 +751,7 @@ bool resolve_current_building_key(const std::string& snapshot,uintptr_t object,u
     if(!matched||matched->snapshot!=snapshot||matched->key.empty()||
        (matched->object&&matched->object!=object)||(matched->class_addresspoint&&matched->class_addresspoint!=prop.class_addresspoint)){
         error="current Building identity has no exact unrevoked canonical registry entry";return false;}
-    if(prop.class_addresspoint==heap.image+0x16c1390){scene_scenery::Row row;dungeon_scene_identity_runtime::World world;
+    if(prop.class_addresspoint==heap.image+0x16c7730){scene_scenery::Row row;dungeon_scene_identity_runtime::World world;
         if(matched->scene_owner.empty()||!scene_scenery::owner(object,uid,row,world,error)||row.scene!=matched->scene_owner||
            world.world_epoch!=opened.world_epoch||world.generation!=opened.generation||world.world!=opened.world||world.map!=opened.map)
             {if(error.empty())error="Current Scene Scenery identity lacks its exact confirmed reciprocal Scene";return false;}}

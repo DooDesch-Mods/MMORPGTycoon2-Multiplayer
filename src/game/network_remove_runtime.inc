@@ -52,15 +52,15 @@ uint32_t invoke_cost(uintptr_t entry,uintptr_t object,int32_t& value){
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool cost(region::Runtime& r,const network_identity::ObjectEntry& target,int32_t& out,std::string& e){
-    const uintptr_t ap=r.image+(target.kind==network_object_identity::Kind::Node?0x16fc700:0x16fca60);
-    uintptr_t getter=0;const uintptr_t expected=target.kind==network_object_identity::Kind::Node?0xd97cd0:0x4332d0;
+    const uintptr_t ap=r.image+(target.kind==network_object_identity::Kind::Node?0x1702aa0:0x1702e00);
+    uintptr_t getter=0;const uintptr_t expected=target.kind==network_object_identity::Kind::Node?0xda3500:0x4380b0;
     if(!region::at(r,ap,0x278,getter,e)||getter!=r.image+expected)return fail(e,e.empty()?"Network original Cost virtual target differs":e);
     struct Code{uintptr_t rva;size_t size;const char* sha;};
     const Code code[]{
-        {0xd97cd0,16,"6689dfaa5771dc1b559da15586956e6ea8cacd2689eeeb998c85ef48fdfeac86"},
-        {0x4332d0,112,"b53443e787b22d2d610189d2ffcb95fcee3705a49fb33c2f595c619ff78688cf"},
-        {0x433130,416,"2041f7cf6735d722438d02ad95c83a56a379cbbe75ae537b9c988059b95140b9"}};
-    for(const auto& pin:code){if((target.kind==network_object_identity::Kind::Node)!=(pin.rva==0xd97cd0))continue;
+        {0xda3500,16,"6689dfaa5771dc1b559da15586956e6ea8cacd2689eeeb998c85ef48fdfeac86"},
+        {0x4380b0,112,"4f6fc0604e5d772cb8d639108d4b6974d7de857662e71648c8cdf1f2ee710683"},
+        {0x437f10,416,"5f9466111e74ecfd5a0ed2466cee83d51a8c4e2b0a69821796bb138a0f51b377"}};
+    for(const auto& pin:code){if((target.kind==network_object_identity::Kind::Node)!=(pin.rva==0xda3500))continue;
         std::string bytes(pin.size,'\0'),hash;if(!r.memory.copy(r.image+pin.rva,bytes.data(),bytes.size(),e)||!region::sha256(bytes,hash,e))return false;
         if(hash!=pin.sha)return fail(e,"Network original Cost body differs RVA="+std::to_string(pin.rva));}
     const auto seh=invoke_cost(getter,target.pointer,out);
@@ -74,7 +74,7 @@ bool bound_target(const a::Binding& binding,const std::string& snapshot,uintptr_
     out={manager,entry.pointer,entry.uid,binding.native_epoch,binding.native_generation,snapshot,key,false,false,false,false,true};return true;
 }
 uint32_t destroy(uintptr_t image,uintptr_t manager,uintptr_t object){
-    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x2d5520)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(image+0x2d8c10)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool absent(region::Runtime& r,uintptr_t manager,uintptr_t pointer,uint64_t uid,std::string& e){

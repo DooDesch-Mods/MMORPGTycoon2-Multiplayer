@@ -34,10 +34,10 @@ struct DungeonBuildView {
         if(!request.dungeon_building)return true;
         if(!read_build_target(request,world,target,error))return false;
         host::ProcessMemory memory;uintptr_t ap=0;
-        if(!memory.copy(runtime.image+0x13df440,&local.manager,8,error)||!local.manager||
-           !memory.copy(local.manager,&ap,8,error)||ap!=runtime.image+0x1702b00||
-           !memory.copy(runtime.image+0x13df9d0,&local.cursor,8,error)||!local.cursor||
-           !memory.copy(local.cursor,&ap,8,error)||ap!=runtime.image+0x1786dd0){
+        if(!memory.copy(runtime.image+0x13eb440,&local.manager,8,error)||!local.manager||
+           !memory.copy(local.manager,&ap,8,error)||ap!=runtime.image+0x1708ea0||
+           !memory.copy(runtime.image+0x13eb9d0,&local.cursor,8,error)||!local.cursor||
+           !memory.copy(local.cursor,&ap,8,error)||ap!=runtime.image+0x178d170){
             if(error.empty())error="Dungeon Building original Shard/Cursor context owner differs";return false;
         }
         std::array<uint32_t,3> position{};const std::array<float,3> values{request.building.x,request.building.y,request.building.z};
@@ -55,8 +55,8 @@ struct DungeonBuildView {
         if(!active){finished=true;return true;}
         if(finished){error="Dungeon Building context restore was already attempted";return false;}
         finished=true;host::ProcessMemory memory;uintptr_t manager=0,cursor=0,selected=0;
-        if(!memory.copy(runtime.image+0x13df440,&manager,8,error)||manager!=local.manager||
-           !memory.copy(runtime.image+0x13df9d0,&cursor,8,error)||cursor!=local.cursor||
+        if(!memory.copy(runtime.image+0x13eb440,&manager,8,error)||manager!=local.manager||
+           !memory.copy(runtime.image+0x13eb9d0,&cursor,8,error)||cursor!=local.cursor||
            !memory.copy(local.manager+0x60,&selected,8,error)||selected!=uintptr_t(target)){
             if(error.empty())error="Dungeon Building context owner changed before restoration";return false;
         }

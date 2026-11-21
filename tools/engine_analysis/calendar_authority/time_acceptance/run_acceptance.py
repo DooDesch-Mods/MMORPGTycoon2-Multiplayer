@@ -15,11 +15,11 @@ ROOT=HERE.parents[3]
 sys.path.insert(0,str(ROOT/'tools'))
 from local_acceptance import AcceptanceRunner, AcceptanceError, read_json, write_json, utc
 
-EXE_SHA='bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6'
+EXE_SHA='7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb'
 TOOLS=('read_time_acceptance','native_time_key','read_time_input')
 KEYS=('SPACE','F1','F2','F3','F4')
 SCALES={'F1':0,'F2':1,'F3':3,'F4':9}
-ORIGINS={'SPACE':{0x4a2a77,0x4a2d93},'F1':{0x4a2abe},'F2':{0x4a2b05},'F3':{0x4a2b4c},'F4':{0x4a2b97}}
+ORIGINS={'SPACE':{0x4a7f67,0x4a8283},'F1':{0x4a7fae},'F2':{0x4a7ff5},'F3':{0x4a803c},'F4':{0x4a8087}}
 INTENTS={'SPACE':'TogglePauseNormal','F1':'Pause','F2':'Normal','F3':'Fast','F4':'Fastest'}
 
 def need(condition,cause):

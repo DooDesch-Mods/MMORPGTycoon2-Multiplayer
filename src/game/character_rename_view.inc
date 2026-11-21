@@ -21,21 +21,21 @@ uint32_t write_view_numeric(uintptr_t editor,const std::array<uint32_t,2>& value
 }
 uint32_t restore_view_selection(uintptr_t editor,const std::array<uint32_t,8>& value)noexcept{
     __try{std::memcpy(reinterpret_cast<void*>(editor+0x544),value.data(),sizeof value);
-        reinterpret_cast<void(*)(void*)>(state.image+0x7f0970)(reinterpret_cast<void*>(editor));
-        reinterpret_cast<void(*)(void*)>(state.image+0x7ee710)(reinterpret_cast<void*>(editor));return 0;}
+        reinterpret_cast<void(*)(void*)>(state.image+0x7f8eb0)(reinterpret_cast<void*>(editor));
+        reinterpret_cast<void(*)(void*)>(state.image+0x7f6a60)(reinterpret_cast<void*>(editor));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t drop_view_focus(uintptr_t editor)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0x771f50)(reinterpret_cast<void*>(editor));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0x779a70)(reinterpret_cast<void*>(editor));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t set_view_text(uintptr_t editor,const char* text,size_t length)noexcept{
     __try{const quest_list::QuestTitleView value{text,length};
-        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f1630)(reinterpret_cast<void*>(editor),value);return 0;}
+        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f9b70)(reinterpret_cast<void*>(editor),value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t set_view_disabled(uintptr_t button,bool disabled)noexcept{
-    __try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x670e00)(reinterpret_cast<void*>(button),disabled);return 0;}
+    __try{reinterpret_cast<void(*)(void*,bool)>(state.image+0x677fd0)(reinterpret_cast<void*>(button),disabled);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t dirty_view_title(uintptr_t view)noexcept{
@@ -53,7 +53,7 @@ bool view_owner(Memory& memory,uintptr_t pane,uintptr_t view,uintptr_t outer,std
 }
 bool editor_page(Memory& memory,uintptr_t view,OrderedView& out,std::string& error){
     uintptr_t ap=0,data=0,parent=0,owner=0;int32_t count=0,capacity=0;std::string name;
-    if(!field(memory,view,0x358,out.pages,error)||!out.pages||!field(memory,out.pages,0,ap,error)||ap!=state.image+0x16dfe90||
+    if(!field(memory,view,0x358,out.pages,error)||!out.pages||!field(memory,out.pages,0,ap,error)||ap!=state.image+0x16e6230||
        !npc_quest_records::read_string(memory,out.pages,0x1b0,"Character name MultiView",name,error)||name!="general_name_multiview"||
        !field(memory,out.pages,0x388,data,error)||!field(memory,out.pages,0x390,count,error)||!field(memory,out.pages,0x394,capacity,error)||
        count<1||count>32||capacity<count||capacity>256||!data)return fail(error,error.empty()?"Character cached name MultiView catalogue differs":error);
@@ -79,7 +79,7 @@ bool read_ordered_view(Memory& memory,uintptr_t view,OrderedView& out,std::strin
     if(!window(memory,0,actual,out.editor,out.outer,error)||actual!=view||!ability_edit::presentation_route(error)||
        !field(memory,view,0x460,out.selected,error)||!field(memory,view,0x370,out.button,error))
         return fail(error,error.empty()?"Character Rename named current Window/View differs":error);
-    if(!field(memory,out.editor,0,ap,error)||ap!=state.image+0x1703290)
+    if(!field(memory,out.editor,0,ap,error)||ap!=state.image+0x1709630)
         return fail(error,error.empty()?"Character Rename cached TextEditPane address point differs RVA="+std::to_string(ap-state.image):error);
     if(!npc_quest_records::read_string(memory,out.editor,0x3e0,"Character rename committed editor command",command,error)||command!="MessageTo Parent DoRename")
         return fail(error,error.empty()?"Character Rename cached editor command differs: "+command:error);
@@ -93,7 +93,7 @@ bool read_ordered_view(Memory& memory,uintptr_t view,OrderedView& out,std::strin
        !field(memory,out.editor,0x445,out.selectable,error)||out.selectable>1||!field(memory,out.outer,0x3c0,out.focus,error)||
        bool(out.editing)!=(out.focus==out.editor)||!field(memory,out.editor,0x4d0,out.numeric_cache,error)||
        !field(memory,out.editor,0x544,out.selection,error))return fail(error,error.empty()?"Character Rename editor binding/cache/focus state differs":error);
-    if(out.button&&(!field(memory,out.button,0,ap,error)||ap!=state.image+0x16e3ec0||
+    if(out.button&&(!field(memory,out.button,0,ap,error)||ap!=state.image+0x16ea260||
        !view_owner(memory,out.button,view,out.outer,error)||!field(memory,out.button,0x578,bound,error)||bound||
        !field(memory,out.button,0x584,held,error)||held||!field(memory,out.button,0x585,pressed,error)||pressed||
        !field(memory,out.button,0x46d,out.disabled,error)||out.disabled>1||!field(memory,out.button,0x174,out.clickable,error)||out.clickable!=1))

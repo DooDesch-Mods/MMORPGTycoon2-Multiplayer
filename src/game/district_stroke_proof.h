@@ -31,7 +31,7 @@ bool graph(const district_stroke_graph::Graph& value,const std::string& operatio
         if(node.stored.uid&&(node.stored.root!=root||!regions.contains(node.stored.region)))return fail("District inverse stored root/Region is not current");
         if(!node.uid||keys.contains(node.uid))continue;
         uintptr_t current=0;if(!find(node.uid,current,error))return false;
-        if(current||!kinds.at(node.uid).contains(0x16de860)||!kinds.at(node.uid).contains(0x17132f0))
+        if(current||!kinds.at(node.uid).contains(0x16e4c00)||!kinds.at(node.uid).contains(0x1719690))
             return fail("District inverse unbound full UID lacks an original transient Make/Destroy pair and actual absence");
         keys.emplace(node.uid,"district-transient:"+operation+":"+std::to_string(ordinal++));
     }

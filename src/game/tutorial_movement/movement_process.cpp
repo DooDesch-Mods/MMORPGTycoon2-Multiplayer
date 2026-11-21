@@ -34,7 +34,7 @@ bool array(uintptr_t p,uintptr_t ap,size_t stride,Array& a,std::string& e){
     if(!at(p,0,a,e))return false;
     return a.ap==image+ap&&a.count>=0&&a.count<=4096&&a.capacity>=a.count&&a.capacity<=4096&&(!a.count||(a.data&&size_t(a.count)<=(UINTPTR_MAX-a.data)/stride))||reject(e,"tutorial movement native array contract differs");
 }
-DWORD modal_call(bool* modal){__try{*modal=reinterpret_cast<bool(*)()>(image+0x81a350)();return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD modal_call(bool* modal){__try{*modal=reinterpret_cast<bool(*)()>(image+0x822940)();return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool idle_world(const native::WorldStatus& status,std::string& e){
     if(status.active_mode_index!=3)return reject(e,"tutorial movement requires InGame mode3; actual="+std::to_string(status.active_mode_index));
     if(status.in_game_state!=4)return reject(e,"tutorial movement requires idle world state4; actual="+std::to_string(status.in_game_state));
@@ -93,18 +93,18 @@ bool observe_native(Snapshot& out,std::string& e,bool threshold,int32_t camera_i
     const bool text_input=SDL_TextInputActive(window);
     const auto event_key=SDL_GetKeyFromScancode(SDL_SCANCODE_W,modifiers,true);
     if(MapVirtualKeyW('W',MAPVK_VK_TO_VSC_EX)!=0x11)return reject(e,"tutorial movement current keyboard mapping does not resolve virtual W to native W");
-    uintptr_t input=0,ap=0;if(!at(image,0x13df990,input,e)||!at(input,0,ap,e))return false;
-    if(ap!=image+0x1749430)return reject(e,"tutorial movement Input AP differs");
+    uintptr_t input=0,ap=0;if(!at(image,0x13eb990,input,e)||!at(input,0,ap,e))return false;
+    if(ap!=image+0x174f7d0)return reject(e,"tutorial movement Input AP differs");
     uint8_t string_mode=0,clearing=0,paused=0,enabled=0;
     if(!at(input,0xa6,string_mode,e)||!at(input,0xa8,clearing,e)||!at(input,0xa9,paused,e)||!at(input,0xc0,enabled,e))return false;
     if(enabled>1)return reject(e,"tutorial movement native keyboard admission byte invalid");out.input_enabled=enabled!=0;
     if(!keyboard_admission(modifiers,event_key,text_input,string_mode!=0,clearing!=0,out.keyboard_focus,out.input_enabled,e)){
         e+=" native_string_paused="+std::to_string(paused);return false;
     }
-    Array axes;if(!array(input+0x48,0x17461c0,0x70,axes,e))return false;uint32_t matches=0,controls_read=0;
+    Array axes;if(!array(input+0x48,0x174c560,0x70,axes,e))return false;uint32_t matches=0,controls_read=0;
     if(axes.count<6)return reject(e,"tutorial movement native movement axes absent");
     for(int32_t i=0;i<axes.count;++i){
-        const auto axis=axes.data+size_t(i)*0x70;Array controls;if(!array(axis+0x40,0x1746310,0x14,controls,e))return false;
+        const auto axis=axes.data+size_t(i)*0x70;Array controls;if(!array(axis+0x40,0x174c6b0,0x14,controls,e))return false;
         float value=0;uint8_t subtract=0;if(!at(axis,0x5c,value,e)||!at(axis,0x63,subtract,e))return false;
         if(!std::isfinite(value))return reject(e,"tutorial movement native axis nonfinite");
         if(i>=2&&i<=5){if(subtract)return reject(e,"tutorial movement direction is a derived axis");if(i==2)out.axis=value;else if(value!=0)return reject(e,"tutorial movement other direction is held");}

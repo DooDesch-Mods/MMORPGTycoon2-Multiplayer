@@ -25,16 +25,16 @@ int main()try{size_t checks=0;std::string error;std::vector<uint8_t> bytes;Messa
     auto fail_convert=[](bool,uintptr_t,int32_t,float&,std::string& e){e="conversion failed";return false;};check(!dungeon_light_input::calculate(input,widgets,fail_convert,direction,expected,error)&&error=="conversion failed","Numeric conversion failure suppressed");
     constexpr uintptr_t image=0x140000000;std::array<unsigned char,0x550> window{};std::array<std::array<unsigned char,0x4d8>,11> objects{};
     const auto put=[](auto& target,size_t offset,auto value){std::memcpy(target.data()+offset,&value,sizeof value);};
-    for(size_t i=0;i<4;++i){put(window,dungeon_light_input::spinner_offsets[i],uintptr_t(objects[i].data()));put(objects[i],0,image+0x16c1720);put(objects[i],0x44c,input.spinners[i]);
-        put(window,dungeon_light_input::color_offsets[i],uintptr_t(objects[7+i].data()));put(objects[7+i],0,image+0x17224a0);put(objects[7+i],0x2c8,input.colors[i]);}
-    for(size_t i=0;i<3;++i){put(window,dungeon_light_input::slider_offsets[i],uintptr_t(objects[4+i].data()));put(objects[4+i],0,image+0x1787a30);put(objects[4+i],0x4d0,input.sliders[i]);}
+    for(size_t i=0;i<4;++i){put(window,dungeon_light_input::spinner_offsets[i],uintptr_t(objects[i].data()));put(objects[i],0,image+0x16c7ac0);put(objects[i],0x44c,input.spinners[i]);
+        put(window,dungeon_light_input::color_offsets[i],uintptr_t(objects[7+i].data()));put(objects[7+i],0,image+0x1728840);put(objects[7+i],0x2c8,input.colors[i]);}
+    for(size_t i=0;i<3;++i){put(window,dungeon_light_input::slider_offsets[i],uintptr_t(objects[4+i].data()));put(objects[4+i],0,image+0x178ddd0);put(objects[4+i],0x4d0,input.sliders[i]);}
     auto read=[](uintptr_t base,size_t offset,auto& value,std::string&){std::memcpy(&value,reinterpret_cast<const void*>(base+offset),sizeof value);return true;};DungeonLightInput actual;dungeon_light_input::Widgets actual_widgets;
     check(dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error)&&actual==input,"Native input widget/raw record layout differs");
     for(auto field:{size_t(0x428),size_t(0x430)}){put(objects[0],field,uintptr_t(1));check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error),"Spinner gameplay binding accepted");put(objects[0],field,uintptr_t(0));}
     for(auto field:{size_t(0x420),size_t(0x428)}){put(objects[4],field,uintptr_t(1));check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error),"Slider gameplay binding accepted");put(objects[4],field,uintptr_t(0));}
     put(objects[7],0x370,uintptr_t(1));check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error),"Color gameplay binding accepted");put(objects[7],0x370,uintptr_t(0));
     put(window,dungeon_light_input::spinner_offsets[1],uintptr_t(objects[0].data()));check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error)&&error.find("uniqueness")!=std::string::npos,"Aliased native widgets accepted");put(window,dungeon_light_input::spinner_offsets[1],uintptr_t(objects[1].data()));
-    put(objects[0],0,image+0x1787a30);check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error)&&error.find("address point")!=std::string::npos,"Wrong native widget class accepted");put(objects[0],0,image+0x16c1720);
+    put(objects[0],0,image+0x178ddd0);check(!dungeon_light_input::read(read,image,uintptr_t(window.data()),actual,actual_widgets,error)&&error.find("address point")!=std::string::npos,"Wrong native widget class accepted");put(objects[0],0,image+0x16c7ac0);
     auto failed_read=[](uintptr_t,size_t,auto&,std::string& e){e="original read cause";return false;};check(!dungeon_light_input::read(failed_read,image,uintptr_t(window.data()),actual,actual_widgets,error)&&error=="original read cause","Original widget read failure lost its cause");
     std::cout<<checks<<" Dungeon light full-record/primitive-map/input-binding/protocol checks passed\n";return 0;
 }catch(const std::exception& exception){std::cerr<<exception.what()<<'\n';return 1;}

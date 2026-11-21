@@ -57,8 +57,8 @@ bool owned_value(Memory& memory,uintptr_t object,duplicate_building_values::Owne
     const auto capture=[&](uintptr_t receiver,uintptr_t prepare,uintptr_t save,subscriber_lifecycle::Graph& graph,std::string& cause){
         dungeon_cells::ValueMemory view(memory);dungeon_cells::ValueCapture captured{view};subscriber_lifecycle::CaptureReceipt receipt;
         const subscriber_lifecycle::CaptureApi api{
-            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
+            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
             reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+prepare),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+save)};
         live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
         if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(receiver),dungeon_cells::inspect_value,&captured,receipt,cause))return false;
@@ -117,7 +117,7 @@ bool buildings(Memory& memory,Local& local,std::map<std::string,json>& values,st
             local.buildings.push_back(std::move(row));}
         uintptr_t manager=0,ap=0,shard=0,region=0;
         if(!at(owner.region,0x950,manager,error)||!at(manager,0,ap,error)||!at(manager,0x450,shard,error)||!at(manager,0x458,region,error))return false;
-        if(ap!=state.image+0x17183c0||shard!=owner.shard||region!=owner.region)return fail(error,"Dungeon Building contained manager reciprocal scene differs");
+        if(ap!=state.image+0x171e760||shard!=owner.shard||region!=owner.region)return fail(error,"Dungeon Building contained manager reciprocal scene differs");
         dungeon_scene_roster::Array members;if(!dungeon_scene_roster::array(at,manager+0x408,members,error))return false;
         for(const auto object:members.members){BuildingOwner row;row.scene=owner.key;row.object=object;row.manager=manager;row.shard=shard;row.region=region;
             uintptr_t actual=0,object_shard=0,object_region=0;
@@ -168,7 +168,7 @@ bool services(Memory& memory,Local& local,std::map<std::string,std::string>& has
         if(binding.at("unknown").get<bool>()||binding.at("snapshot_id")!=local.snapshot)return fail(error,"Dungeon Building complete Service registry unknown or foreign");
         const auto uid=binding.at("local_uid").get<uint64_t>();if(seen.contains(uid))continue;
         uintptr_t object=0,ap=0;if(!registered(uid,object,error)||!field(memory,object,0,ap,error))return false;
-        if(ap!=state.image+0x16d93c0)continue;
+        if(ap!=state.image+0x16df760)continue;
         BuildingOwner row;row.uid=uid;row.object=object;row.key=binding.at("record_key").get<std::string>();
         seen.insert(uid);owners.push_back(std::move(row));
     }
@@ -205,8 +205,8 @@ bool children(Memory& memory,Local& local,std::map<std::string,json>& values,std
     for(const auto& [pointer,owner]:local.quests.owners){external.emplace(pointer,owner.key);
         for(size_t i=0;i<owner.state.local.size();++i)external.emplace(owner.state.local[i].quest,owner.key+"/quest/"+std::to_string(i));}
     const dungeon_input_codes::Pin npc_functions[]{
-        {0x10ecae0,87,"52f1b850ad131c46f7d249b5b6365e5c289a571e83c0a6d4996c36647dd36bc2"},
-        {0x10ecb40,409,"4a5445004eb0a955a6b8fb7a84c77341f2001af6fa5fa20489039ebe472c621e"}};
+        {0x10f8480,87,"f607fc29ae5236794cdaa10e67816bd0698741b2f104760f403c6a7d0a607406"},
+        {0x10f84e0,409,"e12ed44c45f4df9ba1070943b3dc1150d3f396c3888bb4620034238fccdfdf77"}};
     for(const auto& pin:npc_functions){std::vector<unsigned char> bytes(pin.bytes);
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
@@ -245,9 +245,9 @@ bool children(Memory& memory,Local& local,std::map<std::string,json>& values,std
             const auto data=json::array({row.type,row.character_type,row.character_slot,row.level,row.name});
             dungeon_cells::ValueMemory capture_memory(memory);dungeon_cells::ValueCapture captured{capture_memory};subscriber_lifecycle::CaptureReceipt cleanup;
             const subscriber_lifecycle::CaptureApi api{
-                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
-                reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x10ecae0),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x10ecb40)};
+                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+                reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
+                reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x10f8480),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x10f84e0)};
             {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
                 if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(row.local_pointer),dungeon_cells::inspect_value,&captured,cleanup,error))return false;}
             const auto canonical=[&](uintptr_t p,std::string& key,std::string& cause){
@@ -274,7 +274,7 @@ bool children(Memory& memory,Local& local,std::map<std::string,json>& values,std
 }
 bool once(Memory& memory,const a::Binding& binding,const std::string& snapshot,Snapshot& output,std::string& error,const Snapshot* previous){
     output={};auto next=std::make_shared<Local>();next->binding=binding;next->snapshot=snapshot;
-    if(!current(memory,binding,snapshot,next->world,error)||!field(memory,state.image,0x164b250,next->random,error)||
+    if(!current(memory,binding,snapshot,next->world,error)||!field(memory,state.image,0x1650830,next->random,error)||
        !field(memory,next->random,0,output.value.random,error)||!dungeon_scene_identity_runtime::read_current(next->cells.scenes,error)||
        !dungeon_cells::monster_members(memory,next->cells.scenes,next->cells.monsters,false,error)||
        !dungeon_cells::authored(memory,binding,snapshot,next->cells,error,&next->authored))return false;
@@ -319,7 +319,7 @@ bool once(Memory& memory,const a::Binding& binding,const std::string& snapshot,S
     if(!dungeon_building_sample::compose(rows,configs,output.value.authored,error)||!a::valid_dungeon_building_state(output.value))
         return fail(error,error.empty()?"Dungeon Building complete original authored state invalid":error);
     host::WorldState after;std::array<uint64_t,4> random{};uintptr_t source=0;
-    if(!current(memory,binding,snapshot,after,error)||!field(memory,state.image,0x164b250,source,error)||!field(memory,source,0,random,error))return false;
+    if(!current(memory,binding,snapshot,after,error)||!field(memory,state.image,0x1650830,source,error)||!field(memory,source,0,random,error))return false;
     if(!action_runtime::same_world(next->world,after)||source!=next->random||random!=output.value.random)
         return fail(error,"Dungeon Building current World/RNG changed during complete sample");
     output.local=std::move(next);return true;
@@ -343,13 +343,13 @@ struct SeedPort {
     bool before(std::string& error){const auto controller=typed_action_runtime::controller_status();
         if(!controller.value("started",false)||controller.value("locked",true)||!controller.value("pending",false))
             return fail(error,"Dungeon Building Host RNG adoption requires exact pending ordered Controller");
-        return current(memory,binding,snapshot,world,error)&&field(memory,state.image,0x164b250,source,error)&&
+        return current(memory,binding,snapshot,world,error)&&field(memory,state.image,0x1650830,source,error)&&
             (source!=0||fail(error,"Dungeon Building global RNG receiver absent"));
     }
     bool write(const std::array<uint64_t,4>& desired,std::string& error){const auto exception=action_runtime::seed(state.image,desired);
         return !exception||fail(error,"Dungeon Building Host RNG adoption SEH="+std::to_string(exception));}
     bool after(const std::array<uint64_t,4>& desired,std::string& error){host::WorldState now;uintptr_t pointer=0;std::array<uint64_t,4> actual{};
-        if(!current(memory,binding,snapshot,now,error)||!field(memory,state.image,0x164b250,pointer,error)||!field(memory,pointer,0,actual,error))return false;
+        if(!current(memory,binding,snapshot,now,error)||!field(memory,state.image,0x1650830,pointer,error)||!field(memory,pointer,0,actual,error))return false;
         return (action_runtime::same_world(world,now)&&source==pointer&&actual==desired)||fail(error,"Dungeon Building original RNG full words/owner readback differs");}
 };
 }
@@ -383,8 +383,8 @@ bool building_inverse(const Snapshot& snapshot,uintptr_t node,const std::string&
         if(stored){dungeon_cells::ValueMemory saved(memory);return duplicate_building_values::stored(saved,p,{100000,1000000,32*1024*1024,100000},sha,cause);}
         uintptr_t ap=0;if(!field(memory,p,0,ap,cause))return false;
         using Kind=duplicate_building_values::OwnedKind;
-        if(ap==state.image+0x1712a60)return owned_value(memory,p,Kind::Layout,sha,cause);
-        if(ap==state.image+0x16fea40)return owned_value(memory,p,Kind::Plan,sha,cause);
+        if(ap==state.image+0x1718e00)return owned_value(memory,p,Kind::Layout,sha,cause);
+        if(ap==state.image+0x1704de0)return owned_value(memory,p,Kind::Plan,sha,cause);
         return fail(cause,"Dungeon Building original Make owned value is not Layout or Plan");};
     const auto registered=[&](uint64_t uid,uintptr_t& object,std::string& cause){return find(memory,uid,object,cause);};
     return duplicate_building_history::inverse(view,state.image,node,found->saved,read_text,localized,record,registered,error);
@@ -398,21 +398,21 @@ bool related_inverse(const Snapshot& snapshot,uintptr_t node,uintptr_t addresspo
     if(!field(memory,node,0,ap,error)||!field(memory,node,0xb8,uid,error)||!field(memory,ap,0x10,method,error))return false;
     if(ap!=addresspoint)return fail(error,"Dungeon Building related inverse actual class differs");
     const auto registered=[&](uint64_t value,uintptr_t& object,std::string& cause){return find(memory,value,object,cause);};
-    if(ap==state.image+0x1737830){ValueMemory view{memory};const duplicate_service_history::Saved* saved=nullptr;
+    if(ap==state.image+0x173dbd0){ValueMemory view{memory};const duplicate_service_history::Saved* saved=nullptr;
         for(const auto& [owner,rows]:local.services){(void)owner;for(const auto& row:rows)if(row.uid==uid){
             if(saved)return fail(error,"Dungeon Building related Service inverse full UID repeats");saved=&row;}}
         return saved?duplicate_service_history::inverse(view,state.image,node,*saved,registered,error):
             fail(error,"Dungeon Building related Service inverse has no exact current captured owner");}
-    if(ap==state.image+0x1713330){const qr::Owner* saved=nullptr;
+    if(ap==state.image+0x17196d0){const qr::Owner* saved=nullptr;
         for(const auto& [pointer,owner]:local.quests.owners){(void)pointer;if(owner.uid==uid){
             if(saved)return fail(error,"Dungeon Building Quest inverse full owner UID repeats");saved=&owner;}}
-        if(method!=state.image+0x563f50)return fail(error,"Dungeon Building Quest inverse original method differs");
+        if(method!=state.image+0x56a5e0)return fail(error,"Dungeon Building Quest inverse original method differs");
         return saved?qr::inverse(memory,state.image,node,*saved,error):fail(error,"Dungeon Building Quest inverse owner absent from complete current witness");}
-    if(ap==state.image+0x16de8a0){const building_npc_lifecycle::Receipt* saved=nullptr;
+    if(ap==state.image+0x16e4c40){const building_npc_lifecycle::Receipt* saved=nullptr;
         for(const auto& [key,child]:local.children){(void)key;if(child.present&&child.child.row.local_uid==uid){
             if(saved)return fail(error,"Dungeon Building child inverse full UID repeats");saved=&child;}}
         if(!saved)return fail(error,"Dungeon Building child inverse has no complete captured original owner");
-        if(method!=state.image+0x556ff0)return fail(error,"Dungeon Building child inverse original method differs");
+        if(method!=state.image+0x55d640)return fail(error,"Dungeon Building child inverse original method differs");
         auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& cause){return field(memory,p,offset,value,cause);};
         const auto read_text=[&](uintptr_t p,size_t offset,std::string& value,std::string& cause){return npc_quest_records::read_string(memory,p,offset,"Dungeon child MakeNPC name",value,cause);};
         building_npc_lifecycle::MakeNPCInverse receipt;

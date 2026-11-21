@@ -45,12 +45,12 @@ inline bool held(const sample::Snapshot& captured,const std::string& key,uintptr
     if(!owner(captured,key,target,error))return false;
     if(target.scene!="world"||target.saved.type!="DungeonExterior"||!target.saved.dungeon)return true;
     GraphMemory memory;host::LookupApi lookup;uintptr_t image=0;q::Bounds nodes;
-    if(!environment(memory,image,lookup,error)||!q::typed(memory,image,graph+0x18,0x16e2dc0,error)||
+    if(!environment(memory,image,lookup,error)||!q::typed(memory,image,graph+0x18,0x16e9160,error)||
        !q::bounds(memory,graph+0x18,100000,nodes,error))return false;
     for(int32_t i=0;i<nodes.count;++i){
         uintptr_t operation=0,ap=0;uint64_t uid=0;
         if(!q::at(memory,nodes.data,size_t(i)*8,operation,error)||!q::at(memory,operation,0,ap,error))return false;
-        if(ap!=image+0x173c5b0)continue;
+        if(ap!=image+0x1742950)continue;
         if(!q::at(memory,operation,0xb8,uid,error))return false;
         if(uid!=target.uid)continue;
         if(node||!sample::building_inverse(captured,operation,key,error))
@@ -62,7 +62,7 @@ inline bool held(const sample::Snapshot& captured,const std::string& key,uintptr
 }
 inline bool operations(uintptr_t graph,std::vector<uintptr_t>& out,std::string& error){
     out.clear();GraphMemory memory;host::LookupApi lookup;uintptr_t image=0;q::Bounds nodes;
-    if(!environment(memory,image,lookup,error)||!q::typed(memory,image,graph+0x18,0x16e2dc0,error)||
+    if(!environment(memory,image,lookup,error)||!q::typed(memory,image,graph+0x18,0x16e9160,error)||
        !q::bounds(memory,graph+0x18,100000,nodes,error))return false;
     std::vector<uintptr_t> first,second;
     const auto read=[&](auto& values){
@@ -94,10 +94,10 @@ inline bool read_once(const sample::Snapshot& captured,const std::string& key,ui
     if(moving){
         q::Bounds nodes;uintptr_t operation=0,ap=0,method=0;uint64_t uid=0;
         action_session::BuildingState stored=destination;
-        if(!q::typed(memory,image,graph+0x18,0x16e2dc0,error)||
+        if(!q::typed(memory,image,graph+0x18,0x16e9160,error)||
            !q::bounds(memory,graph+0x18,100000,nodes,error)||nodes.count!=1||
            !q::at(memory,nodes.data,0,operation,error)||!q::at(memory,operation,0,ap,error)||
-           ap!=image+0x1786ff0||!q::at(memory,ap,0x10,method,error)||method!=image+0x55ed80||
+           ap!=image+0x178d390||!q::at(memory,ap,0x10,method,error)||method!=image+0x565410||
            !q::at(memory,operation,0xb8,uid,error)||uid!=target.uid||
            !q::at(memory,operation,0xc0,stored.rotation,error)||!q::at(memory,operation,0xd0,stored.x,error)||
            !q::at(memory,operation,0xd4,stored.y,error)||!q::at(memory,operation,0xd8,stored.z,error)||

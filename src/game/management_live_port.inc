@@ -30,13 +30,13 @@ bool primary_once(Runtime& r,const a::Context& context,const a::Binding& binding
     {std::optional<live::apply_timing::Scope> measured_roots;if(live::apply_timing::take_depth)measured_roots.emplace(live::apply_timing::Part::ClientManagementPrimaryRoots);
     local={};out={};if(!thought_native::fault.empty())return fail(e,thought_native::fault);a::Context actual;if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=context)return fail(e,e.empty()?"Management live Session/Mainthread differs":e);
     live::NativePort port(context,binding,nullptr);if(!port.read(local.pin,e)||local.pin.image!=r.image)return false;
-    if(!at(r,r.image,0x13df500,local.software,e)||!ap(r,local.software,0x1715450,e)||!at(r,r.image,0x13df4f0,local.release,e)||!ap(r,local.release,0x1714ed0,e)||
+    if(!at(r,r.image,0x13eb500,local.software,e)||!ap(r,local.software,0x171b7f0,e)||!at(r,r.image,0x13eb4f0,local.release,e)||!ap(r,local.release,0x171b270,e)||
        !at(r,local.pin.business,0x50,out.game_masters,e)||!at(r,local.release,0xb8,out.release_funds,e)||
        !at(r,local.software,0x37c,out.free_points,e)||!at(r,local.software,0x378,out.purchased_points,e)||
        !at(r,local.software,0x31c,out.statistics,e)||!at(r,local.software,0x350,out.spent,e)||!at(r,local.software,0x344,out.purchased,e)||
        !at(r,local.software,0x88,out.software_version,e)||!at(r,local.release,0x38,local.current_release,e))return false;
     out.release_present=local.current_release!=0;
-    if(out.release_present&&(!ap(r,local.current_release,0x16c12b0,e)||!at(r,local.current_release,0x50,out.planned_version,e)||!at(r,local.current_release,0x60,out.release_type,e)))return false;
+    if(out.release_present&&(!ap(r,local.current_release,0x16c7650,e)||!at(r,local.current_release,0x50,out.planned_version,e)||!at(r,local.current_release,0x60,out.release_type,e)))return false;
     if(!read_slots(r,local.software,out.character_slots,e)||!read_employment(r,local,out.lounge_employed,out.gm_employment,e))return false;
     }
     if(!planning){
@@ -93,15 +93,15 @@ uint32_t scalar_cas(uintptr_t address,bool byte,int32_t expected,int32_t desired
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t slots_once(uintptr_t image,uintptr_t collection,int32_t type,int32_t desired)noexcept{
-    __try{reinterpret_cast<void(*)(void*,int32_t,int32_t)>(image+0x9af00)(reinterpret_cast<void*>(collection),type,desired);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{reinterpret_cast<void(*)(void*,int32_t,int32_t)>(image+0x9bbf0)(reinterpret_cast<void*>(collection),type,desired);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool LivePort::bind(const a::Context& context,const a::Binding& binding,uint64_t epoch,std::string& e){
     auto* r=published.load(std::memory_order_acquire);Local local;management::LiveState state;
     if(!r||!r->ready||!epoch||locked_)return fail(e,"Management live bind requires current native owner");
     uint64_t thought_removals=0;if(!thought_native::reconcile(*r,context,binding,thought_removals,e)||!primary_read(*r,context,binding,local,state,e))return false;
-    std::vector<unsigned char> code(224);if(!r->memory.copy(r->image+0x9af00,code.data(),code.size(),e)||mt2mp::sha256(code)!="7ba261b1a85d1de5ab024d27a87eef5533238a344ac196c94d9ede3a0f937dcc")return fail(e,e.empty()?"Management original SetMaxSlotCount body differs":e);
-    code.resize(32);if(!r->memory.copy(r->image+0x3abb30,code.data(),code.size(),e)||mt2mp::sha256(code)!="689331e018209973cd1f61946fbff9b7da29fc36c8407be2c5122ad3b6fc01d0")return fail(e,e.empty()?"Management original employment scalar body differs":e);
+    std::vector<unsigned char> code(224);if(!r->memory.copy(r->image+0x9bbf0,code.data(),code.size(),e)||mt2mp::sha256(code)!="54abdf58b03659fe43db5cacc38df94aaab655c0c8f7305e246198e3f23af918")return fail(e,e.empty()?"Management original SetMaxSlotCount body differs":e);
+    code.resize(32);if(!r->memory.copy(r->image+0x3b0630,code.data(),code.size(),e)||mt2mp::sha256(code)!="689331e018209973cd1f61946fbff9b7da29fc36c8407be2c5122ad3b6fc01d0")return fail(e,e.empty()?"Management original employment scalar body differs":e);
     if(bound_&&(context.session!=context_.session||context.role!=context_.role||context.local_peer!=context_.local_peer||context.peer_mask!=context_.peer_mask))return fail(e,"Management live immutable Session changed");
     building_mixed_identity::opened_file::CurrentWorld world;if(!gm_world(*r,context,binding,world,e)||!gm_route_code(*r,e)||!gm_helper_code(*r,e)||!policy_route_code(*r,e)||!rules_routes(*r,e))return false;
     if(!interventions::actors::live::bind(context,binding,epoch,e)||!control_input::runtime::bind(context,binding,epoch,e))return false;
@@ -147,7 +147,7 @@ bool LivePort::apply(const a::Context& context,const a::Binding& binding,const l
             if(seh)return failed("Management original SetMaxSlotCount SEH="+std::to_string(seh)+"; no replay");++receipt.stores;
         }else{
             if(change.slot>=45){uintptr_t data=0,current=0;uint64_t uid=0;int32_t count=0,slot=-1;const auto index=(change.slot-45)/2;
-                if(!at(*r,local.lounge,0x40,data,e)||!at(*r,local.lounge,0x48,count,e)||count!=int32_t(local.gm_rows.size())||!at(*r,data,index*sizeof(uintptr_t),current,e)||current!=local.gm_rows[index]||!ap(*r,current,0x16e5070,e)||!at(*r,current,0x18,uid,e)||uid!=local.gm_uids[index]||!at(*r,current,0x4ac,slot,e)||slot!=int32_t(index))return failed(e.empty()?"Management GameMaster current full-UID/fixed-slot membership changed":e);
+                if(!at(*r,local.lounge,0x40,data,e)||!at(*r,local.lounge,0x48,count,e)||count!=int32_t(local.gm_rows.size())||!at(*r,data,index*sizeof(uintptr_t),current,e)||current!=local.gm_rows[index]||!ap(*r,current,0x16eb410,e)||!at(*r,current,0x18,uid,e)||uid!=local.gm_uids[index]||!at(*r,current,0x4ac,slot,e)||slot!=int32_t(index))return failed(e.empty()?"Management GameMaster current full-UID/fixed-slot membership changed":e);
                 uintptr_t registered=0;const auto seh=uid_lookup(r->image,uid,registered);if(seh||registered!=current)return failed("Management GameMaster current FindUID differs SEH="+std::to_string(seh));
             }
             const auto address=scalar_address(local,change.slot);if(!address)return failed("Management scalar target has no current native owner");

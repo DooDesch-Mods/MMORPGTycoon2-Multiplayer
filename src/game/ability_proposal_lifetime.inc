@@ -16,7 +16,7 @@ bool proposal_owner(Memory& memory,uintptr_t live,std::string& error){
 bool proposal_release(uintptr_t outer,std::string& error){
     if(!ready||GetCurrentThreadId()!=state.thread)return fail(error,"Ability old proposal requires its ready bound Mainthread");
     Memory memory;uintptr_t ap=0,draft=0,live=0,proxy=0,target=0,reciprocal=0;int32_t refs=0;uint64_t uid=0;
-    if(!field(memory,outer,0,ap,error)||ap!=state.image+0x1720f30||!field(memory,outer,0x510,draft,error))
+    if(!field(memory,outer,0,ap,error)||ap!=state.image+0x17272d0||!field(memory,outer,0x510,draft,error))
         return fail(error,error.empty()?"Ability old proposal window class differs":error);
     if(!draft)return true;
     if(!field(memory,outer,0x520,live,error)||!field(memory,outer,0x528,proxy,error)||!live||!proxy||

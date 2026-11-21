@@ -36,12 +36,12 @@ bool vip_owner(uintptr_t receiver,scenario_vip_authority::Receipt& receipt,std::
     uintptr_t ap=0,method=0,singleton=0,data=0;
     int32_t count=0,capacity=0;
     if(!read(receiver,0,ap))return false;
-    if(ap!=weapon_image+0x1730e90)return reject("VIP actual receiver class differs");
+    if(ap!=weapon_image+0x1737230)return reject("VIP actual receiver class differs");
     if(!read(ap,0xa0,method))return false;
-    if(method!=weapon_image+0x4f85b0)return reject("VIP virtual Update entry differs");
-    if(!read(uintptr_t(world.state),0x1e8,receipt.log)||!read(weapon_image,0x13df330,singleton)||
+    if(method!=weapon_image+0x4fe550)return reject("VIP virtual Update entry differs");
+    if(!read(uintptr_t(world.state),0x1e8,receipt.log)||!read(weapon_image,0x13eb330,singleton)||
        !read(receipt.log,0,ap))return false;
-    if(receipt.log!=singleton||ap!=weapon_image+0x16fd7b0)return reject("VIP current ScenarioLog owner differs");
+    if(receipt.log!=singleton||ap!=weapon_image+0x1703b50)return reject("VIP current ScenarioLog owner differs");
     if(!read(receipt.log,0x20,data)||!read(receipt.log,0x28,count)||!read(receipt.log,0x2c,capacity))return false;
     // Use the existing ScenarioLog reader bound; no Subscriber census is needed.
     if(count<0||count>64||capacity<count||(count&&!data))return reject("VIP current ScenarioLog array bounds differ");

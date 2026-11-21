@@ -42,8 +42,8 @@ template<class T>bool at(void* base,size_t offset,T& out,uint32_t& fault)noexcep
 bool same_world(const Proof& p,const World* w){return p.world.epoch&&p.world.origin_generation&&p.world.world&&p.world.map&&(!w||p.world==*w);}
 }
 Api for_module(uintptr_t base)noexcept{
-    if(!base||base>std::numeric_limits<uintptr_t>::max()-0x17119f0)return {};
-    return {reinterpret_cast<FactoryFn>(base+0xd8a940),reinterpret_cast<AssignFn>(base+0x68310),reinterpret_cast<DeleteFn>(base+0xbedc00),base+0x17119f0,base+0x16f9e60};
+    if(!base||base>std::numeric_limits<uintptr_t>::max()-0x1717d90)return {};
+    return {reinterpret_cast<FactoryFn>(base+0xd960e0),reinterpret_cast<AssignFn>(base+0x68c10),reinterpret_cast<DeleteFn>(base+0xbfa280),base+0x1717d90,base+0x1700200};
 }
 bool validate_native_api(uintptr_t base,const Api& api,std::string& error){
     const auto expected=for_module(base);

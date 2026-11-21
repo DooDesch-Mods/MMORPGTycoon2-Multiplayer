@@ -116,7 +116,7 @@ public:
         if(!ui::read_native_array(memory,image,array,view,error))return ui::Policy::Unavailable;
         if(view.count!=1||view.capacity<1||!view.data||!view.object)return policy_for_origin(origin,error);
         if(!memory.copy(view.object,&ap,sizeof ap,error))return ui::Policy::Unavailable;
-        if(ap!=image+0x16fc700&&ap!=image+0x16fca60&&(ap!=image+0x1743f10||origin==ui::Origin::NetworkWindow))return policy_for_origin(origin,error);
+        if(ap!=image+0x1702aa0&&ap!=image+0x1702e00&&(ap!=image+0x174a2b0||origin==ui::Origin::NetworkWindow))return policy_for_origin(origin,error);
         return ui::Policy::AuthorityRequired;
     }
     bool array(ui::NativePropArray* actual,ui::ArrayObservation& out,std::string& error)override {
@@ -128,14 +128,14 @@ public:
     bool resolve(uintptr_t manager,uintptr_t object,ui::LocalBinding& out,std::string& error)override {
         uintptr_t ap=0;
         if(!memory.copy(object,&ap,sizeof ap,error))return false;
-        if(ap==image+0x1745ce0)return npc_probe::zone_edit_runtime::remove_local_binding(manager,object,out,error);
-        if(ap==image+0x16da000)return ui_move_runtime::district_stroke::remove_local_binding(manager,object,out,error);
-        if(ap==image+0x1743f10)return ui_path_runtime::remove_local_binding(manager,object,out,error);
-        if(ap==image+0x1749de0)return ui_move_runtime::group_object::remove_local_binding(manager,object,out,error);
-        if(ap==image+0x16fc700||ap==image+0x16fca60)return network_remove_runtime::local_binding(manager,object,out,error);
-        if(ap==image+0x1742980)
+        if(ap==image+0x174c080)return npc_probe::zone_edit_runtime::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x16e03a0)return ui_move_runtime::district_stroke::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x174a2b0)return ui_path_runtime::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x1750180)return ui_move_runtime::group_object::remove_local_binding(manager,object,out,error);
+        if(ap==image+0x1702aa0||ap==image+0x1702e00)return network_remove_runtime::local_binding(manager,object,out,error);
+        if(ap==image+0x1748d20)
             return npc_probe::action_runtime::remove_local_binding(manager,object,out,error);
-        if(ap==image+0x16c0770)
+        if(ap==image+0x16c6b10)
             return npc_probe::monster_action_runtime::remove_local_binding(manager,object,out,error);
         remove_diagnostics::LocalTarget actual;
         if(!remove_diagnostics::resolve_local_target(manager,object,actual,error))return false;

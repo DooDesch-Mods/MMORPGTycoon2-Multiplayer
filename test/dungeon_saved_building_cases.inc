@@ -2,10 +2,10 @@
         Memory memory;memory.init(type);
         constexpr uintptr_t object=0x21000000,manager=0x21002000,children=0x21004000;
         constexpr uintptr_t outer_region=0x21006000,outer_manager=0x21008000,outer_children=0x2100a000;
-        memory.put(object,0,fixture_image+0x16d93c0);memory.put(object,0x170,fixture_shard);memory.put(object,0x178,fixture_region);
-        memory.put(fixture_region,0x950,manager);memory.put(manager,0,fixture_image+0x17183c0);
+        memory.put(object,0,fixture_image+0x16df760);memory.put(object,0x170,fixture_shard);memory.put(object,0x178,fixture_region);
+        memory.put(fixture_region,0x950,manager);memory.put(manager,0,fixture_image+0x171e760);
         memory.put(manager,0x450,fixture_shard);memory.put(manager,0x458,fixture_region);
-        memory.put(manager,0x408,fixture_image+0x172d7c0);memory.put(manager,0x410,children);
+        memory.put(manager,0x408,fixture_image+0x1733b60);memory.put(manager,0x410,children);
         memory.put(manager,0x418,int32_t(1));memory.put(manager,0x41c,int32_t(1));memory.put(children,0,object);
         memory.put(fixture_exterior,0x178,outer_region);memory.put(outer_region,0x950,outer_manager);
         memory.put(outer_manager,0x410,outer_children);memory.put(outer_manager,0x418,int32_t(1));

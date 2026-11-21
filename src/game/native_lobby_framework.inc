@@ -57,24 +57,24 @@ bool text(const void* p,std::string& out,size_t limit=4096) {
 
 DWORD find_window(const char* id,void** out) {
     String s{};bool built=false;DWORD code=0;
-    __try {reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(&s,id);built=true;*out=reinterpret_cast<void*(*)(const void*)>(image+0x81aa90)(&s);}
+    __try {reinterpret_cast<void(*)(void*,const char*)>(image+0x4a3580)(&s,id);built=true;*out=reinterpret_cast<void*(*)(const void*)>(image+0x823080)(&s);}
     __except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
-    if(built){__try {reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&s);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    if(built){__try {reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(&s);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
     return code;
 }
 
 DWORD latest_save(void* mode,const char* world,String* output,bool* returned) {
     String input{};bool built=false;DWORD code=0;
     __try {
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(&input,world);built=true;
-        reinterpret_cast<void*(*)(void*,void*,const void*)>(image+0x4b9910)(output,mode,&input);*returned=true;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x4a3580)(&input,world);built=true;
+        reinterpret_cast<void*(*)(void*,void*,const void*)>(image+0x4bf550)(output,mode,&input);*returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
-    if(built){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(&input);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    if(built){__try{reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(&input);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
     return code;
 }
 
 DWORD dispose(String* value) {
-    __try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(value);}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(value);}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
 
@@ -105,7 +105,7 @@ bool initialize(const std::filesystem::path&,uintptr_t base,std::string& error){
     if(!framework_host||GetCurrentThreadId()!=thread){error="Framework lobby initialization requires its bound active game-thread Host";return false;}
     uintptr_t resolved=0;uint32_t game_thread=0;std::string digest;
     if(!native::read_resolver_receipt(resolved,game_thread,digest,error)||resolved!=base||game_thread!=thread||
-       digest!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+       digest!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
         error="Framework lobby exact executable/thread resolver mismatch: "+error;return false;
     }
     image=base;error.clear();return true;
@@ -258,7 +258,7 @@ bool tick(std::string& error) {
     if(!title_active&&!ingame_active){ui_owner=nullptr;ui_mode=-1;framework_ready=false;framework_observed_open=false;framework_visibility_known=false;error.clear();return process_panel_toggle(false,error);}
     void* game=nullptr;void* mode=nullptr;void* active=nullptr;
     const size_t mode_offset=title_active?0x350:0x358;
-    if(!read(reinterpret_cast<void*>(image),0x13df8f0,game)||!read(game,mode_offset,mode)||!read(game,0x28,active)||mode!=active){error="native UI owner differs from actual active mode";return false;}
+    if(!read(reinterpret_cast<void*>(image),0x13eb8f0,game)||!read(game,mode_offset,mode)||!read(game,0x28,active)||mode!=active){error="native UI owner differs from actual active mode";return false;}
     if(ui_owner!=mode||ui_mode!=world.active_mode_index){ui_owner=mode;ui_mode=world.active_mode_index;framework_ready=false;framework_observed_open=false;framework_visibility_known=false;last_ui_status.clear();last_chat_transcript.clear();last_chat_status.clear();}
     process_steam_invite(title_active);
     if(title_active)title=mode;
@@ -372,9 +372,9 @@ bool release_route(void* mode,std::string& error){
     if(!framework_host||!framework_command_token||!framework_routes.code_verify){error="release fixture Framework Mode observer is not registered";return false;}
     MT2FW_MT2_RouteReceipt receipt{};receipt.size=sizeof(receipt);
     const auto verified=framework_routes.code_verify(framework_routes.context,"ingame.command",0,initial_release::mode_bytes::body,uint32_t(sizeof(initial_release::mode_bytes::body)),&receipt);
-    if(verified!=MT2FW_MT2_OK||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.rva!=0x4a2f90||receipt.entry!=image+0x4a2f90||!receipt.detour||!receipt.trampoline||
+    if(verified!=MT2FW_MT2_OK||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.rva!=0x4a8480||receipt.entry!=image+0x4a8480||!receipt.detour||!receipt.trampoline||
        std::string_view(receipt.owner,9)!="framework"||receipt.owner[9]!=0||
-       std::string_view(receipt.game_sha256,64)!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||receipt.game_sha256[64]!=0){
+       std::string_view(receipt.game_sha256,64)!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||receipt.game_sha256[64]!=0){
         error="release fixture Framework shared Mode physical route proof failed result="+std::to_string(verified)+" cause="+std::string(receipt.cause,std::find(receipt.cause,receipt.cause+sizeof(receipt.cause),'\0'));return false;
     }
     return initial_release::owned_mode_route(memory,image,receipt.detour,receipt.trampoline,error);

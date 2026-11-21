@@ -32,7 +32,7 @@ void phase(Json* trace,const char* name,uintptr_t image,uintptr_t window,uintptr
     if(!text(edit+0x2d0,current,error)){failed("text");return;}
     if(!text(edit+0x4d8,baseline,error)){failed("baseline");return;}
     value.update({{"state","observed"},{"focus",focus},{"focus_matches_edit",focus==edit},{"owner",owner},{"parent",parent},
-        {"lost_focus_matches_pinned",lost_focus==image+0x7f1d90},{"editable",editable},{"editing",editing},
+        {"lost_focus_matches_pinned",lost_focus==image+0x7fa2d0},{"editable",editable},{"editing",editing},
         {"text",current},{"baseline",baseline},{"text_differs_from_baseline",current!=baseline}});
     (*trace)["phases"].push_back(value);
 }

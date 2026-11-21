@@ -3,7 +3,7 @@ namespace {
 bool current_object(uintptr_t pointer,uint64_t uid,objects::Scope& scope,objects::Entry& out,std::string& e){
     out={};Roots roots;if(!roots_read(roots,e)||!object_scope(roots,scope,e))return false;
     Binding row;objects::Kind kind;if(vtable(reinterpret_cast<void*>(pointer),node_vtable)){kind=objects::Kind::Node;if(!node_read(reinterpret_cast<void*>(pointer),roots,row,e))return false;}
-    else if(vtable(reinterpret_cast<void*>(pointer),0x16fca60)){kind=objects::Kind::Pipe;if(!pipe_read(reinterpret_cast<void*>(pointer),roots,row,e))return false;}
+    else if(vtable(reinterpret_cast<void*>(pointer),0x1702e00)){kind=objects::Kind::Pipe;if(!pipe_read(reinterpret_cast<void*>(pointer),roots,row,e))return false;}
     else {e="Network object current class differs";return false;}
     void* found=nullptr;const auto seh=lookup_native(uid,found);if(!uid||row.uid!=uid||seh||reinterpret_cast<uintptr_t>(found)!=pointer){e="Network object current full UID/FindUID differs SEH="+std::to_string(seh);return false;}
     out=object_entry(kind,row);return true;

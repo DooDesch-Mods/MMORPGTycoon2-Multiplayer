@@ -14,7 +14,7 @@ bool read_row(Read& at,ClipRead& clip,uintptr_t image,const dungeon_gizmo_identi
     error.clear();out={};local={};Row row;row.key=key;Local pin;pin.member=owner;uintptr_t ap=0,shard=0,region=0;uint64_t uid=0;
     uint8_t triggered=2,transition=2,interaction=0;
     if(!owner.object||!owner.uid||!dungeon_gizmo_identity::key(key)||
-       !at(owner.object,0,ap,error)||ap!=image+0x1749ab0||!at(owner.object,0x18,uid,error)||uid!=owner.uid||
+       !at(owner.object,0,ap,error)||ap!=image+0x174fe50||!at(owner.object,0x18,uid,error)||uid!=owner.uid||
        !at(owner.object,0x170,shard,error)||shard!=owner.shard||!at(owner.object,0x178,region,error)||region!=owner.region||
        !at(owner.object,0x250,triggered,error)||triggered>1||!at(owner.object,0x254,row.state,error)||
        !at(owner.object,0x328,row.immediate,error)||!at(owner.object,0x2d0,transition,error)||transition>1||

@@ -28,20 +28,20 @@ bool snapshot(size_t slot,Capture& c,Details& d,std::string& e){
     return (same(c,last)&&d==again)||fail(e,"Developer retirement extended double census changed");
 }
 bool code(const Capture& c,size_t slot,std::string& e){
-    constexpr std::array<Fingerprint,8> bodies={{{0xd258b0,32,"92284a2bddcc708ff1be3237cb4371f99dcd33fb3697874d819255b81af22ab0"},
-        {0x8a1c70,128,"f803a22293cf408d76ed09a49c80764c6872b2ff069af07ea247a4c66365ce75"},
-        {0x3a5330,1088,"127fb2a3719746c1bba56dc8ac1e316bf05828c4f7a2940faa3781901df5b0fd"},
-        {0x3b0b60,80,"28e7d924c8998107c1b463e0583e4e68a28da2759d19f26bb1e8650c03757758"},
-        {0x3b1c00,176,"a607be569b8737a55d1f690fa9fc42a5af43475557f68da5f40dfb96870b3885"},
-        {0x25eb00,48,"82126880703d8c8a8c813c8d72adc79985100c8482bfea94cb48c6aba370e0e8"},
-        {0x261080,336,"201c5d03a4c2036b3085a4e991a071859ff99f6285583ab42cb759716a91c35a"},
-        {0x261320,224,"6f94557821f9b76ba3aa6cc6c0403ae56f95f10ac1ea1109f5b543bf47e09b62"}}};
+    constexpr std::array<Fingerprint,8> bodies={{{0xd30ff0,32,"cfecd549f2e6fc6c689856fae8276d52e3e1b19f3f7eca1a5cb61d01400d9f6f"},
+        {0x8aad90,128,"9e2324bb66601dcf36f4a52631bb4e83b6af61890ab9aca15f971d2f0d246370"},
+        {0x3a9e30,1088,"6612b20d09477ad64dff5c7d9e9c1cfc89045622529c0adc1e7641c8e3fa77c1"},
+        {0x3b5670,80,"28e7d924c8998107c1b463e0583e4e68a28da2759d19f26bb1e8650c03757758"},
+        {0x3b6710,176,"47efd3d68295a556ba32434e985f0986acc4720121bfb587ae427f87496bc94b"},
+        {0x261c00,48,"82126880703d8c8a8c813c8d72adc79985100c8482bfea94cb48c6aba370e0e8"},
+        {0x264180,336,"63a5aa89a427a868cb7f44bfeb792fa8b49e877f8e006e0124a929a5fa0b41b2"},
+        {0x264420,224,"bd4d79952606a1033735ff4c6df3a552caeca941691dca7ac662486f7a11980f"}}};
     try{for(const auto& b:bodies){std::vector<unsigned char> bytes(b.size);if(!memory.copy(c.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha256)return fail(e,"Developer retirement original full body differs RVA="+std::to_string(b.rva));}}
     catch(const std::exception& ex){return fail(e,std::string("Developer retirement body hash failed: ")+ex.what());}
     uintptr_t property=0,offset=0,ap=0,set_map=0;
-    if(!at(c.image,0x13c8f40,property,e)||!at(c.image,0x13c8f78,offset,e)||!at(c.local.developers[slot],0,ap,e)||!at(ap,0x290,set_map,e))return false;
-    return (property==c.image+0x16d2410&&offset==0x4d9&&ap==c.image+0x17422e0&&set_map==c.image+0x3b1c00)||fail(e,"Developer retirement exact active property/SetOnMap binding differs");
+    if(!at(c.image,0x13d4f40,property,e)||!at(c.image,0x13d4f78,offset,e)||!at(c.local.developers[slot],0,ap,e)||!at(ap,0x290,set_map,e))return false;
+    return (property==c.image+0x16d87b0&&offset==0x4d9&&ap==c.image+0x1748680&&set_map==c.image+0x3b6710)||fail(e,"Developer retirement exact active property/SetOnMap binding differs");
 }
 nlohmann::json encode_detail(const Details& d){return {{"job_present",d.job!=0},{"carried_present",d.carried!=0},{"quadtree_present",d.quadtree!=0},
     {"moving",d.moving},{"current_present",d.current!=0},{"current_index",d.current_index},{"destination_present",d.destination!=0},

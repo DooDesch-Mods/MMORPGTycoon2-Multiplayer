@@ -41,7 +41,7 @@ bool read_saved_root_scenery(Memory& memory,place::SceneryHost& owner,uintptr_t 
     uintptr_t ap=0,shard=0,actual_region=0,manager=0;uint64_t full=0;
     if(!at(object,0,ap,error)||!at(object,0x18,full,error)||!at(object,0x170,shard,error)||
        !at(object,0x178,actual_region,error)||!at(region,0x960,manager,error))return false;
-    if(ap!=image+0x16c1390||full!=uid||shard!=root||actual_region!=region||!manager)return fail("saved_scenery_class_uid_or_region_differs");
+    if(ap!=image+0x16c7730||full!=uid||shard!=root||actual_region!=region||!manager)return fail("saved_scenery_class_uid_or_region_differs");
     if(!typed(object,uid,error))return false;
     if(!capture_member(memory,owner,image,region,root,manager,object,uid,error))return false;
     if(!typed(object,uid,error)||!capture_index(image,map,root,after,at,error))return false;

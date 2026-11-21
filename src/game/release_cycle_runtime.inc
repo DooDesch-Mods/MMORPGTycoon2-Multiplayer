@@ -19,10 +19,10 @@ CycleRuntime cycle_runtime;
 bool cycle_roots(Runtime& r,const a::Context& c,const a::Binding& b,uintptr_t& manager,uintptr_t& release,uintptr_t& celebration,uintptr_t& mode,int32_t& native_phase,std::string& e){
     a::Context actual;building_mixed_identity::opened_file::CurrentWorld world;uintptr_t ap=0,current=0,singleton=0;
     if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(actual,e)||actual!=c||!native_open_runtime::read_current_world(world,e)||world.world_epoch!=b.native_epoch||world.generation!=b.native_generation||
-       !at(r,r.image,0x13df4f0,manager,e)||!at(r,manager,0,ap,e)||ap!=r.image+0x1714ed0||!at(r,manager,0x38,release,e)||!at(r,release,0,ap,e)||ap!=r.image+0x16c12b0||
-       !at(r,r.image,0x1a38700,current,e)||current!=release||!at(r,manager,0xc0,celebration,e)||!celebration||!at(r,r.image,0x13df6d0,singleton,e)||singleton!=celebration||!at(r,celebration,0,native_phase,e)||native_phase<0||native_phase>2)
+       !at(r,r.image,0x13eb4f0,manager,e)||!at(r,manager,0,ap,e)||ap!=r.image+0x171b270||!at(r,manager,0x38,release,e)||!at(r,release,0,ap,e)||ap!=r.image+0x16c7650||
+       !at(r,r.image,0x1a3f700,current,e)||current!=release||!at(r,manager,0xc0,celebration,e)||!celebration||!at(r,r.image,0x13eb6d0,singleton,e)||singleton!=celebration||!at(r,celebration,0,native_phase,e)||native_phase<0||native_phase>2)
         return fail(e,e.empty()?"Release cycle actual Session/NativeOrigin/Manager/current/Celebration owner differs":e);
-    mode=uintptr_t(world.mode);if(!mode||!at(r,mode,0,ap,e)||ap!=r.image+0x16e6730)return fail(e,e.empty()?"Release cycle actual ModeInGame class differs":e);return true;
+    mode=uintptr_t(world.mode);if(!mode||!at(r,mode,0,ap,e)||ap!=r.image+0x16ecad0)return fail(e,e.empty()?"Release cycle actual ModeInGame class differs":e);return true;
 }
 bool cycle_random(Runtime& r,const a::Context& c,const a::Binding& b,const std::array<uint64_t,4>& desired,bool& attempted,std::string& e){
     p::Local local;p::State before;a::Ledger money;if(!sample(r,c,b,local,before,money,e))return false;
@@ -67,7 +67,7 @@ bool cycle_boundary(Runtime& r,const MT2FW_MT2_ReleaseCall& call,uint32_t& dispo
     else if(cycle_runtime.context&&cycle_runtime.binding){c=*cycle_runtime.context;b=*cycle_runtime.binding;}
     else return fail(e,"Release boundary has no retained complete current Session/Binding");
     uintptr_t manager=0,release=0,celebration=0,mode=0;int32_t phase=0;
-    if(call.native_return!=r.image+0x4faf6a||!cycle_roots(r,c,b,manager,release,celebration,mode,phase,e)||mode!=uintptr_t(call.receiver)||!code(r,e))return fail(e,e.empty()?"Release actual physical Mode boundary/current owner differs":e);
+    if(call.native_return!=r.image+0x500f1a||!cycle_roots(r,c,b,manager,release,celebration,mode,phase,e)||mode!=uintptr_t(call.receiver)||!code(r,e))return fail(e,e.empty()?"Release actual physical Mode boundary/current owner differs":e);
     std::string actual;if(!string(r,uintptr_t(call.native_command),actual,e)||actual!="LevelUp")return fail(e,e.empty()?"Release actual native GNU command changed":e);
     if(original_go){
         std::vector<uintptr_t> frames;

@@ -42,7 +42,7 @@ template<class Memory>bool uid_set(Memory& memory,uintptr_t owner,uint64_t singl
 template<class Memory,class Find>bool live(Memory& memory,uintptr_t image,uintptr_t object,uint64_t uid,uintptr_t root,uintptr_t region,
                                           Find&& find,Saved& out,std::string& e){
     namespace q=npc_quest_targets;out={};uintptr_t found=0;uint64_t full=0;
-    if(!uid||!object||!root||!region||!q::typed(memory,image,object,0x16c1390,e)||!q::at(memory,object,0x18,full,e)||full!=uid||
+    if(!uid||!object||!root||!region||!q::typed(memory,image,object,0x16c7730,e)||!q::at(memory,object,0x18,full,e)||full!=uid||
        !find(uid,found,e)||found!=object)return q::fail(e,e.empty()?"Scenery history full current UID/registry differs":e);
     out.object=object;out.uid=uid;
     if(!q::at(memory,object,0x170,out.root,e)||!q::at(memory,object,0x178,out.region,e)||!q::at(memory,object,0x268,out.type,e)||
@@ -54,7 +54,7 @@ template<class Memory,class Find>bool live(Memory& memory,uintptr_t image,uintpt
 }
 template<class Memory>bool make(Memory& memory,uintptr_t image,uintptr_t node,const Saved& expected,std::string& e){
     namespace q=npc_quest_targets;Saved stored;uintptr_t method=0;
-    if(!expected.uid||!q::typed(memory,image,node,0x1706590,e)||!q::at(memory,image+0x1706590,0x10,method,e)||method!=image+0x55a3c0||
+    if(!expected.uid||!q::typed(memory,image,node,0x170c930,e)||!q::at(memory,image+0x170c930,0x10,method,e)||method!=image+0x560a50||
        !q::at(memory,node,0xb8,stored.uid,e)||!q::at(memory,node,0xc0,stored.type,e)||!q::at(memory,node,0xc8,stored.root,e)||
        !q::at(memory,node,0xd0,stored.transform,e)||!q::at(memory,node,0x13c,stored.height,e)||!q::at(memory,node,0x140,stored.automatic,e))
         return q::fail(e,e.empty()?"Scenery original Make node class/method differs":e);
@@ -64,7 +64,7 @@ template<class Memory>bool make(Memory& memory,uintptr_t image,uintptr_t node,co
 }
 template<class Memory>bool destroy(Memory& memory,uintptr_t image,uintptr_t node,uint64_t expected,std::string& e){
     namespace q=npc_quest_targets;uintptr_t method=0;uint64_t uid=0;
-    if(!expected||!q::typed(memory,image,node,0x16de860,e)||!q::at(memory,image+0x16de860,0x10,method,e)||method!=image+0x53e1c0||
+    if(!expected||!q::typed(memory,image,node,0x16e4c00,e)||!q::at(memory,image+0x16e4c00,0x10,method,e)||method!=image+0x544780||
        !q::at(memory,node,0xb8,uid,e)||uid!=expected)return q::fail(e,e.empty()?"Scenery original Destroy node class/method/full UID differs":e);
     return uid_set(memory,node+8,0,e)&&uid_set(memory,node+0x30,0,e)&&uid_set(memory,node+0x58,expected,e);
 }

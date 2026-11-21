@@ -18,7 +18,7 @@ void require(bool value,const char* expression,int line) {
 }
 #define CHECK(value) require(!!(value),#value,__LINE__)
 constexpr uintptr_t image=0x140000000;
-constexpr uintptr_t first=0x54ce0,second=0x54cf0,shared=0x463ce0;
+constexpr uintptr_t first=0x551e0,second=0x551f0,shared=0x468d00;
 constexpr char first_name[]="mp.purchase-subscription-price.54ce0";
 constexpr char second_name[]="mp.purchase-subscription-price.54cf0";
 constexpr char shared_name[]="game.update";
@@ -45,7 +45,7 @@ struct Fake {
     std::vector<void*> batch_originals;
     static MT2FW_MT2_RouteReceipt initial(uintptr_t rva) {
         MT2FW_MT2_RouteReceipt value{};value.size=sizeof value;value.rva=rva;value.entry=image+rva;
-        copy(value.game_sha256,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6");return value;
+        copy(value.game_sha256,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb");return value;
     }
     Fake() {
         for(const auto& target:catalog){auto value=initial(target.rva);
@@ -196,7 +196,7 @@ void no_replay() {
 void proofs_and_rejections() {
     Fake fake;Backend backend;CHECK(fake.bind(backend));void* original=nullptr;std::string error;unsigned char bytes[8]{};
     CHECK(backend.create(address(shared),detour(),&original)==MH_ERROR_UNSUPPORTED_FUNCTION);CHECK(original==nullptr);CHECK(fake.calls.empty());
-    CHECK(backend.create(address(0x1c52a00),detour(),&original)==MH_ERROR_UNSUPPORTED_FUNCTION);CHECK(fake.calls.empty());
+    CHECK(backend.create(address(0x1c59a00),detour(),&original)==MH_ERROR_UNSUPPORTED_FUNCTION);CHECK(fake.calls.empty());
     CHECK(backend.create(reinterpret_cast<void*>(0x20),detour(),&original)==MH_ERROR_UNSUPPORTED_FUNCTION);CHECK(fake.calls.empty());
     CHECK(backend.create(address(first),nullptr,&original)==MH_ERROR_NOT_EXECUTABLE);CHECK(fake.calls.empty());
     CHECK(backend.create(address(first),detour(),nullptr)==MH_ERROR_NOT_EXECUTABLE);CHECK(fake.calls.empty());
@@ -269,14 +269,14 @@ void subscriber_append_owned_code(Fake& fake,Backend& backend) {
     memory.bytes.at(image+lookup)[0]^=0xff;
     fake.fail_verify=true;
     CHECK(!append::resolve_append_api(memory,image,result,error));CHECK(!result.context_construct&&!result.records.allocate);
-    CHECK(error.find("Subscriber append native code mismatch RVA=9036016")!=std::string::npos);
+    CHECK(error.find("Subscriber append native code mismatch RVA="+std::to_string(lookup))!=std::string::npos);
     CHECK(error.find("pristine or live bytes differ")!=std::string::npos);
     fake.fail_verify=false;
     void* original=nullptr;
     CHECK(backend.create(address(lookup),detour(),&original)==MH_OK);
     CHECK(backend.enable(address(lookup))==MH_OK);
     CHECK(append::resolve_append_api(memory,image,result,error));CHECK(error.empty());
-    CHECK(reinterpret_cast<uintptr_t>(result.context_construct)==image+0x89e940);
+    CHECK(reinterpret_cast<uintptr_t>(result.context_construct)==image+0x8a7a60);
     CHECK(reinterpret_cast<uintptr_t>(result.calls.array_load)==image+mt2mp::subscriber_lifecycle::array_load_rva);
     CHECK(fake.verified_name==name&&fake.verified_offset==0&&fake.verified_length==16);
     const auto saved=fake.routes.at(name);
@@ -334,14 +334,14 @@ void admission_and_shim() {
 }
 }
 int main() {
-    try{enable_all_batch_cases();prepared_batch_cases();publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5bf3c0,"mp.monster-release-capture.5bf3c0");
-        monster_named_admission(0x5ba2c0,"mp.modular-b07.5ba2c0");
-        monster_named_admission(0x4d6a10,"mp.quest-recalculate-rating.4d6a10");
-        monster_named_admission(0x3c0750,"mp.monster-entity-update.3c0750");
-        monster_named_admission(0x39fb80,"mp.character-adjust-attribute.39fb80");monster_named_admission(0x859e30,"mp.building-uptime-add.859e30");admission_and_shim();
-        monster_named_admission(0x570900,"mp.ability-apply-presentation-setup.570900");
-        monster_named_admission(0x5721f0,"mp.ability-apply-presentation-event.5721f0");
-        monster_named_admission(0x569550,"mp.ability-proposal-window-destroy.569550");
+    try{enable_all_batch_cases();prepared_batch_cases();publication_and_cleanup();owner_local_all();no_replay();proofs_and_rejections();monster_named_admission(0x5c5b60,"mp.monster-release-capture.5bf3c0");
+        monster_named_admission(0x5c0a60,"mp.modular-b07.5ba2c0");
+        monster_named_admission(0x4dc8d0,"mp.quest-recalculate-rating.4d6a10");
+        monster_named_admission(0x3c5260,"mp.monster-entity-update.3c0750");
+        monster_named_admission(0x3a4680,"mp.character-adjust-attribute.39fb80");monster_named_admission(0x862b50,"mp.building-uptime-add.859e30");admission_and_shim();
+        monster_named_admission(0x576f90,"mp.ability-apply-presentation-setup.570900");
+        monster_named_admission(0x578880,"mp.ability-apply-presentation-event.5721f0");
+        monster_named_admission(0x56fbe0,"mp.ability-proposal-window-destroy.569550");
         std::printf("framework_hook_backend: %u checks passed\n",checks);return 0;}
     catch(const std::exception& error){std::fprintf(stderr,"framework_hook_backend failed: %s\n",error.what());return 1;}
 }

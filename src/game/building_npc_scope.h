@@ -13,10 +13,10 @@ bool binding_scope(Read& at,uintptr_t image,uintptr_t world_root,const npc_saved
     uintptr_t shard=0,actual_region=0,ap=0,reverse=0;int32_t id=-1,type=-1;
     if(!at(current.row.local_pointer,0x170,shard,error)||!at(current.row.local_pointer,0x178,actual_region,error)||
        !at(current.native_region,0,ap,error))return false;
-    if(ap!=image+0x1787930)return fail(error,"NPC scoped current Region class differs");
+    if(ap!=image+0x178dcd0)return fail(error,"NPC scoped current Region class differs");
     if(!at(current.native_region,0x70,reverse,error)||!at(current.native_region,0x834,id,error)||
        !at(current.native_shard,0,ap,error)||!at(current.native_shard,0x48,type,error))return false;
-    if(ap!=image+0x174ad20||shard!=current.native_shard||actual_region!=current.native_region||reverse!=shard||
+    if(ap!=image+0x17510c0||shard!=current.native_shard||actual_region!=current.native_region||reverse!=shard||
        id!=current.saved_region||type!=(current.scene.ends_with("/template")?1:2))return fail(error,"NPC scoped current child/Shard/Region binding differs");
     region=current.native_region;error.clear();return true;
 }
@@ -35,9 +35,9 @@ bool retirement_scope(Read& at,const std::vector<dungeon_scene_roster::Scene>& s
         return fail(error,"Building child NPC retirement original scene is not current");
     uintptr_t ap=0,reverse=0;int32_t type=-1,id=-1;
     if(!at(selected->shard,0,ap,error))return false;
-    if(ap!=image+0x174ad20)return fail(error,"Building child NPC retirement Shard class differs");
+    if(ap!=image+0x17510c0)return fail(error,"Building child NPC retirement Shard class differs");
     if(!at(selected->shard,0x48,type,error)||!at(selected->region,0,ap,error))return false;
-    if(ap!=image+0x1787930)return fail(error,"Building child NPC retirement Region class differs");
+    if(ap!=image+0x178dcd0)return fail(error,"Building child NPC retirement Region class differs");
     if(!at(selected->region,0x70,reverse,error)||!at(selected->region,0x834,id,error))return false;
     if(type!=(before.parent.scene.ends_with("/template")?1:2)||reverse!=selected->shard||id!=before.parent.saved_region)
         return fail(error,"Building child NPC retirement original Scene reciprocal owner differs");
@@ -59,15 +59,15 @@ bool scope(Read& at,Root& root,Scenes& scenes,Held& held,Find& find,uintptr_t im
     uintptr_t shard=0,region=0,ap=0,reverse=0;uint64_t uid=0;int32_t id=-1,type=-1;
     if(!at(parent.object,0,ap,error)||!at(parent.object,0x18,uid,error)||!at(parent.object,0x170,shard,error)||
        !at(parent.object,0x178,region,error))return false;
-    if(ap!=image+0x16d93c0||uid!=parent.uid||!shard||!region||shard==world_root)
+    if(ap!=image+0x16df760||uid!=parent.uid||!shard||!region||shard==world_root)
         return fail(error,"Building child NPC nonroot parent class/full UID/owner differs");
     if(selected){if(selected->shard!=shard||selected->region!=region)return fail(error,"Building child NPC exact active scene reciprocal owner differs");}
     else {std::string key,scene;bool matched=false;if(!held(parent.object,key,matched,error,&scene))return false;
         if(!matched||key!=parent.key||scene!=parent.scene)return fail(error,"Building child NPC absent active scene has no exact retained graph owner");}
     if(!at(shard,0,ap,error))return false;
-    if(ap!=image+0x174ad20)return fail(error,"Building child NPC current Shard class differs");
+    if(ap!=image+0x17510c0)return fail(error,"Building child NPC current Shard class differs");
     if(!at(shard,0x48,type,error)||!at(region,0,ap,error))return false;
-    if(ap!=image+0x1787930)return fail(error,"Building child NPC current Region class differs");
+    if(ap!=image+0x178dcd0)return fail(error,"Building child NPC current Region class differs");
     if(!at(region,0x70,reverse,error)||!at(region,0x834,id,error))return false;
     if(reverse!=shard||id!=parent.saved_region||type!=(parent.scene.ends_with("/template")?1:2))
         return fail(error,"Building child NPC exact original scene type/Region differs");

@@ -4,7 +4,7 @@
 namespace mt2mp::game::toon_thought {
 struct ZoneList {Array array;std::vector<uintptr_t> members;bool operator==(const ZoneList&)const=default;};
 template<class Read>bool zone_list(Read& at,uintptr_t image,uintptr_t zone,ZoneList& out,std::string& e){
-    out={};uintptr_t ap=0;if(!at(zone,0,ap,e)||ap!=image+0x1745ce0||!at(zone,0x580,ap,e)||ap!=image+0x1717220||!array(at,zone,0x5a0,out.array,e))return fail(e,e.empty()?"Thought current Zone/link-array class differs":e);
+    out={};uintptr_t ap=0;if(!at(zone,0,ap,e)||ap!=image+0x174c080||!at(zone,0x580,ap,e)||ap!=image+0x171d5c0||!array(at,zone,0x5a0,out.array,e))return fail(e,e.empty()?"Thought current Zone/link-array class differs":e);
     std::set<uintptr_t> distinct;for(int32_t i=0;i<out.array.count;++i){uintptr_t value=0;if(!at(out.array.data,size_t(i)*8,value,e))return false;if(!value||!distinct.insert(value).second)return fail(e,"Thought Zone link list contains a null or repeated opaque identity");out.members.push_back(value);}return true;
 }
 // The original remover compares this identity against slots, then shifts them.

@@ -76,15 +76,15 @@ bool code(Memory&,size_t,bool,std::string&);
 struct ThemeNative {
     uintptr_t image;alignas(8) unsigned char text[32]{};
     uint32_t construct()noexcept{
-        __try{reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(text,"character_theme");return 0;}
+        __try{reinterpret_cast<void(*)(void*,const char*)>(image+0x4a3580)(text,"character_theme");return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t find(uintptr_t& window)noexcept{
-        __try{window=uintptr_t(reinterpret_cast<void*(*)(const void*)>(image+0x81aa90)(text));return 0;}
+        __try{window=uintptr_t(reinterpret_cast<void*(*)(const void*)>(image+0x823080)(text));return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t cleanup()noexcept{
-        __try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(text);return 0;}
+        __try{reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(text);return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
 };
@@ -96,7 +96,7 @@ bool theme_owner(Memory& m,uintptr_t& window,std::string& e){
     if(!window)return fail(e,"Zone original Window.Find character_theme absent");
     uintptr_t ap=0;std::string key;
     if(!field(m,window,0,ap,e)||!name(m,window+0x1b0,key,e))return false;
-    if(ap!=state.image+0x17321a0)return fail(e,"Zone original Window.Find CharacterTheme type differs");
+    if(ap!=state.image+0x1738540)return fail(e,"Zone original Window.Find CharacterTheme type differs");
     if(key!="character_theme")return fail(e,"Zone original Window.Find CharacterTheme name differs");
     return true;
 }
@@ -163,12 +163,12 @@ uint32_t binary(Binary f,void* p,const void* v)noexcept{__try{f(p,v);return 0;}_
 uint32_t press_call(void* brush,void* cursor,const float* p)noexcept{__try{state.press(brush,cursor,p);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool native_ok(uint32_t seh,const char* operation,std::string& e){return !seh||fail(e,std::string("Zone original ")+operation+" exception="+std::to_string(seh));}
 uint32_t shape_make(poly::Storage& out,const poly::VectorView& paths,bool& made)noexcept{
-    __try{reinterpret_cast<Unary>(state.image+0xf1810)(&out);made=true;auto* data=*reinterpret_cast<void**>(out.bytes.data()+0x18);
-        reinterpret_cast<Binary>(state.image+0xf7ed0)(data,&paths);reinterpret_cast<Unary>(state.image+0xf3b60)(&out);return 0;
+    __try{reinterpret_cast<Unary>(state.image+0xf2880)(&out);made=true;auto* data=*reinterpret_cast<void**>(out.bytes.data()+0x18);
+        reinterpret_cast<Binary>(state.image+0xf8f40)(data,&paths);reinterpret_cast<Unary>(state.image+0xf4bd0)(&out);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t intersects(const poly::Storage& shape,uintptr_t zone,bool& result)noexcept{
-    __try{result=reinterpret_cast<bool(*)(const void*,const void*)>(state.image+0xf1750)(&shape,reinterpret_cast<void*>(zone+0x2f0));return 0;}
+    __try{result=reinterpret_cast<bool(*)(const void*,const void*)>(state.image+0xf27c0)(&shape,reinterpret_cast<void*>(zone+0x2f0));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool no_overlap(Memory& m,const a::ZoneIntent& intent,const d::Sample& before,bool& unknown,std::string& e){
@@ -178,7 +178,7 @@ bool no_overlap(Memory& m,const a::ZoneIntent& intent,const d::Sample& before,bo
         a::TerrainShape actual;if(okay)okay=poly::read(m,uintptr_t(&shape),actual,e)&&actual==stamp.shape;
         if(okay)for(const auto& zone:before.state.zones){bool hit=false;const auto code=intersects(shape,zone.value.pointer,hit);
             if(!native_ok(code,"PolyShape intersection",e)||hit){okay=false;unknown=code!=0;if(hit)e="Zone new stroke intersects an existing Zone";break;}}
-        const auto cleanup=made?unary(reinterpret_cast<Unary>(state.image+0xf15a0),&shape):0;
+        const auto cleanup=made?unary(reinterpret_cast<Unary>(state.image+0xf2610),&shape):0;
         if(cleanup){unknown=true;e+="; Zone PolyShape destructor exception="+std::to_string(cleanup);return false;}
         if(!okay)return fail(e,e.empty()?"Zone native shape reconstruction differs":e);
     }return true;
@@ -188,11 +188,11 @@ void* selection_entry(void* receiver){
     return reinterpret_cast<void*>(state.selection->character);
 }
 uint32_t construct(Operation& op)noexcept{
-    __try{auto* p=op.brush->bytes.data();reinterpret_cast<Unary>(state.image+0x5f1a30)(p);op.constructed=true;
+    __try{auto* p=op.brush->bytes.data();reinterpret_cast<Unary>(state.image+0x5f8180)(p);op.constructed=true;
         *reinterpret_cast<uintptr_t*>(p+0x170)=op.pin.region.region;*reinterpret_cast<int32_t*>(p+0x178)=1;
         *reinterpret_cast<int32_t*>(p+0x17c)=op.request.zone.level;*reinterpret_cast<uintptr_t*>(p+0x5d8)=op.pin.window;
-        op.graph=uintptr_t(reinterpret_cast<void*(*)(size_t)>(state.image+0xa02670)(0x110));
-        reinterpret_cast<Unary>(state.image+0x5400f0)(reinterpret_cast<void*>(op.graph));
+        op.graph=uintptr_t(reinterpret_cast<void*(*)(size_t)>(state.image+0xa0d230)(0x110));
+        reinterpret_cast<Unary>(state.image+0x5466b0)(reinterpret_cast<void*>(op.graph));
         *reinterpret_cast<uintptr_t*>(p+0x740)=op.graph;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -205,7 +205,7 @@ bool paint_private(Operation& op,const a::ZoneStamp& stamp,std::string& e){
     Memory m;Pin actual;if(!pin(m,op.binding,op.request.snapshot_uuid,op.request.zone.region,op.request.zone.character_type,actual,e)||!same_origin(actual,op.pin))return fail(e,e.empty()?"Zone private paint full owner changed":e);
     selection::Binding bound{uintptr_t(op.brush->bytes.data()),op.pin.window,op.pin.catalogue.character,state.image,state.thread};
     uintptr_t ap=0,region=0,window=0,graph=0;int32_t kind=-1,level=0;
-    if(!op.constructed||!field(m,bound.brush,0,ap,e)||ap!=state.image+0x172fa80||
+    if(!op.constructed||!field(m,bound.brush,0,ap,e)||ap!=state.image+0x1735e20||
        !field(m,bound.brush,0x170,region,e)||region!=op.pin.region.region||
        !field(m,bound.brush,0x178,kind,e)||kind!=1||!field(m,bound.brush,0x17c,level,e)||level!=op.request.zone.level||
        !field(m,bound.brush,0x5d8,window,e)||window!=op.pin.window||!field(m,bound.brush,0x740,graph,e)||graph!=op.graph)
@@ -218,7 +218,7 @@ bool paint_private(Operation& op,const a::ZoneStamp& stamp,std::string& e){
         const auto seh=stamp_call(op,stamp,shape);
         okay=native_ok(seh,"AddPaint",e);if(okay)++op.stamps;
     }
-    const auto cleanup=made?unary(reinterpret_cast<Unary>(state.image+0xf15a0),&shape):0;
+    const auto cleanup=made?unary(reinterpret_cast<Unary>(state.image+0xf2610),&shape):0;
     if(cleanup){e+="; Zone stamp shape destructor exception="+std::to_string(cleanup);return false;}
     return okay||fail(e,e.empty()?"Zone original stamp shape differs":e);
 }
@@ -238,7 +238,7 @@ void press_entry(void* brush,void* cursor,const float* point)try{
        !field(m,owned_brush,0x170,region,e)||!field(m,owned_brush,0x6fc,painting,e)||painting||
        !field(m,owned_brush,0x740,graph,e)||graph||!field(m,owned_cursor,0x230,collision,e)){
         reject(e.empty()?"Zone Press actual inventory brush/cursor or idle state differs":e);return;}
-    const auto collision_call=[&]()noexcept->uint32_t{__try{zone=uintptr_t(reinterpret_cast<void*(*)(void*)>(state.image+0x523950)(reinterpret_cast<void*>(collision)));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}};
+    const auto collision_call=[&]()noexcept->uint32_t{__try{zone=uintptr_t(reinterpret_cast<void*(*)(void*)>(state.image+0x529d10)(reinterpret_cast<void*>(collision)));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}};
     if(!native_ok(collision_call(),"collision GetZone",e)||zone){reject(e.empty()?"Zone creation Press currently targets an existing Zone":e);return;}
     Capture c;c.brush=owned_brush;c.cursor=owned_cursor;c.snapshot=net::current_snapshot_id();c.ui_token=state.ui_token;
     std::vector<Option> choices;json selected;
@@ -302,10 +302,10 @@ bool enable(std::string& e){
     state.thread=thread;Memory m;if(!all_code(m,false,e))return failed(e);
     struct Hook {uintptr_t rva;void* entry;void** original;};
     const Hook hooks[]{
-        {0x5ef6a0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
-        {0x5f1510,reinterpret_cast<void*>(&paint_entry),reinterpret_cast<void**>(&state.paint)},
-        {0x5f0990,reinterpret_cast<void*>(&finished_entry),reinterpret_cast<void**>(&state.finished)},
-        {0x67fb40,reinterpret_cast<void*>(&selection_entry),reinterpret_cast<void**>(&state.get)}};
+        {0x5f5df0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
+        {0x5f7c60,reinterpret_cast<void*>(&paint_entry),reinterpret_cast<void**>(&state.paint)},
+        {0x5f70e0,reinterpret_cast<void*>(&finished_entry),reinterpret_cast<void**>(&state.finished)},
+        {0x686d50,reinterpret_cast<void*>(&selection_entry),reinterpret_cast<void**>(&state.get)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(state.image+h.rva),h.entry,h.original);
         if(result!=MH_OK||!*h.original)return failed("Zone MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(result));}
     if(!mt2mp::hooks::enable_prepared_routes(state.image,hooks,"Zone hooks",e))return failed(e);
@@ -418,7 +418,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     const auto finish=binary(state.finished,op.brush->bytes.data(),nullptr);
     if(!native_ok(finish,"PaintingFinished",e))return unknown(e);op.returned=true;
     uintptr_t graph=0;if(!field(m,uintptr_t(op.brush->bytes.data()),0x740,graph,e)||graph)return unknown(e.empty()?"Zone original Finish retained private graph":e);
-    const auto destroy=unary(reinterpret_cast<Unary>(state.image+0x5f1c20),op.brush->bytes.data());
+    const auto destroy=unary(reinterpret_cast<Unary>(state.image+0x5f8370),op.brush->bytes.data());
     if(!native_ok(destroy,"private brush destructor",e))return unknown(e);op.constructed=false;
     Pin after;if(!pin(m,binding,request.snapshot_uuid,request.zone.region,request.zone.character_type,after,e)||!same_origin(before,after))return unknown(e.empty()?"Zone original full owner changed":e);
     d::Sample result;if(!d::sample(m,after.region,result,e))return unknown(e);

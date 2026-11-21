@@ -11,10 +11,10 @@ bool inspect(void* user,const void* record,const void* context,std::string& erro
 bool capture(Memory& memory,uintptr_t image,uintptr_t object,bool dungeon,subscriber_lifecycle::Graph& out,std::string& error){
     Capture value{memory};subscriber_lifecycle::CaptureReceipt cleanup;
     const subscriber_lifecycle::CaptureApi api{
-        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9676a0),
-        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x89e5f0),
-        reinterpret_cast<subscriber_lifecycle::PrepareSave>(image+(dungeon?0xe4a3a0:0x110ef70)),
-        reinterpret_cast<subscriber_lifecycle::SaveRecord>(image+(dungeon?0xe4a400:0x110efd0))};
+        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x9708c0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(image+0x8a7710),
+        reinterpret_cast<subscriber_lifecycle::PrepareSave>(image+(dungeon?0xe55e90:0x111a910)),
+        reinterpret_cast<subscriber_lifecycle::SaveRecord>(image+(dungeon?0xe55ef0:0x111a970))};
     {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
         if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(object),inspect,&value,cleanup,error))return false;}
     out=std::move(value.graph);return true;

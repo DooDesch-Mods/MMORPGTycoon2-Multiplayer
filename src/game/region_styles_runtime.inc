@@ -2,7 +2,7 @@ namespace {
 bool style_catalog(Runtime& r,std::vector<std::string>& out,std::string& e) {
     // GetTerrainStyleCount returns 9; GetTerrainStyleName reads the canonical ComboBox values at stride 0x80.
     out.clear();std::set<std::string> unique;
-    for(size_t i=0;i<9;++i){std::string name;if(!text(r,r.image+0x1a317e0+i*0x80,name,e))return false;
+    for(size_t i=0;i<9;++i){std::string name;if(!text(r,r.image+0x1a387e0+i*0x80,name,e))return false;
         if(!unique.insert(name).second)return fail(e,"region terrain style catalog has duplicate key index="+std::to_string(i));out.push_back(name);}
     return true;
 }
@@ -13,7 +13,7 @@ bool validate_styles(Runtime& r,const std::array<std::string,4>& styles,std::str
     return true;
 }
 uint32_t combo_get(uintptr_t image,uintptr_t combo,uintptr_t& result) {
-    __try {result=uintptr_t(reinterpret_cast<const void*(*)(void*)>(image+0x6ab190)(reinterpret_cast<void*>(combo)));return 0;}
+    __try {result=uintptr_t(reinterpret_cast<const void*(*)(void*)>(image+0x6b24b0)(reinterpret_cast<void*>(combo)));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool style_controls(Runtime& r,uintptr_t window,std::array<uintptr_t,4>& controls,std::array<std::string,4>& selected,json& receipt,std::string& e) {
@@ -23,7 +23,7 @@ bool style_controls(Runtime& r,uintptr_t window,std::array<uintptr_t,4>& control
         if(!controls[i])return fail(e,"region UI terrain_type"+std::to_string(i)+" actual=0 required=nonzero");
         if(!at(r,controls[i],0,ap,e))return false;
         // The complete-object constructor stores this address point, including the Itanium +16 header.
-        if(ap!=r.image+0x16d9b30)return fail(e,"region UI combo address point index="+std::to_string(i)+" actual="+std::to_string(ap-r.image)+" required="+std::to_string(0x16d9b30));
+        if(ap!=r.image+0x16dfed0)return fail(e,"region UI combo address point index="+std::to_string(i)+" actual="+std::to_string(ap-r.image)+" required="+std::to_string(0x16dfed0));
         const auto seh=combo_get(r.image,controls[i],value);
         if(seh)return fail(e,"region original ComboBox GetSelection SEH="+std::to_string(seh));
         if(!text(r,value,selected[i],e))return false;
@@ -32,7 +32,7 @@ bool style_controls(Runtime& r,uintptr_t window,std::array<uintptr_t,4>& control
     return true;
 }
 uint32_t label_is(uintptr_t image,void* record,const char* label,bool& match) {
-    __try {match=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,label);return 0;}
+    __try {match=reinterpret_cast<bool(*)(const void*,const char*)>(image+0x111f720)(record,label);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t selection_label_is(uintptr_t image,const void* record,const char* label,bool& match)noexcept{
@@ -40,7 +40,7 @@ uint32_t selection_label_is(uintptr_t image,const void* record,const char* label
     __try{
         const auto length=strnlen_s(label,65);if(!record||!length||length>64)return ERROR_INVALID_PARAMETER;
         const NativeString wanted{label,length,{}};
-        match=reinterpret_cast<bool(*)(const void*,const NativeString&)>(image+0x96e1d0)(record,wanted);return 0;
+        match=reinterpret_cast<bool(*)(const void*,const NativeString&)>(image+0x977410)(record,wanted);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool appearance_capture(Runtime&,void*,void*,bool&,std::string&);
@@ -82,47 +82,47 @@ uint32_t invoke_styles(uintptr_t image,uintptr_t region,const NativeString* styl
     uint32_t exception=0;
     __try {
         if(authority_random)std::memcpy(reinterpret_cast<void*>(random),authority_random,32);
-        if(reinterpret_cast<bool(*)()>(image+0x264c30)()) {
-            reinterpret_cast<void(*)(const void*)>(image+0x265300)(&description);receipt.edit_opened=true;
+        if(reinterpret_cast<bool(*)()>(image+0x267d30)()) {
+            reinterpret_cast<void(*)(const void*)>(image+0x268400)(&description);receipt.edit_opened=true;
         }
-        for(int32_t i=0;i<4;++i){reinterpret_cast<void(*)(void*,int32_t,const void*,bool)>(image+0x355c90)(reinterpret_cast<void*>(region),i,styles+i,true);++receipt.style_calls;}
-        if(receipt.edit_opened){receipt.edit_end_attempted=true;reinterpret_cast<void(*)()>(image+0x265650)();receipt.edit_ended=true;}
+        for(int32_t i=0;i<4;++i){reinterpret_cast<void(*)(void*,int32_t,const void*,bool)>(image+0x35a4b0)(reinterpret_cast<void*>(region),i,styles+i,true);++receipt.style_calls;}
+        if(receipt.edit_opened){receipt.edit_end_attempted=true;reinterpret_cast<void(*)()>(image+0x268750)();receipt.edit_ended=true;}
         receipt.returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();}
     // Match the native branch's exceptional EndEdit cleanup, with no retry after EndEdit itself fails.
     if(receipt.edit_opened&&!receipt.edit_end_attempted){
         receipt.edit_end_attempted=true;
-        __try {reinterpret_cast<void(*)()>(image+0x265650)();receipt.edit_ended=true;}
+        __try {reinterpret_cast<void(*)()>(image+0x268750)();receipt.edit_ended=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){receipt.edit_cleanup_exception=GetExceptionCode();}
     }
     return exception;
 }
 bool install_styles(Runtime& r,std::string& e) {
     std::string token_bytes(80,'\0'),token_sha;
-    if(!r.memory.copy(r.image+0x96e1d0,token_bytes.data(),token_bytes.size(),e)||!sha256(token_bytes,token_sha,e))return false;
-    if(token_sha!="8804bc96497105c4fc82d693ffc88533c3e6c1b9e70b92e3d310cdad72a0f2cc")
+    if(!r.memory.copy(r.image+0x977410,token_bytes.data(),token_bytes.size(),e)||!sha256(token_bytes,token_sha,e))return false;
+    if(token_sha!="806ddbfa3e094ac1c931b0f5aac47a313215153d2d8239a50810dee256d20349")
         return fail(e,"Region selection token-label native body differs actual="+token_sha);
     constexpr unsigned char expected[]{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48};
     std::array<unsigned char,sizeof expected> actual{};
-    if(!r.memory.copy(r.image+0x797850,actual.data(),actual.size(),e))return false;
+    if(!r.memory.copy(r.image+0x79fa30,actual.data(),actual.size(),e))return false;
     if(std::memcmp(expected,actual.data(),actual.size()))return fail(e,"region UICommand native entry bytes differ");
     UICommand original=nullptr;
-    const auto created=MH_CreateHook(reinterpret_cast<void*>(r.image+0x797850),reinterpret_cast<void*>(&styles_command_entry),reinterpret_cast<void**>(&original));
+    const auto created=MH_CreateHook(reinterpret_cast<void*>(r.image+0x79fa30),reinterpret_cast<void*>(&styles_command_entry),reinterpret_cast<void**>(&original));
     if(created!=MH_OK||!original)return fail(e,"region UICommand hook create status="+std::to_string(created));
     r.original_ui.store(original,std::memory_order_release);
-    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r.image+0x797850));
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r.image+0x79fa30));
     if(enabled!=MH_OK)return fail(e,"region UICommand hook enable status="+std::to_string(enabled));
     return true;
 }
 uint32_t invoke_styles_ui(uintptr_t image,uintptr_t window,const uintptr_t* controls,const NativeString* values,void* record,UiReceipt& receipt) {
     __try {
         for(size_t i=0;i<4;++i){
-            reinterpret_cast<void(*)(void*,const void*,bool)>(image+0x6ab830)(reinterpret_cast<void*>(controls[i]),values+i,true);
-            const auto* selected=reinterpret_cast<const NativeString*(*)(void*)>(image+0x6ab190)(reinterpret_cast<void*>(controls[i]));
+            reinterpret_cast<void(*)(void*,const void*,bool)>(image+0x6b2b50)(reinterpret_cast<void*>(controls[i]),values+i,true);
+            const auto* selected=reinterpret_cast<const NativeString*(*)(void*)>(image+0x6b24b0)(reinterpret_cast<void*>(controls[i]));
             if(!selected||selected->length!=values[i].length||std::memcmp(selected->data,values[i].data,values[i].length))return 0xE0010003;
         }
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x967370)(record,"TerrainApply");receipt.constructed=true;
-        receipt.called=true;receipt.accepted=reinterpret_cast<UICommand>(image+0x797850)(reinterpret_cast<void*>(window),record);receipt.returned=true;return 0;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x970590)(record,"TerrainApply");receipt.constructed=true;
+        receipt.called=true;receipt.accepted=reinterpret_cast<UICommand>(image+0x79fa30)(reinterpret_cast<void*>(window),record);receipt.returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -135,7 +135,7 @@ bool styles_ui(const std::string& token,int32_t region_id,const std::array<std::
     if(r->ui_attempts.contains(token))return fail(e,"region styles UI token already attempted; inspect receipt before retry");
     LocalView before;if(!read(*r,region_id,0,before,e))return false;
     uintptr_t widget=0,ap=0,owner=0;
-    if(!at(*r,before.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x17024b0||!at(*r,widget,0x178,owner,e)||owner!=before.region)return fail(e,"region styles UI actual RegionWidget differs: "+e);
+    if(!at(*r,before.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x1708850||!at(*r,widget,0x178,owner,e)||owner!=before.region)return fail(e,"region styles UI actual RegionWidget differs: "+e);
     r->ui_attempts.insert(token);out["selection_attempted"]=true;
     const auto selection=select_ui(r->image,before.world.selection,widget);out["selection_exception"]=selection;
     if(selection)return fail(e,"region styles SelectProp/SetInfoWindow SEH="+std::to_string(selection));

@@ -27,9 +27,9 @@ template<class Copy>bool type(Copy&& copy,uintptr_t owner,uintptr_t expected,std
 }
 template<class Copy>bool read_policy(Copy&& copy,const Capture& c,Snapshot& out,std::string& e){
     out={};out.capture=c;uintptr_t lounge=0,server=0;
-    if(!detail::at(copy,c.image,0x13df290,lounge,e)||!detail::at(copy,c.image,0x13df430,server,e))return false;
-    if(lounge!=c.local.lounge||!detail::type(copy,lounge,c.image+0x16de6c0,e)||!detail::type(copy,lounge+0x38,c.image+0x16de7a0,e)||
-       !detail::type(copy,server,c.image+0x1702a40,e))return detail::fail(e,e.empty()?"Bug-C policy current Lounge/server owner differs":e);
+    if(!detail::at(copy,c.image,0x13eb290,lounge,e)||!detail::at(copy,c.image,0x13eb430,server,e))return false;
+    if(lounge!=c.local.lounge||!detail::type(copy,lounge,c.image+0x16e4a60,e)||!detail::type(copy,lounge+0x38,c.image+0x16e4b40,e)||
+       !detail::type(copy,server,c.image+0x1708de0,e))return detail::fail(e,e.empty()?"Bug-C policy current Lounge/server owner differs":e);
     for(size_t i=0;i<6;++i){if(!detail::at(copy,lounge,0x50+i,out.policies[i],e))return false;
         if(out.policies[i]>1)return detail::fail(e,"Bug-C policy native bool outside0..1");}
     if(!detail::at(copy,server,0x18,out.server_current,e)||!detail::at(copy,server,0x1c,out.server_target,e))return false;
@@ -38,8 +38,8 @@ template<class Copy>bool read_policy(Copy&& copy,const Capture& c,Snapshot& out,
 template<class Copy>bool read_tabs(Copy&& copy,const Snapshot& s,Control& out,std::string& e){
     out={};const auto& c=s.capture;
     if(!read_window(copy,c,out.window,e)||!detail::at(copy,out.window,0x540,out.tabs,e)||
-       !detail::type(copy,out.tabs,c.image+0x17015b0,e)||!detail::at(copy,out.tabs,0x3b8,out.view,e)||
-       !detail::type(copy,out.view,c.image+0x16dfe90,e))return false;
+       !detail::type(copy,out.tabs,c.image+0x1707950,e)||!detail::at(copy,out.tabs,0x3b8,out.view,e)||
+       !detail::type(copy,out.view,c.image+0x16e6230,e))return false;
     for(const auto pane:{out.tabs,out.view}){uintptr_t owner=0;
         if(!detail::at(copy,pane,0x280,owner,e))return false;
         if(owner==out.window)continue;
@@ -75,7 +75,7 @@ template<class Copy>bool read_control(Copy&& copy,const Snapshot& s,Scope scope,
         return detail::fail(e,"Bug-C policy original Policies page not settled/visible; visible="+std::to_string(visible)+
             " requested_policies="+std::to_string(page.requested_policies)+" current_page_present="+std::to_string(page.current_page_present)+
             " next_matches_current="+std::to_string(page.next_matches_current)+" transition="+std::to_string(transition));
-    if(!detail::type(copy,out.page,c.image+0x1705ee0,e)||!detail::text(copy,out.page,0x1b0,current,e))return false;
+    if(!detail::type(copy,out.page,c.image+0x170c280,e)||!detail::text(copy,out.page,0x1b0,current,e))return false;
     if(current!="{dev_tab_policies}")return detail::fail(e,"Bug-C policy active native page ID differs");
     std::vector<std::pair<uintptr_t,uintptr_t>> pending{{out.page,out.view}};std::set<uintptr_t> seen;
     while(!pending.empty()){
@@ -84,7 +84,7 @@ template<class Copy>bool read_control(Copy&& copy,const Snapshot& s,Scope scope,
         uintptr_t actual_parent=0,owner=0,ap=0;
         if(!detail::at(copy,pane,0x278,actual_parent,e)||!detail::at(copy,pane,0x280,owner,e)||!detail::at(copy,pane,0,ap,e))return false;
         if(actual_parent!=parent||owner!=out.window)return detail::fail(e,"Bug-C policy pane ancestry/window owner differs");
-        if(ap==c.image+0x16d98c0){
+        if(ap==c.image+0x16dfc60){
             uintptr_t value=0;
             if(!detail::at(copy,pane,0x3c8,value,e))return false;
             if(!value)return detail::fail(e,"Bug-C policy checkbox lacks original property value binding");
@@ -92,7 +92,7 @@ template<class Copy>bool read_control(Copy&& copy,const Snapshot& s,Scope scope,
             if(name!=property(scope))continue;
             if(out.checkbox)return detail::fail(e,"Bug-C policy checkbox property binding is ambiguous");
             out.checkbox=pane;out.value=value;
-        }else if(ap==c.image+0x1745a80||pane==out.page){
+        }else if(ap==c.image+0x174be20||pane==out.page){
             uintptr_t data=0;int32_t count=0,capacity=0;
             if(!detail::at(copy,pane,0x2d0,data,e)||!detail::at(copy,pane,0x2d8,count,e)||!detail::at(copy,pane,0x2dc,capacity,e))return false;
             if(count<0||capacity<count||capacity>512||(count&&(!data||data>UINTPTR_MAX-size_t(count)*8)))return detail::fail(e,"Bug-C policy native view child bounds invalid");

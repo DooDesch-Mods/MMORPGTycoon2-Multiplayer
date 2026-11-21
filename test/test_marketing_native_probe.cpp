@@ -23,14 +23,14 @@ public:
 constexpr uintptr_t image=0x1000000,state=0x4000000,mode=0x4001000,marketing=0x4002000,hud=0x4003000,window=0x4004000,
     clock_object=0x4005000,launch=0x4006000,view=0x4007000;
 void fixture(Bytes& m){
-    m.put(state+0x1d0,marketing);m.put(image+0x13df2c0,marketing);m.put(marketing,image+0x16dfa60);
-    m.put(mode+0x128,hud);m.put(image+0x13df8b0,hud);m.put(hud,image+0x1742750);m.put(hud+0xb8,window);
-    m.put(window,image+0x16fa4d0);m.put(window+0x508,image+0x16e1770);m.put(image+0x13df9a0,clock_object);
+    m.put(state+0x1d0,marketing);m.put(image+0x13eb2c0,marketing);m.put(marketing,image+0x16e5e00);
+    m.put(mode+0x128,hud);m.put(image+0x13eb8b0,hud);m.put(hud,image+0x1748af0);m.put(hud+0xb8,window);
+    m.put(window,image+0x1700870);m.put(window+0x508,image+0x16e7b10);m.put(image+0x13eb9a0,clock_object);
     m.arr(marketing+0x40,0,{});m.arr(marketing+0x70,0x4100000,{launch});m.arr(window+0x510,0x4101000,{view});m.arr(window+0x300,0x4102000,{view});
     m.put(window+0x138,400.f);m.put(window+0x13c,45.f);m.put(marketing+0x98,int32_t(6));m.put(marketing+0x9c,int32_t(0));
-    m.put(launch,image+0x16e3d50);m.str(launch+0x18,"");
+    m.put(launch,image+0x16ea0f0);m.str(launch+0x18,"");
     const int32_t fields[]={6,1,3,0,0,0};for(size_t i=0;i<6;++i)m.put(launch+0x50+4*i,fields[i]);m.put(launch+0x68,uint8_t(1));
-    m.put(view,image+0x16dd8a0);m.put(view+0x320,uintptr_t(0));m.put(view+0x328,launch);m.put(view+0x278,window);m.put(view+0x280,window);
+    m.put(view,image+0x16e3c40);m.put(view+0x320,uintptr_t(0));m.put(view+0x328,launch);m.put(view+0x278,window);m.put(view+0x280,window);
 }
 }
 int main(int argc,char** argv){
@@ -69,8 +69,8 @@ int main(int argc,char** argv){
         check(same_clock(already_paused,clock_actual,ClockPhase::Held,clock_diagnostic,e),"native float equality preserves signed zero");
         Bytes m;fixture(m);Snapshot before;
         check(read_snapshot(m,image,state,mode,before,e),"native reader baseline");check(baseline(before,e),"baseline current pane");
-        auto corrupt=m;corrupt.put(image+0x13df2c0,marketing+8);Snapshot s;check(!read_snapshot(corrupt,image,state,mode,s,e),"Marketing owner mismatch");
-        corrupt=m;corrupt.put(launch,image+0x16e3d58);check(!read_snapshot(corrupt,image,state,mode,s,e),"wrong Campaign class");
+        auto corrupt=m;corrupt.put(image+0x13eb2c0,marketing+8);Snapshot s;check(!read_snapshot(corrupt,image,state,mode,s,e),"Marketing owner mismatch");
+        corrupt=m;corrupt.put(launch,image+0x16ea0f8);check(!read_snapshot(corrupt,image,state,mode,s,e),"wrong Campaign class");
         corrupt=m;corrupt.put(launch+0x18+0x28,uintptr_t(8));check(!read_snapshot(corrupt,image,state,mode,s,e),"unexpected LocString argument rejected");
         corrupt=m;corrupt.put(marketing+0x78,int32_t(-1));check(!read_snapshot(corrupt,image,state,mode,s,e),"negative array count");
         corrupt=m;corrupt.put(launch+0x68,uint8_t(2));check(!read_snapshot(corrupt,image,state,mode,s,e),"invalid cached active bool");

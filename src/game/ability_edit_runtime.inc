@@ -4,8 +4,8 @@ using Command=a::ui_diagnostic::UiCommand;
 Command original=nullptr;uint64_t generation=0,captures=0,submitted=0,rejected=0;bool installed=false,ready=false,fault=false,replaying=false;
 uintptr_t replay_receiver=0;uint32_t original_calls=0;std::string cause,last_action;
 constexpr std::array<size_t,8> string_offsets{0x48,0x68,0x88,0xa8,0xc8,0xf8,0x118,0x138};
-constexpr npc_quest_list_ui_codes::Code ui_code{0x5714c0,3374,"c58e4309398a34ca2ee0e15494adc64f7590f76184654bddb2d9cbb280e2df2e",
-    {0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa8,0,0,0,0x0f,0x11,0xb4,0x24,0x90,0,0,0,0x48,0x89,0xce,0x48,0x89,0xd1,0x48,0x8d,0x5c,0x24,0x50,0x48,0x89}};
+constexpr npc_quest_list_ui_codes::Code ui_code{0x577b50,3374,"65ec328025358e395834e8b2327b9b20cf242ca68b7daee66989457f882c10ab",
+    {0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa8,0x00,0x00,0x00,0x0f,0x11,0xb4,0x24,0x90,0x00,0x00,0x00,0x48,0x89,0xce,0x48,0x89,0xd1,0x48,0x8d,0x5c,0x24,0x50,0x48,0x89}};
 struct Sample {character_rename::Sample character;uintptr_t prototype=0,proxy=0;uint64_t uid=0;std::vector<std::array<uintptr_t,3>> local; a::AbilityEditState value;};
 struct Pending {a::Binding binding;std::string snapshot;a::AbilityEditIntent intent;uintptr_t view=0;std::optional<a::Context> context;std::string diagnostic_token;};
 struct Operation {a::Binding binding;a::Request request;Sample before,after;a::Evidence evidence;bool attempted=false,returned=false,confirmed=false,retired=false,prepared=false,seed_attempted=false,ordered=false,ui_restored=false;uint32_t calls=0,presentation_calls=0,apply_event_calls=0;bool apply_draft_destroyed=false,apply_lease_released=false;std::string cause;};
@@ -31,7 +31,7 @@ bool code(Memory& memory,std::string& error){
     return true;
 }
 bool read_record(Memory& memory,uintptr_t object,a::AbilityRecord& value,std::string& error){
-    value={};uintptr_t ap=0;if(!field(memory,object,0,ap,error)||ap!=state.image+0x171c930)return fail(error,error.empty()?"Ability prototype address point differs":error);
+    value={};uintptr_t ap=0;if(!field(memory,object,0,ap,error)||ap!=state.image+0x1722cd0)return fail(error,error.empty()?"Ability prototype address point differs":error);
     for(size_t i=0;i<string_offsets.size();++i)if(!npc_quest_records::read_string(memory,object,string_offsets[i],"Ability native authored string",value.text[i],error)||value.text[i].size()>4096)return fail(error,error.empty()?"Ability authored string exceeds ordered bound":error);
     uint8_t flag=2;if(!field(memory,object,0xe8,value.item_value,error)||!std::isfinite(value.item_value)||!field(memory,object,0xec,value.item_kind,error)||!field(memory,object,0xf0,flag,error)||flag>1)return fail(error,error.empty()?"Ability native item scalar differs":error);value.item_flag=flag!=0;
     if(!field(memory,object,0x15c,value.selectors,error)||!field(memory,object,0x170,value.color,error)||!field(memory,object,0x180,value.timing,error)||!field(memory,object,0x1f8,value.final_values,error)||!field(memory,object,0x200,value.level,error)||!field(memory,object,0x204,flag,error)||flag>1)return fail(error,error.empty()?"Ability authored native fixed record differs":error);value.final_flag=flag!=0;
@@ -42,7 +42,7 @@ bool read_record(Memory& memory,uintptr_t object,a::AbilityRecord& value,std::st
     for(size_t group=0;group<2;++group){const auto offset=group?0x1c0:0x190;uintptr_t data=0;int32_t count=0,capacity=0;
         if(!field(memory,object,offset+8,data,error)||!field(memory,object,offset+0x10,count,error)||!field(memory,object,offset+0x14,capacity,error)||count<0||count>64||capacity<count||(count&&!data))return fail(error,error.empty()?"Ability owned cost/effect bounds differ":error);
         for(int32_t i=0;i<count;++i){uintptr_t effect=0;uint64_t uid=0;a::AbilityEffectRecord row;
-            if(!field(memory,data,size_t(i)*8,effect,error)||!effect||!pointers.insert(effect).second||!field(memory,effect,0,ap,error)||ap!=state.image+0x1704e90||!field(memory,effect,0x18,uid,error)||!uid||
+            if(!field(memory,data,size_t(i)*8,effect,error)||!effect||!pointers.insert(effect).second||!field(memory,effect,0,ap,error)||ap!=state.image+0x170b230||!field(memory,effect,0x18,uid,error)||!uid||
                !field(memory,effect,0x20,row.integers,error)||!field(memory,effect,0x2c,row.values,error)||!field(memory,effect,0x34,row.count,error)||row.integers[0]<0||row.integers[0]>=8||!std::isfinite(row.values[0])||!std::isfinite(row.values[1]))return fail(error,error.empty()?"Ability actual owned effect full identity/record differs":error);
             (group?value.effects:value.costs).push_back(row);}
         uintptr_t again=0;int32_t size=0,cap=0;if(!field(memory,object,offset+8,again,error)||again!=data||!field(memory,object,offset+0x10,size,error)||size!=count||!field(memory,object,offset+0x14,cap,error)||cap!=capacity)return fail(error,error.empty()?"Ability owned store changed during read":error);}
@@ -63,30 +63,30 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
             uintptr_t again=0;int32_t size=0,cap=0;if(!field(memory,type,0x130,again,error)||again!=data||!field(memory,type,0x138,size,error)||size!=count||!field(memory,type,0x13c,cap,error)||cap!=capacity)return fail(error,error.empty()?"Ability actual owner slots changed during read":error);}}
     if(!found)return fail(error,"Ability current selected canonical owner/slot absent");return quest_bridge::sha256(rows.dump(),out.value.all_sha256,error);
 }
-uint32_t find_window(uintptr_t& window)noexcept{__try{const quest_list::QuestTitleView name{"ability_edit",12};window=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t find_window(uintptr_t& window)noexcept{__try{const quest_list::QuestTitleView name{"ability_edit",12};window=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,uintptr_t& outer,uintptr_t& live,uintptr_t& draft,uintptr_t& owner,std::string& error){
     const auto seh=find_window(outer);uintptr_t ap=0,proxy=0,target=0;
-    if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x1720f30||!field(memory,outer,0x520,live,error)||!field(memory,outer,0x510,draft,error)||
+    if(seh||!outer||!field(memory,outer,0,ap,error)||ap!=state.image+0x17272d0||!field(memory,outer,0x520,live,error)||!field(memory,outer,0x510,draft,error)||
        !field(memory,outer,0x530,owner,error)||!field(memory,outer,0x528,proxy,error)||(live&&(!proxy||!field(memory,proxy,0,target,error)||target!=live+0x38)))return fail(error,error.empty()?"Ability exact named Window/current weak binding differs SEH="+std::to_string(seh):error);
-    if(draft){if(draft==live||!field(memory,draft,0,ap,error)||ap!=state.image+0x171c930)return fail(error,error.empty()?"Ability native owned editor draft differs":error);}
+    if(draft){if(draft==live||!field(memory,draft,0,ap,error)||ap!=state.image+0x1722cd0)return fail(error,error.empty()?"Ability native owned editor draft differs":error);}
     return true;
 }
-uint32_t simplify(uintptr_t draft)noexcept{__try{reinterpret_cast<void(*)(void*)>(state.image+0x14e90)(reinterpret_cast<void*>(draft));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t setup(uintptr_t outer,uintptr_t prototype,uintptr_t owner)noexcept{__try{reinterpret_cast<void(*)(void*,void*,void*)>(state.image+0x570a80)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(prototype),reinterpret_cast<void*>(owner));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t simplify(uintptr_t draft)noexcept{__try{reinterpret_cast<void(*)(void*)>(state.image+0x15020)(reinterpret_cast<void*>(draft));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t setup(uintptr_t outer,uintptr_t prototype,uintptr_t owner)noexcept{__try{reinterpret_cast<void(*)(void*,void*,void*)>(state.image+0x577110)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(prototype),reinterpret_cast<void*>(owner));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 uint32_t prepare(uintptr_t draft,const a::AbilityRecord& record)noexcept{
     __try{
         for(size_t group=0;group<2;++group){const size_t offset=group?0x1c0:0x190;const auto& rows=group?record.effects:record.costs;
             int32_t count=*reinterpret_cast<const int32_t*>(draft+offset+0x10);
             while(size_t(count)>rows.size()){const auto data=*reinterpret_cast<const uintptr_t*>(draft+offset+8);const auto effect=*reinterpret_cast<const uintptr_t*>(data+size_t(count-1)*8);
-                reinterpret_cast<void(*)(void*,void*)>(state.image+(group?0x14dd0:0x14d40))(reinterpret_cast<void*>(draft),reinterpret_cast<void*>(effect));count=*reinterpret_cast<const int32_t*>(draft+offset+0x10);}
-            while(size_t(count)<rows.size()){const auto effect=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa02670)(0x38);
-                reinterpret_cast<void(*)(void*)>(state.image+0x67e0)(reinterpret_cast<void*>(effect));
-                reinterpret_cast<void(*)(void*,void*)>(state.image+(group?0x14d10:0x14ce0))(reinterpret_cast<void*>(draft),reinterpret_cast<void*>(effect));count=*reinterpret_cast<const int32_t*>(draft+offset+0x10);}
+                reinterpret_cast<void(*)(void*,void*)>(state.image+(group?0x14f60:0x14ed0))(reinterpret_cast<void*>(draft),reinterpret_cast<void*>(effect));count=*reinterpret_cast<const int32_t*>(draft+offset+0x10);}
+            while(size_t(count)<rows.size()){const auto effect=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa0d230)(0x38);
+                reinterpret_cast<void(*)(void*)>(state.image+0x6800)(reinterpret_cast<void*>(effect));
+                reinterpret_cast<void(*)(void*,void*)>(state.image+(group?0x14ea0:0x14e70))(reinterpret_cast<void*>(draft),reinterpret_cast<void*>(effect));count=*reinterpret_cast<const int32_t*>(draft+offset+0x10);}
             const auto data=*reinterpret_cast<const uintptr_t*>(draft+offset+8);
             for(size_t i=0;i<rows.size();++i){const auto effect=*reinterpret_cast<const uintptr_t*>(data+i*8);std::array<unsigned char,0x38> source{};
                 std::memcpy(source.data()+0x20,rows[i].integers.data(),12);std::memcpy(source.data()+0x2c,rows[i].values.data(),8);std::memcpy(source.data()+0x34,&rows[i].count,4);
-                reinterpret_cast<void*(*)(void*,const void*)>(state.image+0x6820)(reinterpret_cast<void*>(effect),source.data());}}
-        for(size_t i=0;i<8;++i){const quest_list::QuestTitleView text{record.text[i].c_str(),record.text[i].size()};reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x11bfce0)(reinterpret_cast<void*>(draft+string_offsets[i]),text);}
+                reinterpret_cast<void*(*)(void*,const void*)>(state.image+0x6840)(reinterpret_cast<void*>(effect),source.data());}}
+        for(size_t i=0;i<8;++i){const quest_list::QuestTitleView text{record.text[i].c_str(),record.text[i].size()};reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x11cb680)(reinterpret_cast<void*>(draft+string_offsets[i]),text);}
         std::memcpy(reinterpret_cast<void*>(draft+0xe8),&record.item_value,4);std::memcpy(reinterpret_cast<void*>(draft+0xec),&record.item_kind,4);*reinterpret_cast<uint8_t*>(draft+0xf0)=record.item_flag?1:0;
         std::memcpy(reinterpret_cast<void*>(draft+0x15c),record.selectors.data(),20);std::memcpy(reinterpret_cast<void*>(draft+0x170),record.color.data(),16);std::memcpy(reinterpret_cast<void*>(draft+0x180),record.timing.data(),12);
         std::memcpy(reinterpret_cast<void*>(draft+0x1f0),&record.animation,4);*reinterpret_cast<uint8_t*>(draft+0x1f4)=record.use_weapon?1:0;
@@ -197,11 +197,11 @@ bool enable(std::string& error){
     if(status!=MH_OK||!original)return fail(error,"Ability edit prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
     status=MH_EnableHook(reinterpret_cast<void*>(state.image+ui_code.rva));if(status!=MH_OK)return fail(error,"Ability edit enable failed status="+std::to_string(status));
     MT2FW_MT2_RouteReceipt receipt{sizeof receipt};if(!quest_list::read_route(state.image+ui_code.rva,receipt,error))return false;generation=receipt.generation;
-    status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x689100),reinterpret_cast<void*>(&view_select_entry),reinterpret_cast<void**>(&original_view_select));
+    status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x690310),reinterpret_cast<void*>(&view_select_entry),reinterpret_cast<void**>(&original_view_select));
     if(status!=MH_OK||!original_view_select)return fail(error,"Ability adjustment presentation prepare failed status="+std::to_string(status)+" cause="+mt2mp::hooks::framework::process_backend().error());
-    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x689100));
+    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x690310));
     if(status!=MH_OK)return fail(error,"Ability adjustment presentation enable failed status="+std::to_string(status));
-    if(!quest_list::read_route(state.image+0x689100,receipt,error))return false;view_generation=receipt.generation;
+    if(!quest_list::read_route(state.image+0x690310,receipt,error))return false;view_generation=receipt.generation;
     if(!install_apply_routes(error)||!code(memory,error)||!view_route(memory,error))return false;ready=true;return true;
 }
 void tick(){if(!pending)return;const auto saved=*pending;pending.reset();std::string error;a::Binding binding;

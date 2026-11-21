@@ -13,16 +13,16 @@ struct Memory {
     template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& e){auto* p=reinterpret_cast<unsigned char*>(&value);
         for(size_t i=0;i<sizeof value;++i){const auto it=bytes.find(object+offset+i);if(it==bytes.end()){e="fixture unreadable";return false;}p[i]=it->second;}return true;}
     bool typed(uintptr_t object,uintptr_t source,uintptr_t target,std::string& e){++typed_calls;
-        if((object==fixture_instance&&source==0x1657270&&target==0x16650e0)||(object==fixture_dungeon&&source==0x1673900&&target==0x164e3d0)||
-           (object==fixture_exterior&&source==0x1673900&&target==0x1655090))return true;e="fixture exact RTTI ABI differs";return false;}
+        if((object==fixture_instance&&source==0x165c850&&target==0x1669da0)||(object==fixture_dungeon&&source==0x1678ee0&&target==0x16539b0)||
+           (object==fixture_exterior&&source==0x1678ee0&&target==0x165a670))return true;e="fixture exact RTTI ABI differs";return false;}
     void init(int32_t type){
-        put(fixture_root,0,fixture_image+0x174ad20);put(fixture_root,0x48,int32_t(0));put(fixture_shard,0,fixture_image+0x174ad20);put(fixture_shard,0x48,type);
-        put(fixture_shard,0x18,fixture_dungeon);put(fixture_shard,0x20,fixture_instance);put(fixture_region,0,fixture_image+0x1787930);put(fixture_region,0x70,fixture_shard);
-        put(fixture_dungeon,0,fixture_image+0x16c0560);put(fixture_dungeon,0x48,type==1?fixture_shard:fixture_template_shard);put(fixture_dungeon,0x50,type==1?fixture_region:fixture_template_region);
-        put(fixture_template_shard,0,fixture_image+0x174ad20);put(fixture_template_shard,0x48,int32_t(1));put(fixture_template_shard,0x18,fixture_dungeon);
-        put(fixture_instance,0,fixture_image+0x1719450);put(fixture_instance,0x18,int32_t(7));put(fixture_instance,0x30,fixture_dungeon);put(fixture_instance,0x38,fixture_shard);put(fixture_instance,0x40,fixture_region);
+        put(fixture_root,0,fixture_image+0x17510c0);put(fixture_root,0x48,int32_t(0));put(fixture_shard,0,fixture_image+0x17510c0);put(fixture_shard,0x48,type);
+        put(fixture_shard,0x18,fixture_dungeon);put(fixture_shard,0x20,fixture_instance);put(fixture_region,0,fixture_image+0x178dcd0);put(fixture_region,0x70,fixture_shard);
+        put(fixture_dungeon,0,fixture_image+0x16c6900);put(fixture_dungeon,0x48,type==1?fixture_shard:fixture_template_shard);put(fixture_dungeon,0x50,type==1?fixture_region:fixture_template_region);
+        put(fixture_template_shard,0,fixture_image+0x17510c0);put(fixture_template_shard,0x48,int32_t(1));put(fixture_template_shard,0x18,fixture_dungeon);
+        put(fixture_instance,0,fixture_image+0x171f7f0);put(fixture_instance,0x18,int32_t(7));put(fixture_instance,0x30,fixture_dungeon);put(fixture_instance,0x38,fixture_shard);put(fixture_instance,0x40,fixture_region);
         put(fixture_dungeon,0x4c0,fixture_array);put(fixture_dungeon,0x4c8,int32_t(1));put(fixture_dungeon,0x4cc,int32_t(1));put(fixture_array,0,fixture_instance);
-        put(fixture_dungeon,0x6f8,fixture_exterior);put(fixture_exterior,0,fixture_image+0x16d93c0);put(fixture_exterior,0x18,uint64_t(0x100000012));put(fixture_exterior,0xa38,fixture_dungeon);put(fixture_exterior,0x170,fixture_root);
+        put(fixture_dungeon,0x6f8,fixture_exterior);put(fixture_exterior,0,fixture_image+0x16df760);put(fixture_exterior,0x18,uint64_t(0x100000012));put(fixture_exterior,0xa38,fixture_dungeon);put(fixture_exterior,0x170,fixture_root);
     }
 };
 int main()try{size_t checks=0;const std::string key="action:11111111-1111-4111-8111-111111111111";

@@ -12,13 +12,13 @@ inline bool fail(std::string& error,const char* cause){error=cause;return false;
 template<class Read,class Copy,class Text>
 bool purchase(uintptr_t image,uintptr_t caller,uintptr_t type,uintptr_t position,
               Read&& at,Copy&& copy,Text&& text,Purchase& out,std::string& error){
-    out={};const bool door=caller==image+0x5a34b2,key=caller==image+0x5a636a,treasure=caller==image+0x5b7f9a;
+    out={};const bool door=caller==image+0x5a9c62,key=caller==image+0x5acb1a,treasure=caller==image+0x5be73a;
     if(!door&&!key&&!treasure)return fail(error,"Dungeon input Purchase caller is not original Door Press, Key Update or Treasure Update");
     Purchase value;uintptr_t ap=0,ghost=0;
-    if(!at(image,0x13df9d0,value.cursor,error)||!at(value.cursor,0,ap,error))return false;
-    if(ap!=image+0x1786dd0)return fail(error,"Dungeon input actual native Cursor class differs");
+    if(!at(image,0x13eb9d0,value.cursor,error)||!at(value.cursor,0,ap,error))return false;
+    if(ap!=image+0x178d170)return fail(error,"Dungeon input actual native Cursor class differs");
     if(!at(value.cursor,0x190,value.receiver,error)||!at(value.receiver,0,ap,error))return false;
-    if(ap!=image+(door?0x173e870:treasure?0x1732980:0x173d330))return fail(error,"Dungeon input Purchase receiver is not the exact active Door/Key/Treasure behaviour");
+    if(ap!=image+(door?0x1744c10:treasure?0x1738d20:0x17436d0))return fail(error,"Dungeon input Purchase receiver is not the exact active Door/Key/Treasure behaviour");
     value.treasure=treasure;value.intent.tool=door?action_session::DungeonInputTool::Door:treasure?action_session::DungeonInputTool::Treasure:action_session::DungeonInputTool::Key;
     if(door){
         uintptr_t data=0;int32_t index=-1,count=-1,capacity=-1;uint8_t legal=0;

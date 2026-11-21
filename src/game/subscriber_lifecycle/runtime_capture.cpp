@@ -22,7 +22,7 @@ namespace {
 namespace local = mt2mp::subscriber_lifecycle;
 using Json = nlohmann::json;
 using World = building_mixed_identity::opened_file::CurrentWorld;
-constexpr const char* exe_sha = "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* exe_sha = "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 std::atomic_flag busy = ATOMIC_FLAG_INIT;
 std::atomic<uint64_t> sequence{0};
 uint64_t blocked_epoch = 0, blocked_generation = 0;
@@ -100,16 +100,16 @@ bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, i
         return fail(e, "subscriber capture active World/effects guard failed: mode=" + std::to_string(status.active_mode_index) +
             " state=" + std::to_string(status.in_game_state) + " edits=" + std::to_string(status.edit_operations) + " saves=" + std::to_string(status.saves_in_progress));
     uint32_t pe_offset = 0;
-    if (!at(out.image, 0x3c, pe_offset, e) || !at(out.image, size_t(pe_offset) + 24 + 56, out.image_size, e) || out.image_size < 0x1744e90)
+    if (!at(out.image, 0x3c, pe_offset, e) || !at(out.image, size_t(pe_offset) + 24 + 56, out.image_size, e) || out.image_size < 0x174b230)
         return fail(e, e.empty() ? "subscriber capture image extent invalid" : e);
     const auto state = reinterpret_cast<uintptr_t>(out.world.state);
     uintptr_t singleton = 0;
-    if (!ap(state, out.image, 0x16de920, "GameState", e) || !at(state, 0x1b8, out.manager, e) ||
-        !at(out.image, 0x13df690, singleton, e) || singleton != out.manager || !ap(out.manager, out.image, 0x1725f40, "Manager", e))
+    if (!ap(state, out.image, 0x16e4cc0, "GameState", e) || !at(state, 0x1b8, out.manager, e) ||
+        !at(out.image, 0x13eb690, singleton, e) || singleton != out.manager || !ap(out.manager, out.image, 0x172c2e0, "Manager", e))
         return fail(e, e.empty() ? "subscriber capture GameState/Singleton Manager ownership differs" : e);
     native::ClockState clock;
     uintptr_t clock_object = 0;
-    if (!at(out.image, 0x13df9a0, clock_object, e) || !ap(clock_object, out.image, 0x17499d0, "Clock", e)) return false;
+    if (!at(out.image, 0x13eb9a0, clock_object, e) || !ap(clock_object, out.image, 0x174fd70, "Clock", e)) return false;
     if (!native::read_clock(clock, e)) return false;
     if (require_paused && (clock.time_scale != 0 || !clock.paused)) return fail(e, "subscriber capture requires selected native Clock0 before original SaveScope");
     if (!census) return true;
@@ -120,7 +120,7 @@ bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, i
     std::set<int32_t> ids; std::set<uintptr_t> objects;
     for (int32_t i = 0; i < count; ++i) {
         Member m;
-        if (!at(out.data, size_t(i) * 8, m.object, e) || !ap(m.object, out.image, 0x16e75f0, "Subscriber", e) || !at(m.object, 0x20, m.id, e)) return false;
+        if (!at(out.data, size_t(i) * 8, m.object, e) || !ap(m.object, out.image, 0x16ed990, "Subscriber", e) || !at(m.object, 0x20, m.id, e)) return false;
         if (m.id < 0 || m.id >= out.next_id || !ids.insert(m.id).second || !objects.insert(m.object).second)
             return fail(e, "subscriber capture actual serialized IDs/objects not unique");
         out.members.push_back(m);
@@ -129,7 +129,7 @@ bool read_pin(int32_t id, const std::string& origin, Pin& out, std::string& e, i
     if (!out.subscriber) return fail(e, "subscriber capture requested serialized ID is absent");
     uintptr_t owner = 0, reverse = 0; uint8_t online = 0;
     if (!at(out.subscriber, 0x80, out.toon, e) || !at(out.subscriber, 0x88, out.brain, e) ||
-        !ap(out.toon, out.image, 0x1744e90, "Toon", e) || !ap(out.brain, out.image, 0x16fdd60, "Brain", e) ||
+        !ap(out.toon, out.image, 0x174b230, "Toon", e) || !ap(out.brain, out.image, 0x1704100, "Brain", e) ||
         !at(out.brain, 0x28, owner, e) || !at(out.toon, 0x940, reverse, e) || !at(out.toon, 0x825, online, e)) return false;
     if (owner != out.subscriber || reverse != out.subscriber || online > 1) return fail(e, "subscriber capture actual Toon/Brain reciprocal ownership differs");
     out.online = online != 0; return true;
@@ -146,23 +146,23 @@ bool bytes(uintptr_t image, uintptr_t rva, const char* expected, size_t count, s
     return std::equal(actual.begin(), actual.end(), expected) || fail(e, "subscriber capture native entry bytes differ RVA=" + std::to_string(rva));
 }
 bool resolve(uintptr_t image, local::CaptureApi& api, std::string& e) {
-    if (!bytes(image, 0x9667c0, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xcb\xe8\xb1\x66\x00\x00\x48", 16, e) ||
-        !bytes(image, 0x9676a0, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\xe8\x61\xed\xff\xff\x48", 16, e) ||
-        !bytes(image, 0x89e580, "\x53\x48\x83\xec\x20\x8b\x05\x25\xe9\x19\x01\x8d\x50\x01\x89\x15", 16, e) ||
-        !bytes(image, 0x89e5f0, "\x56\x53\x48\x83\xec\x28\x48\x8b\x31\x48\x85\xf6\x0f\x84\x7e\x00", 16, e) ||
-        !bytes(image, 0xeb85f0, "\x53\x48\x83\xec\x30\x48\x8b\x01\x48\x8b\x40\x30\x49\x89\xd0\x48", 16, e) ||
-        !bytes(image, 0xeb8650, "\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x58\x48\x8d\x2d\x5d", 16, e)) return false;
-    api = {reinterpret_cast<local::Construct>(image + 0x9667c0), reinterpret_cast<local::Construct>(image + 0x9676a0),
-        reinterpret_cast<local::Construct>(image + 0x89e580), reinterpret_cast<local::Construct>(image + 0x89e5f0),
-        reinterpret_cast<local::PrepareSave>(image + 0xeb85f0), reinterpret_cast<local::SaveRecord>(image + 0xeb8650)};
+    if (!bytes(image, 0x96f9e0, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xcb\xe8\xb1\x66\x00\x00\x48", 16, e) ||
+        !bytes(image, 0x9708c0, "\x57\x56\x53\x48\x83\xec\x20\x48\x89\xce\xe8\x61\xed\xff\xff\x48", 16, e) ||
+        !bytes(image, 0x8a76a0, "\x53\x48\x83\xec\x20\xb8\x01\x00\x00\x00\x48\x89\xcb\xf0\x0f\xc1", 16, e) ||
+        !bytes(image, 0x8a7710, "\x56\x53\x48\x83\xec\x28\x48\x8b\x31\x48\x85\xf6\x0f\x84\x7e\x00", 16, e) ||
+        !bytes(image, 0xec40f0, "\x53\x48\x83\xec\x30\x48\x8b\x01\x48\x8b\x40\x30\x49\x89\xd0\x48", 16, e) ||
+        !bytes(image, 0xec4150, "\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x58\x48\x8d\x2d\x5d", 16, e)) return false;
+    api = {reinterpret_cast<local::Construct>(image + 0x96f9e0), reinterpret_cast<local::Construct>(image + 0x9708c0),
+        reinterpret_cast<local::Construct>(image + 0x8a76a0), reinterpret_cast<local::Construct>(image + 0x8a7710),
+        reinterpret_cast<local::PrepareSave>(image + 0xec40f0), reinterpret_cast<local::SaveRecord>(image + 0xec4150)};
     return true;
 }
 struct Schedulers { uintptr_t task = 0, tick = 0, update = 0; bool operator==(const Schedulers&) const = default; };
 bool schedulers(const Pin& pin, bool held, Schedulers& out, std::string& e) {
     const auto image = pin.image;
-    if (!at(image, 0x13df340, out.task, e) || !ap(out.task, image, 0x16fdaf0, "TaskManager", e) ||
-        !at(image, 0x13df350, out.tick, e) || !ap(out.tick, image, 0x16fdc40, "TickManager", e) ||
-        !at(image, 0x13df4a0, out.update, e) || !ap(out.update, image, 0x1709650, "UpdateManager", e)) return false;
+    if (!at(image, 0x13eb340, out.task, e) || !ap(out.task, image, 0x1703e90, "TaskManager", e) ||
+        !at(image, 0x13eb350, out.tick, e) || !ap(out.tick, image, 0x1703fe0, "TickManager", e) ||
+        !at(image, 0x13eb4a0, out.update, e) || !ap(out.update, image, 0x170f9f0, "UpdateManager", e)) return false;
     uintptr_t task = 0, tick = 0, update = 0;
     const auto game = reinterpret_cast<uintptr_t>(pin.world.game);
     if (!at(game, 0x68, task, e) || !at(game, 0x70, update, e) || !at(game, 0x150, tick, e)) return false;
@@ -232,12 +232,12 @@ bool capture_impl(const std::filesystem::path& root, int32_t id, const std::stri
         if(!building_pins.prepare(admission.image, admission.world, cause)||!npc_pins.prepare(admission.image,admission.world,cause))return false;
         local::CaptureApi api;
         if (!resolve(admission.image, api, cause) ||
-            !bytes(admission.image, 0x4a03a0, "\x53\x48\x83\xec\x20\x48\x89\xcb\xe8\xd3\xb8\x56\x00\x84\xc0\x74", 16, cause) ||
-            !bytes(admission.image, 0x49f6f0, "\x57\x56\x53\x48\x83\xec\x40\x48\x89\xcb\xe8\x81\xc5\x56\x00\x84", 16, cause)) return false;
+            !bytes(admission.image, 0x4a5890, "\x53\x48\x83\xec\x20\x48\x89\xcb\xe8\x43\x10\x57\x00\x84\xc0\x74", 16, cause) ||
+            !bytes(admission.image, 0x4a4be0, "\x57\x56\x53\x48\x83\xec\x40\x48\x89\xcb\xe8\xf1\x1c\x57\x00\x84", 16, cause)) return false;
         Schedulers original_schedulers;
         if (!schedulers(admission, false, original_schedulers, cause)) return false;
-        const local::SaveScopeApi scope_api{reinterpret_cast<local::SaveScopeCall>(admission.image + 0x4a03a0),
-            reinterpret_cast<local::SaveScopeCall>(admission.image + 0x49f6f0)};
+        const local::SaveScopeApi scope_api{reinterpret_cast<local::SaveScopeCall>(admission.image + 0x4a5890),
+            reinterpret_cast<local::SaveScopeCall>(admission.image + 0x4a4be0)};
         Pin before;
         local::CaptureReceipt receipt; Borrow borrow;
         Json rows = Json::array(), links = Json::array(), external_links = Json::array(); size_t external = 0;

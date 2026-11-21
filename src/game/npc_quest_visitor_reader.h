@@ -65,7 +65,7 @@ inline bool read_link(npc_census::Memory& memory,uintptr_t image,uintptr_t objec
     uintptr_t target_ap=0,target_proxy=0;
     if(!npc_quest_records::get(memory,target,0,target_ap,"visitor live target AP",error)||
        !npc_quest_records::get(memory,target,proxy_offset,target_proxy,"visitor live target proxy",error))return false;
-    if(target_ap!=image+(kind==Kind::Npc?0x1742980:0x174ac10)||target_proxy!=proxy)
+    if(target_ap!=image+(kind==Kind::Npc?0x1748d20:0x1750fb0)||target_proxy!=proxy)
         return npc_quest_records::reject(error,"Quest visitor live target AP or reciprocal proxy differs");
     out.state=LinkState::Live;
     if(!identity||!identity(kind,target,out.diagnostic_key,error)){
@@ -92,19 +92,19 @@ inline bool read(npc_census::Memory& memory,uintptr_t image,uintptr_t subscriber
                  const IdentityCallback& identity,State& out,std::string& error){
     uintptr_t toon=0,ap=0,backlink=0,subscriber_ap=0;
     int32_t subscriber_id=-1;
-    if(!image||image>UINTPTR_MAX-0x174ac10||!subscriber||!identity)
+    if(!image||image>UINTPTR_MAX-0x1750fb0||!subscriber||!identity)
         return npc_quest_records::reject(error,"Quest visitor image, subscriber or identity absent");
     if(!npc_quest_records::get(memory,subscriber,0,subscriber_ap,"subscriber AP",error)||
        !npc_quest_records::get(memory,subscriber,0x20,subscriber_id,"subscriber ID",error)||
        !npc_quest_records::get(memory,subscriber,0x80,toon,"subscriber Toon",error)||
        !npc_quest_records::get(memory,toon,0,ap,"Toon AP",error)||
        !npc_quest_records::get(memory,toon,0x940,backlink,"Toon subscriber backlink",error))return false;
-    if(subscriber_ap!=image+0x16e75f0||subscriber_id<0||
-       ap!=image+0x1744e90||backlink!=subscriber)
+    if(subscriber_ap!=image+0x16ed990||subscriber_id<0||
+       ap!=image+0x174b230||backlink!=subscriber)
         return npc_quest_records::reject(error,"Quest visitor subscriber/Toon AP, ID or backlink differs");
     ArrayHeader before,after;
     if(!read_header(memory,toon,before,error))return false;
-    if(before.ap!=image+0x16ee0e0||before.count<0||before.capacity<before.count||
+    if(before.ap!=image+0x16f4480||before.count<0||before.capacity<before.count||
        before.capacity>100000||(before.count&&!before.data)||
        before.data>UINTPTR_MAX-size_t(before.count)*sizeof(uintptr_t))
         return npc_quest_records::reject(error,"Quest visitor array AP, pointer, count or capacity differs");
@@ -124,25 +124,25 @@ inline bool read(npc_census::Memory& memory,uintptr_t image,uintptr_t subscriber
         if(!npc_quest_records::get(memory,before.data,size_t(i)*sizeof(uintptr_t),
                                    progress,"visitor progress pointer",error)||
            !npc_quest_records::get(memory,progress,0,progress_ap,"visitor progress AP",error))return false;
-        if(progress_ap!=image+0x172d130||!progress_objects.insert(progress).second||
+        if(progress_ap!=image+0x17334d0||!progress_objects.insert(progress).second||
            progress>UINTPTR_MAX-0x58)
             return npc_quest_records::reject(error,"Quest visitor progress AP, pointer or duplicate differs");
         pointers.push_back(progress);
         Progress row;
-        if(!read_link(memory,image,progress,0x38,0x16f9de0,Kind::Npc,identity,row.npc,error)||
+        if(!read_link(memory,image,progress,0x38,0x1700180,Kind::Npc,identity,row.npc,error)||
            !npc_quest_records::get(memory,progress,0x50,row.completed,"visitor completed count",error)||
            !npc_quest_records::get(memory,progress+0x58,0,instance_ap,"visitor instance AP",error))return false;
-        if(instance_ap!=image+0x17087e0)
+        if(instance_ap!=image+0x170eb80)
             return npc_quest_records::reject(error,"Quest visitor instance AP differs subscriber="+
                 std::to_string(subscriber_id)+" row="+std::to_string(i)+" actual="+
-                std::to_string(instance_ap)+" expected="+std::to_string(image+0x17087e0)+
+                std::to_string(instance_ap)+" expected="+std::to_string(image+0x170eb80)+
                 " completed="+std::to_string(row.completed));
         // FindNearbyNewQuestGiver publishes -1 before CollectQuest selects quest 0.
         if(row.completed<-1)
             return npc_quest_records::reject(error,"Quest visitor completed count below discovery sentinel subscriber="+
                 std::to_string(subscriber_id)+" row="+std::to_string(i)+" actual="+
                 std::to_string(row.completed)+" minimum=-1");
-        if(!read_link(memory,image,progress+0x58,0x38,0x16f9f20,Kind::Quest,identity,row.quest,error)||
+        if(!read_link(memory,image,progress+0x58,0x38,0x17002c0,Kind::Quest,identity,row.quest,error)||
            !npc_quest_records::get(memory,progress+0x58,0x50,row.monsters_defeated,"visitor defeated",error))return false;
         uint8_t visited=2,action=2,complete=2;
         if(!npc_quest_records::get(memory,progress+0x58,0x54,visited,"visitor visited",error)||

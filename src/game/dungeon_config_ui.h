@@ -7,10 +7,10 @@ template<class Read,class Text>bool validate(Read&& read,Text&& text,uintptr_t i
     uintptr_t dungeon,uintptr_t spinner,uintptr_t accept,Controls& out,std::string& error){
     out={};const auto fail=[&](const char* why){if(error.empty())error=why;return false;};
     uintptr_t ap=0,owner=0,method=0;uint8_t shown=0;
-    if(!window||!dungeon||!read(window,0,ap,error)||ap!=image+0x173bee0||
+    if(!window||!dungeon||!read(window,0,ap,error)||ap!=image+0x1742280||
        !read(window,0x510,owner,error)||owner!=dungeon||!read(window,0x45f,shown,error)||shown!=1||
-       !read(ap,0x168,method,error)||method!=image+0x6aea60||
-       !read(ap,0x1d0,method,error)||method!=image+0x81ec20)return fail("Dungeon config original Window owner/visibility/callback differs");
+       !read(ap,0x168,method,error)||method!=image+0x6b5d80||
+       !read(ap,0x1d0,method,error)||method!=image+0x827210)return fail("Dungeon config original Window owner/visibility/callback differs");
     const auto visible=[&](uintptr_t pane){std::set<uintptr_t> seen;
         while(pane!=window){uintptr_t parent=0,actual_owner=0;uint8_t visible=0;
             if(!pane||!seen.insert(pane).second||seen.size()>64||!read(pane,0x69,visible,error)||visible!=1||
@@ -27,7 +27,7 @@ template<class Read,class Text>bool validate(Read&& read,Text&& text,uintptr_t i
        !text(spinner+0x378,route,error)||route!="MessageTo Window SetInstanceCount")
         return fail("Dungeon config named Spinner domain or original route differs");
     uint8_t disabled=1,clickable=0;
-    if(!accept||!read(accept,0,ap,error)||ap!=image+0x16e3ec0||!visible(accept)||
+    if(!accept||!read(accept,0,ap,error)||ap!=image+0x16ea260||!visible(accept)||
        !read(accept,0x46d,disabled,error)||disabled||!read(accept,0x174,clickable,error)||clickable!=1||
        !text(accept+0x388,route,error)||route!="MessageTo Window Accept")
         return fail("Dungeon config actual Accept is disabled, hidden or foreign");
@@ -38,13 +38,13 @@ template<class Read,class Text>bool prepare(Read&& read,Text&& text,uintptr_t im
     uintptr_t exterior,uintptr_t tabs,uintptr_t page,uintptr_t dungeon,Tab& out,std::string& error){
     out={};uintptr_t ap=0,owner=0,method=0;uint8_t shown=0;
     const auto fail=[&](){if(error.empty())error="Dungeon config original exterior Instances tab/owner differs";return false;};
-    if(!window||!exterior||!dungeon||!tabs||!page||!read(window,0,ap,error)||ap!=image+0x172af10||
+    if(!window||!exterior||!dungeon||!tabs||!page||!read(window,0,ap,error)||ap!=image+0x17312b0||
        !read(window,0x45f,shown,error)||shown!=1||!read(window,0x4f8,owner,error)||owner!=exterior||
        !read(exterior,0xa38,owner,error)||owner!=dungeon||!read(dungeon,0x6f8,owner,error)||owner!=exterior||
-       !read(tabs,0,ap,error)||ap!=image+0x17015b0||!read(ap,0xf0,method,error)||method!=image+0x752d70||
+       !read(tabs,0,ap,error)||ap!=image+0x1707950||!read(ap,0xf0,method,error)||method!=image+0x75a7f0||
        !read(tabs,0x69,shown,error)||shown!=1||!read(tabs,0x280,owner,error)||owner!=window||
-       !read(tabs,0x3b8,out.view,error)||!read(out.view,0,ap,error)||ap!=image+0x16dfe90||
-       !read(ap,0x168,method,error)||method!=image+0x7568e0||!read(out.view,0x278,owner,error)||owner!=tabs||
+       !read(tabs,0x3b8,out.view,error)||!read(out.view,0,ap,error)||ap!=image+0x16e6230||
+       !read(ap,0x168,method,error)||method!=image+0x75e360||!read(out.view,0x278,owner,error)||owner!=tabs||
        !read(out.view,0x280,owner,error)||owner!=window||!text(page+0x1b0,out.label,error)||out.label!="{dungeoninfo_tab_instances}")return fail();
     out.page=page;return true;
 }
@@ -53,13 +53,13 @@ template<class Read,class Text>bool offer(Read&& read,Text&& text,uintptr_t imag
     tab={};
     const auto fail=[&](const char* why){if(error.empty())error=why;return false;};
     uintptr_t ap=0,owner=0,parent=0,callback=0;uint8_t shown=0,disabled=1,clickable=0;std::string route;
-    if(!window||!dungeon||!exterior||!button||!read(window,0,ap,error)||ap!=image+0x172af10||
-       !read(ap,0x168,callback,error)||callback!=image+0x66d990||!read(window,0x45f,shown,error)||shown!=1||
+    if(!window||!dungeon||!exterior||!button||!read(window,0,ap,error)||ap!=image+0x17312b0||
+       !read(ap,0x168,callback,error)||callback!=image+0x674b60||!read(window,0x45f,shown,error)||shown!=1||
        !read(window,0x4f8,owner,error)||owner!=exterior||!read(exterior,0xa38,owner,error)||owner!=dungeon||
        !read(dungeon,0x6f8,owner,error)||owner!=exterior||
-       !read(button,0,ap,error)||ap!=image+0x16e3ec0||!read(button,0x278,tab.page,error)||
-       !read(tab.page,0x278,tab.view,error)||!read(tab.view,0,ap,error)||ap!=image+0x16dfe90||
-       !read(ap,0x168,callback,error)||callback!=image+0x7568e0||
+       !read(button,0,ap,error)||ap!=image+0x16ea260||!read(button,0x278,tab.page,error)||
+       !read(tab.page,0x278,tab.view,error)||!read(tab.view,0,ap,error)||ap!=image+0x16e6230||
+       !read(ap,0x168,callback,error)||callback!=image+0x75e360||
        !text(tab.page+0x1b0,tab.label,error)||tab.label.empty()||tab.label.size()>128||
        !read(button,0x280,owner,error)||owner!=window||!read(button,0x46d,disabled,error)||disabled||
        !read(button,0x174,clickable,error)||clickable!=1||!text(button+0x388,route,error)||route!="MessageTo Window OpenInstancesConfig")

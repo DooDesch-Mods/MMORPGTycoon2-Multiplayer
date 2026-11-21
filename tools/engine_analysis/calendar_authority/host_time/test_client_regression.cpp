@@ -46,16 +46,16 @@ struct Fixture {
     Config config() { return {base,7,hash}; }
     Fixture() {
         for (const auto& g:guards) std::memcpy(memory.data()+g.rva,g.bytes,g.size);
-        put(base+0x13df8f0,game); put(game,base+0x1743740); put(game+0x28,mode);
-        put(base+0x13df320,mode); put(mode,base+0x16e6730); put(mode+0x2c4,int32_t(4));
+        put(base+0x13eb8f0,game); put(game,base+0x1749ae0); put(game+0x28,mode);
+        put(base+0x13eb320,mode); put(mode,base+0x16ecad0); put(mode+0x2c4,int32_t(4));
         put(mode+0x304,uint8_t(0)); put(mode+0x58,base+0x2200000);
-        put(base+0x13df9a0,clock); put(clock,base+0x17499d0); put(clock+0x58,0.0f);
-        put(base+0x13df9f0,player); put(player,base+0x17873b0); put(player+0x1d0,inventory);
-        put(inventory,base+0x16df0f0); put(inventory+8,array); put(inventory+0x10,int32_t(4));
+        put(base+0x13eb9a0,clock); put(clock,base+0x174fd70); put(clock+0x58,0.0f);
+        put(base+0x13eb9f0,player); put(player,base+0x178d750); put(player+0x1d0,inventory);
+        put(inventory,base+0x16e5490); put(inventory+8,array); put(inventory+0x10,int32_t(4));
         for (size_t i=0;i<4;++i) {
-            put(array+i*8,item(i)); put(item(i),base+0x17437f0); put(item(i)+0x68,type(i));
+            put(array+i*8,item(i)); put(item(i),base+0x1749b90); put(item(i)+0x68,type(i));
             put(item(i)+0x70,proxy0+i*16); put(proxy0+i*16,type(i)+0x20);
-            put(type(i),base+0x1723f50); put(type(i)+0x15c,scales[i]);
+            put(type(i),base+0x172a2f0); put(type(i)+0x15c,scales[i]);
             put(type(i)+0x48,name0+i*32); put(type(i)+0x50,uint64_t(std::strlen(names[i])));
             std::memcpy(memory.data()+name0+i*32-base,names[i],std::strlen(names[i]));
             put(item(i)+0x38,int32_t(i==0?0:1));
@@ -64,7 +64,7 @@ struct Fixture {
     void init() { check(bridge.initialize(config(),backend(),error),"init"); }
     void bind() { init(); check(bridge.bind(19,error),"bind"); }
     void arm() { bind(); check(bridge.set_host_state(19,1,3,1,error),"host_state"); check(bridge.enable_capture(3,error),"capture_arm"); }
-    HookResult activate(size_t i,uintptr_t caller=0x58095c) {
+    HookResult activate(size_t i,uintptr_t caller=0x58711c) {
         return bridge.on_activate(reinterpret_cast<void*>(type(i)),reinterpret_cast<void*>(item(i)),base+caller);
     }
 };
@@ -74,7 +74,7 @@ try {
     {
         Fixture f; auto cfg=f.config(); cfg.verified_executable_sha256="wrong";
         check(!f.bridge.initialize(cfg,f.backend(),f.error) && f.error=="exact_build_receipt_required","wrong_hash");
-        f.memory[0x20e6d0]=0xcc;
+        f.memory[0x2112c0]=0xcc;
         check(!f.bridge.initialize(f.config(),f.backend(),f.error) && f.error.find("entry_bytes_mismatch")!=std::string::npos,"modified_entry");
     }
     {
@@ -129,7 +129,7 @@ try {
     }
     {
         Fixture f; f.arm();
-        constexpr std::array<uintptr_t,4> direct_callers{0x4a2abe,0x4a2b05,0x4a2b4c,0x4a2b97};
+        constexpr std::array<uintptr_t,4> direct_callers{0x4a7fae,0x4a7ff5,0x4a803c,0x4a8087};
         for (size_t i=0;i<4;++i) {
             const auto direct=f.activate(i,direct_callers[i]);
             check(direct.request_queued && direct.intent==static_cast<Intent>(i) && direct.origin==Origin::Keyboard,
@@ -141,18 +141,18 @@ try {
     }
     {
         Fixture f; f.arm();
-        check(f.activate(1,0x4a2d93).request_queued,"keyboard_toggle_normal_path");
-        check(f.activate(0,0x4a2a77).request_queued,"keyboard_toggle_pause_path");
+        check(f.activate(1,0x4a8283).request_queued,"keyboard_toggle_normal_path");
+        check(f.activate(0,0x4a7f67).request_queued,"keyboard_toggle_pause_path");
         Request r{}; bool available=false;
         check(f.bridge.pop_request(r,available,f.error) && r.intent==Intent::TogglePauseNormal,"toggle_intent_preserved");
-        check(!f.activate(2,0x4a2a77).request_queued,"toggle_wrong_item_reject");
-        check(!f.activate(0,0x4a2d93).request_queued,"toggle_normal_caller_requires_normal_item");
-        check(!f.activate(1,0x4a2a77).request_queued,"toggle_pause_caller_requires_pause_item");
-        check(!f.activate(0,0x4a2b97).request_queued,"explicit_wrong_item_reject");
-        check(f.activate(3,0x4a2b97).request_queued,"keyboard_fastest_path");
-        const auto unknown=f.activate(1,0xd4cfe);
+        check(!f.activate(2,0x4a7f67).request_queued,"toggle_wrong_item_reject");
+        check(!f.activate(0,0x4a8283).request_queued,"toggle_normal_caller_requires_normal_item");
+        check(!f.activate(1,0x4a7f67).request_queued,"toggle_pause_caller_requires_pause_item");
+        check(!f.activate(0,0x4a8087).request_queued,"explicit_wrong_item_reject");
+        check(f.activate(3,0x4a8087).request_queued,"keyboard_fastest_path");
+        const auto unknown=f.activate(1,0xd5d2e);
         check(!unknown.request_queued && unknown.decision==Decision::Suppress && unknown.error.find("origin")!=std::string::npos,"autonomous_origin_rejected");
-        const auto other=f.bridge.on_activate(reinterpret_cast<void*>(Fixture::type(1)),reinterpret_cast<void*>(Fixture::item(0)),Fixture::base+0x58095c);
+        const auto other=f.bridge.on_activate(reinterpret_cast<void*>(Fixture::type(1)),reinterpret_cast<void*>(Fixture::item(0)),Fixture::base+0x58711c);
         check(!other.matched && other.decision==Decision::Forward,"foreign_pair_forward");
     }
     {

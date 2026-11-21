@@ -75,14 +75,14 @@ struct Runtime::Impl {
     }
     bool witness(Lease& l,std::string& e) {
         uintptr_t active=0;int32_t mode_state=-1;uint8_t quitting=0;
-        if(!get(config.image+0x13df8f0,l.game,e)||!vt(l.game,0x1743740,"game",e)||
-           !get(config.image+0x13df320,l.mode,e)||!vt(l.mode,0x16e6730,"mode",e)||
+        if(!get(config.image+0x13eb8f0,l.game,e)||!vt(l.game,0x1749ae0,"game",e)||
+           !get(config.image+0x13eb320,l.mode,e)||!vt(l.mode,0x16ecad0,"mode",e)||
            !get(l.game+0x28,active,e)||!get(l.mode+0x2c4,mode_state,e)||!get(l.mode+0x304,quitting,e)||
            !get(l.mode+0x58,l.world,e))return false;
         if(active!=l.mode||mode_state!=4||quitting||!l.world){e="active_world_state4_required actual_state="+std::to_string(mode_state);return false;}
-        return get(config.image+0x13df9a0,l.clock,e)&&vt(l.clock,0x17499d0,"clock",e)&&
-            get(config.image+0x13df9f0,l.player,e)&&vt(l.player,0x17873b0,"player",e)&&
-            get(l.player+0x1d0,l.inventory,e)&&vt(l.inventory,0x16df0f0,"inventory",e);
+        return get(config.image+0x13eb9a0,l.clock,e)&&vt(l.clock,0x174fd70,"clock",e)&&
+            get(config.image+0x13eb9f0,l.player,e)&&vt(l.player,0x178d750,"player",e)&&
+            get(l.player+0x1d0,l.inventory,e)&&vt(l.inventory,0x16e5490,"inventory",e);
     }
     bool lease_guard(std::string& e) {
         Session s{};Lease current{};
@@ -163,7 +163,7 @@ struct Runtime::Impl {
             if(!get(array+static_cast<uintptr_t>(n)*8,item,e))return false;
             if(!item)continue;
             if(!get(item+0x68,type,e)||!get(type,vptr,e))return false;
-            if(vptr!=config.image+0x1723f50)continue;
+            if(vptr!=config.image+0x172a2f0)continue;
             if(!get(type+0x15c,scale,e))return false;
             const std::array<float,4> scales{0,1,3,9};
             for(size_t i=0;i<4;++i)if(scale==scales[i]){if(found[i]){e="duplicate_time_pair";return false;}items[i]={type,item};found[i]=true;}

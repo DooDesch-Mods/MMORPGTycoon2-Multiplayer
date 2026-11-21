@@ -3,7 +3,7 @@
 #include <string>
 
 namespace mt2mp::game::toon_time_fence::camera_gate {
-inline constexpr uintptr_t full_update_rva=0x3ea480;
+inline constexpr uintptr_t full_update_rva=0x3eef90;
 struct State {uintptr_t root=0,receiver=0;bool failed=false;std::string cause;};
 inline thread_local State state;
 class Step {

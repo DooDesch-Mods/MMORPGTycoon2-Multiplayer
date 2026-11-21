@@ -11,7 +11,7 @@ bool history_source(const action::Binding& binding,const action::Request& reques
 }
 bool restored_keys(const Operation& source,const inverse::Graph& graph,
                    std::map<int32_t,std::map<uint64_t,std::string>>& out,std::string& error){
-    for(const auto& node:graph.nodes)if(node.rva==0x17132f0){
+    for(const auto& node:graph.nodes)if(node.rva==0x1719690){
         const auto found=source.keys.find(node.uid);
         if(found==source.keys.end())return q::fail(error,"District history Make full UID has no retained canonical owner");
         if(!district_lifecycle::valid_key(found->second))continue;

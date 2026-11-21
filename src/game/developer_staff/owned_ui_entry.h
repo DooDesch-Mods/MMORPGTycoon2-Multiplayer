@@ -9,7 +9,7 @@ struct UiEntryOwner {uintptr_t target=0,detour=0,trampoline=0;bool original_veri
 inline constexpr std::array<unsigned char,6> ui_prefix{0x41,0x56,0x41,0x55,0x41,0x54};
 template<class Copy,class Hash>
 bool verify_owned_ui(const UiEntryOwner& owner,uintptr_t target,Copy&& copy,Hash&& hash,std::string& e,
-    size_t body_size=2560,const std::string& expected="d204e8e24dc14d66e170adae7b4b60433fa82baa6eecb81f65353f32d8c5a2af"){
+    size_t body_size=2560,const std::string& expected="63b0c84b87fcb7262ea9793b352282fd8153671426b63d531eae661707a8a634"){
     auto fail=[&](const char* cause){e=cause;return false;};
     if(!owner.original_verified||!owner.enabled||!target||owner.target!=target||!owner.detour||!owner.trampoline)return fail("Developer UI entry lacks exact enabled physical owner");
     if(body_size<6||body_size>4096||target>UINTPTR_MAX-body_size||owner.trampoline>UINTPTR_MAX-34)return fail("Developer UI entry body/trampoline extent invalid");

@@ -50,7 +50,7 @@ bool read_quests(Memory& memory,const identity::Edit& edit,const std::vector<ide
     };
     const auto destination=[&](uintptr_t pointer,std::string& key,std::string& cause){
         uintptr_t ap=0;if(!field(memory,pointer,0,ap,cause))return false;
-        if(ap==za::state.image+0x1745ce0){
+        if(ap==za::state.image+0x174c080){
             const auto row=std::find_if(rows.begin(),rows.end(),[&](const auto& value){return value.object==pointer;});
             if(row!=rows.end()){
                 uint64_t uid=0;uintptr_t actual=0,root=0,region=0;
@@ -61,11 +61,11 @@ bool read_quests(Memory& memory,const identity::Edit& edit,const std::vector<ide
                 key=row->key;return true;
             }
         }
-        if(ap==za::state.image+0x16c0770)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
-        if(ap==za::state.image+0x1742980)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
+        if(ap==za::state.image+0x16c6b10)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
+        if(ap==za::state.image+0x1748d20)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
         // A changed Zone pool must not invalidate an unrelated Building target.
         // The existing Building binder still verifies its full live ownership.
-        if(ap!=za::state.image+0x1745ce0)return q::building_key(edit.world,pointer,key,cause);
+        if(ap!=za::state.image+0x174c080)return q::building_key(edit.world,pointer,key,cause);
         bool dungeon=false;return npc_quest_target_runtime::bind_current_destination(pointer,key,dungeon,cause);
     };
     return qr::read(memory,za::state.image,0,"",owner,destination,out,error,previous);

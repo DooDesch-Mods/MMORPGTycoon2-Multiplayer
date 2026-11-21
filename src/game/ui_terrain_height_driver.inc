@@ -1,13 +1,13 @@
 namespace {
 uint32_t height_ui_sample(uintptr_t image,uintptr_t map,std::array<float,3>& point){
-    __try{point[1]=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ab80)(reinterpret_cast<void*>(map),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
+    __try{point[1]=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ec10)(reinterpret_cast<void*>(map),point.data());return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t height_ui_input(uintptr_t image,unsigned step,const placement_ui_probe::Binding& b,const std::array<float,3>& point){
     __try{
-        if(step==0)reinterpret_cast<Unary>(image+0x580870)(reinterpret_cast<void*>(b.button));
+        if(step==0)reinterpret_cast<Unary>(image+0x587030)(reinterpret_cast<void*>(b.button));
         // Native Press resets the cell cache and tail-calls virtual Drag once.
-        else if(step==1)reinterpret_cast<Press>(image+0x5e1260)(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
-        else if(step==2)reinterpret_cast<Press>(image+0xbf6480)(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
+        else if(step==1)reinterpret_cast<Press>(image+0x5e79b0)(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
+        else if(step==2)reinterpret_cast<Press>(image+0xc02b50)(reinterpret_cast<void*>(b.behaviour),reinterpret_cast<void*>(b.cursor),point.data());
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -38,7 +38,7 @@ bool native_height(const json& args,json& out,std::string& e){
     if(!region::identity(*r,int32_t(id),0,before,e)||!region::at(*r,before.region,0x850,owned,e)||owned!=1)return fail(e,e.empty()?"height native UI requires owned Region":e);
     if(!height_grid(*r,before.region,grid,digest,e)||size_t(cell)>=grid.values.size())return fail(e,e.empty()?"height native UI cell outside actual grid":e);
     std::array<float,3> point{grid.origin[0]+(float(cell%grid.width)+0.5f)*grid.cell_size,0,grid.origin[2]+(float(cell/grid.width)+0.5f)*grid.cell_size};
-    uintptr_t map=0,ap=0,receiver=0;if(!region::at(*r,r->image,0x13df8c0,map,e)||!region::at(*r,map,0,ap,e)||ap!=r->image+0x1742860)return fail(e,e.empty()?"height native UI actual Map owner differs":e);
+    uintptr_t map=0,ap=0,receiver=0;if(!region::at(*r,r->image,0x13eb8c0,map,e)||!region::at(*r,map,0,ap,e)||ap!=r->image+0x1748c00)return fail(e,e.empty()?"height native UI actual Map owner differs":e);
     if(!native_error(height_ui_sample(r->image,map,point),"height UI Map.GetHeightAt",e))return false;
     int32_t actual_cell=-1;for(float value:point)if(!std::isfinite(value))return fail(e,"height native UI cell center not finite");
     if(point==std::array<float,3>{}||!terrain_height::index(grid,point,actual_cell,e)||actual_cell!=cell||!height_region_at(*r,point,before.region,receiver,e))return fail(e,e.empty()?"height native UI cell center/Region differs":e);
@@ -50,7 +50,7 @@ bool native_height(const json& args,json& out,std::string& e){
     terrain.ui_token=token;struct Reset{~Reset(){terrain.ui_token.clear();}} reset;const auto captured=terrain.captured;
     auto call=[&](unsigned step){job["attempted"]=job.at("attempted").get<unsigned>()+1;const auto seh=height_ui_input(r->image,step,binding,point);if(seh){e="height original UI callback SEH="+std::to_string(seh)+" step="+std::to_string(step);return false;}job["returned"]=job.at("returned").get<unsigned>()+1;return true;};
     bool ok=call(0);uintptr_t active=0,drag=0,release=0;uint8_t actual_up=0;
-    if(ok)ok=region::at(*r,cursor,0x190,active,e)&&active==binding.behaviour&&region::at(*r,active,0,ap,e)&&ap==r->image+0x1740010&&region::at(*r,active,0x148,actual_up,e)&&actual_up==(up?1:0)&&region::at(*r,ap,0xe0,drag,e)&&drag==r->image+0x5e1860&&region::at(*r,ap,0xe8,release,e)&&release==r->image+0xbf6480;
+    if(ok)ok=region::at(*r,cursor,0x190,active,e)&&active==binding.behaviour&&region::at(*r,active,0,ap,e)&&ap==r->image+0x17463b0&&region::at(*r,active,0x148,actual_up,e)&&actual_up==(up?1:0)&&region::at(*r,ap,0xe0,drag,e)&&drag==r->image+0x5e7fb0&&region::at(*r,ap,0xe8,release,e)&&release==r->image+0xc02b50;
     job["selection_confirmed"]=ok;
     if(!ok&&e.empty())e="height UI active native owner/direction/Drag/Release differs; measured_up="+std::to_string(actual_up)+" required_up="+std::to_string(up?1:0);
     std::array<float,3> prior{};float prior_radius=0;bool borrowed=false;

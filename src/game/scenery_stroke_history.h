@@ -19,7 +19,7 @@ template<class Memory>bool graph(Memory& memory,uintptr_t image,uintptr_t owner,
     std::set<uint64_t> seen;
     for(int32_t index=0;index<span.count;++index){uintptr_t node=0,ap=0;
         if(!q::at(memory,span.data,size_t(index)*8,node,e)||!q::at(memory,node,0,ap,e))return false;
-        if(ap!=image+0x1706590)continue;uint64_t uid=0;if(!q::at(memory,node,0xb8,uid,e))return false;
+        if(ap!=image+0x170c930)continue;uint64_t uid=0;if(!q::at(memory,node,0xb8,uid,e))return false;
         const auto expected=expected_make.find(uid);
         if(expected==expected_make.end()||!seen.insert(uid).second)return q::fail(e,"Scenery history original Make full UID is foreign or repeated");
         auto& payload=stored.at(uid);

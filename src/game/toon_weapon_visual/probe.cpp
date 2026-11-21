@@ -6,7 +6,7 @@ bool read_scene(placement_ui_probe::Memory& memory,Plan& p,std::string& error){
     if(!visual_read(memory,p.shard,0x48,kind,error))return false;
     if(kind==0){
         // Shard::GetScene selects Screen::GetScene(0). Read its existing array only.
-        if(!visual_read(memory,p.image,0x164b420,screen_global,error)||!visual_read(memory,screen_global,0,owner,error)||
+        if(!visual_read(memory,p.image,0x1650a00,screen_global,error)||!visual_read(memory,screen_global,0,owner,error)||
            !visual_read(memory,owner,0x30,count,error)||!visual_read(memory,owner,0x10,data,error))return false;
         if(count<=0||count>1048576)return visual_fail(error,"Weapon probe current Screen scene count differs");
         if(!visual_read(memory,data,0,p.scene,error))return false;

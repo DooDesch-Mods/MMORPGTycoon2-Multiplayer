@@ -38,13 +38,13 @@ bool window_owner(const Capture& c,uintptr_t& out,std::string& e){
     return read_window([](uintptr_t p,void* target,size_t n,std::string& cause){return memory.copy(p,target,n,cause);},c,out,e);
 }
 bool code(const Capture& c,std::string& e){
-    try{for(const auto& body:original_bodies){if(body.rva==0x6c7b70){if(!action_runtime::verify_entry(c.image+body.rva,e))return false;continue;}std::vector<unsigned char> bytes(body.size);
+    try{for(const auto& body:original_bodies){if(body.rva==0x6cef90){if(!action_runtime::verify_entry(c.image+body.rva,e))return false;continue;}std::vector<unsigned char> bytes(body.size);
         if(!memory.copy(c.image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=body.sha256)return fail(e,"Developer fixture original full body differs RVA="+std::to_string(body.rva));}}
     catch(const std::exception& ex){return fail(e,std::string("Developer fixture native body hash failed: ")+ex.what());}
     // The installed cash wrapper belongs to the existing EconomicFence, whose
     // initialization guards its original body and whose route is checked here.
-    return live_host_state::economic_fence().can_arm(e)&&hud_time_runtime::verify_window_show_hook(c.image+0x81ec20,e);
+    return live_host_state::economic_fence().can_arm(e)&&hud_time_runtime::verify_window_show_hook(c.image+0x827210,e);
 }
 struct ProcessProbe final:ProbePort {
     bool shown=false;uintptr_t shown_window=0;
@@ -83,7 +83,7 @@ bool thread(std::string& e){
     uintptr_t image=0;uint32_t current=0;std::string sha;
     if(!native::read_resolver_receipt(image,current,sha,e))return false;
     return (current==GetCurrentThreadId()&&update_depth==1&&update_game&&image==uintptr_t(GetModuleHandleW(nullptr))&&
-        sha=="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")||fail(e,"Developer fixture requires owned GameUpdate/exact process before receipt access");
+        sha=="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")||fail(e,"Developer fixture requires owned GameUpdate/exact process before receipt access");
 }
 }
 FixtureUpdateScope::FixtureUpdateScope(void* game)noexcept:outer_(update_depth==0){if(outer_)update_game=game;++update_depth;}

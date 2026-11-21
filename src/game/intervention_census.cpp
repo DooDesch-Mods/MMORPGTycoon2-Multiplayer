@@ -18,24 +18,24 @@ struct Memory {
     bool copy(uintptr_t object,void* out,size_t size,std::string& error){return read(object,out,size,error);}
 };
 template<class T>bool at(Memory& memory,uintptr_t object,size_t offset,T& out,std::string& error){return npc_quest_targets::at(memory,object,offset,out,error);}
-uint32_t lookup(uintptr_t image,uint64_t uid,uintptr_t& found)noexcept{__try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t lookup(uintptr_t image,uint64_t uid,uintptr_t& found)noexcept{__try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool add(Census& out,uintptr_t object,const std::string& key,std::string& error){if(!object||key.empty())return fail(error,"Intervention canonical external owner is empty");const auto [found,inserted]=out.owners.emplace(object,key);return inserted||found->second==key||fail(error,"Intervention native external owner aliases two canonical keys");}
 bool same(const building_mixed_identity::opened_file::CurrentWorld& a,const building_mixed_identity::opened_file::CurrentWorld& b){return a.game==b.game&&a.mode==b.mode&&a.state==b.state&&a.world==b.world&&a.map==b.map&&a.generation==b.generation&&a.world_epoch==b.world_epoch&&a.uuid==b.uuid&&a.sha256==b.sha256;}
 bool subscribers(Memory& memory,uintptr_t image,Census& out,std::map<uintptr_t,int32_t>& toons,std::string& error){
     uintptr_t manager=0,ap=0,data=0;int32_t count=-1,capacity=-1;
-    if(!at(memory,image,0x13df690,manager,error)||!at(memory,manager,0,ap,error)||ap!=image+0x1725f40||!at(memory,manager,0x40,data,error)||!at(memory,manager,0x48,count,error)||!at(memory,manager,0x4c,capacity,error))return fail(error,error.empty()?"Intervention Subscriber manager class/current header differs":error);
+    if(!at(memory,image,0x13eb690,manager,error)||!at(memory,manager,0,ap,error)||ap!=image+0x172c2e0||!at(memory,manager,0x40,data,error)||!at(memory,manager,0x48,count,error)||!at(memory,manager,0x4c,capacity,error))return fail(error,error.empty()?"Intervention Subscriber manager class/current header differs":error);
     if(count<0||count>1000000||capacity<count||(count&&(!data||data>UINTPTR_MAX-size_t(count)*8)))return fail(error,"Intervention Subscriber complete current array extent invalid");
     if(!add(out,manager,"subscriber-manager",error))return false;std::vector<uintptr_t> rows(size_t(count),uintptr_t{});
     if(count&&!memory.read(data,rows.data(),rows.size()*8,error))return false;std::set<uintptr_t> pointers;std::set<int32_t> ids;
     for(const auto subscriber:rows){int32_t id=-1;uintptr_t toon=0,brain=0,reverse=0;
-        if(!at(memory,subscriber,0,ap,error)||ap!=image+0x16e75f0||!at(memory,subscriber,0x20,id,error)||id<0||!pointers.insert(subscriber).second||!ids.insert(id).second||!at(memory,subscriber,0x80,toon,error)||!at(memory,subscriber,0x88,brain,error))return fail(error,error.empty()?"Intervention Subscriber actual class/ID is foreign or duplicated":error);
+        if(!at(memory,subscriber,0,ap,error)||ap!=image+0x16ed990||!at(memory,subscriber,0x20,id,error)||id<0||!pointers.insert(subscriber).second||!ids.insert(id).second||!at(memory,subscriber,0x80,toon,error)||!at(memory,subscriber,0x88,brain,error))return fail(error,error.empty()?"Intervention Subscriber actual class/ID is foreign or duplicated":error);
         if(!add(out,subscriber,"subscriber:"+std::to_string(id),error))return false;
-        if(toon){uint64_t uid=0;uintptr_t found=0;if(!at(memory,toon,0,ap,error)||ap!=image+0x1744e90||!at(memory,toon,0x18,uid,error)||!uid||!at(memory,toon,0x940,reverse,error)||reverse!=subscriber)return fail(error,error.empty()?"Intervention Toon reciprocal Subscriber/class/full UID differs":error);
+        if(toon){uint64_t uid=0;uintptr_t found=0;if(!at(memory,toon,0,ap,error)||ap!=image+0x174b230||!at(memory,toon,0x18,uid,error)||!uid||!at(memory,toon,0x940,reverse,error)||reverse!=subscriber)return fail(error,error.empty()?"Intervention Toon reciprocal Subscriber/class/full UID differs":error);
             const auto exception=lookup(image,uid,found);if(exception||found!=toon)return fail(error,"Intervention Toon original full UID lookup differs SEH="+std::to_string(exception));
             if(!toons.emplace(toon,id).second||!add(out,toon,"toon:"+std::to_string(id),error))return fail(error,error.empty()?"Intervention Subscriber repeats its actual Toon":error);}
-        if(brain){if(!at(memory,brain,0,ap,error)||ap!=image+0x16fdd60||!at(memory,brain,0x28,reverse,error)||reverse!=subscriber||!add(out,brain,"subscriber:"+std::to_string(id)+"/brain",error))return fail(error,error.empty()?"Intervention Brain reciprocal Subscriber/class differs":error);}}
+        if(brain){if(!at(memory,brain,0,ap,error)||ap!=image+0x1704100||!at(memory,brain,0x28,reverse,error)||reverse!=subscriber||!add(out,brain,"subscriber:"+std::to_string(id)+"/brain",error))return fail(error,error.empty()?"Intervention Brain reciprocal Subscriber/class differs":error);}}
     uintptr_t checked_manager=0,checked_data=0;int32_t checked_count=-1,checked_capacity=-1;
-    if(!at(memory,image,0x13df690,checked_manager,error)||!at(memory,manager,0x40,checked_data,error)||!at(memory,manager,0x48,checked_count,error)||!at(memory,manager,0x4c,checked_capacity,error))return false;
+    if(!at(memory,image,0x13eb690,checked_manager,error)||!at(memory,manager,0x40,checked_data,error)||!at(memory,manager,0x48,checked_count,error)||!at(memory,manager,0x4c,checked_capacity,error))return false;
     return (checked_manager==manager&&checked_data==data&&checked_count==count&&checked_capacity==capacity)||fail(error,"Intervention Subscriber complete current manager changed during census");
 }
 }
@@ -51,7 +51,7 @@ static bool census_impl(const action_session::Context& context,const action_sess
         if(!at(memory,definition.object,0x130,data,error)||!at(memory,definition.object,0x138,count,error)||!at(memory,definition.object,0x13c,capacity,error))return false;
         if(count<0||count>10000||capacity<count||(count&&(!data||data>UINTPTR_MAX-size_t(count)*8)))return fail(error,"Intervention complete current Ability prototype array outside native extent");
         for(int32_t slot=0;slot<count;++slot){uintptr_t prototype=0,ap=0,found=0;uint64_t uid=0;
-            if(!at(memory,data,size_t(slot)*8,prototype,error)||!at(memory,prototype,0,ap,error)||ap!=image+0x171c930||!at(memory,prototype,0x18,uid,error)||!uid)return fail(error,error.empty()?"Intervention current Ability prototype class/full UID differs":error);
+            if(!at(memory,data,size_t(slot)*8,prototype,error)||!at(memory,prototype,0,ap,error)||ap!=image+0x1722cd0||!at(memory,prototype,0x18,uid,error)||!uid)return fail(error,error.empty()?"Intervention current Ability prototype class/full UID differs":error);
             const auto exception=lookup(image,uid,found);if(exception||found!=prototype)return fail(error,"Intervention current Ability prototype original full UID lookup differs SEH="+std::to_string(exception));
             if(!add(next,prototype,definition.key+"/ability/"+std::to_string(slot),error))return false;}
         uintptr_t current_data=0;int32_t current_count=-1,current_capacity=-1;

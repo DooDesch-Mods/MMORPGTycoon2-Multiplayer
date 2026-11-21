@@ -50,7 +50,7 @@ bool native_move_ui(const json& args,json& result,std::string& e)try{
     if(before.undo.active_graph)return fail(e,"Monster Move UI requires idle Undo");
     if(!move_destination(m,p,local.object,point,e))return false;
     a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(m,state.image,exe_sha,api,e))return false;
-    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x7490c0);api.destroy_label="Move";
+    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x750a60);api.destroy_label="Move";
     a::ui_diagnostic::Context context{state.image,local.manager,local.object,local.uid,binding.native_epoch,binding.native_generation,exe_sha,a::ui_diagnostic::Family::Building};
     a::ui_diagnostic::Receipt receipt;
     auto& job=state.ui_jobs.emplace(token,json{{"operation","move"},{"family","monster"},{"token",token},{"target_action_uuid",birth},
@@ -67,12 +67,12 @@ bool native_move_ui(const json& args,json& result,std::string& e)try{
     if(!calls.command(api,window,receipt,e))return unknown(e);
     job["command_returned"]=receipt.ui_command_returned;job["record_cleanup_confirmed"]=receipt.record_cleanup_confirmed;
     uintptr_t cursor=0,behaviour=0,ap=0,records=0,ghost=0,target=0;int32_t count=0,capacity=0;unsigned char flags[2]{};
-    if(!field(m,state.image,0x13df9d0,cursor,e)||!field(m,cursor,0x190,behaviour,e)||!field(m,behaviour,0,ap,e)||ap!=state.image+0x172f1f0||
+    if(!field(m,state.image,0x13eb9d0,cursor,e)||!field(m,cursor,0x190,behaviour,e)||!field(m,behaviour,0,ap,e)||ap!=state.image+0x1735590||
        !field(m,behaviour,0x460,records,e)||!field(m,behaviour,0x468,count,e)||!field(m,behaviour,0x46c,capacity,e)||count!=1||capacity<1||!records||
-       !field(m,records,8,ghost,e)||!field(m,ghost,0,ap,e)||ap!=state.image+0x1705230||!field(m,records,0x10,target,e)||target!=local.object||
+       !field(m,records,8,ghost,e)||!field(m,ghost,0,ap,e)||ap!=state.image+0x170b5d0||!field(m,records,0x10,target,e)||target!=local.object||
        !m.copy(behaviour+0x400,flags,2,e)||flags[0]!=1||flags[1]!=0)
         return unknown(e.empty()?"Monster original Move cursor/ghost/record or non-duplicate flags differ":e);
-    const std::array<uintptr_t,3> steps{0x5c0200,0x5c05c0,0x5c01e0};
+    const std::array<uintptr_t,3> steps{0x5c69a0,0x5c6d60,0x5c6980};
     for(size_t i=0;i<steps.size();++i){job["input_step"]=i==0?"MouseOver":i==1?"Press":"Release";
         job["input_attempted_mask"]=job.value("input_attempted_mask",0u)|(1u<<i);
         const auto seh=action_runtime::move_input(state.image,behaviour,cursor,point,steps[i]);

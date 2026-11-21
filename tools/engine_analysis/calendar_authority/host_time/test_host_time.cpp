@@ -37,7 +37,7 @@ struct CountedHost : Fixture {
         for(size_t i=4;i<slots;++i){
             put(array+i*8,i<occupied?item(i):uintptr_t{});
             if(i>=occupied)continue;
-            put(item(i),base+0x17437f0);put(item(i)+0x68,type(4));
+            put(item(i),base+0x1749b90);put(item(i)+0x68,type(4));
             put(item(i)+0x70,proxy0+64);put(proxy0+64,type(4)+0x20);
             put(type(4),base+0x123456);
         }
@@ -117,7 +117,7 @@ void combined_host_checks() {
         CountedHost f;check(f.combine(),"combined_arm_mouse_keyboard");
         auto mouse=f.activate(3);check(mouse.request_queued&&mouse.decision==Decision::Suppress&&mouse.intent==Intent::Fastest,"combined_mouse_capture_unchanged");
         Request q;bool available=false;check(f.bridge.pop_request(q,available,f.error)&&available&&q.sequence==1,"combined_mouse_queue_once");
-        auto key=f.activate(1,0x4a2d93);check(key.request_queued&&key.intent==Intent::TogglePauseNormal&&key.origin==Origin::Keyboard,"combined_keyboard_toggle_unchanged");
+        auto key=f.activate(1,0x4a8283);check(key.request_queued&&key.intent==Intent::TogglePauseNormal&&key.origin==Origin::Keyboard,"combined_keyboard_toggle_unchanged");
         check(f.bridge.pop_request(q,available,f.error)&&available&&q.sequence==2,"combined_keyboard_queue_once");
         check(update(f,1).decision==Decision::Forward&&f.writes==0,"combined_host_update_original_no_store");
     }
@@ -151,14 +151,14 @@ try {
         check(f.get<int32_t>(Fixture::item(2)+0x38)==0&&f.get<int32_t>(Fixture::item(0)+0x38)==1&&f.writes==0,"original_host_presentation_matches_clock");
     }
     {
-        constexpr uintptr_t pcs[]{0x4a2a77,0x4a2d93,0x4a2abe,0x4a2b05,0x4a2b4c,0x4a2b97};
+        constexpr uintptr_t pcs[]{0x4a7f67,0x4a8283,0x4a7fae,0x4a7ff5,0x4a803c,0x4a8087};
         constexpr size_t items[]{0,1,0,1,2,3};
         for(size_t i=0;i<6;++i) {
             Fixture f;host_arm(f);auto r=f.activate(items[i],pcs[i]);
             check(r.decision==Decision::Suppress&&r.request_queued&&r.origin==Origin::Keyboard,"host_native_keyboard_origin");
             check(r.intent==(i<2?Intent::TogglePauseNormal:static_cast<Intent>(i-2)),"host_keyboard_typed_intent");
         }
-        Fixture f;host_arm(f);auto r=f.activate(3,0x4a2b05);
+        Fixture f;host_arm(f);auto r=f.activate(3,0x4a7ff5);
         check(!r.request_queued&&r.decision==Decision::Suppress&&!r.error.empty(),"known_host_item_wrong_origin_rejected");
     }
     {
@@ -169,7 +169,7 @@ try {
         // An active native mouse item enters Deactivate, whose TimeScale body is RET.
         check(f.get<int32_t>(Fixture::item(0)+0x38)==0&&!f.activate(1,0).origin_valid,"fixture_active_state_and_unknown_origin");
         check(f.bridge.pop_request(q,available,f.error)&&!available,"active_noop_adds_no_synthetic_toggle");
-        auto r=f.activate(1,0x4a2d93);check(r.request_queued&&r.intent==Intent::TogglePauseNormal,"modal_keyboard_preserves_toggle_intent");
+        auto r=f.activate(1,0x4a8283);check(r.request_queued&&r.intent==Intent::TogglePauseNormal,"modal_keyboard_preserves_toggle_intent");
         check(f.bridge.pop_request(q,available,f.error)&&available,"modal_toggle_request");
         float target=-1;check(Bridge::resolve(q.intent,9,0,target,f.error)&&target==1,"host_toggle_resolves_against_effective_pause");
         // The parent executor calls native set_clock; this fixture models its readback.

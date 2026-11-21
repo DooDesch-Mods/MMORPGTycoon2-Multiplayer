@@ -1,7 +1,7 @@
 namespace lifecycle_native {
-DWORD start_call(uintptr_t log,uintptr_t asset){__try{reinterpret_cast<void(*)(void*,void*,void*)>(image+0x4f3b00)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset),nullptr);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD complete_call(uintptr_t log,uintptr_t asset){__try{reinterpret_cast<void(*)(void*,void*)>(image+0x4f4130)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD set_version_call(uintptr_t software){__try{reinterpret_cast<void(*)(void*,int32_t,int32_t,int32_t)>(image+0x525780)(reinterpret_cast<void*>(software+0x70),0,0,100);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD start_call(uintptr_t log,uintptr_t asset){__try{reinterpret_cast<void(*)(void*,void*,void*)>(image+0x4f9a60)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset),nullptr);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD complete_call(uintptr_t log,uintptr_t asset){__try{reinterpret_cast<void(*)(void*,void*)>(image+0x4fa0b0)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD set_version_call(uintptr_t software){__try{reinterpret_cast<void(*)(void*,int32_t,int32_t,int32_t)>(image+0x52bb70)(reinterpret_cast<void*>(software+0x70),0,0,100);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool pin(const action_session::Context& c,const action_session::Binding& b,const World& expected,const std::string& id,Owners& owner,std::string& e,bool catalogue=true){
     World actual;if(!origin(c,b,actual,e)||!same_world(expected,actual))return fail(e,e.empty()?"tutorial lifecycle full NativeOpen changed":e);
     return catalogue?owners(actual,id,owner,e):log_owners(actual,id,owner,e);
@@ -101,7 +101,7 @@ bool prepare(const action_session::Context& c,const action_session::Binding& b,c
         if(current&&desired&&current->next==desired->next&&current->message_progress.has_value()!=desired->message_progress.has_value())
             return fail(e,"tutorial Host/local current Meter presence differs");
         if(!present&&!lifecycle::completed(local,i)&&desired&&desired->count!=(i==0?107:17))return fail(e,"tutorial creation Host cursor has wrong fixed asset count");
-        if(present&&desired&&desired->message_progress){uintptr_t step=0;if(!at(n.steps,size_t(desired->next-1)*8,step,e)||!type(step,0x16fda00,e))return false;}
+        if(present&&desired&&desired->message_progress){uintptr_t step=0;if(!at(n.steps,size_t(desired->next-1)*8,step,e)||!type(step,0x1703da0,e))return false;}
     }
     local_technology=lifecycle::technology(local);
     if(!local_technology&&lifecycle::technology(target)){

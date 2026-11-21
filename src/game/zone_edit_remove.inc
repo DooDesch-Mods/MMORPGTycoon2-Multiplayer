@@ -3,7 +3,7 @@ namespace {
 namespace remove_ui=a::ui_capture;
 bool local_target(Memory& memory,uintptr_t manager,uintptr_t object,remove_ui::LocalBinding& out,std::string& error){
     out={};a::Binding binding;const auto snapshot=net::current_snapshot_id();uint64_t uid=0;identity::Current owner;
-    if(!typed_action_runtime::network_binding(snapshot,binding,error)||!q::typed(memory,za::state.image,object,0x1745ce0,error)||
+    if(!typed_action_runtime::network_binding(snapshot,binding,error)||!q::typed(memory,za::state.image,object,0x174c080,error)||
        !field(memory,object,0x18,uid,error)||!identity::resolve_current(binding,snapshot,object,uid,owner,error)||owner.scene_key!="root")
         return fail(error,error.empty()?"Zone Remove current full UID/root owner differs":error);
     int32_t region=-1;if(!field(memory,owner.region,0x834,region,error))return false;

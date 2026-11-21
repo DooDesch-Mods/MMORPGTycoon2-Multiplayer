@@ -26,7 +26,7 @@ struct Fixture {
     Fixture(){
         scene.type=2;scene.key=fixture_key+"/instance/37";scene.exterior_key=fixture_key;scene.instance_index=37;
         scene.instance=fixture_instance;scene.dungeon=fixture_dungeon;scene.shard=fixture_shard;scene.region=fixture_region;
-        memory.put(0,uintptr_t(fixture_image+0x1719450));memory.put(0x18,int32_t(37));memory.put(0x30,fixture_dungeon);
+        memory.put(0,uintptr_t(fixture_image+0x171f7f0));memory.put(0x18,int32_t(37));memory.put(0x30,fixture_dungeon);
         memory.put(0x38,fixture_shard);memory.put(0x40,fixture_region);memory.put(0x68,uintptr_t(0));
         memory.put(0x1c,0.25f);memory.put(0x24,-0.125f);memory.put(0x70,2.5f);
         for(const auto offset:{0x20,0x28,0x74,0x75})memory.put(size_t(offset),uint8_t(0));

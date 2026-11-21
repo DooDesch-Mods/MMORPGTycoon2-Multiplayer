@@ -141,7 +141,7 @@ bool read_world(host::opened::CurrentWorld& opened,void*& shard,std::string& err
 #include "dungeon_build_capture.inc"
 #include "dungeon_build_tasks.inc"
 bool read_cost(uintptr_t image,const void* type,int32_t& out,uint32_t& exception) {
-    __try {out=reinterpret_cast<int32_t(__fastcall*)(const void*)>(image+0x40a650)(type);return true;}
+    __try {out=reinterpret_cast<int32_t(__fastcall*)(const void*)>(image+0x40f210)(type);return true;}
     __except(EXCEPTION_EXECUTE_HANDLER){exception=GetExceptionCode();return false;}
 }
 bool building_purchase_gate(Runtime&,uintptr_t,const void*,const void*);
@@ -182,13 +182,13 @@ bool submit_scene_intent(Runtime&,uintptr_t,const void*,std::string&);
 bool scene_purchase_entry(int32_t category,const void* position) {
     auto* r=published.load(std::memory_order_acquire);auto* scope=r->thread==GetCurrentThreadId()?r->scope:nullptr;
     const auto caller=uintptr_t(_ReturnAddress());
-    if(!scope&&r->thread==GetCurrentThreadId()&&caller==r->image+0x5d48e3&&r->ui_scene_receiver){
+    if(!scope&&r->thread==GetCurrentThreadId()&&caller==r->image+0x5db033&&r->ui_scene_receiver){
         try{std::string e;if(!submit_scene_intent(*r,r->ui_scene_receiver,position,e))reject(*r,e);}
         catch(const std::exception& x){reject(*r,std::string("scenery Purchase capture exception: ")+x.what());}
         catch(...){reject(*r,"scenery Purchase capture nonstandard exception");}
         return false;
     }
-    const bool own=scope&&scope->scenery&&caller==r->image+0x5d48e3;
+    const bool own=scope&&scope->scenery&&caller==r->image+0x5db033;
     if(own){host::ProcessMemory memory;if(!scenery_kiss::purchase_input(memory,category,scope->category,uintptr_t(position),scope->position,scope->cause))return false;++scope->purchase_attempted;}
     const bool result=r->scene_purchase(category,position);
     if(own){++scope->purchase_returned;if(!result&&scope->cause.empty())scope->cause="native scenery purchase rejected";}
@@ -196,7 +196,7 @@ bool scene_purchase_entry(int32_t category,const void* position) {
 }
 void* scene_add_entry(void* manager,int32_t category,int32_t variant,const void* transform,bool purchase) {
     auto* r=published.load(std::memory_order_acquire);auto* scope=r->thread==GetCurrentThreadId()?r->scope:nullptr;
-    const bool own=scope&&scope->scenery&&uintptr_t(_ReturnAddress())==r->image+0x5d49b4;
+    const bool own=scope&&scope->scenery&&uintptr_t(_ReturnAddress())==r->image+0x5db104;
     if(own){++scope->add_attempted;if(manager!=scope->manager||category!=scope->category||variant!=scope->variant||!purchase)scope->cause="scenery native Add binding differs";}
     void* result=r->scene_add(manager,category,variant,transform,purchase);
     if(own){++scope->add_returned;scope->building=result;}return result;
@@ -326,8 +326,8 @@ bool queue_building_purchase(Runtime& r,const void* type,const void* position,st
         error="building Controller unavailable, locked or pending";return false;
     }
     host::ProcessMemory memory;uintptr_t cursor=0,ap=0,active=0;
-    if(!memory.copy(r.image+0x13df9d0,&cursor,8,error)||!cursor||!memory.copy(cursor,&ap,8,error)||
-       ap!=r.image+0x1786dd0||!memory.copy(cursor+0x190,&active,8,error)||active!=r.ui_build_receiver){
+    if(!memory.copy(r.image+0x13eb9d0,&cursor,8,error)||!cursor||!memory.copy(cursor,&ap,8,error)||
+       ap!=r.image+0x178d170||!memory.copy(cursor+0x190,&active,8,error)||active!=r.ui_build_receiver){
         if(error.empty())error="building UI Purchase actual cursor owner differs";return false;
     }
     DeferredBuilding fresh;fresh.receiver=r.ui_build_receiver;
@@ -358,7 +358,7 @@ bool queue_building_purchase(Runtime& r,const void* type,const void* position,st
     r.deferred_build=std::move(fresh);++r.purchase_intents;return true;
 }
 bool building_purchase_gate(Runtime& r,uintptr_t caller,const void* type,const void* position) {
-    if(r.thread!=GetCurrentThreadId()||r.scope||r.replaying||!r.ui_build_receiver||caller!=r.image+0x5940d3)return false;
+    if(r.thread!=GetCurrentThreadId()||r.scope||r.replaying||!r.ui_build_receiver||caller!=r.image+0x59a883)return false;
     try{std::string error;if(!queue_building_purchase(r,type,position,error)){
         placement_ui_diagnostics::capture_failed(reinterpret_cast<void*>(r.ui_build_receiver),error);reject(r,error);
     }}catch(const std::exception& cause){const auto error=std::string("building UI Purchase capture exception: ")+cause.what();placement_ui_diagnostics::capture_failed(reinterpret_cast<void*>(r.ui_build_receiver),error);reject(r,error);}
@@ -371,7 +371,7 @@ bool submit_deferred_building(Runtime& r,std::string& error) {
     host::ProcessMemory memory;uintptr_t ap=0,ghost=0,blueprint=0;std::array<uint8_t,3> flags{};
     if(!memory.copy(pending.receiver,&ap,8,error)||!memory.copy(pending.receiver+0x660,flags.data(),flags.size(),error)||
        !memory.copy(pending.receiver+0x6b8,&ghost,8,error)||!memory.copy(pending.receiver+0x6c0,&blueprint,8,error))return false;
-    if(ap!=r.image+0x17327d0||flags!=std::array<uint8_t,3>{0,0,0}||ghost!=pending.ghost||blueprint!=pending.blueprint){
+    if(ap!=r.image+0x1738b70||flags!=std::array<uint8_t,3>{0,0,0}||ghost!=pending.ghost||blueprint!=pending.blueprint){
         error="building original false-branch cleanup or children differs; no replay";return false;
     }
     host::opened::CurrentWorld world;void* shard=nullptr;
@@ -467,26 +467,26 @@ bool enable(std::string& error) {
         }
         runtime->created=true;return true;
     };
-    if(!install(0x593cc0,reinterpret_cast<void*>(&update_entry),reinterpret_cast<void**>(&runtime->original))||
-       !install(0x40bb10,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&runtime->purchase))||
-       !install(0x53b260,reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))||
-       !install(0x5854e0,reinterpret_cast<void*>(&cursor_behaviour_entry),reinterpret_cast<void**>(&runtime->cursor_behaviour))||
-       !install(0x585270,reinterpret_cast<void*>(&cursor_selection_entry),reinterpret_cast<void**>(&runtime->cursor_selection))||
+    if(!install(0x59a470,reinterpret_cast<void*>(&update_entry),reinterpret_cast<void**>(&runtime->original))||
+       !install(0x4106d0,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&runtime->purchase))||
+       !install(0x541790,reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))||
+       !install(0x58bca0,reinterpret_cast<void*>(&cursor_behaviour_entry),reinterpret_cast<void**>(&runtime->cursor_behaviour))||
+       !install(0x58ba30,reinterpret_cast<void*>(&cursor_selection_entry),reinterpret_cast<void**>(&runtime->cursor_selection))||
        !runtime->build.publish_typed_original(runtime->original,error)||
-       !install(0x5d4620,reinterpret_cast<void*>(&scene_update_entry),reinterpret_cast<void**>(&runtime->scene_update))||
-       !install(0x448330,reinterpret_cast<void*>(&scene_purchase_entry),reinterpret_cast<void**>(&runtime->scene_purchase))||
-       !install(0x2cb340,reinterpret_cast<void*>(&scene_add_entry),reinterpret_cast<void**>(&runtime->scene_add))||
-       !install(0x5cf440,reinterpret_cast<void*>(&scene_press_entry),reinterpret_cast<void**>(&runtime->scene_press))||
-       !install(0x5d64e0,reinterpret_cast<void*>(&erase_press_entry),reinterpret_cast<void**>(&runtime->erase_press))||
-       !install(0x5d0600,reinterpret_cast<void*>(&scene_release_entry),reinterpret_cast<void**>(&runtime->scene_release))||
+       !install(0x5dad70,reinterpret_cast<void*>(&scene_update_entry),reinterpret_cast<void**>(&runtime->scene_update))||
+       !install(0x44d340,reinterpret_cast<void*>(&scene_purchase_entry),reinterpret_cast<void**>(&runtime->scene_purchase))||
+       !install(0x2cea50,reinterpret_cast<void*>(&scene_add_entry),reinterpret_cast<void**>(&runtime->scene_add))||
+       !install(0x5d5b90,reinterpret_cast<void*>(&scene_press_entry),reinterpret_cast<void**>(&runtime->scene_press))||
+       !install(0x5dcc30,reinterpret_cast<void*>(&erase_press_entry),reinterpret_cast<void**>(&runtime->erase_press))||
+       !install(0x5d6d50,reinterpret_cast<void*>(&scene_release_entry),reinterpret_cast<void**>(&runtime->scene_release))||
        !runtime->scene.publish_typed_original(runtime->scene_update,error))return fail();
     runtime->scene_originals={uintptr_t(runtime->scene_update),uintptr_t(runtime->scene_purchase),uintptr_t(runtime->scene_add),uintptr_t(runtime->scene_press),uintptr_t(runtime->erase_press),uintptr_t(runtime->scene_release)};
     if(!scenery_kiss::validate_ui_trampolines(runtime->image,runtime->scene_originals,error)||!cursor_guards(*runtime,false,error))return fail();
     published.store(runtime,std::memory_order_release);
     if(!framework_subscribe_create(*runtime,error))return fail();
     std::vector<uintptr_t> prepared_targets;
-    for(const auto rva:{0x593cc0,0x40bb10,0x24ed30,0x53b260,0x5854e0,0x585270,0x5d4620,0x448330,0x2cb340,0x5cf440,0x5d64e0,0x5d0600}) {
-        if(rva==0x24ed30)continue;
+    for(const auto rva:{0x59a470,0x4106d0,0x251c70,0x541790,0x58bca0,0x58ba30,0x5dad70,0x44d340,0x2cea50,0x5d5b90,0x5dcc30,0x5d6d50}) {
+        if(rva==0x251c70)continue;
         prepared_targets.push_back(runtime->image+rva);
     }
     if(!hooks::enable_prepared_targets(prepared_targets,"building capture",error))return fail();
@@ -543,8 +543,8 @@ bool place_bound(const action::Request& request,action::BuildingState& state,jso
     Scope scope;scope.cursor.exterior=request.dungeon_building&&request.building.type=="DungeonExterior";
     if(scope.cursor.exterior){
         uintptr_t ap=0;
-        if(!family_memory.copy(runtime->image+0x13df9d0,&scope.cursor.cursor,8,error)||!scope.cursor.cursor||
-           !family_memory.copy(scope.cursor.cursor,&ap,8,error)||ap!=runtime->image+0x1786dd0){
+        if(!family_memory.copy(runtime->image+0x13eb9d0,&scope.cursor.cursor,8,error)||!scope.cursor.cursor||
+           !family_memory.copy(scope.cursor.cursor,&ap,8,error)||ap!=runtime->image+0x178d170){
             if(error.empty())error="Private Dungeon Build current global Cursor owner differs";return false;
         }
     }

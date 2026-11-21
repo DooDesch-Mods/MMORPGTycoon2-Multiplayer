@@ -20,7 +20,7 @@ bool read_owners(const tutorial_development::StartingpointSnapshot& snapshot,Own
         return fail(e,"Staff display Business/Lounge hired count or50-entry catalogue differs");
     std::set<int32_t> ids;int32_t row=0;
     for(const auto& source:snapshot.creation->developers){Developer d;d.address=source.address;d.job=source.job;d.row=row++;
-        if(!type(d.address,0x17422e0,e)||!at(d.address,0x4c0,d.id,e)||!at(d.address,0x4d8,d.wanted,e)||!at(d.address,0x4d9,d.employed,e)||!at(d.address,0x368,d.on_map,e))return false;
+        if(!type(d.address,0x1748680,e)||!at(d.address,0x4c0,d.id,e)||!at(d.address,0x4d8,d.wanted,e)||!at(d.address,0x4d9,d.employed,e)||!at(d.address,0x368,d.on_map,e))return false;
         if(d.id<0||d.id>49||!ids.insert(d.id).second||d.job<0||d.job>7||d.wanted>1||d.employed>1||d.on_map>1||d.wanted!=(d.row<out.count))
             return fail(e,"Staff display actual Developer identity/job/employment prefix differs");
         out.developers.push_back(d);

@@ -29,7 +29,7 @@ bool capture_source(Runtime& runtime,uintptr_t receiver,size_t kind,Capture& val
     uintptr_t actual_region=0,selected=0,scope=0;uint8_t editing=0,color=0,water=0;int32_t mode=-1;
     value.receiver=receiver;value.snapshot=net::current_snapshot_id();
     if(!typed_action_runtime::network_binding(value.snapshot,value.binding,error)||
-       !q::typed(runtime.memory,runtime.image,receiver,0x173af90,error)||
+       !q::typed(runtime.memory,runtime.image,receiver,0x1741330,error)||
        !q::at(runtime.memory,receiver,0x1d8,actual_region,error)||!actual_region||
        !q::at(runtime.memory,actual_region,0x834,value.intent.region,error)||
        !q::at(runtime.memory,receiver,0x160,value.intent.geo,error)||!q::at(runtime.memory,receiver,0x1d0,mode,error)||
@@ -53,9 +53,9 @@ bool capture_source(Runtime& runtime,uintptr_t receiver,size_t kind,Capture& val
 }
 bool empty_graph(Runtime& runtime,const Capture& value,std::string& error){
     q::Bounds children,nodes,deleting;uint8_t locked=0;
-    if(!q::typed(runtime.memory,runtime.image,value.graph,0x16e32d0,error)||!q::bounds(runtime.memory,value.graph,0,children,error)||
-       !q::typed(runtime.memory,runtime.image,value.graph+0x18,0x16e2dc0,error)||!q::bounds(runtime.memory,value.graph+0x18,1,nodes,error)||
-       !q::typed(runtime.memory,runtime.image,value.graph+0x48,0x1748c50,error)||!q::bounds(runtime.memory,value.graph+0x48,0,deleting,error)||
+    if(!q::typed(runtime.memory,runtime.image,value.graph,0x16e9670,error)||!q::bounds(runtime.memory,value.graph,0,children,error)||
+       !q::typed(runtime.memory,runtime.image,value.graph+0x18,0x16e9160,error)||!q::bounds(runtime.memory,value.graph+0x18,1,nodes,error)||
+       !q::typed(runtime.memory,runtime.image,value.graph+0x48,0x174eff0,error)||!q::bounds(runtime.memory,value.graph+0x48,0,deleting,error)||
        !q::at(runtime.memory,value.graph,0x10c,locked,error))return false;
     const auto expected=value.intent.selected.empty()?0:1;
     if(nodes.count!=expected||locked)return q::fail(error,"District suppressed source graph has unexpected effects or is already committed");

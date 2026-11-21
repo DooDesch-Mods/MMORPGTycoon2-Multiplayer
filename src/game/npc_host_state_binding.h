@@ -16,7 +16,7 @@ inline bool quest_owners(npc_census::Memory& memory,uintptr_t image,uintptr_t np
                          int32_t expected_count,std::vector<std::pair<int32_t,uintptr_t>>& output,
                          std::string& error) {
     using npc_quest_records::get;
-    if(!image||image>UINTPTR_MAX-0x174ac10||!npc||npc>UINTPTR_MAX-0x874||
+    if(!image||image>UINTPTR_MAX-0x1750fb0||!npc||npc>UINTPTR_MAX-0x874||
        expected_count<0||expected_count>100000)
         return reject(error,"NPC Hoststate Quest image, NPC or expected count invalid");
     uintptr_t ap=0,manager=0,entries=0,proxy=0,weak=0;
@@ -27,8 +27,8 @@ inline bool quest_owners(npc_census::Memory& memory,uintptr_t image,uintptr_t np
        !get(memory,npc,0x868,entries,"owner Quest array",error)||
        !get(memory,npc,0x870,count,"owner Quest count",error)||
        !get(memory,npc,0x874,capacity,"owner Quest capacity",error)||
-       !get(memory,image,0x13df410,manager,"owner QuestManager singleton",error))return false;
-    if(ap!=image+0x1742980||type!=0||!proxy||!manager||count!=expected_count||
+       !get(memory,image,0x13eb410,manager,"owner QuestManager singleton",error))return false;
+    if(ap!=image+0x1748d20||type!=0||!proxy||!manager||count!=expected_count||
        capacity<count||capacity>100000||(count&&!entries)||
        entries>UINTPTR_MAX-size_t(count)*sizeof(uintptr_t))
         return reject(error,"NPC Hoststate Quest owner class, type, array or count differs");
@@ -47,7 +47,7 @@ inline bool quest_owners(npc_census::Memory& memory,uintptr_t image,uintptr_t np
            !get(memory,quest,0x84,sequence,"owner Quest sequence",error)||
            !get(memory,quest,0xb8,owner,"owner Quest NPC",error)||
            !get(memory,quest,0xc0,owner_proxy,"owner Quest weak proxy",error))return false;
-        if(quest_ap!=image+0x174ac10||sequence<0||
+        if(quest_ap!=image+0x1750fb0||sequence<0||
            !sequences.insert(sequence).second||owner!=npc||owner_proxy!=proxy)
             return reject(error,"NPC Hoststate Quest class, sequence or NPC owner differs");
         if(!npc_quest_records::manager_member(memory,image,manager,quest,error))return false;
@@ -55,7 +55,7 @@ inline bool quest_owners(npc_census::Memory& memory,uintptr_t image,uintptr_t np
     }
     uintptr_t final_manager=0,final_entries=0,final_proxy=0,final_weak=0;
     int32_t final_count=-1,final_capacity=-1;
-    if(!get(memory,image,0x13df410,final_manager,"owner final QuestManager",error)||
+    if(!get(memory,image,0x13eb410,final_manager,"owner final QuestManager",error)||
        !get(memory,npc,0x868,final_entries,"owner final Quest array",error)||
        !get(memory,npc,0x870,final_count,"owner final Quest count",error)||
        !get(memory,npc,0x874,final_capacity,"owner final Quest capacity",error)||

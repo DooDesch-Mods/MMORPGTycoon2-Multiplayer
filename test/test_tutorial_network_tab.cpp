@@ -12,10 +12,10 @@ struct Memory{
  void array(uintptr_t h,std::vector<uintptr_t> a){auto q=allocation;allocation+=0x200;put(h+8,q);put(h+16,int32_t(a.size()));put(h+20,int32_t(a.size()));for(size_t i=0;i<a.size();++i)put(q+i*8,a[i]);}
 };
 constexpr uintptr_t image=0x10000000,world=0x100000,bar=0x200000,tab_address=0x210000,content_address=0x220000,cursor=0x230000,request=0x240000;
-Memory baseline(){Memory m;m.put(image+0x13df650,world+0x180);for(int i=0;i<5;++i)m.str(image+0x1a36520+uintptr_t(i)*32,i==3?"Network":"Other"+std::to_string(i));m.put(world+0x1f8,int32_t(0));
- m.put(image+0x1a3aec8,bar);m.put(bar,image+0x16dcec0);m.array(image+0x1a3af10,{bar});m.put(bar+0x69,uint8_t(1));m.put(bar+0x45f,uint8_t(1));m.put(bar+0x377,uint8_t(0));m.put(bar+0x318,uintptr_t(0));m.str(bar+0x1b0,"Edit");m.array(bar+0x518,{tab_address});m.array(bar+0x2f8,{tab_address});m.array(bar+0x4e8,{content_address});
- m.put(tab_address,image+0x16fe380);m.str(tab_address+0x2c8,"Network");m.put(tab_address+0x278,bar);m.put(tab_address+0x280,bar);m.put(tab_address+0x69,uint8_t(1));m.put(tab_address+0x174,uint8_t(1));m.put(tab_address+0x360,uint8_t(0));m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Network\"");
- m.put(content_address,image+0x171ccf0);m.str(content_address+0x1b0,"Network");m.put(content_address+0x348,int32_t(3));m.put(content_address+0x368,uintptr_t(0));m.put(image+0x13df9d0,cursor);m.put(cursor,image+0x1786dd0);return m;}
+Memory baseline(){Memory m;m.put(image+0x13eb650,world+0x180);for(int i=0;i<5;++i)m.str(image+0x1a3d520+uintptr_t(i)*32,i==3?"Network":"Other"+std::to_string(i));m.put(world+0x1f8,int32_t(0));
+ m.put(image+0x1a41ec8,bar);m.put(bar,image+0x16e3260);m.array(image+0x1a41f10,{bar});m.put(bar+0x69,uint8_t(1));m.put(bar+0x45f,uint8_t(1));m.put(bar+0x377,uint8_t(0));m.put(bar+0x318,uintptr_t(0));m.str(bar+0x1b0,"Edit");m.array(bar+0x518,{tab_address});m.array(bar+0x2f8,{tab_address});m.array(bar+0x4e8,{content_address});
+ m.put(tab_address,image+0x1704720);m.str(tab_address+0x2c8,"Network");m.put(tab_address+0x278,bar);m.put(tab_address+0x280,bar);m.put(tab_address+0x69,uint8_t(1));m.put(tab_address+0x174,uint8_t(1));m.put(tab_address+0x360,uint8_t(0));m.str(tab_address+0x308,"ActionBar Edit SelectContent \"Network\"");
+ m.put(content_address,image+0x1723090);m.str(content_address+0x1b0,"Network");m.put(content_address+0x348,int32_t(3));m.put(content_address+0x368,uintptr_t(0));m.put(image+0x13eb9d0,cursor);m.put(cursor,image+0x178d170);return m;}
 void choose(Memory& m){m.put(tab_address+0x360,uint8_t(1));m.put(world+0x1f8,int32_t(3));m.put(content_address+0x368,request);m.put(request,int32_t(3));m.put(content_address+0x278,bar);m.put(content_address+0x280,bar);m.put(content_address+0x69,uint8_t(1));m.put(bar+0x598,content_address);m.array(world+0x180+3*24,{request});}
 int checks=0;void check(bool value,const char* name){++checks;if(!value)throw std::runtime_error(name);}
 struct Calls {Memory m=baseline();bool reserved=false,press_ok=true,ledger_ok=true,throw_press=false;int presses=0,pins=0;bool changed=false;
@@ -35,7 +35,7 @@ struct Calls {
     bool reserve(const n::Pin&,std::string& e){if(reserved){e="consumed token";return false;}reserved=true;return true;}
     bool press(const n::Pin&,std::string& e){++presses;if(throw_press)throw std::runtime_error("native boundary");if(!press_ok){e="original SEH";return false;}choose(m);if(pending)m.put(world+0x1f8,int32_t(0));return true;}
     bool status(const n::Pin& p,n::Status& out,std::string& e){return n::status(m,p,out,e);}
-    bool unchanged(std::string& e){if(mutate_final)m.put(image+0x13df650,world+0x188);if(!ledger_ok)e="full20 ledger changed";return ledger_ok;}
+    bool unchanged(std::string& e){if(mutate_final)m.put(image+0x13eb650,world+0x188);if(!ledger_ok)e="full20 ledger changed";return ledger_ok;}
 };
 void run(){
     std::string e;n::Pin p;n::Status s;
@@ -52,15 +52,15 @@ void run(){
     {Calls c;c.mutate_owner=true;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1,"Network changed owner remains Unknown");}
     {Calls c;c.mutate_final=true;n::Receipt r;e.clear();check(!n::prepare(c,r,e)&&r.unknown&&!r.confirmed&&c.presses==1&&e.find("WorldView owner")!=std::string::npos,"Network final owner revalidation");}
     {Calls c;c.throw_press=true;n::Receipt r;try{n::prepare(c,r,e);check(false,"Network expected throw");}catch(const std::runtime_error&){check(r.attempted&&r.unknown&&!r.confirmed&&c.presses==1,"Network exception Unknown");}}
-    {Memory m;const auto& bytes=mt2mp::game::tutorial_network_tab::press_code;for(size_t i=0;i<bytes.size();++i)m.data[image+0x57c950+i]=bytes[i];e.clear();check(n::verify(m,image,e),"Network complete original Press body");m.data[image+0x57c950+bytes.size()-1]^=1;check(!n::verify(m,image,e)&&e=="Network original Tab::Press body differs","Network body tail mutation fails");}
+    {Memory m;const auto& bytes=mt2mp::game::tutorial_network_tab::press_code;for(size_t i=0;i<bytes.size();++i)m.data[image+0x583000+i]=bytes[i];e.clear();check(n::verify(m,image,e),"Network complete original Press body");m.data[image+0x583000+bytes.size()-1]^=1;check(!n::verify(m,image,e)&&e=="Network original Tab::Press body differs","Network body tail mutation fails");}
 }
 }
 
 int main(){try{network_adapter_fixture::run();std::string e;t::Pin p;auto m=baseline();check(t::inspect(m,image,world,p,e)&&p.network==3,"read real enum membership");choose(m);check(t::inspect(m,image,world,p,e)&&t::selected(m,p,e),"owned selected request");
  auto reject=[&](auto mutate,const char* label){auto x=baseline();mutate(x);e.clear();check(!t::inspect(x,image,world,p,e)&&!e.empty(),label);};
- reject([](Memory& x){x.put(image+0x13df650,world+0x188);},"foreign manager");
- reject([](Memory& x){x.str(image+0x1a36520+32,"Network");},"duplicate enum");
- reject([](Memory& x){x.array(image+0x1a3af10,{bar,bar});},"duplicate current registry");
+ reject([](Memory& x){x.put(image+0x13eb650,world+0x188);},"foreign manager");
+ reject([](Memory& x){x.str(image+0x1a3d520+32,"Network");},"duplicate enum");
+ reject([](Memory& x){x.array(image+0x1a41f10,{bar,bar});},"duplicate current registry");
  reject([](Memory& x){x.put(bar+0x45f,uint8_t(0));},"hidden bar");
  reject([](Memory& x){x.put(bar+0x377,uint8_t(1));},"locked bar");
  reject([](Memory& x){x.put(bar+0x318,uintptr_t(123));},"custom logic");

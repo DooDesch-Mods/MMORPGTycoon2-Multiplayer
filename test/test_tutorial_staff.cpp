@@ -46,7 +46,8 @@ void check(){
     capture={};staff::capture(true,1,capture,receipt);need(!capture.originals&&capture.submits==1&&receipt.suppressed&&receipt.submitted&&receipt.desired==1,"Client capture mutated locally or lost submission");
     capture={};capture.admitted=false;staff::capture(true,1,capture,receipt);need(!capture.originals&&!capture.submits&&receipt.cause=="actual owned Pips mismatch","failed capture fell through");
     capture={};capture.accepted=false;staff::capture(true,1,capture,receipt);need(!capture.originals&&capture.submits==1&&!receipt.submitted&&receipt.cause=="Controller busy","failed submit fell through");
-    need(staff::capture_route(true,true,0x10000000,0x106c82f9)&&!staff::capture_route(false,true,0x10000000,0x106c82f9)&&!staff::capture_route(true,true,0x10000000,0x106c82f8),"exact native UI return routing differs");
+    constexpr uintptr_t ui_return=0x10000000+staff::ui_return_rva;
+    need(staff::capture_route(true,true,0x10000000,ui_return)&&!staff::capture_route(false,true,0x10000000,ui_return)&&!staff::capture_route(true,true,0x10000000,ui_return-1),"exact native UI return routing differs");
     Memory memory;mt2mp::game::tutorial_sync::OwnedSequenceEntry owner{0x1000,0x8000,0x2000,true,true};
     auto entry=staff::allocate_entry;entry[0]=0xe9;int32_t displacement=int32_t(owner.trampoline+20-owner.target-5);std::memcpy(entry.data()+1,&displacement,4);memory.put(owner.target,entry.data(),entry.size());
     std::array<unsigned char,34> trampoline{};std::copy_n(staff::allocate_entry.data(),6,trampoline.data());

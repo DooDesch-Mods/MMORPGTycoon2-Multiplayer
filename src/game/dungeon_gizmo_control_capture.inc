@@ -136,7 +136,7 @@ bool publish_controls(Memory&,const a::Binding&,const a::Request& request,const 
 bool control_row(Memory& memory,const dungeon_scene_identity_runtime::Census& census,uintptr_t object,uint64_t uid,
                  bool duplicate,dungeon_gizmo_control::Row& out,std::string& error,bool destroying=false){
     uintptr_t ap=0;if(!field(memory,object,0,ap,error))return false;
-    if(ap==state.image+0x16c1390){dungeon_gizmo_control::SceneryRow row;
+    if(ap==state.image+0x16c7730){dungeon_gizmo_control::SceneryRow row;
         if(!scenery_record(memory,census,object,uid,row,error))return false;out.key=row.key;out.scenery=row.value;
         bool allowed=false;int32_t cost=0;
         if(!original_result(dungeon_gizmo_control_calls::capability(object,duplicate,cost,allowed),"Scene Scenery capability/price",error)||(!destroying&&!allowed)||cost<0)
@@ -163,14 +163,14 @@ bool capture_control(Memory& memory,Pending& value,std::string& error){
 }
 }
 bool capture_gizmo_move(uintptr_t behaviour,uintptr_t caller,bool& handled,std::string& error)try{
-    handled=false;if(!ready||replaying||!net::session_wire::connected()||caller!=state.image+0x5c2a20)return true;
+    handled=false;if(!ready||replaying||!net::session_wire::connected()||caller!=state.image+0x5c91c0)return true;
     Memory memory;dungeon_cells::MonsterMemory adapter{memory};npc_quest_targets::Bounds records;
     if(!npc_quest_targets::bounds(adapter,behaviour+0x458,100000,records,error))return false;
     bool gizmo=false,scenery=false,other=false;
     for(int32_t i=0;i<records.count;++i){uintptr_t object=0,ap=0;
         if(!field(memory,records.data,size_t(i)*24+16,object,error)||!field(memory,object,0,ap,error))return false;
-        if(ap==state.image+0x1749ab0)gizmo=true;
-        else if(ap==state.image+0x16c1390){uintptr_t shard=0;int32_t type=-1;
+        if(ap==state.image+0x174fe50)gizmo=true;
+        else if(ap==state.image+0x16c7730){uintptr_t shard=0;int32_t type=-1;
             if(!field(memory,object,0x170,shard,error)||!field(memory,shard,0x48,type,error))return false;
             if(type>=1&&type<=3)scenery=true;else other=true;
         }else other=true;}
@@ -183,9 +183,9 @@ bool capture_gizmo_move(uintptr_t behaviour,uintptr_t caller,bool& handled,std::
     auto owner=[&](uintptr_t object,uint64_t uid,dungeon_gizmo_control::Row& row,std::string& cause){return control_row(memory,census,object,uid,duplicate!=0,row,cause);};
     auto point=[&](std::array<uint32_t,3>& out,std::string& cause){
         uintptr_t cursor=0,current=0,axis=0;std::array<float,3> position{},up{};float scale=0;
-        if(!field(memory,state.image,0x13df9d0,cursor,cause)||!field(memory,cursor,0x190,current,cause)||current!=behaviour||
-           !field(memory,cursor,0x1e4,position,cause)||!field(memory,state.image,0x164b0d0,axis,cause)||axis!=state.image+0x1c4e8f0||
-           !field(memory,axis,0,up,cause)||!field(memory,state.image,0x14ee978,scale,cause)||scale!=20.0f)return fail(cause,cause.empty()?"Gizmo Duplicate original Cursor/YAxis/offset differs":cause);
+        if(!field(memory,state.image,0x13eb9d0,cursor,cause)||!field(memory,cursor,0x190,current,cause)||current!=behaviour||
+           !field(memory,cursor,0x1e4,position,cause)||!field(memory,state.image,0x16506b0,axis,cause)||axis!=state.image+0x1c558f0||
+           !field(memory,axis,0,up,cause)||!field(memory,state.image,0x14f61f8,scale,cause)||scale!=20.0f)return fail(cause,cause.empty()?"Gizmo Duplicate original Cursor/YAxis/offset differs":cause);
         for(size_t i=0;i<3;++i)out[i]=std::bit_cast<uint32_t>(position[i]+up[i]*scale);return true;};
     dungeon_gizmo_move_read::Capture first,second;
     if(!dungeon_gizmo_move_read::read(adapter,state.image,behaviour,owner,point,first,error)||
@@ -198,14 +198,14 @@ catch(...){fault=true;return reject("Gizmo Move capture non-standard boundary ex
 bool capture_scene_remove(uintptr_t manager,uintptr_t array,bool& handled,std::string& error)try{
     handled=false;if(!ready||replaying||!net::session_wire::connected())return true;
     Memory memory;dungeon_cells::MonsterMemory adapter{memory};npc_quest_targets::Bounds header;
-    if(!npc_quest_targets::typed(adapter,state.image,array,0x1748c50,error)||!npc_quest_targets::bounds(adapter,array,100000,header,error))return false;
+    if(!npc_quest_targets::typed(adapter,state.image,array,0x174eff0,error)||!npc_quest_targets::bounds(adapter,array,100000,header,error))return false;
     if(!header.count)return true;
     std::vector<std::pair<uintptr_t,uint64_t>> objects;bool scene=false,gizmo=false,other=false;
     for(int32_t i=0;i<header.count;++i){uintptr_t object=0,ap=0;uint64_t uid=0;
         if(!field(memory,header.data,size_t(i)*8,object,error)||!field(memory,object,0,ap,error)||!field(memory,object,0x18,uid,error))return false;
         objects.emplace_back(object,uid);
-        if(ap==state.image+0x1749ab0)gizmo=true;
-        else if(ap==state.image+0x16c1390){uintptr_t shard=0;int32_t type=-1;
+        if(ap==state.image+0x174fe50)gizmo=true;
+        else if(ap==state.image+0x16c7730){uintptr_t shard=0;int32_t type=-1;
             if(!field(memory,object,0x170,shard,error)||!field(memory,shard,0x48,type,error))return false;
             if(type>=1&&type<=3)scene=true;else other=true;
         }else other=true;
@@ -215,7 +215,7 @@ bool capture_scene_remove(uintptr_t manager,uintptr_t array,bool& handled,std::s
     if(other)return fail(error,"Scene Destroy collection contains another native owner family");
     Pending value;value.snapshot=net::current_snapshot_id();value.intent.tool=a::DungeonInputTool::Gizmos;
     uintptr_t selected=0;if(!idle(value.binding,value.snapshot,error)||!code(memory,error)||
-       !field(memory,state.image,0x13df630,selected,error)||selected!=manager)return fail(error,error.empty()?"Scene Destroy Selection manager differs":error);
+       !field(memory,state.image,0x13eb630,selected,error)||selected!=manager)return fail(error,error.empty()?"Scene Destroy Selection manager differs":error);
     dungeon_scene_identity_runtime::Census census;if(!dungeon_scene_identity_runtime::read_current(census,error))return false;
     dungeon_gizmo_control::Intent controls;controls.command=ControlCommand::Destroy;std::array<float,3> sum{};
     std::set<uintptr_t> unique;std::set<uint64_t> uids;

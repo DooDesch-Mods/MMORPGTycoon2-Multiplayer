@@ -27,7 +27,7 @@ struct StartCaptureCalls {
     }
 };
 bool pay_current(void* source){
-    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x262ec0,source,0,project_handled);
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x265fc0,source,0,project_handled);
     if(project_handled)return project_allowed?original_pay(source):false;
     const bool ordered=typed_action_runtime::controller_status().value("ordered",false);
     const auto selected=start_intent::route(load.armed||ordered,GetCurrentThreadId()==mainthread,image,

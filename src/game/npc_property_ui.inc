@@ -8,21 +8,21 @@ bool property_ui_text(Memory& memory,uintptr_t address,std::string& out,std::str
 bool property_ui_codes(Memory& memory,std::string& error){
     struct Code {uintptr_t rva;size_t size;const char* sha;};
     const Code codes[]{
-        {0x628c90,1104,"6c66c4ce3d4f807570a7eff011986d0873cd34f8aca8e586e64fd59126a2dbd4"},
-        {0x7f1630,928,"e6b8e0151bcd7c78e528b2789f6f020c128507222f15ac54273ace73ab470dae"},
-        {0x7d88b0,208,"9f2b8af5eddd1ca31d7dfe2ecd93f574daedaab31628dd8af240c47ea58a0540"},
-        {0x8167c0,592,"bcad314728ab3392b6013ad666b3f69be773c4fcc646b7b9381611f141df981e"},
-        {0xc35730,256,"37b604ccc54fb36f6beb2cdde2acc9fc27fcf6ed087c6b7376363af6e7ddb45f"}};
+        {0x62f9c0,1104,"5e4381ad90bb5450e9c8108ead23e5faa0a006944211587952a4bb2f0d9d6ce1"},
+        {0x7f9b70,928,"3a9f669e077ff92322cd1c0be1e2993a83f6054c021c6e2e1372d2f6405036e3"},
+        {0x7e0bd0,208,"250b091055d0314897d8af867e4951f3c4ad8e9205cf16487089eba0e41b7788"},
+        {0x81ed30,592,"1af40a14bbeeb6087a3aad7c6264abac9cc91d4bf1f021f9d1cc0fc1f28d7b0e"},
+        {0xc41fe0,256,"ed7d767eaa9ee779da2d0b72da3c7e06cd49d3a3bea8c2a329c333c006f994b8"}};
     for(const auto& code:codes){std::vector<uint8_t> bytes(code.size);
         if(!memory.copy(state.image+code.rva,bytes.data(),bytes.size(),error)||
            !mt2mp::hooks::framework::verify_original_hash(state.image+code.rva,bytes.data(),bytes.size(),code.sha,error))
             return fail(error,"NPC property original UI body differs RVA="+std::to_string(code.rva)+" original="+error);
     }
-    return monster_action_runtime::quest_list::verify_npc_command(state.image+0x759ad0,error);
+    return monster_action_runtime::quest_list::verify_npc_command(state.image+0x761550,error);
 }
 uint32_t property_ui_set_text(uintptr_t edit,const std::string& text)noexcept{
     const PropertyString view{text.data(),text.size(),{}};
-    __try{reinterpret_cast<void(*)(void*,const PropertyString*)>(state.image+0x7f1630)(reinterpret_cast<void*>(edit),&view);return 0;}
+    __try{reinterpret_cast<void(*)(void*,const PropertyString*)>(state.image+0x7f9b70)(reinterpret_cast<void*>(edit),&view);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -68,8 +68,8 @@ bool native_property_ui(const json& args,json& result,std::string& error)try{
     const auto text=[&](uintptr_t address,std::string& value,std::string& cause){return property_ui_text(memory,address,value,cause);};
     if(!npc_property_ui_controls::find(read,text,state.image,window.window,local.object,intent,offered,error))return unknown(error);
     job["control_confirmed"]=true;job["command"]=offered.command;
-    const auto callback_rva=intent.kind==action::NpcPropertyKind::Name?0x628c90:
-        intent.kind==action::NpcPropertyKind::OnlineState?0x7d88b0:0x759ad0;
+    const auto callback_rva=intent.kind==action::NpcPropertyKind::Name?0x62f9c0:
+        intent.kind==action::NpcPropertyKind::OnlineState?0x7e0bd0:0x761550;
     uintptr_t receiver_class=0,callback=0;
     if(!field(memory,offered.receiver,0,receiver_class,error)||!field(memory,receiver_class,0x168,callback,error)||
        callback!=state.image+callback_rva)return unknown(error.empty()?"NPC property actual original UI callback slot differs":error);

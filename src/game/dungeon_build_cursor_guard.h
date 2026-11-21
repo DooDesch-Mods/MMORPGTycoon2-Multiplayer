@@ -9,8 +9,8 @@
 namespace mt2mp::game::dungeon_build_cursor {
 struct Code {uintptr_t rva;size_t size,copied;const char* sha;std::array<unsigned char,8> prefix;};
 inline constexpr std::array<Code,2> codes{{
-    {0x5854e0,272,8,"999f3e95bab378665becdfd1dc7ab25df5a0a74cb644b7f3a4ff7e3998d51c84",{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x28}},
-    {0x585270,32,7,"929883407d459e01bce38129a5c17e30a7ace31205c325752bf768e0dfbe1303",{0x48,0x8b,0x89,0x48,0x01,0x00,0x00,0}}
+    {0x58bca0,272,8,"14e8292a2dd82d6b2a0a315743400fa6e21abbe9ea96439e28ba6d1bafa38914",{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x28}},
+    {0x58ba30,32,7,"8ace721aa4fa64b3a828168c46c86572b690aebad704010f4891595e0feb2ff0",{0x48,0x8b,0x89,0x48,0x01,0x00,0x00,0}}
 }};
 template<class Memory>
 bool guard(Memory& memory,uintptr_t image,const Code& code,uintptr_t original,uintptr_t detour,bool enabled,std::string& error){

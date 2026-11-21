@@ -29,7 +29,7 @@ bool read(uintptr_t image,uintptr_t object,Read&& field,Snapshot& out,std::strin
     uintptr_t ap=0,set_on_map=0;
     uint8_t on_map=2,visible=2;
     if(!field(object,0,ap,error))return false;
-    if(ap!=image+0x1742980){
+    if(ap!=image+0x1748d20){
         error="NPC Move visibility target is not exact NPC class";return false;}
     if(!field(object,0x368,on_map,error)||
        !field(object,0x6f0,out.character_actor,error)||
@@ -40,7 +40,7 @@ bool read(uintptr_t image,uintptr_t object,Read&& field,Snapshot& out,std::strin
     if(!field(out.actor,0x40,out.skeleton,error))return false;
     if(!out.skeleton){error="NPC Move Skeleton binding absent";return false;}
     if(!field(out.skeleton,0xe4,visible,error))return false;
-    if(set_on_map!=image+0x3c2a00||on_map>1||visible>1){
+    if(set_on_map!=image+0x3c7510||on_map>1||visible>1){
         error="NPC Move SetOnMap slot or boolean state differs";
         return false;
     }

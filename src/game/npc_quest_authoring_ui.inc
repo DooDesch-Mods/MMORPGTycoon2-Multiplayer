@@ -1,18 +1,18 @@
 namespace {
 uint32_t selector_press(uintptr_t selector,uintptr_t cursor,const std::array<float,2>& point)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*,const float*)>(state.image+0x78be40)(reinterpret_cast<void*>(selector),reinterpret_cast<void*>(cursor),point.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*,const float*)>(state.image+0x793dc0)(reinterpret_cast<void*>(selector),reinterpret_cast<void*>(cursor),point.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t cursor_press(uintptr_t cursor,const std::array<float,2>& screen,const std::array<float,3>& world)noexcept{
-    __try{reinterpret_cast<void(*)(void*,const float*,const float*)>(state.image+0x584d10)(reinterpret_cast<void*>(cursor),screen.data(),world.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,const float*,const float*)>(state.image+0x58b4d0)(reinterpret_cast<void*>(cursor),screen.data(),world.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t collision_target(uintptr_t result,uintptr_t& target)noexcept{
     __try{
-        target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x5233f0)(reinterpret_cast<void*>(result));
-        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x523950)(reinterpret_cast<void*>(result));
-        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x523790)(reinterpret_cast<void*>(result));
-        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x523560)(reinterpret_cast<void*>(result));return 0;
+        target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x5297b0)(reinterpret_cast<void*>(result));
+        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x529d10)(reinterpret_cast<void*>(result));
+        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x529b50)(reinterpret_cast<void*>(result));
+        if(!target)target=reinterpret_cast<uintptr_t(*)(void*)>(state.image+0x529920)(reinterpret_cast<void*>(result));return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -56,19 +56,19 @@ bool native_ui(const json& args,json& result,std::string& e)try{
     a::ui_diagnostic::Window window;json window_receipt;
     if(!action_runtime::live_npc_window(m,state.image,local,window,window_receipt,e)){job["window"]=window_receipt;return unknown(e);}job["window"]=window_receipt;
     uintptr_t list=0,ap=0,data=0,selector=0,cursor=0;int32_t count=0,capacity=0;
-    if(!field(m,window.window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e02b0||
+    if(!field(m,window.window,0x530,list,e)||!field(m,list,0,ap,e)||ap!=state.image+0x16e6650||
        !field(m,list,0x340,data,e)||!field(m,list,0x348,count,e)||!field(m,list,0x34c,capacity,e)||count<1||count>4096||capacity<count||capacity>100000||!data)
         return unknown(e.empty()?"Quest original InfoWindow list or bounds differs":e);
     for(int32_t i=0;i<count;++i){uintptr_t row=0,selected=0,proxy=0,weak=0;
-        if(!field(m,data,size_t(i)*8,row,e)||!field(m,row,0,ap,e)||ap!=state.image+0x17088a0||!field(m,row,0x3e0,selected,e))return unknown(e.empty()?"Quest original selector class differs":e);
+        if(!field(m,data,size_t(i)*8,row,e)||!field(m,row,0,ap,e)||ap!=state.image+0x170ec40||!field(m,row,0x3e0,selected,e))return unknown(e.empty()?"Quest original selector class differs":e);
         if(selected!=quest)continue;
         if(selector||!field(m,row,0x3e8,proxy,e)||!field(m,proxy,0,weak,e)||weak!=quest+0x18)return unknown(e.empty()?"Quest selector duplicate or stale weak slot":e);selector=row;}
-    if(!selector||!field(m,state.image,0x13df9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x1786dd0)return unknown(e.empty()?"Quest selector or current Cursor absent":e);
+    if(!selector||!field(m,state.image,0x13eb9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x178d170)return unknown(e.empty()?"Quest selector or current Cursor absent":e);
     float sx=0,sy=0;SDL_GetMouseState(&sx,&sy);const std::array<float,2> screen{sx,sy};
     auto seh=selector_press(selector,cursor,screen);if(seh)return unknown("Quest original selector Press SEH="+std::to_string(seh));
-    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x78ed30);api.destroy_label="SetTarget";window.window=selector;
+    api.command=reinterpret_cast<a::ui_diagnostic::UiCommand>(state.image+0x796cb0);api.destroy_label="SetTarget";window.window=selector;
     if(!calls.command(api,window,receipt,e))return unknown(e);job["set_target_returned"]=receipt.ui_command_returned;
-    uintptr_t display=0,actual_selector=0;if(!field(m,state.image,0x13df400,display,e)||!ui_binding(m,display,quest,local,actual_selector,e)||actual_selector!=selector)return unknown(e.empty()?"Quest original SetTarget did not bind expected selector":e);
+    uintptr_t display=0,actual_selector=0;if(!field(m,state.image,0x13eb400,display,e)||!ui_binding(m,display,quest,local,actual_selector,e)||actual_selector!=selector)return unknown(e.empty()?"Quest original SetTarget did not bind expected selector":e);
     bool warped=false;seh=action_runtime::warp_cursor(state.image,cursor,point,warped);if(seh||!warped)return unknown("Quest original cursor Warp failed SEH="+std::to_string(seh));
     const float* hit_pointer=nullptr;seh=action_runtime::calculate_cursor_hit(state.image,cursor,hit_pointer);if(seh)return unknown("Quest original hit calculation SEH="+std::to_string(seh));
     std::array<float,3> hit{};uintptr_t collision=0,resolved=0;uint8_t hovered=0;

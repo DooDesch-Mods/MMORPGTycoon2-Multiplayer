@@ -35,7 +35,7 @@ public:
             if(!handled)return result;
             if(busy_)return reject("Ordered time activation reentered");Busy busy(busy_);
             if(pending_)return reject("Ordered time input already retained; new input rejected");
-            const bool mouse=caller==0x58095c;
+            const bool mouse=caller==0x58711c;
             hud_time::ActivationBinding binding;if(!classify(type,item,mouse,binding,error))return reject(error);
             if(!binding.matched)return reject("Ordered time activation is not an owned native item/type pair");
             result.matched=true;result.origin=mouse?shared_time::Origin::Mouse:shared_time::Origin::Keyboard;
@@ -43,11 +43,11 @@ public:
             if(index==scales.size())return reject("Ordered time native scale is unsupported");
             auto intent=static_cast<time_session::Intent>(index);
             if(mouse){if(!binding.visible||!binding.enabled)return reject("Ordered time button is unavailable");}
-            else if(caller==0x4a2a77||caller==0x4a2d93){
-                if(index!=(caller==0x4a2a77?0u:1u))return reject("Ordered pause-toggle caller/item differs");
+            else if(caller==0x4a7f67||caller==0x4a8283){
+                if(index!=(caller==0x4a7f67?0u:1u))return reject("Ordered pause-toggle caller/item differs");
                 intent=time_session::Intent::TogglePauseNormal;
             }else{
-                constexpr std::array<uintptr_t,4> direct{0x4a2abe,0x4a2b05,0x4a2b4c,0x4a2b97};
+                constexpr std::array<uintptr_t,4> direct{0x4a7fae,0x4a7ff5,0x4a803c,0x4a8087};
                 if(caller!=direct[index])return reject("Ordered time keyboard caller/item differs");
             }
             result.origin_valid=true;result.intent=static_cast<shared_time::Intent>(intent);

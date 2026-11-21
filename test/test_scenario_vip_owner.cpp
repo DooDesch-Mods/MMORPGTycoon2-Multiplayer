@@ -18,15 +18,15 @@ struct Fence {bool is_locked=false;std::string failure;bool locked()const{return
     void journal_failed(const std::string& e){is_locked=true;failure=e;}};
 Fence fence;
 mt2mp::game::building_mixed_identity::opened_file::CurrentWorld world;
-float scale=0;bool world_ok=true,clock_ok=true;uintptr_t unreadable=0,singleton=0,method=image+0x4f85b0;
+float scale=0;bool world_ok=true,clock_ok=true;uintptr_t unreadable=0,singleton=0,method=image+0x4fe550;
 unsigned reads=0,logs=0;
 }
 namespace placement_ui_probe {
 bool ProcessMemory::copy(uintptr_t address,void* out,size_t size,std::string& error){
     ++fixture::reads;
     if(address==fixture::unreadable){error="actual memory read failed";return false;}
-    if(address==fixture::image+0x13df330){std::memcpy(out,&fixture::singleton,size);return true;}
-    if(address==fixture::image+0x1730e90+0xa0){std::memcpy(out,&fixture::method,size);return true;}
+    if(address==fixture::image+0x13eb330){std::memcpy(out,&fixture::singleton,size);return true;}
+    if(address==fixture::image+0x1737230+0xa0){std::memcpy(out,&fixture::method,size);return true;}
     std::memcpy(out,reinterpret_cast<const void*>(address),size);return true;
 }
 }
@@ -59,9 +59,9 @@ struct World {
     rt::Runtime runtime;
     World(){
         fixture::fence={};fixture::scale=0;fixture::world_ok=fixture::clock_ok=true;fixture::unreadable=0;
-        fixture::method=fixture::image+0x4f85b0;fixture::reads=fixture::logs=0;
-        put(receiver.data(),0,fixture::image+0x1730e90);entries[0]=uintptr_t(receiver.data());
-        put(log.data(),0,fixture::image+0x16fd7b0);put(log.data(),0x20,uintptr_t(entries.data()));
+        fixture::method=fixture::image+0x4fe550;fixture::reads=fixture::logs=0;
+        put(receiver.data(),0,fixture::image+0x1737230);entries[0]=uintptr_t(receiver.data());
+        put(log.data(),0,fixture::image+0x1703b50);put(log.data(),0x20,uintptr_t(entries.data()));
         put(log.data(),0x28,int32_t(1));put(log.data(),0x2c,int32_t(3));
         put(state.data(),0x1e8,uintptr_t(log.data()));fixture::singleton=uintptr_t(log.data());
         runtime.controller.context={1,2,1,3,action::Role::Client,"common"};runtime.controller.binding={2,3};runtime.session.context=runtime.controller.context;

@@ -25,12 +25,12 @@ bool ap(uintptr_t p,uintptr_t image,uintptr_t expected,std::string& e){uintptr_t
 bool body(uintptr_t image,const guards::Body& g,std::string& e){std::vector<uint8_t> got(g.size);return memory.copy(image+g.rva,got.data(),got.size(),e)&&(!std::memcmp(got.data(),g.bytes,g.size)||fail(e,"loan full original callable differs rva="+std::to_string(g.rva)));}
 bool text(uintptr_t p,size_t offset,size_t limit,std::string& value,std::string& e){uintptr_t bytes=0;uint64_t length=0;if(!at(p,offset,bytes,e)||!at(p,offset+8,length,e))return false;if(!bytes||length>limit||bytes>UINTPTR_MAX-length)return fail(e,"loan native GNU string extent invalid");value.resize(size_t(length));if(length&&!memory.copy(bytes,value.data(),value.size(),e))return false;char end=1;if(!at(bytes,size_t(length),end,e))return false;return (!end&&value.find('\0')==std::string::npos)||fail(e,"loan native GNU string terminator differs");}
 // These wrappers contain no C++ objects across the GNU native call.
-uint32_t available(uintptr_t image,uintptr_t offer,bool& value){uint32_t code=0;__try {value=reinterpret_cast<bool(*)(void*)>(image+0x61c90)(reinterpret_cast<void*>(offer));}__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}return code;}
+uint32_t available(uintptr_t image,uintptr_t offer,bool& value){uint32_t code=0;__try {value=reinterpret_cast<bool(*)(void*)>(image+0x622c0)(reinterpret_cast<void*>(offer));}__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}return code;}
 void original(Operation op,uintptr_t image,uintptr_t business,uintptr_t object,NativeResult& result){
     result.attempted=true;
     __try {
-        if(op==Operation::TakeFixture)result.accepted=reinterpret_cast<bool(*)(void*,const void*)>(image+0x555a0)(reinterpret_cast<void*>(business),reinterpret_cast<void*>(object+0x18));
-        else {reinterpret_cast<void(*)(void*)>(image+0x60780)(reinterpret_cast<void*>(object));result.accepted=true;}
+        if(op==Operation::TakeFixture)result.accepted=reinterpret_cast<bool(*)(void*,const void*)>(image+0x55aa0)(reinterpret_cast<void*>(business),reinterpret_cast<void*>(object+0x18));
+        else {reinterpret_cast<void(*)(void*)>(image+0x60d30)(reinterpret_cast<void*>(object));result.accepted=true;}
         result.returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){result.seh=GetExceptionCode();}
 }
@@ -39,7 +39,7 @@ bool rows(Survey& s,bool offer,std::string& e){
     if(!at(s.business,offset+8,data,e)||!at(s.business,offset+0x10,count,e)||!at(s.business,offset+0x14,capacity,e))return false;
     if(count<0||capacity<count||count>1024||capacity>1000000||(!data&&count))return fail(e,"loan actual native array bounds invalid");
     std::set<uintptr_t> unique;
-    for(int32_t i=0;i<count;++i){uintptr_t owner=0;Loan loan;Quote quote;if(!at(data,size_t(i)*8,owner,e)||!ap(owner,s.image,offer?0x16df370:0x17438e0,e))return false;
+    for(int32_t i=0;i<count;++i){uintptr_t owner=0;Loan loan;Quote quote;if(!at(data,size_t(i)*8,owner,e)||!ap(owner,s.image,offer?0x16e5710:0x1749c80,e))return false;
         if(!unique.insert(owner).second)return fail(e,"loan actual native duplicate owner");
         auto& strings=offer?quote.offer.text:loan.text;for(size_t n=0;n<3;++n)if(!text(owner,0x18+n*0x20,n?2048:256,strings[n],e))return false;
         if(offer){for(size_t n=0;n<3;++n)if(!at(owner,0x78+n*4,quote.offer.amounts[n],e))return false;
@@ -54,7 +54,7 @@ bool rows(Survey& s,bool offer,std::string& e){
 class NativePort final:public Port {
     bool once(Survey& s,std::string& e){
         s={};std::string sha;if(!native::read_resolver_receipt(s.image,s.thread,sha,e))return false;
-        if(s.thread!=GetCurrentThreadId()||s.image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"loan exact executable/current Mainthread differs");
+        if(s.thread!=GetCurrentThreadId()||s.image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"loan exact executable/current Mainthread differs");
         for(const auto& g:guards::bodies)if(!body(s.image,g,e))return false;
         building_mixed_identity::opened_file::CurrentWorld current;if(!native_open_runtime::read_current_world(current,e))return false;
         if(!current.world||!current.state||!current.world_epoch||!current.generation)return fail(e,"loan actual current native world absent");
@@ -69,13 +69,13 @@ class NativePort final:public Port {
             s.live=controller.at("live_state").at("active").get<bool>();s.locked=s.locked||controller.at("live_state").at("locked").get<bool>();
             if(s.started){action_session::Context ctx;if(!action_session::selected_session().current(ctx,e))return false;if((ctx.role==action_session::Role::Host)!=s.host)return fail(e,"loan actual role/config differs");s.snapshot=ctx.snapshot_uuid;}
         }
-        uintptr_t clock=0;if(!at(s.image,0x13df9a0,clock,e)||!ap(clock,s.image,0x17499d0,e)||!at(clock,0x58,s.scale,e)||!at(clock,0x5c,s.pause,e)||!at(s.image,0x13df220,s.business,e)||!ap(s.business,s.image,0x16d97e0,e)||!at(s.business,0x100,s.record,e)||!ap(s.record,s.image,0x1712c00,e))return false;
+        uintptr_t clock=0;if(!at(s.image,0x13eb9a0,clock,e)||!ap(clock,s.image,0x174fd70,e)||!at(clock,0x58,s.scale,e)||!at(clock,0x5c,s.pause,e)||!at(s.image,0x13eb220,s.business,e)||!ap(s.business,s.image,0x16dfb80,e)||!at(s.business,0x100,s.record,e)||!ap(s.record,s.image,0x1718fa0,e))return false;
         int32_t version=0;if(!at(s.record,0x18,version,e)||version!=2)return fail(e,e.empty()?"loan native CurrentRecord version differs":e);
-        uintptr_t history=0;int32_t count=0,capacity=0;if(!ap(s.business+0x60,s.image,0x16ec280,e)||!at(s.business,0x68,history,e)||!at(s.business,0x70,count,e)||!at(s.business,0x74,capacity,e))return false;
+        uintptr_t history=0;int32_t count=0,capacity=0;if(!ap(s.business+0x60,s.image,0x16f2620,e)||!at(s.business,0x68,history,e)||!at(s.business,0x70,count,e)||!at(s.business,0x74,capacity,e))return false;
         if(count<=0||capacity<count||count>1000000||!history)return fail(e,"loan actual History bounds invalid");size_t membership=0;for(int32_t i=0;i<count;++i){uintptr_t p=0;if(!at(history,size_t(i)*8,p,e))return false;membership+=p==s.record;}if(membership!=1)return fail(e,"loan CurrentRecord not unique native History member");
-        for(size_t i=0;i<20;++i){const auto p=s.record+0x30+i*0x48;int32_t category=-1;if(!ap(p,s.image,0x171d0d0,e)||!at(p,0x20,category,e))return false;if(category!=int32_t(i))return fail(e,"loan native Ledger line category differs");}
+        for(size_t i=0;i<20;++i){const auto p=s.record+0x30+i*0x48;int32_t category=-1;if(!ap(p,s.image,0x1723470,e)||!at(p,0x20,category,e))return false;if(category!=int32_t(i))return fail(e,"loan native Ledger line category differs");}
         // Guard the existing singleton so IsAvailable cannot initialize one during a read.
-        if(!at(s.image,0x13df280,s.analytics,e)||!ap(s.analytics,s.image,0x16dd3b0,e))return false;
+        if(!at(s.image,0x13eb280,s.analytics,e)||!ap(s.analytics,s.image,0x16e3750,e))return false;
         native::SimulationState state;if(!native::read_simulation_state(state,e))return false;
         s.ledger={state.cash,state.clock.flat_day,int32_t(state.record_present),state.record_day,state.record_cash,state.record_income,state.record_expense,state.line_counts,state.line_income};
         return rows(s,false,e)&&rows(s,true,e);

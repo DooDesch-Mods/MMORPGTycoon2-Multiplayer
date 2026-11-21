@@ -11,7 +11,7 @@ struct Grid {int32_t width=0,height=0;float cell_size=0;std::array<float,3> orig
 template<class Read>bool read(uintptr_t image,uintptr_t region,Grid& out,Read&& at,std::string& error){
     out={};Grid value;uintptr_t ap=0,data=0;int32_t count=-1,capacity=-1;
     if(!at(region,0xc0,value.width,error)||!at(region,0xc4,value.height,error)||!at(region,0xc8,value.cell_size,error)||!at(region,0x138,value.origin,error)||!at(region,0xe8,ap,error)||!at(region,0xf0,data,error)||!at(region,0xf8,count,error)||!at(region,0xfc,capacity,error))return false;
-    if(ap!=image+0x1749340||value.width<1||value.height<1||int64_t(value.width)*value.height>1000000||count!=int64_t(value.width)*value.height||capacity<count||!data||!std::isfinite(value.cell_size)||value.cell_size<=0){error="terrain height native array/dimensions/cell size differ";return false;}
+    if(ap!=image+0x174f6e0||value.width<1||value.height<1||int64_t(value.width)*value.height>1000000||count!=int64_t(value.width)*value.height||capacity<count||!data||!std::isfinite(value.cell_size)||value.cell_size<=0){error="terrain height native array/dimensions/cell size differ";return false;}
     for(float f:value.origin)if(!std::isfinite(f)){error="terrain height native grid origin is not finite";return false;}
     for(int32_t i=0;i<count;++i){float f=0;if(!at(data,size_t(i)*4,f,error))return false;if(!std::isfinite(f)){error="terrain height native sample is not finite";return false;}value.values.push_back(f);}
     uintptr_t current=0;int32_t actual=-1;if(!at(region,0xf0,current,error)||!at(region,0xf8,actual,error))return false;

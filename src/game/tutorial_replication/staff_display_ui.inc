@@ -13,7 +13,7 @@ bool ancestry(uintptr_t child,uintptr_t window,uintptr_t required,std::string& e
 }
 bool page(uintptr_t view,uintptr_t window,const char* name,uintptr_t& active,std::string& e){
     int32_t transition=0;std::string requested,current;
-    if(!type(view,0x16dfe90,e)||!ancestry(view,window,0,e)||!at(view,0x410,active,e)||!at(view,0x408,transition,e)||!str(view,0x3e8,requested,e)||!str(active,0x1b0,current,e))return false;
+    if(!type(view,0x16e6230,e)||!ancestry(view,window,0,e)||!at(view,0x410,active,e)||!at(view,0x408,transition,e)||!str(view,0x3e8,requested,e)||!str(active,0x1b0,current,e))return false;
     return requested==name&&current==name&&transition==0||fail(e,"Staff display page not ready: requested="+requested+" active="+current+" transition="+std::to_string(transition));
 }
 bool ui_pin(const Cache& bound,uintptr_t window,UI& out,std::string& e){
@@ -22,7 +22,7 @@ bool ui_pin(const Cache& bound,uintptr_t window,UI& out,std::string& e){
     uintptr_t lounge=0,project=0;int32_t kind=0;std::string key;
     if(!at(reinterpret_cast<uintptr_t>(current.state),0x180,lounge,e)||!at(lounge,0xa8,project,e)||lounge!=bound.owners.snapshot.lounge||project!=bound.project)
         return fail(e,e.empty()?"Staff display current Lounge/project owner changed":e);
-    if(!type(project,0x16e48c0,e)||!at(project,0x18,kind,e)||!str(project,0x20,key,e))return false;
+    if(!type(project,0x16eac60,e)||!at(project,0x18,kind,e)||!str(project,0x20,key,e))return false;
     if(kind||!bound.owners.snapshot.creation||!bound.owners.snapshot.creation->current||
        key!=bound.owners.snapshot.creation->current->key||(key!="startingpoint"&&key!="bridges"))return fail(e,"Staff display current project kind/key differs");
     const auto mode=reinterpret_cast<uintptr_t>(current.mode);uintptr_t windows=0;int32_t count=0,capacity=0;unsigned matches=0;
@@ -30,16 +30,16 @@ bool ui_pin(const Cache& bound,uintptr_t window,UI& out,std::string& e){
     if(!windows||count<1||capacity<count||capacity>512)return fail(e,"Staff display Mode window array bounds differ");
     for(int32_t i=0;i<count;++i){uintptr_t candidate=0;if(!at(windows,size_t(i)*8,candidate,e))return false;if(candidate==window)++matches;}
     uint8_t visible=0,pending=0;uintptr_t logic=0;std::string name;
-    if(matches!=1||!type(window,0x1722e60,e)||!str(window,0x1b0,name,e)||name!="development")return fail(e,e.empty()?"Staff display UpdateUI receiver is not actual owned DevelopmentWindow":e);
+    if(matches!=1||!type(window,0x1729200,e)||!str(window,0x1b0,name,e)||name!="development")return fail(e,e.empty()?"Staff display UpdateUI receiver is not actual owned DevelopmentWindow":e);
     if(!at(window,0x45f,visible,e)||!at(window,0x460,pending,e)||!at(window,0x318,logic,e))return false;
     if(visible!=1||pending||logic)return fail(e,"Staff display Window hidden/layout pending/foreign logic");
     uintptr_t tabs=0,view=0,staff=0,project_view=0,dev=0;
-    if(!at(window,0x540,tabs,e)||!type(tabs,0x17015b0,e)||!ancestry(tabs,window,0,e)||!at(tabs,0x3b8,view,e)||!page(view,window,"{dev_tab_staff}",staff,e)||
+    if(!at(window,0x540,tabs,e)||!type(tabs,0x1707950,e)||!ancestry(tabs,window,0,e)||!at(tabs,0x3b8,view,e)||!page(view,window,"{dev_tab_staff}",staff,e)||
        !at(window,0x568,project_view,e)||!page(project_view,window,"dev",dev,e))return false;
     out.window=window;
-    if(!at(window,0x508,out.summary,e)||!type(out.summary,0x1700630,e)||!ancestry(out.summary,window,staff,e)||
-       !at(window,0x5c8,out.project,e)||!type(out.project,0x16dc680,e)||!ancestry(out.project,window,dev,e)||
-       !at(window,0x510,out.grid,e)||!type(out.grid,0x16dade0,e)||!ancestry(out.grid,window,staff,e))return false;
+    if(!at(window,0x508,out.summary,e)||!type(out.summary,0x17069d0,e)||!ancestry(out.summary,window,staff,e)||
+       !at(window,0x5c8,out.project,e)||!type(out.project,0x16e2a20,e)||!ancestry(out.project,window,dev,e)||
+       !at(window,0x510,out.grid,e)||!type(out.grid,0x16e1180,e)||!ancestry(out.grid,window,staff,e))return false;
     uintptr_t rows=0;int32_t row_count=0;if(!array(out.summary,0x3d8,rows,row_count,64,e))return false;
     if(row_count<=1||rows>UINTPTR_MAX-0x20)return fail(e,"Staff display summary row1 absent/overflow");
     uintptr_t fields=0;int32_t field_count=0;if(!array(rows+0x20,0,fields,field_count,64,e))return false;
@@ -55,10 +55,10 @@ bool ui_pin(const Cache& bound,uintptr_t window,UI& out,std::string& e){
     for(const auto& d:bound.owners.developers)if(d.row<hired){Cell cell;cell.id=d.id;cell.row=d.row;cell.developer=d.address;
         int32_t actual_id=0;uint8_t wanted=0;uintptr_t actual_developer=0;
         if(!at(developer_data,size_t(d.row)*8,actual_developer,e)||actual_developer!=d.address)return fail(e,e.empty()?"Staff display Developer catalogue row changed":e);
-        if(!type(d.address,0x17422e0,e)||!at(d.address,0x4c0,actual_id,e)||!at(d.address,0x4c4,cell.job,e)||!at(d.address,0x4d8,wanted,e)||!at(d.address,0x4d9,cell.employed,e)||!at(d.address,0x368,cell.on_map,e))return false;
+        if(!type(d.address,0x1748680,e)||!at(d.address,0x4c0,actual_id,e)||!at(d.address,0x4c4,cell.job,e)||!at(d.address,0x4d8,wanted,e)||!at(d.address,0x4d9,cell.employed,e)||!at(d.address,0x368,cell.on_map,e))return false;
         if(actual_id!=d.id||wanted!=1||cell.employed!=1||cell.on_map>1)return fail(e,"Staff display visible Developer identity/employment changed");
         const int32_t index=d.row*columns+1;if(index<0||index>=grid_count||!at(grid_fields,size_t(index)*8,cell.field,e))return fail(e,e.empty()?"Staff display activity cell outside Grid array":e);
-        if(!type(cell.field,0x1789a90,e)||!field_owners.insert(cell.field).second)return fail(e,e.empty()?"Staff display activity TextField duplicated":e);
+        if(!type(cell.field,0x178fe30,e)||!field_owners.insert(cell.field).second)return fail(e,e.empty()?"Staff display activity TextField duplicated":e);
         out.cells.push_back(cell);
     }
     World after;if(!origin(bound.context,bound.binding,after,e)||!same_world(current,after))return fail(e,e.empty()?"Staff display Origin changed during UI pin":e);return true;

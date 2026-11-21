@@ -58,18 +58,18 @@ bool execute_once(const Calls& c,uintptr_t target,const std::array<unsigned char
 }
 bool resolve_calls(Memory& memory,uintptr_t image,const std::string& sha,Calls& out,std::string& error){
     out={};
-    if(sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||!image||image>(std::numeric_limits<uintptr_t>::max)()-0x11bd1e0){error="move_native_exe_identity";return false;}
+    if(sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||!image||image>(std::numeric_limits<uintptr_t>::max)()-0x11c8b80){error="move_native_exe_identity";return false;}
     struct Guard{uintptr_t rva;const char* hex;};
     constexpr Guard guards[]{
-        {0xa16f10,"555756534883ec38"},{0x265300,"5756534883ec404889cb"},
-        {0x539990,"56534883ec2848833de210500100"},{0x55e8e0,"4157415641554154555756534883ec68"},
-        {0x55ed80,"555756534883ec484889cf"},{0xcf1600,"488d05e959a900488901"},
-        {0x5379c0,"534883ec20488b1db4305001"},{0x265650,"4157415641554154555756534881ec98020000"},
-        {0x11b2b00,"555756534883ec28488b7908488b1948"},{0x11bd1e0,"488b014883c1104839c8740c4889c1e9"},
-        {0x5c2a1b,"e890fbffff84c074ba"},{0x5c0780,"31c04883c4585b5ec3"},
-        {0x55edf2,"e86919feff"},{0x55eeb6,"4883c4485b5e5f5de9ed5fd7ff"}
+        {0xa21c10,"555756534883ec38"},{0x268400,"5756534883ec404889cb"},
+        {0x53fea0,"56534883ec2848833dd21b500100"},{0x564f70,"4157415641554154555756534883ec68"},
+        {0x565410,"555756534883ec484889cf"},{0xcfcd40,"488d054906a900488901"},
+        {0x53ded0,"534883ec20488b1da43b5001"},{0x268750,"4157415641554154555756534881ec98020000"},
+        {0x11be4a0,"555756534883ec28488b7908488b1948"},{0x11c8b80,"488b014883c1104839c8740c4889c1e9"},
+        {0x5c91bb,"e890fbffff84c074ba"},{0x5c6f20,"31c04883c4585b5ec3"},
+        {0x565482,"e89918feff"},{0x565546,"4883c4485b5e5f5de94d30d7ff"}
     };
-    Open checked_open=reinterpret_cast<Open>(image+0x539990);
+    Open checked_open=reinterpret_cast<Open>(image+0x53fea0);
     static_assert(std::is_same_v<Open,remove_runtime::native::UndoOpenFn>);
     try{
         for(const auto& g:guards){
@@ -81,14 +81,14 @@ bool resolve_calls(Memory& memory,uintptr_t image,const std::string& sha,Calls& 
             for(size_t i=0;i<n;++i)if(bytes[i]!=(digit(g.hex[i*2])*16+digit(g.hex[i*2+1])))same=false;
             if(!same){
                 const auto cause="move_native_guard_mismatch="+std::to_string(g.rva);
-                if(g.rva==0x55ed80){
+                if(g.rva==0x565410){
                     unsigned char expected[32]{};
                     for(size_t i=0;i<n;++i)expected[i]=static_cast<unsigned char>(digit(g.hex[i*2])*16+digit(g.hex[i*2+1]));
                     std::string route_error;
                     if(hooks::framework::verify_code(image+g.rva,expected,n,route_error))continue;
                     error=cause+"; "+route_error;return false;
                 }
-                if(g.rva!=0x539990){error=cause;return false;}
+                if(g.rva!=0x53fea0){error=cause;return false;}
                 std::string owned_error;
                 if(!remove_runtime::read_owned_undo_open(image,checked_open,owned_error)||checked_open!=reinterpret_cast<Open>(image+g.rva)){
                     error=cause+"; "+(owned_error.empty()?"remove_runtime_owned_Open_missing_exact_entry":owned_error);return false;
@@ -97,9 +97,9 @@ bool resolve_calls(Memory& memory,uintptr_t image,const std::string& sha,Calls& 
         }
     }catch(const std::exception& x){error=std::string("move_native_resolve_exception: ")+x.what();return false;}
     catch(...){error="move_native_resolve_nonstandard_exception";return false;}
-    out={reinterpret_cast<Ctor>(image+0xa16f10),reinterpret_cast<Begin>(image+0x265300),checked_open,
-         reinterpret_cast<MoveCtor>(image+0x55e8e0),reinterpret_cast<MoveDo>(image+0x55ed80),reinterpret_cast<Dtor>(image+0xcf1600),
-         reinterpret_cast<Finish>(image+0x5379c0),reinterpret_cast<Finish>(image+0x265650),reinterpret_cast<Dtor>(image+0x11b2b00),reinterpret_cast<Dtor>(image+0x11bd1e0)};
+    out={reinterpret_cast<Ctor>(image+0xa21c10),reinterpret_cast<Begin>(image+0x268400),checked_open,
+         reinterpret_cast<MoveCtor>(image+0x564f70),reinterpret_cast<MoveDo>(image+0x565410),reinterpret_cast<Dtor>(image+0xcfcd40),
+         reinterpret_cast<Finish>(image+0x53ded0),reinterpret_cast<Finish>(image+0x268750),reinterpret_cast<Dtor>(image+0x11be4a0),reinterpret_cast<Dtor>(image+0x11c8b80)};
     return true;
 }
 }

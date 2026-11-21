@@ -24,14 +24,14 @@ std::map<uint64_t,g::duplicate_history::Known> known(){g::duplicate_history::Kno
     scenery.uid=fixture_child_uid;scenery.object=fixture_child_object;scenery.root=fixture_root;scenery.region=fixture_region;scenery.row={fixture_member,fixture_key,std::string(64,'b'),a::DuplicateFamily::Scenery,67,pose(),{}};
     scenery.transform=group.transform;scenery.scenery={1,2};scenery.height=0x3f800000;return {{fixture_group_uid,group},{fixture_child_uid,scenery}};}
 Memory setup(bool destroying){Memory m;const auto source=known();const auto& group=source.at(fixture_group_uid);const auto& scenery=source.at(fixture_child_uid);
-    array(m,fixture_graph+0x18,0x16e2dc0,std::vector<uintptr_t>{fixture_parent,fixture_cash});array(m,fixture_graph+0x30,0x1748aa0,std::vector<uintptr_t>{fixture_cash,fixture_parent});
-    m.put(fixture_parent,fixture_image+(destroying?0x16de860:0x16fb9d0));m.put(fixture_parent+0xb8,fixture_group_uid);m.put(fixture_image+(destroying?0x16de860:0x16fb9d0)+0x10,fixture_image+(destroying?0x53e1c0:0x54e100));
+    array(m,fixture_graph+0x18,0x16e9160,std::vector<uintptr_t>{fixture_parent,fixture_cash});array(m,fixture_graph+0x30,0x174ee40,std::vector<uintptr_t>{fixture_cash,fixture_parent});
+    m.put(fixture_parent,fixture_image+(destroying?0x16e4c00:0x1701d70));m.put(fixture_parent+0xb8,fixture_group_uid);m.put(fixture_image+(destroying?0x16e4c00:0x1701d70)+0x10,fixture_image+(destroying?0x544780:0x5546e0));
     m.set(fixture_parent+8,destroying?0:fixture_group_uid);m.set(fixture_parent+0x30,0);m.set(fixture_parent+0x58,destroying?fixture_group_uid:0);
     if(!destroying){m.put(fixture_parent+0xc0,fixture_root);m.put(fixture_parent+0xc8,fixture_region);m.put(fixture_parent+0xf0,group.transform);
-        array(m,fixture_parent+0x160,0x16e2dc0,std::vector<uintptr_t>{fixture_child});array(m,fixture_parent+0x178,0x1749370,std::vector<int32_t>{int32_t(fixture_child_uid)});
-        m.put(fixture_child,fixture_image+0x1706590);m.put(fixture_child+0xb8,fixture_child_uid);m.put(fixture_image+0x1706590+0x10,fixture_image+0x55a3c0);m.put(fixture_child+0xc0,scenery.scenery);m.put(fixture_child+0xc8,fixture_root);
+        array(m,fixture_parent+0x160,0x16e9160,std::vector<uintptr_t>{fixture_child});array(m,fixture_parent+0x178,0x174f710,std::vector<int32_t>{int32_t(fixture_child_uid)});
+        m.put(fixture_child,fixture_image+0x170c930);m.put(fixture_child+0xb8,fixture_child_uid);m.put(fixture_image+0x170c930+0x10,fixture_image+0x560a50);m.put(fixture_child+0xc0,scenery.scenery);m.put(fixture_child+0xc8,fixture_root);
         m.put(fixture_child+0xd0,scenery.transform);m.put(fixture_child+0x13c,scenery.height);m.put(fixture_child+0x140,scenery.automatic);m.set(fixture_child+8,fixture_child_uid);m.set(fixture_child+0x30,0);m.set(fixture_child+0x58,0);}
-    m.put(fixture_cash,fixture_image+0x1786fb0);m.put(fixture_image+0x1786fb0+0x10,fixture_image+0x53ccf0);m.put(fixture_cash+0xb8,int32_t(destroying?5:-5));m.put(fixture_cash+0xbc,std::array<uint32_t,3>{});m.set(fixture_cash+8,0);m.set(fixture_cash+0x30,0);m.set(fixture_cash+0x58,0);return m;
+    m.put(fixture_cash,fixture_image+0x178d350);m.put(fixture_image+0x178d350+0x10,fixture_image+0x543270);m.put(fixture_cash+0xb8,int32_t(destroying?5:-5));m.put(fixture_cash+0xbc,std::array<uint32_t,3>{});m.set(fixture_cash+8,0);m.set(fixture_cash+0x30,0);m.set(fixture_cash+0x58,0);return m;
 }
 }
 int main()try{
@@ -43,12 +43,12 @@ int main()try{
     auto bad=[&](auto change){m=setup(false);source=known();e.clear();change();need(!read(),"invalid original full Group graph accepted");};
     bad([&]{m.put(fixture_parent+0xb8,uint64_t(11));});bad([&]{m.put(fixture_parent+0xc0,fixture_root+8);});bad([&]{m.put(fixture_parent+0xf0,uint32_t(1));});
     bad([&]{m.put(fixture_child+0x13c,uint32_t(0));});bad([&]{m.put(fixture_child+0xd0+0x6b,uint8_t(1));});bad([&]{m.set(fixture_parent+0x30,fixture_child_uid);});
-    bad([&]{m.set(fixture_child+8,fixture_group_uid);});bad([&]{array(m,fixture_graph+0x30,0x1748aa0,std::vector<uintptr_t>{fixture_parent,fixture_child});});
-    bad([&]{array(m,fixture_parent+0x178,0x1749370,std::vector<int32_t>{13});});bad([&]{m.put(fixture_cash+0xb8,int32_t(5));});bad([&]{m.put(fixture_cash+0xbc,uint32_t(1));});
-    bad([&]{m.put(fixture_child,fixture_image+0x16de860);});bad([&]{source.at(fixture_child_uid).row.parent.clear();});
+    bad([&]{m.set(fixture_child+8,fixture_group_uid);});bad([&]{array(m,fixture_graph+0x30,0x174ee40,std::vector<uintptr_t>{fixture_parent,fixture_child});});
+    bad([&]{array(m,fixture_parent+0x178,0x174f710,std::vector<int32_t>{13});});bad([&]{m.put(fixture_cash+0xb8,int32_t(5));});bad([&]{m.put(fixture_cash+0xbc,uint32_t(1));});
+    bad([&]{m.put(fixture_child,fixture_image+0x16e4c00);});bad([&]{source.at(fixture_child_uid).row.parent.clear();});
     destroying=true;m=setup(true);source=known();need(read(),e);m.set(fixture_parent+0x58,fixture_child_uid);need(!read(),"Group Destroy dependency narrowed or replaced full UID");
-    m=setup(false);array(m,fixture_graph+0x18,0x16e2dc0,std::vector<uintptr_t>{fixture_parent});array(m,fixture_graph+0x30,0x1748aa0,std::vector<uintptr_t>{fixture_parent});
-    m.put(fixture_parent,fixture_image+0x1786ff0);m.put(fixture_image+0x1786ff0+0x10,fixture_image+0x55ed80);m.put(fixture_parent+0xb8,fixture_group_uid);m.put(fixture_parent+0xc0,source.at(fixture_group_uid).transform);
+    m=setup(false);array(m,fixture_graph+0x18,0x16e9160,std::vector<uintptr_t>{fixture_parent});array(m,fixture_graph+0x30,0x174ee40,std::vector<uintptr_t>{fixture_parent});
+    m.put(fixture_parent,fixture_image+0x178d390);m.put(fixture_image+0x178d390+0x10,fixture_image+0x565410);m.put(fixture_parent+0xb8,fixture_group_uid);m.put(fixture_parent+0xc0,source.at(fixture_group_uid).transform);
     m.set(fixture_parent+8,0);m.set(fixture_parent+0x30,fixture_group_uid);m.set(fixture_parent+0x58,0);
     need(g::group_object_graph::move(m,fixture_image,fixture_graph,fixture_group_uid,source.at(fixture_group_uid).transform,result,e),e);
     m.put(fixture_parent+0xc0+0x6b,uint8_t(1));need(!g::group_object_graph::move(m,fixture_image,fixture_graph,fixture_group_uid,source.at(fixture_group_uid).transform,result,e),"Group Move inverse dropped native cached transform bytes");

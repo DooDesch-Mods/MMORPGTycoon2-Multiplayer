@@ -17,7 +17,7 @@ bool ownership_inverse(Runtime& r,uintptr_t pointer,uintptr_t expected_region,
        !at(r,op,0xb8,region,e)||!at(r,op,0xc0,type,e)||!at(r,op,0xc4,range,e)||
        !at(r,op,0x160,owned,e)||!at(r,op,0x150,tint,e))
         return fail(e,e.empty()?"Region ownership inverse graph shape differs":e);
-    if(ap!=r.image+0x1723230||region!=expected_region||type!=destination.type||
+    if(ap!=r.image+0x17295d0||region!=expected_region||type!=destination.type||
        range!=std::array<int32_t,2>{destination.level,destination.max_level}||
        owned!=uint8_t(destination.owned)||tint!=destination.appearance->tint)
         return fail(e,"Region ownership inverse ConfigureRegion owner/type/range/owned/tint differs");
@@ -25,7 +25,7 @@ bool ownership_inverse(Runtime& r,uintptr_t pointer,uintptr_t expected_region,
         if(style!=destination.content.styles[i])return fail(e,"Region ownership inverse style differs index="+std::to_string(i));}
     if(cash){int32_t amount=0;std::array<float,3> position{};
         if(!at(r,data,8,op,e)||!at(r,op,0,ap,e)||!at(r,op,0xb8,amount,e)||!at(r,op,0xbc,position,e))return false;
-        if(ap!=r.image+0x1786fb0||amount!=cash||position!=hit)
+        if(ap!=r.image+0x178d350||amount!=cash||position!=hit)
             return fail(e,"Region ownership inverse signed Cash amount/position differs");}
     return true;
 }

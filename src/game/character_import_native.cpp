@@ -19,14 +19,14 @@ struct Invocation {
 };
 uint32_t invoke(Invocation& call)noexcept{
     __try{switch(call.step){
-        case Step::Decode:call.store=reinterpret_cast<uintptr_t(*)(const void*)>(call.image+0x880c90)(reinterpret_cast<const void*>(call.object));break;
-        case Step::DestroyStore:reinterpret_cast<void(*)(void*)>(call.image+0xa06600)(reinterpret_cast<void*>(call.store));break;
-        case Step::Borrow:reinterpret_cast<void(*)(void*,const char*,int32_t)>(call.image+0xa066d0)(call.storage,reinterpret_cast<const char*>(call.bytes),int32_t(call.size));break;
-        case Step::DestroyBorrow:reinterpret_cast<void(*)(void*)>(call.image+0xa065d0)(call.storage);break;
-        case Step::ImageConstruct:reinterpret_cast<void(*)(void*,uint32_t,uint32_t)>(call.image+0xa10c40)(call.storage,512,512);break;
-        case Step::ImageClear:{const std::array<float,4> opaque{0,0,0,1};reinterpret_cast<void(*)(void*,const void*)>(call.image+0xa11640)(call.storage,opaque.data());break;}
-        case Step::Encode:reinterpret_cast<void(*)(void*,void*)>(call.image+0x8814e0)(call.storage,reinterpret_cast<void*>(call.store));break;
-        case Step::ImageDestroy:reinterpret_cast<void(*)(void*)>(call.image+0xa113d0)(call.storage);break;
+        case Step::Decode:call.store=reinterpret_cast<uintptr_t(*)(const void*)>(call.image+0x889a50)(reinterpret_cast<const void*>(call.object));break;
+        case Step::DestroyStore:reinterpret_cast<void(*)(void*)>(call.image+0xa111c0)(reinterpret_cast<void*>(call.store));break;
+        case Step::Borrow:reinterpret_cast<void(*)(void*,const char*,int32_t)>(call.image+0xa11290)(call.storage,reinterpret_cast<const char*>(call.bytes),int32_t(call.size));break;
+        case Step::DestroyBorrow:reinterpret_cast<void(*)(void*)>(call.image+0xa11190)(call.storage);break;
+        case Step::ImageConstruct:reinterpret_cast<void(*)(void*,uint32_t,uint32_t)>(call.image+0xa1b8b0)(call.storage,512,512);break;
+        case Step::ImageClear:{const std::array<float,4> opaque{0,0,0,1};reinterpret_cast<void(*)(void*,const void*)>(call.image+0xa1c2b0)(call.storage,opaque.data());break;}
+        case Step::Encode:reinterpret_cast<void(*)(void*,void*)>(call.image+0x88a2a0)(call.storage,reinterpret_cast<void*>(call.store));break;
+        case Step::ImageDestroy:reinterpret_cast<void(*)(void*)>(call.image+0xa1c040)(call.storage);break;
         case Step::ZBegin:call.code=call.init(call.stream,call.version(),sizeof(payload::Stream));break;
         case Step::ZInflate:call.code=call.inflate(call.stream,4);break;
         case Step::ZEnd:call.code=call.end(call.stream);break;
@@ -47,7 +47,7 @@ struct Zlib {
         call.init=reinterpret_cast<Init>(GetProcAddress(module,"inflateInit_"));call.inflate=reinterpret_cast<Inflate>(GetProcAddress(module,"inflate"));
         call.end=reinterpret_cast<End>(GetProcAddress(module,"inflateEnd"));call.version=reinterpret_cast<Version>(GetProcAddress(module,"zlibVersion"));
         if(!call.init||!call.inflate||!call.end||!call.version)return fail(error,"Character import original zlib public API is incomplete");
-        const std::array<std::pair<uintptr_t,uintptr_t>,3> imports{{{0xa7f588,uintptr_t(call.init)},{0xa7f598,uintptr_t(call.inflate)},{0xa7f590,uintptr_t(call.end)}}};
+        const std::array<std::pair<uintptr_t,uintptr_t>,3> imports{{{0xa8a6a8,uintptr_t(call.init)},{0xa8a6b8,uintptr_t(call.inflate)},{0xa8a6b0,uintptr_t(call.end)}}};
         for(const auto& [rva,expected]:imports){std::array<unsigned char,6> thunk{};int32_t relative=0;uintptr_t entry=0;
             if(!memory.read(image+rva,thunk.data(),thunk.size(),error))return false;
             if(thunk[0]!=0xff||thunk[1]!=0x25)return fail(error,"Character import original zlib IAT thunk changed RVA="+std::to_string(rva));
@@ -78,7 +78,7 @@ bool read_bytes(uintptr_t image,subscriber_lifecycle::Memory& memory,uintptr_t o
     if(seh){receipt.unknown=true;receipt.exception=seh;return fail(error,"Character import original image decoder SEH="+std::to_string(seh));}
     receipt.decoder_returned=true;if(!call.store)return fail(error,"Character import original image contains no embedded data");
     auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){if(!base||base>UINTPTR_MAX-offset)return fail(cause,"Character import Store address overflow/null");return memory.read(base+offset,&out,sizeof out,cause);};
-    payload::Store value;bool ok=payload::store(read,call.store,image+0x1749500,value,error);
+    payload::Store value;bool ok=payload::store(read,call.store,image+0x174f8a0,value,error);
     if(ok){compressed.resize(value.write-value.buffer);ok=memory.read(value.buffer,compressed.data(),compressed.size(),error);}
     const auto cause=error;call.step=Step::DestroyStore;const auto cleanup=invoke(call);receipt.decoder_cleaned=cleanup==0;
     if(cleanup){receipt.unknown=true;receipt.exception=cleanup;return fail(error,(cause.empty()?std::string{}:cause+"; ")+"Character import decoded Store cleanup SEH="+std::to_string(cleanup));}

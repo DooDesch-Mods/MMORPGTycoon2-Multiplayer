@@ -33,11 +33,11 @@ struct Port {
         if(intent().tool==a::DungeonInputTool::Paint){
             uintptr_t ap=0;canvas=dungeon()+0x500;
             if(!field(memory,canvas,0,ap,error))return false;
-            if(ap!=state.image+0x1786c50)return fail(error,"Dungeon input embedded original Canvas class differs");
+            if(ap!=state.image+0x178cff0)return fail(error,"Dungeon input embedded original Canvas class differs");
             return true;
         }
         if(intent().tool==a::DungeonInputTool::Monster){
-            if(!field(memory,state.image,0x13df450,sound,error))return false;
+            if(!field(memory,state.image,0x13eb450,sound,error))return false;
             if(!sound)return fail(error,"Dungeon input original SoundManager singleton is unavailable before Monster entry");
             auto at=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return field(memory,base,offset,value,cause);};
             const auto game_state=uintptr_t(native().world.origin.state);uintptr_t manager=0;character_definition_identity::Census catalogue;
@@ -72,7 +72,7 @@ struct Port {
         if(!field(memory,object,0,ap,error)||!field(memory,object,0x18,uid,error)||!field(memory,object,0x170,shard,error)||
            !field(memory,object,0x178,region,error)||!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;
         if(!uid||shard!=pool->scene.owner.shard||region!=pool->scene.owner.region||
-           ap!=state.image+(tool==dungeon_input_native::Tool::Monster?0x16c0770:0x1749ab0))
+           ap!=state.image+(tool==dungeon_input_native::Tool::Monster?0x16c6b10:0x174fe50))
             return fail(error,"Dungeon input original return class/full UID/reciprocal scene owner differs");
         const auto found=lookup(api.find,uid,registered);
         if(found||registered!=object)return fail(error,"Dungeon input original return not registered by exact full UID SEH="+std::to_string(found));
@@ -141,7 +141,7 @@ struct Port {
             return fail(error,"Dungeon input original Undo AddDo/label lifetime failed SEH="+std::to_string(exception)+" arguments_cleanup="+
                 std::to_string(committed.arguments_cleanup)+" label_cleanup="+std::to_string(committed.label_cleanup)+" text_cleanup="+std::to_string(committed.text_cleanup));
         if(intent().tool==a::DungeonInputTool::Monster){
-            uintptr_t current_sound=0;if(!field(memory,state.image,0x13df450,current_sound,error))return false;
+            uintptr_t current_sound=0;if(!field(memory,state.image,0x13eb450,current_sound,error))return false;
             if(current_sound!=sound)return fail(error,"Dungeon input original SoundManager changed before Monster release tail");
             if(!original_result(dungeon_input_action_calls::monster_tail(state.image,object,intent().rank,sound,pool->scene.owner.shard,
                 intent().position,monster_tail),"Monster achievement/sound tail",error))return false;

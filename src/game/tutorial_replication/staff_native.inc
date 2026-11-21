@@ -1,6 +1,6 @@
 staff::Receipt client_staff_receipt;
 DWORD staff_debug_complete(uintptr_t lounge,bool& done){
-    __try{done=reinterpret_cast<bool(*)(void*)>(image+0x25edb0)(reinterpret_cast<void*>(lounge));return 0;}
+    __try{done=reinterpret_cast<bool(*)(void*)>(image+0x261eb0)(reinterpret_cast<void*>(lounge));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD staff_allocate(uintptr_t lounge,int32_t count){
@@ -10,11 +10,11 @@ DWORD staff_allocate(uintptr_t lounge,int32_t count){
 bool staff_code(std::string& e){
     uintptr_t base=0;uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(base,thread,sha,e))return false;
-    if(base!=image||thread!=mainthread||thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+    if(base!=image||thread!=mainthread||thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
         return fail(e,"Startingpoint staff actual EXE/Mainthread differs");
     if(!staff::verify_owned_allocate(owned_staff,owned_staff.target,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e))return false;
-    std::vector<unsigned char> body(0x70);if(!memory.copy(image+0x25edb0,body.data(),body.size(),e))return false;
-    return mt2mp::sha256(body)=="570f31fa2dead3d5677ab4bdecccb3d8c09e20433e500a523588b2de4c14c223"||fail(e,"Startingpoint staff native debugging completion body differs");
+    std::vector<unsigned char> body(0x70);if(!memory.copy(image+0x261eb0,body.data(),body.size(),e))return false;
+    return mt2mp::sha256(body)=="0edc90eef4950db7c88082ea25c26609b3829b1b7d67850d352e3d51ffe24797"||fail(e,"Startingpoint staff native debugging completion body differs");
 }
 struct StaffCalls {
     const action_session::Context& context;const action_session::Binding& binding;
@@ -68,9 +68,9 @@ bool staff_window(const tutorial_development::StartingpointSnapshot& snapshot,in
         if(!at(data,size_t(i)*8,entry,e)||!entry||!seen.insert(entry).second)return fail(e,e.empty()?"Startingpoint staff Mode window owner duplicated":e);
         if(!str(entry,0x1b0,name,e))return false;
         if(name=="development"){if(window)return fail(e,"Startingpoint staff DevelopmentWindow duplicated");window=entry;}}
-    if(!window||!type(window,0x1722e60,e))return fail(e,e.empty()?"Startingpoint staff owned DevelopmentWindow absent":e);
+    if(!window||!type(window,0x1729200,e))return fail(e,e.empty()?"Startingpoint staff owned DevelopmentWindow absent":e);
     uintptr_t logic=0,pips=0,owner=0;uint8_t visible=0;int32_t selected=0;
-    if(!at(window,0x318,logic,e)||!at(window,0x45f,visible,e)||!at(window,0x588,pips,e)||!type(pips,0x1744290,e)||
+    if(!at(window,0x318,logic,e)||!at(window,0x45f,visible,e)||!at(window,0x588,pips,e)||!type(pips,0x174a630,e)||
        !at(pips,0x280,owner,e)||!at(pips,0x3e0,selected,e))return false;
     return (!logic&&visible==1&&owner==window&&selected==desired)||fail(e,"Startingpoint staff actual visible Window/Pips owner or selected value differs");
 }
@@ -93,7 +93,7 @@ struct StaffCaptureCalls {
     bool submit(const std::string& id,std::string& e){return key=="bridges"?typed_action_runtime::submit_research_workers(id,key,desired,e):typed_action_runtime::submit_startingpoint_workers(id,desired,e);}
 };
 void allocate_current(void* receiver,int32_t desired){
-    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x25ec40,receiver,desired,project_handled);
+    bool project_handled=false;const bool project_allowed=general_project_runtime::original_route(0x261d40,receiver,desired,project_handled);
     if(project_handled){if(project_allowed)original_allocate(receiver,desired);return;}
     const bool ordered=typed_action_runtime::controller_status().value("ordered",false);
     if((load.armed||ordered)&&GetCurrentThreadId()!=mainthread){block("Client staff allocation thread differs");return;}

@@ -24,23 +24,23 @@ template<class Read,class Text>bool find(Read&& read,Text&& text,uintptr_t image
         return true;
     };
     if(intent.kind==action_session::NpcPropertyKind::Name){uintptr_t header=0,klass=0,bound=0,edit=0,owner=0;
-        if(!read(window,0x4e8,header,error)||!header||!read(header,0,klass,error)||klass!=image+0x16e58d0||
+        if(!read(window,0x4e8,header,error)||!header||!read(header,0,klass,error)||klass!=image+0x16ebc70||
            !read(header,0x340,bound,error)||bound!=target||!read(header,0x320,edit,error)||!edit||
-           !read(edit,0,klass,error)||klass!=image+0x1703290||
+           !read(edit,0,klass,error)||klass!=image+0x1709630||
            !read(edit,0x280,owner,error)||owner!=window||!visible(header))return fail("NPC original Header/rename control binding differs");
         out={header,edit,header,"Rename"};return true;
     }
     if(intent.kind==action_session::NpcPropertyKind::OnlineState){
         uintptr_t status=0,klass=0,data=0;int32_t count=0,capacity=0;std::string route;
         const std::string command="SetState "+std::to_string(intent.online+1);
-        if(!read(window,0x520,status,error)||!status||!read(status,0,klass,error)||klass!=image+0x16e7390||
+        if(!read(window,0x520,status,error)||!status||!read(status,0,klass,error)||klass!=image+0x16ed730||
            !text(status+0x318,route,error)||!routed(route,"SetState")||!visible(status)||
            !read(status,0x348,data,error)||!read(status,0x350,count,error)||!read(status,0x354,capacity,error)||
            count<1||count>128||capacity<count||capacity>100000||!data)return fail("NPC property original status control binding/options invalid");
         for(int32_t i=0;i<count;++i){uintptr_t button=0;std::string offered;
             if(!read(data,size_t(i)*8,button,error))return false;
             if(!button)continue;
-            if(!read(button,0,klass,error)||klass!=image+0x16e3ec0||!text(button+0x388,offered,error))return fail("NPC property original state button invalid");
+            if(!read(button,0,klass,error)||klass!=image+0x16ea260||!text(button+0x388,offered,error))return fail("NPC property original state button invalid");
             if(!routed(offered,command))continue;
             if(out.control)return fail("NPC property repeated state control");
             uint8_t disabled=1,clickable=0;
@@ -58,7 +58,7 @@ template<class Read,class Text>bool find(Read&& read,Text&& text,uintptr_t image
         if(!read(pane,0,klass,error))return false;
         if(klass<image||klass>image+0x2000000)return fail("NPC property pane class outside pinned image");
         if(!read(klass,0x178,gather,error))return false;
-        if(klass==image+0x16e3ec0){
+        if(klass==image+0x16ea260){
             std::string command;if(!text(pane+0x388,command,error))return false;
             if(routed(command,wanted)){
                 if(out.control)return fail("NPC property has multiple matching original controls");
@@ -69,8 +69,8 @@ template<class Read,class Text>bool find(Read&& read,Text&& text,uintptr_t image
                 out={window,0,pane,wanted};
             }
         }
-        if(gather==image+0xc35730)continue;
-        if(gather!=image+0x8167c0)return fail("NPC property unsupported original pane traversal");
+        if(gather==image+0xc41fe0)continue;
+        if(gather!=image+0x81ed30)return fail("NPC property unsupported original pane traversal");
         for(size_t offset:{size_t(0x2c8),size_t(0x2f8)}){
             uintptr_t data=0;int32_t count=0,capacity=0;
             if(!read(pane,offset+8,data,error)||!read(pane,offset+16,count,error)||!read(pane,offset+20,capacity,error))return false;

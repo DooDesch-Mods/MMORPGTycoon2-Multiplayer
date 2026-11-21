@@ -410,7 +410,7 @@ static void initialize_time_hooks() {
     time_initialization_attempted=true;
     try {
         game::shared_time::Config config{native_image_begin,GetCurrentThreadId(),
-            "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"};
+            "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"};
         std::string error;
         hud_time_reader_ready=hud_time_reader.initialize({native_image_begin,GetCurrentThreadId(),config.verified_executable_sha256},
             game::hud_time::process_read_services(),hud_time_reader_error);
@@ -1161,7 +1161,7 @@ static void init_paths() {
                 }
             }
             const game::shared_time::Config clock{native_image_begin,GetCurrentThreadId(),
-                "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"};
+                "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"};
             return game::ordered_startup::select(write,file,id,clock,error);
         }catch(const std::exception& cause){error=std::string("public ordered world selection failed: ")+cause.what();return false;}
     });
@@ -2977,7 +2977,7 @@ static void diagnostics_tick() {
             }
             json save_observation;
             if(export_only){
-                save_observation={{"schema","mt2-held-save-observation-v1"},{"original_rva",ordinary&&original.at("kind").get<uint32_t>()==3?0x4a0580:asynchronous?0x4a0490:0x4a1b40},{"asynchronous",asynchronous},
+                save_observation={{"schema","mt2-held-save-observation-v1"},{"original_rva",ordinary&&original.at("kind").get<uint32_t>()==3?0x4a5a70:asynchronous?0x4a5980:0x4a7030},{"asynchronous",asynchronous},
                     {"save_api_attempted",false},{"save_api_returned",false},{"before",game::snapshot_save_observation::read()}};
                 write_json(dir/("save-observation-"+id+".json"),save_observation);
             }
@@ -3051,7 +3051,7 @@ static void diagnostics_tick() {
                 const auto actual_root=status().at("write_dir").get<std::string>();
                 const auto write=framework_open_paths::verified_write_root(framework_open_paths::absolute(runtime_root),actual_root.c_str());
                 game::shared_time::Config clock{native_image_begin,GetCurrentThreadId(),
-                    "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"};
+                    "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"};
                 response["ok"]=game::ordered_startup::select(write,args.value("selected_file",std::string{}),id,clock,error);
             }else response["ok"]=true;
             response["result"]=game::ordered_startup::status();

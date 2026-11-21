@@ -24,7 +24,7 @@ template<class Memory,class T>bool at(Memory& memory,uintptr_t owner,size_t offs
 template<class Memory>bool read_once(Memory& memory,uintptr_t image,uintptr_t sequence,int32_t expected,Binding& out,std::string& error){
     out={};out.sequence=sequence;uintptr_t ap=0;
     if(!at(memory,sequence,0,ap,error))return false;
-    if(ap!=image+0x16dbd80)return fail(error,"tutorial progress Sequence AP differs");
+    if(ap!=image+0x16e2120)return fail(error,"tutorial progress Sequence AP differs");
     if(!at(memory,sequence,0x20,out.steps,error)||!at(memory,sequence,0x28,out.count,error)||!at(memory,sequence,0x2c,out.capacity,error)||
        !at(memory,sequence,0x48,out.step,error)||!at(memory,sequence,0x50,out.next,error))return false;
     if(out.count<0||out.count>2048||out.capacity<out.count||out.capacity>2048||out.next!=expected||out.next<0||out.next>out.count)
@@ -37,14 +37,14 @@ template<class Memory>bool read_once(Memory& memory,uintptr_t image,uintptr_t se
         return fail(error,"tutorial progress current step is not uniquely indexed");
     if(!at(memory,out.step,0,out.step_ap,error)||!at(memory,out.step,0x18,out.step_complete,error))return false;
     if(out.step_complete>1)return fail(error,"tutorial progress step complete byte invalid");
-    if(out.step_ap!=image+0x16fda00)return true;
+    if(out.step_ap!=image+0x1703da0)return true;
     if(!at(memory,out.step,0x1a8,out.window,error)||!at(memory,out.step,0x1b0,out.meter,error))return false;
     if(!out.meter)return true;
     if(!at(memory,out.window,0,ap,error))return false;
-    if(ap!=image+0x17883d0)return fail(error,"tutorial progress Window AP differs");
+    if(ap!=image+0x178e770)return fail(error,"tutorial progress Window AP differs");
     if(!at(memory,out.window,0x69,out.window_shown,error)||out.window_shown>1)return fail(error,"tutorial progress Window visibility invalid");
     if(!at(memory,out.meter,0,ap,error))return false;
-    if(ap!=image+0x174a110)return fail(error,"tutorial progress Meter AP differs");
+    if(ap!=image+0x17504b0)return fail(error,"tutorial progress Meter AP differs");
     if(!at(memory,out.meter,0x280,out.meter_window,error))return false;
     if(out.meter_window!=out.window)return fail(error,"tutorial progress Meter belongs to another Window");
     MessageProgress values;uint8_t shown=0;

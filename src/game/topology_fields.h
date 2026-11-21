@@ -22,8 +22,8 @@ struct Pipe {
 template<class M>bool pipe(M& m,uintptr_t image,uintptr_t object,uintptr_t region,uintptr_t manager,int32_t region_id,Pipe& p,std::string& e){
     namespace r=n::read;p={};p.object=object;p.region=region;p.manager=manager;p.region_id=region_id;
     uintptr_t actual_region=0;uint8_t baked=0,dirty=1;std::string type;
-    if(!r::ap(m,object,image,0x16fca60,e)||!r::at(m,object,0x18,p.uid,e)||!r::at(m,object,0x178,actual_region,e)||
-       !r::at(m,object,0x320,p.definition,e)||!r::ap(m,p.definition,image,0x17380d0,e)||
+    if(!r::ap(m,object,image,0x1702e00,e)||!r::at(m,object,0x18,p.uid,e)||!r::at(m,object,0x178,actual_region,e)||
+       !r::at(m,object,0x320,p.definition,e)||!r::ap(m,p.definition,image,0x173e470,e)||
        !r::text(m,p.definition+0x18,p.type,e)||!r::text(m,p.definition+0x38,p.key,e)||!r::text(m,object+0x210,type,e)||
        !r::at(m,p.definition,0x78,p.cost,e)||!r::at(m,p.definition,0xa0,p.definition_values,e)||!r::at(m,p.definition,0xb4,p.cross_region,e)||
        !r::at(m,object,0x260,p.start,e)||!r::at(m,object,0x268,p.end,e)||!r::at(m,object,0x270,p.start_position,e)||
@@ -46,7 +46,7 @@ struct Connection {
 };
 template<class M>bool connection(M& m,uintptr_t image,uintptr_t object,Connection& c,std::string& e){
     namespace r=n::read;c={};c.object=object;
-    if(!r::ap(m,object,image,0x17251d0,e)||!r::at(m,object,0x158,c.node,e)||!r::at(m,object,0x160,c.pipe,e)||
+    if(!r::ap(m,object,image,0x172b570,e)||!r::at(m,object,0x158,c.node,e)||!r::at(m,object,0x160,c.pipe,e)||
        !r::at(m,object,0x168,c.waypoint,e)||!r::at(m,object,0x16c,c.position,e)||!r::at(m,object,0xf8,c.source_position,e)||
        !r::at(m,object,0x178,c.pending,e)||!r::at(m,object,0x180,c.region,e)||!r::at(m,object,0x188,c.dynamic,e)||!r::at(m,object,0x1a4,c.connected,e))return false;
     if(!c.region||c.connected!=1||bool(c.node)==bool(c.pipe)||!std::isfinite(c.pending))return reject(e,"network linked connection target/region/state differs");

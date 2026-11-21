@@ -1,17 +1,17 @@
 uint32_t edit_activate(uintptr_t pane,bool icon=false)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+(icon?0x564890:0x674780))(reinterpret_cast<void*>(pane));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+(icon?0x56af20:0x67b950))(reinterpret_cast<void*>(pane));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t edit_text(uintptr_t outer,uintptr_t pane,const char* text,size_t size,bool commit)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x81ada0)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(pane));
+    __try{reinterpret_cast<void(*)(void*,void*)>(state.image+0x823390)(reinterpret_cast<void*>(outer),reinterpret_cast<void*>(pane));
         const quest_list::QuestTitleView value{text,size};
-        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f1630)(reinterpret_cast<void*>(pane),value);
-        if(commit)reinterpret_cast<void(*)(void*)>(state.image+0x771f50)(reinterpret_cast<void*>(pane));return 0;}
+        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x7f9b70)(reinterpret_cast<void*>(pane),value);
+        if(commit)reinterpret_cast<void(*)(void*)>(state.image+0x779a70)(reinterpret_cast<void*>(pane));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t edit_choice(uintptr_t pane,const char* text,size_t size)noexcept{
     __try{const quest_list::QuestTitleView value{text,size};
-        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&,bool)>(state.image+0x6ab830)(reinterpret_cast<void*>(pane),value,true);return 0;}
+        reinterpret_cast<void(*)(void*,const quest_list::QuestTitleView&,bool)>(state.image+0x6b2b50)(reinterpret_cast<void*>(pane),value,true);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool ability_offered(Memory& memory,const json& args,uintptr_t& outer,json& details,std::vector<OfferedControl>& controls,std::string& error){
@@ -33,9 +33,9 @@ bool ability_icons(Memory& memory,uintptr_t root,uintptr_t named,uintptr_t owner
        page.current!=page.page||page.requested!=page.page)
         return fail(error,error.empty()?"Ability catalogue requires its actual current enabled Abilities page and canonical owner array":error);
     uintptr_t list_class=0,slots_view=0,slots_class=0,list_owner=0,slots_owner=0;uint8_t rebuild=0;
-    if(!field(memory,page.page,0,list_class,error)||list_class!=state.image+0x1717ed0||
+    if(!field(memory,page.page,0,list_class,error)||list_class!=state.image+0x171e270||
        !field(memory,page.page,0x320,slots_view,error)||!slots_view||!field(memory,page.page,0x328,list_owner,error)||list_owner!=owner||
-       !field(memory,slots_view,0,slots_class,error)||slots_class!=state.image+0x171ca70||
+       !field(memory,slots_view,0,slots_class,error)||slots_class!=state.image+0x1722e10||
        !field(memory,slots_view,0x340,slots_owner,error)||slots_owner!=owner||!field(memory,slots_view,0x378,rebuild,error)||rebuild>1)
         return fail(error,error.empty()?"Ability native list/slots owner or rebuild flag differs":error);
     if(census)*census={{"catalogue_ready",rebuild==0},{"rebuild_pending",rebuild!=0},{"canonical_ability_count",count},

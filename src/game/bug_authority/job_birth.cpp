@@ -80,14 +80,14 @@ template<class T>bool at(const JobRead& read,uintptr_t p,size_t offset,T& out,st
 }
 bool inspect_job(const JobRead& read,const JobLease& lease,uintptr_t pointer,Job& out,std::string& e){
     out={};out.pointer=pointer;uintptr_t ap=0;
-    if(!at(read,pointer,0,ap,e)||ap!=lease.image+0x17427a0)return e.empty()?fail(e,"Bug Job original class differs"):false;
+    if(!at(read,pointer,0,ap,e)||ap!=lease.image+0x1748b40)return e.empty()?fail(e,"Bug Job original class differs"):false;
     if(!at(read,pointer,0x18,out.type,e)||!at(read,pointer,0x1c,out.position,e)||!at(read,pointer,0x28,out.destination,e)||
        !at(read,pointer,0x38,out.bug.pointer,e)||!at(read,pointer,0x68,out.building,e)||!at(read,pointer,0x70,out.building_proxy,e)||
        !at(read,pointer,0xa0,out.monster,e)||!at(read,pointer,0xa8,out.monster_proxy,e)||!at(read,pointer,0xb0,out.region,e)||
        !at(read,pointer,0xb8,out.developer,e)||!at(read,pointer,0xc0,out.raw_id,e)||!at(read,pointer,0xc4,out.valid,e))return false;
     if(out.bug.pointer){auto& b=out.bug;
         if(out.bug.pointer!=lease.bug)return fail(e,"Bug Job configured another Bug receiver");
-        if(!at(read,b.pointer,0,ap,e)||ap!=lease.image+0x1742200)return e.empty()?fail(e,"Bug Job Bug class differs"):false;
+        if(!at(read,b.pointer,0,ap,e)||ap!=lease.image+0x17485a0)return e.empty()?fail(e,"Bug Job Bug class differs"):false;
         if(!at(read,b.pointer,0x28,b.runtime_id,e)||!at(read,b.pointer,0x2c,b.type,e)||!at(read,b.pointer,0x30,b.created,e)||
            !at(read,b.pointer,0x34,b.discovered,e)||!at(read,b.pointer,0x38,b.toons,e)||!at(read,b.pointer,0x3c,b.reproducibility,e)||
            !at(read,b.pointer,0x40,b.variant,e)||!at(read,b.pointer,0x44,b.known,e)||!at(read,b.pointer,0x45,b.manual,e)||

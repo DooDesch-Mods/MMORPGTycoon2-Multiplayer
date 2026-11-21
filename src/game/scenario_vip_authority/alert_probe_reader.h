@@ -81,43 +81,43 @@ class Reader {
     }
     bool once(uintptr_t mode,uintptr_t state,Graph& out,std::string& e,bool arrivals){
         uintptr_t hud_singleton=0,manager_singleton=0;
-        if(!at(mode,0x128,out.hud,e)||!at(image_,0x13df8b0,hud_singleton,e)||
-           !at(mode,0x110,out.manager,e)||!at(image_,0x13df390,manager_singleton,e))return false;
+        if(!at(mode,0x128,out.hud,e)||!at(image_,0x13eb8b0,hud_singleton,e)||
+           !at(mode,0x110,out.manager,e)||!at(image_,0x13eb390,manager_singleton,e))return false;
         if(out.hud!=hud_singleton||out.manager!=manager_singleton)return fail(e,"VIP alert current Mode singleton owner differs");
         if(!out.hud||!out.manager){out.absent="VIP alert current HUD or AlertManager absent";return true;}
-        if(!type(out.hud,0x1742750,e)||!type(out.manager,0x16fe5d0,e)||
-           !at(out.hud,0x88,out.window,e)||!at(image_,0x13df270,out.list,e))return false;
+        if(!type(out.hud,0x1748af0,e)||!type(out.manager,0x1704970,e)||
+           !at(out.hud,0x88,out.window,e)||!at(image_,0x13eb270,out.list,e))return false;
         if(!out.window||!out.list){out.absent="VIP alert HUD Window or AlertList absent";return true;}
         // The loader may select a Window subclass. Record its actual AP, never guess it.
         if(!module_ap(out.window,out.window_ap,e)||!text(out.window,0x1b0,out.window_name,e)||
-           !type(out.list,0x16dd150,e)||!ancestry(out,e)||!type(out.list+0x318,0x16e1ef0,e)||
+           !type(out.list,0x16e34f0,e)||!ancestry(out,e)||!type(out.list+0x318,0x16e8290,e)||
            !array(out.list,0x320,out.selectors,e)||!array(out.list,0x300,out.panes,e)||
            !array(out.manager,0x68,out.active,e)||!array(out.manager,0x20,out.owned,e))return false;
         uintptr_t log_singleton=0;
-        if(!at(state,0x1e8,out.log,e)||!at(image_,0x13df330,log_singleton,e))return false;
-        if(out.log!=log_singleton||!type(out.log,0x16fd7b0,e))return fail(e,e.empty()?"VIP alert ScenarioLog owner differs":e);
+        if(!at(state,0x1e8,out.log,e)||!at(image_,0x13eb330,log_singleton,e))return false;
+        if(out.log!=log_singleton||!type(out.log,0x1703b50,e))return fail(e,e.empty()?"VIP alert ScenarioLog owner differs":e);
         if(!array(out.log,0x20,out.scenarios,e,64))return false;
         for(auto selector:out.selectors.items){
             uintptr_t list=0,parent=0,window=0;Alert row;row.selector=selector;uint8_t shown=0;
-            if(!type(selector,0x1704fa0,e)||!at(selector,0x318,list,e)||!at(selector,0x330,row.object,e)||
+            if(!type(selector,0x170b340,e)||!at(selector,0x318,list,e)||!at(selector,0x330,row.object,e)||
                !at(selector,0x278,parent,e)||!at(selector,0x280,window,e))return false;
             if(list!=out.list||parent!=out.list||window!=out.window||!contains(out.panes,selector))
                 return fail(e,"VIP alert selector parent, Window or dual-array membership differs");
             uintptr_t reciprocal=0;
-            if(!type(row.object,0x1749770,e)||!at(row.object,0x18,row.type,e)||
+            if(!type(row.object,0x174fb10,e)||!at(row.object,0x18,row.type,e)||
                !at(row.object,0x130,reciprocal,e)||!at(row.object,0x138,shown,e))return false;
             if(reciprocal!=selector||shown!=1||!contains(out.active,row.object))return fail(e,"VIP alert shown selector or manager active membership differs");
             if(row.type!=8||!arrivals)continue;
             if(!at(row.object,0xf0,row.extra,e)||row.extra!=0||contains(out.owned,row.object))
                 return fail(e,e.empty()?"VIP arrival extra or manager ownership differs":e);
-            if(!at(row.object,0x68,row.toon,e)||!type(row.toon,0x1744e90,e)||!text(row.object,0x88,row.name,e))return false;
+            if(!at(row.object,0x68,row.toon,e)||!type(row.toon,0x174b230,e)||!text(row.object,0x88,row.name,e))return false;
             unsigned matches=0;
             for(auto instance:out.scenarios.items){uintptr_t ap=0,alert=0;
-                if(!at(instance,0,ap,e))return false;if(ap!=image_+0x1730e90)continue;
+                if(!at(instance,0,ap,e))return false;if(ap!=image_+0x1737230)continue;
                 if(!at(instance,0xa0,alert,e))return false;if(alert!=row.object)continue;
                 uint8_t arrived=0;uintptr_t toon=0,backlink=0;
                 if(!at(instance,0x98,arrived,e)||!at(instance,0x68,row.subscriber,e)||
-                   !type(row.subscriber,0x16e75f0,e)||!at(row.subscriber,0x20,row.subscriber_id,e)||
+                   !type(row.subscriber,0x16ed990,e)||!at(row.subscriber,0x20,row.subscriber_id,e)||
                    !at(row.subscriber,0x80,toon,e)||!at(row.toon,0x940,backlink,e))return false;
                 if(arrived!=1||row.subscriber_id<0||toon!=row.toon||backlink!=row.subscriber)
                     return fail(e,"VIP arrival Scenario/Subscriber/Toon ownership differs");
@@ -131,7 +131,7 @@ class Reader {
 public:
     Reader(placement_ui_probe::Memory& m,uintptr_t image,uint32_t image_size):memory_(m),image_(image),image_size_(image_size){}
     bool read_impl(uintptr_t mode,uintptr_t state,Graph& out,std::string& e,bool arrivals){
-        out={};e.clear();reads_=0;if(!image_||image_size_<=0x1749770||image_>UINTPTR_MAX-image_size_)return fail(e,"VIP alert pinned image extent differs");
+        out={};e.clear();reads_=0;if(!image_||image_size_<=0x174fb10||image_>UINTPTR_MAX-image_size_)return fail(e,"VIP alert pinned image extent differs");
         Graph a,b;if(!once(mode,state,a,e,arrivals)||!once(mode,state,b,e,arrivals))return false;
         if(a!=b)return fail(e,"VIP alert owner graph changed during double read");
         out=std::move(b);e.clear();return true;

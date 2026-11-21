@@ -90,7 +90,7 @@ RemoveResult RemoveBackend::execute(uint64_t sequence,const RemoveContext& conte
                 if(!services_.inspect(current,lease,graph,life,error)||life!=Life::Alive)return reject(error.empty()?"remove_survivor_changed_before_restore":error);
             }
             if(!services_.current(current,error)||!same(context,current)||!valid_context(current,false))return reject(error.empty()?"remove_context_changed_before_restore":error);
-            const auto restored=call_highlights(highlights_,context.selection,image_+0x1748c50,highlight);
+            const auto restored=call_highlights(highlights_,context.selection,image_+0x174eff0,highlight);
             if(!restored.returned){result.seh_code=restored.seh_code;return reject(restored.error);}
         }
         if(!read_selection(memory_,image_,context.selection,after,counts,error))return reject(error);

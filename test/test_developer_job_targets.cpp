@@ -63,7 +63,7 @@ int main() {
     job.building_proxy = 0x41000000; put(job.building_proxy, job.building + 0x20);
     census.jobs.push_back(job);
     const uintptr_t selection = 0x60000000, shard = 0x70000000;
-    put(capture.image + 0x13df630, selection); put(selection, capture.image + uintptr_t(0x17205d0));
+    put(capture.image + 0x13eb630, selection); put(selection, capture.image + uintptr_t(0x1726970));
     put(capture.local.lounge + 0x56, uint8_t(1)); put(capture.local.lounge + 0x57, uint8_t(0));
     put(job.building + 0x170, shard); put(job.building + 0x178, job.region);
     put(shard + 0x18, uintptr_t(0)); put(shard + 0x20, uintptr_t(0));

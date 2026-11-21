@@ -34,7 +34,7 @@ struct NativePort {
         if(!native::read_resolver_receipt(s.image,s.thread,executable,e))return false;
         if(!Config::instance().is_host||!net::session_wire::connected()||s.thread!=GetCurrentThreadId()||
            s.image!=uintptr_t(GetModuleHandleW(nullptr))||
-           executable!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+           executable!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
             return rejected(e,"startup calendar requires exact connected Host/Mainthread/executable");
         image=s.image;
         building_mixed_identity::opened_file::CurrentWorld world;
@@ -45,15 +45,15 @@ struct NativePort {
         if(!status.world_present||status.active_mode_index!=3||status.title_transition_pending||status.quitting||
            status.saves_in_progress||status.edit_operations||status.map_task_pending)
             return rejected(e,"startup calendar requires idle loaded World with no Save/Edit/Map task");
-        if(!at(image,0x13df9a0,s.clock,e)||!ap(s.clock,0x17499d0,e)||
-           !at(image,0x13df220,s.business,e)||!ap(s.business,0x16d97e0,e)||
+        if(!at(image,0x13eb9a0,s.clock,e)||!ap(s.clock,0x174fd70,e)||
+           !at(image,0x13eb220,s.business,e)||!ap(s.business,0x16dfb80,e)||
            !at(s.business,0x68,s.history,e)||!at(s.business,0x70,s.history_count,e)||
            !at(s.business,0x74,s.history_capacity,e)||!at(s.business,0x100,s.record,e))return false;
         if(s.business>UINTPTR_MAX-0x60)return rejected(e,"startup calendar History address overflows");
-        if(!ap(s.business+0x60,0x16ec280,e))return false;
+        if(!ap(s.business+0x60,0x16f2620,e))return false;
         if(s.history_count>0&&!at(s.history,0,s.member,e))return false;
-        if(!ap(s.record,0x1712c00,e)||!at(image,0x13df500,s.software,e))return false;
-        if(s.software&&(!ap(s.software,0x1715450,e)||!at(s.software,0x88,s.software_state,e)))return false;
+        if(!ap(s.record,0x1718fa0,e)||!at(image,0x13eb500,s.software,e))return false;
+        if(s.software&&(!ap(s.software,0x171b7f0,e)||!at(s.software,0x88,s.software_state,e)))return false;
         if(!memory.copy(s.clock,s.clock_bytes.data(),s.clock_bytes.size(),e)||
            !memory.copy(s.business,s.business_bytes.data(),s.business_bytes.size(),e)||
            !memory.copy(s.record,s.record_bytes.data(),s.record_bytes.size(),e))return false;
@@ -66,10 +66,10 @@ struct NativePort {
         struct Code {uintptr_t rva;size_t size;const char* hash;};
         // Both functions ignore their vsObjectContext argument. The guarded shape
         // bypasses Clock recovery and Business record creation/initial-loan branches.
-        constexpr Code pins[]={{0x259c20,336,"313d52cd0ce42fd84c6812d876cc748063562c3174bfc6cc8e1c0ca78ec8b7fe"},
-            {0x56680,400,"2b546660dd56f85aee73c9eee558121ce463215f40cdc9dc7bfaa312142633ab"},
-            {0x55790,80,"fe6e5094050b83a1aac860aa4bb8c92842f5caaf1c934bd248e71e59ed8c47f1"},
-            {0xb4a410,251,"27491dbf64800e35fb387462451b8a555e9648981d6143f365ba10e1409fa322"}};
+        constexpr Code pins[]={{0x25cce0,336,"5f1a6e9aeb5fef50c30bfb448026b96ebc8646e376a9e9b3ffc2c9f64875dc95"},
+            {0x56b80,400,"da23295c644adf543c881fa9541bd11c42484111628baf5143204b9012c81f67"},
+            {0x55c90,80,"83bf47592da33b37d6398bf9efc2dc5d6fd9058eda423ed7ebd539158ad5e8cd"},
+            {0xb56c70,251,"c85255076535d0971ff3fd53c9372455c068054477aa8d0314919b24ce45268c"}};
         for(const auto& pin:pins){
             std::vector<unsigned char> bytes(pin.size);
             if(!memory.copy(image+pin.rva,bytes.data(),bytes.size(),e))return false;
@@ -81,8 +81,8 @@ struct NativePort {
         const auto code=original_call(image+rva,receiver);
         return !code||rejected(e,"startup calendar original failed RVA="+std::to_string(rva)+" SEH="+std::to_string(code)+"; mutation may have started, no retry");
     }
-    bool resolve_clock(const State& s,std::string& e){return invoke(0x259c20,s.clock,e);}
-    bool resolve_business(const State& s,std::string& e){return invoke(0x56680,s.business,e);}
+    bool resolve_clock(const State& s,std::string& e){return invoke(0x25cce0,s.clock,e);}
+    bool resolve_business(const State& s,std::string& e){return invoke(0x56b80,s.business,e);}
 };
 Result normalize_loaded(std::string& error){NativePort port;return normalize(port,error);}
 }

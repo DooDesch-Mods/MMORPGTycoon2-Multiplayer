@@ -75,7 +75,7 @@ bool graph(region::Runtime& r,const region::LocalView& view,reader::Graph& graph
     out.nodes=graph.nodes.size();out.pipes=graph.pipes;out.connections=graph.connections;return region::sha256(graph.rows.dump(),out.graph_sha256,e);
 }
 bool definition(region::Runtime& r,uintptr_t tool,action::NetworkIntent& intent,uintptr_t& result,std::string& e){
-    if(!reader::read::ap(r.memory,tool,r.image,0x173ebd0,e)||!region::at(r,tool,0x168,result,e)||!reader::read::ap(r.memory,result,r.image,0x1738010,e)||
+    if(!reader::read::ap(r.memory,tool,r.image,0x1744f70,e)||!region::at(r,tool,0x168,result,e)||!reader::read::ap(r.memory,result,r.image,0x173e3b0,e)||
        !region::text(r,tool+0x148,intent.type,e)||!region::text(r,tool+0x50,intent.key,e)||!region::at(r,result,0x78,intent.quoted_cost,e))return false;
     std::string type,key;if(!region::text(r,result+0x18,type,e)||!region::text(r,result+0x38,key,e))return false;
     if(type!=intent.type||key!=intent.key||intent.quoted_cost<0)return fail(e,"network tool definition type/key/cost differs");return true;
@@ -89,34 +89,35 @@ bool catalogue_key(region::Runtime& r,uintptr_t item,std::string& key,std::strin
     return region::text(r,item+0x68,key,e);
 }
 bool catalog(region::Runtime& r,const action::NetworkIntent& request,uintptr_t& tool,uintptr_t& def,std::string& e){
-    uintptr_t item=0;if(!region::at(r,r.image,0x13e2050,item,e))return false;std::set<uintptr_t> visited;tool=def=0;
-    while(item){if(visited.size()>=4096||!visited.insert(item).second)return fail(e,"network actual item catalogue cycle/bound");
+    // The item list links nodes at item+0x20; the head and next (+0x30) hold node addresses.
+    uintptr_t link=0;if(!region::at(r,r.image,0x13ee040,link,e))return false;std::set<uintptr_t> visited;tool=def=0;
+    while(link){const uintptr_t item=link-0x20;if(visited.size()>=4096||!visited.insert(item).second)return fail(e,"network actual item catalogue cycle/bound");
         uintptr_t ap=0;if(!region::at(r,item,0,ap,e))return false;
-        if(ap==r.image+0x173b7b0){std::string key;if(!catalogue_key(r,item,key,e))return false;
+        if(ap==r.image+0x1741b50){std::string key;if(!catalogue_key(r,item,key,e))return false;
             if(key==request.key){if(tool)return fail(e,"network requested item key is ambiguous");
                 if(!region::at(r,item,0x160,tool,e))return false;action::NetworkIntent actual=request;
                 uintptr_t backlink=0;if(!definition(r,tool,actual,def,e)||!region::at(r,tool,0x118,backlink,e))return false;
                 if(backlink!=item||actual!=request)return fail(e,"network actual item/tool/definition differs from captured intent");}}
-        if(!region::at(r,item,0x30,item,e))return false;
+        if(!region::at(r,item,0x30,link,e))return false;
     }
     if(!tool)return fail(e,"network requested actual catalogue tool absent");
     uintptr_t manager=0;std::vector<uintptr_t> defs;
-    if(!region::at(r,r.image,0x13df680,manager,e)||!reader::read::ap(r.memory,manager,r.image,0x16ee8c0,e)||!path_native::array(r.memory,manager,8,0x10,0x14,4096,defs,e))return false;
+    if(!region::at(r,r.image,0x13eb680,manager,e)||!reader::read::ap(r.memory,manager,r.image,0x16f4c60,e)||!path_native::array(r.memory,manager,8,0x10,0x14,4096,defs,e))return false;
     return std::count(defs.begin(),defs.end(),def)==1||fail(e,"network definition actual manager membership differs");
 }
 uint32_t preflight(uintptr_t image,uintptr_t tool,uintptr_t cursor,const action::NetworkIntent& intent,uintptr_t& region,float& height,bool& legal){
-    __try{legal=reinterpret_cast<bool(*)(void*,void*,const void*)>(image+0x5c5370)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),intent.position.data());
-        auto* map=*reinterpret_cast<void**>(image+0x13df8c0);
-        region=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x32a990)(map,intent.position.data(),nullptr));
-        height=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ab80)(map,intent.position.data());return 0;
+    __try{legal=reinterpret_cast<bool(*)(void*,void*,const void*)>(image+0x5cbac0)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),intent.position.data());
+        auto* map=*reinterpret_cast<void**>(image+0x13eb8c0);
+        region=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,void*)>(image+0x32ea20)(map,intent.position.data(),nullptr));
+        height=reinterpret_cast<float(*)(void*,const void*)>(image+0x32ec10)(map,intent.position.data());return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t ui_call(uintptr_t image,unsigned step,uintptr_t tool,uintptr_t cursor,const std::array<float,3>& point){
-    __try{if(step==0)reinterpret_cast<void(*)(void*)>(image+0x580870)(reinterpret_cast<void*>(tool));
-        else if(step==1)reinterpret_cast<Press>(image+0x5c5450)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
+    __try{if(step==0)reinterpret_cast<void(*)(void*)>(image+0x587030)(reinterpret_cast<void*>(tool));
+        else if(step==1)reinterpret_cast<Press>(image+0x5cbba0)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
         else if(step==2)state.press(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());
-        else if(step==3)reinterpret_cast<void(*)(void*,void*)>(image+0x5854e0)(reinterpret_cast<void*>(cursor),nullptr);
-        else reinterpret_cast<Press>(image+0x5c5580)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());return 0;
+        else if(step==3)reinterpret_cast<void(*)(void*,void*)>(image+0x58bca0)(reinterpret_cast<void*>(cursor),nullptr);
+        else reinterpret_cast<Press>(image+0x5cbcd0)(reinterpret_cast<void*>(tool),reinterpret_cast<void*>(cursor),point.data());return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 void press_entry(void*,void*,const void*);
@@ -124,7 +125,7 @@ bool purchase_entry(void*,const void*);
 bool code(region::Runtime& r,bool hooked,std::string& e){
     for(size_t i=0;i<std::size(network_node_codes);++i){const auto& g=network_node_codes[i];std::vector<unsigned char> actual(g.size);
         if(!r.memory.copy(r.image+g.rva,actual.data(),actual.size(),e))return false;
-        if(!hooked||i>=2){if(g.rva==0x5854e0){if(!hooks::framework::verify_original_bytes(r.image+g.rva,actual.data(),g.bytes,g.size,e))return fail(e,"network original code differs RVA="+std::to_string(g.rva)+" original="+e);}else if(std::memcmp(actual.data(),g.bytes,g.size))return fail(e,"network original code differs RVA="+std::to_string(g.rva));continue;}
+        if(!hooked||i>=2){if(g.rva==0x58bca0){if(!hooks::framework::verify_original_bytes(r.image+g.rva,actual.data(),g.bytes,g.size,e))return fail(e,"network original code differs RVA="+std::to_string(g.rva)+" original="+e);}else if(std::memcmp(actual.data(),g.bytes,g.size))return fail(e,"network original code differs RVA="+std::to_string(g.rva));continue;}
         if(actual[0]!=0xe9||std::memcmp(actual.data()+5,g.bytes+5,g.size-5))return fail(e,"network owned hook tail differs");
         const auto original=i?uintptr_t(state.purchase):uintptr_t(state.press);std::vector<unsigned char> prefix(g.span);
         if(!r.memory.copy(original,prefix.data(),prefix.size(),e)||std::memcmp(prefix.data(),g.bytes,g.span))return fail(e,"network original trampoline prefix differs");
@@ -137,7 +138,7 @@ bool code(region::Runtime& r,bool hooked,std::string& e){
 bool purchase_entry(void* def,const void* point){
     if(!state.capture_receiver)return state.purchase(def,point);
     std::string e;auto* r=runtime(e);if(!r){rejected(e);return false;}
-    if(uintptr_t(_ReturnAddress())!=r->image+0x5c55c7){rejected("network Purchase caller differs from original UI Press");return false;}
+    if(uintptr_t(_ReturnAddress())!=r->image+0x5cbd17){rejected("network Purchase caller differs from original UI Press");return false;}
     if(state.captured||state.pending){rejected("network intent already retained");return false;}
     action::NetworkIntent intent;uintptr_t actual_def=0,actual_region=0;region::LocalView view;
     if(!definition(*r,state.capture_receiver,intent,actual_def,e)||actual_def!=uintptr_t(def)||!r->memory.copy(uintptr_t(point),intent.position.data(),sizeof(intent.position),e)){
@@ -183,26 +184,26 @@ uint32_t commit(region::Runtime& r,uintptr_t tool,uintptr_t manager,uintptr_t de
     __try{
         const auto b=r.image;auto* definition=reinterpret_cast<void*>(def);const auto& point=op.request.network.position;
         ++op.calls;if(!state.purchase(definition,point.data()))return ERROR_CANCELLED;
-        ++op.calls;op.created=uintptr_t(reinterpret_cast<void*(*)(void*,void*,const void*,bool)>(b+0x2a64a0)(reinterpret_cast<void*>(manager),definition,point.data(),true));
+        ++op.calls;op.created=uintptr_t(reinterpret_cast<void*(*)(void*,void*,const void*,bool)>(b+0x2a9940)(reinterpret_cast<void*>(manager),definition,point.data(),true));
         if(!op.created)return ERROR_INVALID_DATA;
-        reinterpret_cast<void(*)(void*,int32_t)>(b+0x50e810)(*reinterpret_cast<void**>(b+0x13df450),op.request.network.type=="Uplink"?0x31:0x30);
-        auto allocate=reinterpret_cast<void*(*)(size_t)>(b+0xa02670);auto* graph=allocate(0x110);if(!graph)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*)>(b+0x5400f0)(graph);
-        reinterpret_cast<void(*)(void*,const char*)>(b+0x49e090)(storage.label,"{undo_msg_place}");storage.label_ready=true;
-        reinterpret_cast<void(*)(void*,const void*,void*)>(b+0x538ae0)(storage.loc,storage.label,reinterpret_cast<void*>(op.created));storage.loc_ready=true;
+        reinterpret_cast<void(*)(void*,int32_t)>(b+0x5149b0)(*reinterpret_cast<void**>(b+0x13eb450),op.request.network.type=="Uplink"?0x31:0x30);
+        auto allocate=reinterpret_cast<void*(*)(size_t)>(b+0xa0d230);auto* graph=allocate(0x110);if(!graph)return ERROR_OUTOFMEMORY;
+        reinterpret_cast<void(*)(void*)>(b+0x5466b0)(graph);
+        reinterpret_cast<void(*)(void*,const char*)>(b+0x4a3580)(storage.label,"{undo_msg_place}");storage.label_ready=true;
+        reinterpret_cast<void(*)(void*,const void*,void*)>(b+0x53eff0)(storage.loc,storage.label,reinterpret_cast<void*>(op.created));storage.loc_ready=true;
         auto* cash=allocate(0xc8);if(!cash)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*,int32_t,const void*)>(b+0x53ccb0)(cash,op.request.network.quoted_cost,surface.data());
-        reinterpret_cast<void(*)(void*,void*)>(b+0x540760)(graph,cash);
+        reinterpret_cast<void(*)(void*,int32_t,const void*)>(b+0x543230)(cash,op.request.network.quoted_cost,surface.data());
+        reinterpret_cast<void(*)(void*,void*)>(b+0x546d20)(graph,cash);
         auto* destroy=allocate(0xc0);if(!destroy)return ERROR_OUTOFMEMORY;
-        reinterpret_cast<void(*)(void*,void*)>(b+0x53dc30)(destroy,reinterpret_cast<void*>(op.created));
-        reinterpret_cast<void(*)(void*,void*)>(b+0x540760)(graph,destroy);
-        ++op.calls;if(!reinterpret_cast<bool(*)(void*,const void*,void*)>(b+0x589e50)(reinterpret_cast<void*>(tool),storage.loc,graph))return ERROR_INVALID_STATE;
+        reinterpret_cast<void(*)(void*,void*)>(b+0x5441f0)(destroy,reinterpret_cast<void*>(op.created));
+        reinterpret_cast<void(*)(void*,void*)>(b+0x546d20)(graph,destroy);
+        ++op.calls;if(!reinterpret_cast<bool(*)(void*,const void*,void*)>(b+0x590640)(reinterpret_cast<void*>(tool),storage.loc,graph))return ERROR_INVALID_STATE;
         op.returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t cleanup(uintptr_t image,CommitStorage& storage){
-    __try{if(storage.loc_ready){reinterpret_cast<void(*)(void*)>(image+0x11b2b00)(storage.loc+32);reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(storage.loc);storage.loc_ready=false;}
-        if(storage.label_ready){reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(storage.label);storage.label_ready=false;}return 0;
+    __try{if(storage.loc_ready){reinterpret_cast<void(*)(void*)>(image+0x11be4a0)(storage.loc+32);reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(storage.loc);storage.loc_ready=false;}
+        if(storage.label_ready){reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(storage.label);storage.label_ready=false;}return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::UndoWitness& after,const Operation& op,const std::array<float,3>& position,std::string& e){
@@ -211,7 +212,7 @@ bool inverse(region::Runtime& r,const undo::UndoWitness& before,const undo::Undo
     if(witness.operations!=2)return fail(e,"network Undo operation count actual="+std::to_string(witness.operations)+" required=2");
     uintptr_t data=0,cash=0,destroy=0;int32_t amount=0;uint64_t uid=0;std::array<float,3> actual{};
     if(!region::at(r,address,0x20,data,e)||!region::at(r,data,0,cash,e)||!region::at(r,data,8,destroy,e)||
-       !reader::read::ap(r.memory,cash,r.image,0x1786fb0,e)||!reader::read::ap(r.memory,destroy,r.image,0x16de860,e)||
+       !reader::read::ap(r.memory,cash,r.image,0x178d350,e)||!reader::read::ap(r.memory,destroy,r.image,0x16e4c00,e)||
        !region::at(r,cash,0xb8,amount,e)||!region::at(r,cash,0xbc,actual,e)||!region::at(r,destroy,0xb8,uid,e))return false;
     return amount==op.request.network.quoted_cost&&actual==position&&uid==op.uid||fail(e,"network Undo actual cash/position/created UID differs");
 }
@@ -221,8 +222,8 @@ bool enable(std::string& e){
     auto* r=runtime(e);if(!r)return false;if(state.attempted)return fail(e,"network hook installation already attempted");state.attempted=true;
     if(!code(*r,false,e))return false;
     struct Hook{uintptr_t rva;void* entry;void** original;};const Hook hooks[]{
-        {0x5c5580,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
-        {0x42db30,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
+        {0x5cbcd0,reinterpret_cast<void*>(&press_entry),reinterpret_cast<void**>(&state.press)},
+        {0x432910,reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&state.purchase)}};
     for(const auto& h:hooks){const auto status=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.entry,h.original);if(status!=MH_OK||!*h.original)return fail(e,"network MH_CreateHook RVA="+std::to_string(h.rva)+" status="+std::to_string(status));}
     if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"network hook",e))return false;
     if(!code(*r,true,e)||!pipe::enable(*r,e))return false;state.ready=true;return true;
@@ -239,11 +240,11 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     uintptr_t tool=0,def=0,cursor=0,manager=0,actual_region=0;float height=0;bool legal=false;uint8_t owned=0;
     if(!code(*r,true,e)||!region::identity(*r,request.network.region,0,before,e)||!region::bound(before,binding,request.snapshot_uuid,e)||
        !graph(*r,before,before_graph,network,e)||!region::ledger(money,e)||!undo::read_undo(r->memory,r->image,before_undo,e)||!catalog(*r,request.network,tool,def,e)||
-       !region::at(*r,r->image,0x13df9d0,cursor,e)||!reader::read::ap(r->memory,cursor,r->image,0x1786dd0,e)||!region::at(*r,before.region,0x850,owned,e)||
+       !region::at(*r,r->image,0x13eb9d0,cursor,e)||!reader::read::ap(r->memory,cursor,r->image,0x178d170,e)||!region::at(*r,before.region,0x850,owned,e)||
        !region::at(*r,before.region,0x978,manager,e))return action::Outcome::RejectedNoEffect;
     if(before_undo.active_graph||owned!=1||!money.record_present||money.cash<request.network.quoted_cost){e="network node requires owned region, idle Undo and sufficient actual cash";return action::Outcome::RejectedNoEffect;}
     uintptr_t shards=0,view_shard=0;
-    if(!region::at(*r,r->image,0x13df440,shards,e)||!reader::read::ap(r->memory,shards,r->image,0x1702b00,e)||!region::at(*r,shards,0x60,view_shard,e))return action::Outcome::RejectedNoEffect;
+    if(!region::at(*r,r->image,0x13eb440,shards,e)||!reader::read::ap(r->memory,shards,r->image,0x1708ea0,e)||!region::at(*r,shards,0x60,view_shard,e))return action::Outcome::RejectedNoEffect;
     if(view_shard!=before.world.root){e="network original Purchase requires target root to be actual view shard";return action::Outcome::RejectedNoEffect;}
     if(!native_error(preflight(r->image,tool,cursor,request.network,actual_region,height,legal),"position preflight",e)||!legal||actual_region!=before.region||!std::isfinite(height)){if(e.empty())e="network original position/region preflight rejected";return action::Outcome::RejectedNoEffect;}
     if(authority&&(money!=authority->before||network!=authority->network_before)){e="network client before differs from Host";return action::Outcome::RejectedNoEffect;}

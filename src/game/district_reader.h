@@ -10,21 +10,21 @@ using State=action_session::DistrictState;
 template<class Memory>
 bool ui(Memory& memory,uintptr_t image,uintptr_t selection,uintptr_t object,std::string& e){
     uintptr_t manager=0,focused=0,handler=0,window=0,target=0,proxy=0,weak=0,command=0;uint8_t progress=0,queued=0,visible=0;
-    if(!q::at(memory,image,0x13df630,manager,e)||!q::typed(memory,image,manager,0x17205d0,e)||
+    if(!q::at(memory,image,0x13eb630,manager,e)||!q::typed(memory,image,manager,0x1726970,e)||
        !q::at(memory,manager,0xd1,progress,e)||!q::at(memory,manager,0xd3,queued,e)||
        !q::at(memory,manager,0x80,focused,e))return false;
     if(manager!=selection||focused!=object||progress||queued)return q::fail(e,"District normal UI selection manager/focus/edit state differs");
     for(size_t offset:{size_t(0x20),size_t(0x38)}){
         q::Bounds selected;
-        if(!q::typed(memory,image,manager+offset,0x1748c50,e)||!q::bounds(memory,manager+offset,1,selected,e)||
+        if(!q::typed(memory,image,manager+offset,0x174eff0,e)||!q::bounds(memory,manager+offset,1,selected,e)||
            selected.count!=1||!q::at(memory,selected.data,0,target,e)||target!=object)
             return q::fail(e,e.empty()?"District normal UI requires exact single selection":e);
     }
-    if(!q::at(memory,manager,0xb8,handler,e)||!q::typed(memory,image,handler,0x1731760,e)||
-       !q::at(memory,handler,0x10,window,e)||!q::typed(memory,image,window,0x172bcb0,e)||
-       !q::at(memory,image+0x172bcb0,0x168,command,e)||!q::at(memory,window,0x45f,visible,e)||
+    if(!q::at(memory,manager,0xb8,handler,e)||!q::typed(memory,image,handler,0x1737b00,e)||
+       !q::at(memory,handler,0x10,window,e)||!q::typed(memory,image,window,0x1732050,e)||
+       !q::at(memory,image+0x1732050,0x168,command,e)||!q::at(memory,window,0x45f,visible,e)||
        !q::at(memory,window,0x4f0,target,e)||!q::at(memory,window,0x4f8,proxy,e)||!q::at(memory,proxy,0,weak,e))return false;
-    return (command==image+0x6cb400&&visible==1&&target==object&&weak==object+0x20)||
+    return (command==image+0x6d2820&&visible==1&&target==object&&weak==object+0x20)||
         q::fail(e,"District normal InfoWindow command/visibility/weak owner differs");
 }
 template<class Memory>
@@ -39,10 +39,10 @@ bool read(Memory& memory,uintptr_t image,uintptr_t map,const q::Current& target,
     State result;result.region=target.saved_region;const auto object=target.row.pointer;
     uintptr_t root=0,region=0,selected=0,manager=0,owner=0;uint64_t uid=0;
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& error){return q::at(memory,p,offset,value,error);};
-    if(!q::typed(memory,image,object,0x16da000,e)||!q::at(memory,object,0x18,uid,e)||
+    if(!q::typed(memory,image,object,0x16e03a0,e)||!q::at(memory,object,0x18,uid,e)||
        !q::at(memory,object,0x170,root,e)||!q::at(memory,object,0x178,region,e)||
        !region_saved_identity::resolve(image,map,map+0x1c0,target.saved_region,region,selected,at,e)||
-       !q::at(memory,region,0x970,manager,e)||!q::typed(memory,image,manager,0x1719080,e)||
+       !q::at(memory,region,0x970,manager,e)||!q::typed(memory,image,manager,0x171f420,e)||
        !q::at(memory,manager,0x60,owner,e))return false;
     if(root!=map+0x1c0||owner!=region||uid!=target.row.uid||!uid)return q::fail(e,"District current root/Region/full UID differs");
     if(!text(memory,object,0x38,result.name,e)||!text(memory,object,0x2b8,result.description,e)||

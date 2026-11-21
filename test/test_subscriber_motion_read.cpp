@@ -19,13 +19,13 @@ int main(){
     constexpr uintptr_t image=0x10000000,subscriber=0x20000000,toon=0x21000000,region=0x22000000,manager=0x23000000,root=0x24000000,render=0x25000000,data=0x26000000;
     Memory memory;std::string error;std::optional<passive::Motion> pose;passive::MotionOwner owner;
     auto read=[&](uintptr_t base,size_t offset,auto& value,std::string& cause){return memory.copy(base+offset,&value,sizeof value,cause);};
-    auto setup=[&]{memory.bytes.clear();error.clear();memory.put(subscriber+0x80,toon);memory.put(toon,image+0x1744e90);
+    auto setup=[&]{memory.bytes.clear();error.clear();memory.put(subscriber+0x80,toon);memory.put(toon,image+0x174b230);
         memory.put(toon+0x940,subscriber);memory.put(toon+0x825,uint8_t(1));memory.put(toon+0x170,root);
         memory.put(toon+0x178,region);memory.put(toon+0x9a8,region);memory.put(region+0x834,int32_t(67));
-        memory.put(toon+0x30,render);memory.put(render+0x38,image+0x3e82a0);
+        memory.put(toon+0x30,render);memory.put(render+0x38,image+0x3ecdb0);
         memory.put(toon+0x100,std::array<float,4>{0,0,0,1});memory.put(toon+0x110,std::array<float,3>{1,2,3});
         memory.put(toon+0x11c,std::array<float,3>{1,1,1});memory.put(region+0x9c0,manager);
-        memory.put(manager,image+0x16fde30);memory.put(manager+0xc8,uint8_t(0));memory.put(manager+0x28,data);
+        memory.put(manager,image+0x17041d0);memory.put(manager+0xc8,uint8_t(0));memory.put(manager+0x28,data);
         memory.put(manager+0x30,int32_t(1));memory.put(manager+0x34,int32_t(1));memory.put(data,toon);};
     auto world=[&](passive::MotionOwner& value,std::string&){value.map=root-0x1c0;value.root=root;return true;};
     auto select=[&](const passive::MotionOwner&,int32_t id,uintptr_t expected,uintptr_t& out,std::string& cause){

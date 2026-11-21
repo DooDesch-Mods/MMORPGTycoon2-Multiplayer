@@ -71,8 +71,8 @@ struct World {
     std::array<unsigned char,0xb0> subscriber{};std::array<unsigned char,0xb00> toon{};rt::Runtime runtime;
     World(){
         fixture::fence={};fixture::world_reads=fixture::clock_reads=0;fixture::scale=0;fixture::world_ok=fixture::clock_ok=true;fixture::throw_provider=0;fixture::unreadable=0;
-        put(subscriber.data(),0,rt::weapon_image+0x16e75f0);put(subscriber.data(),0x20,int32_t(60));put(subscriber.data(),0x80,uintptr_t(toon.data()));
-        put(toon.data(),0,rt::weapon_image+0x1744e90);put(toon.data(),0x940,uintptr_t(subscriber.data()));put(toon.data(),0x170,uintptr_t(0xabc000+0x1c0));
+        put(subscriber.data(),0,rt::weapon_image+0x16ed990);put(subscriber.data(),0x20,int32_t(60));put(subscriber.data(),0x80,uintptr_t(toon.data()));
+        put(toon.data(),0,rt::weapon_image+0x174b230);put(toon.data(),0x940,uintptr_t(subscriber.data()));put(toon.data(),0x170,uintptr_t(0xabc000+0x1c0));
         runtime.controller.context={1,2,1,3,action::Role::Client,"common"};runtime.controller.binding={2,3};runtime.session.context=runtime.controller.context;
         auto& state=runtime.live_state->state;state.day.frame.session=1;state.day.frame.snapshot="common";state.day.frame.epoch=7;
         fixture::world={};fixture::world.world_epoch=2;fixture::world.generation=3;fixture::world.uuid="local";fixture::world.sha256="local-sha";fixture::world.map=reinterpret_cast<void*>(0xabc000);

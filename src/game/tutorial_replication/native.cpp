@@ -135,7 +135,7 @@ void postload(void* instance){
     std::string e,id;uintptr_t sequence=0;const auto p=reinterpret_cast<uintptr_t>(instance);
     if(!str(p,0x18,id,e)){block(e);return;}
     if(!supported(id)){original_postload(instance);return;}
-    if(GetCurrentThreadId()!=mainthread||!type(p,0x173ce70,e)||!at(p,0x58,sequence,e)||!type(sequence,0x16dbd80,e)){block(e.empty()?"Client tutorial PostLoad thread/sequence differs":e);return;}
+    if(GetCurrentThreadId()!=mainthread||!type(p,0x1743210,e)||!at(p,0x58,sequence,e)||!type(sequence,0x16e2120,e)){block(e.empty()?"Client tutorial PostLoad thread/sequence differs":e);return;}
     load.sequences.insert(sequence);Scope scope(sequence,true);original_postload(instance);
 }
 struct NativeCursor {uintptr_t instance=0,sequence=0,steps=0;Cursor value;};
@@ -168,7 +168,7 @@ bool origin(const action_session::Context& c,const action_session::Binding& b,Wo
 }
 bool current_project_key(void* receiver,std::string& key,std::string& e){
     const auto lounge=reinterpret_cast<uintptr_t>(receiver);uintptr_t project=0;
-    if(!type(lounge,0x16de6c0,e)||!at(lounge,0xa8,project,e)||!type(project,0x16e48c0,e))return false;
+    if(!type(lounge,0x16e4a60,e)||!at(lounge,0xa8,project,e)||!type(project,0x16eac60,e))return false;
     int32_t kind=0;if(!at(project,0x18,kind,e)||!str(project,0x20,key,e))return false;
     return kind==0&&(key=="startingpoint"||key=="bridges")||fail(e,"Research current project kind/key unsupported");
 }
@@ -217,12 +217,12 @@ bool interval(const NativeCursor& n,const Cursor& target,const std::optional<sta
     std::set<std::string> ids;
     for(int32_t i=0;i<target.count;++i){uintptr_t step=0;std::string id;if(!at(n.steps,size_t(i)*8,step,e)||!str(step,0x20,id,e))return false;if(!id.empty())ids.insert(id);
         if(i<n.value.next||i>=target.next)continue;uintptr_t vt=0;if(!at(step,0,vt,e))return false;
-        if(vt==image+0x17206c0){std::string key;if(!str(step,0x40,key,e))return false;
+        if(vt==image+0x1726a60){std::string key;if(!str(step,0x40,key,e))return false;
             if(!startingpoint::accepts_complete_tech(n.value.scenario,i,key,technology))return fail(e,"tutorial CompleteTech index="+std::to_string(i)+" requires supported authoritative Startingpoint state");
             continue;
         }
-        if(vt==image+0x16fd930){std::string command;if(!str(step,0x40,command,e))return false;if(command_policy(command,false)==Start::Reject&&!(n.value.scenario=="initial_tutorial"&&i==100&&command=="MessageTo SoftwareStatus TutorialLevelUp"))return fail(e,"tutorial command requires unsupported authoritative state: "+command);}
-        else if(vt!=image+0x16fda00&&vt!=image+0x17091e0&&vt!=image+0x1725e70&&vt!=image+0x171c5a0&&vt!=image+0x16dc000&&vt!=image+0x16dbf30)return fail(e,"tutorial forward step type unsupported");
+        if(vt==image+0x1703cd0){std::string command;if(!str(step,0x40,command,e))return false;if(command_policy(command,false)==Start::Reject&&!(n.value.scenario=="initial_tutorial"&&i==100&&command=="MessageTo SoftwareStatus TutorialLevelUp"))return fail(e,"tutorial command requires unsupported authoritative state: "+command);}
+        else if(vt!=image+0x1703da0&&vt!=image+0x170f580&&vt!=image+0x172c210&&vt!=image+0x1722940&&vt!=image+0x16e23a0&&vt!=image+0x16e22d0)return fail(e,"tutorial forward step type unsupported");
     }
     for(const auto& id:target.history)if(!ids.contains(id))return fail(e,"Host tutorial history ID absent from local sequence");
     if(!target.last.empty()&&!ids.contains(target.last))return fail(e,"Host tutorial last ID absent from local sequence");return true;
@@ -231,11 +231,11 @@ struct BorrowedString {const char* data;uint64_t size;std::array<unsigned char,1
 static_assert(sizeof(BorrowedString)==32);
 DWORD progress_label_call(uintptr_t meter){
     constexpr char key[]="{tutorial_meter_progress}";const BorrowedString label{key,sizeof(key)-1,{}};
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x840f20)(reinterpret_cast<void*>(meter),&label);return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x8495e0)(reinterpret_cast<void*>(meter),&label);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD progress_value_call(uintptr_t meter,const MessageProgress& values){
-    __try{reinterpret_cast<void(*)(void*,float,float,float)>(image+0x842ff0)(reinterpret_cast<void*>(meter),values.value,values.minimum,values.maximum);return 0;}
+    __try{reinterpret_cast<void(*)(void*,float,float,float)>(image+0x84b6d0)(reinterpret_cast<void*>(meter),values.value,values.minimum,values.maximum);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct ProgressCalls {
@@ -243,9 +243,9 @@ struct ProgressCalls {
     bool shown(uintptr_t meter,bool visible,std::string& e){return put(meter,0x69,uint8_t(visible),e);}
     bool value(uintptr_t meter,const MessageProgress& values,std::string& e){if(!message_progress::verify_code(memory,image,e))return false;const auto code=progress_value_call(meter,values);return !code||fail(e,"tutorial progress native SetValue exception="+std::to_string(code));}
 };
-DWORD advance_call(uintptr_t sequence){__try{reinterpret_cast<Call>(image+0x4fceb0)(reinterpret_cast<void*>(sequence));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD reserve_call(uintptr_t instance,int32_t count){__try{reinterpret_cast<void(*)(void*,int32_t)>(image+0xc4f300)(reinterpret_cast<void*>(instance+0x40),count);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-DWORD assign_call(uintptr_t destination,const BorrowedString* source){__try{reinterpret_cast<void(*)(void*,const void*)>(image+0x11bfce0)(reinterpret_cast<void*>(destination),source);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD advance_call(uintptr_t sequence){__try{reinterpret_cast<Call>(image+0x502e60)(reinterpret_cast<void*>(sequence));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD reserve_call(uintptr_t instance,int32_t count){__try{reinterpret_cast<void(*)(void*,int32_t)>(image+0xc5baa0)(reinterpret_cast<void*>(instance+0x40),count);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD assign_call(uintptr_t destination,const BorrowedString* source){__try{reinterpret_cast<void(*)(void*,const void*)>(image+0x11cb680)(reinterpret_cast<void*>(destination),source);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 void assign(uintptr_t destination,const std::string& value){const BorrowedString source{value.c_str(),value.size(),{}};const auto code=assign_call(destination,&source);if(code)throw std::runtime_error("tutorial string assign exception="+std::to_string(code));}
 bool history(const NativeCursor& n,const Cursor& target,std::string& e){
     const auto code=reserve_call(n.instance,int32_t(target.history.size()));if(code)return fail(e,"tutorial history Reserve exception="+std::to_string(code));
@@ -267,20 +267,20 @@ bool history(const NativeCursor& n,const Cursor& target,std::string& e){
 }
 bool initialize(uintptr_t base,std::string& e){
     if(image)return fail(e,"tutorial hooks already initialized");image=base;
-    std::array<unsigned char,16> entry{};if(!memory.copy(image+0x4fc4a0,entry.data(),entry.size(),e)||entry!=tutorial_sync::sequence_entry)return fail(e,e.empty()?"tutorial original Sequence entry differs":e);
+    std::array<unsigned char,16> entry{};if(!memory.copy(image+0x502450,entry.data(),entry.size(),e)||entry!=tutorial_sync::sequence_entry)return fail(e,e.empty()?"tutorial original Sequence entry differs":e);
     struct Entry {uintptr_t rva;std::array<unsigned char,12> bytes;};
     const Entry entries[]={
-        {0x4f5900,{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48,0x48,0x8b,0x71,0x58}},
-        {0x4fd410,{0x56,0x53,0x48,0x81,0xec,0xa8,0,0,0,0x48,0x8d,0x74}},
-        {0x506010,{0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0xe8,0xe3,0xf5,0x61}},
-        {0x4fd870,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53}},
-        {0x4fceb0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa0,0,0}},
-        {0xc4f300,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0x89}},
-        {0x11bfce0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x30,0x48,0x89}}};
+        {0x4fb8a0,{0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x48,0x48,0x8b,0x71,0x58}},
+        {0x5033c0,{0x56,0x53,0x48,0x81,0xec,0xa8,0x00,0x00,0x00,0x48,0x8d,0x74}},
+        {0x50c160,{0x53,0x48,0x83,0xec,0x20,0x48,0x89,0xcb,0xe8,0xf3,0x4d,0x62}},
+        {0x503820,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53}},
+        {0x502e60,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xa0,0x00,0x00}},
+        {0xc5baa0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0x89}},
+        {0x11cb680,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x30,0x48,0x89}}};
     for(const auto& expected:entries){std::array<unsigned char,12> actual{};if(!memory.copy(image+expected.rva,actual.data(),actual.size(),e))return false;if(actual!=expected.bytes)return fail(e,"tutorial native entry guard differs RVA="+std::to_string(expected.rva));}
     if(!message_progress::verify_code(memory,image,e)||!ordered_message_native::prepare(e))return false;
     std::array<unsigned char,16> commit_bytes{};
-    if(!memory.copy(image+0x25fb10,commit_bytes.data(),commit_bytes.size(),e))return false;
+    if(!memory.copy(image+0x262c10,commit_bytes.data(),commit_bytes.size(),e))return false;
     if(commit_bytes!=tutorial_sync::commit_entry)return fail(e,"tutorial original Commit entry differs");
     if(!start_intent::verify_pay(nullptr,image+start_intent::pay_rva,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e)||
        !start_intent::verify_ui(image,[](auto p,auto out,auto count,auto& error){return memory.copy(p,out,count,error);},e,developer_staff::action_runtime::verify_entry))return false;
@@ -288,29 +288,29 @@ bool initialize(uintptr_t base,std::string& e){
     if(!memory.copy(image+staff::allocate_rva,staff_entry.data(),staff_entry.size(),e)||staff_entry!=staff::allocate_entry)
         return fail(e,e.empty()?"Startingpoint original AllocateTechWorkers entry differs":e);
     if(!display_native::verify_code(e)||!lifecycle_native::verify_code(e)||!intro_native::prepare_hooks(e))return false;
-    owned_scenario_start={image+0x4f3b00,reinterpret_cast<uintptr_t>(&lifecycle_native::scenario_start),0,true,false};
-    owned_advance={image+0x4fceb0,reinterpret_cast<uintptr_t>(&lifecycle_native::advance),0,true,false};
-    owned_display={image+0x6c6660,reinterpret_cast<uintptr_t>(&display_update),0,true,false};
+    owned_scenario_start={image+0x4f9a60,reinterpret_cast<uintptr_t>(&lifecycle_native::scenario_start),0,true,false};
+    owned_advance={image+0x502e60,reinterpret_cast<uintptr_t>(&lifecycle_native::advance),0,true,false};
+    owned_display={image+0x6cda80,reinterpret_cast<uintptr_t>(&display_update),0,true,false};
     owned_staff={image+staff::allocate_rva,reinterpret_cast<uintptr_t>(&allocate_current),0,true,false};
     owned_pay.target=image+start_intent::pay_rva;owned_pay.detour=reinterpret_cast<uintptr_t>(&pay_current);owned_pay.original_verified=true;
-    owned_commit.target=image+0x25fb10;owned_commit.detour=reinterpret_cast<uintptr_t>(&commit_current);owned_commit.original_verified=true;
-    owned.target=image+0x4fc4a0;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
+    owned_commit.target=image+0x262c10;owned_commit.detour=reinterpret_cast<uintptr_t>(&commit_current);owned_commit.original_verified=true;
+    owned.target=image+0x502450;owned.detour=reinterpret_cast<uintptr_t>(&sequence_update);owned.original_verified=true;
     struct Hook {uintptr_t rva;void* replacement;void** original;};
     const Hook hooks_to_create[]={
-        {0x53a240,reinterpret_cast<void*>(&ordered_message_native::clear),reinterpret_cast<void**>(&ordered_message_native::original_clear)},
-        {0x4f2330,reinterpret_cast<void*>(&intro_native::update),reinterpret_cast<void**>(&intro_native::original_update)},
-        {0x4f1940,reinterpret_cast<void*>(&intro_native::event),reinterpret_cast<void**>(&intro_native::original_event)},
-        {0x4f3b00,reinterpret_cast<void*>(&lifecycle_native::scenario_start),reinterpret_cast<void**>(&original_scenario_start)},
-        {0x4fceb0,reinterpret_cast<void*>(&lifecycle_native::advance),reinterpret_cast<void**>(&original_advance)},
-        {0x6c6660,reinterpret_cast<void*>(&display_update),reinterpret_cast<void**>(&original_display)},
+        {0x540750,reinterpret_cast<void*>(&ordered_message_native::clear),reinterpret_cast<void**>(&ordered_message_native::original_clear)},
+        {0x4f8230,reinterpret_cast<void*>(&intro_native::update),reinterpret_cast<void**>(&intro_native::original_update)},
+        {0x4f7840,reinterpret_cast<void*>(&intro_native::event),reinterpret_cast<void**>(&intro_native::original_event)},
+        {0x4f9a60,reinterpret_cast<void*>(&lifecycle_native::scenario_start),reinterpret_cast<void**>(&original_scenario_start)},
+        {0x502e60,reinterpret_cast<void*>(&lifecycle_native::advance),reinterpret_cast<void**>(&original_advance)},
+        {0x6cda80,reinterpret_cast<void*>(&display_update),reinterpret_cast<void**>(&original_display)},
         {staff::allocate_rva,reinterpret_cast<void*>(&allocate_current),reinterpret_cast<void**>(&original_allocate)},
         {start_intent::pay_rva,reinterpret_cast<void*>(&pay_current),reinterpret_cast<void**>(&original_pay)},
-        {0x25fb10,reinterpret_cast<void*>(&commit_current),reinterpret_cast<void**>(&original_commit)},
-        {0x4fc4a0,reinterpret_cast<void*>(&sequence_update),reinterpret_cast<void**>(&original_update)},
-        {0x4f5900,reinterpret_cast<void*>(&postload),reinterpret_cast<void**>(&original_postload)},
-        {0x4fd410,reinterpret_cast<void*>(&command_start),reinterpret_cast<void**>(&original_command)},
-        {0x506010,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
-        {0x4fd870,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
+        {0x262c10,reinterpret_cast<void*>(&commit_current),reinterpret_cast<void**>(&original_commit)},
+        {0x502450,reinterpret_cast<void*>(&sequence_update),reinterpret_cast<void**>(&original_update)},
+        {0x4fb8a0,reinterpret_cast<void*>(&postload),reinterpret_cast<void**>(&original_postload)},
+        {0x5033c0,reinterpret_cast<void*>(&command_start),reinterpret_cast<void**>(&original_command)},
+        {0x50c160,reinterpret_cast<void*>(&save_start),reinterpret_cast<void**>(&original_save)},
+        {0x503820,reinterpret_cast<void*>(&tech_start),reinterpret_cast<void**>(&original_tech)}};
     for(const auto& h:hooks_to_create)if(!hooks::create_hook(reinterpret_cast<void*>(image+h.rva),h.replacement,h.original))return fail(e,"tutorial hook create failed RVA="+std::to_string(h.rva));
     ordered_message_native::clear_owner.trampoline=reinterpret_cast<uintptr_t>(ordered_message_native::original_clear);
     intro_native::update_owner.trampoline=reinterpret_cast<uintptr_t>(intro_native::original_update);
@@ -368,7 +368,7 @@ bool finish_client_load(bool& pending,std::string& e){
         for(int32_t i=0;i<count;++i){uintptr_t instance=0,sequence=0;std::string id;
             if(!at(active,size_t(i)*8,instance,e)||!str(instance,0x18,id,e))return false;
             if(!supported(id))continue;
-            if(!type(instance,0x173ce70,e)||!at(instance,0x58,sequence,e)||!type(sequence,0x16dbd80,e))return false;
+            if(!type(instance,0x1743210,e)||!at(instance,0x58,sequence,e)||!type(sequence,0x16e2120,e))return false;
             if(!load.sequences.contains(sequence))return fail(e,"Client tutorial was not fenced during joined PostLoad after ScenarioLog completion: "+id);
         }
     }

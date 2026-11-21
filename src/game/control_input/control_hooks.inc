@@ -14,13 +14,13 @@ void release_entry(void* player,void* actor){auto* r=published.load(std::memory_
     if(!presentation(*r,uintptr_t(actor),local,error)||local.player!=uintptr_t(player)||!queue_release(*r,error))rejected(*r,error.empty()?"Control release real Player differs":error);
 }
 void flag_entry(size_t route,void* actor,bool value,uintptr_t caller){auto* r=published.load(std::memory_order_acquire);
-    if(r->presenting&&uintptr_t(actor)==r->presented_actor&&((value&&caller==r->image+0xd4d13)||(!value&&caller==r->image+0xd34d9)))return;
+    if(r->presenting&&uintptr_t(actor)==r->presented_actor&&((value&&caller==r->image+0xd5d43)||(!value&&caller==r->image+0xd4509)))return;
     reinterpret_cast<Flag>(r->routes[route].original)(actor,value);
 }
 void character_flag_entry(void* actor,bool value){flag_entry(4,actor,value,uintptr_t(_ReturnAddress()));}
 void toon_flag_entry(void* actor,bool value){flag_entry(5,actor,value,uintptr_t(_ReturnAddress()));}
 void time_entry(void* clock,float value){auto* r=published.load(std::memory_order_acquire);
-    if(r->presenting&&uintptr_t(_ReturnAddress())==r->image+0xd4cfe)return;
+    if(r->presenting&&uintptr_t(_ReturnAddress())==r->image+0xd5d2e)return;
     reinterpret_cast<Update>(r->routes[6].original)(clock,value);
 }
 void target_entry(void* actor,void* target){auto* r=published.load(std::memory_order_acquire);
@@ -36,7 +36,7 @@ void target_entry(void* actor,void* target){auto* r=published.load(std::memory_o
     reinterpret_cast<Pair>(r->routes[3].original)(actor,target);
 }
 void item_entry(size_t route,void* item,uintptr_t caller){auto* r=published.load(std::memory_order_acquire);const auto original=reinterpret_cast<One>(r->routes[route].original);
-    const bool button=route==7?caller==r->image+0x58095c:caller==r->image+0x580903;
+    const bool button=route==7?caller==r->image+0x58711c:caller==r->image+0x5870c3;
     if(!active(*r)||r->replay||!button){game::item_activation_origin::forward(original,item,r->image,caller,route==7);return;}
     const auto* lease=r->leases.find(r->context.local_peer);if(!lease){game::item_activation_origin::forward(original,item,r->image,caller,route==7);return;}
     std::string error;uintptr_t character{},type{},data{};int32_t count{},capacity{};Target actor;
@@ -91,7 +91,7 @@ void update_entry(void* player,float dt){auto* r=published.load(std::memory_orde
 bool enable(std::string& error){
     auto* r=published.load(std::memory_order_acquire);if(r&&r->ready)return true;if(r&&r->install_attempted)return fail(error,"Control earlier hook installation failed: "+r->cause);
     if(!r){r=new Runtime;published.store(r,std::memory_order_release);}r->install_attempted=true;uint32_t thread{};std::string sha;
-    if(!game::native::read_resolver_receipt(r->image,thread,sha,error)||thread!=r->thread||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(error,"Control exact executable/Mainthread differs: "+error);
+    if(!game::native::read_resolver_receipt(r->image,thread,sha,error)||thread!=r->thread||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(error,"Control exact executable/Mainthread differs: "+error);
     r->routes={
 #include "control_route_initializers.inc"
     };

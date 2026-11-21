@@ -11,7 +11,7 @@
 namespace mt2mp::scenery_kiss {
 namespace host=native::host;
 namespace {
-constexpr const char* exe="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* exe="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 bool code(native::Memory& memory,uintptr_t image,std::string& e){
     for(const auto& guard:catalog_guards){std::vector<unsigned char> bytes(guard.size);if(!memory.copy(image+guard.rva,bytes.data(),bytes.size(),e))return false;
         if(std::memcmp(bytes.data(),guard.bytes,bytes.size())){e="scenery_catalog_code_differs RVA="+std::to_string(guard.rva);return false;}}
@@ -25,25 +25,25 @@ bool text(host::ProcessMemory& memory,uintptr_t pointer,std::string& out,std::st
 }
 uint32_t lookup(uintptr_t image,uintptr_t manager,int32_t category,int32_t variant,uintptr_t& directory,uintptr_t& filename,uint64_t& roundtrip){
     __try{
-        directory=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x448660)(category));
-        if(!reinterpret_cast<bool(*)(void*,const void*,int32_t)>(image+0x2cead0)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(directory),variant))return 0xE0010002;
-        filename=uintptr_t(reinterpret_cast<const void*(*)(void*,const void*,int32_t)>(image+0x2ceb40)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(directory),variant));
-        roundtrip=reinterpret_cast<uint64_t(*)(void*,const void*)>(image+0x2cedb0)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(filename));return 0;
+        directory=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x44d670)(category));
+        if(!reinterpret_cast<bool(*)(void*,const void*,int32_t)>(image+0x2d2200)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(directory),variant))return 0xE0010002;
+        filename=uintptr_t(reinterpret_cast<const void*(*)(void*,const void*,int32_t)>(image+0x2d2270)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(directory),variant));
+        roundtrip=reinterpret_cast<uint64_t(*)(void*,const void*)>(image+0x2d24e0)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(filename));return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t directory_call(uintptr_t image,int32_t category,uintptr_t& result){
-    __try{result=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x448660)(category));return 0;}
+    __try{result=uintptr_t(reinterpret_cast<const void*(*)(int32_t)>(image+0x44d670)(category));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t from_file(uintptr_t image,uintptr_t manager,const void* filename,uint64_t& out){
-    __try{out=reinterpret_cast<uint64_t(*)(void*,const void*)>(image+0x2cedb0)(reinterpret_cast<void*>(manager),filename);return 0;}
+    __try{out=reinterpret_cast<uint64_t(*)(void*,const void*)>(image+0x2d24e0)(reinterpret_cast<void*>(manager),filename);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t find(host::FindUid fn,uint64_t uid,uintptr_t& object){
     __try{object=uintptr_t(fn(uid));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool manager(host::ProcessMemory& memory,uintptr_t image,uintptr_t& out,std::string& e){
-    if(!memory.copy(image+0x13df730,&out,sizeof out,e))return false;
+    if(!memory.copy(image+0x13eb730,&out,sizeof out,e))return false;
     if(!out){e="scenery_catalog_actual_manager_missing";return false;}return true;
 }
 bool require_registry(uint64_t uid,uintptr_t object,uint32_t seh,const char* stage,std::string& e){
@@ -166,7 +166,7 @@ bool read_native_scenery_samples(nlohmann::json& out,std::string& e){
     nlohmann::json samples=nlohmann::json::array();NativeCatalog catalog(memory,image,thread);
     for(const auto& prop:props){uintptr_t object=0,ap=0,shard=0;const auto seh=find(api.find,prop.prop.uid,object);
         if(seh||!object){e="scenery catalog sample actual UID lookup failed SEH="+std::to_string(seh);return false;}
-        if(!memory.copy(object,&ap,sizeof ap,e))return false;if(ap!=image+0x16c1390)continue;
+        if(!memory.copy(object,&ap,sizeof ap,e))return false;if(ap!=image+0x16c7730)continue;
         if(!memory.copy(object+0x170,&shard,sizeof shard,e))return false;if(shard!=before.root)continue;
         CatalogSample sample;if(!read_catalog_sample(memory,catalog,image,object,prop.prop.uid,before.root,sample,e))return false;
         uintptr_t registered_after=0;const auto after_seh=find(api.find,sample.uid,registered_after);
@@ -188,7 +188,7 @@ bool read_action_prop(uint64_t uid,game::native::BuildingState& out,std::string&
     uintptr_t object=0,ap=0;const auto seh=find(api.find,uid,object);
     if(!require_registry(uid,object,seh,"read_action_prop",e))return false;
     if(!memory.copy(object,&ap,sizeof ap,e))return false;
-    if(ap!=image+0x16c1390)return game::native::read_building(uid,out,e);
+    if(ap!=image+0x16c7730)return game::native::read_building(uid,out,e);
     ActualRoot root(memory,image,thread,api);NativeCatalog catalog(memory,image,thread);State state;
     if(!read_state(memory,catalog,root,image,uid,state,e))return false;
     out.prop={uid,state.x,state.y,state.z};out.type=state.type;out.variant=state.variant;out.rotation=state.rotation;out.scale=state.scale;return true;

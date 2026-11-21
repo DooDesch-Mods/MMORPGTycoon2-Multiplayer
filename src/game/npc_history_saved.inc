@@ -25,7 +25,7 @@ bool restore_history(const action_session::Binding& binding,const action_session
         uintptr_t registered=0,ap=0,owner=0,parent_region=0,parent_root=0;uint64_t parent_uid=0,child_uid=0;
         const auto& original=bound.receipt.parent;
         if(!find(original.uid,registered,error)||registered!=original.object||
-           !q::at(memory,original.object,0,ap,error)||ap!=image+0x16d93c0||
+           !q::at(memory,original.object,0,ap,error)||ap!=image+0x16df760||
            !q::at(memory,original.object,0x18,parent_uid,error)||parent_uid!=original.uid||
            !q::at(memory,original.object,0x170,parent_root,error)||parent_root!=reinterpret_cast<uintptr_t>(world.map)+0x1c0||
            !q::at(memory,original.object,0x178,parent_region,error)||parent_region!=region||

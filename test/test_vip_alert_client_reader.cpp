@@ -29,19 +29,19 @@ struct Memory:placement_ui_probe::Memory {
     }
     void setup(){
         bytes.clear();unreadable=drift=0;drift_reads=0;
-        put(mode,0x128,hud);put(image,0x13df8b0,hud);put(mode,0x110,manager);put(image,0x13df390,manager);
-        type(hud,0x1742750);type(manager,0x16fe5d0);put(hud,0x88,window);put(image,0x13df270,list);
-        type(window,0x1750000);text(window,0x1b0,0x100000,"alertlist_hud");type(list,0x16dd150);
+        put(mode,0x128,hud);put(image,0x13eb8b0,hud);put(mode,0x110,manager);put(image,0x13eb390,manager);
+        type(hud,0x1748af0);type(manager,0x1704970);put(hud,0x88,window);put(image,0x13eb270,list);
+        type(window,0x1750000);text(window,0x1b0,0x100000,"alertlist_hud");type(list,0x16e34f0);
         put(list,0x278,window);put(list,0x280,window);
         array(window,0x2d0,0x110000,{list});array(window,0x300,0,{});
-        type(list+0x318,0x16e1ef0);array(list,0x320,0x120000,{selector});array(list,0x300,0x130000,{selector});
+        type(list+0x318,0x16e8290);array(list,0x320,0x120000,{selector});array(list,0x300,0x130000,{selector});
         array(manager,0x68,0x140000,{alert});array(manager,0x20,0,{});
-        put(fixture_state,0x1e8,log_owner);put(image,0x13df330,log_owner);type(log_owner,0x16fd7b0);array(log_owner,0x20,0x150000,{scenario});
-        type(selector,0x1704fa0);put(selector,0x318,list);put(selector,0x330,alert);put(selector,0x278,list);put(selector,0x280,window);
-        type(alert,0x1749770);put(alert,0x18,int32_t(8));put(alert,0x130,selector);put(alert,0x138,uint8_t(1));
+        put(fixture_state,0x1e8,log_owner);put(image,0x13eb330,log_owner);type(log_owner,0x1703b50);array(log_owner,0x20,0x150000,{scenario});
+        type(selector,0x170b340);put(selector,0x318,list);put(selector,0x330,alert);put(selector,0x278,list);put(selector,0x280,window);
+        type(alert,0x174fb10);put(alert,0x18,int32_t(8));put(alert,0x130,selector);put(alert,0x138,uint8_t(1));
         put(alert,0xf0,int32_t(0));put(alert,0x68,toon);text(alert,0x88,0x160000,"Streamer Name");
-        type(toon,0x1744e90);put(toon,0x940,subscriber);type(subscriber,0x16e75f0);put(subscriber,0x20,int32_t(151));put(subscriber,0x80,toon);
-        type(scenario,0x1730e90);put(scenario,0xa0,alert);put(scenario,0x98,uint8_t(1));put(scenario,0x68,subscriber);
+        type(toon,0x174b230);put(toon,0x940,subscriber);type(subscriber,0x16ed990);put(subscriber,0x20,int32_t(151));put(subscriber,0x80,toon);
+        type(scenario,0x1737230);put(scenario,0xa0,alert);put(scenario,0x98,uint8_t(1));put(scenario,0x68,subscriber);
     }
 };
 
@@ -49,16 +49,16 @@ unsigned checks=0;
 void need(bool value,const char* cause){++checks;if(!value)throw std::runtime_error(cause);}
 constexpr uintptr_t sub_manager=0x190000,sub_data=0x1a0000,proxy=0x1b0000;
 void setup(Memory& m){
-    m.setup();m.type(window,0x17883d0);m.text(window,0x1b0,0x100000,"alerts_hud");
+    m.setup();m.type(window,0x178e770);m.text(window,0x1b0,0x100000,"alerts_hud");
     m.put(image,0x3c,int32_t(0x80));m.put(image,0x80+24+56,uint32_t(0x2000000));
-    m.put(image,0x13df690,sub_manager);m.type(sub_manager,0x1725f40);m.array(sub_manager,0x40,sub_data,{subscriber});
-    m.put(image+0x1744e90,0xa8,image+0xe3f530);m.put(toon,0x18,uint64_t(45));m.put(toon,0x28,proxy);
+    m.put(image,0x13eb690,sub_manager);m.type(sub_manager,0x172c2e0);m.array(sub_manager,0x40,sub_data,{subscriber});
+    m.put(image+0x174b230,0xa8,image+0xe4b020);m.put(toon,0x18,uint64_t(45));m.put(toon,0x28,proxy);
     m.text(toon,0x38,0x1c0000,"Streamer Name");m.put(proxy,0,toon+0x20);m.put(proxy,8,int32_t(1));
-    m.put(alert,0x70,proxy);m.put(image+0x1749770,8,image+0x234c70);
+    m.put(alert,0x70,proxy);m.put(image+0x174fb10,8,image+0x237a50);
     // A Client-created alert has no ScenarioVip allocation owner.
     m.put(scenario,0xa0,uintptr_t(0));
 }
-c::Owner owner(){c::Owner o;o.image=image;o.mode=mode;o.state=fixture_state;o.hud=hud;o.manager=manager;o.window=window;o.window_ap=image+0x17883d0;o.list=list;return o;}
+c::Owner owner(){c::Owner o;o.image=image;o.mode=mode;o.state=fixture_state;o.hud=hud;o.manager=manager;o.window=window;o.window_ap=image+0x178e770;o.list=list;return o;}
 int main(){try{
     Memory m;setup(m);c::Reader reader(m);std::string e;c::Subject s;uintptr_t selected=0;
     need(reader.subject(owner(),151,"Streamer Name",s,e),"exact live Subject");
@@ -72,14 +72,14 @@ int main(){try{
         switch(fault){
         case 0:m.put(toon,0x940,subscriber+8);break;
         case 1:m.put(toon,0x18,uint64_t(0));break;
-        case 2:m.put(image+0x1744e90,0xa8,image+1);break;
+        case 2:m.put(image+0x174b230,0xa8,image+1);break;
         case 3:m.text(toon,0x38,0x1c0000,"Other name");break;
         case 4:m.put(proxy,0,toon+0x28);break;
         case 5:m.put(proxy,8,int32_t(0));break;
         case 6:m.put(alert,0x70,uintptr_t(0));break;
         case 7:m.put(alert,0xf0,int32_t(1));break;
         case 8:m.put(alert,0x18,int32_t(7));break;
-        case 9:m.put(image+0x1749770,8,image+0x234b30);break;
+        case 9:m.put(image+0x174fb10,8,image+0x237910);break;
         case 10:m.array(manager,0x20,0x170000,{alert});break;
         case 11:m.array(list,0x300,0,{});break;
         case 12:m.put(window,0,image+0x1750000);break;

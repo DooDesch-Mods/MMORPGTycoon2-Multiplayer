@@ -31,9 +31,9 @@ bool key(Memory& m,uintptr_t p,size_t off,std::string& out,std::string& e){
 bool guard(Memory& m,uintptr_t image,std::string& e){
     struct Entry {uintptr_t rva;std::array<unsigned char,16> bytes;};
     constexpr Entry entries[]={
-        {0x4df220,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x31,0xdb,0x48,0x89,0xd7,0x8b}},
-        {0x71e90,{0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0x89,0x51,0x70,0x48,0x89,0xce,0x48,0x89}},
-        {0x4e34a0,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xc8}}};
+        {0x4e50e0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x31,0xdb,0x48,0x89,0xd7,0x8b}},
+        {0x72910,{0x57,0x56,0x53,0x48,0x83,0xec,0x20,0x48,0x89,0x51,0x70,0x48,0x89,0xce,0x48,0x89}},
+        {0x4e9360,{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0xc8}}};
     for(const auto& entry:entries){std::array<unsigned char,16> actual{};
         if(!bytes(m,image+entry.rva,actual.data(),actual.size(),e))return false;
         if(actual!=entry.bytes)return fail(e,"startingpoint release code guard differs RVA="+std::to_string(entry.rva));}
@@ -46,17 +46,17 @@ bool read_research_release(Memory& m,uintptr_t image,uintptr_t game_state,
     if(selected!="startingpoint"&&selected!="bridges")return fail(e,"research release unsupported Tech key");
     if(!image||image>UINTPTR_MAX-0x1800000||!game_state||!startingpoint)
         return fail(e,"startingpoint release current binding absent");
-    if(!guard(m,image,e)||!type(m,game_state,image+0x16de920,"GameState",e)||
-       !type(m,startingpoint,image+0x16dc330,"Startingpoint TechItem",e))return false;
+    if(!guard(m,image,e)||!type(m,game_state,image+0x16e4cc0,"GameState",e)||
+       !type(m,startingpoint,image+0x16e26d0,"Startingpoint TechItem",e))return false;
     std::string tech_key;if(!key(m,startingpoint,0x20,tech_key,e))return false;
     if(tech_key!=selected)return fail(e,"startingpoint release supplied Tech key differs");
     uintptr_t current_state=0,manager=0,current_manager=0,release=0;
-    if(!at(m,image,0x13df2a0,current_state,e)||!at(m,game_state,0x190,manager,e)||
-       !at(m,image,0x13df4f0,current_manager,e))return false;
+    if(!at(m,image,0x13eb2a0,current_state,e)||!at(m,game_state,0x190,manager,e)||
+       !at(m,image,0x13eb4f0,current_manager,e))return false;
     if(current_state!=game_state||!manager||manager!=current_manager)
         return fail(e,"startingpoint release GameState/ReleaseManager current owner differs");
-    if(!type(m,manager,image+0x1714ed0,"ReleaseManager",e)||!at(m,manager,0x38,release,e)||
-       !type(m,release,image+0x16c12b0,"Release",e))return false;
+    if(!type(m,manager,image+0x171b270,"ReleaseManager",e)||!at(m,manager,0x38,release,e)||
+       !type(m,release,image+0x16c7650,"Release",e))return false;
     StartingpointRelease sample;uintptr_t data=0;int32_t capacity=0;
     if(!at(m,release,0x150,data,e)||!at(m,release,0x158,sample.change_count,e)||
        !at(m,release,0x15c,capacity,e)||!at(m,release,0x1c4,sample.mutation_counter,e))return false;
@@ -68,7 +68,7 @@ bool read_research_release(Memory& m,uintptr_t image,uintptr_t game_state,
     std::set<uintptr_t> unique;
     for(auto change:changes){
         if(!change||!unique.insert(change).second)return fail(e,"startingpoint release change array has null/duplicate member");
-        if(!type(m,change,image+0x1786d10,"Change",e))return false;
+        if(!type(m,change,image+0x178d0b0,"Change",e))return false;
         uintptr_t owner=0;std::string feature_key;
         if(!at(m,change,0x70,owner,e)||!key(m,change,0x18,feature_key,e))return false;
         if(owner==startingpoint&&feature_key=="tech_release")++sample.feature_count;

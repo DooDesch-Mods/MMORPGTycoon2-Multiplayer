@@ -32,11 +32,11 @@ bool read(uintptr_t object,size_t offset,void* value,size_t bytes,std::string& e
 }
 template<class T>bool at(uintptr_t object,size_t offset,T& value,std::string& error){return read(object,offset,&value,sizeof(value),error);}
 DWORD find_uid(uintptr_t image,uint64_t uid,uintptr_t& found){
-    __try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{found=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD restore_pause(const live_host_state::Pin& pin){
-    __try{reinterpret_cast<void(*)(uintptr_t,float)>(pin.image+0x259b70)(pin.clock,pin.pause);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t,float)>(pin.image+0x25cc30)(pin.clock,pin.pause);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 std::string operation(){
@@ -167,8 +167,8 @@ class Native final:public live_host_state::PartyPort {
         if(before.pause==1&&after.pause==0){auto compared=before;compared.pause=0;
             if(compared!=after)return fail(error,"original Party capture changed native Clock/ledger/owners before pause restore");
             constexpr std::array<unsigned char,10> expected{0x56,0x53,0x48,0x83,0xec,0x48,0x0f,0x2f,0x49,0x5c};std::array<unsigned char,10> actual{};
-            if(!read(before.image,0x259b70,actual.data(),actual.size(),error)||
-                !hooks::framework::verify_original_bytes(before.image+0x259b70,actual.data(),expected.data(),expected.size(),error))return fail(error,error.empty()?"original pause setter changed":error);
+            if(!read(before.image,0x25cc30,actual.data(),actual.size(),error)||
+                !hooks::framework::verify_original_bytes(before.image+0x25cc30,actual.data(),expected.data(),expected.size(),error))return fail(error,error.empty()?"original pause setter changed":error);
             const auto code=restore_pause(before);if(code)return fail(error,"original pause restoration SEH="+std::to_string(code));
             if(!authority_.read(after,error)||after!=before)return fail(error,error.empty()?"original pause restoration readback differs":error);
         }

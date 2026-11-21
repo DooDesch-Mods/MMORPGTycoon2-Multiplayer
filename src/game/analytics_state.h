@@ -59,8 +59,8 @@ template<class Read,class Copy>
 bool read(Read& at,Copy& copy,uintptr_t image,uintptr_t state,Owners& owners,State& out,std::string& e){
     owners={};out={};uintptr_t reciprocal=0,ap=0;
     const auto type=[&](uintptr_t object,uintptr_t rva){if(!object){e="Analytics native class owner is null";return false;}return at(object,0,ap,e)&&(ap==image+rva||(e="Analytics native class differs",false));};
-    if(!at(image,0x13df280,owners.analytics,e)||!at(state,0x208,reciprocal,e)||reciprocal!=owners.analytics||!type(owners.analytics,0x16dd3b0)||
-       !at(owners.analytics,0x38,owners.statistics,e)||!type(owners.statistics,0x17386b0)||!at(owners.analytics,0x40,out.counters,e)){
+    if(!at(image,0x13eb280,owners.analytics,e)||!at(state,0x208,reciprocal,e)||reciprocal!=owners.analytics||!type(owners.analytics,0x16e3750)||
+       !at(owners.analytics,0x38,owners.statistics,e)||!type(owners.statistics,0x173ea50)||!at(owners.analytics,0x40,out.counters,e)){
         if(e.empty())e="Analytics State/current singleton ownership differs";return false;
     }
     const auto array=[&](uintptr_t object,size_t offset,int32_t maximum,uintptr_t& data,int32_t& count,int32_t& capacity){
@@ -69,15 +69,15 @@ bool read(Read& at,Copy& copy,uintptr_t image,uintptr_t state,Owners& owners,Sta
     };
     const auto day=[&](uintptr_t object,Day& value){
         uintptr_t data=0;int32_t count=0,capacity=0;
-        if(!type(object,0x172e460)||!at(object,0x18,value.day,e)||!type(object+0x20,0x16ec160)||!array(object,0x28,10,data,count,capacity))return false;
+        if(!type(object,0x1734800)||!at(object,0x18,value.day,e)||!type(object+0x20,0x16f2500)||!array(object,0x28,10,data,count,capacity))return false;
         owners.days.push_back(object);owners.reason_data.push_back(data);owners.capacities.push_back(capacity);
         for(int32_t i=0;i<count;++i){uintptr_t reason=0,positions=0;int32_t amount=0,extent=0;Reason row;
-            if(!at(data,size_t(i)*8,reason,e)||!type(reason,0x1711d40)||!at(reason,0x18,row.type,e)||!type(reason+0x20,0x1746160)||!array(reason,0x28,65536,positions,amount,extent))return false;
+            if(!at(data,size_t(i)*8,reason,e)||!type(reason,0x17180e0)||!at(reason,0x18,row.type,e)||!type(reason+0x20,0x174c500)||!array(reason,0x28,65536,positions,amount,extent))return false;
             owners.reasons.push_back(reason);owners.position_data.push_back(positions);owners.capacities.push_back(extent);row.positions.resize(size_t(amount));
             if(amount&&!copy(positions,row.positions.data(),row.positions.size()*12,e))return false;value.reasons.push_back(std::move(row));
         }return true;
     };
-    if(!day(owners.statistics+0x38,out.today)||!type(owners.statistics+0x88,0x16ee200))return false;
+    if(!day(owners.statistics+0x38,out.today)||!type(owners.statistics+0x88,0x16f45a0))return false;
     int32_t count=0;if(!array(owners.statistics,0x90,10,owners.history_data,count,owners.history_capacity))return false;
     std::set<uintptr_t> unique;
     for(int32_t i=0;i<count;++i){uintptr_t object=0;Day row;if(!at(owners.history_data,size_t(i)*8,object,e))return false;if(!unique.insert(object).second){e="Analytics duplicate native history Day allocation";return false;}if(!day(object,row))return false;out.history.push_back(std::move(row));}

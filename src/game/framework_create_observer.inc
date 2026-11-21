@@ -38,8 +38,8 @@ bool framework_subscribe_create(Runtime& runtime,std::string& error){
     const auto& routes=framework_runtime::routes();
     if(runtime.framework_create_token||!routes.create_subscribe||!routes.create_unsubscribe||!routes.route_read){error="Framework CreateBuilding paired subscription is unavailable or already owned";return false;}
     MT2FW_MT2_RouteReceipt receipt{};receipt.size=sizeof(receipt);
-    if(routes.route_read(routes.context,"objects.create",&receipt)!=MT2FW_MT2_OK||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.rva!=0x24ed30||receipt.entry!=runtime.image+0x24ed30||!receipt.detour||!receipt.trampoline||
-       std::string_view(receipt.owner,9)!="framework"||receipt.owner[9]||std::string_view(receipt.game_sha256,64)!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||receipt.game_sha256[64]){
+    if(routes.route_read(routes.context,"objects.create",&receipt)!=MT2FW_MT2_OK||receipt.state!=MT2FW_MT2_ROUTE_ENABLED||receipt.rva!=0x251c70||receipt.entry!=runtime.image+0x251c70||!receipt.detour||!receipt.trampoline||
+       std::string_view(receipt.owner,9)!="framework"||receipt.owner[9]||std::string_view(receipt.game_sha256,64)!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||receipt.game_sha256[64]){
         error="Framework CreateBuilding current shared route identity differs";return false;
     }
     const auto token=routes.create_subscribe(routes.context,&framework_create_before,&framework_create_after,&runtime);

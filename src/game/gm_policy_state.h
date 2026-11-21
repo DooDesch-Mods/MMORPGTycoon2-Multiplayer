@@ -35,9 +35,9 @@ inline Intent intent(const json& value){if(!value.is_object()||value.size()!=4)t
 inline Proof proof(const json& value){if(!value.is_object()||(value.size()!=2&&value.size()!=5))throw std::runtime_error("GM policy proof requires exact state and complete GM/cascade digests");Proof out;out.state=state(value.at("policies"));out.gm_sha256=value.at("gm_sha256").get<std::string>();if(value.size()==5){out.cascade_sha256=value.at("cascade_sha256").get<std::string>();out.protected_sha256=value.at("protected_sha256").get<std::string>();out.tutorial_sha256=value.at("tutorial_sha256").get<std::string>();if(!ordered(out))throw std::runtime_error("GM policy ordered proof digests invalid");}if(!valid(out))throw std::runtime_error("GM policy proof invalid");return out;}
 }
 template<class Read>bool read(Read&& read,uintptr_t image,uintptr_t queue,State& out,std::string& error){
-    out={};uintptr_t table=0,singleton=0;if(!read(image,0x13df360,singleton,error)||!read(queue,0,table,error))return false;
-    if(!queue||singleton!=queue||table!=image+0x16fdc60){error="GM policy current TicketQueue singleton/class differs";return false;}
-    for(size_t p=0;p<2;++p){const auto object=queue+0x48+p*40;if(!read(object,0,table,error))return false;if(table!=image+0x16dab90){error="GM policy embedded current native class differs";return false;}
+    out={};uintptr_t table=0,singleton=0;if(!read(image,0x13eb360,singleton,error)||!read(queue,0,table,error))return false;
+    if(!queue||singleton!=queue||table!=image+0x1704000){error="GM policy current TicketQueue singleton/class differs";return false;}
+    for(size_t p=0;p<2;++p){const auto object=queue+0x48+p*40;if(!read(object,0,table,error))return false;if(table!=image+0x16e0f30){error="GM policy embedded current native class differs";return false;}
         for(size_t f=0;f<7;++f){int32_t value=0;if(integer(Field(f))){if(!read(object,offsets[f],value,error))return false;}else {uint8_t byte=0;if(!read(object,offsets[f],byte,error))return false;value=byte;}out.policies[p][f]=value;}}
     if(!valid(out)){error="GM policy actual value exceeds original property UI domain";return false;}error.clear();return true;
 }

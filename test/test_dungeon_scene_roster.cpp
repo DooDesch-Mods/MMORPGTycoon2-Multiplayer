@@ -14,17 +14,17 @@ struct Memory {
     template<class T>bool read(uintptr_t object,size_t offset,T& value,std::string& e){auto* data=reinterpret_cast<unsigned char*>(&value);
         for(size_t i=0;i<sizeof value;++i){const auto found=bytes.find(object+offset+i);if(found==bytes.end()){e="original scene owner read failure";return false;}data[i]=found->second;}return true;}
     void array(uintptr_t object,uintptr_t data,int32_t count){put(object,8,data);put(object,0x10,count);put(object,0x14,count+2);}
-    Memory(){put(map,0,image+0x1742860);put(map,0x230,image+0x16f04e0);array(map+0x230,root_regions,2);put(root_regions,0,root_region);put(root_regions,8,empty_region);
-        put(root,0,image+0x174ad20);put(root,0x48,int32_t(0));
+    Memory(){put(map,0,image+0x1748c00);put(map,0x230,image+0x16f6880);array(map+0x230,root_regions,2);put(root_regions,0,root_region);put(root_regions,8,empty_region);
+        put(root,0,image+0x17510c0);put(root,0x48,int32_t(0));
         for(size_t i=0;i<2;++i){const auto r=i?empty_region:root_region,m=i?empty_manager:root_manager;
-            put(r,0,image+0x1787930);put(r,0x70,root);put(r,0x834,int32_t(i?7:67));put(r,0x950,m);
-            put(m,0,image+0x17183c0);put(m,0x450,root);put(m,0x458,r);put(m,0x408,image+0x172d7c0);array(m+0x408,i?0:fixture_buildings,i?0:2);}
-        put(fixture_buildings,0,ordinary);put(fixture_buildings,8,fixture_exterior);put(ordinary,0,image+0x16d93c0);put(ordinary,0xa38,uintptr_t(0));
-        put(fixture_exterior,0,image+0x16d93c0);put(fixture_exterior,0x18,exterior_uid);put(fixture_exterior,0x170,root);put(fixture_exterior,0xa38,fixture_dungeon);
-        put(fixture_dungeon,0,image+0x16c0560);put(fixture_dungeon,0x18,dungeon_uid);put(fixture_dungeon,0x48,fixture_template_shard);put(fixture_dungeon,0x50,fixture_template_region);put(fixture_dungeon,0x6f8,fixture_exterior);array(fixture_dungeon+0x4b8,fixture_instances,2);
-        put(fixture_template_shard,0,image+0x174ad20);put(fixture_template_shard,0x48,int32_t(1));put(fixture_template_shard,0x18,fixture_dungeon);put(fixture_template_region,0,image+0x1787930);put(fixture_template_region,0x70,fixture_template_shard);
-        for(size_t i=0;i<2;++i){put(fixture_instances,i*8,fixture_instance[i]);put(fixture_instance[i],0,image+0x1719450);put(fixture_instance[i],0x18,int32_t(i?2:9));put(fixture_instance[i],0x30,fixture_dungeon);put(fixture_instance[i],0x38,fixture_instance_shard[i]);put(fixture_instance[i],0x40,instance_region[i]);
-            put(fixture_instance_shard[i],0,image+0x174ad20);put(fixture_instance_shard[i],0x48,int32_t(2));put(fixture_instance_shard[i],0x20,fixture_instance[i]);put(instance_region[i],0,image+0x1787930);put(instance_region[i],0x70,fixture_instance_shard[i]);}
+            put(r,0,image+0x178dcd0);put(r,0x70,root);put(r,0x834,int32_t(i?7:67));put(r,0x950,m);
+            put(m,0,image+0x171e760);put(m,0x450,root);put(m,0x458,r);put(m,0x408,image+0x1733b60);array(m+0x408,i?0:fixture_buildings,i?0:2);}
+        put(fixture_buildings,0,ordinary);put(fixture_buildings,8,fixture_exterior);put(ordinary,0,image+0x16df760);put(ordinary,0xa38,uintptr_t(0));
+        put(fixture_exterior,0,image+0x16df760);put(fixture_exterior,0x18,exterior_uid);put(fixture_exterior,0x170,root);put(fixture_exterior,0xa38,fixture_dungeon);
+        put(fixture_dungeon,0,image+0x16c6900);put(fixture_dungeon,0x18,dungeon_uid);put(fixture_dungeon,0x48,fixture_template_shard);put(fixture_dungeon,0x50,fixture_template_region);put(fixture_dungeon,0x6f8,fixture_exterior);array(fixture_dungeon+0x4b8,fixture_instances,2);
+        put(fixture_template_shard,0,image+0x17510c0);put(fixture_template_shard,0x48,int32_t(1));put(fixture_template_shard,0x18,fixture_dungeon);put(fixture_template_region,0,image+0x178dcd0);put(fixture_template_region,0x70,fixture_template_shard);
+        for(size_t i=0;i<2;++i){put(fixture_instances,i*8,fixture_instance[i]);put(fixture_instance[i],0,image+0x171f7f0);put(fixture_instance[i],0x18,int32_t(i?2:9));put(fixture_instance[i],0x30,fixture_dungeon);put(fixture_instance[i],0x38,fixture_instance_shard[i]);put(fixture_instance[i],0x40,instance_region[i]);
+            put(fixture_instance_shard[i],0,image+0x17510c0);put(fixture_instance_shard[i],0x48,int32_t(2));put(fixture_instance_shard[i],0x20,fixture_instance[i]);put(instance_region[i],0,image+0x178dcd0);put(instance_region[i],0x70,fixture_instance_shard[i]);}
     }
 };
 int main()try{
@@ -32,8 +32,8 @@ int main()try{
     std::vector<roster::Scene> actual;std::string error;
     const auto run=[&](Memory& m){auto at=[&](auto p,auto offset,auto& value,auto& e){return m.read(p,offset,value,e);};
         auto typed=[&](uintptr_t object,uintptr_t source,uintptr_t target,std::string& e){if(m.bad_rtti){e="original scene RTTI failure";return false;}
-            return (object==fixture_dungeon&&source==0x1673900&&target==0x164e3d0)||(object==fixture_exterior&&source==0x1673900&&target==0x1655090)||
-                ((object==fixture_instance[0]||object==fixture_instance[1])&&source==0x1657270&&target==0x16650e0);};
+            return (object==fixture_dungeon&&source==0x1678ee0&&target==0x16539b0)||(object==fixture_exterior&&source==0x1678ee0&&target==0x165a670)||
+                ((object==fixture_instance[0]||object==fixture_instance[1])&&source==0x165c850&&target==0x1669da0);};
         auto find=[&](uint64_t uid,uintptr_t& found,std::string& e){if(m.bad_find){e="original scene full UID failure";return false;}found=uid==dungeon_uid?fixture_dungeon:uid==exterior_uid?fixture_exterior:0;return true;};
         auto identify=[&](uintptr_t object,uint64_t uid,std::string& key,std::string& e){if(object!=fixture_exterior||uid!=exterior_uid){e="foreign scene exterior";return false;}
             key=std::string(64,'a')+":world:building:17";if(m.mutate&&++m.identified==2)m.put(fixture_buildings,0,fixture_exterior);return true;};

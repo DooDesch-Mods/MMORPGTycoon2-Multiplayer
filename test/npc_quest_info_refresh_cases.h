@@ -23,11 +23,11 @@ struct Calls {
     }
     Calls(){
         put(manager+0x30,int32_t(1));put(manager+0x80,npc);put(manager+0xb8,handler);put(manager+0xc0,uintptr_t(0));
-        put(handler,image+0x1731820);put(handler+0x10,window);put(window,image+0x1707d20);
+        put(handler,image+0x1737bc0);put(handler+0x10,window);put(window,image+0x170e0c0);
         put(window+0x45f,uint8_t(1));put(window+0x550,npc);put(window+0x558,proxy);put(npc+0x28,proxy);
         put(proxy,npc+0x20);put(npc+0x870,int32_t(2));put(window+0x4f8,property);
-        put(property,image+0x1701d20);put(property+0x280,window);put(window+0x540,view);
-        put(view,image+0x16dfe90);put(view+0x280,window);put(view+0x410,uintptr_t(0x900000));
+        put(property,image+0x17080c0);put(property+0x280,window);put(window+0x540,view);
+        put(view,image+0x16e6230);put(view+0x280,window);put(view+0x410,uintptr_t(0x900000));
         put(view+0x418,uintptr_t(0));put(view+0x408,int32_t(0));
         strings[view+0x3c8]=strings[view+0x3e8]="{npcinfo_tab_info}";
         put(window+0x110,std::array<float,2>{120.f,80.f});
@@ -82,7 +82,7 @@ inline size_t run(){
     skip([](auto& c){c.put(Calls::manager+0x30,int32_t(0));},"no selected NPC is not opened");
     skip([](auto& c){c.put(Calls::manager+0x80,uintptr_t(0xaa0000));},"another NPC selection untouched");
     skip([](auto& c){c.put(Calls::manager+0xb8,uintptr_t(0));},"absent handler untouched");
-    skip([](auto& c){c.put(Calls::handler,Calls::image+0x17316a0);},"another native handler untouched");
+    skip([](auto& c){c.put(Calls::handler,Calls::image+0x1737a40);},"another native handler untouched");
     skip([](auto& c){c.put(Calls::handler+0x10,uintptr_t(0));},"closed window not reopened");
     skip([](auto& c){c.put(Calls::window+0x45f,uint8_t(0));},"hidden window not shown");
     skip([](auto& c){c.put(Calls::window+0x550,uintptr_t(0xbb0000));},"another Info target untouched");

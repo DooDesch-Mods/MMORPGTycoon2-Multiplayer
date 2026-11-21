@@ -42,14 +42,14 @@ inline bool type(uintptr_t image, const void* object, uintptr_t expected, std::s
 // Map.m_ownedRegions is a subset of saved Map.region; unowned regions are also saved.
 inline bool region_id(uintptr_t image, void* map, void* region, void* manager, void* shard, int32_t& id, std::string& error) {
     mt2mp::game::live_host_state::apply_timing::PageReadScope region_pages;
-    if (!type(image, map, 0x1742860, error)) return false;
+    if (!type(image, map, 0x1748c00, error)) return false;
     auto* root = static_cast<char*>(map) + 0x1c0;
     int32_t shard_type = -1;
-    if (shard != root || !type(image, shard, 0x174ad20, error) || !read(shard, 0x48, shard_type, error) || shard_type != 0) {
+    if (shard != root || !type(image, shard, 0x17510c0, error) || !read(shard, 0x48, shard_type, error) || shard_type != 0) {
         error = "inline building owner is not supported saved root shard"; return false;
     }
     void* region_shard = nullptr; void* owner = nullptr; void* reverse_region = nullptr; void* reverse_shard = nullptr;
-    if (!type(image, region, 0x1787930, error) || !type(image, manager, 0x17183c0, error) ||
+    if (!type(image, region, 0x178dcd0, error) || !type(image, manager, 0x171e760, error) ||
         !read(region, 0x70, region_shard, error) || !read(region, 0x950, owner, error) ||
         !read(manager, 0x450, reverse_shard, error) || !read(manager, 0x458, reverse_region, error)) return false;
     if (region_shard != shard || owner != manager || reverse_shard != shard || reverse_region != region) {
@@ -57,7 +57,7 @@ inline bool region_id(uintptr_t image, void* map, void* region, void* manager, v
     }
     auto* saved = static_cast<char*>(map) + 0x230;
     void* data = nullptr; void* owned = nullptr; int32_t count = 0, capacity = 0, owned_count = 0, owned_capacity = 0;
-    if (!type(image, saved, 0x16f04e0, error) || !read(saved, 8, data, error) || !read(saved, 0x10, count, error) ||
+    if (!type(image, saved, 0x16f6880, error) || !read(saved, 8, data, error) || !read(saved, 0x10, count, error) ||
         !read(saved, 0x14, capacity, error) || !read(map, 0x358, owned, error) || !read(map, 0x360, owned_count, error) ||
         !read(map, 0x364, owned_capacity, error)) return false;
     if (count < 0 || count > 4096 || capacity < count || owned_count < 0 || owned_count > 4096 || owned_capacity < owned_count) {
@@ -66,14 +66,14 @@ inline bool region_id(uintptr_t image, void* map, void* region, void* manager, v
     std::set<void*> owned_regions;
     for (int32_t index = 0; index < owned_count; ++index) {
         void* candidate = nullptr; void* candidate_shard = nullptr;
-        if (!read(owned, size_t(index) * 8, candidate, error) || !type(image, candidate, 0x1787930, error) ||
+        if (!read(owned, size_t(index) * 8, candidate, error) || !type(image, candidate, 0x178dcd0, error) ||
             !read(candidate, 0x70, candidate_shard, error)) return false;
         if (candidate_shard != shard || !owned_regions.insert(candidate).second) { error = "inline root owned region shard or uniqueness differs"; return false; }
     }
     std::set<int32_t> ids; std::set<void*> saved_regions; bool found = false;
     for (int32_t index = 0; index < count; ++index) {
         void* candidate = nullptr; void* candidate_shard = nullptr; int32_t candidate_id = -1;
-        if (!read(data, size_t(index) * 8, candidate, error) || !type(image, candidate, 0x1787930, error) ||
+        if (!read(data, size_t(index) * 8, candidate, error) || !type(image, candidate, 0x178dcd0, error) ||
             !read(candidate, 0x70, candidate_shard, error) || !read(candidate, 0x834, candidate_id, error)) return false;
         const auto context = " saved_index=" + std::to_string(index) + " region_id=" + std::to_string(candidate_id) +
             " saved_count=" + std::to_string(count) + " owned_count=" + std::to_string(owned_count);
@@ -101,7 +101,7 @@ inline bool slot(uintptr_t image, void* map, void* object, int32_t child, int32_
         !read(region, 0x950, manager, error) || !region_id(image, map, region, manager, shard, id, error)) return false;
     auto* array = static_cast<char*>(manager) + 0x408;
     if (expected_array && array != expected_array) { error = "inline Building array differs from saved owner"; return false; }
-    if (!type(image, array, 0x172d7c0, error) || !read(array, 8, data, error) || !read(array, 0x10, count, error) ||
+    if (!type(image, array, 0x1733b60, error) || !read(array, 8, data, error) || !read(array, 0x10, count, error) ||
         !read(array, 0x14, capacity, error)) return false;
     if (count < 0 || count > 4096 || capacity < count || child >= count) { error = "inline building child outside saved array"; return false; }
     if (!read(data, size_t(child) * 8, actual, error)) return false;

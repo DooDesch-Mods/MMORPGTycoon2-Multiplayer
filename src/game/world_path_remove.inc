@@ -1,7 +1,7 @@
 namespace world_path_runtime {
 uint32_t remove_quote(uintptr_t image,uintptr_t object,int32_t& price,action::PathPoint& position){
-    __try{price=reinterpret_cast<int32_t(*)(void*)>(image+0x43c680)(reinterpret_cast<void*>(object));
-        reinterpret_cast<void*(*)(void*,void*)>(image+0x43c470)(position.data(),reinterpret_cast<void*>(object));return 0;}
+    __try{price=reinterpret_cast<int32_t(*)(void*)>(image+0x441460)(reinterpret_cast<void*>(object));
+        reinterpret_cast<void*(*)(void*,void*)>(image+0x441250)(position.data(),reinterpret_cast<void*>(object));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool remove_inverse(region::Runtime& r,const Sample& before,const std::set<std::string>& retired,
@@ -19,11 +19,11 @@ bool remove_inverse(region::Runtime& r,const Sample& before,const std::set<std::
     std::set<uint64_t> made;unsigned cash=0;
     for(size_t i=0;i<witness.operations;++i){uintptr_t operation=0,ap=0;
         if(!region::at(r,data,i*8,operation,error)||!region::at(r,operation,0,ap,error))return false;
-        if(ap==r.image+0x16e49c0||ap==r.image+0x172bf40){uint64_t uid=0;
+        if(ap==r.image+0x16ead60||ap==r.image+0x17322e0){uint64_t uid=0;
             if(!region::at(r,operation,0xb8,uid,error))return false;
-            if(!expected.contains(uid)||!made.insert(uid).second||expected.at(uid)!=(ap==r.image+0x16e49c0))
+            if(!expected.contains(uid)||!made.insert(uid).second||expected.at(uid)!=(ap==r.image+0x16ead60))
                 return fail(error,"mixed Path Remove inverse full UID or original Make type differs");
-        }else if(ap==r.image+0x1786fb0){int32_t amount=0;action::PathPoint point{};
+        }else if(ap==r.image+0x178d350){int32_t amount=0;action::PathPoint point{};
             if(!region::at(r,operation,0xb8,amount,error)||!region::at(r,operation,0xbc,point,error))return false;
             if(int64_t(amount)!=-int64_t(price)||point!=position)
                 return fail(error,"mixed Path Remove inverse original cash amount/position differs");
@@ -75,9 +75,9 @@ bool capture_remove(region::Runtime& r,uintptr_t window,bool& handled,std::strin
 uint32_t replay_remove(uintptr_t image,uintptr_t object,bool& returned){
     const region::NativeString command{"Destroy",7,{}},edit{"Destroy path",12,{}};
     __try{
-        reinterpret_cast<void(*)(const void*)>(image+0x265300)(&edit);
-        returned=reinterpret_cast<bool(*)(void*,const void*)>(image+0x43a2e0)(reinterpret_cast<void*>(object),&command);
-        reinterpret_cast<void(*)()>(image+0x265650)();return 0;
+        reinterpret_cast<void(*)(const void*)>(image+0x268400)(&edit);
+        returned=reinterpret_cast<bool(*)(void*,const void*)>(image+0x43f0c0)(reinterpret_cast<void*>(object),&command);
+        reinterpret_cast<void(*)()>(image+0x268750)();return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool remove_target(const Sample& before,const action::WorldPathIntent& intent,uintptr_t& target,std::string& error){
@@ -106,8 +106,8 @@ bool remove_live(region::Runtime& r,const Sample& before,std::string& error){
 }
 bool remove_selection(region::Runtime& r,uintptr_t object,std::string& error){
     uintptr_t selection=0,focused=0;
-    if(!region::at(r,r.image,0x13df630,selection,error)||
-       !native::ap(r.memory,selection,r.image,0x17205d0,error)||
+    if(!region::at(r,r.image,0x13eb630,selection,error)||
+       !native::ap(r.memory,selection,r.image,0x1726970,error)||
        !region::at(r,selection,0x80,focused,error))return false;
     if(focused==object)return fail(error,"mixed Path Remove target remains focused");
     for(size_t offset:{size_t(8),size_t(0x20),size_t(0x38),size_t(0x50)}){

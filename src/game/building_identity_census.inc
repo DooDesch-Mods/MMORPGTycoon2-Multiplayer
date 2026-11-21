@@ -18,7 +18,7 @@ bool building_retained_scenery_index(const host::WorldState& world,uintptr_t ima
            !binding.object||binding.scene_owner!="world"||!binding.scene_manager||!binding.scene_region||
            binding.scene_shard!=world.root||!binding.scene_record.starts_with(binding.sha)||
            binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)!=0||
-           binding.class_addresspoint!=image+0x16c1390)return false;
+           binding.class_addresspoint!=image+0x16c7730)return false;
         if(omitted.empty()){omitted.reserve(registry.size());objects.reserve(registry.size());}
         omitted.push_back(binding.uid);objects.push_back(binding.object);
     }
@@ -57,7 +57,7 @@ bool building_identity_index(const host::WorldState& world,uintptr_t image,Index
         if(binding.object&&binding.scene_owner=="world"&&binding.scene_manager&&binding.scene_region&&
            binding.scene_shard==world.root&&binding.scene_record.starts_with(binding.sha)&&
            binding.scene_record.compare(binding.sha.size(),sizeof(scenery_suffix)-1,scenery_suffix)==0&&
-           binding.class_addresspoint==image+0x16c1390){
+           binding.class_addresspoint==image+0x16c7730){
             if constexpr(requires{omitted.push_back(binding.uid);})omitted.push_back(binding.uid);
             else omitted.insert(binding.uid);
         }

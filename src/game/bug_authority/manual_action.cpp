@@ -44,16 +44,16 @@ bool code(Owner& o,std::string& e){
     if(!verify_entry(o.entry,read,[](const auto& bytes){return mt2mp::sha256(bytes);},e)||!native_code(e))return false;
     struct Body {uintptr_t rva;size_t size;const char* sha;};
     constexpr Body bodies[]{
-        {0x58e20,96,"f9f3da29f37f02dda964a78dc799eb464f3aba93ab3f12b30459fd88429a5794"},
-        {0x284b50,32,"655ec01a1427a753aabb58a8e527e3dc1822636a8ae0fe624cad304d23ad0e62"},
-        {0x284900,592,"dedb6ec3b14358de102842d143034cf0abf9aa21a221d3f90221f51e6c4b55e0"},
-        {0x2817a0,96,"29b374120b45c5491394a14655dc51f4a3fcfee060ea3b9f7c7781581a61c0d6"},
-        {0x284280,176,"dff406f7a16ce7463e43e671c6ff783a2d6c9a2f90c6846d622f0dd6e5a1961e"},
-        {0x96e1d0,80,"8804bc96497105c4fc82d693ffc88533c3e6c1b9e70b92e3d310cdad72a0f2cc"}};
+        {0x59320,96,"005e79a23ecbd23b9b2e02467991a19ee746aea5c978fb40772e73c7ee3f41df"},
+        {0x287eb0,32,"655ec01a1427a753aabb58a8e527e3dc1822636a8ae0fe624cad304d23ad0e62"},
+        {0x287c60,592,"91c8bcc2de79c0193b84327cc3cce3cd2ff9d097bcae7e4bd7e8b93513416f2a"},
+        {0x284b00,96,"1a42bab0fb94f10cc09d9e7ae5527e5b1f47d160f7efac58806e3bc6b2d55101"},
+        {0x2875e0,176,"e8587a9bc48d3438ebce3f2e90409a479b767c6d2f520697e6924b5aa9150a29"},
+        {0x977410,80,"806ddbfa3e094ac1c931b0f5aac47a313215153d2d8239a50810dee256d20349"}};
     for(const auto& b:bodies){std::vector<unsigned char> bytes(b.size);
         if(!read(o.image+b.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=b.sha)return fail(e,"BugButton original full body differs RVA="+std::to_string(b.rva));}
-    uintptr_t offset=0;if(!field(o.image+0x13b6820,0x38,offset,e))return false;
+    uintptr_t offset=0;if(!field(o.image+0x13c2820,0x38,offset,e))return false;
     return offset==0x45||fail(e,"BugButton original manualJob property offset differs");
 }
 bool read_state(Owner& o,const action::Context& c,const action::Binding& b,staff::Capture& capture,State& bugs,staff::PoolState& pool,std::string& e){
@@ -129,12 +129,12 @@ bool enable(std::string& e){
     if(o->install_attempted)return fail(e,"BugButton hook installation already attempted: "+o->install_error);
     o->install_attempted=true;struct SaveCause{Owner& o;std::string& e;~SaveCause(){o.install_error=e;}} save{*o,e};
     uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(o->image,thread,sha,e))return false;
-    if(thread!=o->thread||o->image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"BugButton actual EXE/process/thread differs");
-    std::vector<unsigned char> bytes(320);if(!runtime().memory.copy(o->image+0x69df50,bytes.data(),bytes.size(),e))return false;
-    if(mt2mp::sha256(bytes)!="b74314774d32edfffddf7f73ad97d9946ba868f819376459348cfb74b631a3fb")return fail(e,"BugButton complete original UI body differs before hook");
-    UiCommand original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(o->image+0x69df50),reinterpret_cast<void*>(&ui_command),reinterpret_cast<void**>(&original));
+    if(thread!=o->thread||o->image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"BugButton actual EXE/process/thread differs");
+    std::vector<unsigned char> bytes(320);if(!runtime().memory.copy(o->image+0x6a5250,bytes.data(),bytes.size(),e))return false;
+    if(mt2mp::sha256(bytes)!="e37a1fbaf0d7d863b2f3501b50434de3ffad013ad9d349655020f293d9e82251")return fail(e,"BugButton complete original UI body differs before hook");
+    UiCommand original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(o->image+0x6a5250),reinterpret_cast<void*>(&ui_command),reinterpret_cast<void**>(&original));
     if(created!=MH_OK||!original)return fail(e,"BugButton MinHook create failed status="+std::to_string(created));
-    o->original.store(original,std::memory_order_release);o->entry={o->image+0x69df50,reinterpret_cast<uintptr_t>(&ui_command),reinterpret_cast<uintptr_t>(original),false};
+    o->original.store(original,std::memory_order_release);o->entry={o->image+0x6a5250,reinterpret_cast<uintptr_t>(&ui_command),reinterpret_cast<uintptr_t>(original),false};
     const auto enabled=MH_EnableHook(reinterpret_cast<void*>(o->entry.target));if(enabled!=MH_OK)return fail(e,"BugButton MinHook enable failed status="+std::to_string(enabled));
     o->entry.enabled=true;if(!code(*o,e))return false;o->ready=true;return true;
 }
@@ -183,7 +183,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
                 bool pin(std::string& e){staff::Capture fresh;State actual;staff::PoolState state;uintptr_t receiver=0;
                     return read_state(owner,context,binding,fresh,actual,state,e)&&intent_now(request.bug_fix,actual,receiver,e)&&
                         ((receiver==pointer&&staff::same_origin(fresh.pin.origin,before.pin.origin)&&fresh.pin.ledger==before.pin.ledger&&actual==bugs&&state==pool)||fail(e,"BugButton native BEFORE changed before original call"));}
-                void job(JobCall& call){work_unary(owner.image+(request.bug_fix.schedule?0x58da0:0x58e20),pointer,&call);}
+                void job(JobCall& call){work_unary(owner.image+(request.bug_fix.schedule?0x592a0:0x59320),pointer,&call);}
                 bool after_job(std::string& e){
                     if(runtime().locked)return fail(e,runtime().cause);
                     uintptr_t job=0;if(!field(pointer,0x48,job,e))return false;
@@ -192,7 +192,7 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
                     const Birth expected{BirthKind::Action,request.action_uuid,0,1};
                     return (job&&local&&local->row.birth==expected&&local->row.bug==request.bug_fix.bug)||fail(e,"BugButton original Schedule birth/backlink differs");
                 }
-                void manual(JobCall& call){work_property(owner.image,owner.image+0x13b6820,0xd257f0,pointer,"manualJob true",&call);}
+                void manual(JobCall& call){work_property(owner.image,owner.image+0x13c2820,0xd30f30,pointer,"manualJob true",&call);}
                 bool after_manual(std::string& e){uint8_t manual=0;if(!field(pointer,0x45,manual,e))return false;return manual==1||fail(e,"BugButton original manualJob readback differs");}
             } calls{*o,context,binding,request,before,bugs,pool,pointer};
             if(!execute_host(calls,operation.native,e))return failed();

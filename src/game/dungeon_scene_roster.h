@@ -22,21 +22,21 @@ template<class Read>bool unchanged(Read& at,uintptr_t object,const Array& before
 template<class Read,class Typed,class Find,class Identify>
 bool read(Read& at,Typed& typed,Find& find,Identify& identify,uintptr_t image,uintptr_t map,uintptr_t root,std::vector<Scene>& out,std::string& e){
     out.clear();std::vector<Scene> result;uintptr_t ap=0;
-    if(!at(map,0,ap,e))return false;if(ap!=image+0x1742860||root!=map+0x1c0){e="Dungeon scene enumeration actual NativeOpen map/root differs";return false;}
-    if(!at(map,0x230,ap,e))return false;if(ap!=image+0x16f04e0){e="Dungeon scene saved root Region array class differs";return false;}
+    if(!at(map,0,ap,e))return false;if(ap!=image+0x1748c00||root!=map+0x1c0){e="Dungeon scene enumeration actual NativeOpen map/root differs";return false;}
+    if(!at(map,0x230,ap,e))return false;if(ap!=image+0x16f6880){e="Dungeon scene saved root Region array class differs";return false;}
     Array regions;if(!array(at,map+0x230,regions,e))return false;
     std::set<int32_t> ids;std::set<uintptr_t> dungeons,shards,scene_regions;std::set<uint64_t> exterior_uids,dungeon_uids;std::set<std::string> keys;
     for(const auto region:regions.members){uintptr_t shard=0,manager=0,reverse=0;int32_t id=-1;
         if(!at(region,0,ap,e)||!at(region,0x70,shard,e)||!at(region,0x834,id,e)||!at(region,0x950,manager,e))return false;
-        if(ap!=image+0x1787930||shard!=root||id<0||!ids.insert(id).second){e="Dungeon scene saved root Region class/Shard/ID differs";return false;}
+        if(ap!=image+0x178dcd0||shard!=root||id<0||!ids.insert(id).second){e="Dungeon scene saved root Region class/Shard/ID differs";return false;}
         if(!at(manager,0,ap,e)||!at(manager,0x450,shard,e)||!at(manager,0x458,reverse,e))return false;
-        if(ap!=image+0x17183c0||shard!=root||reverse!=region){e="Dungeon scene root Building manager reciprocal owner differs";return false;}
-        if(!at(manager,0x408,ap,e))return false;if(ap!=image+0x172d7c0){e="Dungeon scene root Building main array class differs";return false;}
+        if(ap!=image+0x171e760||shard!=root||reverse!=region){e="Dungeon scene root Building manager reciprocal owner differs";return false;}
+        if(!at(manager,0x408,ap,e))return false;if(ap!=image+0x1733b60){e="Dungeon scene root Building main array class differs";return false;}
         Array buildings;if(!array(at,manager+0x408,buildings,e))return false;
         for(size_t slot=0;slot<buildings.members.size();++slot){const auto exterior=buildings.members[slot];uintptr_t dungeon=0;
             if(!at(exterior,0,ap,e)||!at(exterior,0xa38,dungeon,e))return false;
             if(!dungeon)continue;
-            if(ap!=image+0x16d93c0||!dungeons.insert(dungeon).second){e="Dungeon scene exterior class or unique Dungeon owner differs";return false;}
+            if(ap!=image+0x16df760||!dungeons.insert(dungeon).second){e="Dungeon scene exterior class or unique Dungeon owner differs";return false;}
             Scene base;base.exterior_region=id;base.exterior_slot=int32_t(slot);uintptr_t template_shard=0,found=0;
             if(!at(dungeon,0x18,base.dungeon_uid,e)||!at(dungeon,0x48,template_shard,e)||!find(base.dungeon_uid,found,e))return false;
             if(!base.dungeon_uid||found!=dungeon||!dungeon_uids.insert(base.dungeon_uid).second){e="Dungeon scene full Dungeon UID/registry differs";return false;}

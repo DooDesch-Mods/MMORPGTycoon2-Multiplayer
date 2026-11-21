@@ -15,7 +15,7 @@ ApplyTail apply_tail;
 void apply_setup_entry(void* outer,void* live){
     if(apply_tail.armed&&uintptr_t(outer)==apply_tail.outer){
         if(GetCurrentThreadId()!=state.thread||uintptr_t(live)!=apply_tail.live||
-           uintptr_t(_ReturnAddress())!=state.image+0x570b63||apply_tail.setup++){
+           uintptr_t(_ReturnAddress())!=state.image+0x5771f3||apply_tail.setup++){
             apply_tail.failed=true;fault=true;reject("Ability Apply SetupFor presentation receiver/target/caller/thread/count differs");}
         return;
     }
@@ -44,7 +44,7 @@ void apply_event_entry(void* outer,const void* event){
     original_apply_event(outer,event);
 }
 bool apply_route(Memory& memory,std::string& error){
-    for(size_t i=0;i<3;++i){const uintptr_t rva=i==2?0x569550:(i?0x5721f0:0x570900);
+    for(size_t i=0;i<3;++i){const uintptr_t rva=i==2?0x56fbe0:(i?0x578880:0x576f90);
         const auto original_address=i==2?uintptr_t(original_apply_window_destroy):(i?uintptr_t(original_apply_event):uintptr_t(original_apply_setup));
         if(!original_address)return fail(error,"Ability Apply presentation route unavailable");
         MT2FW_MT2_RouteReceipt receipt{sizeof receipt};
@@ -62,7 +62,7 @@ bool apply_route(Memory& memory,std::string& error){
     return true;
 }
 bool install_apply_routes(std::string& error){
-    for(size_t i=0;i<3;++i){const uintptr_t rva=i==2?0x569550:(i?0x5721f0:0x570900);
+    for(size_t i=0;i<3;++i){const uintptr_t rva=i==2?0x56fbe0:(i?0x578880:0x576f90);
         auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+rva),i==2?reinterpret_cast<void*>(&apply_window_destroy_entry):(i?reinterpret_cast<void*>(&apply_event_entry):reinterpret_cast<void*>(&apply_setup_entry)),
             i==2?reinterpret_cast<void**>(&original_apply_window_destroy):(i?reinterpret_cast<void**>(&original_apply_event):reinterpret_cast<void**>(&original_apply_setup)));
         if(status!=MH_OK)return fail(error,"Ability Apply presentation prepare failed RVA="+std::to_string(rva)+" status="+std::to_string(status)+" cause="+hooks::framework::process_backend().error());
@@ -87,16 +87,16 @@ uint32_t apply_write_slots(const ability_apply_lease::Slots& value)noexcept{
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t apply_clone(uintptr_t source,uintptr_t& draft,bool& constructed)noexcept{
-    __try{draft=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa02670)(0x210);
+    __try{draft=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa0d230)(0x210);
         if(!draft)return ERROR_NOT_ENOUGH_MEMORY;
-        reinterpret_cast<void(*)(void*,const void*)>(state.image+0x16230)(reinterpret_cast<void*>(draft),reinterpret_cast<const void*>(source));
+        reinterpret_cast<void(*)(void*,const void*)>(state.image+0x163c0)(reinterpret_cast<void*>(draft),reinterpret_cast<const void*>(source));
         constructed=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t apply_acquire_proxy(uintptr_t live,uintptr_t& proxy,bool& acquired)noexcept{
     __try{
         proxy=*reinterpret_cast<uintptr_t*>(live+0x40);
-        if(!proxy){proxy=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa02670)(16);if(!proxy)return ERROR_NOT_ENOUGH_MEMORY;
+        if(!proxy){proxy=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa0d230)(16);if(!proxy)return ERROR_NOT_ENOUGH_MEMORY;
             *reinterpret_cast<uintptr_t*>(proxy)=live+0x38;*reinterpret_cast<int32_t*>(proxy+8)=0;
             *reinterpret_cast<uintptr_t*>(live+0x40)=proxy;}
         if(*reinterpret_cast<uintptr_t*>(proxy)!=live+0x38||*reinterpret_cast<int32_t*>(proxy+8)<0||*reinterpret_cast<int32_t*>(proxy+8)==INT32_MAX)return ERROR_INVALID_DATA;
@@ -126,14 +126,14 @@ uint32_t apply_destroy_owned(uintptr_t draft,uintptr_t live,uint64_t uid,uintptr
     __try{destroy(reinterpret_cast<void*>(draft));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t apply_destroy(uintptr_t draft,uintptr_t live,uint64_t uid)noexcept{
-    return apply_destroy_owned(draft,live,uid,state.image+0x171c930,
-        reinterpret_cast<ApplyFindUid>(state.image+0x47ce20),reinterpret_cast<ApplyDestroy>(state.image+0x140c0));
+    return apply_destroy_owned(draft,live,uid,state.image+0x1722cd0,
+        reinterpret_cast<ApplyFindUid>(state.image+0x481f60),reinterpret_cast<ApplyDestroy>(state.image+0x14250));
 }
 uint32_t apply_release(uintptr_t proxy)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0xbfa700)(reinterpret_cast<void*>(proxy));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0xc06e10)(reinterpret_cast<void*>(proxy));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t proposal_clear_copy(uintptr_t draft,uintptr_t live,uint64_t uid)noexcept{
-    return apply_relinquish_copy(draft,live,uid,state.image+0x171c930,reinterpret_cast<ApplyFindUid>(state.image+0x47ce20));
+    return apply_relinquish_copy(draft,live,uid,state.image+0x1722cd0,reinterpret_cast<ApplyFindUid>(state.image+0x481f60));
 }
 #include "ability_proposal_lifetime.inc"

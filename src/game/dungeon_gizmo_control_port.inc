@@ -37,7 +37,7 @@ struct ControlPort {
         if(blocked>0)return fail(error,"Gizmo control original in-game mutation gate is active");
         if(!sources.empty())return true;
         for(const auto& scene:before.source.scenes.pools)for(const auto& member:scene.local.members)control_ui_owners.emplace(member.object,member.uid);
-        if(!field(memory,state.image,0x13df630,selection,error))return false;
+        if(!field(memory,state.image,0x13eb630,selection,error))return false;
         dungeon_cells::MonsterMemory adapter{memory};std::vector<uintptr_t> filtered;
         if(!group_reader::selection(adapter,state.image,selection,prior_selection,filtered,error))return false;
         for(const auto pointer:prior_selection){uint64_t uid=0;uintptr_t current=0;
@@ -59,7 +59,7 @@ struct ControlPort {
                 dungeon_cells::MonsterMemory adapter{memory};
                 if(!duplicate_code::check(adapter,state.image,error)||!duplicate_code::target(adapter,state.image,member.object,error))return false;
                 uintptr_t method=0;
-                if(!field(memory,state.image+0x16c1390,0xd0,method,error)||method!=state.image+0xcf3130)
+                if(!field(memory,state.image+0x16c7730,0xd0,method,error)||method!=state.image+0xcfe870)
                     return fail(error,error.empty()?"Scene Scenery original CanMove virtual differs":error);
                 if(!fault(dungeon_gizmo_control_calls::capability(member.object,intent().command==ControlCommand::Duplicate,price,allowed),"Scene Scenery CanMove/CanDuplicate/Cost",error))return false;
                 if((intent().command!=ControlCommand::Destroy&&!allowed)||price<0||(intent().command!=ControlCommand::Move&&price!=row.cost))return fail(error,"Scene Scenery original capability/price changed");
@@ -73,8 +73,8 @@ struct ControlPort {
             const auto found=std::find_if(pool->local.members.begin(),pool->local.members.end(),[&](const auto& value){return value.object==member.object&&value.uid==member.uid;});
             if(found==pool->local.members.end()||pool->gizmos[size_t(found-pool->local.members.begin())]!=row.before)
                 return fail(error,"Gizmo control complete current source record differs");
-            for(const auto& slot:std::array<std::pair<size_t,uintptr_t>,6>{{{0xd0,0xe470c0},{0xd8,0xe46ff0},{0xe8,0x144670},{0x160,0x146870},{0x278,0xe47040},{0x280,0xe3f3b0}}}){
-                uintptr_t method=0;if(!field(memory,state.image+0x1749ab0,slot.first,method,error)||method!=state.image+slot.second)
+            for(const auto& slot:std::array<std::pair<size_t,uintptr_t>,6>{{{0xd0,0xe52bb0},{0xd8,0xe52ae0},{0xe8,0x1456a0},{0x160,0x1478a0},{0x278,0xe52b30},{0x280,0xe4aea0}}}){
+                uintptr_t method=0;if(!field(memory,state.image+0x174fe50,slot.first,method,error)||method!=state.image+slot.second)
                     return fail(error,error.empty()?"Gizmo control original virtual method differs":error);}
             if(!fault(dungeon_gizmo_control_calls::capability(member.object,intent().command==ControlCommand::Duplicate,price,allowed),"Gizmo CanMove/CanDuplicate/Cost",error))return false;
             if((intent().command!=ControlCommand::Destroy&&!allowed)||price<0||
@@ -110,7 +110,7 @@ struct ControlPort {
         if(position==sources.end())return fail(error,"Scene control Duplicate source is absent");
         const bool scenery=intent().rows[size_t(position-sources.begin())].scenery.has_value();
         uintptr_t current=0,ap=0,shard=0,region=0;
-        if(!field(memory,out.object,0,ap,error)||ap!=state.image+(scenery?0x16c1390:0x1749ab0)||!field(memory,out.object,0x18,out.uid,error)||!out.uid||
+        if(!field(memory,out.object,0,ap,error)||ap!=state.image+(scenery?0x16c7730:0x174fe50)||!field(memory,out.object,0x18,out.uid,error)||!out.uid||
            !field(memory,out.object,0x170,shard,error)||!field(memory,out.object,0x178,region,error)||
            shard!=pool->scene.owner.shard||region!=pool->scene.owner.region||!find(out.uid,current,error)||current!=out.object)
             return fail(error,error.empty()?"Gizmo duplicate returned a foreign full UID/class/reciprocal scene owner":error);
@@ -122,16 +122,16 @@ struct ControlPort {
             (inverse||fail(error,"Gizmo duplicate original Destroy allocation returned null"));}
     bool select_created(const std::vector<duplicate_native::Handle>& handles,std::string& error){
         for(const auto& handle:handles)new_selection.push_back(handle.object);
-        const duplicate_calls::Array array{state.image+0x1748c50,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
+        const duplicate_calls::Array array{state.image+0x174eff0,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
         return fault(duplicate_calls::select(state.image,selection,array),"Gizmo duplicate SetSelection",error);}
     bool release_points(const a::DuplicateIntent&,const std::vector<duplicate_native::Handle>&,std::string& error){
         if(!dungeon_gizmo_control::mixed(intent()))return true;
         uintptr_t manager=0,release=0;
-        if(!field(memory,state.image,0x13df4f0,manager,error)||!field(memory,manager,0x38,release,error)||!release)return false;
+        if(!field(memory,state.image,0x13eb4f0,manager,error)||!field(memory,manager,0x38,release,error)||!release)return false;
         return fault(duplicate_calls::release(state.image,release+0x108,2),"Scene Scenery Duplicate AddEdit",error);
     }
     bool commit_graph(uintptr_t graph,const std::vector<duplicate_native::Handle>&,std::string& error){uint32_t cleanup=0;
-        const duplicate_calls::Array array{state.image+0x1748c50,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
+        const duplicate_calls::Array array{state.image+0x174eff0,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
         if(!fault(duplicate_calls::commit(state.image,native().undo.receiver,graph,array,cleanup),"Gizmo duplicate AddUndo",error))return false;
         if(!fault(cleanup,"Gizmo duplicate Undo label cleanup",error))return false;duplicate_committed=true;return true;}
     bool readback(const a::DuplicateIntent&,const std::vector<duplicate_native::Handle>&,const duplicate_native::Receipt& receipt,std::string& error){
@@ -143,7 +143,7 @@ struct ControlPort {
             if(retired){if(current)return fail(error,"Gizmo control removed Selection full UID remains live");continue;}
             if(current!=prior_selection[i])return fail(error,"Gizmo control prior Selection lifetime changed");desired.push_back(current);}
         if(duplicate_committed&&control_local_sources.contains(request.action_uuid))desired=new_selection;
-        const duplicate_calls::Array array{state.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+        const duplicate_calls::Array array{state.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
         if(!fault(duplicate_calls::select(state.image,selection,array),"Gizmo control restore local Selection",error))return false;
         dungeon_cells::MonsterMemory adapter{memory};std::vector<uintptr_t> actual,filtered;
         return group_reader::selection(adapter,state.image,selection,actual,filtered,error)&&
@@ -165,7 +165,7 @@ struct ControlPort {
     }
     bool destroy(uintptr_t& graph,std::string& error){
         std::vector<uintptr_t> objects;for(const auto& handle:sources)objects.push_back(handle.object);
-        duplicate_calls::Array targets{state.image+0x1748c50,objects.data(),int32_t(objects.size()),int32_t(objects.size())};
+        duplicate_calls::Array targets{state.image+0x174eff0,objects.data(),int32_t(objects.size()),int32_t(objects.size())};
         if(!fault(dungeon_gizmo_control_calls::destroy(state.image,selection,targets),"Gizmo original DestroyProps",error))return false;
         undo_probe::UndoWitness after;if(!undo_probe::read_undo(memory.process,state.image,after,error))return false;
         if(after.undo.empty())return fail(error,"Gizmo Destroy original Undo stack did not retain a graph");

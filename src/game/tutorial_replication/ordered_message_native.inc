@@ -30,12 +30,12 @@ bool current_world(World& out,a::Context& c,a::Binding& b,std::string& e,bool he
 }
 bool find(const World& w,uintptr_t sequence,NativeCursor& cursor,std::string& e){
     uintptr_t log=0,data=0;int32_t count=0;cursor={};
-    if(!at(reinterpret_cast<uintptr_t>(w.state),0x1e8,log,e)||!type(log,0x16fd7b0,e)||
+    if(!at(reinterpret_cast<uintptr_t>(w.state),0x1e8,log,e)||!type(log,0x1703b50,e)||
        !lifecycle_native::array(log,0x20,64,data,count,e))return false;
     for(int32_t i=0;i<count;++i){
         uintptr_t instance=0,vtable=0,actual=0;
         if(!at(data,size_t(i)*8,instance,e)||!at(instance,0,vtable,e))return false;
-        if(vtable!=image+0x173ce70)continue;
+        if(vtable!=image+0x1743210)continue;
         if(!at(instance,0x58,actual,e))return false;if(actual!=sequence)continue;
         const auto cached=owners_cache.find(sequence);
         if(cached!=owners_cache.end()){
@@ -53,14 +53,14 @@ bool find(const World& w,uintptr_t sequence,NativeCursor& cursor,std::string& e)
 }
 bool read(const NativeCursor& owner,ordered_message::Current& out,std::string& e){
     out={};uintptr_t steps=0,member=0;int32_t next=0,count=0;uint8_t done=0,complete=0;
-    if(!type(owner.sequence,0x16dbd80,e)||!at(owner.sequence,0x20,steps,e)||!at(owner.sequence,0x28,count,e)||
+    if(!type(owner.sequence,0x16e2120,e)||!at(owner.sequence,0x20,steps,e)||!at(owner.sequence,0x28,count,e)||
        !at(owner.sequence,0x48,out.step,e)||!at(owner.sequence,0x50,next,e)||!at(owner.sequence,0x54,done,e))return false;
     if(done>1||count!=owner.value.count||next<0||next>count)return fail(e,"Ordered tutorial actual Sequence count/index/complete differs");
     out.sequence_complete=done!=0;if(done||!out.step)return true;
     if(!next||!at(steps,size_t(next-1)*8,member,e)||member!=out.step)return fail(e,e.empty()?"Ordered tutorial current Step is not its indexed member":e);
     uintptr_t vtable=0;if(!at(out.step,0,vtable,e)||!at(out.step,0x18,complete,e))return false;
     if(complete>1)return fail(e,"Ordered tutorial Step complete byte invalid");
-    out.step_complete=complete!=0;out.message=vtable==image+0x16fda00;
+    out.step_complete=complete!=0;out.message=vtable==image+0x1703da0;
     if(out.message){
         out.intent.asset="scenarios/"+owner.value.scenario;out.intent.index=next-1;
         if(!str(out.step,0x20,out.intent.step_id,e)||!at(out.step,0xa0,out.intent.message_type,e))return false;
@@ -70,10 +70,10 @@ bool read(const NativeCursor& owner,ordered_message::Current& out,std::string& e
 }
 void clear(void* value){
     const auto caller=reinterpret_cast<uintptr_t>(_ReturnAddress());
-    if(!updating||!updating->message||caller!=image+0x50538d||!typed_action_runtime::ordered_mode_selected()){original_clear(value);return;}
+    if(!updating||!updating->message||caller!=image+0x50b4dd||!typed_action_runtime::ordered_mode_selected()){original_clear(value);return;}
     std::string e;uintptr_t singleton=0;bool admitted=false;
     if(!typed_action_runtime::original_go_admission(admitted,e)||!admitted||
-       GetCurrentThreadId()!=mainthread||!at(image,0x13df380,singleton,e)||singleton!=reinterpret_cast<uintptr_t>(value)||
+       GetCurrentThreadId()!=mainthread||!at(image,0x13eb380,singleton,e)||singleton!=reinterpret_cast<uintptr_t>(value)||
        !gate.observed(updating->intent,true,e)){
         block(e.empty()?"Ordered tutorial Clear lacks exact native Message/caller/Go/Undo owner":e);return;
     }
@@ -102,7 +102,7 @@ public:
             release={};release.step=current.intent;release.step.clear_undo=clear_undo;
             if(clear_undo){
                 uintptr_t undo=0;
-                if(!at(image,0x13df380,undo,e)||!undo||!at(undo,0x18,release.undo_before,e)||!at(undo,0x30,release.redo_before,e)||
+                if(!at(image,0x13eb380,undo,e)||!undo||!at(undo,0x18,release.undo_before,e)||!at(undo,0x30,release.redo_before,e)||
                    release.undo_before<0||release.redo_before<0)return fail(e,e.empty()?"Ordered tutorial release Undo owner/count invalid":e);
                 release.clear_attempted=true;original_clear(reinterpret_cast<void*>(undo));release.clear_returned=true;
                 if(!at(undo,0x18,release.undo_after,e)||!at(undo,0x30,release.redo_after,e)||release.undo_after||release.redo_after)

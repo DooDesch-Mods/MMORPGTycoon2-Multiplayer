@@ -60,7 +60,7 @@ public:
         time_scale=clock.time_scale;
         void* window=nullptr;if(!native_lobby::initial_release_window(origin.mode,&window,e))return false;
         binding={image,uintptr_t(window),0,0,0,0,uintptr_t(origin.map),origin.world_epoch,origin.generation,thread,origin.uuid};
-        if(!at(image,0x13df4f0,binding.manager,e)||!at(binding.manager,0x38,binding.release,e)||!at(image,0x13df500,binding.software,e)||!at(image,0x13df430,binding.server,e))return false;
+        if(!at(image,0x13eb4f0,binding.manager,e)||!at(binding.manager,0x38,binding.release,e)||!at(image,0x13eb500,binding.software,e)||!at(image,0x13eb430,binding.server,e))return false;
         if(!read_state(memory,binding,state,e))return false;
         native::SimulationState simulation;if(!native::read_simulation_state(simulation,e))return false;ledger=ledger_json(simulation);e.clear();return true;
     }

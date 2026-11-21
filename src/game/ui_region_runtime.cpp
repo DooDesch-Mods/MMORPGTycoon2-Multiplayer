@@ -51,7 +51,7 @@ namespace place=build_actions::private_native::place;
 using json=nlohmann::json;
 using UICommand=bool(__fastcall*)(void*,void*);
 using SetPreset=void(__fastcall*)(void*,const void*);
-constexpr const char* exact_exe="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* exact_exe="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 struct NativeString {const char* data;size_t length;unsigned char rest[16]{};};
 struct LocalView {
     host::WorldState world;
@@ -104,7 +104,7 @@ bool world(Runtime& r,host::WorldState& out,std::string& e) {
 }
 bool identity(Runtime& r,int32_t id,uintptr_t expected,LocalView& v,std::string& e) {
     if(id<0||!world(r,v.world,e))return false;
-    uintptr_t map=0;if(!at(r,r.image,0x13df8c0,map,e))return false;
+    uintptr_t map=0;if(!at(r,r.image,0x13eb8c0,map,e))return false;
     const auto read_field=[&](uintptr_t address,size_t offset,auto& value,std::string& error){
         return at(r,address,offset,value,error);
     };
@@ -203,14 +203,14 @@ bool ledger(action::Ledger& out,std::string& e) {
     out={s.cash,s.clock.flat_day,int32_t(s.record_present),s.record_day,s.record_cash,s.record_income,s.record_expense,s.line_counts,s.line_income};return true;
 }
 uint32_t preset_lookup(uintptr_t image,uintptr_t manager,const NativeString* value,uintptr_t& preset) {
-    __try{preset=uintptr_t(reinterpret_cast<void*(*)(void*,const void*)>(image+0x2c9d40)(reinterpret_cast<void*>(manager),value));return 0;}
+    __try{preset=uintptr_t(reinterpret_cast<void*(*)(void*,const void*)>(image+0x2cd430)(reinterpret_cast<void*>(manager),value));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool expected_styles(Runtime& r,const action::RegionIntent& intent,const LocalView& before,std::array<std::string,4>& styles,std::string& e) {
     styles=before.state.styles;
     if(intent.preset==before.state.preset||intent.preset=="{region_preset_custom}")return true;
     NativeString string{intent.preset.data(),intent.preset.size(),{}};uintptr_t manager=0,preset=0,data=0;int32_t count=0,capacity=0;
-    if(!at(r,r.image,0x13df7f0,manager,e)||!manager)return fail(e,"region preset manager unavailable");
+    if(!at(r,r.image,0x13eb7f0,manager,e)||!manager)return fail(e,"region preset manager unavailable");
     const auto seh=preset_lookup(r.image,manager,&string,preset);
     if(seh||!preset)return fail(e,"region preset lookup failed SEH="+std::to_string(seh));
     if(!at(r,preset,0x60,data,e)||!at(r,preset,0x68,count,e)||!at(r,preset,0x6c,capacity,e))return false;
@@ -232,7 +232,7 @@ std::string uuid(std::string& e){
 void rejected(Runtime& r,const std::string& e){++r.rejected;if(r.cause!=e){r.cause=e;LOG_ERROR("[UIRegion] Rejected cause={}",e);}}
 void preset_entry(void* region,const void* value) {
     auto* r=published.load(std::memory_order_acquire);const auto caller=uintptr_t(_ReturnAddress());
-    if(!r->ready||!net::session_wire::connected()||caller!=r->image+0x797c7e){++r->forwarded;r->original.load(std::memory_order_acquire)(region,value);return;}
+    if(!r->ready||!net::session_wire::connected()||caller!=r->image+0x79fe5e){++r->forwarded;r->original.load(std::memory_order_acquire)(region,value);return;}
     std::string e;const auto controller=typed_action_runtime::status();
     if(GetCurrentThreadId()!=r->thread||!controller.value("started",false)||controller.value("locked",true)||controller.value("pending",true)||r->pending||property_pending()){rejected(*r,"region UI requires idle bound Controller");return;}
     action::RegionIntent intent;LocalView view;
@@ -242,27 +242,27 @@ void preset_entry(void* region,const void* value) {
 json state_json(const action::RegionState& s){return {{"id",s.id},{"preset",s.preset},{"styles",s.styles},{"random",s.random},{"scenery_count",s.scenery_count},{"scenery_sha256",s.scenery_sha256},{"grid_sha256",s.grid_sha256}};}
 uint32_t select_ui(uintptr_t image,uintptr_t manager,uintptr_t widget) {
     __try {
-        reinterpret_cast<void(*)(void*,void*)>(image+0x2d5c60)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(widget));
-        reinterpret_cast<void(*)(void*)>(image+0x2d28b0)(reinterpret_cast<void*>(manager));return 0;
+        reinterpret_cast<void(*)(void*,void*)>(image+0x2d9350)(reinterpret_cast<void*>(manager),reinterpret_cast<void*>(widget));
+        reinterpret_cast<void(*)(void*)>(image+0x2d6010)(reinterpret_cast<void*>(manager));return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct UiReceipt {bool constructed=false,called=false,returned=false,accepted=false,cleaned=false;};
 uint32_t invoke_ui(uintptr_t image,uintptr_t window,uintptr_t list,const NativeString* preset,void* record,UiReceipt& receipt) {
     __try {
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x798630)(reinterpret_cast<void*>(list),preset);
-        const auto* selected=reinterpret_cast<const NativeString*(*)(void*)>(image+0x798100)(reinterpret_cast<void*>(list));
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x7a0810)(reinterpret_cast<void*>(list),preset);
+        const auto* selected=reinterpret_cast<const NativeString*(*)(void*)>(image+0x7a02e0)(reinterpret_cast<void*>(list));
         if(!selected||selected->length!=preset->length||std::memcmp(selected->data,preset->data,preset->length))return 0xE0010001;
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x967370)(record,"PresetApply");receipt.constructed=true;
-        if(!reinterpret_cast<bool(*)(const void*,const char*)>(image+0x1113d80)(record,"PresetApply"))return 0xE0010002;
-        receipt.called=true;receipt.accepted=reinterpret_cast<bool(*)(void*,void*)>(image+0x797850)(reinterpret_cast<void*>(window),record);receipt.returned=true;return 0;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x970590)(record,"PresetApply");receipt.constructed=true;
+        if(!reinterpret_cast<bool(*)(const void*,const char*)>(image+0x111f720)(record,"PresetApply"))return 0xE0010002;
+        receipt.called=true;receipt.accepted=reinterpret_cast<bool(*)(void*,void*)>(image+0x79fa30)(reinterpret_cast<void*>(window),record);receipt.returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t cleanup_record(uintptr_t image,void* record,UiReceipt& receipt) {
-    __try {reinterpret_cast<void(*)(void*)>(image+0x9676a0)(record);receipt.cleaned=true;return 0;}
+    __try {reinterpret_cast<void(*)(void*)>(image+0x9708c0)(record);receipt.cleaned=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t refresh_window(uintptr_t image,uintptr_t window) {
-    __try {reinterpret_cast<void(*)(void*)>(image+0x797360)(reinterpret_cast<void*>(window));return 0;}
+    __try {reinterpret_cast<void(*)(void*)>(image+0x79f540)(reinterpret_cast<void*>(window));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool refresh_current_window(Runtime& r,const LocalView& view,std::string& e) {
@@ -270,11 +270,11 @@ bool refresh_current_window(Runtime& r,const LocalView& view,std::string& e) {
     if(!at(r,view.world.selection,0xb8,handler,e))return false;
     if(!handler)return true;
     if(!at(r,handler,0,ap,e))return false;
-    if(ap!=r.image+0x17317e0)return true;
+    if(ap!=r.image+0x1737b80)return true;
     if(!at(r,handler,0x10,window,e))return false;
     if(!window)return true;
     if(!at(r,window,0,ap,e)||!at(r,window,0x4e8,region,e)||!at(r,window,0x45f,visible,e))return false;
-    if(ap!=r.image+0x171fad0)return fail(e,"region current InfoWindow class differs");
+    if(ap!=r.image+0x1725e70)return fail(e,"region current InfoWindow class differs");
     if(region!=view.region||!visible)return true;
     const auto seh=refresh_window(r.image,window);
     return !seh||fail(e,"region native SetContents SEH="+std::to_string(seh));
@@ -290,14 +290,14 @@ bool enable(std::string& e) {
     if(!native::read_resolver_receipt(r->image,thread,hash,e)||hash!=exact_exe||thread!=r->thread)return fail(e,"region hook exact EXE or Mainthread differs: "+e);
     if(!host::resolve_lookup(r->memory,r->image,hash,r->api,e))return false;
     constexpr unsigned char start[]{0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53};
-    constexpr unsigned char call[]{0x48,0x89,0xd9,0x48,0x89,0xc2,0xe8,0x52,0xf9,0xbb,0xff};
+    constexpr unsigned char call[]{0x48,0x89,0xd9,0x48,0x89,0xc2,0xe8,0x92,0xbf,0xbb,0xff};
     std::array<unsigned char,sizeof start> a{};std::array<unsigned char,sizeof call> b{};
-    if(!r->memory.copy(r->image+0x3575d0,a.data(),a.size(),e)||!r->memory.copy(r->image+0x797c73,b.data(),b.size(),e))return false;
+    if(!r->memory.copy(r->image+0x35bdf0,a.data(),a.size(),e)||!r->memory.copy(r->image+0x79fe53,b.data(),b.size(),e))return false;
     if(std::memcmp(a.data(),start,a.size())||std::memcmp(b.data(),call,b.size()))return fail(e,"region original SetPreset/UI callsite bytes differ");
-    SetPreset original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+0x3575d0),reinterpret_cast<void*>(&preset_entry),reinterpret_cast<void**>(&original));
+    SetPreset original=nullptr;const auto created=MH_CreateHook(reinterpret_cast<void*>(r->image+0x35bdf0),reinterpret_cast<void*>(&preset_entry),reinterpret_cast<void**>(&original));
     if(created!=MH_OK||!original)return fail(e,"region MinHook create status="+std::to_string(created));
     r->hook_created=true;r->original.store(original,std::memory_order_release);
-    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r->image+0x3575d0));
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(r->image+0x35bdf0));
     if(enabled!=MH_OK)return fail(e,"region MinHook enable status="+std::to_string(enabled));
     if(!install_styles(*r,e))return false;
     if(!install_properties(*r,e))return false;
@@ -357,14 +357,14 @@ action::Outcome perform(const action::Binding& binding,const action::Request& re
     NativeString string{request.region.preset.data(),request.region.preset.size(),{}};
     std::array<NativeString,4> style_values{};
     for(size_t i=0;i<4;++i)style_values[i]={expected[i].data(),expected[i].size(),{}};
-    if(styles_action&&!at(*r,r->image,0x13beda0,saved.edit_depth_before,e)){saved.cause=e;return action::Outcome::RejectedNoEffect;}
+    if(styles_action&&!at(*r,r->image,0x13cada0,saved.edit_depth_before,e)){saved.cause=e;return action::Outcome::RejectedNoEffect;}
     saved.attempted=true;
     const auto seh=styles_action?invoke_styles(r->image,before.region,style_values.data(),before.random,
         authority?authority->region_before.random.data():nullptr,saved):
         invoke(r->original.load(std::memory_order_acquire),before.region,&string,before.random,
         authority?authority->region_before.random.data():nullptr,saved.returned);
     if(seh){e=saved.cause="region original execution SEH="+std::to_string(seh)+" edit_cleanup_exception="+std::to_string(saved.edit_cleanup_exception);return action::Outcome::Unknown;}
-    if(styles_action&&(!at(*r,r->image,0x13beda0,saved.edit_depth_after,e)||saved.edit_depth_after!=saved.edit_depth_before||saved.style_calls!=4||saved.edit_opened!=saved.edit_ended)){
+    if(styles_action&&(!at(*r,r->image,0x13cada0,saved.edit_depth_after,e)||saved.edit_depth_after!=saved.edit_depth_before||saved.style_calls!=4||saved.edit_opened!=saved.edit_ended)){
         e=saved.cause="region original TerrainApply scope differs depth_before="+std::to_string(saved.edit_depth_before)+" depth_after="+std::to_string(saved.edit_depth_after)+" style_calls="+std::to_string(saved.style_calls)+" cause="+e;return action::Outcome::Unknown;
     }
     if(!refresh_current_window(*r,before,e)){saved.cause=e;return action::Outcome::Unknown;}
@@ -454,7 +454,7 @@ bool query_rng_census(json& out,std::string& e) {
        source.native_generation!=binding.native_generation||(source.region_rng_mode!=1&&source.region_rng_mode!=2))
         return fail(e,"Region RNG census selected source differs from actual Context/Binding");
     if(!region_binding::validate(before.origin,binding,net::current_snapshot_id(),context.snapshot_uuid,e))return false;
-    uintptr_t map=0;if(!at(*r,r->image,0x13df8c0,map,e))return false;
+    uintptr_t map=0;if(!at(*r,r->image,0x13eb8c0,map,e))return false;
     if(before.root!=map+0x1c0)return fail(e,"Region RNG census map/root owner differs");
     const auto read_field=[&](uintptr_t p,size_t offset,auto& value,std::string& error){return at(*r,p,offset,value,error);};
     region_rng_snapshot::Manifest rows;
@@ -483,7 +483,7 @@ bool query_purchase_catalog(json& out,std::string& e) {
     if(!world(*r,before,e)||!native::read_clock(clock,e))return false;
     if(clock.time_scale!=0||!clock.paused)return fail(e,"Region purchase catalog requires actual paused Clock");
     if(!region_binding::validate(before.origin,binding,net::current_snapshot_id(),context.snapshot_uuid,e))return false;
-    uintptr_t map=0;if(!at(*r,r->image,0x13df8c0,map,e))return false;
+    uintptr_t map=0;if(!at(*r,r->image,0x13eb8c0,map,e))return false;
     const auto read_field=[&](uintptr_t p,size_t offset,auto& value,std::string& error){return at(*r,p,offset,value,error);};
     region_saved_identity::Index index;
     if(!region_saved_identity::capture(r->image,map,before.root,index,read_field,e))return false;
@@ -536,12 +536,12 @@ bool query(int32_t region_id,json& out,std::string& e) {
     {action::RegionLevelState actors;uintptr_t global=0;
         if(!level_state(*r,view,{property.level,property.max_level},actors,global,e))return false;out["actors"]=level_json(actors);}
     std::array<float,3> position{};uintptr_t map=0,at_position=0;
-    if(!at(*r,view.region,0x38,position,e)||!at(*r,r->image,0x13df8c0,map,e))return false;
+    if(!at(*r,view.region,0x38,position,e)||!at(*r,r->image,0x13eb8c0,map,e))return false;
     const auto hit_seh=property_hit_region(r->image,map,position.data(),at_position);
     out["region_position"]=position;out["position_resolves_region"]=!hit_seh&&at_position==view.region;
     if(hit_seh)return fail(e,"region native center GetRegionAt SEH="+std::to_string(hit_seh));
     uintptr_t manager=0,data=0;int32_t count=0;
-    if(!at(*r,r->image,0x13df7f0,manager,e)||!at(*r,manager,8,data,e)||!at(*r,manager,0x10,count,e))return false;
+    if(!at(*r,r->image,0x13eb7f0,manager,e)||!at(*r,manager,8,data,e)||!at(*r,manager,0x10,count,e))return false;
     if(count<1||count>4096||!data)return fail(e,"region native preset catalog span invalid");
     json presets=json::array();std::set<std::string> names;
     for(int32_t i=0;i<count;++i) {
@@ -564,7 +564,7 @@ bool preset_ui(const std::string& token,int32_t region_id,const std::string& pre
     LocalView before;if(!read(*r,region_id,0,before,e))return false;
     std::array<std::string,4> styles;if(!expected_styles(*r,{region_id,preset},before,styles,e))return false;
     uintptr_t widget=0,ap=0,owner=0;
-    if(!at(*r,before.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x17024b0||!at(*r,widget,0x178,owner,e)||owner!=before.region)return fail(e,"region UI actual RegionWidget differs: "+e);
+    if(!at(*r,before.region,0x370,widget,e)||!at(*r,widget,0,ap,e)||ap!=r->image+0x1708850||!at(*r,widget,0x178,owner,e)||owner!=before.region)return fail(e,"region UI actual RegionWidget differs: "+e);
     r->ui_attempts.insert(token);out["selection_attempted"]=true;
     const auto selection=select_ui(r->image,before.world.selection,widget);
     out["selection_exception"]=selection;if(selection)return fail(e,"region native SelectProp/SetInfoWindow SEH="+std::to_string(selection));

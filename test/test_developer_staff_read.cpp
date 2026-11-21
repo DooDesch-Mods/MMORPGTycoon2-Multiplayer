@@ -19,10 +19,10 @@ struct Memory:staff::Port {
     Memory(){
         value.origin={reinterpret_cast<void*>(1),reinterpret_cast<void*>(2),reinterpret_cast<void*>(state),reinterpret_cast<void*>(4),reinterpret_cast<void*>(5),9,7,100,"11111111-1111-4111-8111-111111111111",std::string(64,'a')};
         value.ledger.cash=value.ledger.record_cash=1000;value.ledger.record_present=1;value.ledger.flat_day=value.ledger.record_day=7;
-        value.pause_scale=1;seed(state+0x180,lounge);seed(state+0x1c0,business);seed(lounge,image+0x16de6c0);seed(business,image+0x16d97e0);seed(image+0x13df290,lounge);
+        value.pause_scale=1;seed(state+0x180,lounge);seed(state+0x1c0,business);seed(lounge,image+0x16e4a60);seed(business,image+0x16dfb80);seed(image+0x13eb290,lounge);
         seed(business+0x4c,int32_t(6));seed(lounge+0x310,int32_t(6));seed(lounge+0x70,catalogue);seed(lounge+0x78,int32_t(50));seed(lounge+0x7c,int32_t(64));seed(lounge+0x98,inside);seed(lounge+0xa0,outside);
-        seed(inside,image+0x16e47f0);seed(outside,image+0x16e47f0);seed(inside+0x38,indoor_data);seed(inside+0x40,int32_t(50));seed(inside+0x44,int32_t(64));seed(outside+0x38,outdoor_data);seed(outside+0x40,int32_t(0));seed(outside+0x44,int32_t(0));
-        for(size_t i=0;i<50;++i){const auto p=dev(i);seed(catalogue+i*8,p);seed(indoor_data+i*8,p);seed(p,image+0x17422e0);seed(p+0x4c0,int32_t((i+7)%50));seed(p+0x4c4,int32_t(0));seed(p+0x4d8,uint8_t(i<6));seed(p+0x4d9,uint8_t(i<6));seed(p+0x368,uint8_t(0));seed(p+0x4c8,uintptr_t(0));for(size_t j=0;j<3;++j)seed(p+0x110+j*4,float(i));}
+        seed(inside,image+0x16eab90);seed(outside,image+0x16eab90);seed(inside+0x38,indoor_data);seed(inside+0x40,int32_t(50));seed(inside+0x44,int32_t(64));seed(outside+0x38,outdoor_data);seed(outside+0x40,int32_t(0));seed(outside+0x44,int32_t(0));
+        for(size_t i=0;i<50;++i){const auto p=dev(i);seed(catalogue+i*8,p);seed(indoor_data+i*8,p);seed(p,image+0x1748680);seed(p+0x4c0,int32_t((i+7)%50));seed(p+0x4c4,int32_t(0));seed(p+0x4d8,uint8_t(i<6));seed(p+0x4d9,uint8_t(i<6));seed(p+0x368,uint8_t(0));seed(p+0x4c8,uintptr_t(0));for(size_t j=0;j<3;++j)seed(p+0x110+j*4,float(i));}
     }
     bool pin(staff::Pin& out,std::string&)override{++pins;if(on_pin)on_pin(pins);out=value;return true;}
     bool resolver(uintptr_t& base,uint32_t& thread,std::string& e)override{if(!resolver_ok){e="original native resolver failure";return false;}base=image;thread=7;return true;}
@@ -39,8 +39,8 @@ void reader(){std::string e;staff::Capture out;
     {Memory m;m.seed(Memory::inside+0x40,int32_t(49));check(!staff::read(m,out,e)&&e.find("manager union")!=std::string::npos,"missing worker registration accepted");}
     {Memory m;m.seed(Memory::dev(0)+0x368,uint8_t(1));check(!staff::read(m,out,e)&&e.find("map flag")!=std::string::npos,"map lifecycle disagreement accepted");}
     {Memory m;m.seed(Memory::dev(0)+0x4d8,uint8_t(0));check(!staff::read(m,out,e)&&e.find("employment prefix")!=std::string::npos,"native requested prefix disagreement accepted");}
-    {Memory m;m.seed(Memory::dev(0),Memory::image+0x17422e1);check(!staff::read(m,out,e)&&e.find("addresspoint")!=std::string::npos,"foreign actual worker class accepted");}
-    {Memory m;m.seed(Memory::image+0x13df290,Memory::lounge+1);check(!staff::read(m,out,e)&&e.find("singleton")!=std::string::npos,"foreign singleton accepted");}
+    {Memory m;m.seed(Memory::dev(0),Memory::image+0x1748681);check(!staff::read(m,out,e)&&e.find("addresspoint")!=std::string::npos,"foreign actual worker class accepted");}
+    {Memory m;m.seed(Memory::image+0x13eb290,Memory::lounge+1);check(!staff::read(m,out,e)&&e.find("singleton")!=std::string::npos,"foreign singleton accepted");}
     {Memory m;m.resolver_ok=false;check(!staff::read(m,out,e)&&e=="original native resolver failure"&&!m.pins,"native resolver failure was hidden");}
     {Memory m;m.unreadable=Memory::dev(0)+0x4d9;check(!staff::read(m,out,e)&&e=="original owned field read failure","original read cause lost");}
     {Memory m;m.on_pin=[&](unsigned n){if(n==2)++m.value.ledger.line_counts[19];};check(!staff::read(m,out,e)&&e.find("ledger")!=std::string::npos,"full twentieth ledger group was not pinned");}

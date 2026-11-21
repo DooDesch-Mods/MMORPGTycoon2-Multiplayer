@@ -5,25 +5,25 @@ json ui_money(const a::Ledger& value){return {{"cash",value.cash},{"flat_day",va
     {"record_cash",value.record_cash},{"record_income",value.record_income},{"record_expense",value.record_expense},{"line_counts",value.line_counts},{"line_income",value.line_income}};}
 bool ui_codes(Memory& memory,std::string& error){
     const dungeon_config_codes::Code pins[]{
-        {0x81ec20,49,"741174f0f71b5b51a67006e724613e4a79d92ed3088aa68001973f591c064467"},
-        {0x66d990,3042,"03e58cce712898efef65baa4d798734dc1a8cd24fdb1707a845482f77393654f"},
-        {0x7568e0,157,"a1483366c1b99428768c0f27a851f5466c6181d55c2bc83ac5901bd95bb47808"},
-        {0x755cc0,647,"653ea957dc8eff74cdf62ef43456256989112d9012823bc15530f006c98aaeb4"},
-        {0x752d70,130,"1047a7db0ece8b4fb40aaae3c1682bb8d44c61f9cc66f514903fde62a507c308"},
-        {0x7c3560,731,"9a676e5edc0c89142f56f43fcd89230687982ef411e5e4aa952f20101120b56f"},
-        {0x7c0240,2018,"cef1e12c887a67410e68aa552f823111a9193a075889f5b2dfb217e14da2faef"}};
+        {0x827210,49,"741174f0f71b5b51a67006e724613e4a79d92ed3088aa68001973f591c064467"},
+        {0x674b60,3042,"ae074c36032ae13991de43c768f42021e0705dc02f62aa9921e5c25c45448a27"},
+        {0x75e360,157,"940828862522ce24a0a97eaa8ee625f3a6dda054e04d252aaf2a1c22906022bb"},
+        {0x75d740,647,"e1aabfcea267a1c1c0189a512e88cebffbeb6f95846c3c7511386f714bcb1955"},
+        {0x75a7f0,130,"2fcf70ca4b123f63f30ea7b1f3e3d8e4867569ca37d37690bf005d448a858c82"},
+        {0x7cb700,795,"e1bfab697c8a7d45a6e30d3e5c9252e8e407ad809c4aba2c7e6ed10e8879b288"},
+        {0x7c8380,2018,"fa02fbe44e74a6b929ce514b672112b49ec37e52fce4decc09d003cd04e953b9"}};
     for(const auto& pin:pins){std::string bytes(pin.size,'\0');if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||
         !mt2mp::hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return false;}
     return code(memory,error);
 }
 uint32_t tab_enabled(uintptr_t view,uintptr_t page,bool& enabled)noexcept{__try{
-    enabled=reinterpret_cast<bool(*)(void*,const void*)>(state.image+0x755cc0)(reinterpret_cast<void*>(view),reinterpret_cast<void*>(page+0x1b0));return 0;
+    enabled=reinterpret_cast<bool(*)(void*,const void*)>(state.image+0x75d740)(reinterpret_cast<void*>(view),reinterpret_cast<void*>(page+0x1b0));return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool tab_record_equals(const void* record,const char* expected){
-    return reinterpret_cast<a::ui_diagnostic::RecordEquals>(state.image+0x1113d80)(record,expected);
+    return reinterpret_cast<a::ui_diagnostic::RecordEquals>(state.image+0x111f720)(record,expected);
 }
 uint32_t find_control(uintptr_t outer,const char* name,size_t size,uintptr_t& found)noexcept{__try{
-    const quest_list::QuestTitleView label{name,size};found=reinterpret_cast<uintptr_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x81d860)(reinterpret_cast<void*>(outer),label);return 0;
+    const quest_list::QuestTitleView label{name,size};found=reinterpret_cast<uintptr_t(*)(void*,const quest_list::QuestTitleView&)>(state.image+0x825e50)(reinterpret_cast<void*>(outer),label);return 0;
 }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool controls(Memory& memory,uintptr_t outer,uintptr_t dungeon,uintptr_t& spinner,dungeon_config_ui::Controls& value,std::string& error){
     uintptr_t accept=0;auto seh=find_control(outer,"instances_count",15,spinner);if(!seh)seh=find_control(outer,"accept",6,accept);
@@ -67,7 +67,7 @@ bool native_ui(const json& args,json& result,std::string& error)try{
     const auto unknown=[&](const std::string& why){ui_token.clear();ui_preparation.reset();error=why.empty()?"Dungeon config original UI failed without cause":why;job["cause"]=error;job["unknown"]=job.value("attempted",false);
         if(pending&&pending->token==token){fault=true;reject(error);}result=job;return false;};
     a::ui_diagnostic::Api api;if(!a::ui_diagnostic::resolve_api(memory,state.image,exe_sha,api,error))return unknown(error);
-    uintptr_t manager=0;if(!field(memory,state.image,0x13df630,manager,error)||!manager)return unknown(error.empty()?"Dungeon config actual selection Manager absent":error);
+    uintptr_t manager=0;if(!field(memory,state.image,0x13eb630,manager,error)||!manager)return unknown(error.empty()?"Dungeon config actual selection Manager absent":error);
     a::ui_diagnostic::Context selected{state.image,manager,before.local.exterior,before.local.uid,binding.native_epoch,binding.native_generation,exe_sha,a::ui_diagnostic::Family::Building};
     a::ui_diagnostic::Receipt selection;job["attempted"]=true;
     if(!continuing&&!a::ui_diagnostic::process_calls().select(api,selected,selection,error))return unknown(error);
@@ -82,7 +82,7 @@ bool native_ui(const json& args,json& result,std::string& error)try{
     bool enabled=false;seh=tab_enabled(tab.view,tab.page,enabled);if(seh||!enabled)return unknown("Dungeon config original Instances tab is disabled or failed SEH="+std::to_string(seh));
     if(!continuing){
         const auto page_record="SetPage \""+tab.label+"\"";const auto original_label=api.label_equals;
-        api.command=reinterpret_cast<Command>(state.image+0x7568e0);api.destroy_label=page_record.c_str();api.label_equals=&tab_record_equals;
+        api.command=reinterpret_cast<Command>(state.image+0x75e360);api.destroy_label=page_record.c_str();api.label_equals=&tab_record_equals;
         a::ui_diagnostic::Window pages;pages.window=tab.view;a::ui_diagnostic::Receipt changed;
         if(!a::ui_diagnostic::process_calls().command(api,pages,changed,error)||!changed.ui_command_returned||!changed.record_cleanup_confirmed)return unknown(error.empty()?"Dungeon config original Instances tab lacks return/cleanup":error);
         api.label_equals=original_label;
@@ -96,7 +96,7 @@ bool native_ui(const json& args,json& result,std::string& error)try{
     dungeon_config_ui::Tab shown;if(!dungeon_config_ui::offer(read,text,state.image,offer_window,before.local.exterior,button,before.local.dungeon,shown,error)||
        shown.page!=tab.page||shown.view!=tab.view||shown.label!=tab.label)return unknown(error.empty()?"Dungeon config actual Instances tab or Configure visibility differs":error);
     ui_preparation.reset();job["waiting_for_tab"]=false;
-    job["tab_confirmed"]=true;job["offer_confirmed"]=true;api.command=reinterpret_cast<Command>(state.image+0x66d990);api.destroy_label="OpenInstancesConfig";
+    job["tab_confirmed"]=true;job["offer_confirmed"]=true;api.command=reinterpret_cast<Command>(state.image+0x674b60);api.destroy_label="OpenInstancesConfig";
     a::ui_diagnostic::Window offered;offered.window=offer_window;a::ui_diagnostic::Receipt opened;
     if(!a::ui_diagnostic::process_calls().command(api,offered,opened,error)||!opened.ui_command_returned||!opened.record_cleanup_confirmed)return unknown(error.empty()?"Dungeon config original OpenInstancesConfig lacks return/cleanup":error);
     uintptr_t outer=0,owner=0;int32_t desired=0,price=0;if(!window(memory,outer,owner,desired,price,error)||owner!=before.local.dungeon)return unknown(error.empty()?"Dungeon config original OpenInstancesConfig selected another owner":error);
@@ -107,7 +107,7 @@ bool native_ui(const json& args,json& result,std::string& error)try{
     if(!unchanged())return unknown(error);job["controls_confirmed"]=true;
     if(args.at("read_only").get<bool>()){result=job;error.clear();return true;}
     unsigned steps=0;while(actual.value!=count){if(++steps>9)return unknown("Dungeon config Spinner exceeded original 1-10 step bound");
-        const auto expected=actual.value+(actual.value<count?1:-1);api.command=reinterpret_cast<Command>(state.image+0x7c3560);
+        const auto expected=actual.value+(actual.value<count?1:-1);api.command=reinterpret_cast<Command>(state.image+0x7cb700);
         api.destroy_label=actual.value<count?"SpinnerIncrement":"SpinnerDecrement";a::ui_diagnostic::Window control;control.window=spinner;a::ui_diagnostic::Receipt receipt;
         if(!a::ui_diagnostic::process_calls().command(api,control,receipt,error)||!receipt.ui_command_returned||!receipt.record_cleanup_confirmed)return unknown(error.empty()?"Dungeon config original Spinner callback lacks return/cleanup":error);
         uintptr_t current_spinner=0;if(!controls(memory,outer,before.local.dungeon,current_spinner,actual,error)||current_spinner!=spinner||actual.value!=expected||!unchanged())return unknown(error.empty()?"Dungeon config actual Spinner step or owner differs":error);

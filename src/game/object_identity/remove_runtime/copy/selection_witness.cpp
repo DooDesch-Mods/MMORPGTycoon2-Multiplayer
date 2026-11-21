@@ -4,7 +4,7 @@
 
 namespace mt2mp::build_actions::private_native {
 namespace {
-constexpr uintptr_t selection_slot=0x13df630,selection_ap=0x17205d0,array_ap=0x1748c50;
+constexpr uintptr_t selection_slot=0x13eb630,selection_ap=0x1726970,array_ap=0x174eff0;
 bool fail(std::string& e,const char* cause){e=cause;return false;}
 template<class T> bool at(Memory& m,uintptr_t p,size_t off,T& v,std::string& e){
     if(p>std::numeric_limits<uintptr_t>::max()-off)return fail(e,"selection_address_overflow");

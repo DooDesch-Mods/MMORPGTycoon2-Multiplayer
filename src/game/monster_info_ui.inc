@@ -5,29 +5,29 @@ bool info_window(Memory& m,const a::ui_capture::LocalBinding& local,a::ui_diagno
     receipt["selected_count"]=count;receipt["focused_matches"]=focused==local.object;
     if(count!=1||focused!=local.object)return fail(e,"Monster original single selection or focus differs");
     if(!field(m,local.manager,0xb8,window.handler,e)||!field(m,window.handler,0,ap,e))return false;
-    receipt["handler_matches"]=ap==state.image+0x1731660;
-    if(ap!=state.image+0x1731660)return fail(e,"Monster original InfoWindow handler class differs");
+    receipt["handler_matches"]=ap==state.image+0x1737a00;
+    if(ap!=state.image+0x1737a00)return fail(e,"Monster original InfoWindow handler class differs");
     if(!field(m,window.handler,0x10,window.window,e)||!field(m,window.window,0,ap,e)||
        !field(m,window.window,0x45f,visible,e))return false;
-    receipt["window_matches"]=ap==state.image+0x1724f40;receipt["visible"]=visible;
-    if(ap!=state.image+0x1724f40||visible!=1)return fail(e,"Monster original visible InfoWindow class differs");
+    receipt["window_matches"]=ap==state.image+0x172b2e0;receipt["visible"]=visible;
+    if(ap!=state.image+0x172b2e0||visible!=1)return fail(e,"Monster original visible InfoWindow class differs");
     if(!field(m,ap,0x168,command,e)||!field(m,window.window,0x570,window.target,e)||
        !field(m,window.window,0x578,window.proxy,e)||!field(m,local.object,0x28,proxy,e)||
        !field(m,window.proxy,0,target,e))return false;
-    receipt["command_matches"]=command==state.image+0x7490c0;receipt["target_matches"]=window.target==local.object;
+    receipt["command_matches"]=command==state.image+0x750a60;receipt["target_matches"]=window.target==local.object;
     receipt["weak_matches"]=proxy&&proxy==window.proxy&&target==local.object+0x20;
-    return (command==state.image+0x7490c0&&window.target==local.object&&proxy&&proxy==window.proxy&&target==local.object+0x20)||
+    return (command==state.image+0x750a60&&window.target==local.object&&proxy&&proxy==window.proxy&&target==local.object+0x20)||
         fail(e,"Monster original InfoWindow Command or full weak target differs");
 }
 bool info_default_tool(Memory& m,json& receipt,std::string& e){
     receipt=json::object();uintptr_t cursor=0,ap=0,current=0,desired=0,slot=0;uint8_t keeps=0;
-    if(!field(m,state.image,0x13df9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x1786dd0||
-       !field(m,cursor,0x190,current,e)||!field(m,cursor,0x198,desired,e)||!field(m,desired,0,ap,e)||ap!=state.image+0x17391a0||
+    if(!field(m,state.image,0x13eb9d0,cursor,e)||!field(m,cursor,0,ap,e)||ap!=state.image+0x178d170||
+       !field(m,cursor,0x190,current,e)||!field(m,cursor,0x198,desired,e)||!field(m,desired,0,ap,e)||ap!=state.image+0x173f540||
        !field(m,desired,0x120,keeps,e)||keeps!=1)return fail(e,e.empty()?"Monster InfoWindow original default Cursor differs":e);
     receipt["switch_attempted"]=false;receipt["default_already_active"]=current==desired;
     if(current!=desired){
         if(!field(m,current,0,ap,e))return false;
-        if(ap==state.image+0x172fa80){
+        if(ap==state.image+0x1735e20){
             receipt["source_tool"]="monster_zone";
             const auto idle=[&](){const auto controller=typed_action_runtime::controller_status(),zone=zone_action_runtime::status();
                 return state.ready&&GetCurrentThreadId()==state.thread&&!state.pending&&!state.fault&&
@@ -36,7 +36,7 @@ bool info_default_tool(Memory& m,json& receipt,std::string& e){
             if(!idle())return fail(e,"MonsterZone Default switch requires idle Controller and no pending/faulted native capture");
             uintptr_t brush=0,owned_cursor=0,region=0;int32_t saved_region=-1;
             if(!d::tool(m,state.image,brush,owned_cursor,e)||brush!=current||owned_cursor!=cursor||
-               !field(m,ap,0xb0,slot,e)||slot!=state.image+0x5effd0||
+               !field(m,ap,0xb0,slot,e)||slot!=state.image+0x5f6720||
                !field(m,current,0x170,region,e)||!region||!field(m,region,0x834,saved_region,e))
                 return fail(e,e.empty()?"MonsterZone Default switch exact inventory/Deactivate/Region differs":e);
             const auto cleanup=[&](json& out)->bool{
@@ -93,8 +93,8 @@ bool info_default_tool(Memory& m,json& receipt,std::string& e){
             if(!clean||!unchanged)return fail(e,!clean?"MonsterZone original Deactivate cleanup differs":"MonsterZone Default switch changed roster/name/pose/Region RNG/Undo/Release/ledger");
         }else{
         ToolPin tool;json inventory;
-        if(!tools(m,state.image,tool,inventory,e)||tool.behaviour!=current||!field(m,current,0,ap,e)||ap!=state.image+0x1739500||
-           !field(m,ap,0xb0,slot,e)||slot!=state.image+0x5be5c0)return fail(e,e.empty()?"Monster InfoWindow active tool is not the exact original Elite inventory tool":e);
+        if(!tools(m,state.image,tool,inventory,e)||tool.behaviour!=current||!field(m,current,0,ap,e)||ap!=state.image+0x173f8a0||
+           !field(m,ap,0xb0,slot,e)||slot!=state.image+0x5c4d60)return fail(e,e.empty()?"Monster InfoWindow active tool is not the exact original Elite inventory tool":e);
         receipt["switch_attempted"]=true;const auto seh=action_runtime::select_default_tool(state.image,cursor);
         receipt["switch_returned"]=seh==0;
         if(seh)return fail(e,"Monster InfoWindow original Cursor SetBehaviour SEH="+std::to_string(seh));

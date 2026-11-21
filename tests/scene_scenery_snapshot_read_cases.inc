@@ -3,7 +3,7 @@
 #include <map>
 namespace scene_scenery_read_fixture {
 namespace p=mt2mp::build_actions::private_native::place;
-inline constexpr uintptr_t image=0x140000000,region=0x10000,shard=0x20000,manager=0x30000,object=0x50000;
+inline constexpr uintptr_t image=0x140000000,region=0x10000,shard=0x20000,manager=0x30000,object=0x50500;
 inline constexpr uint64_t uid=(uint64_t(9)<<40)+77;
 struct Memory:mt2mp::build_actions::private_native::Memory {
     std::map<uintptr_t,uint8_t> bytes;unsigned transforms=0;bool change_pose=false;
@@ -12,9 +12,9 @@ struct Memory:mt2mp::build_actions::private_native::Memory {
         auto* target=static_cast<uint8_t*>(out);for(size_t n=0;n<count;++n){const auto it=bytes.find(address+n);if(it==bytes.end()){error="fixture exact Scenery field is absent";return false;}target[n]=it->second;}
         if(address==object+0x100&&count==sizeof(p::Transform)&&++transforms==2&&change_pose)static_cast<p::Transform*>(out)->position.x=2;return true;
     }
-    Memory(){put(region+0x960,manager);put(manager,image+0x17152d0);put(manager+0x900,region);put(manager+0x908,shard);
-        for(size_t category=0;category<47;++category){const auto address=manager+0x18+category*0x30;put(address,image+0x172d6a0);put(address+8,category==0?uintptr_t(0x40000):uintptr_t(0));put(address+0x10,int32_t(category==0));put(address+0x14,int32_t(category==0));}
-        put(0x40000,object);put(object,image+0x16c1390);put(object+0x18,uid);put(object+0x170,shard);put(object+0x178,region);put(object+0x268,int32_t(0));
+    Memory(){put(region+0x960,manager);put(manager,image+0x171b670);put(manager+0x900,region);put(manager+0x908,shard);
+        for(size_t category=0;category<47;++category){const auto address=manager+0x18+category*0x30;put(address,image+0x1733a40);put(address+8,category==0?uintptr_t(0x40000):uintptr_t(0));put(address+0x10,int32_t(category==0));put(address+0x14,int32_t(category==0));}
+        put(0x40000,object);put(object,image+0x16c7730);put(object+0x18,uid);put(object+0x170,shard);put(object+0x178,region);put(object+0x268,int32_t(0));
         p::Box box;box.valid=1;box.max={1,1,1};put(object+0x90,box);p::Transform pose;pose.rotation={0,0,0,1};pose.scale={1,1,1};pose.dirty=1;put(object+0x100,pose);
     }
 };

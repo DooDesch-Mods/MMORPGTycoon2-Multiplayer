@@ -20,12 +20,12 @@ struct Port {
             uintptr_t region=0,root=0;int32_t id=-1;
             if(!fault(duplicate_calls::region(r.image,before.world.root,row.family==Family::Scenery,point,region),"destination Region getter",e)||
                !region||std::find(before.census.regions.begin(),before.census.regions.end(),region)==before.census.regions.end()||
-               !q::typed(r.memory,r.image,region,0x1787930,e)||!q::at(r.memory,region,0x70,root,e)||root!=before.world.root||
+               !q::typed(r.memory,r.image,region,0x178dcd0,e)||!q::at(r.memory,region,0x70,root,e)||root!=before.world.root||
                !q::at(r.memory,region,0x834,id,e)||id<0)return q::fail(e,e.empty()?"Duplicate original destination Region is absent from current complete root":e);
             destination_regions.emplace(row.key,id);
         }
         bool affordable=false;if(!fault(duplicate_calls::afford(r.image,before.business,total,affordable),"CanAfford",e)||!affordable)return q::fail(e,e.empty()?"Duplicate original total cannot be afforded":e);
-        uintptr_t manager=0;if(!q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,local_shard,e))return false;
+        uintptr_t manager=0;if(!q::at(r.memory,r.image,0x13eb440,manager,e)||!q::at(r.memory,manager,0x60,local_shard,e))return false;
         std::vector<uintptr_t> filtered;if(!group_reader::selection(r.memory,r.image,before.world.selection,prior_selection,filtered,e))return false;
         for(const auto p:prior_selection){uint64_t uid=0;uintptr_t found=0;
             if(!q::at(r.memory,p,0x18,uid,e)||!group_edit::find(r,uid,found,e)||found!=p)return q::fail(e,e.empty()?"Duplicate local Selection full UID differs":e);prior_uids.push_back(uid);}
@@ -49,11 +49,11 @@ struct Port {
         uintptr_t found=0;if(!result.object||!q::at(r.memory,result.object,0x18,result.uid,e)||!result.uid||
            !group_edit::find(r,result.uid,found,e)||found!=result.object)return q::fail(e,e.empty()?"Duplicate original result full UID is not registered":e);
         if(target.family==Family::Group){
-            if(!q::typed(r.memory,r.image,result.object,0x1749de0,e))return false;q::Bounds members;
+            if(!q::typed(r.memory,r.image,result.object,0x1750180,e))return false;q::Bounds members;
             if(!q::bounds(r.memory,result.object+0x210,100000,members,e)||size_t(members.count)!=target.created_keys.size())return q::fail(e,e.empty()?"Duplicate original Group member count differs":e);
             for(int32_t i=0;i<members.count;++i){uintptr_t member=0,p=0,parent=0;uint64_t uid=0;
-                if(!q::at(r.memory,members.data,size_t(i)*8,member,e)||!q::typed(r.memory,r.image,member,0x16fbc40,e)||
-                   !q::at(r.memory,member,0x18,p,e)||!q::typed(r.memory,r.image,p,0x16c1390,e)||!q::at(r.memory,p,0x18,uid,e)||
+                if(!q::at(r.memory,members.data,size_t(i)*8,member,e)||!q::typed(r.memory,r.image,member,0x1701fe0,e)||
+                   !q::at(r.memory,member,0x18,p,e)||!q::typed(r.memory,r.image,p,0x16c7730,e)||!q::at(r.memory,p,0x18,uid,e)||
                    !q::at(r.memory,p,0x180,parent,e)||parent!=result.object||!uid||!created.emplace(uid,target.created_keys[size_t(i)]).second)
                     return q::fail(e,e.empty()?"Duplicate original Group child full UID/reciprocal owner differs":e);
             }
@@ -64,7 +64,7 @@ struct Port {
     bool destroy_inverse(uintptr_t graph,const Handle& object,std::string& e){uintptr_t op=0;
         if(!fault(duplicate_calls::destroy_inverse(r.image,graph,object.object,op),"DoDestroy/AddDo",e))return false;destroy_ops.push_back(op);return true;}
     bool select_created(const std::vector<Handle>& objects,std::string& e){for(const auto& h:objects)new_selection.push_back(h.object);
-        const duplicate_calls::Array array{r.image+0x1748c50,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
+        const duplicate_calls::Array array{r.image+0x174eff0,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
         return fault(duplicate_calls::select(r.image,before.world.selection,array),"SetSelection",e);}
     bool release_points(const action::DuplicateIntent& intent,const std::vector<Handle>&,std::string& e){
         bool building=false,scenery=false;for(const auto& row:intent.rows){building|=row.family==Family::Building;scenery|=row.family==Family::Scenery;}
@@ -72,7 +72,7 @@ struct Port {
         return !building||fault(duplicate_calls::release(r.image,before.release+0x108,1),"Building AddEdit",e);
     }
     bool commit_graph(uintptr_t graph,const std::vector<Handle>&,std::string& e){uint32_t cleanup=0;
-        const duplicate_calls::Array array{r.image+0x1748c50,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
+        const duplicate_calls::Array array{r.image+0x174eff0,new_selection.data(),int32_t(new_selection.size()),int32_t(new_selection.size())};
         const auto code=duplicate_calls::commit(r.image,before.undo.receiver,graph,array,cleanup);
         if(!fault(code,"MakeUndoString/AddUndo",e)){if(cleanup)e+="; string cleanup SEH="+std::to_string(cleanup);return false;}return fault(cleanup,"Undo label cleanup",e);
     }
@@ -82,13 +82,13 @@ struct Port {
         q::Bounds ops;if(!q::bounds(r.memory,receipt.graph+0x18,100000,ops,e)||size_t(ops.count)!=cash_ops.size()+destroy_ops.size())return q::fail(e,e.empty()?"Duplicate original inverse count differs":e);
         for(int32_t i=0;i<ops.count;++i){uintptr_t op=0;if(!q::at(r.memory,ops.data,size_t(i)*8,op,e))return false;
             if(size_t(i)<cash_ops.size()){int32_t amount=0;std::array<uint32_t,3> position{};
-                if(op!=cash_ops[size_t(i)]||!q::typed(r.memory,r.image,op,0x1786fb0,e)||!q::at(r.memory,op,0xb8,amount,e)||!q::at(r.memory,op,0xbc,position,e))return false;
+                if(op!=cash_ops[size_t(i)]||!q::typed(r.memory,r.image,op,0x178d350,e)||!q::at(r.memory,op,0xb8,amount,e)||!q::at(r.memory,op,0xbc,position,e))return false;
                 int64_t cost=0;std::array<uint32_t,3> expected;
                 if(request.duplicate.rows.size()>9){for(const auto& row:request.duplicate.rows)cost+=row.cost;expected=request.duplicate.cash_position;}
                 else{const auto& row=request.duplicate.rows[size_t(i)];cost=row.cost;expected={row.after[4],row.after[5],row.after[6]};}
                 if(amount!=cost||position!=expected)return q::fail(e,"Duplicate original cash inverse amount/position differs");
             }else{const size_t n=size_t(i)-cash_ops.size();uint64_t uid=0;
-                if(op!=destroy_ops[n]||!q::typed(r.memory,r.image,op,0x16de860,e)||!q::at(r.memory,op,0xb8,uid,e)||uid!=receipt.created[n].uid)
+                if(op!=destroy_ops[n]||!q::typed(r.memory,r.image,op,0x16e4c00,e)||!q::at(r.memory,op,0xb8,uid,e)||uid!=receipt.created[n].uid)
                     return q::fail(e,e.empty()?"Duplicate original destroy inverse full UID/order differs":e);}
         }
         return q::unchanged(r.memory,receipt.graph+0x18,100000,ops,e);
@@ -120,16 +120,16 @@ struct Port {
     bool restore_selection(std::string& e){
         const auto& desired=source_peer&&receipt.graph_committed?new_selection:prior_selection;
         for(size_t i=0;i<prior_selection.size();++i){uintptr_t found=0;if(!group_edit::find(r,prior_uids[i],found,e)||found!=prior_selection[i])return q::fail(e,e.empty()?"Duplicate local prior Selection full UID changed":e);}
-        const duplicate_calls::Array array{r.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+        const duplicate_calls::Array array{r.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
         host::WorldState boundary;bool admitted=false;
         auto guard=[&](std::string& why){
             if(GetCurrentThreadId()!=r.thread||!r.ready||request.snapshot_uuid!=net::current_snapshot_id())
                 return q::fail(why,"Duplicate local Selection RNG current thread/session differs");
             host::NativeOrigin origin;host::LookupApi api;host::WorldState current;
-            if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,why))return false;
+            if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,why))return false;
             host::Reader reader(r.memory.process,origin,r.image,r.thread,api);
             uintptr_t owner=0;
-            if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x164b250,owner,why))return false;
+            if(!reader.current(current,false,why)||!q::at(r.memory,r.image,0x1650830,owner,why))return false;
             if(!host::same_world(before.world.origin,current.origin)||current.root!=before.world.root||
                current.selection!=before.world.selection||!owner||owner!=before.random)
                 return q::fail(why,"Duplicate local Selection RNG current World/owner differs");
@@ -142,7 +142,7 @@ struct Port {
         auto write=[&](const std::array<uint64_t,4>& value,std::string& why){return fault(duplicate_calls::restore_random(before.random,value),"local Selection RNG restore",why);};
         if(!duplicate_native::restore_selection_random(guard,read,invoke,write,e))return false;
         std::vector<uintptr_t> raw,filtered;uintptr_t manager=0,shard=0;
-        if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,r.image,0x13df440,manager,e)||!q::at(r.memory,manager,0x60,shard,e))return false;
+        if(!group_reader::selection(r.memory,r.image,before.world.selection,raw,filtered,e)||!q::at(r.memory,r.image,0x13eb440,manager,e)||!q::at(r.memory,manager,0x60,shard,e))return false;
         return (raw==desired&&shard==local_shard)||q::fail(e,"Duplicate local Selection/current Shard restoration differs");
     }
 };

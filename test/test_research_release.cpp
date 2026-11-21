@@ -25,11 +25,11 @@ void array(uintptr_t p,size_t off,uintptr_t data,const std::vector<uintptr_t>& r
     for(size_t i=0;i<rows.size();++i)put(data,i*8,rows[i]);
 }
 void node(uintptr_t p,uintptr_t owner,bool feature,const std::vector<uintptr_t>& children={}){
-    put(p,0,image+0x1786d10);put(p,0x70,owner);strings[{p,0x18}]="tech_release";
+    put(p,0,image+0x178d0b0);put(p,0x70,owner);strings[{p,0x18}]="tech_release";
     put(p,0xe8,int32_t(1));put(p,0xec,uint8_t(feature));array(p,0xb8,p+0x10000,children);
 }
 void setup(){
-    memory.clear();strings.clear();put(0x1000,0,image+0x16c12b0);
+    memory.clear();strings.clear();put(0x1000,0,image+0x16c7650);
     array(0x1000,0x148,0x2000,{0x3000,0x4000});array(0x1000,0x178,0x2100,{0x5000});
     node(0x3000,0xa000,true,{0x6000});node(0x4000,0xb000,true);node(0x5000,0xc000,false,{0x7000});node(0x6000,0xd000,false);node(0x7000,0xe000,false);
 }

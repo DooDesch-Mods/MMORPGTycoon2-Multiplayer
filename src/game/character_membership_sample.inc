@@ -33,8 +33,8 @@ character_catalogue_batch::Result complete_record_capture(Memory& memory,uintptr
     const std::map<uintptr_t,std::string>& owners,character_catalogue_batch::Mode mode,std::string& hash,std::string& error){
     ValueMemory graph_memory(memory);Captured value{graph_memory};subscriber_lifecycle::CaptureReceipt cleanup;
     const subscriber_lifecycle::CaptureApi calls{
-        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+        reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
         reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+prepare),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+save)};
     {character_catalogue_timing::Scope measured(character_catalogue_timing::Part::NativeCapture);
         live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
@@ -68,7 +68,7 @@ bool external_owners(Memory& memory,const a::Binding& binding,const std::string&
         for(int32_t slot=0;slot<count;++slot){uintptr_t prototype=0,ap=0,found=0;uint64_t uid=0;
             if(!field(memory,data,size_t(slot)*8,prototype,error)||!field(memory,prototype,0,ap,error)||!field(memory,prototype,0x18,uid,error))return false;
             const auto seh=lookup(out.api.find,uid,found);
-            if(seh||!uid||ap!=state.image+0x171c930||found!=prototype)
+            if(seh||!uid||ap!=state.image+0x1722cd0||found!=prototype)
                 return fail(error,"Character current Ability complete Record owner/full UID differs SEH="+std::to_string(seh));
             if(!owner_add(owners,prototype,definition.key+"/ability/"+std::to_string(slot),error))return false;}
         uintptr_t current_data=0;int32_t current_count=0,current_capacity=0;
@@ -181,7 +181,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     for(const auto& definition:out.definitions.definitions){a::CharacterMembershipRow value;if(!row(memory,out.definitions,definition,value,error))return false;
         json portable={{"kind",value.kind},{"id",value.id},{"parent",value.parent},{"deleted",value.deleted},{"name",value.name},{"variants",value.variants}};
         metadata.push_back(portable);const bool related=definition.object==out.selected||(!read_only&&!definition.deleted&&definition.parent==out.selected);
-        std::string complete;if(!definition.deleted&&!complete_record(memory,definition.object,0xf62880,0xf628e0,out.owners,complete,error))return false;
+        std::string complete;if(!definition.deleted&&!complete_record(memory,definition.object,0xf6e340,0xf6e3a0,out.owners,complete,error))return false;
         portable["record_sha"]=complete;
         if(related)family_rows.push_back(portable);
         else if(read_only||!(intent.command==a::CharacterMembershipCommand::CreateVariant&&definition.kind==intent.kind&&definition.id==new_id))other_rows.push_back(portable);
@@ -204,12 +204,12 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
         user_rows.push_back({{"definition",definition},{"users",rows}});
         if(std::find(family.begin(),family.end(),definition)==family.end())other_user_rows.push_back({{"definition",definition},{"users",rows}});}
     if(read_only&&!quest_bridge::sha256(other_user_rows.dump(),out.other_users_sha,error))return false;
-    std::string manager,quest_rows;if(!complete_record(memory,out.manager,0x107fa10,0x107fa70,out.owners,manager,error)||
+    std::string manager,quest_rows;if(!complete_record(memory,out.manager,0x108b3b0,0x108b410,out.owners,manager,error)||
        !quest_digest(out.quests,quest_rows,error))return false;
     out.value.manager_sha=manager;
     if(intent.command==a::CharacterMembershipCommand::Import||read_only){uintptr_t store=0,ap=0;
         ValueMemory guarded(memory);if(!character_import_native::verify(state.image,guarded,error))return false;
-        if(!field(memory,state.image,0x13df210,store,error)||!field(memory,store,0,ap,error)||ap!=state.image+0x16d9300)
+        if(!field(memory,state.image,0x13eb210,store,error)||!field(memory,store,0,ap,error)||ap!=state.image+0x16df6a0)
             return fail(error,error.empty()?"Character import current original ArtStore singleton differs":error);
         if(!read_only){a::Context current;std::map<uintptr_t,std::string> refs;
             if(!a::selected_session().current(current,error)||!general_project_runtime::release_reference_keys(current,binding,refs,error))return false;
@@ -217,7 +217,7 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
                 if(found!=out.owners.end()&&found->second!=key)return fail(error,"Character import ArtStore canonical owner aliases another current object");
                 out.owners[pointer]=key;}}
         out.owners[store]="art-store";
-        if(!complete_record(memory,store,0xe56320,0xe56380,out.owners,out.value.import_art_sha,error))return false;
+        if(!complete_record(memory,store,0xe61e10,0xe61e70,out.owners,out.value.import_art_sha,error))return false;
     }
     if(!quest_bridge::sha256(family_rows.dump(),out.value.family_sha,error)||!quest_bridge::sha256(other_rows.dump(),out.value.others_sha,error)||
        !quest_bridge::sha256(user_rows.dump(),out.value.users_sha,error)||!quest_bridge::sha256(boss_rows.dump(),out.value.bosses_sha,error)||
@@ -228,14 +228,14 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
     if(!native::read_simulation_state(money,error)||!undo_probe::read_undo(memory.process,state.image,out.undo,error))return false;
     if(out.undo.active_graph)return fail(error,"Character membership current native Undo graph is still active");
     if(
-       !at(state.image,0x164b250,random,error)||!at(random,0,out.value.global_random,error)||!at(state.image,0x13df4f0,release_manager,error)||
+       !at(state.image,0x1650830,random,error)||!at(random,0,out.value.global_random,error)||!at(state.image,0x13eb4f0,release_manager,error)||
        !at(release_manager,0,ap,error))return false;
-    if(ap!=state.image+0x1714ed0)return fail(error,"Character membership actual ReleaseManager class differs");
+    if(ap!=state.image+0x171b270)return fail(error,"Character membership actual ReleaseManager class differs");
     if(!at(release_manager,0x38,release,error)||!at(release,0,ap,error))return false;
-    if(ap!=state.image+0x16c12b0)return fail(error,"Character membership actual current Release class differs");
+    if(ap!=state.image+0x16c7650)return fail(error,"Character membership actual current Release class differs");
     if(!at(release,0x120,out.value.release_edits,error))return false;
     if(intent.command==a::CharacterMembershipCommand::Import||read_only){out.owners[release]="current-release";
-        if(!complete_record(memory,release,0xe4f460,0xe4f4c0,out.owners,out.value.import_release_sha,error))return false;}
+        if(!complete_record(memory,release,0xe5af50,0xe5afb0,out.owners,out.value.import_release_sha,error))return false;}
     out.money=ledger(money);out.value.undo_count=out.undo.undo.size();
     definitions::Census final_definitions;member::Users final_users;host::WorldState final_world;
     if(!definitions::read(at,state.image,uintptr_t(out.world.origin.state),out.manager,final_definitions,error)||

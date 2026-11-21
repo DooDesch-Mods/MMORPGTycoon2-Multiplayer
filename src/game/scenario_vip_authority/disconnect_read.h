@@ -27,7 +27,7 @@ inline bool inspect(placement_ui_probe::Memory& memory,uintptr_t image,const ale
     if(!g.present)return vip::fail(e,"VIP message current UI owner absent");
     if(!at(memory,alert,0,ap,e)||!at(memory,ap,8,d0,e)||!at(memory,alert,0x18,type,e)||
        !at(memory,alert,0x130,selector,e)||!at(memory,alert,0x138,shown,e))return false;
-    if(ap!=image+0x1749770||d0!=image+0x234c70||(expected_type!=0&&expected_type!=9)||type!=expected_type||shown>1||shown!=expected_shown)
+    if(ap!=image+0x174fb10||d0!=image+0x237a50||(expected_type!=0&&expected_type!=9)||type!=expected_type||shown>1||shown!=expected_shown)
         return vip::fail(e,"VIP message Alert class/type/shown differs");
     if(shown){
         uintptr_t selected=0,list=0,parent=0,window=0,selector_ap=0;
@@ -35,7 +35,7 @@ inline bool inspect(placement_ui_probe::Memory& memory,uintptr_t image,const ale
             return vip::fail(e,"VIP message handoff lacks unique owned/active/selector membership");
         if(!at(memory,selector,0,selector_ap,e)||!at(memory,selector,0x330,selected,e)||!at(memory,selector,0x318,list,e)||
            !at(memory,selector,0x278,parent,e)||!at(memory,selector,0x280,window,e))return false;
-        if(selector_ap!=image+0x1704fa0||selected!=alert||list!=g.list||parent!=g.list||window!=g.window)
+        if(selector_ap!=image+0x170b340||selected!=alert||list!=g.list||parent!=g.list||window!=g.window)
             return vip::fail(e,"VIP message selector reciprocal ownership differs");
     }else if(selector||count(g.owned,alert)||count(g.active,alert))return vip::fail(e,"VIP unhanded message already belongs to a manager/UI owner");
     std::string second;if(!text(memory,alert,message,e)||!text(memory,alert,second,e))return false;
@@ -47,7 +47,7 @@ inline bool inspect(placement_ui_probe::Memory& memory,uintptr_t image,const ale
 inline bool ended(placement_ui_probe::Memory& memory,uintptr_t image,uintptr_t scenario,uint8_t before,
                   const alert_probe::Graph& old,const alert_probe::Graph& now,std::optional<std::string>& out,std::string& e){
     out.reset();uint8_t completed=0;uintptr_t ap=0;
-    if(!at(memory,scenario,0,ap,e)||ap!=image+0x1730e90||!at(memory,scenario,0x38,completed,e))
+    if(!at(memory,scenario,0,ap,e)||ap!=image+0x1737230||!at(memory,scenario,0x38,completed,e))
         return vip::fail(e,e.empty()?"VIP EndEvent exact scenario owner differs":e.c_str());
     if(before>1||completed>1)return vip::fail(e,"VIP EndEvent completed flag is not boolean");
     if(before||!completed){e.clear();return true;}

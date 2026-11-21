@@ -31,15 +31,15 @@ uint32_t invoke(Call* c){
     __try{
         const auto p=reinterpret_cast<void*>(c->target);
         switch(c->op){
-        case Op::Allocate:c->result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(c->image+0xa02670)(0xa8));break;
-        case Op::AwardConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x51a9b0)(p);break;
-        case Op::AwardLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xceabb0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
-        case Op::AwardAdd:reinterpret_cast<void(*)(void*,void*)>(c->image+0xb5d8d0)(p,reinterpret_cast<void*>(c->result));break;
-        case Op::CampaignStart:c->accepted=reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(c->image+0x51c640)(p,4,5);break;
-        case Op::CampaignLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xc7cf80)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
-        case Op::ContextConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x89e940)(p);break;
-        case Op::ContextResolveDestroy:reinterpret_cast<void(*)(void*)>(c->image+0x89e480)(p);break;
-        case Op::Rebuild:reinterpret_cast<void(*)(void*)>(c->image+0x663880)(p);break;
+        case Op::Allocate:c->result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(c->image+0xa0d230)(0xa8));break;
+        case Op::AwardConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x520d30)(p);break;
+        case Op::AwardLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xcf62d0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
+        case Op::AwardAdd:reinterpret_cast<void(*)(void*,void*)>(c->image+0xb6a130)(p,reinterpret_cast<void*>(c->result));break;
+        case Op::CampaignStart:c->accepted=reinterpret_cast<bool(*)(void*,int32_t,int32_t)>(c->image+0x5229c0)(p,4,5);break;
+        case Op::CampaignLoad:reinterpret_cast<void(*)(void*,void*,void*)>(c->image+0xc886b0)(p,reinterpret_cast<void*>(c->record),reinterpret_cast<void*>(c->context));break;
+        case Op::ContextConstruct:reinterpret_cast<void(*)(void*)>(c->image+0x8a7a60)(p);break;
+        case Op::ContextResolveDestroy:reinterpret_cast<void(*)(void*)>(c->image+0x8a75a0)(p);break;
+        case Op::Rebuild:reinterpret_cast<void(*)(void*)>(c->image+0x66a990)(p);break;
         }
     }__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     return 0;
@@ -107,17 +107,17 @@ bool owners_same(Work& w,const Snapshot& s,std::string& e,ClockPhase phase=Clock
 }
 bool exit_guard(void* p,std::string& e){auto& w=*static_cast<Work*>(p);Snapshot s;return read(w,true,s,e)&&owners_same(w,s,e);}
 bool pins(uintptr_t image,std::string& e){
-    for(const auto& pin:native_pins){if(pin.rva==0x518290){if(!marketing_authority::notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);
+    for(const auto& pin:native_pins){if(pin.rva==0x51e570){if(!marketing_authority::notice_hook::verify(image,e))return false;continue;}std::vector<unsigned char> bytes(pin.size);
         if(!memory.read(image+pin.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=pin.sha)return fail(e,"Marketing native body SHA differs RVA="+std::to_string(pin.rva));}
-    for(const auto rva:{uintptr_t(0x89e940),uintptr_t(0x89e480),uintptr_t(0x4a03a0),uintptr_t(0x49f6f0)}){
+    for(const auto rva:{uintptr_t(0x8a7a60),uintptr_t(0x8a75a0),uintptr_t(0x4a5890),uintptr_t(0x4a4be0)}){
         bool found=false;for(const auto& code:stage::native_codes)if(code.rva==rva){found=true;std::array<unsigned char,16> bytes{};
             if(!memory.read(image+rva,bytes.data(),bytes.size(),e))return false;
             if(bytes!=code.bytes)return fail(e,"Marketing Context/SaveScope code differs RVA="+std::to_string(rva));}
         if(!found)return fail(e,"Marketing required original code pin missing");
     }
-    for(const auto& pair:{std::pair<uintptr_t,uintptr_t>{0x1749880+0x70,0xceabb0},{0x1749880+0x80,0xb63070},
-                         {0x16e3d50+0x70,0xc7cf80},{0x16e3d50+0x80,0x5199e0}}){uintptr_t target=0;
+    for(const auto& pair:{std::pair<uintptr_t,uintptr_t>{0x174fc20+0x70,0xcf62d0},{0x174fc20+0x80,0xb6f8d0},
+                         {0x16ea0f0+0x70,0xc886b0},{0x16ea0f0+0x80,0x51fcc0}}){uintptr_t target=0;
         if(!memory.read(image+pair.first,&target,sizeof target,e))return false;if(target!=image+pair.second)return fail(e,"Marketing typed Load/Resolve virtual slot differs");}
     return true;
 }
@@ -202,7 +202,7 @@ bool probe(const std::filesystem::path& root,const Json& args,Json& result,std::
         result["baseline_sha256"]=baseline_sha;result["source_sha256"]=source_sha;result["artifact_sha256"]=args["artifact_sha256"];
         if(receipts.size()>=64)return fail(e,"Marketing retained receipt capacity reached");
         result["state"]="attempted";receipts.emplace(token,result);attempted_world=world;reserved=true;
-        const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(w.original.image+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(w.original.image+0x49f6f0)};
+        const local::SaveScopeApi api{reinterpret_cast<local::SaveScopeCall>(w.original.image+0x4a5890),reinterpret_cast<local::SaveScopeCall>(w.original.image+0x4a4be0)};
         ok=local::with_save_scope(api,w.original.origin.mode,body,exit_guard,&w,scope,e);
         result["save_scope"]={{"enter_attempted",scope.enter_attempted},{"enter_returned",scope.enter_returned},{"leave_attempted",scope.leave_attempted},
             {"leave_returned",scope.leave_returned},{"exit_guard_confirmed",scope.exit_guard_confirmed},{"unknown",scope.unknown},{"body_cause",scope.body_cause},{"cleanup_cause",scope.cleanup_cause}};

@@ -17,8 +17,8 @@ struct Graph {
 template<class M>bool node(M& m,uintptr_t image,uintptr_t root,uintptr_t object,uintptr_t region,uintptr_t manager,int32_t id,Node& n,std::string& e){
     namespace r=read;n={};n.object=object;n.region=region;n.manager=manager;n.region_id=id;
     uintptr_t actual_region=0,shard=0;uint8_t preview=1;
-    if(!r::ap(m,object,image,0x16fc700,e)||!r::at(m,object,0x18,n.uid,e)||!r::at(m,object,0x178,actual_region,e)||
-       !r::at(m,object,0x170,shard,e)||!r::at(m,object,0x258,n.definition,e)||!r::ap(m,n.definition,image,0x1738010,e)||
+    if(!r::ap(m,object,image,0x1702aa0,e)||!r::at(m,object,0x18,n.uid,e)||!r::at(m,object,0x178,actual_region,e)||
+       !r::at(m,object,0x170,shard,e)||!r::at(m,object,0x258,n.definition,e)||!r::ap(m,n.definition,image,0x173e3b0,e)||
        !r::text(m,n.definition+0x18,n.type,e)||!r::text(m,n.definition+0x38,n.key,e)||!r::at(m,n.definition,0x78,n.cost,e)||
        !r::at(m,n.definition,0xc0,n.definition_values,e)||!r::at(m,object,0x100,n.transform,e)||
        !r::at(m,object,0x250,n.state[0],e)||!r::at(m,object,0x2a0,n.state[1],e)||!r::at(m,object,0x2a4,n.state[2],e)||
@@ -31,7 +31,7 @@ template<class M>bool node(M& m,uintptr_t image,uintptr_t root,uintptr_t object,
 }
 template<class M>bool graph(M& m,uintptr_t image,uintptr_t root,Graph& out,std::string& e,bool saved_regions=false){
     namespace r=read;out={};uintptr_t map=0;std::vector<uintptr_t> regions;
-    if(!r::at(m,image,0x13df8c0,map,e)||!r::ap(m,map,image,0x1742860,e)||map+0x1c0!=root||!r::array(m,map,0x358,0x360,0x364,16384,regions,e))return false;
+    if(!r::at(m,image,0x13eb8c0,map,e)||!r::ap(m,map,image,0x1748c00,e)||map+0x1c0!=root||!r::array(m,map,0x358,0x360,0x364,16384,regions,e))return false;
     // Ownership changes remove Regions from the owned subset without deleting their Network members.
     if(saved_regions){
         std::vector<mixed_path_native::Region> saved;
@@ -43,11 +43,11 @@ template<class M>bool graph(M& m,uintptr_t image,uintptr_t root,Graph& out,std::
     std::set<uintptr_t> managers,objects;std::set<uint64_t> uids;
     for(auto region:regions){
         int32_t id=-1;uintptr_t shard=0,manager=0,owner=0;
-        if(!r::ap(m,region,image,0x1787930,e)||!r::at(m,region,0x834,id,e)||!r::at(m,region,0x70,shard,e)||!r::at(m,region,0x978,manager,e))return false;
+        if(!r::ap(m,region,image,0x178dcd0,e)||!r::at(m,region,0x834,id,e)||!r::at(m,region,0x70,shard,e)||!r::at(m,region,0x978,manager,e))return false;
         if(id<0||shard!=root||rows.contains(id))return fields::reject(e,"network region ID/shard membership differs");
         region_ids.emplace(region,id);rows.emplace(id,json::array({id,bool(manager),json::array(),json::array(),json::array()}));
         if(!manager)continue;
-        if(!managers.insert(manager).second||!r::ap(m,manager,image,0x17141e0,e)||!r::at(m,manager,0x168,owner,e))return false;
+        if(!managers.insert(manager).second||!r::ap(m,manager,image,0x171a580,e)||!r::at(m,manager,0x168,owner,e))return false;
         if(owner!=region)return fields::reject(e,"network manager region owner differs");
         std::vector<uintptr_t> nodes,pipes;
         if(!r::array(m,manager,0x20,0x28,0x2c,65536,nodes,e)||!r::array(m,manager,0x50,0x58,0x5c,65536,pipes,e)||

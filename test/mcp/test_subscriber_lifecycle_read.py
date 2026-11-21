@@ -28,13 +28,13 @@ class Memory:
     def __init__(self):
         self.bytes = {}; self.reads = 0; self.closed = False
         self.root = self.map + 0x1c0
-        for pointer, rva in [(self.game, 0x1743740), (self.mode, 0x16e6730), (self.state, 0x16de920),
-                             (self.world, 0x174aef0), (self.map, 0x1742860), (self.root, 0x174ad20),
-                             (self.manager, 0x1725f40), (self.sub, 0x16e75f0), (self.toon, 0x1744e90),
-                             (self.region, 0x1787930), (self.other_region, 0x1787930)]:
+        for pointer, rva in [(self.game, 0x1749ae0), (self.mode, 0x16ecad0), (self.state, 0x16e4cc0),
+                             (self.world, 0x1751290), (self.map, 0x1748c00), (self.root, 0x17510c0),
+                             (self.manager, 0x172c2e0), (self.sub, 0x16ed990), (self.toon, 0x174b230),
+                             (self.region, 0x178dcd0), (self.other_region, 0x178dcd0)]:
             self.set(pointer, 0, self.image + rva)
-        for off, value in [(0x13df8f0,self.game),(0x13df320,self.mode),(0x13df2a0,self.state),
-                           (0x13df9c0,self.world),(0x13df8c0,self.map),(0x13df690,self.manager)]:
+        for off, value in [(0x13eb8f0,self.game),(0x13eb320,self.mode),(0x13eb2a0,self.state),
+                           (0x13eb9c0,self.world),(0x13eb8c0,self.map),(0x13eb690,self.manager)]:
             self.set(self.image, off, value)
         for p, off, value in [(self.game,0x28,self.mode),(self.mode,0x58,self.state),(self.state,0x160,self.world),
                               (self.world,0x158,self.map),(self.state,0x1b8,self.manager),(self.manager,0x40,self.data),
@@ -162,13 +162,13 @@ class FixedVipWitness(unittest.TestCase):
     def memory(self, linked=True):
         m=Memory()
         m.log,m.instances,m.vip,m.other_instance,m.vip_sub = 0x810000,0x820000,0x830000,0x840000,0x850000
-        for p,off,value in [(m.state,0x1e8,m.log),(m.image,0x13df330,m.log),
-                            (m.log,0,m.image+0x16fd7b0),(m.log,0x20,m.instances),
+        for p,off,value in [(m.state,0x1e8,m.log),(m.image,0x13eb330,m.log),
+                            (m.log,0,m.image+0x1703b50),(m.log,0x20,m.instances),
                             (m.instances,0,m.vip),(m.instances,8,m.other_instance),
-                            (m.vip,0,m.image+0x1730e90),(m.other_instance,0,m.image+0x1234),
-                            (m.image+0x1730e90,0xa0,m.image+0x4f85b0),
+                            (m.vip,0,m.image+0x1737230),(m.other_instance,0,m.image+0x1234),
+                            (m.image+0x1737230,0xa0,m.image+0x4fe550),
                             (m.vip,0x68,m.vip_sub if linked else 0),
-                            (m.data,8,m.vip_sub),(m.vip_sub,0,m.image+0x16e75f0)]:m.set(p,off,value)
+                            (m.data,8,m.vip_sub),(m.vip_sub,0,m.image+0x16ed990)]:m.set(p,off,value)
         for p,off,value in [(m.log,0x28,2),(m.log,0x2c,4),(m.manager,0x48,2),(m.manager,0x68,144),
                             (m.vip_sub,0x20,143),(m.vip,0x90,2),(m.vip,0x94,0)]:m.set(p,off,value,'i')
         m.set(m.vip,0x98,int(linked),'B');m.set(m.vip,0x38,0,'B')
@@ -211,7 +211,7 @@ class FixedVipWitness(unittest.TestCase):
         self.assertEqual(reader.sample(m,m.image,0,True)['scenario_vips']['vips'],[])
 
     def test_owner_class_membership_and_bounds_fail(self):
-        cases=[('log',0,0,'Q','addresspoint'),('image',0x13df330,0,'Q','singleton'),
+        cases=[('log',0,0,'Q','addresspoint'),('image',0x13eb330,0,'Q','singleton'),
                ('log',0x28,-1,'i','bounds'),('log',0x28,65,'i','bounds'),('log',0x2c,1,'i','bounds'),
                ('log',0x20,0,'Q','bounds'),('instances',0,0,'Q','missing'),
                ('vip',0x68,0x999000,'Q','outside actual current cohort'),('vip',0x98,2,'B','boolean'),
@@ -222,7 +222,7 @@ class FixedVipWitness(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeErrorDetail,cause):reader.sample(m,m.image,0,True)
         m=self.memory();m.set(m.instances,8,m.vip)
         with self.assertRaisesRegex(RuntimeErrorDetail,'duplicate'):reader.sample(m,m.image,0,True)
-        m=self.memory();m.set(m.image+0x1730e90,0xa0,m.image+0x111)
+        m=self.memory();m.set(m.image+0x1737230,0xa0,m.image+0x111)
         with self.assertRaisesRegex(RuntimeErrorDetail,'virtual slot'):reader.sample(m,m.image,0,True)
 
     def invoke(self, m):
@@ -267,10 +267,10 @@ class FixedCampaignBoostWitness(unittest.TestCase):
     def memory(self):
         m=Memory()
         m.marketing,m.campaigns,m.campaign,m.awards,m.award,m.hud,m.boost,m.views,m.view,m.panes = range(0x910000,0x9b0000,0x10000)
-        for p,rva in [(m.marketing,0x16dfa60),(m.campaign,0x16e3d50),(m.hud,0x1742750),
-                       (m.boost,0x16fa4d0),(m.boost+0x508,0x16e1770),(m.view,0x16dd8a0)]:m.set(p,0,m.image+rva)
-        for p,off,value in [(m.state,0x1d0,m.marketing),(m.image,0x13df2c0,m.marketing),
-                            (m.mode,0x128,m.hud),(m.image,0x13df8b0,m.hud),(m.hud,0xb8,m.boost),
+        for p,rva in [(m.marketing,0x16e5e00),(m.campaign,0x16ea0f0),(m.hud,0x1748af0),
+                       (m.boost,0x1700870),(m.boost+0x508,0x16e7b10),(m.view,0x16e3c40)]:m.set(p,0,m.image+rva)
+        for p,off,value in [(m.state,0x1d0,m.marketing),(m.image,0x13eb2c0,m.marketing),
+                            (m.mode,0x128,m.hud),(m.image,0x13eb8b0,m.hud),(m.hud,0xb8,m.boost),
                             (m.campaigns,0,m.campaign),(m.awards,0,m.award),(m.views,0,m.view),
                             (m.panes,0,m.view),(m.view,0x328,m.campaign),(m.view,0x320,0),
                             (m.view,0x278,m.boost),(m.view,0x280,m.boost)]:m.set(p,off,value)
@@ -327,8 +327,8 @@ class FixedCampaignBoostWitness(unittest.TestCase):
         m=Memory();self.assertNotIn('campaign_boosts',reader.sample(m,m.image,0))
 
     def test_current_owners_classes_and_array_guards(self):
-        cases=[('image',0x13df2c0,0,'Q','singleton'),('state',0x1d0,0,'Q','singleton'),
-               ('image',0x13df8b0,0,'Q','singleton'),('mode',0x128,0,'Q','singleton'),
+        cases=[('image',0x13eb2c0,0,'Q','singleton'),('state',0x1d0,0,'Q','singleton'),
+               ('image',0x13eb8b0,0,'Q','singleton'),('mode',0x128,0,'Q','singleton'),
                ('marketing',0,0,'Q','addresspoint'),('campaign',0,0,'Q','addresspoint'),
                ('hud',0,0,'Q','addresspoint'),('boost',0,0,'Q','addresspoint'),
                ('boost',0x508,0,'Q','addresspoint'),('view',0,0,'Q','addresspoint'),

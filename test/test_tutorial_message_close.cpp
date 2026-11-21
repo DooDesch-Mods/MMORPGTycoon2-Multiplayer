@@ -17,12 +17,12 @@ struct Fixture {
     mt2mp::game::tutorial_welcome::Request request{"test-token","fixture",1,2,103};
     Fixture(){
         const auto base=ptr(image);active=ptr(instance);
-        put(ptr(state),0x1e8,ptr(log));put(base,0x13df330,ptr(log));
+        put(ptr(state),0x1e8,ptr(log));put(base,0x13eb330,ptr(log));
         put(ptr(log),0x20,reinterpret_cast<uintptr_t>(&active));put<int32_t>(ptr(log),0x28,1);
-        put(ptr(instance),0,base+0x173ce70);put(ptr(instance),0x18,reinterpret_cast<uintptr_t>("initial_tutorial"));put<uint64_t>(ptr(instance),0x20,16);put(ptr(instance),0x58,ptr(sequence));
-        put(ptr(sequence),0,base+0x16dbd80);put(ptr(sequence),0x20,reinterpret_cast<uintptr_t>(steps.data()));put<int32_t>(ptr(sequence),0x28,107);put(ptr(sequence),0x48,ptr(step));
-        put(ptr(step),0,base+0x16fda00);put<uint64_t>(ptr(step),0x28,7);put(ptr(step),0x1a8,ptr(window));
-        put(ptr(window),0,ptr(window_type));put(ptr(window_type),0x1d0,base+0x81ec20);put<uint8_t>(ptr(window),0x45f,1);
+        put(ptr(instance),0,base+0x1743210);put(ptr(instance),0x18,reinterpret_cast<uintptr_t>("initial_tutorial"));put<uint64_t>(ptr(instance),0x20,16);put(ptr(instance),0x58,ptr(sequence));
+        put(ptr(sequence),0,base+0x16e2120);put(ptr(sequence),0x20,reinterpret_cast<uintptr_t>(steps.data()));put<int32_t>(ptr(sequence),0x28,107);put(ptr(sequence),0x48,ptr(step));
+        put(ptr(step),0,base+0x1703da0);put<uint64_t>(ptr(step),0x28,7);put(ptr(step),0x1a8,ptr(window));
+        put(ptr(window),0,ptr(window_type));put(ptr(window_type),0x1d0,base+0x827210);put<uint8_t>(ptr(window),0x45f,1);
         current_world={};current_world.state=state.data();current_world.uuid="fixture";current_world.world_epoch=1;current_world.generation=2;
         select(103);
     }
@@ -52,7 +52,7 @@ int main(){try{
     put<int32_t>(Fixture::ptr(f.sequence),0x28,106);require(!f.pin(error),"truncated initial sequence accepted");put<int32_t>(Fixture::ptr(f.sequence),0x28,107);
     put<uint8_t>(Fixture::ptr(f.instance),0x38,1);require(!f.pin(error),"retired instance accepted");put<uint8_t>(Fixture::ptr(f.instance),0x38,0);
     put<uint8_t>(Fixture::ptr(f.sequence),0x54,1);require(!f.pin(error),"completed sequence accepted");put<uint8_t>(Fixture::ptr(f.sequence),0x54,0);
-    put(Fixture::ptr(f.sequence),0,uintptr_t{0});require(!f.pin(error),"foreign sequence type accepted");put(Fixture::ptr(f.sequence),0,Fixture::ptr(f.image)+0x16dbd80);
+    put(Fixture::ptr(f.sequence),0,uintptr_t{0});require(!f.pin(error),"foreign sequence type accepted");put(Fixture::ptr(f.sequence),0,Fixture::ptr(f.image)+0x16e2120);
     f.steps[103]=0;require(!f.pin(error),"unowned current step accepted");f.steps[103]=Fixture::ptr(f.step);
     put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>("welcome"));require(!f.pin(error),"wrong named message accepted");put(Fixture::ptr(f.step),0x20,reinterpret_cast<uintptr_t>("allDone"));
     put<uint8_t>(Fixture::ptr(f.step),0x18,1);require(!f.pin(error),"completed message accepted");put<uint8_t>(Fixture::ptr(f.step),0x18,0);

@@ -30,33 +30,33 @@ bool idle(std::string& error){
 bool tool(Memory& memory,uintptr_t expected,uintptr_t cursor,std::string& error){
     uintptr_t player=0,inventory=0,actual_cursor=0;const auto image=za::state.image;
     npc_census::InventoryHeader before,after;
-    if(!field(memory,image,0x13df9f0,player,error)||!q::typed(memory,image,player,0x17873b0,error)||
-       !field(memory,player,0x1d0,inventory,error)||!q::typed(memory,image,inventory,0x16df0f0,error)||
-       !field(memory,image,0x13df9d0,actual_cursor,error)||actual_cursor!=cursor||
-       !q::typed(memory,image,cursor,0x1786dd0,error)||!npc_census::read_inventory_header(memory,inventory,before,error))return false;
+    if(!field(memory,image,0x13eb9f0,player,error)||!q::typed(memory,image,player,0x178d750,error)||
+       !field(memory,player,0x1d0,inventory,error)||!q::typed(memory,image,inventory,0x16e5490,error)||
+       !field(memory,image,0x13eb9d0,actual_cursor,error)||actual_cursor!=cursor||
+       !q::typed(memory,image,cursor,0x178d170,error)||!npc_census::read_inventory_header(memory,inventory,before,error))return false;
     size_t matches=0;std::set<uintptr_t> items;
     for(int32_t index=0;index<before.count;++index){
         uintptr_t item=0,type=0,weak=0,target=0,owned=0,ap=0,brush=0;
         if(!field(memory,before.items,size_t(index)*8,item,error))return false;
         if(!item)continue;
-        if(!items.insert(item).second||!q::typed(memory,image,item,0x17437f0,error)||
+        if(!items.insert(item).second||!q::typed(memory,image,item,0x1749b90,error)||
            !field(memory,item,0x68,type,error)||!field(memory,item,0x70,weak,error)||
            !field(memory,weak,0,target,error)||!field(memory,type,0x40,owned,error)||target!=type+0x38||owned!=weak||
            !field(memory,type,0,ap,error))return fail(error,error.empty()?"Zone edit inventory reciprocal weak owner differs":error);
-        if(ap!=image+0x173b7b0)continue;
+        if(ap!=image+0x1741b50)continue;
         if(!field(memory,type,0x160,brush,error))return false;
         if(brush==expected)++matches;
     }
     return npc_census::read_inventory_header(memory,inventory,after,error)&&
-        ((before==after&&matches==1&&q::typed(memory,image,expected,0x172fa80,error))||
+        ((before==after&&matches==1&&q::typed(memory,image,expected,0x1735e20,error))||
          fail(error,error.empty()?"Zone edit actual inventory brush membership differs":error));
 }
 bool initial_graph(Memory& memory,const Capture& capture,std::string& error){
     q::Bounds children,nodes,deleting;uint8_t locked=0;uintptr_t current=0;
     if(!field(memory,capture.brush,0x740,current,error)||current!=capture.graph||!current||
-       !q::typed(memory,za::state.image,current,0x16e32d0,error)||!q::bounds(memory,current,0,children,error)||
-       !q::typed(memory,za::state.image,current+0x18,0x16e2dc0,error)||!q::bounds(memory,current+0x18,1,nodes,error)||
-       !q::typed(memory,za::state.image,current+0x48,0x1748c50,error)||!q::bounds(memory,current+0x48,0,deleting,error)||
+       !q::typed(memory,za::state.image,current,0x16e9670,error)||!q::bounds(memory,current,0,children,error)||
+       !q::typed(memory,za::state.image,current+0x18,0x16e9160,error)||!q::bounds(memory,current+0x18,1,nodes,error)||
+       !q::typed(memory,za::state.image,current+0x48,0x174eff0,error)||!q::bounds(memory,current+0x48,0,deleting,error)||
        !field(memory,current,0x10c,locked,error))return false;
     const size_t expected=capture.intent.selected.empty()?0:1;
     if(size_t(nodes.count)!=expected||locked)return fail(error,"Zone suppressed source graph contains an unexpected effect");
@@ -64,7 +64,7 @@ bool initial_graph(Memory& memory,const Capture& capture,std::string& error){
         const auto row=std::find_if(capture.before.rows.begin(),capture.before.rows.end(),[&](const auto& value){return value.owner.key==capture.intent.selected;});
         uintptr_t node=0;zone_edit_stored::Stored stored;
         if(row==capture.before.rows.end()||!field(memory,nodes.data,0,node,error)||
-           !q::typed(memory,za::state.image,node,0x16e4980,error)||
+           !q::typed(memory,za::state.image,node,0x16ead20,error)||
            !zone_edit_stored::read(memory,za::state.image,node,stored,error))return false;
         if(stored.uid!=row->owner.uid||stored.root!=row->owner.root||stored.region!=row->owner.region||
            stored.type!=row->content.type||stored.density!=row->content.density||stored.monster_type!=row->content.monster_type||
@@ -119,7 +119,7 @@ bool capture_command(uintptr_t window,const std::string& command,std::string& er
     Memory memory;Pending pending;uintptr_t zone=0,proxy=0,target=0,region=0;
     pending.snapshot=net::current_snapshot_id();pending.id=action_runtime::uuid(error);
     if(pending.id.empty()||!code(memory,error)||!typed_action_runtime::network_binding(pending.snapshot,pending.binding,error)||
-       !q::typed(memory,za::state.image,window,0x1716b10,error)||!field(memory,window,0x510,zone,error)||
+       !q::typed(memory,za::state.image,window,0x171ceb0,error)||!field(memory,window,0x510,zone,error)||
        !field(memory,window,0x518,proxy,error)||!proxy||!field(memory,proxy,0,target,error)||target!=zone+0x20||
        !field(memory,zone,0x178,region,error)||!field(memory,region,0x834,pending.intent.region,error))return false;
     Sample before;if(!sample(memory,pending.binding,pending.snapshot,pending.intent.region,pending.id,before,error))return false;
@@ -142,7 +142,7 @@ bool capture_command(uintptr_t window,const std::string& command,std::string& er
 bool command_entry(void* receiver,void* record)try{
     if(!net::session_wire::connected()||replaying)return original_command(receiver,record);
     uintptr_t token=0;const auto exception=[&]()noexcept->uint32_t{
-        __try{token=reinterpret_cast<uintptr_t(*)(const void*)>(za::state.image+0x96d880)(record);return 0;}
+        __try{token=reinterpret_cast<uintptr_t(*)(const void*)>(za::state.image+0x976aa0)(record);return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}();
     Memory memory;std::string text,error;
     if(!za::native_ok(exception,"UI command token",error)||!name(memory,token,text,error)){reject(error);return false;}

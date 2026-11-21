@@ -67,7 +67,7 @@ void fixtures(){std::string e;staff::Receipt out;
 struct WindowMemory {
     std::map<uintptr_t,uint8_t> bytes;uintptr_t unreadable=0;
     template<class T>void put(uintptr_t address,T value){const auto* p=reinterpret_cast<const uint8_t*>(&value);for(size_t i=0;i<sizeof(T);++i)bytes[address+i]=p[i];}
-    WindowMemory(){put(0x1000+0xa0,uintptr_t(0x2000));put(0x1000+0xa8,int32_t(1));put(0x1000+0xac,int32_t(4));put(0x2000,uintptr_t(0x3000));put(0x3000,uintptr_t(0x140000000+0x1722e60));put(0x3000+0x1b0,uintptr_t(0x4000));put(0x3000+0x1b8,uint64_t(11));put(0x3000+0x318,uintptr_t(0));const char name[]="development";for(size_t i=0;i<sizeof(name);++i)bytes[0x4000+i]=uint8_t(name[i]);}
+    WindowMemory(){put(0x1000+0xa0,uintptr_t(0x2000));put(0x1000+0xa8,int32_t(1));put(0x1000+0xac,int32_t(4));put(0x2000,uintptr_t(0x3000));put(0x3000,uintptr_t(0x140000000+0x1729200));put(0x3000+0x1b0,uintptr_t(0x4000));put(0x3000+0x1b8,uint64_t(11));put(0x3000+0x318,uintptr_t(0));const char name[]="development";for(size_t i=0;i<sizeof(name);++i)bytes[0x4000+i]=uint8_t(name[i]);}
     bool copy(uintptr_t p,void* out,size_t count,std::string& e){if(p==unreadable){e="actual window read failed";return false;}auto* target=static_cast<uint8_t*>(out);for(size_t i=0;i<count;++i){if(!bytes.contains(p+i)){e="unmapped window fixture";return false;}target[i]=bytes.at(p+i);}return true;}
 };
 void windows(){staff::Capture c;c.image=0x140000000;c.pin.origin.mode=reinterpret_cast<void*>(0x1000);std::string e;uintptr_t out=0;
@@ -76,7 +76,7 @@ void windows(){staff::Capture c;c.image=0x140000000;c.pin.origin.mode=reinterpre
     {WindowMemory m;m.put(0x1000+0xac,int32_t(0));check(!read(m)&&e.find("bounds")!=std::string::npos,"invalid actual Mode array accepted");}
     {WindowMemory m;m.put(0x2000,uintptr_t(0));check(!read(m)&&e.find("null/duplicate")!=std::string::npos,"null native window accepted");}
     {WindowMemory m;m.put(0x1000+0xa8,int32_t(2));m.put(0x2008,uintptr_t(0x3000));check(!read(m)&&e.find("null/duplicate")!=std::string::npos,"duplicate actual owned window accepted");}
-    {WindowMemory m;m.put(0x3000,uintptr_t(0x140000000+0x1722e61));check(!read(m)&&e.find("absent")!=std::string::npos,"foreign window class accepted");}
+    {WindowMemory m;m.put(0x3000,uintptr_t(0x140000000+0x1729201));check(!read(m)&&e.find("absent")!=std::string::npos,"foreign window class accepted");}
     {WindowMemory m;m.put(0x3000+0x318,uintptr_t(1));check(!read(m)&&e.find("logic")!=std::string::npos,"custom native window logic accepted");}
     {WindowMemory m;m.put(0x3000+0x1b8,uint64_t(12));check(!read(m)&&e.find("identity")!=std::string::npos,"wrong exact native window ID length accepted");}
     {WindowMemory m;m.bytes[0x4000]='x';check(!read(m)&&e.find("ID differs")!=std::string::npos,"wrong actual window ID accepted");}

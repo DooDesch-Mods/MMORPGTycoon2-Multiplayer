@@ -9,8 +9,8 @@ bool read_remove_quests(Memory& m,const a::Binding& binding,const std::string& s
     };
     const auto destination=[&](uintptr_t pointer,std::string& key,std::string& cause){
         uintptr_t ap=0;if(!field(m,pointer,0,ap,cause))return false;
-        if(ap==state.image+0x16c0770)return quest_authoring::direct_destination(pointer,key,cause);
-        if(ap==state.image+0x1742980)return quest_authoring::npc_destination(pointer,key,cause);
+        if(ap==state.image+0x16c6b10)return quest_authoring::direct_destination(pointer,key,cause);
+        if(ap==state.image+0x1748d20)return quest_authoring::npc_destination(pointer,key,cause);
         bool in_dungeon=false;
         return npc_quest_target_runtime::bind_current_destination(pointer,key,in_dungeon,cause);
     };

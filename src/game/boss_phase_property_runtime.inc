@@ -1,41 +1,41 @@
 struct NativePropertyCalls {
     uint32_t create(uintptr_t image,uintptr_t owner,const std::string& name,bool& returned){
-        __try{const auto phase=reinterpret_cast<uintptr_t(*)(size_t)>(image+0xa02670)(0xc8);
-            reinterpret_cast<void(*)(void*)>(image+0x4fe70)(reinterpret_cast<void*>(phase));
-            reinterpret_cast<void(*)(void*,void*)>(image+0x938e0)(reinterpret_cast<void*>(owner),reinterpret_cast<void*>(phase));
+        __try{const auto phase=reinterpret_cast<uintptr_t(*)(size_t)>(image+0xa0d230)(0xc8);
+            reinterpret_cast<void(*)(void*)>(image+0x50370)(reinterpret_cast<void*>(phase));
+            reinterpret_cast<void(*)(void*,void*)>(image+0x945d0)(reinterpret_cast<void*>(owner),reinterpret_cast<void*>(phase));
             const prop_text::Text value{name.data(),name.size(),{}};
-            reinterpret_cast<void(*)(void*,const void*)>(image+0x11bfce0)(reinterpret_cast<void*>(phase+0x38),&value);returned=true;return 0;
+            reinterpret_cast<void(*)(void*,const void*)>(image+0x11cb680)(reinterpret_cast<void*>(phase+0x38),&value);returned=true;return 0;
         }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t destroy(uintptr_t image,uintptr_t owner,uintptr_t phase,bool& returned){
-        __try{reinterpret_cast<void(*)(void*,void*)>(image+0x938f0)(reinterpret_cast<void*>(owner),reinterpret_cast<void*>(phase));returned=true;return 0;}
+        __try{reinterpret_cast<void(*)(void*,void*)>(image+0x945e0)(reinterpret_cast<void*>(owner),reinterpret_cast<void*>(phase));returned=true;return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t add(uintptr_t image,uintptr_t phase,uintptr_t prototype){
-        __try{const auto element=reinterpret_cast<uintptr_t(*)(size_t)>(image+0xa02670)(0x20);
-            reinterpret_cast<void(*)(void*)>(image+0x54170)(reinterpret_cast<void*>(element));
+        __try{const auto element=reinterpret_cast<uintptr_t(*)(size_t)>(image+0xa0d230)(0x20);
+            reinterpret_cast<void(*)(void*)>(image+0x54670)(reinterpret_cast<void*>(element));
             *reinterpret_cast<uintptr_t*>(element+0x18)=prototype;
-            reinterpret_cast<void(*)(void*,void*)>(image+0x4f8e0)(reinterpret_cast<void*>(phase),reinterpret_cast<void*>(element));return 0;
+            reinterpret_cast<void(*)(void*,void*)>(image+0x4fde0)(reinterpret_cast<void*>(phase),reinterpret_cast<void*>(element));return 0;
         }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t remove(uintptr_t image,uintptr_t phase,int32_t element){
-        __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x4fab0)(reinterpret_cast<void*>(phase),element);return 0;}
+        __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0x4ffb0)(reinterpret_cast<void*>(phase),element);return 0;}
         __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t event(uintptr_t image,uintptr_t phase,bool post){
         __try{
             // Original ItemView uses a 0x100-byte event slot, with Version at +0xd0.
             alignas(16) unsigned char event[0x100]{};
-            reinterpret_cast<void(*)(void*,void*)>(image+(post?0xd7f00:0xd7e40))(event,reinterpret_cast<void*>(phase));
-            reinterpret_cast<void(*)(const void*)>(image+0xd9200)(event);
-            *reinterpret_cast<uintptr_t*>(event+0xd0)=image+0x174cca0;
-            reinterpret_cast<void(*)(void*)>(image+0x89da30)(event+0xd0);
-            reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(event+8);return 0;
+            reinterpret_cast<void(*)(void*,void*)>(image+(post?0xd8f30:0xd8e70))(event,reinterpret_cast<void*>(phase));
+            reinterpret_cast<void(*)(const void*)>(image+0xda230)(event);
+            *reinterpret_cast<uintptr_t*>(event+0xd0)=image+0x1753040;
+            reinterpret_cast<void(*)(void*)>(image+0x8a6b50)(event+0xd0);
+            reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(event+8);return 0;
         }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t text(uintptr_t image,uintptr_t destination,const std::string& value){
         __try{const prop_text::Text native{value.data(),value.size(),{}};
-            reinterpret_cast<void(*)(void*,const void*)>(image+0x11bfce0)(reinterpret_cast<void*>(destination),&native);return 0;
+            reinterpret_cast<void(*)(void*,const void*)>(image+0x11cb680)(reinterpret_cast<void*>(destination),&native);return 0;
         }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
     }
     uint32_t bytes(uintptr_t destination,const void* data,size_t size){
@@ -44,16 +44,16 @@ struct NativePropertyCalls {
     }
 };
 uint32_t property_label(uintptr_t image,uintptr_t record,uintptr_t& label){
-    __try{label=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x96d880)(reinterpret_cast<const void*>(record));return 0;}
+    __try{label=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x976aa0)(reinterpret_cast<const void*>(record));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t property_value(uintptr_t image,uintptr_t record,action::BossPhaseKind kind,uintptr_t& text,float& health,std::array<float,4>& color,int32_t& element){
     __try{
-        if(kind==action::BossPhaseKind::Color)reinterpret_cast<void(*)(void*,const void*)>(image+0x969960)(color.data(),reinterpret_cast<const void*>(record));
-        else{const auto token=reinterpret_cast<uintptr_t(*)(const void*,int32_t)>(image+0x967740)(reinterpret_cast<const void*>(record),0);
-            if(kind==action::BossPhaseKind::RemoveAbility)element=reinterpret_cast<int32_t(*)(const void*)>(image+0x96d2c0)(reinterpret_cast<const void*>(token));
-            else if(kind==action::BossPhaseKind::Health)health=reinterpret_cast<float(*)(const void*)>(image+0x96d300)(reinterpret_cast<const void*>(token));
-            else text=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x96d880)(reinterpret_cast<const void*>(token));}
+        if(kind==action::BossPhaseKind::Color)reinterpret_cast<void(*)(void*,const void*)>(image+0x972b80)(color.data(),reinterpret_cast<const void*>(record));
+        else{const auto token=reinterpret_cast<uintptr_t(*)(const void*,int32_t)>(image+0x970960)(reinterpret_cast<const void*>(record),0);
+            if(kind==action::BossPhaseKind::RemoveAbility)element=reinterpret_cast<int32_t(*)(const void*)>(image+0x9764e0)(reinterpret_cast<const void*>(token));
+            else if(kind==action::BossPhaseKind::Health)health=reinterpret_cast<float(*)(const void*)>(image+0x976520)(reinterpret_cast<const void*>(token));
+            else text=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x976aa0)(reinterpret_cast<const void*>(token));}
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -79,7 +79,7 @@ bool property_capture(Runtime& r,uintptr_t item,action::BossPhaseIntent intent,s
         if(e.empty())e="Boss phase property capture requires idle bound Mainthread Controller";return false;}
     auto at=[&](uintptr_t base,size_t offset,auto& value){return base&&base<=UINTPTR_MAX-offset&&r.memory.read(base+offset,&value,sizeof value,e);};
     uintptr_t ap=0,object=0,phase=0,parent=0,window=0,list=0,owned_window=0;
-    if(!at(item,0,ap)||ap!=r.image+0x1721750||!at(item,0x340,object)||!at(item,0x348,phase)||!at(item,0x350,parent)||
+    if(!at(item,0,ap)||ap!=r.image+0x1727af0||!at(item,0x340,object)||!at(item,0x348,phase)||!at(item,0x350,parent)||
        !at(item,0x280,owned_window)||!live_list(r,object,window,list,e)||!list||parent!=list||owned_window!=window){
         if(e.empty())e="Boss phase property current Item/List/Window ownership differs";return false;}
     Sample before;if(!sample(r,binding,snapshot,before,e))return false;
@@ -145,7 +145,7 @@ bool create_capture(Runtime& r,uintptr_t list,std::string& e){
 }
 void create_entry(void* list){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x6963eb){original_create(list);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x69d63b){original_create(list);return;}
     try{std::string error;if(!create_capture(*r,uintptr_t(list),error))reject(error);}
     catch(const std::exception& x){reject(std::string("Boss phase create capture: ")+x.what());}
 }

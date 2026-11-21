@@ -20,11 +20,11 @@ template<class Memory>bool ui(Memory& m,uintptr_t image,uintptr_t selection_owne
     uintptr_t window=0,command=0;uint8_t visible=0;
     if(single){uintptr_t focused=0,handler=0,target=0;
         if(!q::at(m,selection_owner,0x80,focused,e)||!q::at(m,selection_owner,0xb8,handler,e)||
-           !q::at(m,handler,0x10,window,e)||!q::typed(m,image,window,0x1719fd0,e)||!q::at(m,window,0x4e8,target,e))return false;
+           !q::at(m,handler,0x10,window,e)||!q::typed(m,image,window,0x1720370,e)||!q::at(m,window,0x4e8,target,e))return false;
         if(focused!=single||target!=single)return q::fail(e,"Group InfoWindow selected owner differs");
-        if(!q::at(m,image+0x1719fd0,0x168,command,e)||command!=image+0x718c80)return q::fail(e,"Group InfoWindow command differs");
-    }else if(!q::at(m,selection_owner,0xc0,window,e)||!q::typed(m,image,window,0x171b260,e)||
-             !q::at(m,image+0x171b260,0x168,command,e)||command!=image+0x74bc00)return q::fail(e,e.empty()?"Group MultiInfoWindow owner/command differs":e);
+        if(!q::at(m,image+0x1720370,0x168,command,e)||command!=image+0x720210)return q::fail(e,"Group InfoWindow command differs");
+    }else if(!q::at(m,selection_owner,0xc0,window,e)||!q::typed(m,image,window,0x1721600,e)||
+             !q::at(m,image+0x1721600,0x168,command,e)||command!=image+0x7535a0)return q::fail(e,e.empty()?"Group MultiInfoWindow owner/command differs":e);
     if(!q::at(m,window,0x45f,visible,e))return false;
     return visible==1||q::fail(e,"Group normal source InfoWindow is not visible");
 }
@@ -35,11 +35,11 @@ template<class Memory>bool pose(Memory& m,uintptr_t object,size_t offset,std::ar
 }
 template<class Memory>bool selection(Memory& m,uintptr_t image,uintptr_t owner,std::vector<uintptr_t>& raw,std::vector<uintptr_t>& filtered,std::string& e){
     uintptr_t singleton=0;uint8_t setting=0,queued=0;
-    if(!q::at(m,image,0x13df630,singleton,e)||singleton!=owner||!q::typed(m,image,owner,0x17205d0,e)||
+    if(!q::at(m,image,0x13eb630,singleton,e)||singleton!=owner||!q::typed(m,image,owner,0x1726970,e)||
        !q::at(m,owner,0xd1,setting,e)||!q::at(m,owner,0xd3,queued,e))return q::fail(e,e.empty()?"Group exact SelectionManager differs":e);
     if(setting||queued)return q::fail(e,"Group SelectionManager is setting/queued");
     auto read=[&](size_t offset,std::vector<uintptr_t>& out){q::Bounds span;
-        if(!q::typed(m,image,owner+offset,0x1748c50,e)||!q::bounds(m,owner+offset,100000,span,e))return false;
+        if(!q::typed(m,image,owner+offset,0x174eff0,e)||!q::bounds(m,owner+offset,100000,span,e))return false;
         out.clear();std::set<uintptr_t> unique;
         for(int32_t i=0;i<span.count;++i){uintptr_t p=0;if(!q::at(m,span.data,size_t(i)*8,p,e))return false;
             if(!p||!unique.insert(p).second)return q::fail(e,"Group Selection null/duplicate member");out.push_back(p);}
@@ -52,12 +52,12 @@ template<class Memory,class BindScenery,class Owner,class Find,class BindGroup>
 bool read(Memory& m,uintptr_t image,uintptr_t root,uintptr_t selection_owner,const std::vector<uintptr_t>& extra,
           BindScenery&& bind,Owner&& owner,Find&& find,BindGroup&& group_key,Local& out,std::string& e){
     Local result;result.selection=selection_owner;q::Bounds groups;
-    if(!q::at(m,image,0x13df3e0,result.manager,e)||!q::typed(m,image,result.manager,0x1700890,e)||
-       !q::typed(m,image,result.manager+0x18,0x16f0060,e)||!q::bounds(m,result.manager+0x18,100000,groups,e))return false;
+    if(!q::at(m,image,0x13eb3e0,result.manager,e)||!q::typed(m,image,result.manager,0x1706c30,e)||
+       !q::typed(m,image,result.manager+0x18,0x16f6400,e)||!q::bounds(m,result.manager+0x18,100000,groups,e))return false;
     std::set<uintptr_t> objects,member_objects;std::set<uint64_t> uids;
     auto scenery=[&](uintptr_t p,uintptr_t expected_parent,a::GroupProp& prop){
         uintptr_t actual_root=0,parent=0;uint64_t uid=0;
-        if(!q::typed(m,image,p,0x16c1390,e)||!q::at(m,p,0x18,uid,e)||!q::at(m,p,0x170,actual_root,e)||
+        if(!q::typed(m,image,p,0x16c7730,e)||!q::at(m,p,0x18,uid,e)||!q::at(m,p,0x170,actual_root,e)||
            !q::at(m,p,0x180,parent,e)||!pose(m,p,0x100,prop.pose,e)||!bind(p,uid,prop.key,prop.region,e))return false;
         if(!uid||actual_root!=root||parent!=expected_parent||prop.key.empty())return q::fail(e,"Group Scenery full UID/root/reciprocal parent differs");
         const auto [it,added]=result.handles.emplace(prop.key,Handle{p,uid});
@@ -65,15 +65,15 @@ bool read(Memory& m,uintptr_t image,uintptr_t root,uintptr_t selection_owner,con
         if(added&&!uids.insert(uid).second)return q::fail(e,"Group/Scenery complete local full UID repeats");
         return true;};
     for(int32_t i=0;i<groups.count;++i){uintptr_t p=0,actual_root=0,region=0,parent=0,found=0;uint64_t uid=0;a::GroupRow row;q::Bounds members;
-        if(!q::at(m,groups.data,size_t(i)*8,p,e)||!q::typed(m,image,p,0x1749de0,e)||!q::at(m,p,0x18,uid,e)||
+        if(!q::at(m,groups.data,size_t(i)*8,p,e)||!q::typed(m,image,p,0x1750180,e)||!q::at(m,p,0x18,uid,e)||
            !q::at(m,p,0x170,actual_root,e)||!q::at(m,p,0x178,region,e)||!q::at(m,p,0x180,parent,e)||
            !owner(region,row.region,e)||!find(uid,found,e)||!pose(m,p,0x100,row.pose,e)||
-           !q::typed(m,image,p+0x210,0x16ea660,e)||!q::bounds(m,p+0x210,100000,members,e))return false;
+           !q::typed(m,image,p+0x210,0x16f0a00,e)||!q::bounds(m,p+0x210,100000,members,e))return false;
         if(!uid||found!=p||actual_root!=root||parent||!objects.insert(p).second||!uids.insert(uid).second)
             return q::fail(e,"Group current manager/full UID/root ownership differs");
         std::vector<a::GroupProp> props;std::set<uintptr_t> member_records;
         for(int32_t j=0;j<members.count;++j){uintptr_t record=0,prop=0;a::GroupMember member;a::GroupProp value;
-            if(!q::at(m,members.data,size_t(j)*8,record,e)||!q::typed(m,image,record,0x16fbc40,e)||
+            if(!q::at(m,members.data,size_t(j)*8,record,e)||!q::typed(m,image,record,0x1701fe0,e)||
                !q::at(m,record,0x18,prop,e)||!pose(m,record,0x64,member.relative,e)||!scenery(prop,p,value))return false;
             if(!member_records.insert(record).second||!member_objects.insert(prop).second)
                 return q::fail(e,"Group member record/Scenery ownership repeats");

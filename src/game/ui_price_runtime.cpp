@@ -119,27 +119,27 @@ bool native_text(Runtime& r,uintptr_t object,std::string& value,std::string& e){
 uint32_t find_window(uintptr_t image,const char* id,void*& window,bool& constructed,bool& cleaned){
     alignas(8) unsigned char name[32]{};uint32_t seh=0;
     __try {
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(name,id);constructed=true;
-        window=reinterpret_cast<void*(*)(const void*)>(image+0x81aa90)(name);
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x4a3580)(name,id);constructed=true;
+        window=reinterpret_cast<void*(*)(const void*)>(image+0x823080)(name);
     }__except(EXCEPTION_EXECUTE_HANDLER){seh=GetExceptionCode();}
-    if(constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(name);cleaned=true;}
+    if(constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(name);cleaned=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){if(!seh)seh=GetExceptionCode();}}
     return seh;
 }
 uint32_t find_property_pane(uintptr_t image,void* window,const char* id,void*& pane,bool& constructed,bool& cleaned){
     alignas(8) unsigned char name[32]{};uint32_t seh=0;
     __try {
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x49e090)(name,id);constructed=true;
-        pane=reinterpret_cast<void*(*)(void*,const void*)>(image+0xc360e0)(window,name);
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x4a3580)(name,id);constructed=true;
+        pane=reinterpret_cast<void*(*)(void*,const void*)>(image+0xc42990)(window,name);
     }__except(EXCEPTION_EXECUTE_HANDLER){seh=GetExceptionCode();}
-    if(constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x11bd1e0)(name);cleaned=true;}
+    if(constructed){__try{reinterpret_cast<void(*)(void*)>(image+0x11c8b80)(name);cleaned=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){if(!seh)seh=GetExceptionCode();}}
     return seh;
 }
 uint32_t registry_mutex(uintptr_t image,bool lock) noexcept {
     __try {
-        reinterpret_cast<void(*)(void*)>(image+(lock?0xa0b0b0:0xa0b0c0))(
-            reinterpret_cast<void*>(image+0x1a3c440));
+        reinterpret_cast<void(*)(void*)>(image+(lock?0xa15c70:0xa15c80))(
+            reinterpret_cast<void*>(image+0x1a43440));
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -149,7 +149,7 @@ bool registered_overview(Runtime& r,void* window,const char* id,std::string& e){
     const auto locked=registry_mutex(r.image,true);
     if(locked)return fail(e,"price WindowRegistry Lock SEH="+std::to_string(locked));
     uintptr_t windows=0;int32_t count=0;int matches=0,owners=0;bool valid=true;
-    if(!at(r,r.image,0x1a3c478,windows,e)||!at(r,r.image,0x1a3c480,count,e)||
+    if(!at(r,r.image,0x1a43478,windows,e)||!at(r,r.image,0x1a43480,count,e)||
        count<1||count>4096||!windows){
         valid=false;if(e.empty())e="price WindowRegistry global array/count invalid";
     }
@@ -177,19 +177,19 @@ uint32_t invoke_ui(uintptr_t image,void* window,void* purchase,void* subscriptio
                    const NativeString* first,const NativeString* second,void* record,UiCall& receipt){
     uint32_t seh=0;
     __try {
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x785290)(purchase,first);receipt.value1=true;
-        reinterpret_cast<void(*)(void*,const void*)>(image+0x785290)(subscription,second);receipt.value2=true;
-        reinterpret_cast<void(*)(void*,const char*)>(image+0x967370)(record,"UpdateSaleValues");receipt.record=true;
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x78d060)(purchase,first);receipt.value1=true;
+        reinterpret_cast<void(*)(void*,const void*)>(image+0x78d060)(subscription,second);receipt.value2=true;
+        reinterpret_cast<void(*)(void*,const char*)>(image+0x970590)(record,"UpdateSaleValues");receipt.record=true;
         receipt.called=true;
-        receipt.accepted=reinterpret_cast<bool(*)(void*,void*)>(image+0x76bd40)(window,record);
+        receipt.accepted=reinterpret_cast<bool(*)(void*,void*)>(image+0x773860)(window,record);
         receipt.returned=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){seh=GetExceptionCode();}
-    if(receipt.record){__try{reinterpret_cast<void(*)(void*)>(image+0x9676a0)(record);receipt.cleaned=true;}
+    if(receipt.record){__try{reinterpret_cast<void(*)(void*)>(image+0x9708c0)(record);receipt.cleaned=true;}
         __except(EXCEPTION_EXECUTE_HANDLER){if(!seh)seh=GetExceptionCode();}}
     return seh;
 }
 uint32_t show_window(uintptr_t image,void* window,bool visible){
-    __try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x81ec20)(window,visible,false);return 0;}
+    __try{reinterpret_cast<void(*)(void*,bool,bool)>(image+0x827210)(window,visible,false);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 void reject(Runtime& r,const std::string& e){++r.rejected;if(r.cause!=e){r.cause=e;LOG_ERROR("[UIPrice] Rejected cause={}",e);}}
@@ -220,7 +220,7 @@ std::string uuid(std::string& e) {
 void capture(uint8_t field,void* receiver,int32_t value,uintptr_t caller) {
     auto* r=published.load(std::memory_order_acquire);
     const auto original=(field==1?r->purchase:r->subscription).load(std::memory_order_acquire);
-    const uintptr_t expected=r->image+(field==1?0x76c085:0x76c101);
+    const uintptr_t expected=r->image+(field==1?0x773ba5:0x773c21);
     if(caller!=expected){++r->forwarded;original(receiver,value);return;}
     if(!net::session_wire::connected()){
         if(ordered_mode()||(r->pending&&r->pending->context)){reject(*r,"Ordered price capture lost connected Session");return;}
@@ -273,27 +273,27 @@ bool enable(std::string& e) {
         ~KeepInstallCause(){if(!error.empty())runtime.install_cause=error;}
     } keep{*r,e};
     if(!native::read_resolver_receipt(r->image,thread,sha,e)||
-       sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||thread!=r->thread)
+       sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||thread!=r->thread)
         return fail(e,"price hooks exact EXE/Mainthread differs: "+e);
     constexpr unsigned char purchase_body[]{0x89,0x51,0x40,0xc3};
     constexpr unsigned char subscription_body[]{0x89,0x51,0x44,0xc3};
-    constexpr unsigned char purchase_call[]{0xe8,0x5b,0x8c,0x8e,0xff};
-    constexpr unsigned char subscription_call[]{0xe8,0xef,0x8b,0x8e,0xff};
+    constexpr unsigned char purchase_call[]{0xe8,0x3b,0x16,0x8e,0xff};
+    constexpr unsigned char subscription_call[]{0xe8,0xcf,0x15,0x8e,0xff};
     const struct {uintptr_t address;const unsigned char* expected;size_t size;} checks[]{
-        {0x54ce0,purchase_body,sizeof purchase_body},{0x54cf0,subscription_body,sizeof subscription_body},
-        {0x76c080,purchase_call,sizeof purchase_call},{0x76c0fc,subscription_call,sizeof subscription_call}};
+        {0x551e0,purchase_body,sizeof purchase_body},{0x551f0,subscription_body,sizeof subscription_body},
+        {0x773ba0,purchase_call,sizeof purchase_call},{0x773c1c,subscription_call,sizeof subscription_call}};
     for(const auto& item:checks){unsigned char bytes[5]{};
         if(!r->memory.copy(r->image+item.address,bytes,item.size,e)||std::memcmp(bytes,item.expected,item.size))
             return fail(e,e.empty()?"price exact native setter/UI callsite bytes differ":e);
     }
     SetFee purchase=nullptr,subscription=nullptr;
-    const auto first=MH_CreateHook(reinterpret_cast<void*>(r->image+0x54ce0),reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&purchase));
+    const auto first=MH_CreateHook(reinterpret_cast<void*>(r->image+0x551e0),reinterpret_cast<void*>(&purchase_entry),reinterpret_cast<void**>(&purchase));
     if(first!=MH_OK||!purchase)return fail(e,"price Purchase MinHook create status="+std::to_string(first));
     r->purchase.store(purchase,std::memory_order_release);
-    const auto second=MH_CreateHook(reinterpret_cast<void*>(r->image+0x54cf0),reinterpret_cast<void*>(&subscription_entry),reinterpret_cast<void**>(&subscription));
+    const auto second=MH_CreateHook(reinterpret_cast<void*>(r->image+0x551f0),reinterpret_cast<void*>(&subscription_entry),reinterpret_cast<void**>(&subscription));
     if(second!=MH_OK||!subscription)return fail(e,"price Subscription MinHook create status="+std::to_string(second));
     r->subscription.store(subscription,std::memory_order_release);
-    const uintptr_t targets[]{r->image+0x54ce0,r->image+0x54cf0};
+    const uintptr_t targets[]{r->image+0x551e0,r->image+0x551f0};
     if(!mt2mp::hooks::enable_prepared_targets(targets,"price setters",e))return false;
     r->ready.store(true,std::memory_order_release);r->install_cause.clear();e.clear();return true;
 }
@@ -426,9 +426,9 @@ bool native_ui(const std::string& token,int32_t purchase_fee,int32_t subscriptio
     if(before.purchase==purchase_fee&&before.subscription==subscription_fee)
         return fail(e,"price native UI requested values unchanged");
     uintptr_t game=0,mode=0,active=0,ap=0;
-    if(!at(*r,r->image,0x13df8f0,game,e)||!at(*r,game,0,ap,e)||ap!=r->image+0x1743740||
+    if(!at(*r,r->image,0x13eb8f0,game,e)||!at(*r,game,0,ap,e)||ap!=r->image+0x1749ae0||
        !at(*r,game,0x358,mode,e)||!at(*r,game,0x28,active,e)||mode!=active||
-       !at(*r,mode,0,ap,e)||ap!=r->image+0x16e6730)
+       !at(*r,mode,0,ap,e)||ap!=r->image+0x16ecad0)
         return fail(e,e.empty()?"price native UI active game mode owner differs":e);
     void* window=nullptr;bool constructed=false,cleaned=false;
     const auto lookup=find_window(r->image,"report_overview",window,constructed,cleaned);
@@ -436,12 +436,12 @@ bool native_ui(const std::string& token,int32_t purchase_fee,int32_t subscriptio
     if(!registered_overview(*r,window,"report_overview",e))return false;
     uint8_t visible=0;uintptr_t pane1=0,pane2=0,view1=0,view2=0,owner1=0,owner2=0;
     if(!at(*r,uintptr_t(window),0,ap,e))return false;
-    const bool overview_class=ap==r->image+0x17142d0;
+    const bool overview_class=ap==r->image+0x171a670;
     if(!at(*r,uintptr_t(window),0x45f,visible,e))return false;
     out["pane_guard"]={{"overview_class",overview_class},
                        {"overview_vtable_rva",ap>=r->image&&ap-r->image<0x2000000
                            ?int64_t(ap-r->image):int64_t(-1)},
-                       {"expected_overview_vtable_rva",0x17142d0},
+                       {"expected_overview_vtable_rva",0x171a670},
                        {"visibility_valid",visible<=1}};
     if(!overview_class||visible>1)return fail(e,"price Overview class or visibility differs before UI command");
     if(!at(*r,uintptr_t(window),0x588,pane1,e)||!at(*r,uintptr_t(window),0x598,pane2,e))return false;

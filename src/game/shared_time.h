@@ -66,8 +66,8 @@ public:
     Bridge() = default;
     Bridge(const Bridge&) = delete;
     Bridge& operator=(const Bridge&) = delete;
-    static constexpr uintptr_t activate_rva = 0x20e6d0;
-    static constexpr uintptr_t update_rva = 0x20e8d0;
+    static constexpr uintptr_t activate_rva = 0x2112c0;
+    static constexpr uintptr_t update_rva = 0x211510;
     // Hooks use void(type*,item*) and void(type*,item*,float), respectively.
     // Initialize before either hook changes the original prologue.
     bool initialize(const Config&, const Backend&, std::string& error);

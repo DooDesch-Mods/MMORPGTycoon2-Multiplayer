@@ -19,15 +19,15 @@ bool NativePort::checked(uint32_t code,const char* operation,std::string& error)
 bool NativePort::code(std::string& error){
     struct Pin{uintptr_t rva;size_t bytes;const char* sha;};
     static constexpr Pin pins[]={
-        {0x9ffd80,368,"e778dfc7316eeebf93de7805a5aec4f913318db2323f16739ee202b09366aa95"},
-        {0x350710,32,"c7ef1dc8f5cd463666e34fa2884d3541d619455b05ae71c26b7c2476134065b9"},
-        {0x298a30,304,"29bfd42ab93c955e0115ce9310a37103116375eb3be2304f111648fc679ea344"},
-        {0x298de0,32,"f21145ab32faa7461485a10c32ab77dea5cbaaf9c453a15b20eb3b1c02b76a86"},
-        {0x32ab80,48,"5da4b673fa8742073f3af60317e3f5ddab22a1f7206186b2dfae0359be586bab"},
-        {0x39cb50,128,"6dd347e5a3295fa5a152781dc02ea7590a5036f1dbb626a1f6503c392e80a7f5"},
-        {0x9fb4d0,48,"043e23cdfd2b075bbec932d06dbbe95e946e8c30d4b2e7c4989c00272ca9e8d7"},
-        {0x3b0530,176,"5c9539bf6fe56a935d6706c8eec81eb39aad0dd0a18e96ca89c8987e43fa527a"},
-        {0x3b07d0,176,"59feed58a5d1dbbf9c2201bcf2d639cf5f0b4c3ffc2c4fe538b2c4547f105161"}};
+        {0xa0a940,368,"4d09e4c7e4dcb6998ceb639d8a035d850f80818599c7c3555526ebedc2bedc3d"},
+        {0x354e10,32,"c7ef1dc8f5cd463666e34fa2884d3541d619455b05ae71c26b7c2476134065b9"},
+        {0x29bed0,304,"c8966ad00603c74d50753399f33567320c01a2b01238922b495cca9055978ee4"},
+        {0x29c280,32,"f21145ab32faa7461485a10c32ab77dea5cbaaf9c453a15b20eb3b1c02b76a86"},
+        {0x32ec10,48,"23f6c0ec319395794462a0f1157cdd5ac0ca926f3f25079a7be4d4b75751985c"},
+        {0x3a1650,128,"ba4594fed908c7e91443251a6bdd76114a4de46c0802955272ecbd34199625d8"},
+        {0xa05920,48,"043e23cdfd2b075bbec932d06dbbe95e946e8c30d4b2e7c4989c00272ca9e8d7"},
+        {0x3b5040,176,"04594e66918b26c1afad0cdbfcc1c9f98b6fdf23bddcd419c55eaae51e41895a"},
+        {0x3b52e0,176,"0de21df3fa732b0bef49f663c46b90c6585c834d4f040bec8822c7c914cb722b"}};
     for(const auto& pin:pins){std::vector<unsigned char> bytes(pin.bytes);
         if(!memory_.copy(image_+pin.rva,bytes.data(),bytes.size(),error))return false;
         if(mt2mp::sha256(bytes)!=pin.sha)return fail(error,"Control original leaf fingerprint differs RVA="+std::to_string(pin.rva));}
@@ -36,20 +36,20 @@ bool NativePort::code(std::string& error){
 bool NativePort::resolve(const Target& target,LocalBinding& out,uint64_t& uid,std::string& error){
     action_session::Context current;uint32_t thread{};std::string sha;
     if(!action_session::selected_session().current(current,error)||current!=context_||(!replica_&&context_.role!=action_session::Role::Host)||
-       !game::native::read_resolver_receipt(image_,thread,sha,error)||thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(error,error.empty()?"Control requires current Host/Mainthread/exact executable":error);
+       !game::native::read_resolver_receipt(image_,thread,sha,error)||thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(error,error.empty()?"Control requires current Host/Mainthread/exact executable":error);
     game::interventions::Census census;if(!game::interventions::census(context_,binding_,census,error))return false;
     const auto found=std::find_if(census.actors.begin(),census.actors.end(),[&](const auto& row){return row.target==target;});
     if(found==census.actors.end())return fail(error,"Control canonical actor is absent from current census key="+target.key);
     const auto actor=found->object;uintptr_t registered{};
     if(!checked(game::interventions::actors::native::registered(image_,found->uid,registered),"FindUID",error)||registered!=actor)return fail(error,error.empty()?"Control current full UID differs":error);
     using Family=game::interventions::Family;
-    const uintptr_t ap=target.family==Family::Toon?0x1744e90:target.family==Family::Npc?0x1742980:target.family==Family::Boss?0x1743040:0x16c0770;
-    const uintptr_t transform=target.family==Family::Toon?0x1745378:target.family==Family::Npc?0x1742e58:target.family==Family::Boss?0x1743530:0x16c0c58;
-    const uintptr_t notify=target.family==Family::Toon?0x3e82a0:target.family==Family::Npc?0x3c2de0:0x39e750;
+    const uintptr_t ap=target.family==Family::Toon?0x174b230:target.family==Family::Npc?0x1748d20:target.family==Family::Boss?0x17493e0:0x16c6b10;
+    const uintptr_t transform=target.family==Family::Toon?0x174b718:target.family==Family::Npc?0x17491f8:target.family==Family::Boss?0x17498d0:0x16c6ff8;
+    const uintptr_t notify=target.family==Family::Toon?0x3ecdb0:target.family==Family::Npc?0x3c78f0:0x3a3250;
     uintptr_t actual{},embedded{},callback{},controlled{},character{},model{};uint64_t actual_uid{};
     if(!::mt2mp::control_input::read(memory_,actor,0,actual,error)||actual!=image_+ap||!::mt2mp::control_input::read(memory_,actor,0x18,actual_uid,error)||actual_uid!=found->uid||
        !::mt2mp::control_input::read(memory_,actor,0x30,embedded,error)||embedded!=image_+transform||!::mt2mp::control_input::read(memory_,embedded,0x38,callback,error)||callback!=image_+notify||
-       !::mt2mp::control_input::read(memory_,actual,0x3f0,controlled,error)||controlled!=image_+(target.family==Family::Toon?0x3e4d30:0x39aa40)||
+       !::mt2mp::control_input::read(memory_,actual,0x3f0,controlled,error)||controlled!=image_+(target.family==Family::Toon?0x3e9840:0x39f540)||
        !::mt2mp::control_input::read(memory_,actor,0x6f0,character,error)||!character||!::mt2mp::control_input::read(memory_,character,0,model,error)||!model)return fail(error,error.empty()?"Control actor class/full UID/model/transform callback differs":error);
     if(!census.bosses.world.map)return fail(error,"Control current Map singleton absent");
     out={image_,actor,uintptr_t(census.bosses.world.map)};uid=found->uid;return code(error);
@@ -114,7 +114,7 @@ bool NativePort::replica_flags(const Target& target,bool controlled,bool moving,
 }
 namespace {
 uint32_t invoke_item(uintptr_t image,uintptr_t item,bool activate)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(image+(activate?0x207820:0x2078a0))(item);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(image+(activate?0x20a2b0:0x20a330))(item);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -127,10 +127,10 @@ bool ability_binding(::placement_ui_probe::ProcessMemory& memory,uintptr_t image
     auto at=[&](uintptr_t pointer,size_t offset,auto& value){return read(memory,pointer,offset,value,error);};
     uintptr_t set_ap{},owner{},item_ap{},weak_ap{},cast{},slot{},registered{};int32_t references{};
     out.actor=local.actor;out.actor_uid=uid;
-    if(!at(local.actor,0x7a8,set_ap)||set_ap!=image+0x16e3c30||!at(local.actor,0x7d8,owner)||owner!=local.actor||
+    if(!at(local.actor,0x7a8,set_ap)||set_ap!=image+0x16e9fd0||!at(local.actor,0x7d8,owner)||owner!=local.actor||
        !at(local.actor,0x7b0,out.data)||!at(local.actor,0x7b8,out.count)||!at(local.actor,0x7bc,out.capacity)||out.count<0||out.count>10000||out.capacity<out.count||ordinal<0||ordinal>=out.count||
-       !out.data||out.data>UINTPTR_MAX-size_t(out.count)*8||!at(out.data,size_t(ordinal)*8,out.item)||!at(out.item,0,item_ap)||item_ap!=image+0x17437f0||
-       !at(out.item,0x18,out.item_uid)||!out.item_uid||!at(out.item,0x80,owner)||owner!=local.actor||!at(out.item,0x40,weak_ap)||weak_ap!=image+0x17117b0||
+       !out.data||out.data>UINTPTR_MAX-size_t(out.count)*8||!at(out.data,size_t(ordinal)*8,out.item)||!at(out.item,0,item_ap)||item_ap!=image+0x1749b90||
+       !at(out.item,0x18,out.item_uid)||!out.item_uid||!at(out.item,0x80,owner)||owner!=local.actor||!at(out.item,0x40,weak_ap)||weak_ap!=image+0x1717b50||
        !at(out.item,0x68,out.type)||!at(out.item,0x30,cast)||cast!=out.type||!at(out.item,0x70,out.proxy)||!at(out.proxy,0,slot)||slot!=out.type+0x38||!at(out.proxy,8,references)||references<1||
        !at(out.item,0x38,out.state)||out.state<0||!at(out.item,0x3c,out.cooldown)||!std::isfinite(std::bit_cast<float>(out.cooldown)))return fail(error,error.empty()?"Control actual AbilitySet/Item/weak lifetime/scalar domain differs":error);
     const auto exception=game::interventions::actors::native::registered(image,out.item_uid,registered);

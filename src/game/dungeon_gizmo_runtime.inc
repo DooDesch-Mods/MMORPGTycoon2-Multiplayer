@@ -6,7 +6,7 @@ bool installed=false,ready=false,fault=false,replaying=false,callback_failed=fal
 uintptr_t replay_receiver=0;uint32_t original_calls=0;a::DungeonGizmoEdit replay_edit=a::DungeonGizmoEdit::Gold;int32_t replay_value=0;
 const a::DungeonGizmoRecord* preparation=nullptr;bool preparation_door=false;
 dungeon_gizmo_identity::Member state_callback_target;
-constexpr npc_quest_list_ui_codes::Code ui_code{0x6f4930,2071,"06943e49c74a354ab951ca86dd1939140ee6677cbb436b660a524954cd557e08",
+constexpr npc_quest_list_ui_codes::Code ui_code{0x6fbdc0,2071,"4e9daac31bcc21baeccdaa86d22024d99e36a4b19739d99d7424ec55e5c601ba",
     {0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x81,0xec,0x10,0x02,0x00,0x00,0x48,0x89,0xcb,0x48,0x8b,0x89,0xf8,0x04,0x00,0x00,0x48,0x89,0xd6,0x48,0x85,0xc9,0x0f,0x84,0x9d}};
 struct Sample {dungeon_palette::Sample dungeon;dungeon_scene_identity_runtime::Census census;a::DungeonGizmoState value;dungeon_gizmo_identity::Member target;};
 struct Pending {a::Binding binding;std::string snapshot;a::DungeonGizmoIntent intent;};
@@ -72,11 +72,11 @@ bool same_local(const Sample& before,const Sample& after){
         if(x.scene.owner.key!=y.scene.owner.key||x.managers!=y.managers||x.local!=y.local)return false;}return true;
 }
 const a::DungeonGizmoRecord* selected(const a::DungeonGizmoState& value,const std::string& key){for(const auto& scene:value.scenes)for(const auto& row:scene.rows)if(row.key==key)return &row.value;return nullptr;}
-uint32_t find_window(uintptr_t& out)noexcept{__try{const quest_list::QuestTitleView name{"info_gizmo",10};out=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x81aa90)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t set_window(uintptr_t window,uintptr_t target)noexcept{__try{if(target)reinterpret_cast<void(*)(void*,void*)>(state.image+0x6f53f0)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(target));else reinterpret_cast<void(*)(void*)>(state.image+0x6f35f0)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t refresh_window(uintptr_t window)noexcept{__try{reinterpret_cast<void(*)(void*)>(state.image+0x6f3800)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t is_door(uintptr_t target,bool& door)noexcept{__try{door=reinterpret_cast<bool(*)(uintptr_t)>(state.image+0x145990)(target);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t feature(uintptr_t target,bool& container)noexcept{__try{container=reinterpret_cast<bool(*)(const void*,int32_t)>(state.image+0x145560)(reinterpret_cast<const void*>(target),0);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t find_window(uintptr_t& out)noexcept{__try{const quest_list::QuestTitleView name{"info_gizmo",10};out=reinterpret_cast<uintptr_t(*)(const quest_list::QuestTitleView&)>(state.image+0x823080)(name);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t set_window(uintptr_t window,uintptr_t target)noexcept{__try{if(target)reinterpret_cast<void(*)(void*,void*)>(state.image+0x6fc880)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(target));else reinterpret_cast<void(*)(void*)>(state.image+0x6faa80)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t refresh_window(uintptr_t window)noexcept{__try{reinterpret_cast<void(*)(void*)>(state.image+0x6fac90)(reinterpret_cast<void*>(window));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t is_door(uintptr_t target,bool& door)noexcept{__try{door=reinterpret_cast<bool(*)(uintptr_t)>(state.image+0x1469c0)(target);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t feature(uintptr_t target,bool& container)noexcept{__try{container=reinterpret_cast<bool(*)(const void*,int32_t)>(state.image+0x146590)(reinterpret_cast<const void*>(target),0);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool window(Memory& memory,dungeon_gizmo_record::Window& out,std::string& error){
     uintptr_t object=0;const auto seh=find_window(object);if(seh||!object)return fail(error,"Gizmo actual named Window unavailable SEH="+std::to_string(seh));host::LookupApi api;
     if(!host::resolve_lookup(memory.process,state.image,exe_sha,api,error))return false;

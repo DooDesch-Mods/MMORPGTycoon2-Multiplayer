@@ -115,9 +115,9 @@ bool initialize(const hud_time::Config& config,std::string& error) {
     if(initialized){error="hud_calendar_runtime_already_initialized";return false;}
     if(!calendar.initialize(config,hud_time::process_read_services(),{nullptr,context,hud_time::process_call_calendar_panel},error))return false;
     image=config.image;
-    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x62c400),reinterpret_cast<void*>(&panel_update),reinterpret_cast<void**>(&original_panel))){error="calendar PanelUpdate hook creation failed";return false;}
+    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x6331d0),reinterpret_cast<void*>(&panel_update),reinterpret_cast<void**>(&original_panel))){error="calendar PanelUpdate hook creation failed";return false;}
     panel_hook_created=true;
-    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x25a190),reinterpret_cast<void*>(&format),reinterpret_cast<void**>(&original_formatter))){error="calendar GetTimeString hook creation failed";return false;}
+    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x25d250),reinterpret_cast<void*>(&format),reinterpret_cast<void**>(&original_formatter))){error="calendar GetTimeString hook creation failed";return false;}
     formatter_hook_created=true;
     hud_time::transport::Services services;
     services.thread_id=[](){return GetCurrentThreadId();};services.context=transport_context;

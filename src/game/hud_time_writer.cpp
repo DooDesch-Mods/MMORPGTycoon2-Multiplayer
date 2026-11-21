@@ -18,9 +18,9 @@ bool Writer::initialize(const Config& config,const Services& reads,const WriterS
         io_=io;
         if(!reader_.initialize(config,reads,e))return false;
         // Window.Show is a separate hook; its unchanged entry is checked before installation.
-        constexpr unsigned char expected[]{0x84,0xd2,0x75,0x09,0x80,0xb9,0x77,0x03,0,0,0,0x75,0x23};
+        constexpr unsigned char expected[]{0x84,0xd2,0x75,0x09,0x80,0xb9,0x77,0x03,0x00,0x00,0x00,0x75,0x23};
         unsigned char actual[sizeof(expected)]{};
-        if(!reader_.bytes(config.image+0x81ec20,actual,sizeof(actual),e))return false;
+        if(!reader_.bytes(config.image+0x827210,actual,sizeof(actual),e))return false;
         if(!std::equal(std::begin(expected),std::end(expected),std::begin(actual)))return fail(e,"hud_writer_show_prologue_mismatch");
         status_.initialized=true;e.clear();return true;
     }catch(const std::exception& ex){e=std::string("hud_writer_initialize_exception: ")+ex.what();return false;}

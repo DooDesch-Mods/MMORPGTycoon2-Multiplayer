@@ -47,7 +47,7 @@ bool bind_thread(std::string& error){
     uintptr_t image=0;uint32_t actual=0;std::string sha;
     if(!native::read_resolver_receipt(image,actual,sha,error))return false;
     if(!image||!actual||actual!=GetCurrentThreadId()||
-       sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+       sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
         error="world reload exact native image/game-thread binding differs";return false;
     }
     thread=actual;error.clear();return true;

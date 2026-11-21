@@ -4,7 +4,7 @@
 
 Build together in one Host world. This is an early beta in active development. Expect bugs, desyncs and unfinished features. Start with a small world and keep backups of saves you care about.
 
-Both players need Multiplayer {{MULTIPLAYER_VERSION}}, MT2 Mod Framework Runtime {{FRAMEWORK_MIN_VERSION}} or newer, and the supported Windows x64 Steam game build 24993678. The Framework runtime is a separate download.
+Both players need Multiplayer {{MULTIPLAYER_VERSION}}, MT2 Mod Framework Runtime {{FRAMEWORK_MIN_VERSION}} or newer, and the supported Windows x64 Steam game build 26719430. The Framework runtime is a separate download.
 
 ## Install with Vortex (recommended)
 

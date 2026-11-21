@@ -26,7 +26,7 @@ bool sample(Runtime& r,const action::Binding& binding,const std::string& snapsho
     uintptr_t character_owner=0;
     if(!service_membership_reader::sample(at,text,destination,r.image,out.target.object,out.value,out.local,e)||
        !at(uintptr_t(out.world.origin.state),0x168,character_owner,e)||character_owner!=out.local.manager||
-       !at(r.image,0x164b250,out.random_owner,e)||!at(out.random_owner,0,out.random,e)){
+       !at(r.image,0x1650830,out.random_owner,e)||!at(out.random_owner,0,out.random,e)){
         if(e.empty())e="Service membership current NativeState Character owner/RNG receiver differs";return false;}
     host::WorldState after;if(!world(r,after,e)||!host::same_world(out.world.origin,after.origin)){if(e.empty())e="Service membership World changed during census";return false;}
     return true;
@@ -41,7 +41,7 @@ bool capture(Runtime& r,uintptr_t object,uintptr_t window,uintptr_t service,uint
     Sample before;if(!sample(r,binding,snapshot,target.record_key,before,e))return false;
     prop_text::UiMemory memory(r);action::ui_diagnostic::Window current;
     action::ui_diagnostic::Context context{r.image,before.world.selection,object,target.uid,target.world_epoch,target.world_generation,
-        "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",action::ui_diagnostic::Family::Building};
+        "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",action::ui_diagnostic::Family::Building};
     if(!action::ui_diagnostic::read_live_window(memory,context,current,e)||(window&&current.window!=window)){if(e.empty())e="Service membership source window differs";return false;}
     action::ServiceMembershipIntent intent;intent.kind=kind;
     if(kind==action::ServiceMembershipKind::Remove){
@@ -53,21 +53,21 @@ bool capture(Runtime& r,uintptr_t object,uintptr_t window,uintptr_t service,uint
     captured=Pending{binding,snapshot,target.record_key,intent};++captures;return true;
 }
 uint32_t record_construct(uintptr_t image,void* record,const void* text,bool& constructed){
-    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x967510)(record,text);constructed=true;return 0;}
+    __try{reinterpret_cast<void(*)(void*,const void*)>(image+0x970730)(record,text);constructed=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t record_read(uintptr_t image,const void* record,bool argument,uintptr_t& value){
-    __try{const auto token=argument?reinterpret_cast<uintptr_t(*)(const void*,int32_t)>(image+0x967740)(record,0):uintptr_t(record);
-        value=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x96d880)(reinterpret_cast<const void*>(token));return 0;}
+    __try{const auto token=argument?reinterpret_cast<uintptr_t(*)(const void*,int32_t)>(image+0x970960)(record,0):uintptr_t(record);
+        value=reinterpret_cast<uintptr_t(*)(const void*)>(image+0x976aa0)(reinterpret_cast<const void*>(token));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t record_destroy(uintptr_t image,void* record){
-    __try{reinterpret_cast<void(*)(void*)>(image+0x9676a0)(record);return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x9708c0)(record);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t character_by_name(uintptr_t image,const std::string& name,uintptr_t manager,uintptr_t& character){
     __try{const prop_text::Text text{name.data(),name.size(),{}};
-        character=reinterpret_cast<uintptr_t(*)(void*,int32_t,const void*)>(image+0x9e640)(reinterpret_cast<void*>(manager),0,&text);return 0;}
+        character=reinterpret_cast<uintptr_t(*)(void*,int32_t,const void*)>(image+0x9f340)(reinterpret_cast<void*>(manager),0,&text);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool menu_values(Runtime& r,const void* native_text,std::string& label,std::string& name,std::string& e){
@@ -84,10 +84,10 @@ void menu_entry(void* window,const void* text){
     try{std::string label,name,e;if(!menu_values(*r,text,label,name,e)){reject(e);return;}
         if(label!="Spawn"){original_menu(window,text);return;}
         uintptr_t object=0,ap=0,character=0,manager=0;
-        if(!r->memory.read(uintptr_t(window),&ap,sizeof ap,e)||ap!=r->image+0x172af10||!r->memory.read(uintptr_t(window)+0x4f8,&object,sizeof object,e)){
+        if(!r->memory.read(uintptr_t(window),&ap,sizeof ap,e)||ap!=r->image+0x17312b0||!r->memory.read(uintptr_t(window)+0x4f8,&object,sizeof object,e)){
             reject(e.empty()?"Service membership original Building window class differs":e);return;}
         if(name!="Anyone"){
-            if(!r->memory.read(r->image+0x13df7a0,&manager,sizeof manager,e)||!manager){reject(e.empty()?"Service membership Character manager absent":e);return;}
+            if(!r->memory.read(r->image+0x13eb7a0,&manager,sizeof manager,e)||!manager){reject(e.empty()?"Service membership Character manager absent":e);return;}
             const auto fault=character_by_name(r->image,name,manager,character);if(fault){reject("Service membership original Character lookup SEH="+std::to_string(fault));return;}
             if(!character)return;
         }
@@ -96,7 +96,7 @@ void menu_entry(void* window,const void* text){
 }
 void remove_entry(void* building,void* service){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x66e387){original_remove(building,service);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x675557){original_remove(building,service);return;}
     try{std::string e;if(!capture(*r,uintptr_t(building),0,uintptr_t(service),0,action::ServiceMembershipKind::Remove,e))reject(e);}
     catch(const std::exception& x){reject(std::string("Service membership remove capture: ")+x.what());}
 }
@@ -104,11 +104,11 @@ uint32_t invoke(Runtime& r,const action::ServiceMembershipIntent& intent,const S
     __try{
         if(intent.kind==action::ServiceMembershipKind::Remove)original_remove(reinterpret_cast<void*>(before.target.object),reinterpret_cast<void*>(before.local.rows[size_t(intent.ordinal)].object));
         else{
-            const auto service=reinterpret_cast<uintptr_t(*)(size_t)>(r.image+0xa02670)(0x180);
-            reinterpret_cast<void(*)(void*)>(r.image+0x2442d0)(reinterpret_cast<void*>(service));
+            const auto service=reinterpret_cast<uintptr_t(*)(size_t)>(r.image+0xa0d230)(0x180);
+            reinterpret_cast<void(*)(void*)>(r.image+0x247200)(reinterpret_cast<void*>(service));
             *reinterpret_cast<int32_t*>(service+0x20)=2;*reinterpret_cast<uintptr_t*>(service+0x138)=intent.character<0?0:before.local.characters[size_t(intent.character)];
             *reinterpret_cast<uint8_t*>(service+0x4a)=1;
-            reinterpret_cast<void(*)(void*,void*)>(r.image+0x407b10)(reinterpret_cast<void*>(before.target.object),reinterpret_cast<void*>(service));
+            reinterpret_cast<void(*)(void*,void*)>(r.image+0x40c6d0)(reinterpret_cast<void*>(before.target.object),reinterpret_cast<void*>(service));
         }
         returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -119,8 +119,8 @@ bool enable(std::string& e){
     if(installed)return true;if(install_attempted){e="Service membership previous hook failure: "+install_cause;return false;}install_attempted=true;
     auto* r=published.load(std::memory_order_acquire);if(!r||GetCurrentThreadId()!=r->thread){e=install_cause="Service membership requires bound Mainthread";return false;}
     struct Hook {uintptr_t rva;void* detour;void** original;};const Hook hooks[]{
-        {0x66a790,reinterpret_cast<void*>(&menu_entry),reinterpret_cast<void**>(&original_menu)},
-        {0x405510,reinterpret_cast<void*>(&remove_entry),reinterpret_cast<void**>(&original_remove)}};
+        {0x671960,reinterpret_cast<void*>(&menu_entry),reinterpret_cast<void**>(&original_menu)},
+        {0x40a0d0,reinterpret_cast<void*>(&remove_entry),reinterpret_cast<void**>(&original_remove)}};
     for(const auto& h:hooks){auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.detour,h.original);
         if(result!=MH_OK||!*h.original){e=install_cause="Service membership hook create RVA="+std::to_string(h.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
         result=MH_EnableHook(reinterpret_cast<void*>(r->image+h.rva));if(result!=MH_OK){e=install_cause="Service membership hook enable RVA="+std::to_string(h.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}

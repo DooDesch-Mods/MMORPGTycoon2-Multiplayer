@@ -1,15 +1,15 @@
 #include "lifecycle_contract.h"
 namespace mt2mp::scenery_kiss {
 bool classify_scenery(uintptr_t image,uintptr_t addresspoint,uint64_t uid,const game::native::BuildingState& actual,bool& supported,std::string& e){
-    supported=false;if(!image||image>UINTPTR_MAX-0x16c1390||addresspoint!=image+0x16c1390||!uid||actual.prop.uid!=uid){e="native Scenery actual class or UID differs";return false;}
+    supported=false;if(!image||image>UINTPTR_MAX-0x16c7730||addresspoint!=image+0x16c7730||!uid||actual.prop.uid!=uid){e="native Scenery actual class or UID differs";return false;}
     if(actual.dungeon_membership||actual.dungeon_instance_membership){e="native Scenery belongs to a separate dungeon world";return false;}
     State state{actual.type,actual.variant,actual.prop.x,actual.prop.y,actual.prop.z,actual.rotation,actual.scale,true};
     if(!valid_state(state,e))return false;supported=true;return true;
 }
 uintptr_t can_move_rva(uintptr_t image,uintptr_t ap)noexcept {
-    if(!image||image>UINTPTR_MAX-0x16d93c0)return 0;
-    if(ap==image+0x16c1390)return 0xcf3130;
-    if(ap==image+0x16d93c0)return 0xd31530;
+    if(!image||image>UINTPTR_MAX-0x16df760)return 0;
+    if(ap==image+0x16c7730)return 0xcfe870;
+    if(ap==image+0x16df760)return 0xd3cc70;
     return 0;
 }
 bool place_cleanup(const nlohmann::json& r,bool scenery,std::string& e){

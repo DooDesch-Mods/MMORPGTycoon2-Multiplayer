@@ -31,7 +31,7 @@ bool same_owners(const Census& a,const Census& b){
 bool world(const Pin& pin,std::string& e){
     uintptr_t image=0;uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(image,thread,sha,e))return false;
-    if(image!=pin.image||thread!=pin.thread||thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"network actual resolver/Mainthread differs");
+    if(image!=pin.image||thread!=pin.thread||thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"network actual resolver/Mainthread differs");
     building_mixed_identity::opened_file::CurrentWorld actual;
     if(!native_open_runtime::read_current_world(actual,e))return false;
     if(uintptr_t(actual.world)!=pin.world||actual.world_epoch!=pin.binding.native_epoch||actual.generation!=pin.binding.native_generation||!actual.map)return fail(e,"network actual NativeOpen world differs");
@@ -48,10 +48,10 @@ bool once(const Pin& pin,Census& out,std::string& e){
     if(!nr::array(memory,uintptr_t(actual.map),0x358,0x360,0x364,16384,regions,e))return false;
     std::map<int32_t,std::pair<ManagerLocal,ManagerRow>> managers;
     for(auto region:regions){uintptr_t shard=0,manager=0,reverse=0;int32_t id=-1;
-        if(!nr::ap(memory,region,pin.image,0x1787930,e)||!nr::at(memory,region,0x70,shard,e)||shard!=uintptr_t(actual.map)+0x1c0||
+        if(!nr::ap(memory,region,pin.image,0x178dcd0,e)||!nr::at(memory,region,0x70,shard,e)||shard!=uintptr_t(actual.map)+0x1c0||
            !nr::at(memory,region,0x834,id,e)||id<0||!nr::at(memory,region,0x978,manager,e))return fail(e,e.empty()?"network Manager current root Region differs":e);
         if(!manager)continue;ManagerRow row;row.region=id;
-        if(!nr::ap(memory,manager,pin.image,0x17141e0,e)||!nr::at(memory,manager,0x168,reverse,e)||reverse!=region||
+        if(!nr::ap(memory,manager,pin.image,0x171a580,e)||!nr::at(memory,manager,0x168,reverse,e)||reverse!=region||
            !nr::at(memory,manager,0xe4,row.values,e)||!managers.emplace(id,std::pair{ManagerLocal{region,manager,id},row}).second)
             return fail(e,e.empty()?"network Manager actual reciprocal owner/RegionID differs":e);
     }
@@ -98,21 +98,21 @@ DWORD store_raw(uintptr_t image,const Node* node,size_t field,uint32_t before,ui
     constexpr size_t offsets[]={0x250,0x2a0,0x2a4,0x2e4,0x2e8,0x2ea};
     __try{
         auto* p=reinterpret_cast<unsigned char*>(node->object);
-        if(*reinterpret_cast<uintptr_t*>(p)!=image+0x16fc700||*reinterpret_cast<uint64_t*>(p+0x18)!=node->uid)return ERROR_INVALID_DATA;
+        if(*reinterpret_cast<uintptr_t*>(p)!=image+0x1702aa0||*reinterpret_cast<uint64_t*>(p+0x18)!=node->uid)return ERROR_INVALID_DATA;
         if(field<4){uint32_t actual=0;std::memcpy(&actual,p+offsets[field],4);if(actual!=before)return ERROR_INVALID_DATA;std::memcpy(p+offsets[field],&after,4);}
         else {if(before>1||after>1||p[offsets[field]]!=before)return ERROR_INVALID_DATA;p[offsets[field]]=uint8_t(after);}
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 DWORD notify_raw(uintptr_t image,uintptr_t manager)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(image+0x2a4fc0)(reinterpret_cast<void*>(manager));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x2a8460)(reinterpret_cast<void*>(manager));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 // Both vectors belong to native vsArray<float>. The second is BlurCurrent's scratch result.
 DWORD pipe_raw(uintptr_t image,const Pipe* pipe,const PipeRow* before,const PipeRow* target,PipeEffect* effect)noexcept{
     __try{
         auto* p=reinterpret_cast<unsigned char*>(pipe->object);
-        if(*reinterpret_cast<uintptr_t*>(p)!=image+0x16fca60||*reinterpret_cast<uint64_t*>(p+0x18)!=pipe->uid)return ERROR_INVALID_DATA;
+        if(*reinterpret_cast<uintptr_t*>(p)!=image+0x1702e00||*reinterpret_cast<uint64_t*>(p+0x18)!=pipe->uid)return ERROR_INVALID_DATA;
         const std::vector<float>* expected[]={&before->current,&before->smoothing};
         const std::vector<float>* desired[]={&target->current,&target->smoothing};
         // Check both arrays before the first allocation or store.
@@ -129,7 +129,7 @@ DWORD pipe_raw(uintptr_t image,const Pipe* pipe,const PipeRow* before,const Pipe
             auto* array=p+(field?0x248:0x230);const auto count=int32_t(desired[field]->size());
             if(count>*reinterpret_cast<int32_t*>(array+0x14)){
                 ++effect->resize_attempts;
-                reinterpret_cast<void(*)(void*,int32_t)>(image+0x42f1a0)(array,count);
+                reinterpret_cast<void(*)(void*,int32_t)>(image+0x433f80)(array,count);
                 ++effect->resizes;
             }
             auto* data=*reinterpret_cast<float**>(array+8);
@@ -141,14 +141,14 @@ DWORD pipe_raw(uintptr_t image,const Pipe* pipe,const PipeRow* before,const Pipe
         if(before->current!=target->current){
             // Same original renderer used by NetworkFinishUpdate, with normalized native values.
             effect->display_attempted=true;
-            reinterpret_cast<void(*)(void*)>(image+0x431130)(p);
+            reinterpret_cast<void(*)(void*)>(image+0x435f10)(p);
             effect->display_completed=true;
             float old_total=0,new_total=0;
             for(float value:before->current)old_total+=value;
             for(float value:target->current)new_total+=value;
             if(pipe->definition_values[2]>0&&old_total!=new_total&&(old_total<=0||new_total<=0)){
                 effect->queue_attempted=true;
-                reinterpret_cast<void(*)(void*)>(image+0x2a4fc0)(reinterpret_cast<void*>(pipe->manager));
+                reinterpret_cast<void(*)(void*)>(image+0x2a8460)(reinterpret_cast<void*>(pipe->manager));
                 effect->queue_completed=true;
             }
         }
@@ -160,7 +160,7 @@ DWORD connection_raw(uintptr_t image,const Connection* connection,size_t field,u
     constexpr size_t offsets[]={0x178,0x188,0x18c,0x190,0x194,0x198,0x19c};
     __try{
         auto* p=reinterpret_cast<unsigned char*>(connection->object);
-        if(field>=7||*reinterpret_cast<uintptr_t*>(p)!=image+0x17251d0||
+        if(field>=7||*reinterpret_cast<uintptr_t*>(p)!=image+0x172b570||
            *reinterpret_cast<uintptr_t*>(p+0x158)!=connection->node||*reinterpret_cast<uintptr_t*>(p+0x160)!=connection->pipe||
            *reinterpret_cast<uintptr_t*>(p+0x180)!=connection->region||*reinterpret_cast<int32_t*>(p+0x168)!=connection->waypoint||p[0x1a4]!=1)return ERROR_INVALID_DATA;
         uint32_t actual=0;std::memcpy(&actual,p+offsets[field],4);if(actual!=before)return ERROR_INVALID_DATA;
@@ -184,9 +184,9 @@ class Native final:public Port {
     bool scalar_region(uintptr_t region,uintptr_t manager,int32_t id,std::string& e){
         namespace r=network_node_native::read;placement_ui_probe::ProcessMemory memory;
         uintptr_t map=0,shard=0,actual_manager=0,owner=0;int32_t actual_id=-1;
-        if(!r::at(memory,pin_.image,0x13df8c0,map,e)||!r::ap(memory,map,pin_.image,0x1742860,e)||!r::ap(memory,region,pin_.image,0x1787930,e)||
+        if(!r::at(memory,pin_.image,0x13eb8c0,map,e)||!r::ap(memory,map,pin_.image,0x1748c00,e)||!r::ap(memory,region,pin_.image,0x178dcd0,e)||
            !r::at(memory,region,0x70,shard,e)||!r::at(memory,region,0x834,actual_id,e)||!r::at(memory,region,0x978,actual_manager,e)||
-           !r::ap(memory,manager,pin_.image,0x17141e0,e)||!r::at(memory,manager,0x168,owner,e))return false;
+           !r::ap(memory,manager,pin_.image,0x171a580,e)||!r::at(memory,manager,0x168,owner,e))return false;
         return (shard==map+0x1c0&&actual_id==id&&actual_manager==manager&&owner==region)||fail(e,"network scalar Region/root/manager reciprocity differs");
     }
     bool scalar_node(size_t index,std::string& e){
@@ -245,8 +245,8 @@ public:
         if(before.managers.has_value()!=target.managers.has_value()||(before.managers&&before.managers->size()!=target.managers->size()))return fail(e,"network complete Manager membership differs");
         if(before.managers)for(size_t i=0;i<before.managers->size();++i)if((*before.managers)[i].region!=(*target.managers)[i].region)return fail(e,"network Manager RegionID differs before native stores");
         placement_ui_probe::ProcessMemory memory;unsigned char bytes[8]{};
-        constexpr unsigned char expected[]={0xc6,0x81,0x70,0x01,0,0,0x01,0xc3};
-        if(!memory.copy(pin_.image+0x2a4fc0,bytes,sizeof bytes,e)||std::memcmp(bytes,expected,sizeof bytes))return fail(e,e.empty()?"network native bandwidth notification bytes differ":e);
+        constexpr unsigned char expected[]={0xc6,0x81,0x70,0x01,0x00,0x00,0x01,0xc3};
+        if(!memory.copy(pin_.image+0x2a8460,bytes,sizeof bytes,e)||std::memcmp(bytes,expected,sizeof bytes))return fail(e,e.empty()?"network native bandwidth notification bytes differ":e);
         for(size_t i=0;i<target.nodes.size();++i){const auto& t=target.nodes[i];const auto& a=before.nodes[i];
             if(t.region!=a.region||t.index!=a.index||(a.flags[2]&&!t.flags[2]))return fail(e,"network key/Activated reversal differs before stores");
             if(!a.flags[2]&&t.flags[2]&&!activation::preflight(activation_owner(i),false,true,e))return false;

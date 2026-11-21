@@ -12,19 +12,19 @@ void entry(uintptr_t,uintptr_t);
 bool code(Memory& m,bool hooked,std::string& e){
     struct Code {uintptr_t rva;size_t size;const char* sha;};
     constexpr Code values[]{
-        {0x4d6a10,400,"f797d65603f47aa77b48ae8361604a1efec366953303007e13887870bbc1d4d1"},
-        {0x4d6c00,192,"b2b4ef433836335fa6de391315d0398860a1bd3c20ff1e70a62ea55feade575c"},
-        {0x4d8ed0,384,"e1fb929baf777778a5f6f071935203c62ffe0b212993636a2999c48b3a8fd48a"},
-        {0x4d9260,480,"390294cb409016c055a297603acc1be5a41cb6e3ac6c3f48f7c36ce77fde7e55"},
-        {0x4d4bf0,1072,"ad468ba264eabdf340f7fa479628b4e713442275afe32b4a6507fa733d71cce2"}
+        {0x4dc8d0,400,"06cd880a24f642c47f6382d920b5c965c5083c9af4f9f8a0907991577c677db1"},
+        {0x4dcac0,192,"70799bef77c963b39a27b47a3a7ec5861889391440f907267b2337cac7f9ac7e"},
+        {0x4ded90,384,"1fe6de01030ac40841ac2c17314a0987f9130549fe0b64862f63e8a90e8d541c"},
+        {0x4df120,480,"ba07d6cb57417d7fa22ae89633d20025e4185a83359611db2d3adf776406f3ae"},
+        {0x4daab0,1072,"7d5ca1041fd90535a3faa39997613651e388a5d98a597b6925d5f9e545fe61d7"}
     };
     for(const auto& c:values){std::string bytes(c.size,'\0'),sha;
         if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
-        if(c.rva==0x4d6a10&&hooked){
+        if(c.rva==0x4dc8d0&&hooked){
             std::array<unsigned char,32> actual_entry{};std::array<unsigned char,64> actual_trampoline{};
             if(!original||!m.copy(state.image+c.rva,actual_entry.data(),actual_entry.size(),e)||actual_entry!=installed_entry||
                !m.copy(uintptr_t(original),actual_trampoline.data(),actual_trampoline.size(),e)||actual_trampoline!=trampoline||
-               !quest_bridge::sha256(bytes.substr(5),sha,e)||sha!="72aae1f855f15dd4b3ceb5f40509a7bb0ba0baf3be640d570c93f708d67fc316")
+               !quest_bridge::sha256(bytes.substr(5),sha,e)||sha!="964bd84d34b9b36aee85a0d1b102f9bf88aff9cc2e10d40296cacdb216e07574")
                 return fail(e,e.empty()?"Quest rating owned entry/trampoline/tail differs":e);
         }else if(!quest_bridge::sha256(bytes,sha,e)||sha!=c.sha)return fail(e,e.empty()?"Quest rating original body differs RVA="+std::to_string(c.rva):e);
     }
@@ -35,7 +35,7 @@ uint32_t original_call(uintptr_t quest,uintptr_t path)noexcept{
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t advertise_call(uintptr_t quest)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x4d6c00)(quest);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x4dcac0)(quest);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct Calls {
@@ -51,7 +51,7 @@ struct Calls {
         if(GetCurrentThreadId()!=state.thread)return fail(e,"Quest rating completion requires bound Mainthread");
         if(live_host_state::economic_fence().locked())return fail(e,"Quest rating completion economic fence is locked: "+live_host_state::economic_fence().cause());
         Memory m;uintptr_t ap=0;if(!field(m,quest,0,ap,e))return false;
-        if(ap!=state.image+0x174ac10)return true;
+        if(ap!=state.image+0x1750fb0)return true;
         if(!code(m,true,e))return false;
         std::vector<action_runtime::StateOwner> owners;
         if(!action_runtime::state_owners(context,binding,owners,e))return false;
@@ -64,7 +64,7 @@ struct Calls {
         if(!found)return fail(e,"Quest rating receiver lacks current canonical NPC/Quest membership");
         if(!field(m,quest,0x218,task,e)||!task)return fail(e,e.empty()?"Quest rating Tick has no original task":e);
         uintptr_t task_ap=0;
-        if(!field(m,task,0,task_ap,e)||task_ap!=state.image+0x1714ac0||!field(m,task,0xe,finished,e)||finished!=1)
+        if(!field(m,task,0,task_ap,e)||task_ap!=state.image+0x171ae60||!field(m,task,0xe,finished,e)||finished!=1)
             return fail(e,e.empty()?"Quest rating original task class/finished differs":e);
         owned=true;return true;
     }
@@ -105,13 +105,13 @@ bool rating_enable(std::string& e){
     r::attempted=true;
     const auto rejected=[&](const std::string& why){r::failure=why;return fail(e,why);};
     if(!r::code(m,false,e))return rejected(e);
-    auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4d6a10),reinterpret_cast<void*>(&r::entry),reinterpret_cast<void**>(&r::original));
+    auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+0x4dc8d0),reinterpret_cast<void*>(&r::entry),reinterpret_cast<void**>(&r::original));
     const auto hook_error=[&](const char* operation){std::string why=std::string("Quest rating ")+operation+" status="+std::to_string(status);
         why+=" original="+hooks::framework::process_backend().error();
         return rejected(why);};
     if(status!=MH_OK||!r::original)return hook_error("prepare");
-    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x4d6a10));if(status!=MH_OK)return hook_error("enable");
-    if(!m.copy(state.image+0x4d6a10,r::installed_entry.data(),r::installed_entry.size(),e)||
+    status=MH_EnableHook(reinterpret_cast<void*>(state.image+0x4dc8d0));if(status!=MH_OK)return hook_error("enable");
+    if(!m.copy(state.image+0x4dc8d0,r::installed_entry.data(),r::installed_entry.size(),e)||
        !m.copy(uintptr_t(r::original),r::trampoline.data(),r::trampoline.size(),e))return rejected(e);
     if(!r::code(m,true,e))return rejected(e);r::ready=true;return true;
 }

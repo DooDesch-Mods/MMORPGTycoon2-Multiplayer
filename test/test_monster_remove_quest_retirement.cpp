@@ -25,19 +25,19 @@ void members(Memory& m,const std::vector<uintptr_t>& rows){
     for(size_t i=0;i<2;++i)m.set(table+i*24+16,head[i]);
 }
 void setup(Memory& m){
-    m.set(image+0x13df410,fixture_manager);m.zero(fixture_manager,0x60);m.set(fixture_manager,image+0x17020b0);
+    m.set(image+0x13eb410,fixture_manager);m.zero(fixture_manager,0x60);m.set(fixture_manager,image+0x1708450);
     m.set(fixture_manager+0x18,table);m.set(fixture_manager+0x20,int32_t(2));m.set(fixture_manager+0x24,int32_t(31));m.set(fixture_manager+0x30,global);m.set(fixture_manager+0x3c,int32_t(8));m.set(fixture_manager+0x48,int32_t(2));
-    for(auto owner:{owner_a,owner_b}){m.zero(owner,0x880);m.set(owner,image+0x1742980);m.set(owner+0x18,uint64_t(owner)+0x100000000ull);
+    for(auto owner:{owner_a,owner_b}){m.zero(owner,0x880);m.set(owner,image+0x1748d20);m.set(owner+0x18,uint64_t(owner)+0x100000000ull);
         m.set(owner+0x28,owner+0x1000);m.set(owner+0x1000,owner+0x20);m.set(owner+0x868,owner==owner_a?array_a:array_b);m.set(owner+0x870,int32_t(owner==owner_a?3:2));m.set(owner+0x874,int32_t(4));}
     for(auto object:{target,other_target}){m.set(object+0x18,uint64_t(object)+0x200000000ull);m.set(object+0x28,object+0x1000);m.set(object+0x1000,object+0x20);}
     const std::array<uintptr_t,5> all{a0,a1,a2,b0,b1};
     for(size_t i=0;i<all.size();++i){const auto quest=all[i],owner=i<3?owner_a:owner_b,object=(quest==a1||quest==b0)?other_target:target;
-        m.zero(quest,0x230);m.set(quest,image+0x174ac10);m.set(quest+0x84,int32_t(i<3?i:i-3));m.set(quest+0xb8,owner);m.set(quest+0xc0,owner+0x1000);
+        m.zero(quest,0x230);m.set(quest,image+0x1750fb0);m.set(quest+0x84,int32_t(i<3?i:i-3));m.set(quest+0xb8,owner);m.set(quest+0xc0,owner+0x1000);
         m.set(quest+0xf0,object);m.set(quest+0xf8,object+0x1000);m.string(quest+0x38,"Quest"+std::to_string(i));m.string(quest+0x58,"Saved");
         m.set(quest+0x78,int32_t(2));m.set(quest+0x7c,int32_t(i+1));m.set(quest+0x88,int32_t(9));m.set(quest+0x8c,int32_t(4));
-        for(auto offset:{0x100,0x170}){m.set(quest+offset,image+0x16e4710);m.set(quest+offset+0x38,image+0x1749370);}
+        for(auto offset:{0x100,0x170}){m.set(quest+offset,image+0x16eaab0);m.set(quest+offset+0x38,image+0x174f710);}
         if(quest==a0||quest==b1)m.set(quest+0x1c4,int32_t(1));
-        m.set(quest+0x1e0,image+0x1787870);
+        m.set(quest+0x1e0,image+0x178dc10);
         m.set((i<3?array_a:array_b)+(i<3?i:i-3)*8,quest);
     }
     members(m,{a0,b0,a1,a2,b1});
@@ -71,7 +71,7 @@ int main(){try{unsigned n=0;std::string e;Memory m;setup(m);qr::Witness before,a
         qr::Witness value;e.clear();need(!read(bad,value,e)&&!e.empty(),"invalid Quest ownership or unreadable field accepted");++n;}
     // Exercise the actual inverse reader with all records retained once per owner.
     constexpr uintptr_t inv=0x70000,data=0x71000;Memory inverse;
-    inverse.zero(inv,0xe0);inverse.set(inv,image+0x1713330);inverse.set(inv+0xb8,before.owners.at(owner_a).uid);
+    inverse.zero(inv,0xe0);inverse.set(inv,image+0x17196d0);inverse.set(inv+0xb8,before.owners.at(owner_a).uid);
     inverse.set(inv+0xd0,data);inverse.set(inv+0xd8,int32_t(3));inverse.set(inv+0xdc,int32_t(3));
     const auto& owner=before.owners.at(owner_a);
     for(size_t i=0;i<3;++i){auto ptr=data+i*0x58;const auto& record=owner.state.records[i];inverse.zero(ptr,0x58);

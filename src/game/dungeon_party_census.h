@@ -7,11 +7,11 @@
 #include <vector>
 
 namespace mt2mp::game::dungeon_party_census {
-inline constexpr uintptr_t region_ap = 0x1787930;
-inline constexpr uintptr_t manager_ap = 0x17018d0;
-inline constexpr uintptr_t parties_ap = 0x16f0180;
-inline constexpr uintptr_t pending_ap = 0x1704b60;
-inline constexpr uintptr_t party_ap = 0x174a370;
+inline constexpr uintptr_t region_ap = 0x178dcd0;
+inline constexpr uintptr_t manager_ap = 0x1707c70;
+inline constexpr uintptr_t parties_ap = 0x16f6520;
+inline constexpr uintptr_t pending_ap = 0x170af00;
+inline constexpr uintptr_t party_ap = 0x1750710;
 struct Array {
     uintptr_t object = 0, data = 0;
     int32_t count = 0, capacity = 0;

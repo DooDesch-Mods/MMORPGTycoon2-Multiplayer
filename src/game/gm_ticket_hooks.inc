@@ -10,8 +10,8 @@ bool gm_hook_owner(Runtime& r,uintptr_t object,std::string& error){
     if(GetCurrentThreadId()!=r.thread||!r.gm_context||!r.gm_binding)return fail(error,"GM Client hook has no saved Mainthread Context/Binding");
     a::Context current;if(!a::selected_session().current(current,error)||current!=*r.gm_context)return fail(error,error.empty()?"GM Client hook Session changed":error);
     uintptr_t lounge=0,data=0,member=0,root=0;int32_t count=0,slot=-1;uint64_t uid=0;
-    if(!ap(r,object,0x16e5070,error)||!at(r,object,0x18,uid,error)||!uid||!at(r,object,0x4ac,slot,error)||slot<0||slot>=50||
-       !at(r,r.image,0x13df5e0,lounge,error)||!ap(r,lounge,0x171e600,error)||!at(r,lounge,0x40,data,error)||!at(r,lounge,0x48,count,error)||count!=50||
+    if(!ap(r,object,0x16eb410,error)||!at(r,object,0x18,uid,error)||!uid||!at(r,object,0x4ac,slot,error)||slot<0||slot>=50||
+       !at(r,r.image,0x13eb5e0,lounge,error)||!ap(r,lounge,0x17249a0,error)||!at(r,lounge,0x40,data,error)||!at(r,lounge,0x48,count,error)||count!=50||
        !at(r,data,size_t(slot)*8,member,error)||member!=object||!at(r,object,0x170,root,error))return fail(error,error.empty()?"GM Client hook actual fixed-slot owner differs":error);
     uintptr_t registered=0;const auto exception=uid_lookup(r.image,uid,registered);
     if(exception||registered!=object)return fail(error,"GM Client hook FindUID differs SEH="+std::to_string(exception));

@@ -8,23 +8,23 @@
 #include <Windows.h>
 namespace mt2mp::subscriber_lifecycle::first_append {
 namespace {
-constexpr std::array<uintptr_t,13> record_rvas={0xa02670,0xa01260,0x9667c0,0x9676a0,0x11c0260,0x11bd1e0,
-    0x964920,0x96d370,0x96d360,0x964b50,0x96d380,0x96d3a0,0x96d390};
+constexpr std::array<uintptr_t,13> record_rvas={0xa0d230,0xa0be20,0x96f9e0,0x9708c0,0x11cbc00,0x11c8b80,
+    0x96db40,0x976590,0x976580,0x96dd70,0x9765a0,0x9765c0,0x9765b0};
 DecodeApi record_functions(uintptr_t image){
     DecodeApi a;
-    a.allocate=reinterpret_cast<Allocate>(image+0xa02670);a.release=reinterpret_cast<Release>(image+0xa01260);
-    a.record_construct=reinterpret_cast<Unary>(image+0x9667c0);a.record_destroy=reinterpret_cast<Unary>(image+0x9676a0);
-    a.string_construct=reinterpret_cast<StringConstruct>(image+0x11c0260);a.string_destroy=reinterpret_cast<Unary>(image+0x11bd1e0);
-    a.add_child=reinterpret_cast<Binary>(image+0x964920);a.set_label=reinterpret_cast<Binary>(image+0x96d370);
-    a.set_string=reinterpret_cast<Binary>(image+0x96d360);a.token_count=reinterpret_cast<Integer>(image+0x964b50);
-    a.set_integer=reinterpret_cast<Integer>(image+0x96d380);a.set_type=reinterpret_cast<Integer>(image+0x96d3a0);a.set_float=reinterpret_cast<Float>(image+0x96d390);
+    a.allocate=reinterpret_cast<Allocate>(image+0xa0d230);a.release=reinterpret_cast<Release>(image+0xa0be20);
+    a.record_construct=reinterpret_cast<Unary>(image+0x96f9e0);a.record_destroy=reinterpret_cast<Unary>(image+0x9708c0);
+    a.string_construct=reinterpret_cast<StringConstruct>(image+0x11cbc00);a.string_destroy=reinterpret_cast<Unary>(image+0x11c8b80);
+    a.add_child=reinterpret_cast<Binary>(image+0x96db40);a.set_label=reinterpret_cast<Binary>(image+0x976590);
+    a.set_string=reinterpret_cast<Binary>(image+0x976580);a.token_count=reinterpret_cast<Integer>(image+0x96dd70);
+    a.set_integer=reinterpret_cast<Integer>(image+0x9765a0);a.set_type=reinterpret_cast<Integer>(image+0x9765c0);a.set_float=reinterpret_cast<Float>(image+0x9765b0);
     return a;
 }
 uint32_t invoke(Unary f,void* p){__try{f(p);}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
 uint32_t invoke_link(QuestResolve f,void* p,void* context){__try{f(p,context);}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
 uint32_t invoke_allocate(Allocate f,uintptr_t* out){__try{*out=reinterpret_cast<uintptr_t>(f(0xb0));}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
 uint32_t invoke_shift(ProgressShift f,void* to,const void* from,size_t n){__try{f(to,from,n);}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
-uint32_t registry(uintptr_t image,uint64_t uid,uintptr_t* out){__try{*out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
+uint32_t registry(uintptr_t image,uint64_t uid,uintptr_t* out){__try{*out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);}__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;}
 }
 bool context_call(Unary f,void* p,CallReceipt& r,std::string& e){
     r={};if(!f||!p){e="native Context call input missing";return false;}
@@ -97,11 +97,11 @@ bool resolve_append_api(Memory& memory,uintptr_t image,AppendApi& out,std::strin
         }
     }
     out.records=record_functions(image);
-    out.context_construct=reinterpret_cast<Unary>(image+0x89e940);out.context_destroy=reinterpret_cast<Unary>(image+0x89e480);out.context_abort=reinterpret_cast<Unary>(image+0x89dfb0);
-    out.progress_construct=reinterpret_cast<Unary>(image+0xc08f20);out.progress_destroy=reinterpret_cast<Unary>(image+0xc08fb0);
-    out.progress_npc_assign=reinterpret_cast<QuestResolve>(image+0x3de260);out.progress_add=reinterpret_cast<QuestResolve>(image+0xb54e10);
-    out.progress_shift=reinterpret_cast<ProgressShift>(image+0xa91670);
-    out.quest_resolve=reinterpret_cast<QuestResolve>(image+0xbee180);
+    out.context_construct=reinterpret_cast<Unary>(image+0x8a7a60);out.context_destroy=reinterpret_cast<Unary>(image+0x8a75a0);out.context_abort=reinterpret_cast<Unary>(image+0x8a70d0);
+    out.progress_construct=reinterpret_cast<Unary>(image+0xc15630);out.progress_destroy=reinterpret_cast<Unary>(image+0xc156c0);
+    out.progress_npc_assign=reinterpret_cast<QuestResolve>(image+0x3e2d70);out.progress_add=reinterpret_cast<QuestResolve>(image+0xb61670);
+    out.progress_shift=reinterpret_cast<ProgressShift>(image+0xa9c7b0);
+    out.quest_resolve=reinterpret_cast<QuestResolve>(image+0xbfa800);
     out.calls.array_load=reinterpret_cast<ArrayLoad>(image+array_load_rva);
     out.calls.login=reinterpret_cast<Notify>(image+notify_login_rva);out.calls.logout=reinterpret_cast<Notify>(image+notify_logout_rva);
     out.calls.int_load=reinterpret_cast<PropertyLoad>(image+manager_int_load_rva);

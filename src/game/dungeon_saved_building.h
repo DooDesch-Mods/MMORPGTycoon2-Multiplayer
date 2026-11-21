@@ -12,7 +12,7 @@ bool path(uintptr_t image,uintptr_t map,uintptr_t object,int32_t child,uintptr_t
     suffix.clear();const auto fail=[&](const char* cause){error=cause;return false;};
     if(!map||map>UINTPTR_MAX-0x1c0)return fail("Saved Building Map/root address invalid");
     uintptr_t shard=0,region=0,manager=0,ap=0,reverse=0;
-    if(child<0||!at(object,0,ap,error)||ap!=image+0x16d93c0||
+    if(child<0||!at(object,0,ap,error)||ap!=image+0x16df760||
        !at(object,0x170,shard,error)||!at(object,0x178,region,error))
         return fail(error.empty()?"Saved Building type/child/owner differs":error.c_str());
     const auto root=map+0x1c0;
@@ -20,11 +20,11 @@ bool path(uintptr_t image,uintptr_t map,uintptr_t object,int32_t child,uintptr_t
         suffix=snapshot_building_key::root_suffix(id,child);return true;}
     dungeon_scene_key::Scene scene;
     if(!dungeon_scene_key::read_owner(image,root,shard,at,typed,scene,error))return false;
-    if(scene.region!=region||!at(region,0x950,manager,error)||!at(manager,0,ap,error)||ap!=image+0x17183c0||
+    if(scene.region!=region||!at(region,0x950,manager,error)||!at(manager,0,ap,error)||ap!=image+0x171e760||
        !at(manager,0x450,reverse,error)||reverse!=shard||!at(manager,0x458,reverse,error)||reverse!=region||
        (expected_array&&expected_array!=manager+0x408))
         return fail(error.empty()?"Saved Dungeon Building reciprocal manager differs":error.c_str());
-    if(!at(manager,0x408,ap,error)||ap!=image+0x172d7c0)return fail(error.empty()?"Saved Dungeon Building array class differs":error.c_str());
+    if(!at(manager,0x408,ap,error)||ap!=image+0x1733b60)return fail(error.empty()?"Saved Dungeon Building array class differs":error.c_str());
     dungeon_scene_roster::Array members;
     if(!dungeon_scene_roster::array(at,manager+0x408,members,error))return false;
     if(members.count>4096||child>=members.count||members.members[size_t(child)]!=object)

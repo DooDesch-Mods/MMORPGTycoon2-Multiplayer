@@ -28,24 +28,24 @@ bool scene_directory(Memory& m,std::uintptr_t behaviour,const Request& r,std::st
 }
 bool scene_index(Memory& m,const Binding& b,int& index,std::string& e){
     std::uintptr_t data=0,apvalue=0;std::int32_t count=0;
-    if(!at(m,b.behaviour,0x410,apvalue,e)||apvalue!=b.context.image+0x1747480||!array(m,b.behaviour+0x410,data,count,8,e))return fail(e,"error: native Scenery ListData array differs");
+    if(!at(m,b.behaviour,0x410,apvalue,e)||apvalue!=b.context.image+0x174d820||!array(m,b.behaviour+0x410,data,count,8,e))return fail(e,"error: native Scenery ListData array differs");
     index=-1;for(int i=0;i<count;++i){std::array<std::int32_t,2> pair{};if(!at(m,data,std::size_t(i)*8,pair,e))return false;
         if(pair==std::array<std::int32_t,2>{b.category,b.variant_hash}){if(index>=0)return fail(e,"error: native Scenery palette category/hash duplicated");index=i;}}
     return index>=0||fail(e,"error: native Scenery variant absent from unlocked palette");
 }
 bool scene_single(Memory& m,const Binding& b,std::string& e){
     std::int32_t mode=-1;std::uintptr_t options=0;std::string name;
-    if(!at(m,b.behaviour,0x174,mode,e)||!at(m,b.behaviour,0xb68,options,e)||!ap(m,b.context,options,0x1715390,e)||!text(m,options+0x88,name,e))return false;
+    if(!at(m,b.behaviour,0x174,mode,e)||!at(m,b.behaviour,0xb68,options,e)||!ap(m,b.context,options,0x171b730,e)||!text(m,options+0x88,name,e))return false;
     return mode==0&&name=="single"||fail(e,"error: actual Scenery tool is not single mode");
 }
 bool normal_definition(Memory& m,const Context& c,const Request& r,std::string& e){
     std::uintptr_t manager=0,definitions=0,selected=0;std::int32_t count=0;
-    if(!at(m,c.image,0x13df780,manager,e))return false;
+    if(!at(m,c.image,0x13eb780,manager,e))return false;
     if(!manager)return fail(e,"error: actual BuildingModelManager cached singleton missing");
     if(!array(m,manager+0x30,definitions,count,8,e))return false;
     for(std::int32_t i=0;i<count;++i){
         std::uintptr_t value=0;std::string type;
-        if(!at(m,definitions,std::size_t(i)*8,value,e)||!ap(m,c,value,0x172ae50,e)||!text(m,value+0x18,type,e))return false;
+        if(!at(m,definitions,std::size_t(i)*8,value,e)||!ap(m,c,value,0x17311f0,e)||!text(m,value+0x18,type,e))return false;
         if(type==r.type){if(selected)return fail(e,"error: actual BuildingDefinition type is ambiguous");selected=value;}
     }
     if(!selected)return fail(e,"error: requested type absent from actual BuildingDefinition catalog");
@@ -58,29 +58,29 @@ bool normal_definition(Memory& m,const Context& c,const Request& r,std::string& 
     if(!array(m,selected+0x170,variants,variant_count,8,e))return false;
     for(std::int32_t i=0;i<variant_count;++i){
         std::uintptr_t value=0;std::string name;
-        if(!at(m,variants,std::size_t(i)*8,value,e)||!ap(m,c,value,0x1718550,e)||!text(m,value+0x18,name,e))return false;
+        if(!at(m,variants,std::size_t(i)*8,value,e)||!ap(m,c,value,0x171e8f0,e)||!text(m,value+0x18,name,e))return false;
         if(name==r.variant)++matches;
     }
     if(matches>1)return fail(e,"error: actual BuildingDefinition variant is ambiguous");
     return matches==1||fail(e,"error: requested variant absent from actual BuildingDefinition catalog");
 }
 bool scene_current_bar(Memory& m,const Context& c,std::uintptr_t& bar,std::string& e){
-    constexpr unsigned char original[]={0x48,0x8b,0x05,0x81,0x55,0x4c,0x01,0xc3,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00};
+    constexpr unsigned char original[]={0x48,0x8b,0x05,0xd1,0x5e,0x4c,0x01,0xc3,0x0f,0x1f,0x84,0x00,0x00,0x00,0x00,0x00};
     unsigned char actual[sizeof(original)]{};
-    if(!m.copy(c.image+0x575940,actual,sizeof(actual),e))return false;
+    if(!m.copy(c.image+0x57bff0,actual,sizeof(actual),e))return false;
     if(std::memcmp(actual,original,sizeof(original)))return fail(e,"error: native Scenery ActionBar.Current body differs");
-    if(!at(m,c.image,0x1a3aec8,bar,e))return false;
-    return bar&&ap(m,c,bar,0x16dcec0,e)||fail(e,"error: native Scenery current ActionBar is absent or foreign");
+    if(!at(m,c.image,0x1a41ec8,bar,e))return false;
+    return bar&&ap(m,c,bar,0x16e3260,e)||fail(e,"error: native Scenery current ActionBar is absent or foreign");
 }
 bool network_type(Memory& m,const Context& c,std::uintptr_t behaviour,const Request& r,std::string& e){
     std::string type,key,definition_type,definition_key;std::uintptr_t definition=0;
-    if(!text(m,behaviour+0x148,type,e)||!text(m,behaviour+0x50,key,e)||!at(m,behaviour,0x168,definition,e)||!ap(m,c,definition,0x1738010,e)||
+    if(!text(m,behaviour+0x148,type,e)||!text(m,behaviour+0x50,key,e)||!at(m,behaviour,0x168,definition,e)||!ap(m,c,definition,0x173e3b0,e)||
        !text(m,definition+0x18,definition_type,e)||!text(m,definition+0x38,definition_key,e))return false;
     return type==r.type&&key==r.variant&&type==definition_type&&key==definition_key;
 }
 bool network_pipe_type(Memory& m,const Context& c,std::uintptr_t behaviour,const Request& r,std::string& e){
     std::string type,key,node,definition_type,definition_key;std::uintptr_t definition=0;
-    if(!text(m,behaviour+0x148,type,e)||!text(m,behaviour+0x168,node,e)||!text(m,behaviour+0x50,key,e)||!at(m,behaviour,0x190,definition,e)||!ap(m,c,definition,0x17380d0,e)||
+    if(!text(m,behaviour+0x148,type,e)||!text(m,behaviour+0x168,node,e)||!text(m,behaviour+0x50,key,e)||!at(m,behaviour,0x190,definition,e)||!ap(m,c,definition,0x173e470,e)||
        !text(m,definition+0x18,definition_type,e)||!text(m,definition+0x38,definition_key,e))return false;
     return type==r.type&&key==r.variant&&type==definition_type&&key==definition_key&&node=="Junction";
 }
@@ -102,7 +102,7 @@ bool npc_type(Memory& m,std::uintptr_t behaviour,const Request& r,std::string& e
 bool monster_zone_type(Memory& m,uintptr_t behaviour,std::string& e){int32_t type=-1;if(!at(m,behaviour,0x178,type,e))return false;return type==1;}
 bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::string& e){
     b={};b.context=c;b.family=r.family;b.category=r.category;b.variant_hash=r.variant_hash;b.terrain_style=r.terrain_style;std::uintptr_t game=0,mode=0,active=0,world=0;int state=0;unsigned char quitting=1;
-    if(!at(m,c.image,0x13df8f0,game,e)||!ap(m,c,game,0x1743740,e)||!at(m,c.image,0x13df320,mode,e)||!ap(m,c,mode,0x16e6730,e)||!at(m,game,0x28,active,e)||!at(m,mode,0x58,world,e)||!at(m,mode,0x2c4,state,e)||!at(m,mode,0x304,quitting,e))return false;
+    if(!at(m,c.image,0x13eb8f0,game,e)||!ap(m,c,game,0x1749ae0,e)||!at(m,c.image,0x13eb320,mode,e)||!ap(m,c,mode,0x16ecad0,e)||!at(m,game,0x28,active,e)||!at(m,mode,0x58,world,e)||!at(m,mode,0x2c4,state,e)||!at(m,mode,0x304,quitting,e))return false;
     if(active!=mode||world!=c.world||state!=4||quitting)return fail(e,"error: native placement UI world is not current mode state4");
     if(r.family==Family::Building){if(!normal_definition(m,c,r,e))return false;}
     else if(r.family==Family::SceneryErase){if(!r.type.empty()||!r.variant.empty())return fail(e,"error: Scenery eraser takes no catalog selection");}
@@ -117,15 +117,15 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
     else if(r.family==Family::Pass){if(r.type!="Pass"||!r.variant.empty())return fail(e,"error: Pass requires original Pass tool");}
     else if(r.family==Family::Path){if(r.type!="Road"||r.variant!="RoadNode")return fail(e,"error: first path action requires canonical Road/RoadNode");}
     else if(r.family!=Family::Scenery||r.category<0||r.category>=47)return fail(e,"error: native Scenery catalog binding invalid");
-    if(!at(m,c.image,0x13df9f0,b.player,e)||!ap(m,c,b.player,0x17873b0,e)||!at(m,b.player,0x1d0,b.inventory,e)||!ap(m,c,b.inventory,0x16df0f0,e)||!at(m,c.image,0x13df9d0,b.cursor,e)||!ap(m,c,b.cursor,0x1786dd0,e))return false;
+    if(!at(m,c.image,0x13eb9f0,b.player,e)||!ap(m,c,b.player,0x178d750,e)||!at(m,b.player,0x1d0,b.inventory,e)||!ap(m,c,b.inventory,0x16e5490,e)||!at(m,c.image,0x13eb9d0,b.cursor,e)||!ap(m,c,b.cursor,0x178d170,e))return false;
     std::uintptr_t items=0;std::int32_t count=0;
     // The inventory is itself the vsArray pointer header (no independent capacity field).
     if(!at(m,b.inventory,8,items,e)||!at(m,b.inventory,16,count,e))return false;
     if(!items||count<=0||count>4096)return fail(e,"error: actual native inventory count outside diagnostic bound");
-    for(int i=0;i<count;++i){std::uintptr_t item=0,type=0,table=0,behaviour=0,proxy=0;if(!at(m,items,std::size_t(i)*8,item,e))return false;if(!item)continue;if(!ap(m,c,item,0x17437f0,e)||!at(m,item,0x68,type,e)||!weak_type(m,item,type,proxy,e)||!at(m,type,0,table,e))return false;if(table!=c.image+0x173b7b0)continue;if(!at(m,type,0x160,behaviour,e)||!behaviour)continue;if(!at(m,behaviour,0,table,e))return false;if(table!=c.image+(r.family==Family::Wall?0x172f8d0:r.family==Family::Pass?0x172f3c0:r.family==Family::SceneryErase?0x173fc60:r.family==Family::MonsterZone?0x172fa80:r.family==Family::NPC?0x172b450:r.family==Family::RegionLevel?0x1741210:r.family==Family::Scenery?0x17396b0:(r.family==Family::NetworkPipe?0x173ed80:r.family==Family::NetworkNode?0x173ebd0:r.family==Family::Path?0x172f570:(r.family==Family::TerrainHeight?0x1740010:(r.family==Family::Terrain?0x173f580:0x17327d0)))))continue;int index=-1;std::string cause;if(!(r.family==Family::Wall?wall_type(m,behaviour,r,cause):r.family==Family::Pass?true:r.family==Family::SceneryErase?true:r.family==Family::MonsterZone?monster_zone_type(m,behaviour,cause):r.family==Family::NPC?npc_type(m,behaviour,r,cause):r.family==Family::RegionLevel?true:r.family==Family::Scenery?scene_directory(m,behaviour,r,cause):(r.family==Family::NetworkPipe?network_pipe_type(m,c,behaviour,r,cause):r.family==Family::NetworkNode?network_type(m,c,behaviour,r,cause):r.family==Family::Path?path_type(m,behaviour,r,cause):(r.family==Family::TerrainHeight?terrain_height_up(m,behaviour,r,cause):(r.family==Family::Terrain?terrain_style(m,behaviour,r,cause):identifier(m,behaviour,r,index,cause,0x188)))))){if(!cause.empty()){e=cause;return false;}continue;}if(b.type&&b.type!=type)return fail(e,"error: actual placement tool type is ambiguous");b.inventory_item=item;b.type=type;b.behaviour=behaviour;}
+    for(int i=0;i<count;++i){std::uintptr_t item=0,type=0,table=0,behaviour=0,proxy=0;if(!at(m,items,std::size_t(i)*8,item,e))return false;if(!item)continue;if(!ap(m,c,item,0x1749b90,e)||!at(m,item,0x68,type,e)||!weak_type(m,item,type,proxy,e)||!at(m,type,0,table,e))return false;if(table!=c.image+0x1741b50)continue;if(!at(m,type,0x160,behaviour,e)||!behaviour)continue;if(!at(m,behaviour,0,table,e))return false;if(table!=c.image+(r.family==Family::Wall?0x1735c70:r.family==Family::Pass?0x1735760:r.family==Family::SceneryErase?0x1746000:r.family==Family::MonsterZone?0x1735e20:r.family==Family::NPC?0x17317f0:r.family==Family::RegionLevel?0x17475b0:r.family==Family::Scenery?0x173fa50:(r.family==Family::NetworkPipe?0x1745120:r.family==Family::NetworkNode?0x1744f70:r.family==Family::Path?0x1735910:(r.family==Family::TerrainHeight?0x17463b0:(r.family==Family::Terrain?0x1745920:0x1738b70)))))continue;int index=-1;std::string cause;if(!(r.family==Family::Wall?wall_type(m,behaviour,r,cause):r.family==Family::Pass?true:r.family==Family::SceneryErase?true:r.family==Family::MonsterZone?monster_zone_type(m,behaviour,cause):r.family==Family::NPC?npc_type(m,behaviour,r,cause):r.family==Family::RegionLevel?true:r.family==Family::Scenery?scene_directory(m,behaviour,r,cause):(r.family==Family::NetworkPipe?network_pipe_type(m,c,behaviour,r,cause):r.family==Family::NetworkNode?network_type(m,c,behaviour,r,cause):r.family==Family::Path?path_type(m,behaviour,r,cause):(r.family==Family::TerrainHeight?terrain_height_up(m,behaviour,r,cause):(r.family==Family::Terrain?terrain_style(m,behaviour,r,cause):identifier(m,behaviour,r,index,cause,0x188)))))){if(!cause.empty()){e=cause;return false;}continue;}if(b.type&&b.type!=type)return fail(e,"error: actual placement tool type is ambiguous");b.inventory_item=item;b.type=type;b.behaviour=behaviour;}
     if(!b.type)return fail(e,"error: actual inventory has no matching enabled placement tool");
     std::uintptr_t bars=0;std::int32_t bar_count=0;
-    if(!at(m,c.image,0x1a3af18,bars,e)||!at(m,c.image,0x1a3af20,bar_count,e))return false;
+    if(!at(m,c.image,0x1a41f18,bars,e)||!at(m,c.image,0x1a41f20,bar_count,e))return false;
     if(!bars||bar_count<=0||bar_count>4096)return fail(e,"error: actual actionbar registry count outside diagnostic bound");
     std::uintptr_t current_bar=0;
     if(r.family!=Family::Building){
@@ -138,10 +138,10 @@ bool scan_once(Memory& m,const Context& c,const Request& r,Binding& b,std::strin
     for(int bi=0;bi<bar_count;++bi){std::uintptr_t bar=0,contents=0;std::int32_t content_count=0;if(!at(m,bars,std::size_t(bi)*8,bar,e))return false;
         // Other action bars retain their docked items while another UI mode is active.
         if(r.family!=Family::Building&&bar!=current_bar)continue;
-        if(!ap(m,c,bar,0x16dcec0,e)||!array(m,bar+0x4e8,contents,content_count,8,e))return false;
-        for(int ci=0;ci<content_count;++ci){std::uintptr_t content=0,slots=0;std::int32_t slot_count=0;if(!at(m,contents,std::size_t(ci)*8,content,e)||!ap(m,c,content,0x171ccf0,e)||!array(m,content+0x348,slots,slot_count,8,e))return false;
-            for(int si=0;si<slot_count;++si){std::uintptr_t slot=0,button=0,item=0,type=0,proxy=0,target=0,owned=0,owner=0,parent=0;if(!at(m,slots,std::size_t(si)*8,slot,e)||!slot)continue;if(!ap(m,c,slot,0x16db1c0,e)||!at(m,slot,0x368,button,e))return false;if(!button)continue;if(!ap(m,c,button,0x16e5b90,e)||!at(m,button,0x2d0,item,e)||!at(m,item,0x68,type,e))return false;if(type!=b.type)continue;
-                if(!ap(m,c,item,0x17437f0,e)||!at(m,button,0x2d8,proxy,e)||!at(m,proxy,0,target,e)||!at(m,item,0x28,owned,e)||!at(m,button,0x350,parent,e)||!at(m,button,0x280,owner,e))return false;
+        if(!ap(m,c,bar,0x16e3260,e)||!array(m,bar+0x4e8,contents,content_count,8,e))return false;
+        for(int ci=0;ci<content_count;++ci){std::uintptr_t content=0,slots=0;std::int32_t slot_count=0;if(!at(m,contents,std::size_t(ci)*8,content,e)||!ap(m,c,content,0x1723090,e)||!array(m,content+0x348,slots,slot_count,8,e))return false;
+            for(int si=0;si<slot_count;++si){std::uintptr_t slot=0,button=0,item=0,type=0,proxy=0,target=0,owned=0,owner=0,parent=0;if(!at(m,slots,std::size_t(si)*8,slot,e)||!slot)continue;if(!ap(m,c,slot,0x16e1560,e)||!at(m,slot,0x368,button,e))return false;if(!button)continue;if(!ap(m,c,button,0x16ebf30,e)||!at(m,button,0x2d0,item,e)||!at(m,item,0x68,type,e))return false;if(type!=b.type)continue;
+                if(!ap(m,c,item,0x1749b90,e)||!at(m,button,0x2d8,proxy,e)||!at(m,proxy,0,target,e)||!at(m,item,0x28,owned,e)||!at(m,button,0x350,parent,e)||!at(m,button,0x280,owner,e))return false;
                 std::uintptr_t slot_parent=0,slot_owner=0,button_parent=0;
                 if(!at(m,slot,0x278,slot_parent,e)||!at(m,slot,0x280,slot_owner,e)||!at(m,button,0x278,button_parent,e))return false;
                 bool content_child=false,slot_child=false;
@@ -170,8 +170,8 @@ bool read_scenery_mode_window(Memory& m,const Binding& b,std::uintptr_t& window,
     window=0;std::uintptr_t active=0,options=0;unsigned char visible=0,painting=0;
     std::array<unsigned char,3> flags{};std::uintptr_t graph=0,edit=0;
     if(b.family!=Family::Scenery||!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||
-       !ap(m,b.context,b.behaviour,0x17396b0,e)||!at(m,b.behaviour,0x408,window,e)||!ap(m,b.context,window,0x171ae90,e)||
-       !at(m,window,0x45f,visible,e)||visible!=1||!at(m,b.behaviour,0xb68,options,e)||!ap(m,b.context,options,0x1715390,e)||
+       !ap(m,b.context,b.behaviour,0x173fa50,e)||!at(m,b.behaviour,0x408,window,e)||!ap(m,b.context,window,0x1721230,e)||
+       !at(m,window,0x45f,visible,e)||visible!=1||!at(m,b.behaviour,0xb68,options,e)||!ap(m,b.context,options,0x171b730,e)||
        !at(m,b.behaviour,0x6c0,flags,e)||!at(m,b.behaviour,0xb48,painting,e)||!at(m,b.behaviour,0xc50,graph,e)||!at(m,b.behaviour,0x360,edit,e))return fail(e,"error: Scenery mode selector active window/owner differs");
     if(flags!=std::array<unsigned char,3>{}||painting||graph||edit)return fail(e,"error: Scenery mode selector requires idle original tool");
     return true;
@@ -180,7 +180,7 @@ bool read_scenery_mode_button(Memory& m,const Binding& b,std::uintptr_t window,s
     if(!requested||(std::strcmp(requested,"single")&&std::strcmp(requested,"paint")))return fail(e,"error: Scenery mode request differs");
     std::uintptr_t current=0,options=0,value=0;std::string id,mode,property;
     if(!read_scenery_mode_window(m,b,current,e)||current!=window)return fail(e,"error: Scenery mode selector window changed during lookup");
-    if(!button||!ap(m,b.context,button,0x1713de0,e)||!text(m,button+0x1b0,id,e)||id!=std::string("mode_")+requested)return fail(e,"error: original Scenery mode lookup returned wrong pane");
+    if(!button||!ap(m,b.context,button,0x171a180,e)||!text(m,button+0x1b0,id,e)||id!=std::string("mode_")+requested)return fail(e,"error: original Scenery mode lookup returned wrong pane");
     if(!at(m,b.behaviour,0xb68,options,e)||!text(m,button+0x5a8,mode,e)||!text(m,button+0x5e0,property,e)||!at(m,button,0x600,value,e))return false;
     return mode==requested&&property=="mode"&&value==options+0x88||fail(e,"error: Scenery mode native property binding differs");
 }
@@ -188,14 +188,14 @@ bool read_scenery_mode_button(Memory& m,const Binding& b,std::uintptr_t window,s
 bool read_palette_index(Memory& m,const Binding& b,const Request& r,std::int32_t& index,std::uintptr_t& list,std::string& e){
     if(b.family==Family::Scenery){std::uintptr_t active=0,window=0;std::int32_t count=0;
         if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||!scene_single(m,b,e)||!scene_index(m,b,index,e)||
-           !at(m,b.behaviour,0x408,window,e)||!ap(m,b.context,window,0x171ae90,e)||!at(m,window,0x4e8,list,e)||!ap(m,b.context,list,0x16dfc30,e)||!at(m,list,0x350,count,e))return fail(e,"error: actual Scenery active owner/palette differs");
+           !at(m,b.behaviour,0x408,window,e)||!ap(m,b.context,window,0x1721230,e)||!at(m,window,0x4e8,list,e)||!ap(m,b.context,list,0x16e5fd0,e)||!at(m,list,0x350,count,e))return fail(e,"error: actual Scenery active owner/palette differs");
         return index>=0&&index<count||fail(e,"error: native Scenery selector index differs from ListData");}
-std::uintptr_t active=0,window=0;unsigned char palette=0;if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour)return fail(e,"error: actual active UI cursor owner differs after activation");if(!at(m,b.behaviour,0x6d0,palette,e)||!identifier(m,b.behaviour,r,index,e))return fail(e,"error: actual normal building palette identifier disappeared");list=0;if(palette){if(palette!=1||!at(m,b.behaviour,0x3a8,window,e)||!ap(m,b.context,window,0x171ae90,e)||!at(m,window,0x4e8,list,e)||!ap(m,b.context,list,0x16dfc30,e))return false;std::int32_t selectors=0;if(!at(m,list,0x350,selectors,e)||index<0||index>=selectors)return fail(e,"error: actual palette selector index differs from identifier index");}return true;}
+std::uintptr_t active=0,window=0;unsigned char palette=0;if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour)return fail(e,"error: actual active UI cursor owner differs after activation");if(!at(m,b.behaviour,0x6d0,palette,e)||!identifier(m,b.behaviour,r,index,e))return fail(e,"error: actual normal building palette identifier disappeared");list=0;if(palette){if(palette!=1||!at(m,b.behaviour,0x3a8,window,e)||!ap(m,b.context,window,0x1721230,e)||!at(m,window,0x4e8,list,e)||!ap(m,b.context,list,0x16e5fd0,e))return false;std::int32_t selectors=0;if(!at(m,list,0x350,selectors,e)||index<0||index>=selectors)return fail(e,"error: actual palette selector index differs from identifier index");}return true;}
 bool read_live_pose_and_pending(Memory& m,const Binding& b,const Request& r,bool pending,std::string& e){
     if(b.family==Family::Scenery){std::uintptr_t active=0,ghost=0,blueprint=0,owned=0;std::array<unsigned char,3> flags{};std::int32_t selected=-1,index=-1,category=-1,hash=0;
-        if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||!ap(m,b.context,b.behaviour,0x17396b0,e)||!scene_single(m,b,e)||!scene_index(m,b,index,e)||
+        if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||!ap(m,b.context,b.behaviour,0x173fa50,e)||!scene_single(m,b,e)||!scene_index(m,b,index,e)||
            !at(m,b.behaviour,0x368,selected,e)||selected!=index||!at(m,b.behaviour,0x178,category,e)||!at(m,b.behaviour,0x17c,hash,e)||category!=b.category||hash!=b.variant_hash||
-           !at(m,b.behaviour,0xb58,ghost,e)||!at(m,b.behaviour,0xb50,blueprint,e)||!ap(m,b.context,ghost,0x1705230,e)||!ap(m,b.context,blueprint,0x16dd870,e)||
+           !at(m,b.behaviour,0xb58,ghost,e)||!at(m,b.behaviour,0xb50,blueprint,e)||!ap(m,b.context,ghost,0x170b5d0,e)||!ap(m,b.context,blueprint,0x16e3c10,e)||
            !at(m,ghost,0x210,owned,e)||owned!=blueprint||!at(m,b.behaviour,0x6c0,flags,e))return fail(e,"error: native Scenery active palette/owned ghost differs");
         if(flags!=std::array<unsigned char,3>{static_cast<unsigned char>(pending?0:1),static_cast<unsigned char>(pending?1:0),0})return fail(e,"error: native Scenery pending flags differ");
         std::array<float,3> pos{},scale{};std::array<float,4> quat{};
@@ -204,10 +204,10 @@ bool read_live_pose_and_pending(Memory& m,const Binding& b,const Request& r,bool
         for(float v:quat)if(!std::isfinite(v))return fail(e,"error: native Scenery rotation is not finite");
         for(float v:scale)if(!std::isfinite(v))return fail(e,"error: native Scenery scale is not finite");
         return true;}
-std::uintptr_t active=0,prop=0,blueprint=0;unsigned char flags[3]{};if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||!at(m,b.behaviour,0x6b8,prop,e)||!at(m,b.behaviour,0x6c0,blueprint,e)||!ap(m,b.context,prop,0x1705230,e)||!ap(m,b.context,blueprint,0x16dd870,e)||!m.copy(b.behaviour+0x660,flags,3,e))return fail(e,"error: actual live ghost/owner unavailable");if(flags[0]!=(pending?0:1)||flags[1]!=(pending?1:0)||flags[2])return fail(e,"error: actual native placement flags differ");unsigned char palette=0;std::int32_t selected=0;int expected=-1;if(!at(m,b.behaviour,0x6d0,palette,e)||palette>1||(palette&&!at(m,b.behaviour,0x6cc,selected,e))||!identifier(m,b.behaviour,r,expected,e)||selected!=expected)return fail(e,"error: actual selected native type/variant differs");std::array<float,3> pos{},scale{};std::array<float,4> quat{};if(!m.copy(prop+0x110,pos.data(),12,e)||!m.copy(prop+0x100,quat.data(),16,e)||!m.copy(prop+0x11c,scale.data(),12,e))return false;const std::array<float,4> identity{0,0,0,1};const std::array<float,3> one{1,1,1};if(pos!=r.position||quat!=identity||scale!=one)return fail(e,"error: native UI snapping/pose differs from requested normal placement");return true;}
+std::uintptr_t active=0,prop=0,blueprint=0;unsigned char flags[3]{};if(!at(m,b.cursor,0x190,active,e)||active!=b.behaviour||!at(m,b.behaviour,0x6b8,prop,e)||!at(m,b.behaviour,0x6c0,blueprint,e)||!ap(m,b.context,prop,0x170b5d0,e)||!ap(m,b.context,blueprint,0x16e3c10,e)||!m.copy(b.behaviour+0x660,flags,3,e))return fail(e,"error: actual live ghost/owner unavailable");if(flags[0]!=(pending?0:1)||flags[1]!=(pending?1:0)||flags[2])return fail(e,"error: actual native placement flags differ");unsigned char palette=0;std::int32_t selected=0;int expected=-1;if(!at(m,b.behaviour,0x6d0,palette,e)||palette>1||(palette&&!at(m,b.behaviour,0x6cc,selected,e))||!identifier(m,b.behaviour,r,expected,e)||selected!=expected)return fail(e,"error: actual selected native type/variant differs");std::array<float,3> pos{},scale{};std::array<float,4> quat{};if(!m.copy(prop+0x110,pos.data(),12,e)||!m.copy(prop+0x100,quat.data(),16,e)||!m.copy(prop+0x11c,scale.data(),12,e))return false;const std::array<float,4> identity{0,0,0,1};const std::array<float,3> one{1,1,1};if(pos!=r.position||quat!=identity||scale!=one)return fail(e,"error: native UI snapping/pose differs from requested normal placement");return true;}
 bool read_scenery_release_pose(Memory& m,const Binding& b,const Request& r,NativePose& out,std::string& e){
     out={};if(b.family!=Family::Scenery||!read_live_pose_and_pending(m,b,r,true,e))return fail(e,"error: Scenery release requires actual pending tool");
-    auto read=[&](NativePose& pose){std::uintptr_t ghost=0;if(!at(m,b.behaviour,0xb58,ghost,e)||!ap(m,b.context,ghost,0x1705230,e))return false;
+    auto read=[&](NativePose& pose){std::uintptr_t ghost=0;if(!at(m,b.behaviour,0xb58,ghost,e)||!ap(m,b.context,ghost,0x170b5d0,e))return false;
         return at(m,ghost,0x110,pose.position,e)&&at(m,ghost,0x100,pose.rotation,e)&&at(m,ghost,0x11c,pose.scale,e);};
     NativePose a,before;if(!read(a)||!read(before))return false;
     if(a!=before||!read_live_pose_and_pending(m,b,r,true,e))return fail(e,"error: native Scenery release pose changed during read");

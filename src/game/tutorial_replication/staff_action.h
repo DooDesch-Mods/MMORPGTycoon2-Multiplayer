@@ -4,7 +4,7 @@
 #include <string>
 
 namespace mt2mp::game::tutorial_replication::staff {
-inline constexpr uintptr_t allocate_rva=0x25ec40,ui_return_rva=0x6c82f9;
+inline constexpr uintptr_t allocate_rva=0x261d40,ui_return_rva=0x6cf719;
 inline bool value(int32_t desired){return desired>=0&&desired<=50;}
 inline bool rows(const startingpoint::Row& before,const startingpoint::Row& after,int32_t desired,std::string& error){
     if(!startingpoint::valid(before,error)||!startingpoint::valid(after,error))return false;

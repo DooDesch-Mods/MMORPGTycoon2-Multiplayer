@@ -9,13 +9,13 @@ namespace mt2mp::scenery_kiss {
 namespace {
 bool fail(std::string& e,const char* s){e=s;return false;}
 bool code(native::Memory& memory,uintptr_t image,size_t first,size_t end,std::string& e){
-    if(!image||image>UINTPTR_MAX-0xcf3140)return fail(e,"Scenery lifecycle image range invalid");
+    if(!image||image>UINTPTR_MAX-0xcfe880)return fail(e,"Scenery lifecycle image range invalid");
     for(size_t i=first;i<end;++i){const auto& c=lifecycle_codes[i];std::vector<unsigned char> actual(c.size);if(!memory.copy(image+c.rva,actual.data(),actual.size(),e))return false;
         if(!hooks::framework::verify_original_bytes(image+c.rva,actual.data(),c.bytes,c.size,e)){e="Scenery lifecycle original full code differs RVA="+std::to_string(c.rva)+" original="+e;return false;}}
     return true;
 }
 uint32_t region_at(uintptr_t image,uintptr_t root,const void* pose,uintptr_t& region){
-    __try{region=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,void*)>(image+0x5089b0)(reinterpret_cast<void*>(root),pose,nullptr));return 0;}
+    __try{region=uintptr_t(reinterpret_cast<void*(__fastcall*)(void*,const void*,void*)>(image+0x50eb00)(reinterpret_cast<void*>(root),pose,nullptr));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
@@ -27,7 +27,7 @@ bool region_binding(native::Memory& m,uintptr_t image,uintptr_t root,uintptr_t r
     if(!m.copy(region+0x850,&owned,1,e)||!m.copy(region+0x960,&manager,8,e))return false;
     if(owned!=1||!manager||manager>UINTPTR_MAX-0x910)return fail(e,"Scenery destination region not owned or manager unavailable");
     if(!m.copy(manager,&ap,8,e)||!m.copy(manager+0x900,&actual_region,8,e)||!m.copy(manager+0x908,&actual_root,8,e))return false;
-    if(ap!=image+0x17152d0||actual_region!=region||actual_root!=root)return fail(e,"Scenery destination manager reciprocal ownership differs");return true;
+    if(ap!=image+0x171b670||actual_region!=region||actual_root!=root)return fail(e,"Scenery destination manager reciprocal ownership differs");return true;
 }
 bool move_destination(native::host::ProcessMemory& memory,uintptr_t image,uintptr_t root,const State& state,std::string& e){
     if(!move_code(memory,image,e)||!valid_state(state,e)||!root)return false;
@@ -46,7 +46,7 @@ bool cancel_before(native::Memory& memory,uintptr_t image,uintptr_t receiver,std
     if(edit_flag&&!memory.copy(edit_flag,&edit_active,1,e))return false;
     if(edit_active)return fail(e,"Scenery cancel retains native world edit ownership; no EndEdit admitted");
     for(size_t i=0;i<2;++i){uintptr_t child=0,ap=0,dtor=0;
-        const auto offset=i?0xb58:0xb50;const auto expected_ap=image+(i?0x1705230:0x16dd870);
+        const auto offset=i?0xb58:0xb50;const auto expected_ap=image+(i?0x170b5d0:0x16e3c10);
         if(!memory.copy(receiver+offset,&child,8,e))return false;
         if(!child)continue;
         if(!memory.copy(child,&ap,8,e))return false;

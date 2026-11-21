@@ -52,7 +52,7 @@ bool snapshot(uintptr_t image,uintptr_t target,Snapshot& out,Read&& read,std::st
             return fail(error,"move widget array contains a duplicate owner");
         if(!read(widget.object,&addresspoint,sizeof addresspoint,error)||
            !read(widget.object+8,&widget.model,sizeof widget.model,error))return false;
-        if(addresspoint!=image+0x1712b20||!widget.model)
+        if(addresspoint!=image+0x1718ec0||!widget.model)
             return fail(error,"move widget current class or model owner differs");
         if(!read(widget.object+0x10,widget.context.data(),sizeof widget.context,error)||
            !read(widget.object+0x50,widget.local.data(),sizeof widget.local,error)||

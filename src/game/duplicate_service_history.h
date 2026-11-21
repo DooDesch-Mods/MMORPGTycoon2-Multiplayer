@@ -85,7 +85,7 @@ inline bool absent(const Removal& expected,const World& after,std::string& e){
 template<class Memory>
 bool daily(Memory& m,uintptr_t image,uintptr_t pointer,Daily& out,std::string& e){
     out={};
-    if(!q::typed(m,image,pointer,0x16e4710,e))return false;
+    if(!q::typed(m,image,pointer,0x16eaab0,e))return false;
     // The original copy constructor copies both arrays, then the six
     // DailyCount scalar words and warning byte. Capacities may change.
     for(size_t i=0;i<2;++i){const auto offset=i?size_t(0x40):size_t(0x28);uintptr_t data=0;int32_t count=0,capacity=0;
@@ -105,7 +105,7 @@ template<class Memory,class Find>
 bool capture(Memory& m,uintptr_t image,uintptr_t object,uintptr_t owner,const std::array<int32_t,2>& effective_price,
              Find&& find,Saved& out,std::string& e){
     out={};out.object=object;uintptr_t actual=0;
-    if(!q::typed(m,image,object,0x1718480,e)||!q::at(m,object,0x18,out.uid,e)||!out.uid||
+    if(!q::typed(m,image,object,0x171e820,e)||!q::at(m,object,0x18,out.uid,e)||!out.uid||
        !q::at(m,object,0x148,out.owner,e)||out.owner!=owner||!q::at(m,owner,0x18,out.owner_uid,e)||!out.owner_uid||
        !find(out.uid,actual,e)||actual!=object||!q::at(m,object,0x20,out.type,e)||
        !q::at(m,object,0x48,out.flags,e)||!q::at(m,object,0x130,out.destination,e))
@@ -122,8 +122,8 @@ template<class Memory,class Find>
 bool inverse(Memory& m,uintptr_t image,uintptr_t node,const Saved& saved,Find&& find,std::string& e){
     uintptr_t method=0,actual=0;uint64_t uid=0,owner=0,destination=0;int32_t type=-1;
     std::array<int32_t,2> price{};std::array<uint8_t,3> flags{};std::array<Daily,2> counts;
-    if(!q::typed(m,image,node,0x1737830,e)||!q::at(m,image+0x1737830,0x10,method,e)||method!=image+0x547370||
-       !q::at(m,node,0xb8,uid,e)||!q::at(m,node,0xc0,type,e)||!q::typed(m,image,node+0xc8,0x174ab50,e)||
+    if(!q::typed(m,image,node,0x173dbd0,e)||!q::at(m,image+0x173dbd0,0x10,method,e)||method!=image+0x54d950||
+       !q::at(m,node,0xb8,uid,e)||!q::at(m,node,0xc0,type,e)||!q::typed(m,image,node+0xc8,0x1750ef0,e)||
        !q::at(m,node,0xe0,price,e)||!q::at(m,node,0x108,flags,e)||!q::at(m,node,0x1f0,owner,e)||
        !q::at(m,node,0x1f8,destination,e)||!daily(m,image,node+0x110,counts[0],e)||!daily(m,image,node+0x180,counts[1],e))return false;
     if(uid!=saved.uid||owner!=saved.owner_uid||destination!=saved.destination_uid||type!=saved.type||price!=saved.price||flags!=saved.flags||counts!=saved.counts)
@@ -135,7 +135,7 @@ template<class Memory,class Find>
 bool restored(Memory& m,uintptr_t image,uintptr_t object,uintptr_t owner,const Saved& saved,Find&& find,std::string& e){
     Saved current;if(!capture(m,image,object,owner,saved.price,find,current,e))return false;
     std::array<int32_t,2> actual_price{};
-    if(!q::typed(m,image,object+0x28,0x174ab50,e)||!q::at(m,object,0x40,actual_price,e))return false;
+    if(!q::typed(m,image,object+0x28,0x1750ef0,e)||!q::at(m,object,0x40,actual_price,e))return false;
     return (current.uid==saved.uid&&current.owner_uid==saved.owner_uid&&current.destination_uid==saved.destination_uid&&
             current.type==saved.type&&actual_price==saved.price&&current.flags==saved.flags&&current.counts==saved.counts)||
         q::fail(e,"Duplicate Service restored original fields/full DailyCount differ");

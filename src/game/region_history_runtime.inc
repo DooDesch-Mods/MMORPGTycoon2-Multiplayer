@@ -17,7 +17,7 @@ bool history_inverse(Runtime& r,uintptr_t graph,uintptr_t region,const action::R
     undo::GraphWitness value;uintptr_t data=0,operation=0,ap=0,owner=0;int32_t type=-1;std::array<int32_t,2> range{};
     if(!undo::read_graph(r.memory,r.image,graph,value,e)||!at(r,graph,0x20,data,e)||!at(r,data,0,operation,e)||
        !at(r,operation,0,ap,e)||!at(r,operation,0xb8,owner,e)||!at(r,operation,0xc0,type,e)||!at(r,operation,0xc4,range,e))return false;
-    if(value.operations!=1||!value.locked||value.pending_delete||ap!=r.image+0x1723230||owner!=region||
+    if(value.operations!=1||!value.locked||value.pending_delete||ap!=r.image+0x17295d0||owner!=region||
        type!=before.type||range!=std::array<int32_t,2>{before.level,before.max_level}){
         e="Region history original inverse owner/type/range differs";return false;}
     return true;

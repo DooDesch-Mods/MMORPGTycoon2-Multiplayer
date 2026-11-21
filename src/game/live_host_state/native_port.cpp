@@ -23,7 +23,7 @@ bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 template<class T>bool at(uintptr_t p,size_t o,T& v,std::string& e){if(!p||p>UINTPTR_MAX-o)return fail(e,"live native address range invalid");return memory.copy(p+o,&v,sizeof v,e);}
 bool ap(uintptr_t p,uintptr_t image,uintptr_t addresspoint,std::string& e){uintptr_t actual=0;return at(p,0,actual,e)&&(actual==image+addresspoint||fail(e,"live native class addresspoint differs"));}
 bool current_scope(const Context& expected,const Binding& binding,Pin& p,native::WorldStatus& status,std::string& e){p={};uintptr_t image=0;uint32_t thread=0;std::string sha;if(!native::read_resolver_receipt(image,thread,sha,e))return false;
-    if(thread!=GetCurrentThreadId()||image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")return fail(e,"live native module/Mainthread receipt differs");
+    if(thread!=GetCurrentThreadId()||image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")return fail(e,"live native module/Mainthread receipt differs");
     auto& session=action_session::selected_session();Context current;if(!session.current(current,e)||current!=expected)return fail(e,e.empty()?"live actual session differs from Controller bound context":e);
     building_mixed_identity::opened_file::CurrentWorld world;if(!native_open_runtime::read_current_world(world,e))return false;if(!world.world||!world.state||world.world_epoch!=binding.native_epoch||world.generation!=binding.native_generation)return fail(e,"live actual World/epoch/generation differs");
     if(!native::read_world_status(status,e))return false;
@@ -33,37 +33,37 @@ bool current_scope(const Context& expected,const Binding& binding,Pin& p,native:
 bool once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());native::WorldStatus status;
     if(!current_scope(expected,binding,p,status,e)||!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
     const auto image=p.image;
-    if(!at(image,0x13df9a0,p.clock,e)||!ap(p.clock,image,0x17499d0,e)||!at(image,0x13df220,p.business,e)||!ap(p.business,image,0x16d97e0,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1712c00,e))return false;
+    if(!at(image,0x13eb9a0,p.clock,e)||!ap(p.clock,image,0x174fd70,e)||!at(image,0x13eb220,p.business,e)||!ap(p.business,image,0x16dfb80,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1718fa0,e))return false;
     if(p.clock>UINTPTR_MAX-0x60||p.business>UINTPTR_MAX-0x110||p.record>UINTPTR_MAX-0x5d0)return fail(e,"live native fixed owner extent overflows");
     int32_t version=0;if(!at(p.record,0x18,version,e)||version!=2)return fail(e,e.empty()?"live native Record dv requires2":e);
-    if(!ap(p.business+0x60,image,0x16ec280,e)||!at(p.business,0x68,p.history,e)||!at(p.business,0x70,p.history_count,e)||!at(p.business,0x74,p.history_capacity,e)||p.history_count<=0||p.history_capacity<p.history_count||!p.history)return fail(e,e.empty()?"live native History shape differs":e);
+    if(!ap(p.business+0x60,image,0x16f2620,e)||!at(p.business,0x68,p.history,e)||!at(p.business,0x70,p.history_count,e)||!at(p.business,0x74,p.history_capacity,e)||p.history_count<=0||p.history_capacity<p.history_count||!p.history)return fail(e,e.empty()?"live native History shape differs":e);
     size_t memberships=0;for(int32_t i=0;i<p.history_count;++i){uintptr_t member=0;if(!at(p.history,size_t(i)*sizeof(uintptr_t),member,e))return false;if(member==p.record)++memberships;}if(memberships!=1)return fail(e,"live native CurrentRecord is not a unique owned History member measured="+std::to_string(memberships)+" required=1");
     for(size_t i=0;i<6;++i)if(!at(p.clock,0x38+i*4,p.values.calendar[i],e))return false;
     if(!at(p.clock,0x58,p.selected,e)||!at(p.clock,0x5c,pause,e)||!at(p.business,0x38,p.values.cash,e))return false;p.pause=pause;for(size_t i=0;i<5;++i)if(!at(p.record,0x1c+i*4,p.values.record[i],e))return false;
-    for(size_t i=0;i<20;++i){const auto line=p.record+0x30+i*0x48;int32_t category=-1;if(!ap(line,image,0x171d0d0,e)||!at(line,0x20,category,e)||category!=int32_t(i)||!at(line,0x18,p.values.lines[i][0],e)||!at(line,0x1c,p.values.lines[i][1],e))return fail(e,e.empty()?"live native category class/index differs category="+std::to_string(i):e);}
+    for(size_t i=0;i<20;++i){const auto line=p.record+0x30+i*0x48;int32_t category=-1;if(!ap(line,image,0x1723470,e)||!at(line,0x20,category,e)||category!=int32_t(i)||!at(line,0x18,p.values.lines[i][0],e)||!at(line,0x1c,p.values.lines[i][1],e))return fail(e,e.empty()?"live native category class/index differs category="+std::to_string(i):e);}
     native::SimulationState native_state;if(!native::read_simulation_state(native_state,e))return false;if(ledger(p.values)!=action_session::Ledger{native_state.cash,native_state.clock.flat_day,int32_t(native_state.record_present),native_state.record_day,native_state.record_cash,native_state.record_income,native_state.record_expense,native_state.line_counts,native_state.line_income})return fail(e,"live typed52-slot values differ from existing actual NativeReader");
     return true;
 }
 bool owner_once(const Context& expected,const Binding& binding,Pin& p,float& pause,std::string& e,int32_t expected_edits=0){apply_timing::PageReadScope pages(!apply_timing::PageReadScope::reader_active());native::WorldStatus status;
     if(!current_scope(expected,binding,p,status,e)||!native_activity(status.saves_in_progress,status.edit_operations,expected_edits,e))return false;
     const auto image=p.image;
-    if(!at(image,0x13df9a0,p.clock,e)||!ap(p.clock,image,0x17499d0,e)||!at(image,0x13df220,p.business,e)||!ap(p.business,image,0x16d97e0,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1712c00,e))return false;
+    if(!at(image,0x13eb9a0,p.clock,e)||!ap(p.clock,image,0x174fd70,e)||!at(image,0x13eb220,p.business,e)||!ap(p.business,image,0x16dfb80,e)||!at(p.business,0x100,p.record,e)||!ap(p.record,image,0x1718fa0,e))return false;
     if(p.clock>UINTPTR_MAX-0x60||p.business>UINTPTR_MAX-0x110||p.record>UINTPTR_MAX-0x5d0)return fail(e,"live native fixed owner extent overflows");
     int32_t version=0;if(!at(p.record,0x18,version,e)||version!=2)return fail(e,e.empty()?"live native Record dv requires2":e);
-    if(!ap(p.business+0x60,image,0x16ec280,e)||!at(p.business,0x68,p.history,e)||!at(p.business,0x70,p.history_count,e)||!at(p.business,0x74,p.history_capacity,e)||p.history_count<=0||p.history_capacity<p.history_count||!p.history)return fail(e,e.empty()?"live native History shape differs":e);
+    if(!ap(p.business+0x60,image,0x16f2620,e)||!at(p.business,0x68,p.history,e)||!at(p.business,0x70,p.history_count,e)||!at(p.business,0x74,p.history_capacity,e)||p.history_count<=0||p.history_capacity<p.history_count||!p.history)return fail(e,e.empty()?"live native History shape differs":e);
     size_t memberships=0;for(int32_t i=0;i<p.history_count;++i){uintptr_t member=0;if(!at(p.history,size_t(i)*sizeof(uintptr_t),member,e))return false;if(member==p.record)++memberships;}if(memberships!=1)return fail(e,"live native CurrentRecord is not a unique owned History member measured="+std::to_string(memberships)+" required=1");
     // Owner checks run between scalar stores. Keep identity and validity guards,
     // but do not recapture scalar values that current_owners discards.
     if(!at(p.clock,0x58,p.selected,e)||!at(p.clock,0x5c,pause,e))return false;p.pause=pause;
     for(size_t i=0;i<20;++i){
         const auto line=p.record+0x30+i*0x48;int32_t category=-1,count=-1;
-        if(!ap(line,image,0x171d0d0,e)||!at(line,0x20,category,e)||category!=int32_t(i)||!at(line,0x18,count,e))
+        if(!ap(line,image,0x1723470,e)||!at(line,0x20,category,e)||category!=int32_t(i)||!at(line,0x18,count,e))
             return fail(e,e.empty()?"live native category class/index differs category="+std::to_string(i):e);
         if(count<0)return fail(e,"simulation state rejected: ledger line identity/count differs; category="+std::to_string(i));
     }
     if(!native::in_game())return fail(e,"simulation state rejected: no active world");
     uintptr_t subscribers=0;
-    if(!at(image,0x13df690,subscribers,e)||!ap(subscribers,image,0x1725f40,e))
+    if(!at(image,0x13eb690,subscribers,e)||!ap(subscribers,image,0x172c2e0,e))
         return fail(e,"simulation state rejected: clock/business/subscriber identity differs");
     native::ClockState clock;if(!native::read_clock(clock,e))return false;
     int32_t logged_in=-1;

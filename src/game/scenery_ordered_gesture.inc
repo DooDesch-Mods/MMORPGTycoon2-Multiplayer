@@ -23,17 +23,17 @@ uint32_t gesture_select_call(uintptr_t image,unsigned step,uintptr_t object,int3
     struct String{const char* data;size_t size;char rest[16];};
     const String id{name,name?std::strlen(name):0,{}};
     __try{
-        if(step==0)reinterpret_cast<void(*)(void*)>(image+0x580870)(reinterpret_cast<void*>(object));
-        else if(step==1)reinterpret_cast<void(*)(void*,int32_t)>(image+0x7420f0)(reinterpret_cast<void*>(object),index);
-        else if(step==2)pane=reinterpret_cast<uintptr_t(*)(void*,const String*)>(image+0x81d860)(reinterpret_cast<void*>(object),&id);
-        else if(step==3)reinterpret_cast<void(*)(void*)>(image+0x73ffe0)(reinterpret_cast<void*>(object));
-        else if(step==4)reinterpret_cast<void(*)(void*,float)>(image+0x5d4620)(reinterpret_cast<void*>(object),0.0f);
-        else reinterpret_cast<void(*)(void*,float)>(image+0x5d7490)(reinterpret_cast<void*>(object),0.0f);
+        if(step==0)reinterpret_cast<void(*)(void*)>(image+0x587030)(reinterpret_cast<void*>(object));
+        else if(step==1)reinterpret_cast<void(*)(void*,int32_t)>(image+0x749a70)(reinterpret_cast<void*>(object),index);
+        else if(step==2)pane=reinterpret_cast<uintptr_t(*)(void*,const String*)>(image+0x825e50)(reinterpret_cast<void*>(object),&id);
+        else if(step==3)reinterpret_cast<void(*)(void*)>(image+0x747950)(reinterpret_cast<void*>(object));
+        else if(step==4)reinterpret_cast<void(*)(void*,float)>(image+0x5dad70)(reinterpret_cast<void*>(object),0.0f);
+        else reinterpret_cast<void(*)(void*,float)>(image+0x5ddbe0)(reinterpret_cast<void*>(object),0.0f);
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t gesture_erase_area(uintptr_t image,uintptr_t cross_section,float& value)noexcept{
-    __try{value=reinterpret_cast<float(*)(const void*)>(image+0xdb2d0)(reinterpret_cast<const void*>(cross_section));return 0;}
+    __try{value=reinterpret_cast<float(*)(const void*)>(image+0xdc300)(reinterpret_cast<const void*>(cross_section));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool gesture_prepare_eraser(Runtime& r,uintptr_t receiver,json& receipt,std::string& e){
@@ -45,7 +45,7 @@ bool gesture_prepare_eraser(Runtime& r,uintptr_t receiver,json& receipt,std::str
     receipt={{"brush_bounds_before",prior_bounds!=0},{"update_attempted",false},{"update_returned",false}};
     constexpr unsigned char update[]{0x56,0x53,0x48,0x81,0xec,0xa8,0x00,0x00,0x00};
     constexpr unsigned char area[]{0x53,0x48,0x83,0xec,0x20,0x48,0x8b,0x51,0x18};
-    if(!original_bytes(r,{0x5d7490,update,sizeof(update)},e)||!original_bytes(r,{0xdb2d0,area,sizeof(area)},e))return false;
+    if(!original_bytes(r,{0x5ddbe0,update,sizeof(update)},e)||!original_bytes(r,{0xdc300,area,sizeof(area)},e))return false;
     uintptr_t unused=0;receipt["update_attempted"]=true;
     if(!fault(gesture_select_call(r.image,5,receiver,0,unused,nullptr),"Scenery eraser Update",e))return false;
     receipt["update_returned"]=true;

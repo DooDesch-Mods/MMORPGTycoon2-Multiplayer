@@ -41,7 +41,7 @@ bool pending_array(PartyToonBatch& batch,std::vector<PendingToon>& out,std::stri
     for(const auto& member:before)if(member.toon)toons.insert(member.toon);
     for(int32_t i=0;i<count;++i){
         PendingToon row;uintptr_t ap=0;
-        if(!at(data,size_t(i)*8,row.subscriber,e)||!at(row.subscriber,0,ap,e)||ap!=image_base+0x16e75f0||
+        if(!at(data,size_t(i)*8,row.subscriber,e)||!at(row.subscriber,0,ap,e)||ap!=image_base+0x16ed990||
            !at(row.subscriber,0x20,row.subscriber_id,e))return fail(e,e.empty()?"Party/Toon pending Subscriber class differs":e);
         if(row.subscriber_id<0||!pointers.insert(row.subscriber).second||!ids.insert(row.subscriber_id).second)
             return fail(e,"Party/Toon pending Subscriber identity duplicated");
@@ -51,7 +51,7 @@ bool pending_array(PartyToonBatch& batch,std::vector<PendingToon>& out,std::stri
             continue;
         }
         uintptr_t registered=0;
-        if(!at(row.subscriber,0x80,row.toon,e)||!at(row.toon,0,ap,e)||ap!=image_base+0x1744e90||
+        if(!at(row.subscriber,0x80,row.toon,e)||!at(row.toon,0,ap,e)||ap!=image_base+0x174b230||
            !at(row.toon,0x18,row.uid,e)||!row.uid||!stage::registry_lookup(image_base,row.uid,registered,e)||registered!=row.toon)
             return fail(e,e.empty()?"Party/Toon pending Toon actual class/full UID differs":e);
         if(!toons.insert(row.toon).second)return fail(e,"Party/Toon new constructor result reuses an existing Toon");

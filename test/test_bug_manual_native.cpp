@@ -17,9 +17,9 @@ struct Selected {
     Memory memory;developer_staff::Capture capture;uintptr_t view=0x4000,bug=0x5000,proxy=0x6000;
     Selected(){capture.image=0x10000000;capture.pin.origin.mode=reinterpret_cast<void*>(0x1000);
         memory.put<uintptr_t>(0x10a0,0x2000);memory.put<int32_t>(0x10a8,1);memory.put<int32_t>(0x10ac,1);memory.put<uintptr_t>(0x2000,0x3000);
-        memory.put<uintptr_t>(0x3000,capture.image+0x1722e60);memory.put<uintptr_t>(0x31b0,0x7000);memory.put<uint64_t>(0x31b8,11);memory.put<uintptr_t>(0x3318,0);
+        memory.put<uintptr_t>(0x3000,capture.image+0x1729200);memory.put<uintptr_t>(0x31b0,0x7000);memory.put<uint64_t>(0x31b8,11);memory.put<uintptr_t>(0x3318,0);
         const char name[]="development";for(size_t i=0;i<sizeof name;++i)memory.put<char>(0x7000+i,name[i]);
-        memory.put<uintptr_t>(0x3558,view);memory.put<uintptr_t>(view,capture.image+0x172abf0);
+        memory.put<uintptr_t>(0x3558,view);memory.put<uintptr_t>(view,capture.image+0x1730f90);
         memory.put<uintptr_t>(view+0x460,bug);memory.put<uintptr_t>(view+0x468,proxy);memory.put<uintptr_t>(proxy,bug+0x18);memory.put<uintptr_t>(bug+0x20,proxy);
     }
     bool read(uintptr_t& out,std::string& e){return manual::selected_bug([&](auto p,auto target,auto n,auto& error){return memory.copy(p,target,n,error);},capture,view,out,e);}
@@ -109,7 +109,7 @@ int main(){try{
     memory.put<uintptr_t>(entry.trampoline+14,entry.target+8);memory.put<uintptr_t>(entry.trampoline+28,entry.detour);
     auto verify=[&](Memory& m,bool hash=true){return manual::verify_entry(entry,[&](auto p,auto out,auto n,auto& error){return m.copy(p,out,n,error);},[&](const auto& bytes){
         require(bytes.size()==320&&std::equal(manual::prefix.begin(),manual::prefix.end(),bytes.begin()),"hash covers restored full original body");
-        return hash?std::string("b74314774d32edfffddf7f73ad97d9946ba868f819376459348cfb74b631a3fb"):std::string("bad");},e);};
+        return hash?std::string("e37a1fbaf0d7d863b2f3501b50434de3ffad013ad9d349655020f293d9e82251"):std::string("bad");},e);};
     require(verify(memory),"actual MinHook8-byte relocation shape");require(!verify(memory,false),"original body mismatch rejects");
     for(int n=0;n<4;++n){auto wrong=memory;if(n==0)wrong.put<uintptr_t>(entry.trampoline+14,entry.target+9);if(n==1)wrong.put<uintptr_t>(entry.trampoline+28,entry.detour+1);
         if(n==2)wrong.put<unsigned char>(entry.target+5,0x90);if(n==3)wrong.bytes.erase(entry.trampoline);require(!verify(wrong),"hook ownership mismatch rejects");}

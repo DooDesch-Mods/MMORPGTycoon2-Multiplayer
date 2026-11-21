@@ -26,16 +26,16 @@ bool live(const State& s,bool npc=false){
 }
 bool Capture::read_intent(uintptr_t b,const Origin& o,Intent& out,std::string& e){
     uintptr_t ap=0,records=0; int32_t n=0,cap=0; uint8_t pending=0,duplicate=0;
-    if(!read(memory_,b,0,ap,e)||ap!=image_+0x172f1f0)return e.empty()?fail(e,"move_behaviour_addresspoint"):false;
+    if(!read(memory_,b,0,ap,e)||ap!=image_+0x1735590)return e.empty()?fail(e,"move_behaviour_addresspoint"):false;
     if(!read(memory_,b,0x401,pending,e)||pending!=1)return e.empty()?fail(e,"move_commit_not_pending"):false;
     if(!read(memory_,b,0x499,duplicate,e)||duplicate!=0)return e.empty()?fail(e,"move_duplicate_not_supported"):false;
-    if(!read(memory_,b,0x458,ap,e)||ap!=image_+0x1747300)return e.empty()?fail(e,"move_record_array_addresspoint"):false;
+    if(!read(memory_,b,0x458,ap,e)||ap!=image_+0x174d6a0)return e.empty()?fail(e,"move_record_array_addresspoint"):false;
     if(!read(memory_,b,0x460,records,e)||!read(memory_,b,0x468,n,e)||!read(memory_,b,0x46c,cap,e))return false;
     if(n!=1||cap<n||records==0)return fail(e,"move_requires_single_record");
     out.origin=o;out.behaviour=b;out.record=records;
     if(!read(memory_,records,8,out.ghost,e)||!read(memory_,records,0x10,out.target,e)||!read(memory_,out.target,0x18,out.local_uid,e))return false;
     if(!out.ghost||out.ghost==out.target||!out.local_uid||out.ghost>std::numeric_limits<uintptr_t>::max()-0x16c)return fail(e,"move_ghost_target_identity");
-    if(!read(memory_,out.ghost,0,ap,e)||ap!=image_+0x1705230)return e.empty()?fail(e,"move_ghost_addresspoint"):false;
+    if(!read(memory_,out.ghost,0,ap,e)||ap!=image_+0x170b5d0)return e.empty()?fail(e,"move_ghost_addresspoint"):false;
     if(!services_.bind_target(o,out.ghost,out.target,out.local_uid,out.before,out.object_key,out.family,e))return false;
     const bool npc=out.family==Family::Npc||out.family==Family::DirectMonster;
     if(out.family!=Family::Prop&&!npc)return fail(e,"move_target_family_invalid");
@@ -49,7 +49,7 @@ bool Capture::read_intent(uintptr_t b,const Origin& o,Intent& out,std::string& e
     return live(out.after,npc)||fail(e,"move_ghost_pose_nonfinite");
 }
 Route Capture::purchase(uintptr_t b,uintptr_t caller)noexcept{
-    if(caller!=0x5c2a20||!services_.main_thread())return Route::Forward;
+    if(caller!=0x5c91c0||!services_.main_thread())return Route::Forward;
     Origin origin;std::string e;
     try{
         if(!services_.active(origin,e)){

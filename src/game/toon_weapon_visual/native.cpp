@@ -27,15 +27,15 @@ std::array<unsigned char,64> relocated{};
 thread_local bool entered=false;
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 uint32_t scene_call(uintptr_t shard,uintptr_t* out){
-    __try{*out=reinterpret_cast<uintptr_t(*)(uintptr_t)>(image+0x507ba0)(shard);}
+    __try{*out=reinterpret_cast<uintptr_t(*)(uintptr_t)>(image+0x50dcf0)(shard);}
     __except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
 uint32_t remove_call(uintptr_t toon){
-    __try{reinterpret_cast<void(*)(uintptr_t)>(image+0x39d4d0)(toon);}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(image+0x3a1fd0)(toon);}
     __except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
 uint32_t attach_call(const Plan* p,const Part* part,int32_t* result){
-    __try{*result=reinterpret_cast<Attach>(image+0x38a00)(p->skeleton,part->name,part->transform,p->toon+0x4b8,p->ilvl,p->variant,false,false,p->scene);}
+    __try{*result=reinterpret_cast<Attach>(image+0x38ca0)(p->skeleton,part->name,part->transform,p->toon+0x4b8,p->ilvl,p->variant,false,false,p->scene);}
     __except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
 uint32_t cache_call(const Plan* p,bool* exchanged){
@@ -44,8 +44,8 @@ uint32_t cache_call(const Plan* p,bool* exchanged){
 }
 uint32_t matrix_call(void* transform,const void* bone,void* result){
     __try{
-        const auto local=reinterpret_cast<const void*(*)(void*)>(image+0x9ff8d0)(transform);
-        reinterpret_cast<void(*)(void*,const void*,const void*)>(image+0x9f88e0)(result,bone,local);
+        const auto local=reinterpret_cast<const void*(*)(void*)>(image+0xa0a490)(transform);
+        reinterpret_cast<void(*)(void*,const void*,const void*)>(image+0xa02d30)(result,bone,local);
     }__except(GetExceptionCode()==0xe06d7363?EXCEPTION_CONTINUE_SEARCH:EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}return 0;
 }
 bool returned(Call& call,std::string& error,const char* operation){
@@ -160,11 +160,11 @@ void equip(uintptr_t toon,bool rez){
 bool verify_hook(std::string& error){
     if(!image||!original)return fail(error,"Weapon owned Equip hook missing");
     std::array<unsigned char,16> entry{};std::array<unsigned char,64> trampoline{};
-    if(!memory.copy(image+0x3a1df0,entry.data(),entry.size(),error)||
+    if(!memory.copy(image+0x3a68f0,entry.data(),entry.size(),error)||
        !memory.copy(reinterpret_cast<uintptr_t>(original),trampoline.data(),trampoline.size(),error))return false;
     if(entry!=installed||trampoline!=relocated||entry[0]!=0xe9)return fail(error,"Weapon owned Equip entry/trampoline changed");
     int32_t displacement=0;std::memcpy(&displacement,entry.data()+1,4);
-    const auto relay=image+0x3a1df0+5+static_cast<intptr_t>(displacement);
+    const auto relay=image+0x3a68f0+5+static_cast<intptr_t>(displacement);
     std::array<unsigned char,14> jump{};if(!memory.copy(relay,jump.data(),jump.size(),error))return false;
     uintptr_t target=0;std::memcpy(&target,jump.data()+6,sizeof target);
     return (jump[0]==0xff&&jump[1]==0x25&&jump[2]==0&&jump[3]==0&&jump[4]==0&&jump[5]==0&&target==reinterpret_cast<uintptr_t>(&equip))||fail(error,"Weapon owned Equip relay target differs");
@@ -178,15 +178,15 @@ bool initialize(uintptr_t base,const Callbacks& provider,std::string& error){
     for(const auto& body:bodies){std::vector<unsigned char> actual(body.size);
         if(!memory.copy(base+body.rva,actual.data(),actual.size(),error))return false;
         if(mt2mp::sha256(actual)!=body.sha)return fail(error,"Weapon original body unsupported RVA="+std::to_string(body.rva));
-        if(body.rva==0x3a1df0)equip_before=actual;}
+        if(body.rva==0x3a68f0)equip_before=actual;}
     if(equip_before.size()<16)return fail(error,"Weapon Equip full-body guard missing");
-    const auto target=reinterpret_cast<void*>(base+0x3a1df0);
+    const auto target=reinterpret_cast<void*>(base+0x3a68f0);
     auto result=MH_CreateHook(target,reinterpret_cast<void*>(&equip),reinterpret_cast<void**>(&original));
     if(result!=MH_OK)return fail(error,"Weapon MH_CreateHook status="+std::to_string(result));
     if(!memory.copy(reinterpret_cast<uintptr_t>(original),relocated.data(),relocated.size(),error))return false;
     result=MH_EnableHook(target);if(result!=MH_OK)return fail(error,"Weapon MH_EnableHook status="+std::to_string(result));
     std::vector<unsigned char> after(equip_before.size());
-    if(!memory.copy(base+0x3a1df0,after.data(),after.size(),error))return false;
+    if(!memory.copy(base+0x3a68f0,after.data(),after.size(),error))return false;
     std::copy_n(after.begin(),installed.size(),installed.begin());
     if(!std::equal(after.begin()+5,after.end(),equip_before.begin()+5))return fail(error,"Weapon Equip hook changed original body tail");
     if(!verify_hook(error))return false;

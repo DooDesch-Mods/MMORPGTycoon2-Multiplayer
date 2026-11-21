@@ -29,16 +29,16 @@ struct Services final:ui::Services {
 int main()try{
     unsigned checks=0;const auto check=[&](bool ok,const std::string& why){++checks;if(!ok)throw std::runtime_error(why);};
     constexpr uintptr_t image=0x140000000,slot=0x20000000;std::string error;Memory memory;ui::Origin origin;
-    memory.put(slot,image+0x2d55a8);memory.put(slot+0xa0,image+0x3bcb34);memory.put(slot+0x2d0,image+0x3b9e71);
+    memory.put(slot,image+0x2d8c98);memory.put(slot+0xa0,image+0x3c1644);memory.put(slot+0x2d0,image+0x3be981);
     check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::Foreign,"Native CharacterTypeDestroyed callback became a Monster InfoWindow user click");
     Services services;ui::Capture capture(services);check(capture.publish_disabled(&original,error)&&capture.set_enabled(true,error),error);
     const auto result=capture.destroy_props(nullptr,nullptr,origin);
     check(result.disposition==ui::Disposition::ForeignOriginal&&result.original_attempted&&result.original_returned&&native_calls==1,"Original nested Monster destruction did not return exactly once");
     check(!services.policies&&!services.rejections&&!capture.status().captured&&!capture.status().unknown,"Native Character consequence was blocked by pending Controller/UI admission");
     memory.bytes.erase(slot+0xa0);check(!ui::classify_origin(memory,image,slot,origin,error)&&error=="original native caller frame read failure","Unreadable native frame fabricated a classification or lost its cause");
-    memory.put(slot,image+0x2d55a8);memory.put(slot+0xa0,image+0x759c53);
+    memory.put(slot,image+0x2d8c98);memory.put(slot+0xa0,image+0x7616d3);
     check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::NpcWindow,"Actual native NPC user click lost its existing capture domain");
-    memory.put(slot,image+0x2d55a8);memory.put(slot+0xa0,image+0x6cb61c);
+    memory.put(slot,image+0x2d8c98);memory.put(slot+0xa0,image+0x6d2a3c);
     check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::DistrictWindow,"Actual District InfoWindow caller lost its exact capture domain");
     memory.put(slot+0xa0,image+0x6cb61d);
     check(ui::classify_origin(memory,image,slot,origin,error)&&origin==ui::Origin::Foreign,"Adjacent unproved District return address was admitted");

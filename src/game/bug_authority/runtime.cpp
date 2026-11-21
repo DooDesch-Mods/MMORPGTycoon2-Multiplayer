@@ -23,7 +23,7 @@ bool local_members(uintptr_t collection,std::vector<uintptr_t>& out,std::string&
     uintptr_t ap=0,array=0,data=0;int32_t count=0,capacity=0;
     if(!field(collection,0,ap,error)||!field(collection,0x18,array,error)||!field(collection,0x20,data,error)||
        !field(collection,0x28,count,error)||!field(collection,0x2c,capacity,error))return false;
-    if(ap!=runtime().image+0x1705640||array!=runtime().image+0x16ef1c0||count<0||capacity<count||capacity>1024*1024||(count&&!data))
+    if(ap!=runtime().image+0x170b9e0||array!=runtime().image+0x16f5560||count<0||capacity<count||capacity>1024*1024||(count&&!data))
         return fail(error,"Bug collection exact class/count/capacity differs");
     out.resize(static_cast<size_t>(count));if(count&&!runtime().memory.copy(data,out.data(),out.size()*sizeof(uintptr_t),error))return false;
     std::set<uintptr_t> seen;for(const auto value:out)if(!value||!seen.insert(value).second)return fail(error,"Bug collection has null/duplicate member");
@@ -45,10 +45,10 @@ creation::Value value(const Value& v){return {v.type,v.created,v.discovered,v.to
 bool parent_from_local(uintptr_t object,ParentKind& kind,std::string& key,std::string& error){
     uintptr_t ap=0;uint64_t uid=0;if(!field(object,0,ap,error)||!field(object,0x18,uid,error))return false;
     auto& r=runtime();
-    if(ap==r.image+0x1742980){kind=ParentKind::Npc;std::string target;
+    if(ap==r.image+0x1748d20){kind=ParentKind::Npc;std::string target;
         if(!npc_probe::action_runtime::local_key(object,uid,target,error))return false;
         if(!npc_target_key::valid(target))return fail(error,"Bug NPC resolver returned a noncanonical parent key");key=target;return true;}
-    uintptr_t selection=0;if(!field(r.image,0x13df630,selection,error))return false;
+    uintptr_t selection=0;if(!field(r.image,0x13eb630,selection,error))return false;
     remove_diagnostics::LocalTarget target;
     if(!remove_diagnostics::resolve_local_target(selection,object,target,error))return false;
     if(!target.normal_building||target.object!=object||target.uid!=uid||target.snapshot_id!=r.context.snapshot_uuid||
@@ -84,7 +84,7 @@ bool pin(const Context& expected,const Binding& binding,developer_staff::Capture
     if(capture.image!=r.image||capture.thread!=r.thread||capture.pin.origin.world_epoch!=binding.native_epoch||capture.pin.origin.generation!=binding.native_generation||
        (actual.role==action_session::Role::Client&&capture.pin.time_scale!=0))return fail(error,"Bug frame native Origin/thread/Client Clock0 differs");
     r.context=actual;r.binding=binding;r.lounge=capture.local.lounge;r.tracker=r.lounge+0x100;
-    uintptr_t singleton=0;if(!field(r.image,0x13df2e0,singleton,error))return false;
+    uintptr_t singleton=0;if(!field(r.image,0x13eb2e0,singleton,error))return false;
     if(singleton!=r.tracker)return fail(error,"Bug Tracker singleton differs from current Lounge");
     return native_code(error);
 }

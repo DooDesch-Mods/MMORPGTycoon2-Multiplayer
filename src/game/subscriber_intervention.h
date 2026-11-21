@@ -22,14 +22,14 @@ inline bool valid(const Value& value,std::string& error){if(value.toon_cheat_sta
 inline bool valid(const State& state,std::string& error){if(state.size()>1000000){error="Subscriber intervention actual manager budget exceeded";return false;}int32_t previous=-1;for(const auto& row:state){if(row.id<0||row.id<=previous){error="Subscriber intervention full serialized IDs must be sorted and unique";return false;}if(!valid(row.value,error))return false;previous=row.id;}error.clear();return true;}
 template<class Read>bool read(Read& at,uintptr_t image,uintptr_t object,int32_t id,Value& out,std::string& error,ToonOwner* toon_owner=nullptr){
     out={};if(toon_owner)*toon_owner={};uintptr_t ap=0;int32_t actual_id=-1;uint8_t leaving=0,banned=0;Value next;
-    if(!at(object,0,ap,error)||ap!=image+0x16e75f0||!at(object,0x20,actual_id,error)||actual_id!=id||id<0){if(error.empty())error="Subscriber intervention current native class/serialized ID differs";return false;}
+    if(!at(object,0,ap,error)||ap!=image+0x16ed990||!at(object,0x20,actual_id,error)||actual_id!=id||id<0){if(error.empty())error="Subscriber intervention current native class/serialized ID differs";return false;}
     if(!at(object,0x50,next.warnings,error)||!at(object,0x70,next.watch_timer_bits,error)||!at(object,0xc8,leaving,error)||!at(object,0x125,banned,error))return false;
     if(leaving>1||banned>1){error="Subscriber intervention native leaving/banned member is not Boolean";return false;}next.leaving=leaving!=0;next.banned=banned!=0;
     ToonOwner toon;uintptr_t reverse=0,actual=0;uint32_t cheat=0;
     if(!at(object,0x80,toon.object,error))return false;
     if(toon.object){
         if(!at(toon.object,0,ap,error)||!at(toon.object,0x18,toon.uid,error)||!at(toon.object,0x940,reverse,error)||!at(toon.object,0x84c,cheat,error))return false;
-        if(ap!=image+0x1744e90||!toon.uid||reverse!=object){error="Subscriber intervention current Toon class/full UID/backlink differs";return false;}
+        if(ap!=image+0x174b230||!toon.uid||reverse!=object){error="Subscriber intervention current Toon class/full UID/backlink differs";return false;}
         uintptr_t checked_ap=0,checked_reverse=0;uint64_t checked_uid=0;uint32_t checked_cheat=0;
         if(!at(object,0x80,actual,error)||!at(toon.object,0,checked_ap,error)||!at(toon.object,0x18,checked_uid,error)||
            !at(toon.object,0x940,checked_reverse,error)||!at(toon.object,0x84c,checked_cheat,error))return false;
@@ -40,7 +40,7 @@ template<class Read>bool read(Read& at,uintptr_t image,uintptr_t object,int32_t 
 }
 template<class Read,class Copy>bool read_all(Read& at,Copy& copy,uintptr_t image,State& out,Owners& owners,std::string& error){
     out.clear();owners={};Owners next;uintptr_t ap=0;
-    if(!at(image,0x13df690,next.manager,error)||!at(next.manager,0,ap,error)||ap!=image+0x1725f40||!at(next.manager,0x40,next.data,error)||!at(next.manager,0x48,next.count,error)||!at(next.manager,0x4c,next.capacity,error)){if(error.empty())error="Subscriber intervention current actual manager class/header differs";return false;}
+    if(!at(image,0x13eb690,next.manager,error)||!at(next.manager,0,ap,error)||ap!=image+0x172c2e0||!at(next.manager,0x40,next.data,error)||!at(next.manager,0x48,next.count,error)||!at(next.manager,0x4c,next.capacity,error)){if(error.empty())error="Subscriber intervention current actual manager class/header differs";return false;}
     if(next.count<0||next.count>1000000||next.capacity<next.count||(next.count&&(!next.data||next.data>UINTPTR_MAX-size_t(next.count)*8))){error="Subscriber intervention current complete array extent invalid";return false;}
     std::vector<uintptr_t> objects(size_t(next.count),uintptr_t{});if(next.count&&!copy(next.data,objects.data(),objects.size()*8,error))return false;
     std::set<uintptr_t> pointers;std::set<int32_t> ids;State values;
@@ -48,7 +48,7 @@ template<class Read,class Copy>bool read_all(Read& at,Copy& copy,uintptr_t image
         if(!pointers.insert(object).second||!ids.insert(row.id).second){error="Subscriber intervention current native owner/ID duplicated";return false;}
         ToonOwner toon;if(!read(at,image,object,row.id,row.value,error,&toon))return false;next.toons.push_back(toon);next.rows.emplace_back(object,row);values.push_back(row);}
     uintptr_t manager=0,data=0;int32_t count=-1,capacity=-1;
-    if(!at(image,0x13df690,manager,error)||!at(next.manager,0x40,data,error)||!at(next.manager,0x48,count,error)||!at(next.manager,0x4c,capacity,error))return false;
+    if(!at(image,0x13eb690,manager,error)||!at(next.manager,0x40,data,error)||!at(next.manager,0x48,count,error)||!at(next.manager,0x4c,capacity,error))return false;
     if(manager!=next.manager||data!=next.data||count!=next.count||capacity!=next.capacity){error="Subscriber intervention original current manager changed during read";return false;}
     std::sort(values.begin(),values.end(),[](const auto& a,const auto& b){return a.id<b.id;});if(!valid(values,error))return false;out=std::move(values);owners=std::move(next);error.clear();return true;
 }

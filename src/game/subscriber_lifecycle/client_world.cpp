@@ -35,7 +35,7 @@ bool root_once(Memory& m,const std::string& sha,const std::string& origin,bool h
     }
     std::string actual;
     if(!game::native::read_resolver_receipt(out.image,out.thread,actual,e))return false;
-    if(actual!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"||out.thread!=GetCurrentThreadId())return fail(e,"Subscriber append build/mainthread differs");
+    if(actual!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"||out.thread!=GetCurrentThreadId())return fail(e,"Subscriber append build/mainthread differs");
     if(!game::native_open_runtime::read_current_world(out.origin,e))return false;
     if(sha.size()!=64||out.origin.sha256!=sha||out.origin.uuid!=origin||!out.origin.world_epoch||!out.origin.generation)return fail(e,"Subscriber append actual loaded baseline SHA/origin differs");
     game::native::WorldStatus status;game::native::ClockState clock;
@@ -43,9 +43,9 @@ bool root_once(Memory& m,const std::string& sha,const std::string& origin,bool h
     if(status.active_mode_index!=3||status.in_game_state!=4||!status.world_present||status.quitting||status.title_transition_pending||status.map_task_pending||status.edit_operations!=0||status.saves_in_progress!=(held?1:0))return fail(e,"Subscriber append active World/effects guard failed");
     if(clock.time_scale!=0||!clock.paused)return fail(e,"Subscriber append requires actual Client Clock0");
     const auto state=reinterpret_cast<uintptr_t>(out.origin.state),game=reinterpret_cast<uintptr_t>(out.origin.game);uintptr_t single=0;
-    if(!ap(m,out,state,0x16de920,e)||!at(m,state,0x1b8,out.manager,e)||!at(m,out.image,0x13df690,single,e)||single!=out.manager||!ap(m,out,out.manager,0x1725f40,e))return fail(e,e.empty()?"Subscriber Manager ownership differs":e.c_str());
-    if(!at(m,out.image,0x13df340,out.task,e)||!at(m,out.image,0x13df350,out.tick,e)||!at(m,out.image,0x13df4a0,out.update,e)||
-       !ap(m,out,out.task,0x16fdaf0,e)||!ap(m,out,out.tick,0x16fdc40,e)||!ap(m,out,out.update,0x1709650,e))return false;
+    if(!ap(m,out,state,0x16e4cc0,e)||!at(m,state,0x1b8,out.manager,e)||!at(m,out.image,0x13eb690,single,e)||single!=out.manager||!ap(m,out,out.manager,0x172c2e0,e))return fail(e,e.empty()?"Subscriber Manager ownership differs":e.c_str());
+    if(!at(m,out.image,0x13eb340,out.task,e)||!at(m,out.image,0x13eb350,out.tick,e)||!at(m,out.image,0x13eb4a0,out.update,e)||
+       !ap(m,out,out.task,0x1703e90,e)||!ap(m,out,out.tick,0x1703fe0,e)||!ap(m,out,out.update,0x170f9f0,e))return false;
     uintptr_t task=0,tick=0,update=0;
     if(!at(m,game,0x68,task,e)||!at(m,game,0x70,update,e)||!at(m,game,0x150,tick,e))return false;
     if(task!=out.task||tick!=out.tick||update!=out.update)return fail(e,"Subscriber append actual Game scheduler ownership differs");
@@ -68,11 +68,11 @@ bool read_cohort(Memory& m,const ClientWorld& w,Census& out,std::string& e,bool 
     if(!array(m,w.manager,0x38,members,e)||!array(m,w.manager,0x80,on,e)||!array(m,w.manager,0x98,off,e))return false;
     std::map<uintptr_t,int32_t> ids;std::set<int32_t> unique;
     for(auto p:members){Member item;item.subscriber=p;uint8_t logged=0;
-        if(!ap(m,w,p,0x16e75f0,e)||!at(m,p,0x20,item.id,e)||!at(m,p,0x80,item.toon,e)||!at(m,p,0x88,item.brain,e))return false;
+        if(!ap(m,w,p,0x16ed990,e)||!at(m,p,0x20,item.id,e)||!at(m,p,0x80,item.toon,e)||!at(m,p,0x88,item.brain,e))return false;
         if(item.id<0||(partition&&item.id>=out.next_id)||!unique.insert(item.id).second||!ids.emplace(p,item.id).second)return fail(e,"Subscriber full cohort IDs/objects duplicate or invalid");
-        if(item.toon){uintptr_t reverse=0;if(!ap(m,w,item.toon,0x1744e90,e)||!at(m,item.toon,0x940,reverse,e)||!at(m,item.toon,0x825,logged,e))return false;if(reverse!=p||logged>1)return fail(e,"Subscriber Toon backlink/login differs");}
+        if(item.toon){uintptr_t reverse=0;if(!ap(m,w,item.toon,0x174b230,e)||!at(m,item.toon,0x940,reverse,e)||!at(m,item.toon,0x825,logged,e))return false;if(reverse!=p||logged>1)return fail(e,"Subscriber Toon backlink/login differs");}
         item.online=logged!=0;
-        if(item.brain){uintptr_t owner=0;if(!ap(m,w,item.brain,0x16fdd60,e)||!at(m,item.brain,0x28,owner,e))return false;if(owner!=p)return fail(e,"Subscriber Brain ownership differs");}
+        if(item.brain){uintptr_t owner=0;if(!ap(m,w,item.brain,0x1704100,e)||!at(m,item.brain,0x28,owner,e))return false;if(owner!=p)return fail(e,"Subscriber Brain ownership differs");}
         out.members.push_back(item);
     }
     std::set<uintptr_t> classified;

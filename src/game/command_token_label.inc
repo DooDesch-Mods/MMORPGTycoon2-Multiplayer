@@ -1,7 +1,7 @@
 namespace command_token_label {
-inline constexpr uintptr_t entry_rva=0x96e1d0;
+inline constexpr uintptr_t entry_rva=0x977410;
 inline constexpr size_t entry_bytes=80;
-inline constexpr const char* entry_sha256="8804bc96497105c4fc82d693ffc88533c3e6c1b9e70b92e3d310cdad72a0f2cc";
+inline constexpr const char* entry_sha256="806ddbfa3e094ac1c931b0f5aac47a313215153d2d8239a50810dee256d20349";
 using Equals=bool(*)(const void*,const quest_list::QuestTitleView&);
 static_assert(sizeof(quest_list::QuestTitleView)==32);
 bool matches(Equals equals,const void* record,const char* wanted){

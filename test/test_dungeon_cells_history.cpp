@@ -32,11 +32,11 @@ void uid_set(Memory& memory,uintptr_t object,uintptr_t buffer,uint64_t uid){
 }
 Memory fixture_kinds(const std::vector<size_t>& kinds){Memory memory;std::vector<uintptr_t> nodes;
     for(size_t i=0;i<kinds.size();++i)nodes.push_back(0x10000+i*0x1000);
-    array(memory,graph+0x18,0x16e2dc0,0x2000,nodes);auto sorted=nodes;std::reverse(sorted.begin(),sorted.end());array(memory,graph+0x30,0x1748aa0,0x3000,sorted);
+    array(memory,graph+0x18,0x16e9160,0x2000,nodes);auto sorted=nodes;std::reverse(sorted.begin(),sorted.end());array(memory,graph+0x30,0x174ee40,0x3000,sorted);
     for(size_t i=0;i<nodes.size();++i){const auto& descriptor=cg::descriptors[kinds[i]];const auto node=nodes[i];memory.zero(node,0x200);
         memory.put(node,image+descriptor.ap);memory.put(image+descriptor.ap+0x10,image+descriptor.method);memory.put(node+0xb8,uint64_t(0x100000001+i));
         for(size_t set=0;set<3;++set)uid_set(memory,node+8+set*0x28,0x100000+0x5000*(i*3+set),set==0?0:uint64_t(0x200000001+set));
-        array(memory,node+0xa0,0x1749040,0x7000+i*0x100,{fixture_region});
+        array(memory,node+0xa0,0x174f3e0,0x7000+i*0x100,{fixture_region});
     }return memory;
 }
 Memory fixture(size_t third){std::vector<size_t> kinds{0,1};if(third<10)kinds.push_back(third);return fixture_kinds(kinds);}

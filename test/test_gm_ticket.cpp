@@ -18,15 +18,15 @@ struct Memory {
         for(size_t i=0;i<sizeof out;++i){const auto found=bytes.find(object+offset+i);if(found==bytes.end()){error="fixture unreadable native field";return false;}data[i]=found->second;}return true;}
 };
 constexpr uintptr_t fixture_image=0x10000000,fixture_queue=0x20000,fixture_master=0x30000,fixture_ticket=0x40000,fixture_toon=0x50000,fixture_proxy=0x60000,fixture_region=0x70000,fixture_root=0x80000;
-Memory memory(){Memory value;value.put(fixture_image+0x13df360,fixture_queue);value.put(fixture_queue,fixture_image+0x16fdc60);value.put(fixture_queue+0x18,fixture_image+0x16f0720);
+Memory memory(){Memory value;value.put(fixture_image+0x13eb360,fixture_queue);value.put(fixture_queue,fixture_image+0x1704000);value.put(fixture_queue+0x18,fixture_image+0x16f6ac0);
     value.put(fixture_queue+0x20,uintptr_t(0x21000));value.put(fixture_queue+0x28,int32_t(1));value.put(fixture_queue+0x2c,int32_t(1));value.put(0x21000,fixture_ticket);
-    value.put(fixture_master,fixture_image+0x16e5070);value.put(fixture_master+0x18,uint64_t(77));value.put(fixture_master+0x4ac,int32_t(0));value.put(fixture_master+0x4b0,int32_t(1));value.put(fixture_master+0x4b8,fixture_ticket);
+    value.put(fixture_master,fixture_image+0x16eb410);value.put(fixture_master+0x18,uint64_t(77));value.put(fixture_master+0x4ac,int32_t(0));value.put(fixture_master+0x4b0,int32_t(1));value.put(fixture_master+0x4b8,fixture_ticket);
     value.put(fixture_master+0x170,fixture_root);value.put(fixture_master+0x178,fixture_region);value.put(fixture_master+0x110,std::array<float,3>{1,2,3});
     value.put(fixture_master+0x100,std::array<float,4>{0,0,0,1});value.put(fixture_master+0x11c,std::array<float,3>{1,1,1});
     value.put(fixture_master+0x4c0,1.0f);value.put(fixture_master+0x4c8,2.0f);value.put(fixture_master+0x4cc,3.0f);value.put(fixture_master+0x4c4,uint8_t(1));value.put(fixture_master+0x4c5,uint8_t(1));
     value.put(fixture_master+0x368,uint8_t(1));value.put(fixture_master+0x4d0,uint8_t(0));
-    value.put(fixture_master+0x498,uintptr_t(0x90000));value.put(0x90000,fixture_image+0x16fbbf0);value.put(0x901e8,std::array<float,3>{7,8,9});value.put(0x90250,uint8_t(1));
-    value.put(fixture_ticket,fixture_image+0x1787fe0);value.put(fixture_ticket+0x18,int32_t(1));value.put(fixture_ticket+0x1c,std::array<float,3>{4,5,6});
+    value.put(fixture_master+0x498,uintptr_t(0x90000));value.put(0x90000,fixture_image+0x1701f90);value.put(0x901e8,std::array<float,3>{7,8,9});value.put(0x90250,uint8_t(1));
+    value.put(fixture_ticket,fixture_image+0x178e380);value.put(fixture_ticket+0x18,int32_t(1));value.put(fixture_ticket+0x1c,std::array<float,3>{4,5,6});
     value.put(fixture_ticket+0x50,fixture_toon);value.put(fixture_ticket+0x58,fixture_proxy);value.put(fixture_proxy,fixture_toon);value.put(fixture_ticket+0x60,fixture_region);value.put(fixture_ticket+0x68,fixture_master);value.put(fixture_ticket+0x70,uint8_t(1));return value;
 }
 void reader(){auto value=memory();std::string error;g::Census census;
@@ -52,14 +52,14 @@ void reader(){auto value=memory();std::string error;g::Census census;
     value.put(fixture_master+0x4ac,int32_t(1));need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"wrong original fixed GM slot accepted");value=memory();
     value.put(fixture_master+0x4c8,std::numeric_limits<float>::infinity());need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"nonfinite watch timer accepted");value=memory();
     value.put(fixture_ticket+0x18,int32_t(4));need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"foreign native Ticket enum accepted");value=memory();
-    value.put(fixture_image+0x13df360,uintptr_t(0));need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"foreign native Queue singleton accepted");value=memory();
+    value.put(fixture_image+0x13eb360,uintptr_t(0));need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"foreign native Queue singleton accepted");value=memory();
     value.put(fixture_queue+0x28,int32_t(2));value.put(fixture_queue+0x2c,int32_t(2));value.put(0x21008,fixture_ticket);need(!g::read(value,find,fixture_image,fixture_queue,fixture_root,{fixture_master},census,error),"duplicate native Queue Ticket accepted");
     int32_t number=-1;need(g::reference::id("toon:17","toon:",number,error)&&number==17,error);
     for(const char* key:{"toon:-1","toon:01","toon:","toon:2147483648","toon:17x","region:17"})need(!g::reference::id(key,"toon:",number,error),"foreign or noncanonical Toon ID accepted");
 }
 void storage(){Memory value;constexpr uintptr_t destination=0xa0000,temporary=0xb0000;
     const g::storage::Value old{0xc0000,uint64_t(2)<<32|1},fresh{0xd0000,uint64_t(3)<<32|2};
-    const auto populate=[&]{for(auto object:{destination,temporary}){value.put(object,fixture_image+0x16f0720);value.put(object+0x18,fixture_image+0x16f0788);}
+    const auto populate=[&]{for(auto object:{destination,temporary}){value.put(object,fixture_image+0x16f6ac0);value.put(object+0x18,fixture_image+0x16f6b28);}
         value.put(destination+8,old.data);value.put(destination+0x10,old.extent);value.put(temporary+8,fresh.data);value.put(temporary+0x10,fresh.extent);};
     populate();std::string error;g::storage::Receipt receipt;unsigned calls=0;bool allow=true;
     auto guard=[&](std::string& cause){if(!allow){cause="fixture saved world retired";return false;}return true;};

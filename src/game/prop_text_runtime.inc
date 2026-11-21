@@ -41,12 +41,12 @@ bool text(Runtime& r,uintptr_t at,std::string& out,std::string& e){
 bool current_object(Runtime& r,const remove_diagnostics::LocalTarget& target,host::WorldState& w,native::BuildingState& building,std::string& e){
     if(target.normal_building||target.normal_scenery)return current_prop(r,target,w,building,e);
     host::NativeOrigin origin;host::LookupApi api;
-    if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,e))return false;
+    if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,e))return false;
     host::Reader reader(r.memory.process,origin,r.image,r.thread,api);prop_lease::Prop prop;
     if(!reader.current(w,true,e)||!reader.prop(reinterpret_cast<void*>(target.object),target.uid,prop,e)||
        !scenery_kiss::read_action_prop(target.uid,building,e))return false;
     if(w.origin.world_epoch!=target.world_epoch||w.origin.generation!=target.world_generation||building.prop.uid!=target.uid||
-       building.type!=target.type||building.variant!=target.variant||prop.class_addresspoint!=r.image+0x16d93c0||
+       building.type!=target.type||building.variant!=target.variant||prop.class_addresspoint!=r.image+0x16df760||
        building.dungeon_membership||building.dungeon_instance_membership){e="Prop text current root Dungeon Building class/full UID/type/generation differs";return false;}
     return true;
 }
@@ -89,7 +89,7 @@ bool capture(Runtime& r,uintptr_t object,action::PropTextIntent intent,std::stri
     if(intent.kind==action::PropTextKind::Description&&before.scenery){e="Scenery has no Building description";return false;}
     UiMemory memory(r);action::ui_diagnostic::Window window;
     action::ui_diagnostic::Context context{r.image,w.selection,object,target.uid,target.world_epoch,target.world_generation,
-        "bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",
+        "7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",
         before.scenery?action::ui_diagnostic::Family::Scenery:action::ui_diagnostic::Family::Building};
     if(!action::ui_diagnostic::read_live_window(memory,context,window,e))return false;
     if((intent.kind==action::PropTextKind::Name?before.name:before.description)==intent.text)return true;
@@ -97,14 +97,14 @@ bool capture(Runtime& r,uintptr_t object,action::PropTextIntent intent,std::stri
 }
 void building_name_entry(void* object,const Text* value){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x628dea){building_name(object,value);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x62fb1a){building_name(object,value);return;}
     try{action::PropTextIntent intent;std::string e;
         if(!text(*r,uintptr_t(value),intent.text,e)||!capture(*r,uintptr_t(object),std::move(intent),e))reject(e);
     }catch(const std::exception& x){reject(std::string("Building Rename capture: ")+x.what());}
 }
 void building_description_entry(void* object,const Text* value){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x66de80){building_description(object,value);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x675050){building_description(object,value);return;}
     try{action::PropTextIntent intent;intent.kind=action::PropTextKind::Description;std::string e;
         if(!text(*r,uintptr_t(value),intent.text,e)||!capture(*r,uintptr_t(object),std::move(intent),e))reject(e);
     }catch(const std::exception& x){reject(std::string("Building description capture: ")+x.what());}
@@ -114,7 +114,7 @@ uint32_t invoke(Runtime& r,const action::PropTextIntent& intent,const remove_dia
     __try{
         if(intent.kind==action::PropTextKind::Description)building_description(reinterpret_cast<void*>(target.object),&value);
         else if(!target.normal_scenery)building_name(reinterpret_cast<void*>(target.object),&value);
-        else reinterpret_cast<Setter>(r.image+0x4cf710)(reinterpret_cast<void*>(target.object),&value);
+        else reinterpret_cast<Setter>(r.image+0x4d5490)(reinterpret_cast<void*>(target.object),&value);
         returned=true;return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -124,7 +124,7 @@ bool capture_rename(uintptr_t object,const void* native_text,bool& handled,std::
     handled=false;auto* r=published.load(std::memory_order_acquire);
     if(!r||!r->ready){e="Prop text UI runtime unavailable";return false;}
     uintptr_t ap=0;if(!r->memory.read(object,&ap,sizeof ap,e))return false;
-    if(ap==r->image+0x1749ab0){handled=true;return capture_gizmo(*r,object,native_text,e);}
+    if(ap==r->image+0x174fe50){handled=true;return capture_gizmo(*r,object,native_text,e);}
     if(!scenery_kiss::can_move_rva(r->image,ap))return true;
     host::WorldState w;if(!world(*r,w,e))return false;
     remove_diagnostics::LocalTarget target;
@@ -140,8 +140,8 @@ bool enable(std::string& e){
     if(!r||!r->image||r->thread!=GetCurrentThreadId()){e=install_cause="Prop text hook requires bound Mainthread";return false;}
     struct Hook {uintptr_t rva;void* detour;void** original;};
     const Hook hooks[]{
-        {0x402bf0,reinterpret_cast<void*>(&building_name_entry),reinterpret_cast<void**>(&building_name)},
-        {0x406290,reinterpret_cast<void*>(&building_description_entry),reinterpret_cast<void**>(&building_description)}};
+        {0x4077b0,reinterpret_cast<void*>(&building_name_entry),reinterpret_cast<void**>(&building_name)},
+        {0x40ae50,reinterpret_cast<void*>(&building_description_entry),reinterpret_cast<void**>(&building_description)}};
     for(const auto& h:hooks){const auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+h.rva),h.detour,h.original);
         if(result!=MH_OK||!*h.original){e=install_cause="Prop text hook create RVA="+std::to_string(h.rva)+" status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}}
     if(!mt2mp::hooks::enable_prepared_routes(r->image,hooks,"Prop text hook",e)){install_cause=e;return false;}

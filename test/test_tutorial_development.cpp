@@ -28,7 +28,7 @@ struct Fake final:detail::Port {
     }
     void research_setup(){
         constexpr uintptr_t business=0x230000,cash=0x231000,projects=0x232000;
-        owned(state,0x1c0,0x13df220,business,0x16d97e0);put<uint8_t>(business+0xf0,0);
+        owned(state,0x1c0,0x13eb220,business,0x16dfb80);put<uint8_t>(business+0xf0,0);
         put<uintptr_t>(business+0x100,cash);put<int32_t>(cash+0x20,88160);put<int32_t>(software+0x88,1);
         array(lounge+0xd8,projects,{project});str(project+0x40,"");put<int32_t>(project+0x60,0);
         put<uintptr_t>(tech+0x1e0,0);put<int32_t>(tech+0xa8,1);put<int32_t>(tech+0xac,10000);
@@ -37,27 +37,27 @@ struct Fake final:detail::Port {
     Fake(){
         origin.game=reinterpret_cast<void*>(0x100000);origin.mode=reinterpret_cast<void*>(mode);origin.state=reinterpret_cast<void*>(state);
         origin.world=reinterpret_cast<void*>(world);origin.map=reinterpret_cast<void*>(0x202800);origin.generation=8;origin.world_epoch=5;origin.bytes=75843;origin.uuid="local-native-origin";origin.sha256="fixture-hash";
-        fill_guard(0x206df0,"56534883ec284863da4889ce85db7805");fill_guard(0x52e610,"0fb6415984c075040fb6415ac3906690");
-        fill_guard(0xd31590,"488d4148c39090909090909090909090");fill_guard(0x52b7d0,"56534883ec284889ce4889d34885d274");
-        put<uintptr_t>(base+0x13df2a0,state);put<uintptr_t>(mode+0x58,state);put<uintptr_t>(state+0x160,world);vt(state,0x16de920);
-        owned(mode,0x150,0x13df9f0,player,0x17873b0);owned(state,0x180,0x13df290,lounge,0x16de6c0);owned(state,0x1c8,0x13df500,software,0x1715450);
-        put<uintptr_t>(lounge+0xa8,project);vt(project,0x16e48c0);put<int32_t>(project+0x18,0);str(project+0x20,"startingpoint");
+        fill_guard(0x209880,"56534883ec284863da4889ce85db7805");fill_guard(0x534b00,"0fb6415984c075040fb6415ac3906690");
+        fill_guard(0xd3ccd0,"488d4148c39090909090909090909090");fill_guard(0x531c50,"56534883ec284889ce4889d34885d274");
+        put<uintptr_t>(base+0x13eb2a0,state);put<uintptr_t>(mode+0x58,state);put<uintptr_t>(state+0x160,world);vt(state,0x16e4cc0);
+        owned(mode,0x150,0x13eb9f0,player,0x178d750);owned(state,0x180,0x13eb290,lounge,0x16e4a60);owned(state,0x1c8,0x13eb500,software,0x171b7f0);
+        put<uintptr_t>(lounge+0xa8,project);vt(project,0x16eac60);put<int32_t>(project+0x18,0);str(project+0x20,"startingpoint");
         put<float>(lounge+0xb0,1.25f);put<int32_t>(lounge+0xb4,9);put<int32_t>(lounge+0xb8,3);put<int32_t>(lounge+0xbc,1);put<int32_t>(lounge+0xc4,1);
-        put<uintptr_t>(base+0x13df250,tree);vt(tree,0x16dc400);array(tree+0x10,tech_array,{tech});vt(tech,0x16dc330);str(tech+0x20,"startingpoint");str(tech+0x1f0,"@StartingPoints");put<uintptr_t>(tech+0x1e8,record);
-        array(software+0x280,record_array,{record});vt(record,0x16e79d0);str(record+0x18,"Starting Point");str(record+0x38,"startingpoint");put<uintptr_t>(record+0x60,tech);
-        fill_guard(0x4df220,"4154555756534883ec2031db4889d78b");
-        fill_guard(0x71e90,"5756534883ec20488951704889ce4889");
-        fill_guard(0x4e34a0,"4157415641554154555756534881ecc8");
-        owned(state,0x190,0x13df4f0,release_manager,0x1714ed0);
-        put<uintptr_t>(release_manager+0x38,release);vt(release,0x16c12b0);
+        put<uintptr_t>(base+0x13eb250,tree);vt(tree,0x16e27a0);array(tree+0x10,tech_array,{tech});vt(tech,0x16e26d0);str(tech+0x20,"startingpoint");str(tech+0x1f0,"@StartingPoints");put<uintptr_t>(tech+0x1e8,record);
+        array(software+0x280,record_array,{record});vt(record,0x16edd70);str(record+0x18,"Starting Point");str(record+0x38,"startingpoint");put<uintptr_t>(record+0x60,tech);
+        fill_guard(0x4e50e0,"4154555756534883ec2031db4889d78b");
+        fill_guard(0x72910,"5756534883ec20488951704889ce4889");
+        fill_guard(0x4e9360,"4157415641554154555756534881ecc8");
+        owned(state,0x190,0x13eb4f0,release_manager,0x171b270);
+        put<uintptr_t>(release_manager+0x38,release);vt(release,0x16c7650);
         array(release+0x150,change_array,{});put<uint32_t>(release+0x1c4,7);
-        vt(change,0x1786d10);put<uintptr_t>(change+0x70,tech);str(change+0x18,"tech_release");
-        vt(change2,0x1786d10);put<uintptr_t>(change2+0x70,tech);str(change2+0x18,"tech_release");
-        flags(1,0,0);put<uintptr_t>(base+0x13e2050,type);put<uintptr_t>(base+0x13e2040,type);vt(type,0x173b7b0);put<uintptr_t>(base+0x173b7b0+0xa8,base+0xd31590);
+        vt(change,0x178d0b0);put<uintptr_t>(change+0x70,tech);str(change+0x18,"tech_release");
+        vt(change2,0x178d0b0);put<uintptr_t>(change2+0x70,tech);str(change2+0x18,"tech_release");
+        flags(1,0,0);put<uintptr_t>(base+0x13ee040,type+0x20);put<uintptr_t>(base+0x13ee050,type+0x20);vt(type,0x1741b50);put<uintptr_t>(base+0x1741b50+0xa8,base+0xd3ccd0);
         put<uintptr_t>(type+0x28,0);put<uintptr_t>(type+0x30,0);str(type+0x48,"@StartingPoints");put<uintptr_t>(type+0x40,proxy);
-        put<uintptr_t>(player+0x1d0,inventory);vt(inventory,0x16df0f0);put<uintptr_t>(inventory+8,slots);put<int32_t>(inventory+0x10,200);
+        put<uintptr_t>(player+0x1d0,inventory);vt(inventory,0x16e5490);put<uintptr_t>(inventory+8,slots);put<int32_t>(inventory+0x10,200);
         for(size_t i=0;i<200;++i)put<uintptr_t>(slots+i*8,0);
-        vt(item,0x17437f0);put<uintptr_t>(item+0x68,type);put<uintptr_t>(item+0x70,proxy);put<uintptr_t>(proxy,type+0x38);
+        vt(item,0x1749b90);put<uintptr_t>(item+0x68,type);put<uintptr_t>(item+0x70,proxy);put<uintptr_t>(proxy,type+0x38);
     }
     void fill_guard(uintptr_t rva,const std::string& hex){for(size_t i=0;i<hex.size();i+=2)memory[base+rva+i/2]=static_cast<unsigned char>(std::stoul(hex.substr(i,2),nullptr,16));}
     template<class T>void put(uintptr_t p,const T& value){std::array<unsigned char,sizeof(T)> bytes{};std::memcpy(bytes.data(),&value,sizeof(T));for(size_t i=0;i<bytes.size();++i)memory[p+i]=bytes[i];}
@@ -89,12 +89,12 @@ int main(){try{
     {Fake f;f.fail_current=2;rejects(f,"fixture NativeOpen original cause");}
     {Fake f;f.fail_image=true;rejects(f,"fixture module original cause");}
     {Fake f;f.unreadable=software+0x280;rejects(f,"fixture memory original cause");}
-    {Fake f;f.memory[::base+0x52e610]^=1;rejects(f,"native code guard differs");}
+    {Fake f;f.memory[::base+0x534b00]^=1;rejects(f,"native code guard differs");}
     {Fake f;f.put<uintptr_t>(mode+0x58,0xdead);rejects(f,"GameState/Mode/World current owner differs");}
-    {Fake f;f.put<uintptr_t>(::base+0x13df9f0,0xdead);rejects(f,"current owner differs: Player");}
+    {Fake f;f.put<uintptr_t>(::base+0x13eb9f0,0xdead);rejects(f,"current owner differs: Player");}
     {Fake f;f.put<uintptr_t>(state+0x180,0xdead);rejects(f,"current owner differs: DevLounge");}
-    {Fake f;f.put<uintptr_t>(::base+0x13df500,0xdead);rejects(f,"current owner differs: SoftwareStatus");}
-    {Fake f;f.vt(project,0x16e79d0);rejects(f,"vtable differs: DevProject");}
+    {Fake f;f.put<uintptr_t>(::base+0x13eb500,0xdead);rejects(f,"current owner differs: SoftwareStatus");}
+    {Fake f;f.vt(project,0x16edd70);rejects(f,"vtable differs: DevProject");}
     {Fake f;f.put<float>(lounge+0xb0,std::numeric_limits<float>::quiet_NaN());rejects(f,"work is not finite");}
     {Fake f;f.put<int32_t>(software+0x28c,0);rejects(f,"array bounds invalid");}
     {Fake f;f.array(tree+0x10,tech_array,{tech,tech});rejects(f,"owned array has null/duplicate member");}
@@ -102,10 +102,10 @@ int main(){try{
     {Fake f;f.put<uintptr_t>(record+0x60,0xdead);rejects(f,"reciprocal link differs");}
     {Fake f;f.flags(0,2,0);rejects(f,"record flag invalid");}
     {Fake f;f.str(tech+0x1f0,"other");rejects(f,"native itemTypeName differs");}
-    {Fake f;f.put<uintptr_t>(type+0x30,type);rejects(f,"catalogue cycle/count");}
+    {Fake f;f.put<uintptr_t>(type+0x30,type+0x20);rejects(f,"catalogue cycle/count");}
     {Fake f;f.put<uintptr_t>(type+0x28,0xdead);rejects(f,"catalogue previous link differs");}
-    {Fake f;f.put<uintptr_t>(::base+0x13e2040,0);rejects(f,"catalogue tail differs");}
-    {Fake f;f.put<uintptr_t>(::base+0x173b7b0+0xa8,::base+0xd31591);rejects(f,"name getter unsupported");}
+    {Fake f;f.put<uintptr_t>(::base+0x13ee050,0);rejects(f,"catalogue tail differs");}
+    {Fake f;f.put<uintptr_t>(::base+0x1741b50+0xa8,::base+0xd3ccd1);rejects(f,"name getter unsupported");}
     {Fake f;f.put<int32_t>(inventory+0x10,201);rejects(f,"slot count=201 required=200");}
     {Fake f;f.put<uintptr_t>(slots,item);f.put<uintptr_t>(slots+8,item);rejects(f,"item owner duplicated");}
     {Fake f;f.put<uintptr_t>(slots,item);f.put<uintptr_t>(item+0x68,0xdead);rejects(f,"outside current catalogue");}
@@ -121,12 +121,12 @@ int main(){try{
     {Fake f;f.array(release+0x150,change_array,{change,change2});auto row=success(f);require(row["startingpoint_release"]["feature_count"]==2&&row["startingpoint_release"]["change_count"]==2,"distinct duplicate-feature rows hidden");}
     {Fake f;f.put<uint32_t>(release+0x1c4,0xffffffffu);auto row=success(f);require(row["startingpoint_release"]["mutation_counter"]==4294967295ULL,"raw counter bits narrowed or discarded");}
     {Fake f;f.put<uintptr_t>(state+0x190,0xdead);rejects(f,"ReleaseManager current owner differs");}
-    {Fake f;f.put<uintptr_t>(::base+0x13df4f0,0xdead);rejects(f,"ReleaseManager current owner differs");}
-    {Fake f;f.vt(release_manager,0x16c12b0);rejects(f,"vtable differs: ReleaseManager");}
-    {Fake f;f.vt(release,0x1714ed0);rejects(f,"vtable differs: Release");}
+    {Fake f;f.put<uintptr_t>(::base+0x13eb4f0,0xdead);rejects(f,"ReleaseManager current owner differs");}
+    {Fake f;f.vt(release_manager,0x16c7650);rejects(f,"vtable differs: ReleaseManager");}
+    {Fake f;f.vt(release,0x171b270);rejects(f,"vtable differs: Release");}
     {Fake f;f.array(release+0x150,change_array,{change,change});rejects(f,"change array has null/duplicate member");}
     {Fake f;f.array(release+0x150,change_array,{0});rejects(f,"change array has null/duplicate member");}
-    {Fake f;f.array(release+0x150,change_array,{change});f.vt(change,0x16dc330);rejects(f,"vtable differs: Change");}
+    {Fake f;f.array(release+0x150,change_array,{change});f.vt(change,0x16e26d0);rejects(f,"vtable differs: Change");}
     {Fake f;f.put<int32_t>(release+0x158,-1);rejects(f,"change bounds invalid");}
     {Fake f;f.put<int32_t>(release+0x158,5);rejects(f,"change bounds invalid");}
     {Fake f;f.put<int32_t>(release+0x15c,4097);rejects(f,"change bounds invalid");}
@@ -134,7 +134,7 @@ int main(){try{
     {Fake f;f.array(release+0x150,change_array,{change});f.put<uint64_t>(change+0x20,201);rejects(f,"key bytes=201 required<=200");}
     {Fake f;f.array(release+0x150,change_array,{change});f.memory[change+0x18+0x1000000+12]=1;rejects(f,"key terminator differs");}
     {Fake f;f.unreadable=release+0x1c4;rejects(f,"fixture memory original cause");}
-    {Fake f;f.memory[::base+0x71e90]^=1;rejects(f,"startingpoint release code guard differs");}
+    {Fake f;f.memory[::base+0x72910]^=1;rejects(f,"startingpoint release code guard differs");}
     {Fake f;f.unstable=release+0x1c4;rejects(f,"changed during read");}
     {Fake f;f.unstable=release_manager+0x38;rejects(f,"changed during read");}
     {Fake f;f.array(release+0x150,change_array,{change});f.unstable=change+0x70;rejects(f,"changed during read");}
@@ -151,7 +151,7 @@ int main(){try{
     {Fake f;f.research_setup();f.put<uintptr_t>(lounge+0xa8,0);f.getter_flags={false,true,false,false};auto result=research(f);
         require(result["project_present"]==false&&result["rows"][0]["visible"]==false&&result["rows"][0]["owned"]==true&&result["rows"][0]["can_choose_now"]==false&&result["rows"][0]["can_afford"]==false,"getter results were inferred or hidden");}
     {Fake f;f.research_setup();f.getter_failure=true;research_reject(f,"original research getter failure");require(f.research_calls==1,"getter replay");}
-    {Fake f;f.research_setup();f.put<uintptr_t>(base+0x13df220,0x230008);research_reject(f,"current owner differs: research Business");require(f.research_calls==0,"getter before owner authorization");}
+    {Fake f;f.research_setup();f.put<uintptr_t>(base+0x13eb220,0x230008);research_reject(f,"current owner differs: research Business");require(f.research_calls==0,"getter before owner authorization");}
     {Fake f;f.research_setup();f.put<uintptr_t>(record+0x60,tech+8);research_reject(f,"record/tech reciprocal link differs");require(f.research_calls==0,"getter on foreign record");}
     {Fake f;f.research_setup();f.put<uintptr_t>(tech+0x1e0,tech+8);research_reject(f,"prerequisite outside owned TechTree");require(f.research_calls==0,"getter on foreign prerequisite");}
     {Fake f;f.research_setup();f.unreadable=tech+0xa8;research_reject(f,"fixture memory original cause");require(f.research_calls==0,"getter after memory failure");}

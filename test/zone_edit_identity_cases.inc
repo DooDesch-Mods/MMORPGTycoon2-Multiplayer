@@ -38,14 +38,14 @@ struct Fixture58 {
     }
     void install58(const Current58& row,size_t ordinal){
         const auto zone=row.object,geometry=uintptr_t(0xa00000+ordinal*0x10000);
-        memory58.put(zone,image58+0x1745ce0);memory58.put(zone+0x18,row.uid);
+        memory58.put(zone,image58+0x174c080);memory58.put(zone+0x18,row.uid);
         memory58.put(zone+0x170,row.root);memory58.put(zone+0x178,row.region);memory58.put(zone+0x24c,row.type);
         memory58.put(zone+0x250,int32_t(3));memory58.put(zone+0x360,int32_t(9));
         memory58.put(zone+0x560,int32_t(17));memory58.put(zone+0x56c,int32_t(23));
-        memory58.put(zone+0x2f0,image58+0x16e0140);memory58.put(zone+0x330,image58+0x16eb080);
+        memory58.put(zone+0x2f0,image58+0x16e64e0);memory58.put(zone+0x330,image58+0x16f1420);
         memory58.put(zone+0x338,geometry+0x100);memory58.put(zone+0x340,int32_t(1));memory58.put(zone+0x344,int32_t(1));
-        memory58.put(geometry+0x100,geometry+0x200);memory58.put(geometry+0x200,image58+0x16fef20);
-        memory58.put(geometry+0x240,image58+0x1746160);memory58.put(geometry+0x248,geometry+0x300);
+        memory58.put(geometry+0x100,geometry+0x200);memory58.put(geometry+0x200,image58+0x17052c0);
+        memory58.put(geometry+0x240,image58+0x174c500);memory58.put(geometry+0x248,geometry+0x300);
         memory58.put(geometry+0x250,int32_t(3));memory58.put(geometry+0x254,int32_t(3));
         const std::array<std::array<uint32_t,3>,3> section{{{0x3f800000,0,0x40000000},{0x40400000,0,0x40800000},{0x40a00000,0,0x40c00000}}};
         memory58.put(geometry+0x300,section);
@@ -55,13 +55,13 @@ struct Fixture58 {
         registry58[row.uid]=row.object;
     }
     void roster58(const std::vector<Current58>& rows){
-        memory58.put(manager58,image58+0x16fe170);memory58.put(manager58+0xf0,region58);
+        memory58.put(manager58,image58+0x1704510);memory58.put(manager58+0xf0,region58);
         memory58.put(region58+0x968,manager58);memory58.put(region58+0x70,root58);
         for(int32_t type=0;type<4;++type){
             const auto array=manager58+0x18+size_t(type)*0x30,slots=slots58+size_t(type)*0x1000;
             int32_t count=0;
             for(const auto& row:rows)if(row.type==type){memory58.put(slots+size_t(count)*8,row.object);++count;}
-            memory58.put(array,image58+0x172e1e0);memory58.put(array+8,slots);
+            memory58.put(array,image58+0x1734580);memory58.put(array+8,slots);
             memory58.put(array+0x10,count);memory58.put(array+0x14,count+1);
         }
     }

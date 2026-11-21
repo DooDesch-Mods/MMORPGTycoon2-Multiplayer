@@ -30,15 +30,15 @@ inline bool read(npc_census::Memory& memory,uintptr_t image,
     using npc_quest_records::get;
     using npc_quest_records::reject;
     error.clear();
-    if(!image||image>UINTPTR_MAX-0x17020b0)
+    if(!image||image>UINTPTR_MAX-0x1708450)
         return reject(error,"Quest retirement image invalid");
     State result;uintptr_t ap=0,entries=0;int32_t capacity=0;
-    if(!get(memory,image,0x13df410,result.manager,"retirement manager singleton",error)||
+    if(!get(memory,image,0x13eb410,result.manager,"retirement manager singleton",error)||
        !get(memory,result.manager,0,ap,"retirement manager AP",error)||
        !get(memory,result.manager,0x30,entries,"retirement manager array",error)||
        !get(memory,result.manager,0x38,result.manager_count,"retirement manager count",error)||
        !get(memory,result.manager,0x3c,capacity,"retirement manager capacity",error))return false;
-    if(ap!=image+0x17020b0||result.manager_count<0||capacity<result.manager_count||
+    if(ap!=image+0x1708450||result.manager_count<0||capacity<result.manager_count||
        capacity>1000000||(result.manager_count&&!entries)||
        entries>UINTPTR_MAX-size_t(result.manager_count)*sizeof(uintptr_t))
         return reject(error,"Quest retirement manager class or active array header differs");
@@ -56,7 +56,7 @@ inline bool read(npc_census::Memory& memory,uintptr_t image,
         result.quests.push_back(presence);
     }
     uintptr_t after_manager=0,after_entries=0;int32_t after_count=0,after_capacity=0;
-    if(!get(memory,image,0x13df410,after_manager,"retirement manager reread",error)||
+    if(!get(memory,image,0x13eb410,after_manager,"retirement manager reread",error)||
        !get(memory,result.manager,0x30,after_entries,"retirement manager array reread",error)||
        !get(memory,result.manager,0x38,after_count,"retirement manager count reread",error)||
        !get(memory,result.manager,0x3c,after_capacity,"retirement manager capacity reread",error))return false;

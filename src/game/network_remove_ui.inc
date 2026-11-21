@@ -42,9 +42,9 @@ public:
            !region::ledger(money,e)||!undo::read_undo(r.memory,r.image,history,e))return false;
         if(history.active_graph)return fail(e,"Network Remove UI requires idle original Undo graph");
         uintptr_t cursor=0,ap=0,active=0,desired=0;uint8_t permits=0;
-        if(!region::at(r,r.image,0x13df9d0,cursor,e)||!region::at(r,cursor,0,ap,e)||ap!=r.image+0x1786dd0||
+        if(!region::at(r,r.image,0x13eb9d0,cursor,e)||!region::at(r,cursor,0,ap,e)||ap!=r.image+0x178d170||
            !region::at(r,cursor,0x190,active,e)||!region::at(r,cursor,0x198,desired,e)||!desired||active!=desired||
-           !region::at(r,desired,0,ap,e)||ap!=r.image+0x17391a0||!region::at(r,desired,0x120,permits,e)||permits!=1)
+           !region::at(r,desired,0,ap,e)||ap!=r.image+0x173f540||!region::at(r,desired,0x120,permits,e)||permits!=1)
             return fail(e,e.empty()?"Network Remove selection requires original Default cursor":e);
         uint32_t thread=0;std::string hash;uintptr_t image=0;
         if(!native::read_resolver_receipt(image,thread,hash,e)||image!=r.image||thread!=r.thread)return fail(e,e.empty()?"Network Remove native resolver identity differs":e);

@@ -27,9 +27,9 @@ Json payload(int32_t id,int32_t peer,int32_t next=3){
     Json rows=Json::array({{{"saved_link_id",1},{"inline_definition",true}},{{"saved_link_id",2},{"inline_definition",true}}});
     Json owner={{"kind","shared_party"},{"party_key",party_key},{"region_id",-1},{"character_kind",-1},
         {"character_id",-1},{"ability_index",-1},{"source_snapshot_sha256",std::string(64,'b')}};
-    Json external=Json::array({{{"saved_link_id",3},{"inline_definition",false},{"class_addresspoint_rva",uint32_t(0x1744e90)},{"portable_owner",owner}}});
+    Json external=Json::array({{{"saved_link_id",3},{"inline_definition",false},{"class_addresspoint_rva",uint32_t(0x174b230)},{"portable_owner",owner}}});
     if(peer>=0){owner.erase("party_key");owner["kind"]="subscriber_toon";owner["subscriber_id"]=peer;
-        external.push_back({{"saved_link_id",4},{"inline_definition",false},{"class_addresspoint_rva",uint32_t(0x1744e90)},{"portable_owner",owner}});}
+        external.push_back({{"saved_link_id",4},{"inline_definition",false},{"class_addresspoint_rva",uint32_t(0x174b230)},{"portable_owner",owner}});}
     for(const auto& row:external)rows.push_back(row);
     return {{"schema",1},{"origin_sha256",std::string(64,'b')},{"source_record_sha256",digest(records)},
         {"references_sha256",digest(rows)},{"external_references_sha256",digest(external)},

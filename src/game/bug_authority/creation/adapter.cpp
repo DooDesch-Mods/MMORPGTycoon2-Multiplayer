@@ -54,7 +54,7 @@ bool create(Services& services,const Lease& lease,const Value& value,Receipt& re
         Anchor prepare=[&](uintptr_t bug,uintptr_t parent,uintptr_t caller,std::string& error){
             if(receipt.anchor_seen)return fail(error,"Original AddSpecificBug invoked SetAnchor more than once");
             receipt.anchor_seen=true;receipt.bug=bug;
-            if(caller!=lease.image+0x59a7f||parent!=lease.parent||!bug)
+            if(caller!=lease.image+0x59f7f||parent!=lease.parent||!bug)
                 return fail(error,"Original AddSpecificBug SetAnchor caller or parent differs");
             Snapshot constructed;
             if(!services.read(lease,constructed,error))return false;

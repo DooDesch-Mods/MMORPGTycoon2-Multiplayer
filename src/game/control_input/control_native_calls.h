@@ -17,7 +17,7 @@ struct LocalBinding {
 
 inline uint32_t normalise_native(const LocalBinding& b, Vec3& value) noexcept {
     __try {
-        reinterpret_cast<void(*)(Vec3*)>(b.image + 0x9ffd80)(&value);
+        reinterpret_cast<void(*)(Vec3*)>(b.image + 0xa0a940)(&value);
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
@@ -52,26 +52,26 @@ inline uint32_t constrain_native(const LocalBinding& b, Vec3& position, float& h
     __try {
         const auto region = *reinterpret_cast<const uintptr_t*>(b.actor + 0x178);
         if (region) {
-            const auto obstruction = reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image + 0x350710)(region);
+            const auto obstruction = reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image + 0x354e10)(region);
             const auto nav = *reinterpret_cast<const uintptr_t*>(obstruction + 0x1b8);
             if (nav) {
-                const auto triangle = reinterpret_cast<uintptr_t(*)(uintptr_t,const Vec3*,int)>(b.image + 0x298a30)(nav,&position,0);
+                const auto triangle = reinterpret_cast<uintptr_t(*)(uintptr_t,const Vec3*,int)>(b.image + 0x29bed0)(nav,&position,0);
                 if (!triangle) {
                     Vec3 constrained{};
                     // MinGW x64 aggregate return: RCX=sret, RDX=this, R8=position.
-                    reinterpret_cast<Vec3*(*)(Vec3*,uintptr_t,const Vec3*)>(b.image + 0x298de0)(&constrained,nav,&position);
+                    reinterpret_cast<Vec3*(*)(Vec3*,uintptr_t,const Vec3*)>(b.image + 0x29c280)(&constrained,nav,&position);
                     position = constrained;
                 }
             }
         }
-        height = reinterpret_cast<float(*)(uintptr_t,const Vec3*)>(b.image + 0x32ab80)(b.map,&position);
+        height = reinterpret_cast<float(*)(uintptr_t,const Vec3*)>(b.image + 0x32ec10)(b.map,&position);
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 
 inline uint32_t jump_native(const LocalBinding& b) noexcept {
     __try {
-        reinterpret_cast<void(*)(uintptr_t)>(b.image + 0x39cb50)(b.actor);
+        reinterpret_cast<void(*)(uintptr_t)>(b.image + 0x3a1650)(b.actor);
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
@@ -94,8 +94,8 @@ inline uint32_t facing_native(const LocalBinding& b, const Motion& motion) noexc
         if (moving(motion)) {
             const Vec3 direction{motion.velocity.x,0.0f,motion.velocity.z};
             float orientation[4]{};
-            const auto up = reinterpret_cast<const Vec3*>(b.image + 0x1c4e8f0);
-            reinterpret_cast<void(*)(float*,const Vec3*,const Vec3*)>(b.image + 0x9fb4d0)(orientation,&direction,up);
+            const auto up = reinterpret_cast<const Vec3*>(b.image + 0x1c558f0);
+            reinterpret_cast<void(*)(float*,const Vec3*,const Vec3*)>(b.image + 0xa05920)(orientation,&direction,up);
             const auto old = reinterpret_cast<const float*>(b.actor + 0x100);
             if (old[0] != orientation[0] || old[1] != orientation[1] || old[2] != orientation[2] || old[3] != orientation[3]) {
                 std::memcpy(reinterpret_cast<void*>(b.actor + 0x100),orientation,sizeof(orientation));
@@ -113,13 +113,13 @@ inline uint32_t facing_native(const LocalBinding& b, const Motion& motion) noexc
 inline uint32_t target_native(const LocalBinding& b, uintptr_t local_target, uintptr_t& actual) noexcept {
     __try {
         // Preserve native proxy reference ownership without SetTarget's UI branch.
-        reinterpret_cast<uintptr_t(*)(uintptr_t,uintptr_t)>(b.image + 0x3b0530)(b.actor + 0x6d8,local_target);
-        actual = reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image + 0x3b07d0)(b.actor + 0x6d8);
+        reinterpret_cast<uintptr_t(*)(uintptr_t,uintptr_t)>(b.image + 0x3b5040)(b.actor + 0x6d8,local_target);
+        actual = reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image + 0x3b52e0)(b.actor + 0x6d8);
         return 0;
     } __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 inline uint32_t read_target_native(const LocalBinding& b,uintptr_t& actual)noexcept {
-    __try {actual=reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image+0x3b07d0)(b.actor+0x6d8);return 0;}
+    __try {actual=reinterpret_cast<uintptr_t(*)(uintptr_t)>(b.image+0x3b52e0)(b.actor+0x6d8);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 

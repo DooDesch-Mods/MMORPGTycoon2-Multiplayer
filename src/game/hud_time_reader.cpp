@@ -7,7 +7,7 @@
 
 namespace mt2mp::game::hud_time {
 namespace {
-constexpr char build_hash[]="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr char build_hash[]="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 constexpr std::array<float,4> scales{0,1,3,9};
 constexpr std::array<const char*,4> names{"@Time Pause","@Time Normal","@Time Fast","@Time Fastest"};
 struct Busy { bool& value; explicit Busy(bool& v):value(v){value=true;} ~Busy(){value=false;} };
@@ -52,10 +52,10 @@ bool Reader::initialize(const Config& config,const Services& io,std::string& e) 
         if (io_.thread_id(io_.user)!=config_.game_thread) return fail(e,"hud_time_wrong_thread");
         struct Guard{uintptr_t rva;const char* bytes;size_t count;};
         constexpr Guard guards[]{
-            {0x62c400,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x78",16},
-            {0x583b20,"\x57\x56\x53\x48\x83\xec\x20\x48\x8b\x05\xd2\x74\x0c\x01",14},
-            {0x5816c0,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xc8",16},
-            {0x20e8d0,"\x48\x8b\x05\xc9\x10\x1d\x01\x48\x85\xc0\x74\x25\xf3\x0f\x10\x40",16},
+            {0x6331d0,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x83\xec\x78",16},
+            {0x58a2e0,"\x57\x56\x53\x48\x83\xec\x20\x48\x8b\x05\xf2\x62\x0c\x01",14},
+            {0x587e80,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\xc8",16},
+            {0x211510,"\x48\x8b\x05\x89\xa4\x1d\x01\x48\x85\xc0\x74\x25\xf3\x0f\x10\x40",16},
         };
         for (const auto& g:guards) {std::array<char,16> actual{};if(!bytes(config_.image+g.rva,actual.data(),g.count,e))return false;
             if(std::memcmp(actual.data(),g.bytes,g.count))return fail(e,"hud_time_prologue_mismatch_rva="+std::to_string(g.rva));}
@@ -66,16 +66,16 @@ bool Reader::initialize(const Config& config,const Services& io,std::string& e) 
 bool Reader::once(State& out,Witness& witness,std::string& e) {
     uintptr_t game=0,mode=0,active=0,world=0,hud=0,panel=0,clock=0,options=0,owned_hud=0;
     int32_t mode_state=0;bool quitting=false;
-    if(!at(config_.image,0x13df8f0,game,e)||!vtable(game,0x1743740,"game",e)||
-       !at(config_.image,0x13df320,mode,e)||!vtable(mode,0x16e6730,"mode",e)||!at(game,0x28,active,e))return false;
+    if(!at(config_.image,0x13eb8f0,game,e)||!vtable(game,0x1749ae0,"game",e)||
+       !at(config_.image,0x13eb320,mode,e)||!vtable(mode,0x16ecad0,"mode",e)||!at(game,0x28,active,e))return false;
     if(active!=mode)return fail(e,"hud_time_mode_not_active");
     if(!at(mode,0x2c4,mode_state,e)||!boolean(mode,0x304,quitting,"mode_quitting",e)||!at(mode,0x58,world,e))return false;
     if(mode_state!=4||quitting||!world)return fail(e,"hud_time_world_not_active");
-    if(!at(config_.image,0x13df8b0,hud,e)||!vtable(hud,0x1742750,"hud",e)||!at(mode,0x128,owned_hud,e))return false;
+    if(!at(config_.image,0x13eb8b0,hud,e)||!vtable(hud,0x1748af0,"hud",e)||!at(mode,0x128,owned_hud,e))return false;
     if(hud!=owned_hud)return fail(e,"hud_time_mode_hud_mismatch");
-    if(!at(hud,0x60,panel,e)||!vtable(panel,0x16e4140,"clock_panel",e)||!name(panel,0x1b0,"clockpanel",e)||
+    if(!at(hud,0x60,panel,e)||!vtable(panel,0x16ea4e0,"clock_panel",e)||!name(panel,0x1b0,"clockpanel",e)||
        !boolean(panel,0x45f,out.clock_panel_visible,"clock_panel_visible",e))return false;
-    if(!at(config_.image,0x13df9a0,clock,e)||!vtable(clock,0x17499d0,"clock",e)||
+    if(!at(config_.image,0x13eb9a0,clock,e)||!vtable(clock,0x174fd70,"clock",e)||
        !at(clock,0x58,out.native_selected_scale,e)||!at(clock,0x5c,out.native_pause_scale,e)||
        !at(clock,0x44,out.flat_day,e)||!at(clock,0x48,out.seconds,e)||!boolean(clock,0x50,out.native_pause_indicator,"pause_indicator",e))return false;
     if(!std::isfinite(out.native_selected_scale)||!std::isfinite(out.native_pause_scale)||out.seconds<0||out.seconds>86400)
@@ -83,13 +83,13 @@ bool Reader::once(State& out,Witness& witness,std::string& e) {
     uintptr_t pause_window=0;
     if(!at(clock,0x68,pause_window,e))return false;
     out.pause_window_present=pause_window!=0;
-    if(pause_window && (!vtable(pause_window,0x17883d0,"pause_window",e)||!name(pause_window,0x1b0,"pause_hud",e)||
+    if(pause_window && (!vtable(pause_window,0x178e770,"pause_window",e)||!name(pause_window,0x1b0,"pause_hud",e)||
        !boolean(pause_window,0x45f,out.pause_window_visible,"pause_window_visible",e)))return false;
-    if(!at(config_.image,0x13df1e0,options,e)||!vtable(options,0x16c0db0,"options",e)||!boolean(options,0x191,out.pause_option_enabled,"pause_option_enabled",e))return false;
+    if(!at(config_.image,0x13eb1e0,options,e)||!vtable(options,0x16c7150,"options",e)||!boolean(options,0x191,out.pause_option_enabled,"pause_option_enabled",e))return false;
     witness.roots={game,mode,world,hud,panel,clock,options,pause_window};
     std::vector<uintptr_t> children;
     for(size_t offset:{size_t(0x2c8),size_t(0x2f8)}) {
-        const uintptr_t table=offset==0x2c8?0x16ef880:0x1748bf0;
+        const uintptr_t table=offset==0x2c8?0x16f5c20:0x174ef90;
         uintptr_t data=0;int32_t count=0,capacity=0;
         if(!vtable(panel+offset,table,"panel_children",e)||!at(panel,offset+8,data,e)||!at(panel,offset+0x10,count,e)||!at(panel,offset+0x14,capacity,e))return false;
         if(count<0||capacity<count||capacity>256||(count&&!data))return fail(e,"hud_time_panel_children_bound");
@@ -101,18 +101,18 @@ bool Reader::once(State& out,Witness& witness,std::string& e) {
         uintptr_t table=0,owner=0,parent=0;
         if(!at(slot,0,table,e)||!at(slot,0x280,owner,e)||!at(slot,0x278,parent,e))return false;
         if(owner!=panel||parent!=panel)return fail(e,"hud_time_child_owner_mismatch");
-        if(table==config_.image+0x16dc680)continue;
-        if(table!=config_.image+0x16db1c0)return fail(e,"hud_time_unexpected_panel_child_type");
+        if(table==config_.image+0x16e2a20)continue;
+        if(table!=config_.image+0x16e1560)return fail(e,"hud_time_unexpected_panel_child_type");
         uintptr_t button=0,item=0,weak_item=0,proxy=0,item_proxy=0,live=0,type=0,type_proxy=0,type_live=0;
-        if(!at(slot,0x368,button,e)||!vtable(button,0x16e5b90,"time_button",e)||!at(slot,0x360,item,e)||
-           !vtable(item,0x17437f0,"hud_item",e)||!at(button,0x350,parent,e))return false;
+        if(!at(slot,0x368,button,e)||!vtable(button,0x16ebf30,"time_button",e)||!at(slot,0x360,item,e)||
+           !vtable(item,0x1749b90,"hud_item",e)||!at(button,0x350,parent,e))return false;
         if(parent!=slot)return fail(e,"hud_time_button_dock_mismatch");
         if(!at(button,0x278,parent,e)||!at(button,0x280,owner,e))return false;
         if(parent!=slot||owner!=panel)return fail(e,"hud_time_button_owner_mismatch");
         if(!at(button,0x2d0,weak_item,e)||!at(button,0x2d8,proxy,e)||!at(item,0x28,item_proxy,e)||!at(proxy,0,live,e))return false;
         if(weak_item!=item||proxy!=item_proxy||live!=item+0x20)return fail(e,"hud_time_button_item_weak_mismatch");
         uintptr_t type_owned_proxy=0;
-        if(!at(item,0x68,type,e)||!vtable(type,0x1723f50,"hud_item_type",e)||!at(item,0x70,type_proxy,e)||
+        if(!at(item,0x68,type,e)||!vtable(type,0x172a2f0,"hud_item_type",e)||!at(item,0x70,type_proxy,e)||
            !at(type_proxy,0,type_live,e)||!at(type,0x40,type_owned_proxy,e))return false;
         if(type_live!=type+0x38||type_owned_proxy!=type_proxy)return fail(e,"hud_time_item_type_weak_mismatch");
         float scale=0;int32_t state=0;
@@ -153,17 +153,17 @@ bool Reader::classify_activation(uintptr_t type,uintptr_t item,ActivationBinding
 bool Reader::classify_inventory_activation(uintptr_t type,uintptr_t item,ActivationBinding& out,std::string& e) {
     out={};State state;Witness hud;if(!read_bound(state,hud,e))return false;
     uintptr_t player=0,inventory=0,array=0;int32_t count=0;
-    if(!at(config_.image,0x13df9f0,player,e)||!vtable(player,0x17873b0,"time_player",e)||
-       !at(player,0x1d0,inventory,e)||!vtable(inventory,0x16df0f0,"time_inventory",e)||
+    if(!at(config_.image,0x13eb9f0,player,e)||!vtable(player,0x178d750,"time_player",e)||
+       !at(player,0x1d0,inventory,e)||!vtable(inventory,0x16e5490,"time_inventory",e)||
        !at(inventory,8,array,e)||!at(inventory,0x10,count,e))return false;
     if(!array||count<1||count>4096)return fail(e,"time_inventory_count_outside_1_4096");
     std::array<uintptr_t,4> items{};ActivationBinding found;
     for(int32_t slot=0;slot<count;++slot){
         uintptr_t current=0,kind=0,proxy=0,live=0,ap=0;
         if(!at(array,size_t(slot)*8,current,e))return false;if(!current)continue;
-        if(!vtable(current,0x17437f0,"time_inventory_item",e)||!at(current,0x68,kind,e)||!at(current,0x70,proxy,e)||!at(proxy,0,live,e)||!at(kind,0,ap,e))return false;
+        if(!vtable(current,0x1749b90,"time_inventory_item",e)||!at(current,0x68,kind,e)||!at(current,0x70,proxy,e)||!at(proxy,0,live,e)||!at(kind,0,ap,e))return false;
         if(!live)return fail(e,"time_inventory_type_weak_reference_not_live");
-        if(ap!=config_.image+0x1723f50)continue;
+        if(ap!=config_.image+0x172a2f0)continue;
         float scale=0;int32_t native_state=0;if(!at(kind,0x15c,scale,e)||!at(current,0x38,native_state,e))return false;
         const auto position=std::find(scales.begin(),scales.end(),scale);if(position==scales.end())return fail(e,"time_inventory_scale_invalid");
         const auto index=size_t(position-scales.begin());if(items[index]||!name(kind,0x48,names[index],e))return fail(e,e.empty()?"time_inventory_duplicate_scale":e);
@@ -173,7 +173,7 @@ bool Reader::classify_inventory_activation(uintptr_t type,uintptr_t item,Activat
     if(std::any_of(items.begin(),items.end(),[](uintptr_t value){return !value;}))return fail(e,"time_inventory_missing_scale");
     uintptr_t current_player=0,current_inventory=0,current_array=0;int32_t current_count=0;
     State after;Witness final;
-    if(!read_bound(after,final,e)||!at(config_.image,0x13df9f0,current_player,e)||!at(player,0x1d0,current_inventory,e)||!at(inventory,8,current_array,e)||!at(inventory,0x10,current_count,e))return false;
+    if(!read_bound(after,final,e)||!at(config_.image,0x13eb9f0,current_player,e)||!at(player,0x1d0,current_inventory,e)||!at(inventory,8,current_array,e)||!at(inventory,0x10,current_count,e))return false;
     if(final!=hud||player!=current_player||inventory!=current_inventory||array!=current_array||count!=current_count)return fail(e,"time_inventory_owner_changed");
     out=found;e.clear();return true;
 }

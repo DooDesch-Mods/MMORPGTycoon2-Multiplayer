@@ -25,7 +25,7 @@
 
 namespace mt2mp::game::building_capture_identity {
 namespace {
-constexpr uintptr_t entry_rva = 0xe0e500;
+constexpr uintptr_t entry_rva = 0xe19e10;
 constexpr size_t maximum_buildings = 4096, maximum_contexts = 8, maximum_inflight = 256, maximum_arrays = 4096;
 uintptr_t image = 0;
 std::mutex mutex;
@@ -147,21 +147,21 @@ bool vtable(const void* object, uintptr_t rva, std::string& error) {
 bool read_world_witness(WorldWitness& witness, std::string& error) {
     if (!native::in_game()) { error = "native active world unavailable"; return false; }
     void* active = nullptr; void* world_singleton = nullptr; void* map_singleton = nullptr;
-    if (!read(reinterpret_cast<void*>(image), 0x13df8f0, witness.game, error) ||
-        !read(reinterpret_cast<void*>(image), 0x13df320, witness.mode, error) ||
-        !read(reinterpret_cast<void*>(image), 0x13df9c0, world_singleton, error) ||
-        !read(reinterpret_cast<void*>(image), 0x13df8c0, map_singleton, error)) return false;
-    if (!vtable(witness.game, 0x1743740, error) || !vtable(witness.mode, 0x16e6730, error) ||
+    if (!read(reinterpret_cast<void*>(image), 0x13eb8f0, witness.game, error) ||
+        !read(reinterpret_cast<void*>(image), 0x13eb320, witness.mode, error) ||
+        !read(reinterpret_cast<void*>(image), 0x13eb9c0, world_singleton, error) ||
+        !read(reinterpret_cast<void*>(image), 0x13eb8c0, map_singleton, error)) return false;
+    if (!vtable(witness.game, 0x1749ae0, error) || !vtable(witness.mode, 0x16ecad0, error) ||
         !read(witness.game, 0x28, active, error)) return false;
     if (active != witness.mode) { error = "native active mode differs from mode singleton"; return false; }
-    if (!read(witness.mode, 0x58, witness.state, error) || !vtable(witness.state, 0x16de920, error) ||
-        !read(witness.state, 0x160, witness.world, error) || !vtable(witness.world, 0x174aef0, error) ||
-        !read(witness.world, 0x158, witness.map, error) || !vtable(witness.map, 0x1742860, error)) return false;
+    if (!read(witness.mode, 0x58, witness.state, error) || !vtable(witness.state, 0x16e4cc0, error) ||
+        !read(witness.state, 0x160, witness.world, error) || !vtable(witness.world, 0x1751290, error) ||
+        !read(witness.world, 0x158, witness.map, error) || !vtable(witness.map, 0x1748c00, error)) return false;
     if (witness.world != world_singleton || witness.map != map_singleton) { error = "native GameState/World/Map ownership differs from singleton receivers"; return false; }
     return true;
 }
 DWORD contains_native(void* context, void* object, int32_t& id, bool& found) {
-    __try { found = reinterpret_cast<bool(*)(void*, void*, int32_t*)>(image + 0x89e690)(context, object, &id); }
+    __try { found = reinterpret_cast<bool(*)(void*, void*, int32_t*)>(image + 0x8a77b0)(context, object, &id); }
     __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -173,8 +173,8 @@ bool contains_checked(void* context, void* object, int32_t& id, std::string& err
     return true;
 }
 DWORD typed_native(void* object, void*& typed) {
-    __try { typed = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x12654f0)(object,
-        reinterpret_cast<void*>(image + 0x1657270), reinterpret_cast<void*>(image + 0x1655090), -1); }
+    __try { typed = reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x1270eb0)(object,
+        reinterpret_cast<void*>(image + 0x165c850), reinterpret_cast<void*>(image + 0x165a670), -1); }
     __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -186,9 +186,9 @@ bool typed_checked(void* object, std::string& error) {
 }
 DWORD registry_native(uint64_t uid, void*& typed) {
     __try {
-        auto* object = reinterpret_cast<void*(*)(uint64_t)>(image + 0x47ce20)(uid);
-        typed = object ? reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x12654f0)(object,
-            reinterpret_cast<void*>(image + 0x1673900), reinterpret_cast<void*>(image + 0x1655090), 0) : nullptr;
+        auto* object = reinterpret_cast<void*(*)(uint64_t)>(image + 0x481f60)(uid);
+        typed = object ? reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + 0x1270eb0)(object,
+            reinterpret_cast<void*>(image + 0x1678ee0), reinterpret_cast<void*>(image + 0x165a670), 0) : nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -208,23 +208,23 @@ enum class WriterScope { Own, Foreign, Invalid };
 WriterScope writer_scope(void* writer, WriterWitness& owner, std::string& error) {
     auto rejected = [&](const char* stage) { error = std::string(stage) + ": " + error; return WriterScope::Invalid; };
     if (!read(writer, 8, owner.stream, error)) return rejected("record writer stream");
-    if (!vtable(owner.stream, 0x1736320, error)) return rejected("serialiser stream type");
+    if (!vtable(owner.stream, 0x173c6c0, error)) return rejected("serialiser stream type");
     if (!read(owner.stream, 0x18, owner.consumer, error)) return rejected("stream consumer");
     uintptr_t consumer_vtable = 0;
     if (!read(owner.consumer, 0, consumer_vtable, error)) return rejected("consumer type");
-    if (consumer_vtable == image + 0x1742fd0) { error = "direct vsFile metadata consumer"; return WriterScope::Foreign; }
-    if (!vtable(owner.consumer, 0x1720790, error)) return rejected("file consumer type");
+    if (consumer_vtable == image + 0x1749370) { error = "direct vsFile metadata consumer"; return WriterScope::Foreign; }
+    if (!vtable(owner.consumer, 0x1726b30, error)) return rejected("file consumer type");
     if (!read(owner.consumer, 8, owner.file, error) || !read(owner.consumer, 0x10, owner.task, error)) return rejected("consumer owner fields");
     if (owner.file) {
         if (owner.task) { error = "consumer has both direct file and asynchronous task"; return WriterScope::Invalid; }
     } else {
-        if (!vtable(owner.task, 0x1733bb0, error)) return rejected("stream file task type");
+        if (!vtable(owner.task, 0x1739f50, error)) return rejected("stream file task type");
         uint8_t producing = 0;
         if (!read(owner.task, 0x48, producing, error)) return rejected("stream file task lifetime");
         if (producing != 1) { error = "stream file task producer completed actual=" + std::to_string(producing) + " required=1"; return WriterScope::Invalid; }
         if (!read(owner.task, 0x10, owner.file, error)) return rejected("stream file task file");
     }
-    if (!vtable(owner.file, 0x1742fd0, error)) return rejected("owned file type");
+    if (!vtable(owner.file, 0x1749370, error)) return rejected("owned file type");
     char* text = nullptr; size_t count = 0; int32_t mode = 0;
     if (!read(owner.file, 8, text, error) || !read(owner.file, 0x10, count, error) || !read(owner.file, 0x70, mode, error)) return rejected("owned file filename/mode");
     if (count != filename.size()) { error = "foreign filename length actual=" + std::to_string(count) + " required=" + std::to_string(filename.size()); return WriterScope::Foreign; }
@@ -253,7 +253,7 @@ bool slice(const void* array, void* writer, void* context, Slice& result, std::s
     if (address < 0x408 || !readable(context, sizeof(void*))) { error = "array/context is not readable"; return false; }
     result.array = array; result.writer = writer; result.context = context; result.thread = GetCurrentThreadId();
     result.manager = reinterpret_cast<void*>(address - 0x408);
-    if (!vtable(array, 0x172d7c0, error) || !vtable(result.manager, 0x17183c0, error) ||
+    if (!vtable(array, 0x1733b60, error) || !vtable(result.manager, 0x171e760, error) ||
         !read(array, 8, result.data, error) || !read(array, 0x10, result.count, error) || !read(array, 0x14, result.capacity, error) ||
         !read(result.manager, 0x450, result.shard, error) || !read(result.manager, 0x458, result.region, error)) return false;
     if (result.count < 0 || result.count > int32_t(maximum_buildings) || result.capacity < result.count) {
@@ -282,7 +282,7 @@ bool slice(const void* array, void* writer, void* context, Slice& result, std::s
                 !image_range(addresspoint - image, 0x70, false, error) ||
                 !read(reinterpret_cast<void*>(addresspoint), 0x60, save_stream, error) ||
                 !read(reinterpret_cast<void*>(addresspoint), 0x68, save_values, error)) return false;
-            if (save_stream != image + 0xe572d0 || save_values != image + 0xe57610) {
+            if (save_stream != image + 0xe62dc0 || save_values != image + 0xe63100) {
                 error = "inline Building derived save implementation is unsupported"; return false;
             }
 #endif
@@ -304,7 +304,7 @@ void caught(const char* operation, const char* cause) noexcept {
 bool confirm_current_receivers(void* game,void* mode,void* state,void* world,void* map,std::string& error){
     uintptr_t actual_image=0;uint32_t thread=0;std::string sha;
     if(!native::read_resolver_receipt(actual_image,thread,sha,error))return false;
-    if(actual_image!=image||thread!=GetCurrentThreadId()||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){error="Snapshot Scenery current receiver read requires exact native Mainthread";return false;}
+    if(actual_image!=image||thread!=GetCurrentThreadId()||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){error="Snapshot Scenery current receiver read requires exact native Mainthread";return false;}
     WorldWitness actual;if(!read_world_witness(actual,error))return false;
     if(actual.game!=game||actual.mode!=mode||actual.state!=state||actual.world!=world||actual.map!=map){error="Snapshot Scenery physical Game/Mode/GameState/World/Map changed";return false;}
     error.clear();return true;
@@ -319,17 +319,17 @@ bool initialize(std::string& error) {
     if (!image_range(entry_rva, actual.size(), true, error) || !read_bytes(reinterpret_cast<void*>(image), entry_rva, actual.data(), actual.size(), error)) return rejected(error);
     if (actual != prefix) return rejected("Building save wrapper prologue differs");
     const std::array<std::pair<uintptr_t, std::vector<unsigned char>>, 3> helpers{{
-        {0x89e690, {0x57,0x56,0x53,0x48,0x83,0xec,0x20}},
-        {0x12654f0, {0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70}},
-        {0x47ce20, {0x53,0x45,0x31,0xc0,0x48,0x85,0xc9}}
+        {0x8a77b0, {0x57,0x56,0x53,0x48,0x83,0xec,0x20}},
+        {0x1270eb0, {0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70}},
+        {0x481f60, {0x53,0x45,0x31,0xc0,0x48,0x85,0xc9}}
     }};
     for (const auto& [rva, expected] : helpers) {
         std::vector<unsigned char> body(expected.size());
         if (!image_range(rva, body.size(), true, error) || !read_bytes(reinterpret_cast<void*>(image), rva, body.data(), body.size(), error)) return rejected(error);
         if (body != expected) return rejected("native helper prologue differs rva=" + std::to_string(rva));
     }
-    for (uintptr_t rva : {0x172d7c0,0x17183c0,0x1736320,0x1720790,0x1733bb0,0x1742fd0,0x1657270,0x1655090,0x1673900,
-        0x1743740,0x16e6730,0x16de920,0x174aef0,0x1742860})
+    for (uintptr_t rva : {0x1733b60,0x171e760,0x173c6c0,0x1726b30,0x1739f50,0x1749370,0x165c850,0x165a670,0x1678ee0,
+        0x1749ae0,0x16ecad0,0x16e4cc0,0x1751290,0x1748c00})
         if (!image_range(rva, 16, false, error)) return rejected(error);
     error.clear(); return true;
 }
@@ -339,9 +339,9 @@ bool begin(const std::string& uuid, uint64_t epoch, std::string& error, const st
     if (!image || armed || !valid_uuid(uuid) || !net::snapshot_world_path::valid_folder(world_name)) { error = "begin requires ready resolver, valid UUID and no active capture"; LOG_ERROR("[BuildingCapture] {}", error); return false; }
 #ifndef MT2MP_CAPTURE_IDENTITY_TEST
     uint8_t main_skip = 0, legacy_skip = 0; uint64_t main_offset = 0;
-    if (!read(reinterpret_cast<void*>(image + 0x13be4c0), 0x20, main_skip, error) ||
-        !read(reinterpret_cast<void*>(image + 0x13be4c0), 0x38, main_offset, error) ||
-        !read(reinterpret_cast<void*>(image + 0x13be500), 0x20, legacy_skip, error)) {
+    if (!read(reinterpret_cast<void*>(image + 0x13ca4c0), 0x20, main_skip, error) ||
+        !read(reinterpret_cast<void*>(image + 0x13ca4c0), 0x38, main_offset, error) ||
+        !read(reinterpret_cast<void*>(image + 0x13ca500), 0x20, legacy_skip, error)) {
         LOG_ERROR("[BuildingCapture] begin saved-property guard failed cause={}", error); return false;
     }
     if (main_skip != 0 || main_offset != 0x408 || legacy_skip != 1) {

@@ -4,11 +4,11 @@ std::string digest(const std::string& text){return mt2mp::sha256(std::vector<uns
 bool code(std::string& e){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     for(const auto& body:std::array<Body,5>{{
-        {0x330940,160,"616242adac1052d2f96e16649821ec7223d06908c9f51f21d0bd589544b638bc"},
-        {0x330760,480,"b603cd8e86c82587f2f740a9e143d3df697132c3bb5c8e637da7a79aa3ef3d0f"},
-        {0x354b20,1104,"3f37211f950a8cbdc28b6d11f9736825c2ac4edc601d1d12d7e336e967889473"},
-        {0x58180,112,"717307a172a198ef8d1b6f28710cf5247907b63affdc2f3c5be7c33551a66dae"},
-        {0x58b00,64,"6348d00a4fd0733e538ce3878538e83b4f72fbba6bffcfacc995ea25c4fdbd5c"}}}){
+        {0x3349d0,160,"8eabd1d3dd263d49850e4d4880a19cf1f10fcc4067a4240c463d93d48371e467"},
+        {0x3347f0,480,"bb0a3882db621fac953f9f4aabd1b9e4f875a61809d6a87665195d0a2205def5"},
+        {0x355390,1392,"426bd7b13da4b2c5078af473f97ed39410fb4c441cd5ab6c2c32e3a9bddff2b4"},
+        {0x58680,112,"fb106d69fbecb1c31f131bc58446b28d8274f388424711cba5dad72a42d4d395"},
+        {0x59000,64,"de0a01121ead31a53c99a8588a4d80294f97763300e848fc4a3078fd5cd91883"}}}){
         std::vector<unsigned char> bytes(body.size);
         if(!memory.copy(image+body.rva,bytes.data(),bytes.size(),e))return false;
         if(mt2mp::sha256(bytes)!=body.sha)return fail(e,"Startingpoint original Map Bug body differs RVA="+std::to_string(body.rva));
@@ -30,7 +30,7 @@ bool read(const tutorial_development::StartingpointSnapshot& snapshot,nlohmann::
         rows.push_back(nlohmann::json::array({id,std::move(bugs)}));
     }
     uintptr_t random=0;std::array<uint64_t,4> words{};int32_t extra=0;
-    if(!at(image,0x164b250,random,e)||!at(random,0,words,e)||!at(random,0x20,extra,e))return false;
+    if(!at(image,0x1650830,random,e)||!at(random,0,words,e)||!at(random,0x20,extra,e))return false;
     out={{"regions",std::move(rows)},{"random",words},{"random_extra",extra}};return true;
 }
 }

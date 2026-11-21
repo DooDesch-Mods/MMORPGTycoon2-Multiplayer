@@ -7,12 +7,12 @@ inline bool apply(const nlohmann::json& graph,Values& values,std::string& error)
     auto fail=[&](const char* cause){error=cause;return false;};
     for(const auto& node:graph){
         const auto rva=node.at(0).get<uintptr_t>();const auto& payload=node.at(1);
-        if(rva==0x1786fb0){if(payload.at(0)!=0)return fail("District inverse changes the cost-free Ledger");continue;}
-        const auto key=(rva==0x16de860?payload:payload.at(0)).get<std::string>();
+        if(rva==0x178d350){if(payload.at(0)!=0)return fail("District inverse changes the cost-free Ledger");continue;}
+        const auto key=(rva==0x16e4c00?payload:payload.at(0)).get<std::string>();
         const auto found=values.find(key);
-        if(rva==0x17132f0){if(found!=values.end())return fail("District inverse Make names an already live canonical owner");values.emplace(key,payload);}
-        else if(rva==0x17132b0){if(found==values.end())return fail("District inverse Edit names an absent canonical owner");found->second=payload;}
-        else if(rva==0x16de860){if(found==values.end())return fail("District inverse Destroy names an absent canonical owner");values.erase(found);}
+        if(rva==0x1719690){if(found!=values.end())return fail("District inverse Make names an already live canonical owner");values.emplace(key,payload);}
+        else if(rva==0x1719650){if(found==values.end())return fail("District inverse Edit names an absent canonical owner");found->second=payload;}
+        else if(rva==0x16e4c00){if(found==values.end())return fail("District inverse Destroy names an absent canonical owner");values.erase(found);}
         else return fail("District inverse transition contains an unsupported original operation");
     }
     return true;

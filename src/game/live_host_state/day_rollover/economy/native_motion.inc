@@ -38,7 +38,7 @@ bool motion_region(const Pin& p,const MotionOwner& owner,int32_t id,uintptr_t ex
 bool motion_manager(const Pin& p,uintptr_t region,uintptr_t& manager,std::vector<uintptr_t>& toons,std::string& e,MotionManagerHeader* header=nullptr){
     apply_timing::PageReadScope pages(apply_timing::page_read_scope==nullptr);
     uintptr_t data=0;int32_t count=-1,capacity=-1;uint8_t updating=1;
-    if(!at(region,0x9c0,manager,e)||!ap(manager,p.image,0x16fde30,e)||!at(manager,0xc8,updating,e)||!at(manager,0x28,data,e)||!at(manager,0x30,count,e)||!at(manager,0x34,capacity,e))return false;
+    if(!at(region,0x9c0,manager,e)||!ap(manager,p.image,0x17041d0,e)||!at(manager,0xc8,updating,e)||!at(manager,0x28,data,e)||!at(manager,0x30,count,e)||!at(manager,0x34,capacity,e))return false;
     if(updating||count<0||capacity<count||count>1000000||(count&&(!data||data>UINTPTR_MAX-size_t(count)*sizeof(uintptr_t))))return fail(e,"Subscriber motion ToonManager is updating or array bounds differ");
     toons.clear();toons.resize(size_t(count));
     if(count&&!read_native_block(memory,data,toons.data(),toons.size()*sizeof(uintptr_t),e)){toons.clear();return false;}
@@ -59,7 +59,7 @@ bool sample_motion_member(const Pin& p,MotionSamplePass& pass,MotionOwner& owner
     const auto& entry=found->second;const auto slot=entry.slots.find(owner.toon);
     if(slot==entry.slots.end())return fail(e,"Subscriber motion Toon absent from registered Region manager");
     MotionManagerHeader actual;uint8_t updating=1;uintptr_t receiver=0;
-    if(!at(owner.region,0x9c0,actual.manager,e)||!ap(actual.manager,p.image,0x16fde30,e)||!at(actual.manager,0xc8,updating,e)||
+    if(!at(owner.region,0x9c0,actual.manager,e)||!ap(actual.manager,p.image,0x17041d0,e)||!at(actual.manager,0xc8,updating,e)||
        !at(actual.manager,0x28,actual.data,e)||!at(actual.manager,0x30,actual.count,e)||!at(actual.manager,0x34,actual.capacity,e))return false;
     if(updating||actual!=entry.header)return fail(e,"Subscriber motion sample manager/header changed during pass");
     if(!at(actual.data,slot->second*sizeof(uintptr_t),receiver,e))return false;
@@ -70,13 +70,13 @@ bool motion_read(const Pin& p,uintptr_t subscriber,std::optional<Motion>& pose,s
     apply_timing::PageReadScope pages(pass==nullptr);
     pose.reset();uintptr_t toon=0;if(!at(subscriber,0x80,toon,e))return false;
     if(!toon)return true;
-    uintptr_t backlink=0;uint8_t logged=0;if(!ap(toon,p.image,0x1744e90,e)||!at(toon,0x940,backlink,e)||backlink!=subscriber||!at(toon,0x825,logged,e)||logged>1)return fail(e,e.empty()?"Subscriber motion reciprocal native Toon/login differs":e);
+    uintptr_t backlink=0;uint8_t logged=0;if(!ap(toon,p.image,0x174b230,e)||!at(toon,0x940,backlink,e)||backlink!=subscriber||!at(toon,0x825,logged,e)||logged>1)return fail(e,e.empty()?"Subscriber motion reciprocal native Toon/login differs":e);
     if(!logged)return true;
     Motion value;MotionOwner owner;owner.toon=toon;uintptr_t shard=0,last=0,render=0,callback=0;
     if(!(pass?sample_motion_world(p,*pass,owner,e):motion_world(p,owner,e))||!at(toon,0x170,shard,e)||!at(toon,0x178,owner.region,e)||!at(toon,0x9a8,last,e)||!at(owner.region,0x834,value.region,e))return false;
     if(shard!=owner.root||last!=owner.region)return fail(e,"Subscriber motion requires reciprocal registered root-shard Toon");
     uintptr_t region=0;if(!motion_region(p,owner,value.region,owner.region,region,e,pass?&pass->regions:index)||!at(toon,0x30,render,e)||!at(render,0x38,callback,e))return false;
-    if(callback!=p.image+0x3e82a0)return fail(e,"Subscriber motion native Toon transform callback differs");
+    if(callback!=p.image+0x3ecdb0)return fail(e,"Subscriber motion native Toon transform callback differs");
     if(!memory.copy(toon+0x100,value.orientation.data(),sizeof value.orientation,e)||!memory.copy(toon+0x110,value.position.data(),sizeof value.position,e)||!memory.copy(toon+0x11c,value.scale.data(),sizeof value.scale,e))return false;
     if(!subscriber_motion::valid(value,e)){
         const auto original=e;int32_t subscriber_id=-1;uint64_t toon_uid=0;std::string id_error,uid_error;
@@ -114,7 +114,7 @@ bool finish_motion_pass(const Pin& p,const MotionSamplePass& pass,std::string& e
 }
 bool motion_target(const Pin& p,const MotionOwner& owner,const Motion& target,uintptr_t& region,std::string& e){
     if(!subscriber_motion::valid(target,e)||!motion_region(p,owner,target.region,0,region,e))return false;
-    const auto region_at=reinterpret_cast<uintptr_t(*)(uintptr_t,const float*,uintptr_t)>(p.image+0x5089b0);
+    const auto region_at=reinterpret_cast<uintptr_t(*)(uintptr_t,const float*,uintptr_t)>(p.image+0x50eb00);
     if(region_at(owner.root,target.position.data(),owner.region)!=region)return fail(e,"Subscriber motion target pose resolves to another native Region");
     uint8_t follows=0;if(!at(owner.toon,0x490,follows,e))return false;
     if(region!=owner.region&&follows!=1)return fail(e,"Subscriber motion native Toon does not follow Region at target position");
@@ -151,8 +151,8 @@ bool NativePort::store_motion(const Owners& before,size_t index,const Motion& ol
     // The native constructor supplies dirty state and matrix cache. The native
     // setter invokes actor/spatial updates and original Region-manager transfer.
     alignas(4) std::array<std::byte,0x6c> transform{};
-    const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(p.image+0x9ff370);
-    const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(p.image+0xc67c80);
+    const auto construct=reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(p.image+0xa09f30);
+    const auto set=reinterpret_cast<void(*)(uintptr_t,const void*)>(p.image+0xc733c0);
     {apply_timing::Scope measured(apply_timing::Part::MotionOriginal);
     construct(transform.data(),target.orientation.data(),target.position.data(),target.scale.data());
     set(owner.toon+0x30,transform.data());}

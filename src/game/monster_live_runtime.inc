@@ -3,7 +3,7 @@ namespace ml=live_host_state::monsters;
 using LiveUpdate=void(*)(uintptr_t,float);
 using LiveAdjust=float(*)(uintptr_t,int32_t,float,uintptr_t,bool);
 struct LiveHook {uintptr_t rva=0;void* original=nullptr;std::array<unsigned char,32> entry{};std::array<unsigned char,64> trampoline{};};
-LiveHook live_update_hook{0x3c0750},live_adjust_hook{0x39fb80};
+LiveHook live_update_hook{0x3c5260},live_adjust_hook{0x3a4680};
 bool live_hook_attempted=false,live_hook_ready=false;
 std::string live_hook_failure;
 void live_update_entry(uintptr_t,float);
@@ -49,34 +49,34 @@ bool live_hooks(std::string& e){
     if(!live_code(m,true,e))return rejected(e);live_hook_ready=true;return true;
 }
 uint32_t live_max(uintptr_t object,int32_t attribute,float& out)noexcept{
-    __try{out=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x39f6e0)(object,attribute);return 0;}
+    __try{out=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x3a41e0)(object,attribute);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_animation_read(uintptr_t character,uintptr_t actor,int32_t index,bool& playing,float& time,float& length,bool& paused,float& speed)noexcept{
-    __try{playing=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x28760)(character,index);
+    __try{playing=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x28900)(character,index);
         const auto local=*reinterpret_cast<const int32_t*>(character+8+size_t(index)*4);
-        length=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23860)(actor,local);
-        if(playing){time=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23890)(actor,local);
-            paused=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x23840)(actor,local);
-            speed=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x238b0)(actor,local);}return 0;}
+        length=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a00)(actor,local);
+        if(playing){time=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a30)(actor,local);
+            paused=reinterpret_cast<bool(*)(uintptr_t,int32_t)>(state.image+0x239e0)(actor,local);
+            speed=reinterpret_cast<float(*)(uintptr_t,int32_t)>(state.image+0x23a50)(actor,local);}return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_transform(uintptr_t object,const subscriber_motion::Pose& pose)noexcept{
     alignas(4) std::array<unsigned char,0x6c> transform{};
-    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(state.image+0x9ff370)(transform.data(),pose.orientation.data(),pose.position.data(),pose.scale.data());
-        reinterpret_cast<void(*)(uintptr_t,const void*)>(state.image+0xc67c80)(object+0x30,transform.data());return 0;}
+    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(state.image+0xa09f30)(transform.data(),pose.orientation.data(),pose.position.data(),pose.scale.data());
+        reinterpret_cast<void(*)(uintptr_t,const void*)>(state.image+0xc733c0)(object+0x30,transform.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_animation_set(uintptr_t character,uintptr_t actor,int32_t semantic,int32_t index,bool playing,uint32_t time,bool paused,uint32_t speed)noexcept{
-    __try{if(playing){reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x28730)(character,semantic);
-            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x237a0)(actor,index,std::bit_cast<float>(speed));
-            reinterpret_cast<void(*)(uintptr_t,int32_t,bool)>(state.image+0x23770)(actor,index,paused);
-            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x237e0)(actor,index,std::bit_cast<float>(time));}
-        else reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x28750)(character,semantic);return 0;}
+    __try{if(playing){reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x288d0)(character,semantic);
+            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x23940)(actor,index,std::bit_cast<float>(speed));
+            reinterpret_cast<void(*)(uintptr_t,int32_t,bool)>(state.image+0x23910)(actor,index,paused);
+            reinterpret_cast<void(*)(uintptr_t,int32_t,float)>(state.image+0x23980)(actor,index,std::bit_cast<float>(time));}
+        else reinterpret_cast<void(*)(uintptr_t,int32_t)>(state.image+0x288f0)(character,semantic);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_spatial(uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x3b1b50)(object);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x3b6660)(object);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_byte(uintptr_t address,uint8_t expected,uint8_t target,bool& exchanged)noexcept{
@@ -84,20 +84,20 @@ uint32_t live_byte(uintptr_t address,uint8_t expected,uint8_t target,bool& excha
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_present(uintptr_t object,uintptr_t character,uintptr_t actor,float dt)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x39d670)(object);
+    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x3a2170)(object);
         const bool visible=*reinterpret_cast<const uint8_t*>(object+0x368)&&*reinterpret_cast<const uint8_t*>(object+0x808);
-        reinterpret_cast<void(*)(uintptr_t,bool)>(state.image+0x287d0)(character,visible);
+        reinterpret_cast<void(*)(uintptr_t,bool)>(state.image+0x28970)(character,visible);
         const float elapsed=*reinterpret_cast<const uint8_t*>(object+0x26c)?0.0f:dt;
-        reinterpret_cast<void(*)(uintptr_t,float)>(state.image+0x28970)(character,elapsed);
-        reinterpret_cast<void(*)(uintptr_t)>(state.image+0x21df0)(actor);return 0;}
+        reinterpret_cast<void(*)(uintptr_t,float)>(state.image+0x28b10)(character,elapsed);
+        reinterpret_cast<void(*)(uintptr_t)>(state.image+0x21f80)(actor);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_scene(uintptr_t screen,uintptr_t& scene)noexcept{
-    __try{scene=reinterpret_cast<uintptr_t(*)(uintptr_t,int32_t)>(state.image+0x9ca3a0)(screen,0);return 0;}
+    __try{scene=reinterpret_cast<uintptr_t(*)(uintptr_t,int32_t)>(state.image+0x9d3f60)(screen,0);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_membership_call(uintptr_t receiver,uintptr_t object,bool& present)noexcept{
-    __try{present=reinterpret_cast<bool(*)(uintptr_t,uintptr_t)>(state.image+0x874df0)(receiver,object);return 0;}
+    __try{present=reinterpret_cast<bool(*)(uintptr_t,uintptr_t)>(state.image+0x87dbb0)(receiver,object);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_lifecycle_call(uintptr_t rva,uintptr_t object,bool value)noexcept{
@@ -105,7 +105,7 @@ uint32_t live_lifecycle_call(uintptr_t rva,uintptr_t object,bool value)noexcept{
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t live_expire(uintptr_t object)noexcept{
-    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x39d560)(object);return 0;}
+    __try{reinterpret_cast<void(*)(uintptr_t)>(state.image+0x3a2060)(object);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct LiveWorld {host::WorldState world;host::LookupApi api;};
@@ -134,16 +134,16 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
     }
     bool full(Memory& m,const LiveWorld& p,uintptr_t object,identity::Entry& entry,std::string& birth,std::string& e){
         uintptr_t ap=0,root=0,region=0,manager=0,zone=0,proxy=0,owner=0,found=0;uint64_t uid=0;
-        if(!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||!field(m,object,0x18,uid,e)||!uid||
+        if(!field(m,object,0,ap,e)||ap!=state.image+0x16c6b10||!field(m,object,0x18,uid,e)||!uid||
            !field(m,object,0x170,root,e)||root!=p.world.root||!field(m,object,0x178,region,e)||
-           !field(m,region,0x988,manager,e)||!field(m,manager,0,ap,e)||ap!=state.image+0x1714100||
+           !field(m,region,0x988,manager,e)||!field(m,manager,0,ap,e)||ap!=state.image+0x171a4a0||
            !field(m,manager,0x80,owner,e)||owner!=region||!field(m,object,0x8d0,zone,e)||zone||!field(m,object,0x8d8,proxy,e)||proxy)
             return fail(e,e.empty()?"Monster live full class/owner/null-Zone binding differs":e);
         const auto seh=lookup(p.api.find,uid,found);if(seh||found!=object)return fail(e,"Monster live full UID lookup differs SEH="+std::to_string(seh));
         uint64_t after_uid=0;if(!field(m,object,0x18,after_uid,e)||after_uid!=uid)return fail(e,e.empty()?"Monster live full UID changed after lookup":e);
         const identity::Scope scope{p.world.origin.uuid,p.world.origin.world_epoch,p.world.origin.generation,p.world.root,region,manager};std::string key;
         if(!identity::registry.resolve(scope,object,uid,key,e)||!identity::registry.lookup(monster_target_key::argument(key),scope,entry,e))return false;
-        q::Bounds members;d::ReadMemory read{m};if(!q::typed(read,state.image,manager+0x38,0x16e8b60,e)||!q::bounds(read,manager+0x38,4096,members,e))return false;
+        q::Bounds members;d::ReadMemory read{m};if(!q::typed(read,state.image,manager+0x38,0x16eef00,e)||!q::bounds(read,manager+0x38,4096,members,e))return false;
         std::vector<uintptr_t> rows(size_t(members.count));if(members.count&&!m.copy(members.data,rows.data(),rows.size()*8,e))return false;
         if(std::count(rows.begin(),rows.end(),object)!=1||!q::unchanged(read,manager+0x38,4096,members,e))return fail(e,e.empty()?"Monster live current owning membership differs":e);
         birth=monster_target_key::argument(key);return true;
@@ -153,7 +153,7 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
         if(!field(m,object,0x490,follows,e)||follows||!field(m,object,0x478,ride,e)||ride||!field(m,object,0x47d,riding,e)||riding||
            !field(m,object,0x628,puppet,e)||puppet)return fail(e,e.empty()?"Monster live fixed Region or plain actor attachment is unsupported":e);
         uintptr_t render=0,callback=0;int32_t count=-1;
-        if(!field(m,object,0x30,render,e)||render!=state.image+0x16c0c58||!field(m,render,0x38,callback,e)||callback!=state.image+0x39e750||
+        if(!field(m,object,0x30,render,e)||render!=state.image+0x16c6ff8||!field(m,render,0x38,callback,e)||callback!=state.image+0x3a3250||
            !field(m,out.actor.actor,0x20,count,e)||count<0||count>4096)return fail(e,e.empty()?"Monster live embedded transform or animation bounds differ":e);
         if(out.actor.character>UINTPTR_MAX-8-sizeof(out.animation_index)||!m.copy(out.actor.character+8,out.animation_index.data(),sizeof(out.animation_index),e))return false;
         for(const auto index:out.animation_index)if(index>=count)return fail(e,"Monster live semantic animation index outside local clip array");
@@ -164,10 +164,10 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
         if(!object&&!proxy){out={};return true;}if(!proxy){out={"expired",{}};return true;}
         if(!field(m,proxy,8,live,e))return false;if(!live||!object){out={"expired",{}};return true;}
         uintptr_t ap=0;if(!field(m,object,0,ap,e))return false;
-        if(ap==state.image+0x16c0770){uintptr_t zone=0;if(!field(m,object,0x8d0,zone,e))return false;
+        if(ap==state.image+0x16c6b10){uintptr_t zone=0;if(!field(m,object,0x8d0,zone,e))return false;
             if(!zone){identity::Entry entry;std::string birth;if(!full(m,p,object,entry,birth,e))return false;out={"mapped",monster_target_key::canonical(birth)};return true;}}
-        if(ap==state.image+0x1744e90){uintptr_t subscriber=0,back=0;int32_t id=-1;
-            if(!field(m,object,0x940,subscriber,e)||!field(m,subscriber,0,ap,e)||ap!=state.image+0x16e75f0||
+        if(ap==state.image+0x174b230){uintptr_t subscriber=0,back=0;int32_t id=-1;
+            if(!field(m,object,0x940,subscriber,e)||!field(m,subscriber,0,ap,e)||ap!=state.image+0x16ed990||
                !field(m,subscriber,0x80,back,e)||back!=object||!field(m,subscriber,0x20,id,e)||id<0)return fail(e,e.empty()?"Monster observed Toon target reciprocal Subscriber differs":e);
             out={"mapped","subscriber:"+std::to_string(id)};return true;}
         out={"unmapped",{}};return true;
@@ -190,7 +190,7 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
         if(!field(m,manager,0x70,after_data,e)||!field(m,manager,0x78,after_count,e)||!field(m,manager,0x7c,after_capacity,e)||
            after_data!=data||after_count!=count||after_capacity!=capacity)return fail(e,e.empty()?"Monster lifecycle ready array changed during read":e);
         // World-map Shard::GetQuadTree selects the current Map singleton +290.
-        if(!field(m,p.world.root,0x48,kind,e)||kind!=0||!field(m,state.image,0x13df8c0,map,e)||map!=uintptr_t(p.world.origin.map)||
+        if(!field(m,p.world.root,0x48,kind,e)||kind!=0||!field(m,state.image,0x13eb8c0,map,e)||map!=uintptr_t(p.world.origin.map)||
            !field(m,map,0x290,out.quadtree,e)||!out.quadtree||!field(m,object,0x488,out.model,e))
             return fail(e,e.empty()?"Monster lifecycle current world-map quadtree receiver differs":e);
         if(bool(out.model)!=local.actor.on_map)return fail(e,"Monster lifecycle quadtree model/OnMap differs");
@@ -212,7 +212,7 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
     bool lifecycle_scalars(Memory& m,uintptr_t object,const ml::Row& before,const ml::Row& target,bool& attempted,std::string& e){
         const auto store=[&](size_t offset,uint32_t old,uint32_t wanted){if(old==wanted)return true;attempted=true;
             return live_host_state::compare_fixed_i32(object+offset,std::bit_cast<int32_t>(old),std::bit_cast<int32_t>(wanted),e);};
-        for(size_t i=0;i<3;++i){uintptr_t ap=0;if(!field(m,object,0x730+i*0x28,ap,e)||ap!=state.image+0x16dd550)return fail(e,e.empty()?"Monster embedded attribute class differs":e);}
+        for(size_t i=0;i<3;++i){uintptr_t ap=0;if(!field(m,object,0x730+i*0x28,ap,e)||ap!=state.image+0x16e38f0)return fail(e,e.empty()?"Monster embedded attribute class differs":e);}
         for(size_t i=0;i<3;++i)if(!store(0x750+i*0x28,before.host_combat.values[i],target.host_combat.values[i])||
             !store(0x754+i*0x28,before.host_combat.recovery[i],target.host_combat.recovery[i]))return false;
         if(!store(0x828,std::bit_cast<uint32_t>(before.host_combat.ai),std::bit_cast<uint32_t>(target.host_combat.ai))||
@@ -251,7 +251,7 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
         if(!field(m,object,0x910,out.lifecycle.respawn_time_bits,e)||!field(m,object,0x7f8,out.lifecycle.action,e))return false;
         out.spawn=local.actor.spawn;out.on_map=local.actor.on_map;auto& combat=out.host_combat;uint8_t dead=2;
         if(!field(m,object,0x4ac,dead,e)||dead>1||!field(m,object,0x828,combat.ai,e)||!field(m,object,0x824,combat.status,e))return fail(e,e.empty()?"Monster live dead/status observation differs":e);combat.dead=dead!=0;
-        for(size_t i=0;i<3;++i){uintptr_t ap=0;if(!field(m,object,0x730+i*0x28,ap,e)||ap!=state.image+0x16dd550)return fail(e,e.empty()?"Monster embedded attribute class differs":e);
+        for(size_t i=0;i<3;++i){uintptr_t ap=0;if(!field(m,object,0x730+i*0x28,ap,e)||ap!=state.image+0x16e38f0)return fail(e,e.empty()?"Monster embedded attribute class differs":e);
             if(!field(m,object,0x750+i*0x28,combat.values[i],e)||!field(m,object,0x754+i*0x28,combat.recovery[i],e))return false;
             float maximum=0;const auto seh=live_max(object,int32_t(i),maximum);if(seh)return fail(e,"Monster Host maximum observation SEH="+std::to_string(seh));combat.maxima[i]=std::bit_cast<uint32_t>(maximum);}
         for(size_t i=0;i<ml::animation_slots;++i){
@@ -273,15 +273,15 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
             if(entry.retired)out.retired.push_back(birth);else expected.emplace(birth,entry);
         }
         {live_host_state::apply_timing::PageReadScope census_pages(!live_host_state::apply_timing::PageReadScope::reader_active());
-        d::ReadMemory memory{m};q::Bounds regions;if(!q::typed(memory,state.image,uintptr_t(p.world.origin.map)+0x230,0x16f04e0,e)||!q::bounds(memory,uintptr_t(p.world.origin.map)+0x230,4096,regions,e))return false;
+        d::ReadMemory memory{m};q::Bounds regions;if(!q::typed(memory,state.image,uintptr_t(p.world.origin.map)+0x230,0x16f6880,e)||!q::bounds(memory,uintptr_t(p.world.origin.map)+0x230,4096,regions,e))return false;
         std::set<int32_t> ids;std::set<uintptr_t> region_pointers,objects;
         for(int32_t i=0;i<regions.count;++i){uintptr_t region=0,ap=0,root=0,manager=0,owner=0;int32_t id=-1;
-            if(!field(m,regions.data,size_t(i)*8,region,e)||!field(m,region,0,ap,e)||ap!=state.image+0x1787930||!field(m,region,0x70,root,e)||root!=p.world.root||
+            if(!field(m,regions.data,size_t(i)*8,region,e)||!field(m,region,0,ap,e)||ap!=state.image+0x178dcd0||!field(m,region,0x70,root,e)||root!=p.world.root||
                !field(m,region,0x834,id,e)||id<0||!ids.insert(id).second||!region_pointers.insert(region).second||!field(m,region,0x988,manager,e)||
-               !field(m,manager,0,ap,e)||ap!=state.image+0x1714100||!field(m,manager,0x80,owner,e)||owner!=region)return fail(e,e.empty()?"Monster live complete Region/manager census differs":e);
-            q::Bounds members;if(!q::typed(memory,state.image,manager+0x38,0x16e8b60,e)||!q::bounds(memory,manager+0x38,4096,members,e))return false;
+               !field(m,manager,0,ap,e)||ap!=state.image+0x171a4a0||!field(m,manager,0x80,owner,e)||owner!=region)return fail(e,e.empty()?"Monster live complete Region/manager census differs":e);
+            q::Bounds members;if(!q::typed(memory,state.image,manager+0x38,0x16eef00,e)||!q::bounds(memory,manager+0x38,4096,members,e))return false;
             for(int32_t j=0;j<members.count;++j){uintptr_t object=0,zone=0,proxy=0;
-                if(!field(m,members.data,size_t(j)*8,object,e)||!object||!objects.insert(object).second||!field(m,object,0,ap,e)||ap!=state.image+0x16c0770||
+                if(!field(m,members.data,size_t(j)*8,object,e)||!object||!objects.insert(object).second||!field(m,object,0,ap,e)||ap!=state.image+0x16c6b10||
                    !field(m,object,0x8d0,zone,e)||!field(m,object,0x8d8,proxy,e))return fail(e,e.empty()?"Monster live owning row class/uniqueness differs":e);
                 if(zone)continue;if(proxy)return fail(e,"Monster live null-Zone row retains proxy");ml::Row value;LiveLocal local;
                 {live_host_state::apply_timing::PageReadScope original_row(live_host_state::apply_timing::PageBoundary::OriginalCall);
@@ -307,9 +307,9 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
         const auto object=local.entry.pointer;Membership prior_members;
         if(!membership(m,current,local,prior_members,e))return false;
         if(!before.host_combat.dead&&target.host_combat.dead&&!expire_proxy(m,object,attempted,e))return false;
-        if(before.lifecycle.ready&&!target.lifecycle.ready){attempted=true;const auto code=live_lifecycle_call(0x3bbc00,object,false);
+        if(before.lifecycle.ready&&!target.lifecycle.ready){attempted=true;const auto code=live_lifecycle_call(0x3c0710,object,false);
             if(code)return fail(e,"Monster original combat membership removal SEH="+std::to_string(code));}
-        if(before.on_map&&!target.on_map){attempted=true;const auto code=live_lifecycle_call(0x39a920,object,false);
+        if(before.on_map&&!target.on_map){attempted=true;const auto code=live_lifecycle_call(0x39f420,object,false);
             if(code)return fail(e,"Monster original off-map transition SEH="+std::to_string(code));}
         const bool current_on_map=before.on_map&&target.on_map;auto expected_spawn=before.spawn;
         const auto stable=[&](const mr::Actor& actual,bool on){return mr::same_actor(local.actor,actual)&&actual.spawn==expected_spawn&&actual.on_map==on;};
@@ -327,9 +327,9 @@ class MonsterLivePort final:public live_host_state::MonsterPort {
             } spatial{m};
             if(!ml::clear_spatial_dirty(spatial,object,attempted,e))return false;
         }
-        if(!before.on_map&&target.on_map){attempted=true;const auto code=live_lifecycle_call(0x39a920,object,true);
+        if(!before.on_map&&target.on_map){attempted=true;const auto code=live_lifecycle_call(0x39f420,object,true);
             if(code)return fail(e,"Monster original on-map transition SEH="+std::to_string(code));}
-        if(!before.lifecycle.ready&&target.lifecycle.ready){attempted=true;const auto code=live_lifecycle_call(0x3bbc00,object,true);
+        if(!before.lifecycle.ready&&target.lifecycle.ready){attempted=true;const auto code=live_lifecycle_call(0x3c0710,object,true);
             if(code)return fail(e,"Monster original combat membership addition SEH="+std::to_string(code));}
         identity::Entry scalar_entry;std::string scalar_birth;LiveLocal scalar_local;
         if(!full(m,current,object,scalar_entry,scalar_birth,e)||scalar_entry!=local.entry||!actor(m,object,scalar_local,e)||!stable(scalar_local.actor,target.on_map))
@@ -417,7 +417,7 @@ public:
     bool active()const{return client_.load(std::memory_order_acquire);}
     bool classify(uintptr_t object,bool& owned,LiveLocal& local,std::string& e){
         owned=false;if(!active())return true;Memory m;uintptr_t ap=0,zone=0;
-        if(!field(m,object,0,ap,e))return false;if(ap!=state.image+0x16c0770)return true;
+        if(!field(m,object,0,ap,e))return false;if(ap!=state.image+0x16c6b10)return true;
         if(!field(m,object,0x8d0,zone,e))return false;if(zone)return true;owned=true;
         if(GetCurrentThreadId()!=state.thread){wrong_thread_.store(true,std::memory_order_release);return fail(e,"Monster live owned callback outside Mainthread");}
         // Original manager callbacks can run inside Save/Edit scopes. This
@@ -430,7 +430,7 @@ public:
     bool present(uintptr_t object,LiveLocal& local,float dt,std::string& e){
         if(!std::isfinite(dt)||dt!=0)return fail(e,"Monster live Client original clock interval must be finite zero");Memory m;uintptr_t screen_slot=0,screen=0,scenes=0,expected_scene=0,scene=0,camera=0;int32_t scene_count=0;
         // The image refptr addresses the singleton slot, not the Screen instance.
-        if(!field(m,state.image,0x164b420,screen_slot,e)||!screen_slot)return fail(e,e.empty()?"Monster live current Screen singleton slot absent":e);
+        if(!field(m,state.image,0x1650a00,screen_slot,e)||!screen_slot)return fail(e,e.empty()?"Monster live current Screen singleton slot absent":e);
         if(!field(m,screen_slot,0,screen,e)||!screen)return fail(e,e.empty()?"Monster live current Screen absent":e);
         if(!field(m,screen,0x30,scene_count,e))return false;
         if(scene_count<=0||scene_count>1048576)return fail(e,"Monster live current Screen scene count outside bounds: "+std::to_string(scene_count));
@@ -456,7 +456,7 @@ void live_update_entry(uintptr_t object,float dt){
     try{const auto caller=uintptr_t(_ReturnAddress());Memory m;
         if(!monster_live_port.classify(object,owned,local,error)){monster_live_port.failed(error);return;}
         if(!owned){reinterpret_cast<LiveUpdate>(live_update_hook.original)(object,dt);return;}
-        if((caller!=state.image+0x29457d&&caller!=state.image+0x2945ba&&caller!=state.image+0x2946b8)||!live_hook_current(m,live_update_hook,error)){
+        if((caller!=state.image+0x29799d&&caller!=state.image+0x2979da&&caller!=state.image+0x297ad8)||!live_hook_current(m,live_update_hook,error)){
             monster_live_port.failed(error.empty()?"Monster live owned EntityUpdate physical caller differs":error);return;}
         if(!monster_live_port.present(object,local,dt,error))monster_live_port.failed(error);
     }catch(const std::exception& x){monster_live_port.failed(std::string("Monster live update exception: ")+x.what());}

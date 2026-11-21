@@ -8,7 +8,7 @@
 
 namespace mt2mp::game::tutorial_replication::start_intent {
 inline constexpr size_t pay_size=0xb0;
-inline constexpr const char* pay_sha256="2732cea4d51876f7eb3e4df2fe2d6742d3184196332d685d01034e9279886fa3";
+inline constexpr const char* pay_sha256="a346f9b2bf9e1d18d0987b7e90ce8c15157cf619118b88a766c24796a5d187bd";
 // MinHook copies the original push/sub pair, then emits its continuation and
 // owned relay. Verify that physical route before restoring the five bytes for
 // the complete original-function fingerprint.

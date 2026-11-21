@@ -7,12 +7,12 @@ struct Fixture {
     uintptr_t mutation_address=0;unsigned mutation_hits=0,mutation_occurrence=2;uint32_t mutation_kind=0;
     unsigned guarded=0,compared=0;bool stale_on_guard=false,fail_compare=false;
     Fixture(){
-        memory.put(image_base+0x13df690,manager_address);memory.put(manager_address,image_base+0x1725f40);
+        memory.put(image_base+0x13eb690,manager_address);memory.put(manager_address,image_base+0x172c2e0);
         memory.put(manager_address+0x40,slots_address);memory.put(manager_address+0x48,int32_t(1));memory.put(manager_address+0x4c,int32_t(1));
-        memory.put(slots_address,subscriber_address);memory.put(subscriber_address,image_base+0x16e75f0);
+        memory.put(slots_address,subscriber_address);memory.put(subscriber_address,image_base+0x16ed990);
         memory.put(subscriber_address+0x20,int32_t(7));memory.put(subscriber_address+0x50,uint32_t(2));
         memory.put(subscriber_address+0x70,std::bit_cast<uint32_t>(4.5f));memory.put(subscriber_address+0xc8,uint8_t(0));memory.put(subscriber_address+0x125,uint8_t(0));
-        memory.put(subscriber_address+0x80,toon_address);memory.put(toon_address,image_base+0x1744e90);
+        memory.put(subscriber_address+0x80,toon_address);memory.put(toon_address,image_base+0x174b230);
         memory.put(toon_address+0x18,toon_uid);memory.put(toon_address+0x940,subscriber_address);memory.put(toon_address+0x84c,uint32_t(1));
         registry[toon_uid]=toon_address;
     }
@@ -56,7 +56,7 @@ inline void run(){
         s::State decoded;need(s::decode(s::encode(values),decoded,error)&&decoded==values,"populated Toon cheat frame field failed exact roundtrip");
     }
     for(int mode=0;mode<6;++mode){Fixture fixture;
-        if(mode==0)fixture.memory.put(Fixture::toon_address,Fixture::image_base+0x1744e91);
+        if(mode==0)fixture.memory.put(Fixture::toon_address,Fixture::image_base+0x174b231);
         if(mode==1)fixture.memory.put(Fixture::toon_address+0x18,uint64_t(0));
         if(mode==2)fixture.memory.put(Fixture::toon_address+0x940,Fixture::subscriber_address+8);
         if(mode==3)fixture.memory.put(Fixture::toon_address+0x84c,uint32_t(4));

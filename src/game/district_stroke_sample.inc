@@ -30,7 +30,7 @@ bool digest(const json& value,std::string& out,std::string& error){
 }
 bool bound_world(Runtime& runtime,const action::Binding& binding,host::WorldState& out,uint8_t own_edit,std::string& error){
     host::NativeOrigin origin;host::LookupApi lookup;
-    if(!host::resolve_lookup(runtime.memory.process,runtime.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",lookup,error))return false;
+    if(!host::resolve_lookup(runtime.memory.process,runtime.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",lookup,error))return false;
     host::Reader reader(runtime.memory.process,origin,runtime.image,runtime.thread,lookup);
     if(!reader.current(out,false,error))return false;
     return (out.origin.world_epoch==binding.native_epoch&&out.origin.generation==binding.native_generation&&
@@ -99,7 +99,7 @@ struct LocalSelection {
             else if(current||!retired.contains(row.uid))return q::fail(error,"District original lost an unrelated local selection full UID");}
         std::vector<uintptr_t> raw,filtered;
         if(!group_reader::selection(runtime.memory,runtime.image,manager,raw,filtered,error))return false;
-        if(raw!=desired){duplicate_calls::Array values{runtime.image+0x1748c50,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
+        if(raw!=desired){duplicate_calls::Array values{runtime.image+0x174eff0,desired.data(),int32_t(desired.size()),int32_t(desired.size())};
             if(!fault(duplicate_calls::select(runtime.image,manager,values),"local selection restore",error)||
                !group_reader::selection(runtime.memory,runtime.image,manager,raw,filtered,error))return false;}
         std::array<uint8_t,9> current{};if(!q::at(runtime.memory,manager,0xc8,current,error))return false;

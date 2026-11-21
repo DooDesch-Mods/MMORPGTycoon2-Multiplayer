@@ -2,7 +2,7 @@ namespace uptime_native {
 using Add=void(*)(void*,int32_t);
 Add original_add=nullptr;release_ui_owner::Owner add_owner;
 std::string fault;uint64_t suppressed=0,forwarded=0,failed=0;
-constexpr uintptr_t add_rva=0x859e30,building_return=0x40b7a5;
+constexpr uintptr_t add_rva=0x862b50,building_return=0x410365;
 void retain(const std::string& cause){
     ++failed;if(fault.empty()){fault=cause.empty()?"Building uptime owner proof failed without a cause":cause;
         LOG_ERROR("[BuildingUptime] Client history authority failed cause={}; no native Add replay",fault);}
@@ -17,7 +17,7 @@ bool current_owner(Runtime& r,uintptr_t history,bool& owned,std::string& e){
        world.generation!=r.gm_binding->native_generation||uintptr_t(world.map)+0x1c0!=r.gm_root)
         return fail(e,e.empty()?"Building uptime current Session/NativeOrigin differs":e);
     const auto object=history-0xc60;uintptr_t root=0;
-    if(!ap(r,object,0x16d93c0,e)||!at(r,object,0x170,root,e))return false;
+    if(!ap(r,object,0x16df760,e)||!at(r,object,0x170,root,e))return false;
     if(root!=r.gm_root)return true;
     remove_diagnostics::LocalTarget target;
     {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);
@@ -49,15 +49,15 @@ void entry(void* receiver,int32_t value){
 bool enable(Runtime& r,std::string& e){
     struct Body{uintptr_t rva;size_t bytes;const char* sha;};
     constexpr Body bodies[]{
-        {0x859e30,512,"6d143bebe703b7d7bc58524745b55508db5820421b620924037f0d41aa435f82"},
-        {0x40b730,240,"10713f8adde58c6b2559ddc8b1b183cb99382b46ff9b23c5080e9f865ec90aac"},
-        {0xe8080,288,"6d7c8326e01c886f5fd3115cb51b04fe002baed6c687c3fc27ee356b126fa9f9"}};
+        {0x862b50,512,"d28d47ffb4c0b24ff0d7f1982f1be4075a0fa41f6dbd14fb18492ffbd09f3932"},
+        {0x4102f0,240,"0a286e829b97e9e803e34800847807167604b27ff48e70efc89fa8e1573710ae"},
+        {0xe90b0,288,"94e6ee002731ce9c82c745053887811cb1090991147f29690983d73721d45355"}};
     for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);
         if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)
             return fail(e,e.empty()?"Building uptime original full body differs RVA="+std::to_string(body.rva):e);
         if(body.rva==add_rva)add_owner={r.image+body.rva,reinterpret_cast<uintptr_t>(&entry),0,1,5,std::move(bytes)};
     }
-    const auto made=MH_CreateHook(reinterpret_cast<void*>(r.image+0x859e30),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original_add));
+    const auto made=MH_CreateHook(reinterpret_cast<void*>(r.image+0x862b50),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original_add));
     if(made!=MH_OK||!original_add)return fail(e,"Building uptime Add hook create failed status="+std::to_string(made));
     add_owner.trampoline=reinterpret_cast<uintptr_t>(original_add);
     const auto enabled=MH_EnableHook(reinterpret_cast<void*>(add_owner.entry));

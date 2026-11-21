@@ -22,19 +22,19 @@ bool inspect(void* user,const void* root,const void* context,std::string& e){
 struct Invoke {uintptr_t image=0;unsigned step=0;uintptr_t object=0,record=0,context=0;};
 uint32_t invoke(Invoke* call){
     __try{switch(call->step){
-        case 0:call->object=uintptr_t(reinterpret_cast<void*(*)()>(call->image+0xd96100)());break;
+        case 0:call->object=uintptr_t(reinterpret_cast<void*(*)()>(call->image+0xda18e0)());break;
         case 1:break;
-        case 2:reinterpret_cast<void(*)(void*)>(call->image+0x89e940)(reinterpret_cast<void*>(call->context));break;
-        case 3:reinterpret_cast<void(*)(void*,void*,void*)>(call->image+0xce7af0)(reinterpret_cast<void*>(call->object),reinterpret_cast<void*>(call->record),reinterpret_cast<void*>(call->context));break;
-        case 4:reinterpret_cast<void(*)(void*)>(call->image+0x89e480)(reinterpret_cast<void*>(call->context));break;
-        case 5:reinterpret_cast<void(*)(void*)>(call->image+0x157f70)(reinterpret_cast<void*>(call->object));break;
+        case 2:reinterpret_cast<void(*)(void*)>(call->image+0x8a7a60)(reinterpret_cast<void*>(call->context));break;
+        case 3:reinterpret_cast<void(*)(void*,void*,void*)>(call->image+0xcf3210)(reinterpret_cast<void*>(call->object),reinterpret_cast<void*>(call->record),reinterpret_cast<void*>(call->context));break;
+        case 4:reinterpret_cast<void(*)(void*)>(call->image+0x8a75a0)(reinterpret_cast<void*>(call->context));break;
+        case 5:reinterpret_cast<void(*)(void*)>(call->image+0x159060)(reinterpret_cast<void*>(call->object));break;
     }return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool read(uintptr_t image,capture::Memory& memory,uintptr_t object,State& state,json& records,std::string& e){
     state={};records=json::array();if(!dungeon_input_codes::verify(image,memory,e))return false;if(!object){digest(nullptr,state.sha256);e.clear();return true;}
-    uintptr_t ap=0;if(!memory.read(object,&ap,sizeof ap,e)||ap!=image+0x1743680)return fail(e,e.empty()?"Dungeon Fill actual native class differs":e);
-    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(image+0x9667c0),reinterpret_cast<capture::Construct>(image+0x9676a0),reinterpret_cast<capture::Construct>(image+0x89e580),reinterpret_cast<capture::Construct>(image+0x89e5f0),reinterpret_cast<capture::PrepareSave>(image+0x10ee6f0),reinterpret_cast<capture::SaveRecord>(image+0x10ee750)};
+    uintptr_t ap=0;if(!memory.read(object,&ap,sizeof ap,e)||ap!=image+0x1749a20)return fail(e,e.empty()?"Dungeon Fill actual native class differs":e);
+    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(image+0x96f9e0),reinterpret_cast<capture::Construct>(image+0x9708c0),reinterpret_cast<capture::Construct>(image+0x8a76a0),reinterpret_cast<capture::Construct>(image+0x8a7710),reinterpret_cast<capture::PrepareSave>(image+0x10fa090),reinterpret_cast<capture::SaveRecord>(image+0x10fa0f0)};
     Borrow borrow{memory};capture::CaptureReceipt receipt;
     if(!capture::capture_original(api,reinterpret_cast<void*>(object),&inspect,&borrow,receipt,e))return false;
     state.present=true;records=std::move(borrow.records);digest(records,state.sha256);e.clear();return true;

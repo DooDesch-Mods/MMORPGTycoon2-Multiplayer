@@ -25,12 +25,12 @@
 
 namespace mt2mp::game::normal_load_identity {
 namespace {
-constexpr uintptr_t add_object_rva = 0x89ea20;
-constexpr uintptr_t lookup_id_rva = 0x89e0f0;
-constexpr uintptr_t dynamic_cast_rva = 0x12654f0;
-constexpr uintptr_t null_typeinfo = 0x1657270;
-constexpr uintptr_t building_typeinfo = 0x1655090;
-constexpr uintptr_t find_uid_rva = 0x47ce20;
+constexpr uintptr_t add_object_rva = 0x8a7b40;
+constexpr uintptr_t lookup_id_rva = 0x8a7210;
+constexpr uintptr_t dynamic_cast_rva = 0x1270eb0;
+constexpr uintptr_t null_typeinfo = 0x165c850;
+constexpr uintptr_t building_typeinfo = 0x165a670;
+constexpr uintptr_t find_uid_rva = 0x481f60;
 constexpr size_t maximum_references = 4096;
 constexpr size_t maximum_contexts = 64;
 constexpr uint64_t timing_stride = 1024;
@@ -329,7 +329,7 @@ DWORD registered_building_native(uint64_t uid, void*& pointer) {
     __try {
         auto* object = reinterpret_cast<void*(*)(uint64_t)>(image + find_uid_rva)(uid);
         pointer = object ? reinterpret_cast<void*(*)(void*, const void*, const void*, ptrdiff_t)>(image + dynamic_cast_rva)(
-            object, reinterpret_cast<void*>(image + 0x1673900), reinterpret_cast<void*>(image + building_typeinfo), 0) : nullptr;
+            object, reinterpret_cast<void*>(image + 0x1678ee0), reinterpret_cast<void*>(image + building_typeinfo), 0) : nullptr;
     } __except (EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
     return 0;
 }
@@ -392,7 +392,7 @@ bool initialize(std::string& error) {
         return fail(error, "initialize rejected: executable DOS header differs");
     const auto* pe = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
     if (!readable(pe, sizeof(*pe)) || pe->Signature != IMAGE_NT_SIGNATURE ||
-        pe->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 || pe->OptionalHeader.SizeOfImage != 30986240)
+        pe->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 || pe->OptionalHeader.SizeOfImage != 30597120)
         return fail(error, "initialize rejected: exact-build PE contract differs");
     constexpr std::array<unsigned char, 12> add_prefix{0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x58};
     constexpr std::array<unsigned char, 10> cast_prefix{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70};
@@ -417,9 +417,9 @@ bool initialize(std::string& error) {
     failed_rtti_attempts.clear();
     current.failed_rtti_memo_entries = 0;
     current.negative_cache_bytes = 0;
-    class_vptr = image + 0x17888c0;
-    si_vptr = image + 0x17889f0;
-    vmi_vptr = image + 0x1788a50;
+    class_vptr = image + 0x178ec60;
+    si_vptr = image + 0x178ed90;
+    vmi_vptr = image + 0x178edf0;
     source_typeinfo = image + null_typeinfo;
     target_typeinfo = image + building_typeinfo;
     const auto* sections = IMAGE_FIRST_SECTION(pe);
@@ -519,7 +519,7 @@ void observe_registered(void* context, int32_t id, void* object) noexcept {
         if (found_context != contexts.end()) {
             auto found = found_context->second.find(id);
             if (found != found_context->second.end()) {
-                // Native AddObject replaces an existing ID slot at RVA 0x89eb0f.
+                // Native AddObject replaces an existing ID slot at RVA 0x8a7c2f.
                 if (found->second.pointer != object || found->second.uid != uid) {
                     found->second = Observation{object, uid};
                     ++current.building_replacements;

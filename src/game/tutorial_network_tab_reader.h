@@ -35,14 +35,14 @@ template<class M>bool inspect(M& m,uintptr_t image,uintptr_t world,Pin& p,std::s
     p={};uintptr_t global=0;std::vector<uintptr_t> registry,tabs,children,contents;
     // The manager is an inline World member, not an independently trusted singleton.
     if(world>UINTPTR_MAX-0x180)return fail(e,"Network tab World owner overflow");p.manager=world+0x180;
-    if(!at(m,image,0x13df650,global,e)||global!=p.manager)return fail(e,e.empty()?"Network tab WorldView owner differs":e);
-    for(int32_t i=0;i<5;++i){std::string name;if(!text(m,image+0x1a36520+uintptr_t(i)*32,name,e))return false;
+    if(!at(m,image,0x13eb650,global,e)||global!=p.manager)return fail(e,e.empty()?"Network tab WorldView owner differs":e);
+    for(int32_t i=0;i<5;++i){std::string name;if(!text(m,image+0x1a3d520+uintptr_t(i)*32,name,e))return false;
         if(name=="Network"){if(p.network!=-1)return fail(e,"Network view name duplicated");p.network=i;}}
     if(p.network<0)return fail(e,"Network view absent from native enum names");
     if(!at(m,p.manager,0x78,p.view,e)||p.view<0||p.view>4)return fail(e,e.empty()?"Network current view outside native enum":e);
-    if(!at(m,image,0x1a3aec8,p.bar,e)||!typed(m,p.bar,image+0x16dcec0,e))return false;
-    // The global ActionBar registry uses a vsArray pointer header at +0x1a3af10.
-    if(!array(m,image,0x1a3af10,64,registry,e))return false;
+    if(!at(m,image,0x1a41ec8,p.bar,e)||!typed(m,p.bar,image+0x16e3260,e))return false;
+    // The global ActionBar registry uses a vsArray pointer header at +0x1a41f10.
+    if(!array(m,image,0x1a41f10,64,registry,e))return false;
     size_t matches=0;for(auto q:registry)if(q==p.bar)++matches;
     if(matches!=1)return fail(e,"Network current ActionBar registry membership differs");
     uint8_t shown=0,target=0,locked=0;uintptr_t logic=0;std::string bar_name;
@@ -50,7 +50,7 @@ template<class M>bool inspect(M& m,uintptr_t image,uintptr_t world,Pin& p,std::s
     if(shown!=1||target!=1||locked||logic)return fail(e,"Network ActionBar not visible/unlocked/original");
     if(bar_name!="Edit")return fail(e,"Network fixed tutorial requires Edit ActionBar");
     if(!array(m,p.bar,0x518,64,tabs,e)||!array(m,p.bar,0x2f8,256,children,e)||!array(m,p.bar,0x4e8,64,contents,e))return false;
-    for(auto tab:tabs){if(!typed(m,tab,image+0x16fe380,e))return false;std::string name;if(!text(m,tab+0x2c8,name,e))return false;
+    for(auto tab:tabs){if(!typed(m,tab,image+0x1704720,e))return false;std::string name;if(!text(m,tab+0x2c8,name,e))return false;
         if(name=="Network"){if(p.tab)return fail(e,"Network tab duplicated");p.tab=tab;}}
     if(!p.tab)return fail(e,"Network tab absent from actual ActionBar");
     matches=0;for(auto q:children)if(q==p.tab)++matches;
@@ -61,11 +61,11 @@ template<class M>bool inspect(M& m,uintptr_t image,uintptr_t world,Pin& p,std::s
     // These are the exact visibility and input gates in original Pane::FocusForClick.
     if(visible!=1||clickable!=1||p.active>1)return fail(e,"Network tab native visible/clickable/active flag differs");
     if(command!="ActionBar Edit SelectContent \"Network\"")return fail(e,"Network tab authored command differs");
-    for(auto content:contents){if(!typed(m,content,image+0x171ccf0,e))return false;std::string name;if(!text(m,content+0x1b0,name,e))return false;
+    for(auto content:contents){if(!typed(m,content,image+0x1723090,e))return false;std::string name;if(!text(m,content+0x1b0,name,e))return false;
         if(name=="Network"){if(p.content)return fail(e,"Network content duplicated");p.content=content;}}
     if(!p.content)return fail(e,"Network content absent from actual ActionBar");
     int32_t mode=-1;if(!at(m,p.content,0x348,mode,e)||mode!=p.network)return fail(e,e.empty()?"Network content native view mode differs":e);
-    if(!at(m,image,0x13df9d0,p.cursor,e)||!typed(m,p.cursor,image+0x1786dd0,e))return false;
+    if(!at(m,image,0x13eb9d0,p.cursor,e)||!typed(m,p.cursor,image+0x178d170,e))return false;
     if(!at(m,p.content,0x368,p.request,e))return false;
     return true;
 }

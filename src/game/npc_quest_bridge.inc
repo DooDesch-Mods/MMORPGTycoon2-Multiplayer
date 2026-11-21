@@ -64,8 +64,8 @@ bool records(Memory& memory,uintptr_t image,int32_t saved_region,const npc_censu
     const auto destination=[&current,&memory,image,cost](uintptr_t pointer,std::string& key,std::string& cause){
         return measured(cost,&ReadCost::bindings,&ReadCost::binding_us,[&]{
         uintptr_t ap=0;if(!field(memory,pointer,0,ap,cause))return false;
-        if(ap==image+0x16c0770)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
-        if(ap==image+0x1742980)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
+        if(ap==image+0x16c6b10)return monster_action_runtime::quest_authoring::direct_destination(pointer,key,cause);
+        if(ap==image+0x1748d20)return monster_action_runtime::quest_authoring::npc_destination(pointer,key,cause);
         bool in_dungeon=false;
         if(!targets::bind_current_destination(pointer,key,in_dungeon,cause))return false;
         if(in_dungeon)return true;

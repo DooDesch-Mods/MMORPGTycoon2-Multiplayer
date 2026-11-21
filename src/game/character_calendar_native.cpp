@@ -69,7 +69,7 @@ bool code(Memory& memory,uintptr_t image,std::string& error){
 bool bind(Memory& memory,const a::Context& context,const a::Binding& binding,Bound& out,std::string& error){
     out={};uintptr_t image=0;uint32_t thread=0;std::string sha;a::Context actual;
     if(!native::read_resolver_receipt(image,thread,sha,error)||!a::selected_session().current(actual,error))return false;
-    if(actual!=context||thread!=GetCurrentThreadId()||image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+    if(actual!=context||thread!=GetCurrentThreadId()||image!=uintptr_t(GetModuleHandleW(nullptr))||sha!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
         return fail(error,"Character calendar actual Session/Mainthread/EXE differs");
     live::NativePort port(context,binding,nullptr);
     if(!port.read(out.pin,error)||!npc_probe::character_actor_records::read_current(context,binding,out.definitions,out.users,error)||!code(memory,image,error))return false;
@@ -77,7 +77,7 @@ bool bind(Memory& memory,const a::Context& context,const a::Binding& binding,Bou
     auto copy=[&](uintptr_t address,void* target,size_t bytes,std::string& cause){return memory.process.copy(address,target,bytes,cause);};
     subscriber_intervention::State ignored;
     if(!subscriber_intervention::read_all(read,copy,image,ignored,out.subscribers,error)||
-       !memory.at(image,0x13df470,out.demand_manager,error)||!memory.ap(out.demand_manager,image,0x1705e00,error)||
+       !memory.at(image,0x13eb470,out.demand_manager,error)||!memory.ap(out.demand_manager,image,0x170c1a0,error)||
        !memory.at(out.demand_manager,0x10,out.demand_data,error)||!memory.at(out.demand_manager,0x18,out.demand_count,error)||
        !memory.at(out.demand_manager,0x1c,out.demand_capacity,error))return false;
     if(out.demand_count<0||out.demand_count>200000||out.demand_capacity<out.demand_count||
@@ -91,8 +91,8 @@ bool bind(Memory& memory,const a::Context& context,const a::Binding& binding,Bou
     for(int32_t i=0;i<out.demand_count;++i){uintptr_t object=0,parent=0;if(!memory.at(out.demand_data,size_t(i)*8,object,error))return false;
         const auto found=expected.find(object);if(found==expected.end())return fail(error,"Character DemandManager contains an unbound original owner");
         const auto& owner=found->second;
-        if(!memory.ap(object,image,owner.index?0x173c4d0:0x173c3f0,error)||!memory.ap(object+0x38,image,0x1717130,error)||
-           !memory.ap(object+0x50,image,0x17171e8,error)||!memory.at(object,0x80,parent,error))return false;
+        if(!memory.ap(object,image,owner.index?0x1742870:0x1742790,error)||!memory.ap(object+0x38,image,0x171d4d0,error)||
+           !memory.ap(object+0x50,image,0x171d588,error)||!memory.at(object,0x80,parent,error))return false;
         if(parent!=owner.parent||!out.demands.emplace(object,owner).second)return fail(error,"Character registered Demand parent/order is foreign or repeated");
         out.demand_members.push_back(object);
     }
@@ -100,7 +100,7 @@ bool bind(Memory& memory,const a::Context& context,const a::Binding& binding,Bou
 }
 bool integers(Memory& memory,uintptr_t image,uintptr_t object,std::vector<int32_t>& out,int32_t maximum,std::string& error){
     uintptr_t data=0;int32_t count=0,capacity=0;
-    if(!memory.ap(object,image,0x1749370,error)||!memory.at(object,8,data,error)||!memory.at(object,0x10,count,error)||!memory.at(object,0x14,capacity,error))return false;
+    if(!memory.ap(object,image,0x174f710,error)||!memory.at(object,8,data,error)||!memory.at(object,0x10,count,error)||!memory.at(object,0x14,capacity,error))return false;
     if(count<0||count>maximum||capacity<count||(count&&(!data||data>UINTPTR_MAX-size_t(count)*4)))return fail(error,"Character calendar integer-array extent differs");
     std::vector<int32_t> next(size_t(count),int32_t{});if(count&&!memory.process.copy(data,next.data(),next.size()*4,error))return false;
     uintptr_t final_data=0;int32_t final_count=0,final_capacity=0;
@@ -108,7 +108,7 @@ bool integers(Memory& memory,uintptr_t image,uintptr_t object,std::vector<int32_
     if(final_data!=data||final_count!=count||final_capacity!=capacity)return fail(error,"Character calendar integer array changed during read");out=std::move(next);return true;
 }
 bool rating(Memory& memory,uintptr_t image,uintptr_t object,Rating& out,std::string& error){
-    uint8_t present=2;if(!memory.ap(object,image,0x1787870,error)||!memory.at(object,0x18,out.bits,error)||!memory.at(object,0x24,present,error))return false;
+    uint8_t present=2;if(!memory.ap(object,image,0x178dc10,error)||!memory.at(object,0x18,out.bits,error)||!memory.at(object,0x24,present,error))return false;
     if(present>1)return fail(error,"Character/Zone native rating flag is not Boolean");out.set=present!=0;return valid(out,error);
 }
 bool once(Memory& memory,const a::Context& context,const a::Binding& binding,Bound& local,State& out,std::string& error,bool with_zones){
@@ -123,7 +123,7 @@ bool once(Memory& memory,const a::Context& context,const a::Binding& binding,Bou
                !rating(memory,image,native.object+0x2e8,stats.rating,error)||!memory.at(native.object,0x4b0,stats.optimal_dps,error))return false;
             if(tier_valid>1)return fail(error,"Character original tier-valid flag is not Boolean");stats.tier_valid=tier_valid!=0;
             for(size_t index=0;index<2;++index){const auto object=native.object+(index?0x458:0x420);auto& history=stats.durations[index];
-                if(!memory.ap(object,image,0x17138d0,error)||!memory.at(object,0x30,history.limit,error)||history.limit<0||history.limit>1000000||
+                if(!memory.ap(object,image,0x1719c70,error)||!memory.at(object,0x30,history.limit,error)||history.limit<0||history.limit>1000000||
                    !integers(memory,image,object+0x18,history.values,history.limit,error))return fail(error,error.empty()?"Character IntegerHistory original policy differs":error);}
             row.statistics=std::move(stats);
         }
@@ -144,7 +144,7 @@ bool once(Memory& memory,const a::Context& context,const a::Binding& binding,Bou
     if(with_zones){if(!world_zone_runtime::read_current(binding,context.snapshot_uuid,local.zones,error))return false;
         std::sort(local.zones.begin(),local.zones.end(),[](const auto& a,const auto& b){return a.key<b.key;});
         for(const auto& native:local.zones){Zone row;row.key=native.key;row.scene=native.scene_key;row.type=native.type;
-            uint64_t uid=0;uintptr_t region=0;if(!memory.ap(native.object,image,0x1745ce0,error)||!memory.at(native.object,0x18,uid,error)||
+            uint64_t uid=0;uintptr_t region=0;if(!memory.ap(native.object,image,0x174c080,error)||!memory.at(native.object,0x18,uid,error)||
                !memory.at(native.object,0x178,region,error)||uid!=native.uid||region!=native.region)return fail(error,error.empty()?"Zone calendar current full UID/Region owner differs":error);
             if(!memory.at(native.object,0x564,row.constructed,error)||!memory.at(native.object,0x570,row.counts,error)||
                !integers(memory,image,native.object+0x5c8,row.kills[0],10,error)||!integers(memory,image,native.object+0x5e0,row.kills[1],10,error)||
@@ -159,11 +159,11 @@ uint32_t compare(uintptr_t address,unsigned bytes,uint32_t old,uint32_t desired,
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t reserve(uintptr_t image,uintptr_t object,int32_t count)noexcept{
-    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0xe8080)(reinterpret_cast<void*>(object),count);return 0;}
+    __try{reinterpret_cast<void(*)(void*,int32_t)>(image+0xe90b0)(reinterpret_cast<void*>(object),count);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t demand_call(uintptr_t image,uintptr_t object,uintptr_t subscriber,bool add)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*)>(image+(add?0x25cb30:0x25d480))(reinterpret_cast<void*>(object),reinterpret_cast<void*>(subscriber));return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*)>(image+(add?0x25fbf0:0x260540))(reinterpret_cast<void*>(object),reinterpret_cast<void*>(subscriber));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct Port {
@@ -188,7 +188,7 @@ struct Port {
             if(!memory.at(row.object,0x18,uid,error)||!memory.at(row.object,0x490,deleted,error))return false;
             if(uid!=row.uid||deleted!=uint8_t(row.deleted))return fail(error,"Character calendar current original definition full UID/tombstone changed");}
         uintptr_t manager=0,data=0;int32_t count=0;
-        if(!memory.at(local.pin.image,0x13df470,manager,error)||!memory.at(manager,0x10,data,error)||!memory.at(manager,0x18,count,error))return false;
+        if(!memory.at(local.pin.image,0x13eb470,manager,error)||!memory.at(manager,0x10,data,error)||!memory.at(manager,0x18,count,error))return false;
         if(manager!=local.demand_manager||count!=local.demand_count)return fail(error,"Character current DemandManager lifetime/count changed");
         for(size_t i=0;i<local.demand_members.size();++i){uintptr_t object=0;if(!memory.at(data,i*8,object,error))return false;
             if(object!=local.demand_members[i])return fail(error,"Character current DemandManager member order changed");}

@@ -1,6 +1,6 @@
 namespace {
 uint32_t rebuild_loan_offers(uintptr_t image,uintptr_t business){
-    __try{reinterpret_cast<void(*)(void*)>(image+0x57300)(reinterpret_cast<void*>(business));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0x57800)(reinterpret_cast<void*>(business));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t erase_loan_allocation(uintptr_t business,uintptr_t slots,size_t index,size_t count,
@@ -27,9 +27,9 @@ bool NativePort::retire_loan(const Owners& before,size_t index,Receipt& receipt,
         return fail(e,e.empty()?"Loan retirement fresh full prior differs":e);
     const auto image=before.history.pin.image;uintptr_t destroy=0;
     std::vector<unsigned char> body(144);
-    if(!ap(before.loans[index],image,0x17438e0,e)||!at(image+0x17438e0,8,destroy,e)||destroy!=image+0xc35400||
+    if(!ap(before.loans[index],image,0x1749c80,e)||!at(image+0x1749c80,8,destroy,e)||destroy!=image+0xc41cb0||
        !memory.copy(destroy,body.data(),body.size(),e)||
-       mt2mp::sha256(body)!="8c5f1d1d535f135687cc2c0892f661d69db40c9b7a2b042d852b2dd0c09559ca")
+       mt2mp::sha256(body)!="20a969dbcf226a8a1059d6e106b52c9163f01b992c7286664cb62722b96b5f6a")
         return fail(e,e.empty()?"Loan retirement exact original deleting destructor differs":e);
     bool shifted=false,destroyed=false;receipt.attempted=true;++receipt.attempted_stores;
     live_host_state::apply_timing::PageReadScope callback(live_host_state::apply_timing::PageBoundary::OriginalCall);
@@ -47,8 +47,8 @@ bool NativePort::refresh_loan_offers(const Owners& before,Receipt& receipt,std::
        actual.subscriber_slots!=before.subscriber_slots||actual.needs_owners!=before.needs_owners||actual.next_id!=before.next_id)
         return fail(e,e.empty()?"Loan Offer refresh fresh full prior differs":e);
     const auto image=before.history.pin.image;std::vector<unsigned char> body(0x270);
-    if(!memory.copy(image+0x57300,body.data(),body.size(),e)||
-       mt2mp::sha256(body)!="3d8bcfc5d3cf79b6bf49c6f1c3206c97cc2e9f5b0add76084ed439bf327b54bf")
+    if(!memory.copy(image+0x57800,body.data(),body.size(),e)||
+       mt2mp::sha256(body)!="6d49645627a41fb3e41415c211a3be60bd7a49f99a0e7e7718fc37f83ad59f4f")
         return fail(e,e.empty()?"Loan original SetLoanOffers whole body differs":e);
     receipt.attempted=true;++receipt.attempted_stores;
     live_host_state::apply_timing::PageReadScope callback(live_host_state::apply_timing::PageBoundary::OriginalCall);

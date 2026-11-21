@@ -40,7 +40,7 @@ bool root_scenery_owner(uintptr_t object,uint64_t uid,ScenerySaved& out,World& w
     if(!memory.copy(object+0x178,&saved_region,sizeof saved_region,error)||!memory.copy(saved_region+0x834,&saved_region_id,sizeof saved_region_id,error))return false;
     if(!reader.current(before,true,error)||!host::same_world(before.origin,opened)||
        !reader.saved_root_scenery(reinterpret_cast<void*>(object),uid,saved_region_id,saved_region,prop,error))return false;
-    if(prop.class_addresspoint!=image+0x16c1390||!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||
+    if(prop.class_addresspoint!=image+0x16c7730||!prop.typed_prop||!prop.complete_ownership||prop.uid!=uid||
        prop.registry_object!=reinterpret_cast<void*>(object))return fail(error,"Root Scenery actual class/registry/member ownership differs");
     uintptr_t region=0,manager=0;
     if(!memory.copy(object+0x178,&region,sizeof region,error)||!memory.copy(region+0x960,&manager,sizeof manager,error)||

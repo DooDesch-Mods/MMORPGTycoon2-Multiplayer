@@ -13,7 +13,7 @@ struct Memory {
     std::array<unsigned char,0x2000> bytes{};
     bool copy(uintptr_t p,void* out,size_t n,std::string& e){if(p<base||p-base>bytes.size()||n>bytes.size()-(p-base)){e="fixture read extent";return false;}std::memcpy(out,bytes.data()+p-base,n);return true;}
     template<class T>void put(uintptr_t p,const T& v){need(p>=base&&p-base+sizeof v<=bytes.size(),"fixture write extent");std::memcpy(bytes.data()+p-base,&v,sizeof v);}
-    void reset(const Count& c,int32_t cap=10){bytes.fill(0);put(daily,image+0x16e4710);put(daily+0x38,image+0x1749370);put(daily+0x40,history);std::array<int32_t,8> w{int32_t(c.history.size()),cap,c.today,c.total,c.day,10,c.highest,17};put(daily+0x48,w);put(daily+0x68,uint8_t(c.warning));for(size_t i=0;i<c.history.size();++i)put(history+i*4,c.history[i]);}
+    void reset(const Count& c,int32_t cap=10){bytes.fill(0);put(daily,image+0x16eaab0);put(daily+0x38,image+0x174f710);put(daily+0x40,history);std::array<int32_t,8> w{int32_t(c.history.size()),cap,c.today,c.total,c.day,10,c.highest,17};put(daily+0x48,w);put(daily+0x68,uint8_t(c.warning));for(size_t i=0;i<c.history.size();++i)put(history+i*4,c.history[i]);}
 };
 #include "building_uptime_cases.inc"
 void codec(){
@@ -63,10 +63,10 @@ void service_ui_cache(){
     using mt2mp::service_membership_reader::Local;
     constexpr uintptr_t config_manager=0x88000,config_data=0x89000,config=0x8a000;
     auto memory=fixture::memory();
-    memory.put(fixture::image+0x13df840,config_manager);memory.put(config_manager,fixture::image+0x173fba0);
+    memory.put(fixture::image+0x13eb840,config_manager);memory.put(config_manager,fixture::image+0x1745f40);
     memory.array(config_manager,0x18,config_data,1,4);memory.put(config_data,config);
-    memory.put(config,fixture::image+0x1736660);memory.strings[config+0x18]="SmallInn_Spawn";
-    memory.put(config+0x38,fixture::image+0x174ab50);memory.put(config+0x50,std::array<int32_t,2>{2,75});
+    memory.put(config,fixture::image+0x173ca00);memory.strings[config+0x18]="SmallInn_Spawn";
+    memory.put(config+0x38,fixture::image+0x1750ef0);memory.put(config+0x50,std::array<int32_t,2>{2,75});
     memory.put(fixture::service+0x48,std::array<uint8_t,3>{1,0,1});
     memory.put(fixture::service+0x40,std::array<int32_t,2>{1,25});
     const auto hash=[](const std::string& text){return text;};

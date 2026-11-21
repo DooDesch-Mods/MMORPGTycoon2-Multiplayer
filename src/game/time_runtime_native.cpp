@@ -44,7 +44,7 @@ bool production_backend(const ui::Config& c,Native& n,std::string& e){
 #ifdef _WIN32
     if(!native::ready()){e="native_resolver_not_ready";return false;}
     if(reinterpret_cast<uintptr_t>(GetModuleHandleW(nullptr))!=c.image||
-       reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=c.image+0x463ce0){e="native_image_receipt_mismatch";return false;}
+       reinterpret_cast<uintptr_t>(native::entrypoint(native::EntryPoint::GameUpdate))!=c.image+0x468d00){e="native_image_receipt_mismatch";return false;}
     if(GetCurrentThreadId()!=c.game_thread){e="wrong_game_thread";return false;}
     n={nullptr,ui::process_backend(nullptr,nullptr),read_clock,set_clock,epoch};return true;
 #else

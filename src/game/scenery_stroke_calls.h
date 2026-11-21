@@ -12,13 +12,13 @@ struct Array {
 static_assert(sizeof(Array)==24);
 inline uint32_t generate(uintptr_t image,uintptr_t pattern,const void* shape,Array& out,bool& constructed){
     __try{
-        out={image+0x1746400,0,0,0};constructed=true;
+        out={image+0x174c7a0,0,0,0};constructed=true;
         auto* table=*reinterpret_cast<uintptr_t**>(pattern);
         reinterpret_cast<void(*)(void*,void*,const void*)>(table[2])(reinterpret_cast<void*>(pattern),&out,shape);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t destroy_generated(uintptr_t image,Array& value){
-    __try{reinterpret_cast<void(*)(void*)>(image+0xc3b020)(&value);value={};return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0xc478d0)(&value);value={};return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct Transfer {
@@ -30,10 +30,10 @@ inline uint32_t prepare(Transfer& out,const std::vector<action_session::SceneryS
     if(out.attempted||dots.size()>1000000)return 0xE0030001;out.attempted=true;
     __try{
         if(!dots.empty()){
-            out.data=reinterpret_cast<uintptr_t(*)(size_t)>(out.image+0xa026c0)(dots.size()*0x6c);
+            out.data=reinterpret_cast<uintptr_t(*)(size_t)>(out.image+0xa0d280)(dots.size()*0x6c);
             if(!out.data)return 0xE0030002;
             for(size_t index=0;index<dots.size();++index){const auto& pose=dots[index];
-                reinterpret_cast<void(*)(void*,const void*,const void*,const void*)>(out.image+0x9ff370)(
+                reinterpret_cast<void(*)(void*,const void*,const void*,const void*)>(out.image+0xa09f30)(
                     reinterpret_cast<void*>(out.data+index*0x6c),pose.data(),pose.data()+4,pose.data()+7);
             }
         }
@@ -42,7 +42,7 @@ inline uint32_t prepare(Transfer& out,const std::vector<action_session::SceneryS
 }
 inline uint32_t release_untransferred(Transfer& value){
     if(value.transferred||!value.data)return 0;
-    __try{reinterpret_cast<void(*)(void*)>(value.image+0xa01280)(reinterpret_cast<void*>(value.data));value.data=0;return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(value.image+0xa0be40)(reinterpret_cast<void*>(value.data));value.data=0;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 struct Pattern {
@@ -52,11 +52,11 @@ inline void unused_destructor(Pattern* pattern){pattern->value->cause=0xE0030003
 inline void transfer(Pattern* pattern,Array* output,const void*){
     auto& value=*pattern->value;
     __try{
-        if(!value.prepared||value.transferred||output->ap!=value.image+0x1746400||output->count<0||
+        if(!value.prepared||value.transferred||output->ap!=value.image+0x174c7a0||output->count<0||
            output->capacity<output->count||output->capacity>1000000||(!output->data&&output->capacity)){
             value.cause=0xE0030004;return;
         }
-        if(output->data)reinterpret_cast<void(*)(void*)>(value.image+0xa01280)(reinterpret_cast<void*>(output->data));
+        if(output->data)reinterpret_cast<void(*)(void*)>(value.image+0xa0be40)(reinterpret_cast<void*>(output->data));
         output->data=value.data;output->count=value.count;output->capacity=value.count;
         value.transferred_data=value.data;value.data=0;value.transferred=true;
     }__except(EXCEPTION_EXECUTE_HANDLER){value.cause=GetExceptionCode();}
@@ -84,15 +84,15 @@ inline uint32_t construct(Cursor& owner,const action_session::SceneryStrokeInten
     if(owner.object||owner.constructor_entered)return 0xE0030006;
     NativeString directory{intent.type.data(),intent.type.size(),{}};owner.brush=intent.kind==action_session::SceneryStrokeKind::Paint;
     __try{
-        owner.object=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa02670)(owner.brush?0xc58:0x5c8);
+        owner.object=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa0d230)(owner.brush?0xc58:0x5c8);
         if(!owner.object)return 0xE0030007;
         owner.constructor_entered=true;
-        reinterpret_cast<void(*)(void*,const void*)>(owner.image+(owner.brush?0x5d0770:0x5d63b0))(reinterpret_cast<void*>(owner.object),&directory);
+        reinterpret_cast<void(*)(void*,const void*)>(owner.image+(owner.brush?0x5d6ec0:0x5dcb00))(reinterpret_cast<void*>(owner.object),&directory);
         owner.constructed=true;
         if(owner.brush){
-            owner.options=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa02670)(0xd0);
+            owner.options=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa0d230)(0xd0);
             if(!owner.options)return 0xE0030008;
-            reinterpret_cast<void(*)(void*)>(owner.image+0x5fcb00)(reinterpret_cast<void*>(owner.options));owner.options_constructed=true;
+            reinterpret_cast<void(*)(void*)>(owner.image+0x603670)(reinterpret_cast<void*>(owner.options));owner.options_constructed=true;
             *reinterpret_cast<uint8_t*>(owner.options+0x60)=intent.replace?1:0;
             *reinterpret_cast<uintptr_t*>(owner.object+0xb68)=owner.options;
             *reinterpret_cast<uintptr_t*>(owner.object+0xb60)=region;
@@ -106,41 +106,41 @@ inline uint32_t construct(Cursor& owner,const action_session::SceneryStrokeInten
 }
 inline uint32_t destroy(Cursor& owner){
     if(!owner.constructed||owner.destruction_entered)return 0xE0030009;owner.destruction_entered=true;
-    __try{reinterpret_cast<void(*)(void*)>(owner.image+(owner.brush?0x5d0fc0:0x5d72d0))(reinterpret_cast<void*>(owner.object));owner.destroyed=true;return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(owner.image+(owner.brush?0x5d7710:0x5dda20))(reinterpret_cast<void*>(owner.object));owner.destroyed=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t destroy_options(Cursor& owner){
     if(!owner.options_constructed||owner.options_destruction_entered)return 0xE003000A;owner.options_destruction_entered=true;
-    __try{reinterpret_cast<void(*)(void*)>(owner.image+0xbefc50)(reinterpret_cast<void*>(owner.options));owner.options_destroyed=true;return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(owner.image+0xbfc300)(reinterpret_cast<void*>(owner.options));owner.options_destroyed=true;return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t begin_edit(Cursor& owner,bool& opened,uint32_t& cleanup){
     alignas(16) unsigned char label[0x20]{};bool label_ready=false;uint32_t code=0;
     if(!owner.brush)return 0;
     __try{
-        if(reinterpret_cast<bool(*)()>(owner.image+0x264c30)()){
-            const auto scope=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa02670)(1);
+        if(reinterpret_cast<bool(*)()>(owner.image+0x267d30)()){
+            const auto scope=reinterpret_cast<uintptr_t(*)(size_t)>(owner.image+0xa0d230)(1);
             if(!scope)return 0xE003000D;
             *reinterpret_cast<uint8_t*>(scope)=0;*reinterpret_cast<uintptr_t*>(owner.object+0x360)=scope;
-            reinterpret_cast<void(*)(void*,const char*)>(owner.image+0x5c04b0)(label,"Painting scenery");label_ready=true;
-            reinterpret_cast<void(*)(const void*)>(owner.image+0x265300)(label);
+            reinterpret_cast<void(*)(void*,const char*)>(owner.image+0x5c6c50)(label,"Painting scenery");label_ready=true;
+            reinterpret_cast<void(*)(const void*)>(owner.image+0x268400)(label);
             *reinterpret_cast<uint8_t*>(scope)=1;opened=true;
         }
     }__except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
-    if(label_ready)__try{reinterpret_cast<void(*)(void*)>(owner.image+0x11bd1e0)(label);}
+    if(label_ready)__try{reinterpret_cast<void(*)(void*)>(owner.image+0x11c8b80)(label);}
         __except(EXCEPTION_EXECUTE_HANDLER){cleanup=GetExceptionCode();}
     return code;
 }
 inline uint32_t shape_make(uintptr_t image,ui_terrain_runtime::poly::Storage& out,const ui_terrain_runtime::poly::VectorView& paths,bool& constructed){
     __try{
-        reinterpret_cast<void(*)(void*)>(image+0xf1810)(&out);constructed=true;
+        reinterpret_cast<void(*)(void*)>(image+0xf2880)(&out);constructed=true;
         auto* data=*reinterpret_cast<void**>(out.bytes.data()+0x18);
-        reinterpret_cast<void(*)(void*,const void*)>(image+0xf7ed0)(data,&paths);
-        reinterpret_cast<void(*)(void*)>(image+0xf3b60)(&out);return 0;
+        reinterpret_cast<void(*)(void*,const void*)>(image+0xf8f40)(data,&paths);
+        reinterpret_cast<void(*)(void*)>(image+0xf4bd0)(&out);return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 inline uint32_t shape_destroy(uintptr_t image,ui_terrain_runtime::poly::Storage& value){
-    __try{reinterpret_cast<void(*)(void*)>(image+0xf15a0)(&value);return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(image+0xf2610)(&value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 using Finish=void(*)(void*);

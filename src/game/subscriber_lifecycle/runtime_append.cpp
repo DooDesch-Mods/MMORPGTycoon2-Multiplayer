@@ -81,7 +81,7 @@ bool fresh_link(void* user,const local::ExternalLink& link,std::string& e){
 }
 bool toon_array(Work& w,std::vector<uintptr_t>& out,std::string& e){
     uintptr_t manager=0,vt=0,data=0;int32_t count=-1,capacity=-1;uint8_t updating=1;
-    if(!at(w.region,0x9c0,manager,e)||!at(manager,0,vt,e)||vt!=w.held.image+0x16fde30||!at(manager,0xc8,updating,e))return fail(e,e.empty()?"Subscriber Region ToonManager owner/addresspoint differs":e);
+    if(!at(w.region,0x9c0,manager,e)||!at(manager,0,vt,e)||vt!=w.held.image+0x17041d0||!at(manager,0xc8,updating,e))return fail(e,e.empty()?"Subscriber Region ToonManager owner/addresspoint differs":e);
     if(updating)return fail(e,"Subscriber Region ToonManager is updating; append not admitted");
     if(w.toon_manager&&w.toon_manager!=manager)return fail(e,"Subscriber Region ToonManager receiver changed");w.toon_manager=manager;
     if(!at(manager,0x28,data,e)||!at(manager,0x30,count,e)||!at(manager,0x34,capacity,e))return false;
@@ -215,7 +215,7 @@ bool quest_weak(uintptr_t instance,QuestWeak& out,std::string& e){
     if(!instance||instance>UINTPTR_MAX-0x58||
        !at(instance,0,object_ap,e)||!at(instance,0x18,link_ap,e)||!at(instance,0x38,weak_ap,e))
         return fail(e,e.empty()?"Quest link Instance extent/read failed":e);
-    if(object_ap!=image_base+0x17087e0||link_ap!=image_base+0x1711c30||weak_ap!=image_base+0x16f9f20)
+    if(object_ap!=image_base+0x170eb80||link_ap!=image_base+0x1717fd0||weak_ap!=image_base+0x17002c0)
         return fail(e,"Quest link Instance/Weak addresspoints differ");
     if(!at(instance,0x30,out.id,e)||!at(instance,0x40,out.target,e)||!at(instance,0x48,out.proxy,e))return false;
     if(!out.proxy)return !out.target||fail(e,"Quest link target without Proxy");
@@ -228,7 +228,7 @@ bool quest_weak(uintptr_t instance,QuestWeak& out,std::string& e){
     if(!out.target||out.target>UINTPTR_MAX-0x28||out.proxy_target!=out.target+0x18)
         return fail(e,"Quest link live Proxy target differs");
     if(!at(out.target,0,ap,e)||!at(out.target,0x20,proxy,e))return false;
-    return (ap==image_base+0x174ac10&&proxy==out.proxy)||fail(e,"Quest link live Quest/Proxy binding differs");
+    return (ap==image_base+0x1750fb0&&proxy==out.proxy)||fail(e,"Quest link live Quest/Proxy binding differs");
 }
 bool quest_fresh(void* user,const local::ExternalLink& link,std::string& e){
     auto& w=*static_cast<QuestLinkWork*>(user);
@@ -348,7 +348,7 @@ static bool bind_quest_instance_impl(const QuestLinkRequest& request,const std::
         if(w.world.original.image!=image_base)return fail(e,"Quest link current image differs");
         if(blocked_epoch==w.world.original.origin.world_epoch&&blocked_generation==w.world.original.origin.generation)
             return fail(e,"Quest link prior outcome unknown: "+blocked_cause);
-        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
+        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_base+0x4a4be0)};
         ok=batch?quest_batch_run(*batch,w.world,quest_link_body,quest_link_exit,&w,scope,e):
             local::with_save_scope(save,w.world.original.origin.mode,quest_link_body,quest_link_exit,&w,scope,e);
         if(scope.unknown)w.unknown=true;
@@ -409,7 +409,7 @@ bool progress_array(uintptr_t toon,ProgressArray& out,std::string& e){
     if(!toon||toon>UINTPTR_MAX-0xb08)return fail(e,"Progress Toon extent invalid");
     if(!at(toon,0,ap,e)||!at(toon,0xaf0,array_ap,e)||!at(toon,0xaf8,out.data,e)||
        !at(toon,0xb00,out.count,e)||!at(toon,0xb04,out.capacity,e))return false;
-    if(ap!=image_base+0x1744e90||array_ap!=image_base+0x16ee0e0||out.count<0||
+    if(ap!=image_base+0x174b230||array_ap!=image_base+0x16f4480||out.count<0||
        out.capacity<out.count||out.capacity>100000||(out.count&&!out.data)||
        size_t(out.count)>(UINTPTR_MAX-out.data)/sizeof(uintptr_t))return fail(e,"Progress native array header differs");
     std::set<uintptr_t> unique;out.members.clear();
@@ -427,7 +427,7 @@ bool progress_row(uintptr_t p,ProgressRow& out,std::string& e){
     if(!p||p>UINTPTR_MAX-0xb0)return fail(e,"Progress row extent invalid");
     if(!at(p,0,ap,e)||!at(p,0x18,link_ap,e)||!at(p,0x38,weak_ap,e)||
        !at(p,0x40,out.npc,e)||!at(p,0x48,out.proxy,e))return false;
-    if(ap!=image_base+0x172d130||link_ap!=image_base+0x1711930||weak_ap!=image_base+0x16f9de0)
+    if(ap!=image_base+0x17334d0||link_ap!=image_base+0x1717cd0||weak_ap!=image_base+0x1700180)
         return fail(e,"Progress row/NPC Weak addresspoints differ");
     if(!out.proxy){if(out.npc)return fail(e,"Progress NPC target without Proxy");}
     else{
@@ -438,7 +438,7 @@ bool progress_row(uintptr_t p,ProgressRow& out,std::string& e){
             if(!out.npc||out.npc>UINTPTR_MAX-0x30||out.proxy_target!=out.npc+0x20)
                 return fail(e,"Progress NPC live Weak target differs");
             if(!at(out.npc,0,npc_ap,e)||!at(out.npc,0x28,reverse,e))return false;
-            if(npc_ap!=image_base+0x1742980||reverse!=out.proxy)return fail(e,"Progress NPC live AP/Proxy differs");
+            if(npc_ap!=image_base+0x1748d20||reverse!=out.proxy)return fail(e,"Progress NPC live AP/Proxy differs");
         }
     }
     if(!quest_weak(p+0x58,out.quest,e)||!at(p,0x50,out.completed,e)||!at(p,0xa8,out.monsters,e)||
@@ -479,7 +479,7 @@ bool progress_ensure_body(ProgressWork& w,const ProgressArray& before,std::strin
     }
     uintptr_t npc_ap=0;
     if(!at(w.request.npc,0,npc_ap,e))return false;
-    if(npc_ap!=image_base+0x1742980)return fail(e,"Progress Ensure live NPC AP differs");
+    if(npc_ap!=image_base+0x1748d20)return fail(e,"Progress Ensure live NPC AP differs");
     if(!progress_unchanged(w,before,e))return false;
     if(!stage::allocate_progress(api.records.allocate,w.selected,r.allocate,e)){w.unknown=true;return false;}
     r.progress=w.selected;r.instance=w.selected+0x58;
@@ -564,7 +564,7 @@ bool progress_apply(const ProgressRequest& request,uintptr_t retiring,bool retir
         if(w.world.original.image!=image_base)return fail(e,"Progress current image differs");
         if(blocked_epoch==w.world.original.origin.world_epoch&&blocked_generation==w.world.original.origin.generation)
             return fail(e,"Progress prior outcome unknown: "+blocked_cause);
-        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
+        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_base+0x4a4be0)};
         ok=batch?quest_batch_run(*batch,w.world,progress_body,progress_exit,&w,scope,e):
             local::with_save_scope(save,w.world.original.origin.mode,progress_body,progress_exit,&w,scope,e);
         if(scope.unknown||(!ok&&(result.allocate.attempted||result.shift.attempted||result.removed||result.destroy.attempted)))w.unknown=true;
@@ -617,7 +617,7 @@ bool apply_impl(const Json& graph,const std::string& origin,const FrameBinding* 
            !work.building_pins.prepare(work.original.image,work.original.origin,e))return false;
         if(std::any_of(work.payload.external.begin(),work.payload.external.end(),[](const auto& r){return r.key.kind==stage::ReferenceKind::SharedNPC||r.key.kind==stage::ReferenceKind::SharedQuest;})&&
            !work.npc_pins.prepare(work.original.image,work.original.origin,e))return false;
-        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a03a0),reinterpret_cast<local::SaveScopeCall>(image_base+0x49f6f0)};
+        const local::SaveScopeApi save{reinterpret_cast<local::SaveScopeCall>(image_base+0x4a5890),reinterpret_cast<local::SaveScopeCall>(image_base+0x4a4be0)};
         const bool done=local::with_save_scope(save,work.original.origin.mode,body,exit_guard,&work,scope,e);
         result["subscriber_creation_attempted"]=work.effect;
         result["save_scope"]={{"enter_returned",scope.enter_returned},{"body_attempted",scope.body_attempted},{"leave_attempted",scope.leave_attempted},{"leave_returned",scope.leave_returned},{"exit_guard_confirmed",scope.exit_guard_confirmed},{"unknown",scope.unknown},{"body_cause",scope.body_cause},{"cleanup_cause",scope.cleanup_cause}};

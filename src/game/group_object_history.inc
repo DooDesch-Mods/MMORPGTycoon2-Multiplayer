@@ -21,7 +21,7 @@ bool live_known(Runtime& r,const Sample& sample,duplicate_edit::HistorySource& o
 bool restored_pointers(Runtime& r,const duplicate_edit::HistorySource& original,duplicate_edit::HistorySource& out,std::string& e){
     out=original;
     for(auto& [uid,saved]:out.known){uintptr_t actual=0,root=0,region=0;uint64_t current_uid=0;
-        if(!group_edit::find(r,uid,actual,e)||!actual||!q::typed(r.memory,r.image,actual,saved.row.family==Family::Group?0x1749de0:0x16c1390,e)||
+        if(!group_edit::find(r,uid,actual,e)||!actual||!q::typed(r.memory,r.image,actual,saved.row.family==Family::Group?0x1750180:0x16c7730,e)||
            !q::at(r.memory,actual,0x18,current_uid,e)||current_uid!=uid||!q::at(r.memory,actual,0x170,root,e)||root!=saved.root||
            !q::at(r.memory,actual,0x178,region,e)||region!=saved.region)return q::fail(e,e.empty()?"Group restored original full UID/root/Region differs":e);
         saved.object=actual;

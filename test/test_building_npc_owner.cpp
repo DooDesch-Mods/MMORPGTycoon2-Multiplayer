@@ -28,14 +28,14 @@ int main()try{
     const auto setup=[&]{memory={};registry={{parent_uid,parent},{npc_uid,npc}};error.clear();rows={};rows.manager=manager;
         building={parent_key,parent,parent_uid,7,child::MakeForm::Functional,npc_uid};
         census::Row row;row.local_pointer=npc;row.local_uid=npc_uid;row.type=0;row.character_type=1;row.character_slot=2;row.level=5;row.name="Innkeeper";rows.rows={row};
-        memory.put(parent,image+0x16d93c0);memory.put(parent+0x18,parent_uid);memory.put(parent+0x170,root);memory.put(parent+0x178,region);memory.put(parent+0xa30,npc_uid);
+        memory.put(parent,image+0x16df760);memory.put(parent+0x18,parent_uid);memory.put(parent+0x170,root);memory.put(parent+0x178,region);memory.put(parent+0xa30,npc_uid);
         memory.put(region+0x70,root);memory.put(region+0x834,int32_t(7));memory.put(region+0x998,manager);memory.put(npc+0x268,parent);
         before={};before.parent=building;before.present=true;before.child={keys::make(parent_key),7,row};before.original_record_sha=std::string(64,'a');
         before.original_character_uid=character_uid;before.original_shard=root;before.original_region=region;before.original_display_name=row.name;
         before.original_transform[2]=42;
-        memory.put(node,image+0x16de8a0);memory.put(node+0xb8,npc_uid);memory.put(node+0xe0,row.type);memory.put(node+0xe8,root);memory.put(node+0xf0,region);
+        memory.put(node,image+0x16e4c40);memory.put(node+0xb8,npc_uid);memory.put(node+0xe0,row.type);memory.put(node+0xe8,root);memory.put(node+0xf0,region);
         memory.put(node+0xf8,before.original_transform);memory.put(node+0x164,row.level);memory.put(node+0x168,std::array<int32_t,2>{1,2});
-        memory.put(node+0x170,image+0x17469a0);memory.put(node+0x178,uintptr_t(0x60000000));memory.put(node+0x180,int32_t(0));memory.put(node+0x184,int32_t(4));
+        memory.put(node+0x170,image+0x174cd40);memory.put(node+0x178,uintptr_t(0x60000000));memory.put(node+0x180,int32_t(0));memory.put(node+0x184,int32_t(4));
     };
     const auto read=[&]{return owner::read(at,find,{image,root,region},building,rows,selected,present,error);};
     setup();need(read()&&present&&selected.local_uid==npc_uid,"reciprocal full UID child");
@@ -79,7 +79,7 @@ int main()try{
     set_up();memory.changing=set+0x18;need(!owner::inverse_uid_set(at,set,npc_uid,error),"dependency header changed during read");
     setup();building.scene=parent_key+"/template";
     constexpr uintptr_t world_root=0x61000000;
-    memory.put(root,image+0x174ad20);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x1787930);
+    memory.put(root,image+0x17510c0);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x178dcd0);
     mt2mp::game::dungeon_scene_roster::Scene active;active.owner.key=building.scene;active.owner.shard=root;active.owner.region=region;
     std::vector<mt2mp::game::dungeon_scene_roster::Scene> scenes{active};
     int scene_mode=0;unsigned root_calls=0;owner::Scope scope;
@@ -108,7 +108,7 @@ int main()try{
     scoped_npc.scene=parent_key+"/instance/2";need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error),"template Shard cannot impersonate current Instance");scoped_npc.scene=parent_key+"/template";
     scoped_npc.row.local_pointer=npc+0x10000;need(!owner::binding_scope(at,image,world_root,scoped_npc,bound_region,error)&&error=="fixture unreadable exact native field","scoped target native read failure cause retained");
     setup();before.parent.scene=parent_key+"/template";scenes={active};
-    memory.put(root,image+0x174ad20);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x1787930);
+    memory.put(root,image+0x17510c0);memory.put(root+0x48,int32_t(1));memory.put(region,image+0x178dcd0);
     for(auto it=memory.bytes.begin();it!=memory.bytes.end();){if(it->first>=parent&&it->first<parent+0x1000)it=memory.bytes.erase(it);else ++it;}
     registry.erase(parent_uid);registry.erase(npc_uid);rows.rows.clear();
     const auto retiring=[&]{return owner::retirement_scope(at,scenes,image,before,scope,error);};

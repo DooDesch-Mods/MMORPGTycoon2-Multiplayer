@@ -10,14 +10,14 @@ template<class Memory>bool read(Memory& memory,uintptr_t image,uintptr_t graph,
     const std::map<uint64_t,Saved>& makes,const std::set<uint64_t>& destroys,
     const std::set<uint64_t>& all_scenery,bool initial,std::string& error){
     namespace q=npc_quest_targets;q::Bounds span;
-    if(!q::typed(memory,image,graph+0x18,0x16e2dc0,error)||
+    if(!q::typed(memory,image,graph+0x18,0x16e9160,error)||
        !q::bounds(memory,graph+0x18,100000,span,error)||!span.count)
         return q::fail(error,error.empty()?"Building clearance original graph is empty":error);
     std::set<uintptr_t> nodes;std::set<uint64_t> made,destroyed;
     for(int32_t index=0;index<span.count;++index){uintptr_t node=0,ap=0;uint64_t uid=0;
         if(!q::at(memory,span.data,size_t(index)*8,node,error)||!q::at(memory,node,0,ap,error))return false;
         if(!node||!nodes.insert(node).second)return q::fail(error,"Building clearance original operation repeats");
-        if(ap==image+0x1706590){
+        if(ap==image+0x170c930){
             if(!q::at(memory,node,0xb8,uid,error))return false;
             const auto found=makes.find(uid);
             if(found==makes.end()||!made.insert(uid).second)
@@ -27,7 +27,7 @@ template<class Memory>bool read(Memory& memory,uintptr_t image,uintptr_t graph,
             if((initial&&stored.transform!=found->second.transform)||!scenery_stroke_history::same_inputs(stored,found->second)||
                !scenery_make_history::make(memory,image,node,stored,error))
                 return q::fail(error,error.empty()?"Building clearance MakeScenery original payload differs":error);
-        }else if(ap==image+0x16de860){
+        }else if(ap==image+0x16e4c00){
             if(!q::at(memory,node,0xb8,uid,error))return false;
             if(!all_scenery.contains(uid))continue;
             if(!destroys.contains(uid)||!destroyed.insert(uid).second||
@@ -38,8 +38,8 @@ template<class Memory>bool read(Memory& memory,uintptr_t image,uintptr_t graph,
     if(made.size()!=makes.size()||destroyed!=destroys)
         return q::fail(error,"Building clearance graph does not cover the exact removed/restored Scenery set");
     q::Bounds dependency_nodes,sorted;
-    if(!q::typed(memory,image,graph,0x16e32d0,error)||!q::bounds(memory,graph,100000,dependency_nodes,error)||
-       !q::typed(memory,image,graph+0x30,0x1748aa0,error)||!q::bounds(memory,graph+0x30,100000,sorted,error))return false;
+    if(!q::typed(memory,image,graph,0x16e9670,error)||!q::bounds(memory,graph,100000,dependency_nodes,error)||
+       !q::typed(memory,image,graph+0x30,0x174ee40,error)||!q::bounds(memory,graph+0x30,100000,sorted,error))return false;
     // Lock drains deletion work. Do builds the dependency nodes and sorted
     // execution cache later, immediately before running the original graph.
     if(!dependency_nodes.count&&!sorted.count)

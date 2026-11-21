@@ -102,7 +102,7 @@ bool context(uintptr_t actual, std::string& error) {
     bound_context = actual; return true;
 }
 DWORD contains_call(uintptr_t ctx, uintptr_t object, int32_t& id, bool& present) {
-    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x89e690)(
+    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x8a77b0)(
         reinterpret_cast<void*>(ctx), reinterpret_cast<void*>(object), &id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
@@ -116,14 +116,14 @@ bool contains(uintptr_t ctx, uintptr_t object, int32_t& id, std::string& error) 
 }
 #ifndef MT2MP_QUEST_TARGET_RUNTIME_TEST
 DWORD lookup_call(uintptr_t ctx, int32_t id, uintptr_t& out) {
-    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x89e0f0)(reinterpret_cast<void*>(ctx), id); return 0; }
+    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x8a7210)(reinterpret_cast<void*>(ctx), id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 #endif
 bool live_reader(uintptr_t reader, uintptr_t ctx, std::string& error) {
     uintptr_t mode = 0, actual = 0;
     if (!opened::validate_reader(reinterpret_cast<void*>(reader), generation, error) ||
-        !q::at(memory, image, 0x13df320, mode, error) || !q::typed(memory, image, mode, 0x16e6730, error) ||
+        !q::at(memory, image, 0x13eb320, mode, error) || !q::typed(memory, image, mode, 0x16ecad0, error) ||
         !q::at(memory, mode, 0xd8, actual, error)) return false;
     return actual == ctx || q::fail(error, "Zone LoadContext is not active Mode context");
 }
@@ -143,12 +143,12 @@ DWORD exact_uid(uint64_t uid,uintptr_t& out){
 #ifdef MT2MP_QUEST_TARGET_RUNTIME_TEST
     if(test_uid)return test_uid(uid,out);
 #endif
-    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool validate_scene(ScenePool& scene,std::string& error){
     uintptr_t owner=0,shard=0;
-    if(!q::typed(memory,image,scene.manager,0x16fe170,error)||!q::at(memory,scene.manager,0xf0,owner,error)||
+    if(!q::typed(memory,image,scene.manager,0x1704510,error)||!q::at(memory,scene.manager,0xf0,owner,error)||
        !q::at(memory,scene.scene.owner.region,0x70,shard,error))return false;
     if(owner!=scene.scene.owner.region||shard!=scene.scene.owner.shard)return q::fail(error,"Dungeon Quest Zone manager reciprocal Region/Shard differs");
     auto links=[&](uintptr_t pointer,int32_t& link,std::string& e){for(const auto& row:scene.saved.array.zones)if(row.pointer==pointer){link=row.link_id;return true;}
@@ -167,7 +167,7 @@ bool seal_world(const opened::CurrentWorld& world, bool captured, std::string& e
         return reject(error, failure.empty() ? "Zone snapshot lacks complete property returns/context" : failure);
     const auto map = reinterpret_cast<uintptr_t>(world.map), root = map + 0x1c0;
     q::Bounds regions;
-    if (!q::typed(memory, image, map, 0x1742860, error) || !q::typed(memory, image, map + 0x230, 0x16f04e0, error) ||
+    if (!q::typed(memory, image, map, 0x1748c00, error) || !q::typed(memory, image, map + 0x230, 0x16f6880, error) ||
         !q::bounds(memory, map + 0x230, 4096, regions, error)) return reject(error, error);
     std::map<int32_t, q::SavedPool> ready;
     for (int32_t i = 0; i < regions.count; ++i) {
@@ -225,7 +225,7 @@ bool current(int32_t id, q::World& world, const q::SavedPool*& saved, std::strin
     const auto map = reinterpret_cast<uintptr_t>(actual.map); uintptr_t region = 0, selection = 0;
     auto read = [&](uintptr_t p, size_t offset, auto& out, std::string& cause) { return q::at(memory, p, offset, out, cause); };
     if (!region_saved_identity::resolve(image, map, map + 0x1c0, id, 0, region, read, error) ||
-        !q::at(memory, image, 0x13df630, selection, error) || !q::typed(memory, image, selection, 0x17205d0, error)) return false;
+        !q::at(memory, image, 0x13eb630, selection, error) || !q::typed(memory, image, selection, 0x1726970, error)) return false;
     world = {found->second.origin, image, map, map + 0x1c0, region, selection, id}; saved = &found->second; return true;
 }
 }
@@ -469,7 +469,7 @@ Ticket load_before(const void* property, void* manager, void* reader, void* ctx)
     Load value; value.property = reinterpret_cast<uintptr_t>(property); value.manager = reinterpret_cast<uintptr_t>(manager); value.thread = GetCurrentThreadId();
     if (load_stack.contains(value.thread) || loads.size() >= 256 || next_ticket == UINT64_MAX ||
         !q::begin_load(memory, image, value.property, value.manager, r, c, budget, value.frame, error)) { reject(error, "Quest load frame rejected: " + error); return 0; }
-    for(size_t type=0;type<4;++type){q::Bounds bounds;if(!q::typed(memory,image,value.manager+0x18+type*0x30,0x172e1e0,error)||!q::bounds(memory,value.manager+0x18+type*0x30,4096,bounds,error)||bounds.count){reject(error,error.empty()?"World Zone native load requires four initially empty arrays":error);return 0;}}
+    for(size_t type=0;type<4;++type){q::Bounds bounds;if(!q::typed(memory,image,value.manager+0x18+type*0x30,0x1734580,error)||!q::bounds(memory,value.manager+0x18+type*0x30,4096,bounds,error)||bounds.count){reject(error,error.empty()?"World Zone native load requires four initially empty arrays":error);return 0;}}
     const auto ticket = ++next_ticket; load_stack.emplace(value.thread, ticket); loads.emplace(ticket, std::move(value)); return ticket;
 } catch (const std::exception& e) { caught(e.what()); return 0; } catch (...) { caught("non-standard load before exception"); return 0; }
 void children_before(uintptr_t caller, void* reader) noexcept try {

@@ -21,19 +21,19 @@ bool inspect(void* user,const void* root,const void* context,std::string& e){
 struct Invoke {uintptr_t image=0;unsigned step=0;uintptr_t object=0,record=0,context=0;};
 uint32_t invoke(Invoke* call){
     __try{switch(call->step){
-        case 0:call->object=uintptr_t(reinterpret_cast<void*(*)(size_t)>(call->image+0xa02670)(0x290));break;
-        case 1:reinterpret_cast<void(*)(void*)>(call->image+0x221670)(reinterpret_cast<void*>(call->object));break;
-        case 2:reinterpret_cast<void(*)(void*)>(call->image+0x89e940)(reinterpret_cast<void*>(call->context));break;
-        case 3:reinterpret_cast<void(*)(void*,void*,void*)>(call->image+0xce8210)(reinterpret_cast<void*>(call->object),reinterpret_cast<void*>(call->record),reinterpret_cast<void*>(call->context));break;
-        case 4:reinterpret_cast<void(*)(void*)>(call->image+0x89e480)(reinterpret_cast<void*>(call->context));break;
-        case 5:reinterpret_cast<void(*)(void*)>(call->image+0x21ecd0)(reinterpret_cast<void*>(call->object));break;
+        case 0:call->object=uintptr_t(reinterpret_cast<void*(*)(size_t)>(call->image+0xa0d230)(0x290));break;
+        case 1:reinterpret_cast<void(*)(void*)>(call->image+0x224300)(reinterpret_cast<void*>(call->object));break;
+        case 2:reinterpret_cast<void(*)(void*)>(call->image+0x8a7a60)(reinterpret_cast<void*>(call->context));break;
+        case 3:reinterpret_cast<void(*)(void*,void*,void*)>(call->image+0xcf3930)(reinterpret_cast<void*>(call->object),reinterpret_cast<void*>(call->record),reinterpret_cast<void*>(call->context));break;
+        case 4:reinterpret_cast<void(*)(void*)>(call->image+0x8a75a0)(reinterpret_cast<void*>(call->context));break;
+        case 5:reinterpret_cast<void(*)(void*)>(call->image+0x221930)(reinterpret_cast<void*>(call->object));break;
     }return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool read(uintptr_t image,capture::Memory& memory,uintptr_t object,action_session::LogoState& state,json& records,std::string& e){
     state={};records=json::array();if(!object){digest(nullptr,state.sha256);e.clear();return true;}
-    uintptr_t ap=0;if(!memory.read(object,&ap,sizeof ap,e)||ap!=image+0x17439a0)return fail(e,e.empty()?"Logo actual native class differs":e);
-    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(image+0x9667c0),reinterpret_cast<capture::Construct>(image+0x9676a0),reinterpret_cast<capture::Construct>(image+0x89e580),reinterpret_cast<capture::Construct>(image+0x89e5f0),reinterpret_cast<capture::PrepareSave>(image+0x10f1360),reinterpret_cast<capture::SaveRecord>(image+0x10f13c0)};
+    uintptr_t ap=0;if(!memory.read(object,&ap,sizeof ap,e)||ap!=image+0x1749d40)return fail(e,e.empty()?"Logo actual native class differs":e);
+    const capture::CaptureApi api{reinterpret_cast<capture::Construct>(image+0x96f9e0),reinterpret_cast<capture::Construct>(image+0x9708c0),reinterpret_cast<capture::Construct>(image+0x8a76a0),reinterpret_cast<capture::Construct>(image+0x8a7710),reinterpret_cast<capture::PrepareSave>(image+0x10fcd00),reinterpret_cast<capture::SaveRecord>(image+0x10fcd60)};
     Borrow borrow{memory};capture::CaptureReceipt receipt;
     if(!capture::capture_original(api,reinterpret_cast<void*>(object),&inspect,&borrow,receipt,e))return false;
     state.present=true;records=std::move(borrow.records);digest(records,state.sha256);e.clear();return true;

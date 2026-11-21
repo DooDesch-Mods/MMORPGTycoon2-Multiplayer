@@ -24,8 +24,8 @@ bool destinations(Memory& m,const Pin& p,const qr::Owner& value,std::string& e){
         const auto seh=lookup(p.api.find,value.destination_uids[i],pointer);
         if(seh||!pointer||!field(m,pointer,0x18,uid,e)||uid!=value.destination_uids[i]||!field(m,pointer,0,ap,e))
             return fail(e,e.empty()?"Quest history stored destination no longer resolves current full UID SEH="+std::to_string(seh):e);
-        if(ap==state.image+0x16c0770){if(!quest_authoring::direct_destination(pointer,key,e))return false;}
-        else if(ap==state.image+0x1742980){if(!quest_authoring::npc_destination(pointer,key,e))return false;}
+        if(ap==state.image+0x16c6b10){if(!quest_authoring::direct_destination(pointer,key,e))return false;}
+        else if(ap==state.image+0x1748d20){if(!quest_authoring::npc_destination(pointer,key,e))return false;}
         else {bool in_dungeon=false;if(!npc_quest_target_runtime::bind_current_destination(pointer,key,in_dungeon,e))return false;}
         if(key!=row.destination_key)return fail(e,"Quest history stored destination current canonical owner differs");
     }

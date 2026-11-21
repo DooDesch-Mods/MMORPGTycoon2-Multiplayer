@@ -12,7 +12,7 @@ bool weapon_owner(uintptr_t toon,toon_weapon_visual::Lease& lease,bool& owned,st
     if(runtime->ordered_steps)return true;
     uintptr_t ap=0;
     if(!toon_weapon_visual::visual_read(weapon_memory,toon,0,ap,error))return false;
-    if(ap!=weapon_image+0x1744e90)return true;
+    if(ap!=weapon_image+0x174b230)return true;
     owned=true;
     if(runtime->thread!=GetCurrentThreadId())return toon_weapon_visual::visual_fail(error,"Weapon Client authority requires bound Mainthread");
     if(runtime->controller.status().locked||!runtime->live_state||runtime->live_state->locked()||

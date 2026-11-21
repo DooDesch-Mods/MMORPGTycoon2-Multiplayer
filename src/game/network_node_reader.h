@@ -36,17 +36,17 @@ struct Graph {std::vector<Node> nodes;json rows=json::array();uint64_t pipes=0,c
 template<class Memory>bool graph(Memory& memory,uintptr_t image,uintptr_t root,Graph& out,std::string& e) {
     namespace p=read;
     out={};uintptr_t map=0;std::vector<uintptr_t> regions;
-    if(!p::at(memory,image,0x13df8c0,map,e)||!p::ap(memory,map,image,0x1742860,e)||map+0x1c0!=root||
+    if(!p::at(memory,image,0x13eb8c0,map,e)||!p::ap(memory,map,image,0x1748c00,e)||map+0x1c0!=root||
        !p::array(memory,map,0x358,0x360,0x364,16384,regions,e))return false;
     std::map<int32_t,json> canonical;std::set<uintptr_t> managers,objects;std::set<uint64_t> uids;
     for(auto region:regions){
         int32_t id=-1;uintptr_t shard=0,manager=0,owner=0;
-        if(!p::ap(memory,region,image,0x1787930,e)||!p::at(memory,region,0x834,id,e)||!p::at(memory,region,0x70,shard,e)||
+        if(!p::ap(memory,region,image,0x178dcd0,e)||!p::at(memory,region,0x834,id,e)||!p::at(memory,region,0x70,shard,e)||
            !p::at(memory,region,0x978,manager,e))return false;
         if(id<0||shard!=root||canonical.contains(id)){e="network region ID/shard membership differs";return false;}
         json nodes=json::array();
         if(manager){
-            if(!managers.insert(manager).second||!p::ap(memory,manager,image,0x17141e0,e)||!p::at(memory,manager,0x168,owner,e))return false;
+            if(!managers.insert(manager).second||!p::ap(memory,manager,image,0x171a580,e)||!p::at(memory,manager,0x168,owner,e))return false;
             if(owner!=region){e="network manager region owner differs";return false;}
             std::vector<uintptr_t> native_nodes,pipes,pending;
             if(!p::array(memory,manager,0x20,0x28,0x2c,65536,native_nodes,e)||!p::array(memory,manager,0x50,0x58,0x5c,65536,pipes,e)||
@@ -54,9 +54,9 @@ template<class Memory>bool graph(Memory& memory,uintptr_t image,uintptr_t root,G
             if(!pipes.empty()||!pending.empty()||native_nodes.size()+out.nodes.size()>1){e="first network node witness requires no pipes/pending pipes and at most one world node";return false;}
             for(auto object:native_nodes){
                 Node n;n.object=object;n.manager=manager;n.region=region;n.region_id=id;uintptr_t actual_region=0,actual_shard=0;uint8_t preview=1;
-                if(!objects.insert(object).second||!p::ap(memory,object,image,0x16fc700,e)||!p::at(memory,object,0x18,n.uid,e)||
+                if(!objects.insert(object).second||!p::ap(memory,object,image,0x1702aa0,e)||!p::at(memory,object,0x18,n.uid,e)||
                    !p::at(memory,object,0x178,actual_region,e)||!p::at(memory,object,0x170,actual_shard,e)||!p::at(memory,object,0x258,n.definition,e)||
-                   !p::ap(memory,n.definition,image,0x1738010,e)||!p::text(memory,n.definition+0x18,n.type,e)||!p::text(memory,n.definition+0x38,n.key,e)||
+                   !p::ap(memory,n.definition,image,0x173e3b0,e)||!p::text(memory,n.definition+0x18,n.type,e)||!p::text(memory,n.definition+0x38,n.key,e)||
                    !p::at(memory,n.definition,0x78,n.cost,e)||!p::at(memory,n.definition,0xc0,n.definition_values,e)||!p::at(memory,object,0x100,n.transform,e)||
                    !p::at(memory,object,0x250,n.state[0],e)||!p::at(memory,object,0x2a0,n.state[1],e)||!p::at(memory,object,0x2a4,n.state[2],e)||
                    !p::at(memory,object,0x2e4,n.state[3],e)||!p::at(memory,object,0x2e8,n.flags[0],e)||!p::at(memory,object,0x2ea,n.flags[1],e)||

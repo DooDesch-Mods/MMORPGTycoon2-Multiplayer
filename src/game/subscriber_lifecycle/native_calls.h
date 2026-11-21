@@ -3,13 +3,13 @@
 #include <string>
 
 namespace mt2mp::subscriber_lifecycle {
-inline constexpr uintptr_t array_load_rva = 0xc0bd00;
-inline constexpr uintptr_t context_resolve_rva = 0x89e190;
-inline constexpr uintptr_t notify_login_rva = 0x2f0b30;
-inline constexpr uintptr_t notify_logout_rva = 0x2f0860;
-inline constexpr uintptr_t lookup_rva = 0x89e0f0;
-inline constexpr uintptr_t manager_int_load_rva = 0xd2f0f0;
-inline constexpr uintptr_t next_id_property_rva = 0x13c1480;
+inline constexpr uintptr_t array_load_rva = 0xc18440;
+inline constexpr uintptr_t context_resolve_rva = 0x8a72b0;
+inline constexpr uintptr_t notify_login_rva = 0x2f4330;
+inline constexpr uintptr_t notify_logout_rva = 0x2f4060;
+inline constexpr uintptr_t lookup_rva = 0x8a7210;
+inline constexpr uintptr_t manager_int_load_rva = 0xd3a830;
+inline constexpr uintptr_t next_id_property_rva = 0x13cd480;
 using ArrayLoad = void(*)(void*, void*, void*);
 using Resolve = void(*)(void*);
 using Notify = void(*)(void*, void*);

@@ -25,9 +25,9 @@ bool Calendar::initialize(const Config& config,const Services& reads,const Calen
         if(!reader_.initialize(config,reads,e))return false;
         struct Guard {uintptr_t rva;const char* bytes;size_t count;};
         constexpr Guard guards[]{
-            {0x25a190,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\x28\x05\x00\x00",19},
-            {0x62c433,"\xe8\x58\xdd\xc2\xff",5},
-            {0x62c630,"\x48\x83\xe9\x18\xe9\xc7\xfd\xff\xff",9}};
+            {0x25d250,"\x41\x57\x41\x56\x41\x55\x41\x54\x55\x57\x56\x53\x48\x81\xec\x28\x05\x00\x00",19},
+            {0x633203,"\xe8\x48\xa0\xc2\xff",5},
+            {0x633400,"\x48\x83\xe9\x18\xe9\xc7\xfd\xff\xff",9}};
         for(const auto& g:guards){std::array<char,19> actual{};if(!reader_.bytes(config.image+g.rva,actual.data(),g.count,e))return false;
             if(std::memcmp(actual.data(),g.bytes,g.count))return fail(e,"calendar_native_prologue_or_caller_mismatch");}
         status_.initialized=true;e.clear();return true;
@@ -56,7 +56,7 @@ bool Calendar::inspect(CalendarContext& context,CalendarFields& fields,Reader::W
     if(status_.bound&&!std::equal(binding_.roots.begin(),binding_.roots.begin()+7,witness.roots.begin())){retire();return fail(e,"calendar_world_or_panel_changed");}
     if(context.client&&state.native_selected_scale!=0)return fail(e,"calendar_client_clock_not_zero");
     uintptr_t text_pane=0,parent=0,owner=0;
-    if(!reader_.at(witness.roots[4],0x4e8,text_pane,e)||!reader_.vtable(text_pane,0x16dc680,"calendar_text_pane",e)||
+    if(!reader_.at(witness.roots[4],0x4e8,text_pane,e)||!reader_.vtable(text_pane,0x16e2a20,"calendar_text_pane",e)||
        !reader_.at(text_pane,0x278,parent,e)||!reader_.at(text_pane,0x280,owner,e))return false;
     if(parent!=witness.roots[4]||owner!=parent)return fail(e,"calendar_text_pane_owner_mismatch");
     int matches=0;
@@ -67,7 +67,7 @@ bool Calendar::inspect(CalendarContext& context,CalendarFields& fields,Reader::W
     if(matches!=1)return fail(e,"calendar_text_pane_not_unique_member");
     if(status_.bound&&text_pane!=bound_text_pane_){retire();return fail(e,"calendar_text_pane_replaced");}
     uintptr_t software=0;int32_t software_major=0;
-    if(!reader_.at(reader_.config_.image,0x13df500,software,e)||!reader_.vtable(software,0x1715450,"calendar_software",e)||!reader_.at(software,0x88,software_major,e))return false;
+    if(!reader_.at(reader_.config_.image,0x13eb500,software,e)||!reader_.vtable(software,0x171b7f0,"calendar_software",e)||!reader_.at(software,0x88,software_major,e))return false;
     const uintptr_t clock=witness.roots[5];
     if(!reader_.at(clock,0x38,fields.year,e)||!reader_.at(clock,0x3c,fields.month,e)||!reader_.at(clock,0x40,fields.day,e)||
        !reader_.at(clock,0x44,fields.flat_day,e)||!reader_.at(clock,0x48,fields.seconds,e))return false;
@@ -76,7 +76,7 @@ bool Calendar::inspect(CalendarContext& context,CalendarFields& fields,Reader::W
     CalendarContext after{};if(!io_.context(io_.user,after,e)){e="calendar_context_recheck_failed: "+e;return false;}
     if(context!=after)return fail(e,"calendar_context_changed_during_read");
     uintptr_t after_software=0;int32_t after_major=0;CalendarFields again{};
-    if(!reader_.at(reader_.config_.image,0x13df500,after_software,e)||after_software!=software)return fail(e,"calendar_software_changed_during_read");
+    if(!reader_.at(reader_.config_.image,0x13eb500,after_software,e)||after_software!=software)return fail(e,"calendar_software_changed_during_read");
     if(!reader_.at(after_software,0x88,after_major,e)||!reader_.at(clock,0x38,again.year,e)||!reader_.at(clock,0x3c,again.month,e)||
        !reader_.at(clock,0x40,again.day,e)||!reader_.at(clock,0x44,again.flat_day,e)||!reader_.at(clock,0x48,again.seconds,e))return false;
     again.software_calendar_enabled=after_major>0;again.calendar_format=again.software_calendar_enabled&&again.day>=0;
@@ -167,7 +167,7 @@ void* Calendar::format(void* out,void* receiver,uintptr_t caller,OriginalTimeStr
     CalendarSample selected{};bool substitute=false;
     {
         std::lock_guard lock(mutex_);++status_.formatter_original_attempted;
-        if(!busy_&&!formatter_inflight_&&panel_scope_&&caller==0x62c438&&out){Busy busy(busy_);
+        if(!busy_&&!formatter_inflight_&&panel_scope_&&caller==0x633208&&out){Busy busy(busy_);
             std::string error;
             try{CalendarContext context{};CalendarFields local{};Reader::Witness witness{};
                 if(scope_ready(context,local,witness,error)&&witness.roots[4]==panel_scope_&&reinterpret_cast<uintptr_t>(receiver)==witness.roots[5]){

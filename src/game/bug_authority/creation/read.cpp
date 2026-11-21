@@ -50,14 +50,14 @@ bool observe(const Read& read,const Lease& lease,Snapshot& out,std::string& erro
     if(!lease.image||!lease.parent||!lease.tracker||!lease.lounge){error="Bug local owners missing";return false;}
     uintptr_t collection=0,anchor=0,ap=0,array_ap=0,tracker=0;
     if(!at(read,lease.parent,lease.kind==Parent::Building?0xbd8:0x848,collection,error)||
-       !at(read,lease.image,0x13df2e0,tracker,error))return false;
+       !at(read,lease.image,0x13eb2e0,tracker,error))return false;
     if(collection!=lease.collection||tracker!=lease.tracker||lease.tracker!=lease.lounge+0x100){
         error="Bug collection parent/type or original Lounge tracker differs";return false;
     }
     Snapshot next;
     if(collection){
         if(!at(read,collection,0,ap,error)||!at(read,collection,0x18,array_ap,error)||!at(read,collection,0x48,anchor,error))return false;
-        if(anchor!=lease.parent||ap!=lease.image+0x1705640||array_ap!=lease.image+0x16ef1c0){
+        if(anchor!=lease.parent||ap!=lease.image+0x170b9e0||array_ap!=lease.image+0x16f5560){
             error="Bug collection parent/type or original Lounge tracker differs";return false;
         }
         if(!array(read,collection,0x20,next.collection,error))return false;
@@ -73,7 +73,7 @@ bool observe(const Read& read,const Lease& lease,Snapshot& out,std::string& erro
            !at(read,ptr,0x3c,bug.value.reproducibility,error)||!at(read,ptr,0x40,bug.value.variant,error)||
            !at(read,ptr,0x44,known,error)||!at(read,ptr,0x45,manual,error)||!at(read,ptr,0x46,debugged,error)||
            !at(read,ptr,0x48,bug.job,error)||!at(read,ptr,0x50,bug.anchor,error))return false;
-        if(ap!=lease.image+0x1742200||known>1||manual>1||debugged>1){error="Original Bug type or boolean representation differs";return false;}
+        if(ap!=lease.image+0x17485a0||known>1||manual>1||debugged>1){error="Original Bug type or boolean representation differs";return false;}
         bug.value.known=known!=0;bug.value.manual=manual!=0;bug.value.debugged=debugged!=0;
         next.bugs.push_back(bug);
     }

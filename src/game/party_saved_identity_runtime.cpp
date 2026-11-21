@@ -70,7 +70,7 @@ bool prepared_present=false;
 uint64_t prepared_bytes=0;
 std::string prepared_sha;
 DWORD exact_uid(uint64_t uid,uintptr_t& out){
-    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x47ce20)(uid);return 0;}
+    __try{out=reinterpret_cast<uintptr_t(*)(uint64_t)>(image+0x481f60)(uid);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 
@@ -116,7 +116,7 @@ bool context(uintptr_t actual, std::string& error) {
     observer().bound_context = actual; return true;
 }
 DWORD contains_call(uintptr_t ctx, uintptr_t object, int32_t& id, bool& present) {
-    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x89e690)(
+    __try { present = reinterpret_cast<bool(*)(void*, const void*, int32_t*)>(image + 0x8a77b0)(
         reinterpret_cast<void*>(ctx), reinterpret_cast<void*>(object), &id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
@@ -130,14 +130,14 @@ bool contains(uintptr_t ctx, uintptr_t object, int32_t& id, std::string& error) 
 }
 #ifndef MT2MP_PARTY_SAVED_RUNTIME_TEST
 DWORD lookup_call(uintptr_t ctx, int32_t id, uintptr_t& out) {
-    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x89e0f0)(reinterpret_cast<void*>(ctx), id); return 0; }
+    __try { out = reinterpret_cast<uintptr_t(*)(void*, int32_t)>(image + 0x8a7210)(reinterpret_cast<void*>(ctx), id); return 0; }
     __except(EXCEPTION_EXECUTE_HANDLER) { return GetExceptionCode(); }
 }
 #endif
 bool live_reader(uintptr_t reader, uintptr_t ctx, std::string& error) {
     uintptr_t mode = 0, actual = 0;
     if (!opened::validate_reader(reinterpret_cast<void*>(reader), observer().generation, error) ||
-        !q::at(memory, image, 0x13df320, mode, error) || !q::typed(memory, image, mode, 0x16e6730, error) ||
+        !q::at(memory, image, 0x13eb320, mode, error) || !q::typed(memory, image, mode, 0x16ecad0, error) ||
         !q::at(memory, mode, 0xd8, actual, error)) return false;
     return actual == ctx || q::fail(error, "Party LoadContext is not active Mode context");
 }
@@ -156,14 +156,14 @@ bool retain(q::Pool value, std::string& error) {
 bool seal_world(const opened::CurrentWorld& world,bool first,std::string& error){
     if(!healthy(error)||!observer().saves.empty()||!observer().loads.empty()||!observer().load_stack.empty())return reject(error,error.empty()?"Party snapshot has unfinished original property scopes":error);
     const auto map=uintptr_t(world.map),root=map+0x1c0;
-    q::Bounds regions;if(!map||!q::typed(memory,image,map,0x1742860,error)||!q::typed(memory,image,map+0x230,0x16f04e0,error)||
+    q::Bounds regions;if(!map||!q::typed(memory,image,map,0x1748c00,error)||!q::typed(memory,image,map+0x230,0x16f6880,error)||
        !q::bounds(memory,map+0x230,4096,regions,error))return reject(error,error);
     // Root is the embedded Shard object itself, not its first vtable word.
-    if(!q::typed(memory,image,root,0x174ad20,error))return reject(error,error);
+    if(!q::typed(memory,image,root,0x17510c0,error))return reject(error,error);
     struct Scene {std::string key;uintptr_t shard=0,region=0;int32_t region_id=-1,exterior_slot=-1,instance=-1;bool dungeon=false;};
     std::vector<Scene> scenes;std::set<int32_t> ids;
     for(int32_t i=0;i<regions.count;++i){uintptr_t region=0,shard=0;int32_t id=-1;
-        if(!q::at(memory,regions.data,size_t(i)*8,region,error)||!q::typed(memory,image,region,0x1787930,error)||!q::at(memory,region,0x70,shard,error)||!q::at(memory,region,0x834,id,error))return reject(error,error);
+        if(!q::at(memory,regions.data,size_t(i)*8,region,error)||!q::typed(memory,image,region,0x178dcd0,error)||!q::at(memory,region,0x70,shard,error)||!q::at(memory,region,0x834,id,error))return reject(error,error);
         if(shard!=root||id<0||!ids.insert(id).second)return reject(error,"Party saved Root Region ownership/ID differs");
         scenes.push_back({"world",root,region,id,-1,-1,false});}
     if(scenes.empty()||!q::unchanged(memory,map+0x230,4096,regions,error))return reject(error,error.empty()?"Party native saved Root Regions absent":error);
@@ -173,7 +173,7 @@ bool seal_world(const opened::CurrentWorld& world,bool first,std::string& error)
     std::map<uintptr_t,q::SavedPool> ready;std::set<std::string> keys;std::set<uintptr_t> objects;std::set<uint64_t> uids;
     std::vector<std::pair<std::string,party_identity::Entry>> restored;attachment::Manifest records;records.present=true;
     for(const auto& scene:scenes){uintptr_t manager=0,owner=0,region_shard=0;
-        if(!q::at(memory,scene.region,0x9d0,manager,error)||!q::typed(memory,image,manager,0x17018d0,error)||!q::at(memory,manager,0xa8,owner,error)||!q::at(memory,scene.region,0x70,region_shard,error))return reject(error,error);
+        if(!q::at(memory,scene.region,0x9d0,manager,error)||!q::typed(memory,image,manager,0x1707c70,error)||!q::at(memory,manager,0xa8,owner,error)||!q::at(memory,scene.region,0x70,region_shard,error))return reject(error,error);
         if(owner!=scene.region||region_shard!=scene.shard||ready.contains(manager))return reject(error,"Party snapshot current scene/manager reciprocity repeats or differs");
         const auto found=observer().observed.find(manager);if(found==observer().observed.end())return reject(error,"Party native property unobserved in scene="+scene.key);
         auto links=[&](uintptr_t object,int32_t& link,std::string& cause){for(const auto& row:found->second.records)if(row.pointer==object){link=row.link_id;return true;}return q::fail(cause,"Party current member absent from original serialized record");};
@@ -406,12 +406,12 @@ bool collect_current_raw(NativeCensus& out,std::string& error){
     const party_identity::Scope current{world.uuid,world.world_epoch,world.generation,uintptr_t(world.map)+0x1c0};
     uintptr_t actual_image=0;uint32_t thread=0;std::string digest;
     if(!native::read_resolver_receipt(actual_image,thread,digest,error))return false;
-    if(actual_image!=image||thread!=main_thread||digest!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6")
+    if(actual_image!=image||thread!=main_thread||digest!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb")
         return q::fail(error,"Party current aliases require exact executable image/Mainthread");
     q::Bounds regions;const uintptr_t map=uintptr_t(world.map);
     std::vector<std::pair<uintptr_t,uintptr_t>> owners;
     {live_host_state::apply_timing::PageReadScope region_pages;
-    if(!q::typed(memory,image,map,0x1742860,error)||!q::typed(memory,image,map+0x230,0x16f04e0,error)||
+    if(!q::typed(memory,image,map,0x1748c00,error)||!q::typed(memory,image,map+0x230,0x16f6880,error)||
        !q::bounds(memory,map+0x230,4096,regions,error))return false;
     for(int32_t i=0;i<regions.count;++i){uintptr_t region=0;
         if(!q::at(memory,regions.data,size_t(i)*sizeof(uintptr_t),region,error))return false;

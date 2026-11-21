@@ -31,12 +31,12 @@ struct Parties final:stage::PartyReferences {
 };
 void references(){
     Memory memory;Parties parties;const uintptr_t image=0x140000000,state=0x200000,map=0x300000;
-    memory.put(state,image+0x16de920);memory.put(map,image+0x1742860);memory.put(map+0x1c0,image+0x174ad20);memory.put(map+0x208,int32_t(0));
-    memory.put(parties.pointer,image+0x174a370);
+    memory.put(state,image+0x16e4cc0);memory.put(map,image+0x1748c00);memory.put(map+0x1c0,image+0x17510c0);memory.put(map+0x208,int32_t(0));
+    memory.put(parties.pointer,image+0x1750710);
     stage::ReferenceWorld world{image,state,map,nullptr,nullptr,&parties};stage::ReferenceKey key;std::string error;uintptr_t pointer=0;
     require(stage::identify_reference(memory,world,parties.pointer,-1,-1,key,error)&&key.kind==stage::ReferenceKind::SharedParty&&key.party_key==parties.key,"identify actual Party AP through canonical provider");
     require(stage::resolve_reference(memory,world,key,pointer,error)&&pointer==parties.pointer,"resolve Party canonical key");
-    parties.pointer+=0x10000;memory.put(parties.pointer,image+0x174a370);
+    parties.pointer+=0x10000;memory.put(parties.pointer,image+0x1750710);
     require(stage::resolve_reference(memory,world,key,pointer,error)&&pointer==parties.pointer,"same portable key resolves different native Client object");
     parties.valid=false;
     require(!stage::resolve_reference(memory,world,key,pointer,error)&&error=="original Party full UID changed","preserve original provider cause");
@@ -47,7 +47,7 @@ void references(){
         switch(bad){case 0:invalid.party_key="party:0";break;case 1:invalid.region_id=0;break;case 2:invalid.subscriber_id=1;break;case 3:invalid.npc_key="foreign";break;case 4:invalid.building_key="foreign";break;case 5:invalid.sequence_id=0;break;case 6:invalid.kind=stage::ReferenceKind::RootShard;break;}
         require(!stage::resolve_reference(memory,world,invalid,pointer,error)&&!error.empty(),"reject malformed Party/foreign key fields");
     }
-    memory.put(parties.pointer,image+0x1744e90);
+    memory.put(parties.pointer,image+0x174b230);
     require(!stage::resolve_reference(memory,world,key,pointer,error),"provider cannot substitute a Toon for actual Party");
 }
 void ordering(){

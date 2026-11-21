@@ -23,10 +23,10 @@ bool offered_controls(Memory& memory,uintptr_t root,uintptr_t outer,std::vector<
         const auto pane=panes.back();panes.pop_back();uintptr_t ap=0,gather=0;
         if(!pane||!seen.insert(pane).second||seen.size()>4096||!field(memory,pane,0,ap,error)||!field(memory,ap,0x178,gather,error))
             return fail(error,error.empty()?"Character offered content is unreadable, cyclic or oversized":error);
-        if(ap==state.image+0x16e3ec0||ap==state.image+0x16d98c0||ap==state.image+0x17015b0||
-           ap==state.image+0x1703290||ap==state.image+0x16d9b30||ap==state.image+0x1717790){
-            OfferedControl value;value.pane=pane;value.checkbox=ap==state.image+0x16d98c0;value.tab=ap==state.image+0x17015b0;
-            value.text=ap==state.image+0x1703290;value.combo=ap==state.image+0x16d9b30;value.icon=ap==state.image+0x1717790;
+        if(ap==state.image+0x16ea260||ap==state.image+0x16dfc60||ap==state.image+0x1707950||
+           ap==state.image+0x1709630||ap==state.image+0x16dfed0||ap==state.image+0x171db30){
+            OfferedControl value;value.pane=pane;value.checkbox=ap==state.image+0x16dfc60;value.tab=ap==state.image+0x1707950;
+            value.text=ap==state.image+0x1709630;value.combo=ap==state.image+0x16dfed0;value.icon=ap==state.image+0x171db30;
             if(!npc_quest_records::read_string(memory,pane,0x1b0,"Character offered control id",value.id,error)||
                (!value.tab&&!value.icon&&!npc_quest_records::read_string(memory,pane,value.checkbox?0x348:value.text?0x3e0:value.combo?0x3b8:0x388,"Character offered control command",value.command,error))||
                !offered_visibility(memory,pane,root,outer,value.ready,error))return false;
@@ -57,8 +57,8 @@ bool offered_controls(Memory& memory,uintptr_t root,uintptr_t outer,std::vector<
             value.ready=value.ready&&clickable==1&&!held;result.push_back(std::move(value));
             }
         }
-        if(gather==state.image+0xc35730)continue;
-        if(gather!=state.image+0x8167c0)return fail(error,"Character offered GatherAllContents implementation differs");
+        if(gather==state.image+0xc41fe0)continue;
+        if(gather!=state.image+0x81ed30)return fail(error,"Character offered GatherAllContents implementation differs");
         for(const auto offset:{size_t(0x2c8),size_t(0x2f8)}){
             std::vector<uintptr_t> children;if(!open_array(memory,pane,offset,children,error))return false;
             panes.insert(panes.end(),children.begin(),children.end());
@@ -102,7 +102,7 @@ struct OfferedPage {uintptr_t pages=0,page=0,current=0,requested=0;};
 bool offered_page(Memory& memory,const OfferedControl& tab,const std::string& id,OfferedPage& out,std::string& error){
     out={};uintptr_t ap=0,data=0,enabled=0;int32_t count=0,capacity=0,enable_count=0,enable_capacity=0;
     if(!tab.tab||!tab.ready||!field(memory,tab.pane,0x3b8,out.pages,error)||!out.pages||
-       !field(memory,out.pages,0,ap,error)||ap!=state.image+0x16dfe90||
+       !field(memory,out.pages,0,ap,error)||ap!=state.image+0x16e6230||
        !field(memory,out.pages,0x388,data,error)||!field(memory,out.pages,0x390,count,error)||
        !field(memory,out.pages,0x394,capacity,error)||count<1||count>128||capacity<count||capacity>4096||!data||
        !field(memory,out.pages,0x3a0,enabled,error)||!field(memory,out.pages,0x3a8,enable_count,error)||

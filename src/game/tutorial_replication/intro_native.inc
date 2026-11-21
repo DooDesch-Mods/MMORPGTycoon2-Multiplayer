@@ -8,7 +8,7 @@ struct Owners {lifecycle_native::Owners log;uintptr_t instance=0;std::vector<std
 bool owners(const World& world,Owners& out,Value& value,std::string& e){
     out={};value={};if(!lifecycle_native::owners(world,id,out.log,e))return false;
     for(auto instance:out.log.instances){std::string actual;if(!str(instance,0x18,actual,e))return false;if(actual!=id)continue;
-        if(out.instance||!type(instance,0x17384e0,e))return fail(e,e.empty()?"Intro Scenario current instance class or unique membership differs":e);
+        if(out.instance||!type(instance,0x173e880,e))return fail(e,e.empty()?"Intro Scenario current instance class or unique membership differs":e);
         out.instance=instance;uint8_t complete=0;if(!at(instance,0x38,complete,e)||complete>1||!at(instance,0x60,value.phase,e)||!at(instance,0x78,value.starting_points,e))return fail(e,e.empty()?"Intro Scenario native completion byte differs":e);
         value.active=true;value.retiring=complete!=0;
     }
@@ -17,7 +17,7 @@ bool owners(const World& world,Owners& out,Value& value,std::string& e){
     return scenario_intro::valid(value,e);
 }
 bool fenced(uintptr_t instance,std::string& e){
-    if(GetCurrentThreadId()!=mainthread||!type(instance,0x17384e0,e))return fail(e,e.empty()?"Client Intro callback thread/class differs":e);
+    if(GetCurrentThreadId()!=mainthread||!type(instance,0x173e880,e))return fail(e,e.empty()?"Client Intro callback thread/class differs":e);
     lifecycle_native::Owners owner;
     if(!load.ready){if(!lifecycle_native::bootstrap_owners(id,owner,e))return false;}
     else{World world;action_session::Context c;action_session::Binding b;
@@ -40,21 +40,21 @@ void start(void* log,void* asset,void* parameters){
     if(start_entered){block("Client Intro scoped Start reentered");return;}start_entered=true;original_scenario_start(log,asset,parameters);
 }
 bool verify_owned(std::string& e){auto copy=[](auto p,auto out,auto bytes,auto& cause){return memory.copy(p,out,bytes,cause);};auto hash=[](const auto& bytes){return mt2mp::sha256(bytes);};
-    return release_ui_owner::verify(update_owner,copy,hash,"d953b6db7faaa0d1432f966fb35116f223e96eec556a0eaf9daecc93032ec9d9",e)&&release_ui_owner::verify(event_owner,copy,hash,"cb97634079b9f1c1427c16fbed73c78968ad5231aa81450c0e03254e3ee25112",e);
+    return release_ui_owner::verify(update_owner,copy,hash,"d76efd8c414f9651ff051692129d66fdcac8121369d244d2154866d8f1468e30",e)&&release_ui_owner::verify(event_owner,copy,hash,"da1d91b87fa010743c37c9236398b3d26a366ca2d73da3bdae7246346844bad8",e);
 }
 bool prepare_hooks(std::string& e){
     struct Body{uintptr_t rva;size_t bytes;const char* sha;};constexpr Body bodies[]={
-        {0x4f1590,80,"c1daa5f1996d2dfa930d01a8e0ac616c4f8b7f6c475a74bcbc603f189039a511"},
-        {0x4f1c00,192,"06334e7d06b0f0bc536bd7d5c0230cea0916e934dd81396bf126552cafe493b5"},
-        {0x4f1640,96,"2462f98ac1f91d7f10367e79fc053584d4534be9c1d27e106391fee16c81a1de"}};
+        {0x4f7490,80,"9187fc75200e8fdf4d8571e927d484c7d6356524b757d9dd0971c44888db4bb4"},
+        {0x4f7b00,192,"47d32acab21e80a39c06729046e0ae805f3ce07caca2e64de7bd033c38d2aab2"},
+        {0x4f7540,96,"49ba48e93347ebb447e20d873eab63f3fc25bb52b3c04d74452bb4cef997bb5b"}};
     for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!memory.copy(image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Intro original construction/destruction body differs":e);}
-    update_owner={image+0x4f2330,reinterpret_cast<uintptr_t>(&update),0,1,5,std::vector<unsigned char>(1216)};
-    event_owner={image+0x4f1940,reinterpret_cast<uintptr_t>(&event),0,1,5,std::vector<unsigned char>(80)};
-    if(!memory.copy(update_owner.entry,update_owner.pristine.data(),update_owner.pristine.size(),e)||mt2mp::sha256(update_owner.pristine)!="d953b6db7faaa0d1432f966fb35116f223e96eec556a0eaf9daecc93032ec9d9"||
-       !memory.copy(event_owner.entry,event_owner.pristine.data(),event_owner.pristine.size(),e)||mt2mp::sha256(event_owner.pristine)!="cb97634079b9f1c1427c16fbed73c78968ad5231aa81450c0e03254e3ee25112")return fail(e,e.empty()?"Intro original Update/Event full body differs":e);
+    update_owner={image+0x4f8230,reinterpret_cast<uintptr_t>(&update),0,1,5,std::vector<unsigned char>(1216)};
+    event_owner={image+0x4f7840,reinterpret_cast<uintptr_t>(&event),0,1,5,std::vector<unsigned char>(80)};
+    if(!memory.copy(update_owner.entry,update_owner.pristine.data(),update_owner.pristine.size(),e)||mt2mp::sha256(update_owner.pristine)!="d76efd8c414f9651ff051692129d66fdcac8121369d244d2154866d8f1468e30"||
+       !memory.copy(event_owner.entry,event_owner.pristine.data(),event_owner.pristine.size(),e)||mt2mp::sha256(event_owner.pristine)!="da1d91b87fa010743c37c9236398b3d26a366ca2d73da3bdae7246346844bad8")return fail(e,e.empty()?"Intro original Update/Event full body differs":e);
     return true;
 }
-DWORD invoke(bool complete,uintptr_t log,uintptr_t asset){__try{if(complete)reinterpret_cast<void(*)(void*,void*)>(image+0x4f4130)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset));else reinterpret_cast<void(*)(void*,void*,void*)>(image+0x4f3b00)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset),nullptr);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+DWORD invoke(bool complete,uintptr_t log,uintptr_t asset){__try{if(complete)reinterpret_cast<void(*)(void*,void*)>(image+0x4fa0b0)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset));else reinterpret_cast<void(*)(void*,void*,void*)>(image+0x4f9a60)(reinterpret_cast<void*>(log),reinterpret_cast<void*>(asset),nullptr);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 DWORD cas(uintptr_t address,bool byte,int32_t before,int32_t target,bool& stored){__try{stored=byte?uint8_t(_InterlockedCompareExchange8(reinterpret_cast<volatile char*>(address),char(target),char(before)))==uint8_t(before):InterlockedCompareExchange(reinterpret_cast<volatile LONG*>(address),LONG(target),LONG(before))==LONG(before);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 bool sample(const action_session::Context& c,const action_session::Binding& b,World& world,Owners& owner,Value& value,std::string& e,bool ordered_read=false){
     World after;if(!origin(c,b,world,e,nullptr,ordered_read)||!owners(world,owner,value,e)||!origin(c,b,after,e,nullptr,ordered_read)||!same_world(world,after))return fail(e,e.empty()?"Intro complete current Origin changed":e);return true;

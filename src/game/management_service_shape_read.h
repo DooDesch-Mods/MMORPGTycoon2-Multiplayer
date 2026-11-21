@@ -22,7 +22,7 @@ template<class Read>bool read_shape(Read& at,uintptr_t image,uintptr_t shape,Sha
     constexpr size_t limit=1000000;out={};if(units>limit)return fail(e,"Service graph prior geometry exceeds bound");uintptr_t ap=0,internal=0,section_ap=0;uint8_t bounds_valid=0;
     if(!at(shape,0,ap,e)||!at(shape,0x18,internal,e)||!at(shape,0x20,bounds_valid,e)||
        !at(shape,0x24,out.bounds,e)||!at(shape,0x40,section_ap,e))return false;
-    if(ap!=image+0x16e0140||!internal||bounds_valid>1||section_ap!=image+0x16eb080)return fail(e,"Service graph shape class/internal descriptor differs");
+    if(ap!=image+0x16e64e0||!internal||bounds_valid>1||section_ap!=image+0x16f1420)return fail(e,"Service graph shape class/internal descriptor differs");
     for(auto word:out.bounds)if(!finite(word))return fail(e,"Service graph shape bounds are non-finite");
     out.internal_present=true;out.bounds_valid=bounds_valid!=0;
     PointerVector rings;if(!pointer_vector(at,internal,0,rings,e))return false;
@@ -39,7 +39,7 @@ template<class Read>bool read_shape(Read& at,uintptr_t image,uintptr_t shape,Sha
     if(!array_span(sections.data,sections.count,sections.capacity,8,limit)||size_t(sections.count)>limit-units)return fail(e,"Service graph section descriptor invalid");
     units+=size_t(sections.count);
     for(int32_t i=0;i<sections.count;++i){uintptr_t section=0,vertex_ap=0;if(!at(sections.data,size_t(i)*8,section,e))return false;if(!section)return fail(e,"Service graph null CrossSection");if(!at(section,0,ap,e)||!at(section,0x40,vertex_ap,e))return false;
-        if(ap!=image+0x16fef20||vertex_ap!=image+0x1746160)return fail(e,"Service graph CrossSection or vertex array class differs");
+        if(ap!=image+0x17052c0||vertex_ap!=image+0x174c500)return fail(e,"Service graph CrossSection or vertex array class differs");
         ArrayDescriptor vertices;if(!array_descriptor(at,section,0x40,vertices,e))return false;
         if(!array_span(vertices.data,vertices.count,vertices.capacity,12,limit)||size_t(vertices.count)>limit-units)return fail(e,"Service graph vertex descriptor invalid");
         units+=size_t(vertices.count);std::vector<std::array<uint32_t,3>> row;
@@ -49,7 +49,7 @@ template<class Read>bool read_shape(Read& at,uintptr_t image,uintptr_t shape,Sha
     PointerVector rings_after;BitsDescriptor bits_after;ArrayDescriptor sections_after;uintptr_t final_internal=0,final_ap=0,final_section_ap=0;uint8_t final_valid=0;std::array<uint32_t,6> final_bounds{};
     if(!pointer_vector(at,internal,0,rings_after,e)||!bits_descriptor(at,internal,bits_after,e)||!array_descriptor(at,shape,0x40,sections_after,e)||
        !at(shape,0x18,final_internal,e)||!at(shape,0,final_ap,e)||!at(shape,0x40,final_section_ap,e)||!at(shape,0x20,final_valid,e)||!at(shape,0x24,final_bounds,e))return false;
-    if(rings_after!=rings||bits_after!=bits||sections_after!=sections||final_internal!=internal||final_ap!=image+0x16e0140||final_section_ap!=section_ap||final_valid!=bounds_valid||final_bounds!=out.bounds)
+    if(rings_after!=rings||bits_after!=bits||sections_after!=sections||final_internal!=internal||final_ap!=image+0x16e64e0||final_section_ap!=section_ap||final_valid!=bounds_valid||final_bounds!=out.bounds)
         return fail(e,"Service graph shape descriptor changed during read");
     return true;
 }

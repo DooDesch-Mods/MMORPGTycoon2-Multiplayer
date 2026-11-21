@@ -16,12 +16,12 @@ struct Pool {
 template<class Memory,class Links>
 bool read(Memory& memory,uintptr_t image,uintptr_t manager,Links& links,Pool& out,std::string& error){
     out={};Pool next;next.manager=manager;
-    if(!q::typed(memory,image,manager,0x16fe170,error))return false;
+    if(!q::typed(memory,image,manager,0x1704510,error))return false;
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;std::set<int32_t> ids;
     for(size_t type=0;type<4;++type){const auto array=manager+0x18+type*0x30;q::Bounds before;
-        if(!q::typed(memory,image,array,0x172e1e0,error)||!q::bounds(memory,array,4096,before,error))return false;
+        if(!q::typed(memory,image,array,0x1734580,error)||!q::bounds(memory,array,4096,before,error))return false;
         for(int32_t child=0;child<before.count;++child){Member row;row.child=size_t(child);
-            if(!q::at(memory,before.data,size_t(child)*8,row.object,error)||!q::typed(memory,image,row.object,0x1745ce0,error)||
+            if(!q::at(memory,before.data,size_t(child)*8,row.object,error)||!q::typed(memory,image,row.object,0x174c080,error)||
                !q::at(memory,row.object,0x18,row.uid,error)||!q::at(memory,row.object,0x24c,row.type,error)||!links(row.object,row.link,error))return false;
             if(!row.uid||row.type!=int32_t(type)||row.link<0||!pointers.insert(row.object).second||!uids.insert(row.uid).second||
                (row.link&&!ids.insert(row.link).second))return q::fail(error,"World Zone serialized type/full UID/link repeats or differs");

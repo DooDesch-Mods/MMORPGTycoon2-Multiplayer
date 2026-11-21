@@ -12,7 +12,7 @@ int main()try{
     constexpr uintptr_t image=0x140000000,cursor=0x200000000;
     std::map<uintptr_t,std::vector<uint8_t>> fields;
     const auto put=[&]<class T>(uintptr_t address,const T& value){auto& bytes=fields[address];bytes.resize(sizeof(T));std::memcpy(bytes.data(),&value,sizeof(T));};
-    put(image+0x13df9d0,cursor);put(cursor,image+0x1786dd0);
+    put(image+0x13eb9d0,cursor);put(cursor,image+0x178d170);
     put(cursor+0x180,uintptr_t(0));put(cursor+0x257,uint8_t(1));
     const std::array<float,3> world{8500,70,9000};put(cursor+0x1e4,world);
     const std::array<float,2> screen{100,200};put(cursor+0x1f0,screen);
@@ -21,7 +21,7 @@ int main()try{
         auto found=fields.find(address);
         if(found==fields.end()||found->second.size()!=count){error="unreadable native field";return false;}
         std::memcpy(output,found->second.data(),count);
-        if(address==image+0x13df9d0&&++cursor_reads==2&&change_lifetime){const uintptr_t replacement=cursor+0x1000;std::memcpy(output,&replacement,sizeof replacement);}
+        if(address==image+0x13eb9d0&&++cursor_reads==2&&change_lifetime){const uintptr_t replacement=cursor+0x1000;std::memcpy(output,&replacement,sizeof replacement);}
         return true;
     };
     Sample sample;std::string error;
@@ -32,9 +32,9 @@ int main()try{
     require(read_native_sample(image,copy,sample,error)&&!sample.position,"disabled cursor was published");
     put(cursor+0x257,uint8_t(2));
     require(!read_native_sample(image,copy,sample,error)&&error.find("enabled")!=std::string::npos,"invalid native boolean admitted");
-    put(cursor+0x257,uint8_t(1));put(cursor,image+0x1786de0);
+    put(cursor+0x257,uint8_t(1));put(cursor,image+0x178d180);
     require(!read_native_sample(image,copy,sample,error)&&error.find("class")!=std::string::npos,"wrong native class admitted");
-    put(cursor,image+0x1786dd0);put(cursor+0x1e4,std::array<float,3>{1,std::numeric_limits<float>::quiet_NaN(),3});
+    put(cursor,image+0x178d170);put(cursor+0x1e4,std::array<float,3>{1,std::numeric_limits<float>::quiet_NaN(),3});
     require(!read_native_sample(image,copy,sample,error)&&!sample.position,"nonfinite native position escaped");
     put(cursor+0x1e4,world);fields.erase(cursor+0x257);
     require(!read_native_sample(image,copy,sample,error)&&error=="unreadable native field","original memory failure lost");

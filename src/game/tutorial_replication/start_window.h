@@ -31,7 +31,7 @@ bool window(Memory& memory,const tutorial_development::StartingpointSnapshot& na
     uintptr_t addresspoint=0,logic=0;uint8_t visible=0;
     if(!at(out.address,0,addresspoint)||!at(out.address,0x318,logic)||!at(out.address,0x45f,visible)||
        !at(out.address,0x540,out.tabs)||!at(out.address,0x610,out.selected))return false;
-    if(addresspoint!=native.image+0x1722e60||logic||visible!=1||!out.tabs||out.selected!=pay_receiver)
+    if(addresspoint!=native.image+0x1729200||logic||visible!=1||!out.tabs||out.selected!=pay_receiver)
         return fail("Startingpoint StartTech actual window/selected catalogue owner differs");
     for(const auto& observed:reads){std::vector<unsigned char> after(observed.bytes.size());if(!memory.copy(observed.address,after.data(),after.size(),error))return false;if(after!=observed.bytes)return fail("Startingpoint StartTech UI owner changed during capture");}
     error.clear();return true;

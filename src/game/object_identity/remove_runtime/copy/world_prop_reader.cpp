@@ -75,12 +75,12 @@ bool ProcessMemory::copy(uintptr_t address,void* out,size_t bytes,std::string& e
 }
 static bool resolve_lookup_raw(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){
     api={};if(hash!=mt2mp::native_uid::required_exe_sha)return fail(e,"remove_lookup_exe_hash");
-    if(!image||image>UINTPTR_MAX-0x1a3aa88)return fail(e,"remove_lookup_image_range");
+    if(!image||image>UINTPTR_MAX-0x1a41a88)return fail(e,"remove_lookup_image_range");
     const std::pair<uintptr_t,std::vector<uint8_t>> guards[]={
-        {0x47ce20,{0x53,0x45,0x31,0xc0,0x48,0x85,0xc9,0x74,0x31,0x48,0x83,0x3d,0xa7,0x95,0x5b,0x01}},
-        {0x12654f0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70,0x48,0x89,0xcb,0x48,0x89,0xd5}}};
+        {0x481f60,{0x53,0x45,0x31,0xc0,0x48,0x85,0xc9,0x74,0x31,0x48,0x83,0x3d,0x67,0xb4,0x5b,0x01}},
+        {0x1270eb0,{0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x70,0x48,0x89,0xcb,0x48,0x89,0xd5}}};
     for(const auto& [pc,expected]:guards){std::vector<uint8_t> actual(expected.size());if(!m.copy(image+pc,actual.data(),actual.size(),e))return false;if(actual!=expected){e="remove_lookup_prologue_"+std::to_string(pc);return false;}}
-    api={reinterpret_cast<FindUid>(image+0x47ce20),reinterpret_cast<DynamicCast>(image+0x12654f0)};return true;
+    api={reinterpret_cast<FindUid>(image+0x481f60),reinterpret_cast<DynamicCast>(image+0x1270eb0)};return true;
 }
 bool resolve_lookup(Memory& m,uintptr_t image,std::string_view hash,LookupApi& api,std::string& e){
     return RootSceneryReadBatch::resolve_current_lookup(m,image,hash,api,e);
@@ -100,43 +100,43 @@ bool Reader::current(WorldState& out,bool idle,std::string& e){
     if(!o.world_epoch||!o.generation||!o.bytes||o.uuid.empty()||o.sha256.size()!=64)return fail(e,"remove_world_origin_incomplete");
     const auto mode=reinterpret_cast<uintptr_t>(o.mode),game=reinterpret_cast<uintptr_t>(o.game),map=reinterpret_cast<uintptr_t>(o.map);
     uintptr_t v=0;int32_t state=-1;
-    if(!vt(memory_,image_,mode,0x16e6730,e)||!vt(memory_,image_,game,0x1743740,e)||!vt(memory_,image_,map,0x1742860,e))return false;
+    if(!vt(memory_,image_,mode,0x16ecad0,e)||!vt(memory_,image_,game,0x1749ae0,e)||!vt(memory_,image_,map,0x1748c00,e))return false;
     if(!at(memory_,game,0x28,v,e)||v!=mode)return fail(e,"remove_world_active_mode_changed");
     if(!at(memory_,mode,0x2c4,state,e)||state!=4)return fail(e,"remove_world_not_active_state4");
     if(!at(memory_,mode,0x30c,out.saves,e)||out.saves<0)return fail(e,"remove_world_saves_invalid");
-    if(!at(memory_,image_,0x13beda0,out.edits,e)||out.edits<0)return fail(e,"remove_world_edits_invalid");
-    if(!at(memory_,image_,0x13df630,out.selection,e)||!vt(memory_,image_,out.selection,0x17205d0,e)||!at(memory_,image_,0x1a3aa80,out.active_graph,e))return false;
+    if(!at(memory_,image_,0x13cada0,out.edits,e)||out.edits<0)return fail(e,"remove_world_edits_invalid");
+    if(!at(memory_,image_,0x13eb630,out.selection,e)||!vt(memory_,image_,out.selection,0x1726970,e)||!at(memory_,image_,0x1a41a80,out.active_graph,e))return false;
     if(map>UINTPTR_MAX-0x1c0)return fail(e,"remove_world_root_overflow");out.root=map+0x1c0;
-    if(!vt(memory_,image_,out.root,0x174ad20,e)||!at(memory_,out.root,0x48,state,e)||state!=0)return fail(e,"remove_world_root_type");
+    if(!vt(memory_,image_,out.root,0x17510c0,e)||!at(memory_,out.root,0x48,state,e)||state!=0)return fail(e,"remove_world_root_type");
     if(idle&&(out.saves||out.edits||out.active_graph))return fail(e,"info: remove_wait_save_edit_or_graph");
     return true;
 }
 bool Reader::typed(uintptr_t object,uint64_t uid,uintptr_t type,std::string& e){
     uintptr_t found=0,casted=0;uint32_t seh=0;
     {mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropTypedLookup);
-        seh=lookup(api_,image_,uid,0x1673900,type,0,found,casted);}
+        seh=lookup(api_,image_,uid,0x1678ee0,type,0,found,casted);}
     if(seh){e="remove_prop_lookup_SEH_"+std::to_string(seh);return false;}
     if(found!=object||casted!=object)return fail(e,"remove_prop_registry_or_typed_identity");
     uint64_t actual=0;return at(memory_,object,0x18,actual,e)&&(actual==uid||fail(e,"remove_prop_full_uid_mismatch"));
 }
 bool Reader::main_member(uintptr_t object,uintptr_t shard,uintptr_t region,std::string& e){
     mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropMainMember);
-    uintptr_t manager=0,v=0;if(!at(memory_,region,0x950,manager,e)||!vt(memory_,image_,manager,0x17183c0,e))return false;
+    uintptr_t manager=0,v=0;if(!at(memory_,region,0x950,manager,e)||!vt(memory_,image_,manager,0x171e760,e))return false;
     if(!at(memory_,manager,0x450,v,e)||v!=shard)return fail(e,"remove_building_manager_shard");
     if(!at(memory_,manager,0x458,v,e)||v!=region)return fail(e,"remove_building_manager_region");
-    if(!vt(memory_,image_,manager+0x408,0x172d7c0,e))return false;
+    if(!vt(memory_,image_,manager+0x408,0x1733b60,e))return false;
     std::vector<uintptr_t> before,after;if(!list(memory_,manager,0x410,before,e))return false;
     if(std::find(before.begin(),before.end(),object)==before.end())return fail(e,"remove_building_absent_main_array");
     if(!list(memory_,manager,0x410,after,e)||before!=after)return fail(e,"remove_building_main_array_changed");return true;
 }
 bool Reader::region_member(const WorldState& world,uintptr_t shard,uintptr_t region,std::string& e){
-    if(!vt(memory_,image_,region,0x1787930,e)||!vt(memory_,image_,shard,0x174ad20,e))return false;
+    if(!vt(memory_,image_,region,0x178dcd0,e)||!vt(memory_,image_,shard,0x17510c0,e))return false;
     uintptr_t actual=0;if(!at(memory_,region,0x70,actual,e)||actual!=shard)return fail(e,"remove_region_shard_mismatch");
     auto root_region=[&](uintptr_t r){
         mt2mp::game::live_host_state::apply_timing::Scope measured(mt2mp::game::live_host_state::apply_timing::Part::WorldPropRootRegion);
         mt2mp::game::live_host_state::apply_timing::PageReadScope pages;
         std::vector<uintptr_t> a,b;if(!list(memory_,reinterpret_cast<uintptr_t>(world.origin.map),0x358,a,e))return false;
-        for(auto candidate:a){uintptr_t candidate_shard=0;if(!vt(memory_,image_,candidate,0x1787930,e)||!at(memory_,candidate,0x70,candidate_shard,e)||candidate_shard!=world.root)return fail(e,"remove_root_region_census_owner");}
+        for(auto candidate:a){uintptr_t candidate_shard=0;if(!vt(memory_,image_,candidate,0x178dcd0,e)||!at(memory_,candidate,0x70,candidate_shard,e)||candidate_shard!=world.root)return fail(e,"remove_root_region_census_owner");}
         if(std::find(a.begin(),a.end(),r)==a.end()){
             // Sale removes ownership, not the saved Region or its existing objects.
             mt2mp::game::region_saved_identity::Index saved;
@@ -153,27 +153,27 @@ bool Reader::region_member(const WorldState& world,uintptr_t shard,uintptr_t reg
     uintptr_t dungeon=0,instance=0;
     if(type==1){if(!at(memory_,shard,0x18,dungeon,e))return false;}
     else if(type==2){
-        if(!at(memory_,shard,0x20,instance,e)||!vt(memory_,image_,instance,0x1719450,e))return false;
-        uintptr_t found=0,casted=0;const auto seh=lookup(api_,image_,0,0x1657270,0x16650e0,instance,found,casted);
+        if(!at(memory_,shard,0x20,instance,e)||!vt(memory_,image_,instance,0x171f7f0,e))return false;
+        uintptr_t found=0,casted=0;const auto seh=lookup(api_,image_,0,0x165c850,0x1669da0,instance,found,casted);
         if(seh||casted!=instance)return fail(e,"remove_instance_rtti");
         if(!at(memory_,instance,0x38,actual,e)||actual!=shard)return fail(e,"remove_instance_shard");
         if(!at(memory_,instance,0x40,actual,e)||actual!=region)return fail(e,"remove_instance_region");
         if(!at(memory_,instance,0x30,dungeon,e))return false;
     }else return fail(e,"remove_shard_type_unsupported");
-    if(!vt(memory_,image_,dungeon,0x16c0560,e))return false;
-    uintptr_t found=0,casted=0;const auto seh=lookup(api_,image_,0,0x1673900,0x164e3d0,dungeon,found,casted);
+    if(!vt(memory_,image_,dungeon,0x16c6900,e))return false;
+    uintptr_t found=0,casted=0;const auto seh=lookup(api_,image_,0,0x1678ee0,0x16539b0,dungeon,found,casted);
     if(seh||casted!=dungeon)return fail(e,"remove_dungeon_rtti");
     uintptr_t template_shard=0,template_region=0;
     if(!at(memory_,dungeon,0x48,template_shard,e)||!at(memory_,dungeon,0x50,template_region,e))return false;
     if(type==1&&(template_shard!=shard||template_region!=region))return fail(e,"remove_dungeon_reverse_membership");
     if(type==2){int32_t template_type=-1;
-        if(!vt(memory_,image_,template_shard,0x174ad20,e)||!at(memory_,template_shard,0x48,template_type,e)||template_type!=1||!at(memory_,template_shard,0x18,actual,e)||actual!=dungeon)return fail(e,"remove_instance_template_membership");
+        if(!vt(memory_,image_,template_shard,0x17510c0,e)||!at(memory_,template_shard,0x48,template_type,e)||template_type!=1||!at(memory_,template_shard,0x18,actual,e)||actual!=dungeon)return fail(e,"remove_instance_template_membership");
         std::vector<uintptr_t> a,b;if(!list(memory_,dungeon,0x4c0,a,e)||std::find(a.begin(),a.end(),instance)==a.end())return fail(e,"remove_instance_absent_owner_array");
         if(!list(memory_,dungeon,0x4c0,b,e)||a!=b)return fail(e,"remove_instance_owner_array_changed");
     }
     uintptr_t exterior=0,exterior_region=0;uint64_t uid=0;
-    if(!at(memory_,dungeon,0x6f8,exterior,e)||!exterior||!at(memory_,exterior,0x18,uid,e)||!uid||!typed(exterior,uid,0x1655090,e))return false;
-    if(!vt(memory_,image_,exterior,0x16d93c0,e)||!at(memory_,exterior,0xa38,actual,e)||actual!=dungeon)return fail(e,"remove_exterior_reverse_dungeon");
+    if(!at(memory_,dungeon,0x6f8,exterior,e)||!exterior||!at(memory_,exterior,0x18,uid,e)||!uid||!typed(exterior,uid,0x165a670,e))return false;
+    if(!vt(memory_,image_,exterior,0x16df760,e)||!at(memory_,exterior,0xa38,actual,e)||actual!=dungeon)return fail(e,"remove_exterior_reverse_dungeon");
     uintptr_t label=0;uint64_t length=0;std::array<char,15> type_label{};
     if(!at(memory_,exterior,0x768,label,e)||!at(memory_,exterior,0x770,length,e)||length!=type_label.size()||!memory_.copy(label,type_label.data(),type_label.size(),e)||std::memcmp(type_label.data(),"DungeonExterior",type_label.size()))return fail(e,"remove_exterior_definition_not_DungeonExterior");
     if(!at(memory_,exterior,0x170,actual,e)||actual!=world.root||!at(memory_,exterior,0x178,exterior_region,e))return fail(e,"remove_exterior_not_root");
@@ -186,15 +186,15 @@ bool Reader::prop(void* receiver,uint64_t expected,mt2mp::prop_lease::Prop& out,
         const auto object=reinterpret_cast<uintptr_t>(receiver);uintptr_t ap=0,shard=0,region=0;uint64_t uid=0;
         if(!at(memory_,object,0,ap,e)||!at(memory_,object,0x18,uid,e)||!uid)return fail(e,"remove_prop_uid_unreadable_or_zero");
         if(expected&&expected!=uid)return fail(e,"remove_prop_expected_full_uid_mismatch");
-        const bool building=ap==image_+0x16d93c0,scenery=ap==image_+0x16c1390;
+        const bool building=ap==image_+0x16df760,scenery=ap==image_+0x16c7730;
         if(!building&&!scenery){e="remove_prop_class_membership_unimplemented image_rva="+std::to_string(ap>=image_?ap-image_:0);return false;}
-        if(!typed(object,uid,building?0x1655090:0x164e5c0,e)||!at(memory_,object,0x170,shard,e)||!at(memory_,object,0x178,region,e)||!region_member(before,shard,region,e))return false;
+        if(!typed(object,uid,building?0x165a670:0x1653ba0,e)||!at(memory_,object,0x170,shard,e)||!at(memory_,object,0x178,region,e)||!region_member(before,shard,region,e))return false;
         if(building){if(!main_member(object,shard,region,e))return false;}
         else {
             struct SceneryAdapter final:place::SceneryHost {Reader& owner;WorldState world;uintptr_t region,shard,manager;LookupApi api;uintptr_t image;
                 SceneryAdapter(Reader& o,const WorldState& w,uintptr_t r,uintptr_t s,uintptr_t m,LookupApi a,uintptr_t i):owner(o),world(w),region(r),shard(s),manager(m),api(a),image(i){}
                 bool current(place::SceneryContext& c,std::string& err)override{WorldState fresh;if(!owner.current(fresh,true,err)||!same_world(world.origin,fresh.origin))return fail(err,"remove_scenery_world_changed");c={world.origin.world_epoch,region,shard,manager,true,true,true};return true;}
-                bool registry_object(uint64_t id,uintptr_t& actual,std::string& err)override{uintptr_t casted=0;const auto code=lookup(api,image,id,0x1673900,0x164e5c0,0,actual,casted);if(code||actual!=casted)return fail(err,"remove_scenery_typed_registry");return true;}
+                bool registry_object(uint64_t id,uintptr_t& actual,std::string& err)override{uintptr_t casted=0;const auto code=lookup(api,image,id,0x1678ee0,0x1653ba0,0,actual,casted);if(code||actual!=casted)return fail(err,"remove_scenery_typed_registry");return true;}
             };
             uintptr_t manager=0;if(!at(memory_,region,0x960,manager,e))return false;
             SceneryAdapter host(*this,before,region,shard,manager,api_,image_);place::SceneryWitness witness;
@@ -202,7 +202,7 @@ bool Reader::prop(void* receiver,uint64_t expected,mt2mp::prop_lease::Prop& out,
             if(std::none_of(witness.members.begin(),witness.members.end(),[&](const auto& member){return member.object==object&&member.uid==uid;}))return fail(e,"remove_scenery_absent_manager_census");
         }
         uintptr_t final_ap=0,final_shard=0,final_region=0;
-        if(!typed(object,uid,building?0x1655090:0x164e5c0,e)||!at(memory_,object,0,final_ap,e)||final_ap!=ap||!at(memory_,object,0x170,final_shard,e)||final_shard!=shard||!at(memory_,object,0x178,final_region,e)||final_region!=region)return fail(e,"remove_prop_changed_during_read");
+        if(!typed(object,uid,building?0x165a670:0x1653ba0,e)||!at(memory_,object,0,final_ap,e)||final_ap!=ap||!at(memory_,object,0x170,final_shard,e)||final_shard!=shard||!at(memory_,object,0x178,final_region,e)||final_region!=region)return fail(e,"remove_prop_changed_during_read");
         if(!current(after,true,e)||!same_world(before.origin,after.origin))return fail(e,"remove_prop_world_changed");
         out={uid,receiver,true,true,ap,building?"Building/MainArray/globalRootOrDungeon":"Scenery/47CategoryCensus/globalRootOrDungeon"};return true;
     }catch(const std::exception& x){e=std::string("remove_prop_exception: ")+x.what();return false;}
@@ -245,12 +245,12 @@ bool Reader::saved_root_scenery_impl(void* receiver,uint64_t uid,int32_t region_
                 context={world.origin.world_epoch,region,world.root,manager,true,true,true};return true;
             }
             bool registry_object(uint64_t id,uintptr_t& actual,std::string& error)override{
-                uintptr_t casted=0;const auto exception=lookup(api,image,id,0x1673900,0x164e5c0,0,actual,casted);
+                uintptr_t casted=0;const auto exception=lookup(api,image,id,0x1678ee0,0x1653ba0,0,actual,casted);
                 if(exception){error="saved_scenery_lookup_SEH_"+std::to_string(exception);return false;}
                 return actual==casted||fail(error,"saved_scenery_typed_registry_differs");
             }
         } owner(read_current,before,region,manager,image_,api_);
-        auto exact=[&](uintptr_t object,uint64_t full,std::string& cause){return typed(object,full,0x164e5c0,cause);};
+        auto exact=[&](uintptr_t object,uint64_t full,std::string& cause){return typed(object,full,0x1653ba0,cause);};
         auto scan_index=[](uintptr_t image,uintptr_t map,uintptr_t root,mt2mp::game::region_saved_identity::Index& index,auto& read,std::string& cause){
             // Share only page metadata during this complete memory-only scan.
             // Original UID/RTTI calls and the Scenery census run after it closes.

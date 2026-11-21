@@ -138,7 +138,7 @@ bool enable(uintptr_t image,uint32_t main_thread,std::string& error) {
         uintptr_t actual_image=0;uint32_t actual_thread=0;std::string actual_hash;
         if(!native::read_resolver_receipt(actual_image,actual_thread,actual_hash,error)||
            actual_image!=image||actual_thread!=main_thread||
-           actual_hash!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6"){
+           actual_hash!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb"){
             if(error.empty())error="building history repeated enable owner differs";return false;
         }
         return bind_current_snapshot(*existing,error);
@@ -146,29 +146,29 @@ bool enable(uintptr_t image,uint32_t main_thread,std::string& error) {
     uintptr_t measured_image=0;uint32_t measured_thread=0;std::string measured;
     if(!native::read_resolver_receipt(measured_image,measured_thread,measured,error)||
        measured_image!=image||measured_thread!=main_thread||
-       measured!="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6") {
+       measured!="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb") {
         if(error.empty())error="building history resolver owner differs";return false;
     }
     host::ProcessMemory memory;
     constexpr std::array<uint8_t,32> undo_bytes={0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x68,0x0f,0xb6,0x41,0x3c,0x48,0x89,0xcb,0x84,0xc0,0x75,0x25,0x8b,0x51,0x18,0x85,0xd2};
     constexpr std::array<uint8_t,32> redo_bytes={0x41,0x57,0x41,0x56,0x41,0x55,0x41,0x54,0x55,0x57,0x56,0x53,0x48,0x83,0xec,0x78,0x0f,0xb6,0x41,0x3c,0x48,0x89,0xcb,0x84,0xc0,0x75,0x25,0x8b,0x49,0x30,0x85,0xc9};
-    if(!pinned_prologue(memory,image,0x53aef0,undo_bytes,error)||
-       !pinned_prologue(memory,image,0x53ab70,redo_bytes,error))return false;
+    if(!pinned_prologue(memory,image,0x541420,undo_bytes,error)||
+       !pinned_prologue(memory,image,0x5410a0,redo_bytes,error))return false;
     auto* runtime=new Runtime;runtime->image=image;runtime->thread=main_thread;
     if(!bind_current_snapshot(*runtime,error)){delete runtime;return false;}
-    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x53aef0),reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))) {
+    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x541420),reinterpret_cast<void*>(&undo_entry),reinterpret_cast<void**>(&runtime->undo))) {
         error="building history Undo CreateHook failed";delete runtime;return false;
     }
-    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x53ab70),reinterpret_cast<void*>(&redo_entry),reinterpret_cast<void**>(&runtime->redo))) {
-        MH_RemoveHook(reinterpret_cast<void*>(image+0x53aef0));
+    if(!hooks::create_hook(reinterpret_cast<void*>(image+0x5410a0),reinterpret_cast<void*>(&redo_entry),reinterpret_cast<void**>(&runtime->redo))) {
+        MH_RemoveHook(reinterpret_cast<void*>(image+0x541420));
         error="building history Redo CreateHook failed";delete runtime;return false;
     }
     published.store(runtime,std::memory_order_release);
-    for(const auto rva:{0x53aef0,0x53ab70}) {
+    for(const auto rva:{0x541420,0x5410a0}) {
         const auto result=MH_EnableHook(reinterpret_cast<void*>(image+rva));
         if(result!=MH_OK){
-            MH_DisableHook(reinterpret_cast<void*>(image+0x53aef0));
-            MH_DisableHook(reinterpret_cast<void*>(image+0x53ab70));
+            MH_DisableHook(reinterpret_cast<void*>(image+0x541420));
+            MH_DisableHook(reinterpret_cast<void*>(image+0x5410a0));
             error="building history EnableHook failed: "+std::string(MH_StatusToString(result));return false;
         }
     }
@@ -250,7 +250,7 @@ bool invoke_ui(const nlohmann::json& args,nlohmann::json& out,std::string& error
     }
     const auto calls=runtime->ui_calls,queued=runtime->ui_queued;
     uint32_t exception=0;
-    const bool native_result=call_original(reinterpret_cast<Original>(runtime->image+(direction=="undo"?0x53aef0:0x53ab70)),
+    const bool native_result=call_original(reinterpret_cast<Original>(runtime->image+(direction=="undo"?0x541420:0x5410a0)),
                                            reinterpret_cast<void*>(before.receiver),exception);
     if(exception||native_result||runtime->ui_calls!=calls+1||runtime->ui_queued!=queued+1||
        runtime->last_target_uuid!=args.at("target_action_uuid").get<std::string>()||

@@ -6,7 +6,7 @@ thread_local Local* observing_clearance=nullptr;
 thread_local const host::WorldState* observing_boundary=nullptr;
 bool raw_original_world(Runtime& r,const Local& value,host::WorldState& out,std::string& error){
     host::NativeOrigin origin;host::LookupApi api;
-    if(!host::resolve_lookup(r.memory.process,r.image,"bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6",api,error))return false;
+    if(!host::resolve_lookup(r.memory.process,r.image,"7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb",api,error))return false;
     host::Reader reader(r.memory.process,origin,r.image,r.thread,api);
     if(!reader.current(out,false,error))return false;
     const auto& before=value.sample.world;
@@ -84,7 +84,7 @@ void make_scenery_entry(void* node,void* object){
     const auto returned_to=uintptr_t(_ReturnAddress());
     original_make_scenery(node,object);
     auto* value=observing_clearance;auto* r=published.load(std::memory_order_acquire);
-    if(!value||!r||returned_to!=r->image+0x2cd390||!value->observation_error.empty())return;
+    if(!value||!r||returned_to!=r->image+0x2d0ab0||!value->observation_error.empty())return;
     try{
         host::WorldState boundary;
         if(observing_boundary||!raw_original_world(*r,*value,boundary,value->observation_error)){
@@ -102,10 +102,10 @@ void make_scenery_entry(void* node,void* object){
 bool enable_make_observer(Runtime& r,std::string& error){
     struct Code{uintptr_t rva;size_t size;const char* sha;};
     static const Code code[]{
-        {0x2cd1a0,848,"ad7f57957ab2e5101f6a517532a36da40d3825934ed8df00a08d30c7bab7d962"},
-        {0x559ee0,1248,"df811c53bfc8aad352a904f30d0053bc05906c5e21c0999b8cee485102b3e8b4"},
-        {0x4d05c0,2064,"98f0b2ee3d0dfdb58784835eba2297451cac87d0794284d34c38a40e8b4cdff1"},
-        {0x4ccd00,240,"8c165e9288e1e5d2ba7797cc10dac132f1c7a3fb8df095d061f31748e782b89b"}};
+        {0x2d08c0,848,"ac30e3eeb8b6524e460f2eef5d360f3fb48318125d6c107c2201d887004cc5a3"},
+        {0x560570,1248,"e19b4fcc7ed7824f49e904cd11633edcf8cb36b028b49c28a11932bedf9a7fa2"},
+        {0x4d6360,2124,"ea577391072c11d6c3379b0bced93f67181943f209a16dac0687f688fdf13800"},
+        {0x4d2a80,240,"91fe7db5f561e2c1356fe4e98045a6dde8bcdcd136732173bba4c9fb0cfd6811"}};
     for(const auto& body:code){std::vector<uint8_t> actual(body.size);
         if(!r.memory.read(r.image+body.rva,actual.data(),actual.size(),error)||
            !mt2mp::hooks::framework::verify_original_hash(r.image+body.rva,actual.data(),actual.size(),body.sha,error))return false;}
@@ -113,7 +113,7 @@ bool enable_make_observer(Runtime& r,std::string& error){
     if(make_observer_attempted)return q::fail(error,"Ordered clearance observer installation previously failed: "+make_observer_error);
     make_observer_attempted=true;
     struct Hook{uintptr_t rva;void* entry;void** original;};
-    const Hook hooks[]{{0x559ee0,reinterpret_cast<void*>(&make_scenery_entry),reinterpret_cast<void**>(&original_make_scenery)}};
+    const Hook hooks[]{{0x560570,reinterpret_cast<void*>(&make_scenery_entry),reinterpret_cast<void**>(&original_make_scenery)}};
     const auto created=MH_CreateHook(reinterpret_cast<void*>(r.image+hooks[0].rva),hooks[0].entry,hooks[0].original);
     if(created!=MH_OK||!original_make_scenery){error=make_observer_error="Ordered clearance MakeScenery hook create failed status="+std::to_string(created);return false;}
     if(!mt2mp::hooks::enable_prepared_routes(r.image,hooks,"Ordered clearance MakeScenery observer",error)){make_observer_error=error;return false;}
@@ -123,11 +123,11 @@ bool read_ordered_graph(Runtime& r,const Local& value,ordered_empty_clearance::R
     if(!value.original_completed||!value.observation_error.empty())return q::fail(error,value.observation_error.empty()?"Ordered clearance original window did not complete":value.observation_error);
     if(value.removed.empty())return ordered_empty_clearance::read(r.memory,r.image,value.graph,value.primary_uid,out,error);
     q::Bounds span;std::vector<action::DuplicateCash> cash;std::map<uintptr_t,uint64_t> made;
-    if(!q::typed(r.memory,r.image,value.graph+0x18,0x16e2dc0,error)||!q::bounds(r.memory,value.graph+0x18,100000,span,error))return false;
+    if(!q::typed(r.memory,r.image,value.graph+0x18,0x16e9160,error)||!q::bounds(r.memory,value.graph+0x18,100000,span,error))return false;
     for(int32_t i=0;i<span.count;++i){uintptr_t node=0,ap=0;
         if(!q::at(r.memory,span.data,size_t(i)*8,node,error)||!q::at(r.memory,node,0,ap,error))return false;
-        if(ap==r.image+0x1706590){uint64_t uid=0;if(!q::at(r.memory,node,0xb8,uid,error)||!made.emplace(node,uid).second)return q::fail(error,error.empty()?"Ordered clearance graph repeats Make node":error);}
-        else if(ap==r.image+0x1786fb0){action::DuplicateCash row;if(!q::at(r.memory,node,0xb8,row.amount,error)||!q::at(r.memory,node,0xbc,row.position,error))return false;cash.push_back(row);}
+        if(ap==r.image+0x170c930){uint64_t uid=0;if(!q::at(r.memory,node,0xb8,uid,error)||!made.emplace(node,uid).second)return q::fail(error,error.empty()?"Ordered clearance graph repeats Make node":error);}
+        else if(ap==r.image+0x178d350){action::DuplicateCash row;if(!q::at(r.memory,node,0xb8,row.amount,error)||!q::at(r.memory,node,0xbc,row.position,error))return false;cash.push_back(row);}
     }
     if(made!=value.observed_nodes)return q::fail(error,"Ordered clearance graph does not contain exactly the original observed MakeScenery nodes");
     duplicate_history::Graph proof;

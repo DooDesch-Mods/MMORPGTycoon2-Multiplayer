@@ -18,7 +18,7 @@ uint64_t captures=0,submitted=0,rejected=0;
 void reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[BossPhase] {}",error);}}
 uint32_t named_window(Runtime& r,uintptr_t& window){
     __try{const prop_text::Text label{"info_charactertype",18,{}};
-        window=reinterpret_cast<uintptr_t(*)(const prop_text::Text&)>(r.image+0x81aa90)(label);return 0;}
+        window=reinterpret_cast<uintptr_t(*)(const prop_text::Text&)>(r.image+0x823080)(label);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool live_list(Runtime& r,uintptr_t selected,uintptr_t& window,uintptr_t& list,std::string& e){
@@ -26,11 +26,11 @@ bool live_list(Runtime& r,uintptr_t selected,uintptr_t& window,uintptr_t& list,s
     if(!window)return true;
     auto at=[&](uintptr_t base,size_t offset,auto& value){return base&&base<=UINTPTR_MAX-offset&&r.memory.read(base+offset,&value,sizeof value,e);};
     uintptr_t ap=0,view=0,owner=0,phases=0;int32_t queued=0;
-    if(!at(window,0,ap)||ap!=r.image+0x173a7f0||!at(window,0x4e8,view)||!at(view,0,ap)||ap!=r.image+0x1736770||!at(view,0x460,owner)){
+    if(!at(window,0,ap)||ap!=r.image+0x1740b90||!at(window,0x4e8,view)||!at(view,0,ap)||ap!=r.image+0x173cb10||!at(view,0x460,owner)){
         if(e.empty())e="Boss phase native Character Window/View class differs";return false;}
     if(owner!=selected)return true;
-    if(!at(view,0x3c8,phases)||!at(phases,0,ap)||ap!=r.image+0x1712800||!at(phases,0x318,owner)||owner!=selected||
-       !at(phases,0x320,list)||!list||!at(list,0,ap)||ap!=r.image+0x1721a00||!at(list,0x318,owner)||owner!=selected||!at(list,0x348,queued)||queued!=0){
+    if(!at(view,0x3c8,phases)||!at(phases,0,ap)||ap!=r.image+0x1718ba0||!at(phases,0x318,owner)||owner!=selected||
+       !at(phases,0x320,list)||!list||!at(list,0,ap)||ap!=r.image+0x1727da0||!at(list,0x318,owner)||owner!=selected||!at(list,0x348,queued)||queued!=0){
         if(e.empty())e="Boss phase selected native PhaseView/List owner differs";return false;}
     return true;
 }
@@ -41,8 +41,8 @@ bool sample(Runtime& r,const action::Binding& binding,const std::string& snapsho
         if(!base||base>UINTPTR_MAX-offset){error="Boss phase address invalid";return false;}return r.memory.read(base+offset,&value,sizeof value,error);};
     auto text=[&](uintptr_t address,std::string& value,std::string& error){return prop_text::text(r,address,value,error);};
     uintptr_t owned=0,ap=0,random=0,release_manager=0,release=0,color=0;int32_t count=0;
-    if(!read(r.image,0x13df7a0,out.manager,e)||!read(uintptr_t(out.world.origin.state),0x168,owned,e)||owned!=out.manager||
-       !read(out.manager,0,ap,e)||ap!=r.image+0x1732430||
+    if(!read(r.image,0x13eb7a0,out.manager,e)||!read(uintptr_t(out.world.origin.state),0x168,owned,e)||owned!=out.manager||
+       !read(out.manager,0,ap,e)||ap!=r.image+0x17387d0||
        !boss_phase_reader::array(read,out.manager,0x170,out.data,count,out.capacity,e)){
         if(e.empty())e="Boss phase current Character manager/Boss collection differs";return false;}
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;
@@ -55,10 +55,10 @@ bool sample(Runtime& r,const action::Binding& binding,const std::string& snapsho
     if(!boss_phase_reader::array(read,out.manager,0x170,after_data,after_count,after_capacity,e)||
        after_data!=out.data||after_count!=count||after_capacity!=out.capacity||
        !ledger(out.money,e)||!witness::read_undo(r.memory.process,r.image,out.undo,e)||out.undo.active_graph||
-       !read(r.image,0x164b250,random,e)||!read(random,0,out.random,e)||
-       !read(r.image,0x13df4f0,release_manager,e)||!read(release_manager,0,ap,e)||ap!=r.image+0x1714ed0||
-       !read(release_manager,0x38,release,e)||!read(release,0,ap,e)||ap!=r.image+0x16c12b0||
-       !read(release,0x120,out.value.release_edits,e)||!read(r.image,0x164c5c0,color,e)||!read(color,0,out.value.default_color,e)){
+       !read(r.image,0x1650830,random,e)||!read(random,0,out.random,e)||
+       !read(r.image,0x13eb4f0,release_manager,e)||!read(release_manager,0,ap,e)||ap!=r.image+0x171b270||
+       !read(release_manager,0x38,release,e)||!read(release,0,ap,e)||ap!=r.image+0x16c7650||
+       !read(release,0x120,out.value.release_edits,e)||!read(r.image,0x1651ba0,color,e)||!read(color,0,out.value.default_color,e)){
         if(e.empty())e="Boss phase collection/Undo/RNG/release ownership differs";return false;}
     host::WorldState after;if(!world(r,after,e)||!host::same_world(out.world.origin,after.origin)){
         if(e.empty())e="Boss phase World changed during census";return false;}return true;
@@ -99,7 +99,7 @@ bool capture(Runtime& r,uintptr_t object,uintptr_t phase,int32_t boundary,std::s
 #include "boss_phase_property_runtime.inc"
 void entry(void* object,void* phase,int32_t boundary){
     auto* r=published.load(std::memory_order_acquire);
-    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x696aa3){original(object,phase,boundary);return;}
+    if(!net::session_wire::connected()||!r||uintptr_t(_ReturnAddress())!=r->image+0x69dcf3){original(object,phase,boundary);return;}
     try{std::string error;if(!capture(*r,uintptr_t(object),uintptr_t(phase),boundary,error))reject(error);}
     catch(const std::exception& x){reject(std::string("Boss phase capture: ")+x.what());}
 }
@@ -114,29 +114,29 @@ uint32_t invoke(const boss_phase_reader::LocalType& owner,const action::BossPhas
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t refresh(Runtime& r,uintptr_t window,uintptr_t list){
-    __try{reinterpret_cast<void(*)(void*)>(r.image+0x696970)(reinterpret_cast<void*>(list));
-        reinterpret_cast<void(*)(void*)>(r.image+0x81a330)(reinterpret_cast<void*>(window));return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(r.image+0x69dbc0)(reinterpret_cast<void*>(list));
+        reinterpret_cast<void(*)(void*)>(r.image+0x822920)(reinterpret_cast<void*>(window));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 }
 bool enable(std::string& e){
     if(installed)return true;if(install_attempted){e="Boss phase previous hook failure: "+install_cause;return false;}install_attempted=true;
     auto* r=published.load(std::memory_order_acquire);if(!r||GetCurrentThreadId()!=r->thread){e=install_cause="Boss phase requires bound Mainthread";return false;}
-    auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x93900),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
+    auto result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x945f0),reinterpret_cast<void*>(&entry),reinterpret_cast<void**>(&original));
     if(result!=MH_OK||!original){e=install_cause="Boss phase hook create status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x93900));
+    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x945f0));
     if(result!=MH_OK){e=install_cause="Boss phase hook enable status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x698960),reinterpret_cast<void*>(&property_entry),reinterpret_cast<void**>(&original_command));
+    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x69fbb0),reinterpret_cast<void*>(&property_entry),reinterpret_cast<void**>(&original_command));
     if(result!=MH_OK||!original_command){e=install_cause="Boss phase command hook create status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x698960));
+    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x69fbb0));
     if(result!=MH_OK){e=install_cause="Boss phase command hook enable status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x697bf0),reinterpret_cast<void*>(&menu_entry),reinterpret_cast<void**>(&original_menu));
+    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x69ee40),reinterpret_cast<void*>(&menu_entry),reinterpret_cast<void**>(&original_menu));
     if(result!=MH_OK||!original_menu){e=install_cause="Boss phase menu hook create status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x697bf0));
+    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x69ee40));
     if(result!=MH_OK){e=install_cause="Boss phase menu hook enable status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x6961b0),reinterpret_cast<void*>(&create_entry),reinterpret_cast<void**>(&original_create));
+    result=MH_CreateHook(reinterpret_cast<void*>(r->image+0x69d400),reinterpret_cast<void*>(&create_entry),reinterpret_cast<void**>(&original_create));
     if(result!=MH_OK||!original_create){e=install_cause="Boss phase create hook status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
-    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x6961b0));
+    result=MH_EnableHook(reinterpret_cast<void*>(r->image+0x69d400));
     if(result!=MH_OK){e=install_cause="Boss phase create hook enable status="+std::to_string(result)+" "+mt2mp::hooks::framework::process_backend().error();return false;}
     installed=true;return true;
 }

@@ -18,7 +18,7 @@ template<class Memory,class Text,class Fluff,class Record,class Theme,class Mode
 bool live(Memory& memory,uintptr_t image,uintptr_t building,Text&& text,Fluff&& fluff,Record&& record,
           Theme&& theme,Model&& model,Find&& find,Saved& out,std::string& e){
     out={};uintptr_t actual=0,layout=0,plan=0,bugs=0,parent=0;uint8_t art=0;
-    if(!q::typed(memory,image,building,0x16d93c0,e)||!q::at(memory,building,0x18,out.uid,e)||!out.uid||
+    if(!q::typed(memory,image,building,0x16df760,e)||!q::at(memory,building,0x18,out.uid,e)||!out.uid||
        !find(out.uid,actual,e)||actual!=building||!q::at(memory,building,0xcba,art,e)||art>1||
        !q::at(memory,building,0x7d0,layout,e)||!q::at(memory,building,0x170,out.root,e)||!out.root||
        !q::at(memory,building,0x100,out.transform,e)||!q::at(memory,building,0x7a8,out.state,e)||
@@ -53,13 +53,13 @@ bool inverse(Memory& memory,uintptr_t image,uintptr_t node,const Saved& expected
     if(!q::at(memory,node,0,ap,e))return false;
     size_t name=0,fluff=0,state=0,user_set=0,type=0,variant=0,root=0,transform=0;
     uintptr_t required_method=0;
-    if(ap==image+0x1723270){value.form=Form::Art;required_method=0x548b00;
+    if(ap==image+0x1729610){value.form=Form::Art;required_method=0x54f0e0;
         name=0xc0;fluff=0xe0;state=0x118;user_set=0x11c;root=0x128;transform=0x130;
         if(!q::at(memory,node,0x120,value.model,e)||!value.model)return q::fail(e,e.empty()?"Duplicate Art inverse original model absent":e);
-    }else if(ap==image+0x173c5b0){value.form=Form::Functional;required_method=0x548c70;
+    }else if(ap==image+0x1742950){value.form=Form::Functional;required_method=0x54f250;
         name=0xc8;fluff=0xe8;state=0x120;user_set=0x124;type=0x128;variant=0x148;root=0x168;transform=0x170;
         if(!q::at(memory,node,0xc0,value.parent_uid,e)||!q::at(memory,node,0x1e0,value.dungeon,e)||!q::at(memory,node,0x1e8,bugs,e))return false;
-    }else if(ap==image+0x1737870){value.form=Form::Modular;required_method=0x5491d0;
+    }else if(ap==image+0x173dc10){value.form=Form::Modular;required_method=0x54f7b0;
         name=0xc0;fluff=0xe0;state=0x118;user_set=0x11c;type=0x120;variant=0x140;root=0x198;transform=0x1a0;
         if(!text(node+0x160,value.theme,e)||!q::at(memory,node,0x180,layout,e)||!layout||
            !q::at(memory,node,0x188,plan,e)||!plan||!q::at(memory,node,0x190,bugs,e))

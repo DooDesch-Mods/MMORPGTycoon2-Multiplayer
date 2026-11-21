@@ -9,26 +9,26 @@ bool fail(std::string& error,const std::string& cause){error=cause;return false;
 bool code(const JobRead& read,uintptr_t image,uintptr_t& bug_property,uintptr_t& job_property,std::string& error){
     struct Body{uintptr_t rva;size_t size;const char* sha;};
     static constexpr Body bodies[]={
-        {0xa02670,80,"75d24a585d71fb3cf549ddf13f41901b6747711875a65117b5d369802ed7e9ae"},
-        {0x281020,208,"0820768383104f64f770ca7cee85683920ff514477865c0bc8116f7d9f417ebf"},
-        {0x280fb0,112,"300d68a6f08e92f813f444499efbda30ec470e4be71523bf4e5dfaf288fb1176"},
-        {0x281610,64,"5ed42afc114ca4de0bea0e08119a69d4c50e2af22d45939851362cb6e08214d1"},
-        {0xb5ab50,416,"fa2b4911d321b08e26a95950e64aec2ff5748970561f6f81927f78a9744361b6"},
-        {0xc2e810,176,"9aa893e96fc125d33f182e51dd1ff11ec5164ed30cbd1cd62c2765da01cb20e2"},
-        {0xa91670,8,"a2cd879c472cf43a9bb3204f150fa4150c59a714d744434fb224bfb9ececb038"},
-        {0xe02e90,64,"62fa9aaa8849cf0dcaa6e149b8bbebb2727db5b6cc8acf808ef80e1e20490f39"},
-        {0xe02fa0,64,"1afb9692621ddb3a35c56e78fff475f503b28ac814924e63e14e8facc269f3ee"},
-        {0xe02760,64,"ef71c974c887f5242c2be9efa26f4aff8b09b44145257d36f4f4926e8db37a1c"},
-        {0xe02920,64,"51b322812fd3011f3f73238b21b23cff6d128b26eea6799ac5250cac62069983"},
-        {0x967370,416,"2a6e4111f91e2c3cecb2aa35b99ed8d71f22a75f8300694f7d9ba6b086c01daa"},
-        {0x9676a0,160,"33000088d5ae9e353738b283b76f13a641243aa996c7952714c57d6a07cc170f"},
-        {0x1113d80,272,"dee54a7232d3aef27b73436213be00e802ba3cb997d4fb09a5f41f38468fafcc"}};
-    for(const auto& body:bodies){if(body.rva==0xc2e810){if(!verify_job_destructor(error))return false;continue;}std::vector<unsigned char> bytes(body.size);
+        {0xa0d230,80,"e3400b04edc50cf40ee2588351ceb97aa7fce3cdbb30b720dbdfe7a1b05dfb35"},
+        {0x284380,208,"26508ff85204012c520a34af5cf7fea16c6b658ed3ad41739e6bc7cfd5080e33"},
+        {0x284310,112,"d8e83c99b624c2cd66d55ae10b9021efb534860323fd01dadaa016d9a854c691"},
+        {0x284970,64,"5ed42afc114ca4de0bea0e08119a69d4c50e2af22d45939851362cb6e08214d1"},
+        {0xb673b0,416,"f65ab23d735730eb8fde8cd05eef9ba71efb8ceee03ce4fdeb34cc940924fe45"},
+        {0xc3b0c0,176,"c5e73e7399872d8d858a358992b94e179c6f770d20cf791ea9193e22ad912988"},
+        {0xa9c7b0,8,"0120f2ac7097c33adb611d188e7ecbd01622b154e7f666290fc938cdadc4d5c5"},
+        {0xe0e7a0,64,"1d77c51fe3bb8558fa51a2e3ceac6fd897d7576f0e6fb0683d1f0146935245c6"},
+        {0xe0e8b0,64,"d1ee32c47b795b614220e7a63b5353cbfdadff8b4ffc5486177f3455ae0d8350"},
+        {0xe0e070,64,"f714444f5fd1dd1d4cd9691159974cbfaf5d2e60a844ca221ac9bfb3ab89d398"},
+        {0xe0e230,64,"427e86f6018b8049f0a466687c658f57649edeb62f4470907f8f0c7d79891f2a"},
+        {0x970590,416,"708dc9f67619c74b41ea34856237e98209b298b0cc72613a4cf3b729999a5976"},
+        {0x9708c0,160,"182327238cd9e4972b16d4d21ec53c523fce5ef393eda38318e12cc9eb727642"},
+        {0x111f720,272,"646ae2ceb1adbb4b88d9e72b93f1c5cb83b4eda2a7e81c23c411c2aec65ee3d2"}};
+    for(const auto& body:bodies){if(body.rva==0xc3b0c0){if(!verify_job_destructor(error))return false;continue;}std::vector<unsigned char> bytes(body.size);
         if(!read(image+body.rva,bytes.data(),bytes.size(),error))return false;
         if(mt2mp::sha256(bytes)!=body.sha)return fail(error,"Bug Job original complete body differs RVA="+std::to_string(body.rva));}
-    if(!read(image+0x1a2c4e0,&bug_property,8,error)||!read(image+0x1a30a30,&job_property,8,error))return false;
+    if(!read(image+0x1a334e0,&bug_property,8,error)||!read(image+0x1a37a30,&job_property,8,error))return false;
     struct Property{uintptr_t object,ap,offset;};
-    const Property properties[]={{bug_property,0x1728fd0,0x48},{job_property,0x1728ef0,0x38}};
+    const Property properties[]={{bug_property,0x172f370,0x48},{job_property,0x172f290,0x38}};
     for(const auto& property:properties){uintptr_t ap=0,offset=0;
         if(!property.object||property.object>UINTPTR_MAX-0x40)return fail(error,"Bug Job property pointer absent/overflow");
         if(!read(property.object,&ap,8,error)||!read(property.object+0x38,&offset,8,error))return false;

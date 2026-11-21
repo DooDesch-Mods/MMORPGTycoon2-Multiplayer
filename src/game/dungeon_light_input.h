@@ -13,7 +13,7 @@ template<class Read>bool read(Read& at,uintptr_t image,uintptr_t window,action_s
         if(!at(window,offset,object,error))return false;
         if(!object||!pointers.insert(object).second){error="Dungeon light actual native input widget pointer/uniqueness differs";return false;}
         if(!at(object,0,ap,error))return false;
-        if(ap!=image+(group==0?0x16c1720:group==1?0x1787a30:0x17224a0)){error="Dungeon light actual native input widget address point differs";return false;}
+        if(ap!=image+(group==0?0x16c7ac0:group==1?0x178ddd0:0x1728840)){error="Dungeon light actual native input widget address point differs";return false;}
         if(group==2){if(!at(object,0x370,binding,error))return false;if(binding){error="Dungeon light ColorSwatchPicker has a gameplay value binding";return false;}widgets.colors[i]=object;
             if(!at(object,0x2c8,out.colors[i],error))return false;for(float x:out.colors[i])if(!std::isfinite(x)){error="Dungeon light native input color is non-finite";return false;}}
         else {const auto b0=group==0?0x428:0x420,b1=group==0?0x430:0x428;

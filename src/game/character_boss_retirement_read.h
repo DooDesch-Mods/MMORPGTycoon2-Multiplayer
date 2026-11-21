@@ -26,17 +26,17 @@ bool census(uintptr_t image,uintptr_t root,uintptr_t region,Read& read,Find& fin
     if(!root||!region)return fail(error,"Character Boss root or Region is absent");
     if(!read(region,0x70,actual_root,error)||!read(region,0x990,value.manager,error)||
        !read(value.manager,0,ap,error))return false;
-    if(actual_root!=root||ap!=image+0x16fa780)return fail(error,"Character Boss Region/manager class differs");
+    if(actual_root!=root||ap!=image+0x1700b20)return fail(error,"Character Boss Region/manager class differs");
     if(!read(value.manager,0x68,actual_region,error)||!read(value.manager+0x38,0,ap,error)||
        !read(value.manager,0x40,data,error)||!read(value.manager,0x48,count,error)||!read(value.manager,0x4c,capacity,error))return false;
-    if(actual_region!=region||ap!=image+0x172dfa0||count<0||count>100000||capacity<count||
+    if(actual_region!=region||ap!=image+0x1734340||count<0||count>100000||capacity<count||
        (count&&(!data||data>UINTPTR_MAX-size_t(count)*8)))return fail(error,"Character Boss complete manager ownership/span differs");
     std::set<uintptr_t> pointers;std::set<uint64_t> uids;
     for(int32_t i=0;i<count;++i){Member row;uintptr_t found=0,notify=0;
         if(!read(data,size_t(i)*8,row.pointer,error)||!read(row.pointer,0,ap,error)||
            !read(row.pointer,0x18,row.uid,error)||!read(row.pointer,0x170,actual_root,error)||
            !read(row.pointer,0x178,actual_region,error)||!read(ap,0x438,notify,error)||!find(row.uid,found,error))return false;
-        if(!row.pointer||!row.uid||ap!=image+0x1743040||notify!=image+0x3976f0||actual_root!=root||
+        if(!row.pointer||!row.uid||ap!=image+0x17493e0||notify!=image+0x39c1f0||actual_root!=root||
            actual_region!=region||found!=row.pointer||!pointers.insert(row.pointer).second||!uids.insert(row.uid).second)
             return fail(error,"Character Boss member class/full UID/Notify/reciprocal owner differs");
         value.members.push_back(row);

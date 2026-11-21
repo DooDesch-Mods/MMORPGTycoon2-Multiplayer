@@ -4,7 +4,7 @@
 #include <string>
 
 namespace mt2mp::game::tutorial_replication::start_intent {
-inline constexpr uintptr_t pay_rva=0x262ec0,ui_return_rva=0x6c7e02;
+inline constexpr uintptr_t pay_rva=0x265fc0,ui_return_rva=0x6cf222;
 enum class Route {Original,ClientIntent};
 inline Route route(bool joined_client,bool main_thread,uintptr_t image,uintptr_t return_address){
     return joined_client&&main_thread&&image&&image<=UINTPTR_MAX-ui_return_rva&&return_address==image+ui_return_rva?

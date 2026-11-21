@@ -20,7 +20,7 @@
 namespace mt2mp::game::dungeon_instance_native {
 namespace {
 namespace life=dungeon_instance_lifecycle;
-constexpr const char* executable="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* executable="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 struct Memory final:subscriber_lifecycle::Memory {
     bool read(uintptr_t p,void* out,size_t bytes,std::string& error)override{
         if(!p||bytes>UINTPTR_MAX-p)return life::fail(error,"native read span invalid");
@@ -92,16 +92,16 @@ bool typed(uintptr_t p,uintptr_t ap,std::string& error){uintptr_t actual=0;
     return memory.at(p,0,actual,error)&&(actual==image+ap||life::fail(error,"native owner addresspoint differs"));}
 bool owns(const Bound& current,uintptr_t dungeon,std::string& error){
     uintptr_t exterior=0,root=0,reverse=0;uint64_t uid=0;
-    if(!typed(dungeon,0x16c0560,error)||!memory.at(dungeon,0x6f8,exterior,error)||
+    if(!typed(dungeon,0x16c6900,error)||!memory.at(dungeon,0x6f8,exterior,error)||
        !memory.at(exterior,0x170,root,error))return false;
     if(root!=uintptr_t(current.world.map)+0x1c0){error.clear();return false;}
-    if(!typed(exterior,0x16d93c0,error)||!memory.at(exterior,0xa38,reverse,error)||!memory.at(exterior,0x18,uid,error))return false;
+    if(!typed(exterior,0x16df760,error)||!memory.at(exterior,0xa38,reverse,error)||!memory.at(exterior,0x18,uid,error))return false;
     return (reverse==dungeon&&uid)||life::fail(error,"bound raw receiver lost its reciprocal exterior/full UID");
 }
 bool pool(uintptr_t dungeon,guard::Pool& out,std::string& error){
     out={};out.dungeon=dungeon;
-    if(!typed(dungeon,0x16c0560,error)||!memory.at(dungeon,0x18,out.dungeon_uid,error)||
-       !memory.at(dungeon,0x6f8,out.exterior,error)||!typed(out.exterior,0x16d93c0,error)||
+    if(!typed(dungeon,0x16c6900,error)||!memory.at(dungeon,0x18,out.dungeon_uid,error)||
+       !memory.at(dungeon,0x6f8,out.exterior,error)||!typed(out.exterior,0x16df760,error)||
        !memory.at(out.exterior,0x18,out.exterior_uid,error)||!memory.at(out.exterior,0x170,out.root,error)||
        !memory.at(dungeon,0x414,out.counter,error))return false;
     uintptr_t reverse=0;if(!memory.at(out.exterior,0xa38,reverse,error))return false;
@@ -116,7 +116,7 @@ bool pool(uintptr_t dungeon,guard::Pool& out,std::string& error){
     if(array.count>1000000)return life::fail(error,"raw actual Instance array exceeds saved roster bound");
     std::set<int32_t> ids;
     for(uintptr_t instance:array.members){life::Member row;row.instance=instance;uintptr_t owner=0;
-        if(!typed(instance,0x1719450,error)||!memory.at(instance,0x18,row.index,error)||!memory.at(instance,0x30,owner,error)||
+        if(!typed(instance,0x171f7f0,error)||!memory.at(instance,0x18,row.index,error)||!memory.at(instance,0x30,owner,error)||
            !memory.at(instance,0x38,row.shard,error)||!memory.at(instance,0x40,row.region,error))return false;
         if(owner!=dungeon||row.index<0||!ids.insert(row.index).second||!row.shard||!row.region)
             return life::fail(error,"raw actual Instance index/owner differs");
@@ -170,13 +170,13 @@ bool store(uintptr_t p,size_t offset,const void* before,const void* after,size_t
 }
 bool camera_before(uintptr_t dungeon,ReplayMake& camera,std::string& error){
     camera.dungeon=dungeon;
-    if(!memory.at(image,0x13df440,camera.manager,error)||!typed(camera.manager,0x1702b00,error)||
+    if(!memory.at(image,0x13eb440,camera.manager,error)||!typed(camera.manager,0x1708ea0,error)||
        !memory.at(camera.manager,0x60,camera.active_shard,error)||!memory.at(dungeon,0x818,camera.displayed_shard,error))return false;
     return camera.active_shard!=0||life::fail(error,"replay Make has no original active camera Shard");
 }
 bool camera_after(const ReplayMake& camera,uintptr_t born,std::string& error){
     uintptr_t manager=0,active=0,displayed=0,shard=0;
-    if(!memory.at(image,0x13df440,manager,error)||!memory.at(camera.manager,0x60,active,error)||
+    if(!memory.at(image,0x13eb440,manager,error)||!memory.at(camera.manager,0x60,active,error)||
        !memory.at(camera.dungeon,0x818,displayed,error)||!memory.at(born,0x38,shard,error))return false;
     if(manager!=camera.manager||active!=camera.active_shard)return life::fail(error,"replay Make changed original ShardManager camera");
     bool restore=false;

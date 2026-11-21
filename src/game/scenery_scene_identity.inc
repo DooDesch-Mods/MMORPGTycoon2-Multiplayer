@@ -7,7 +7,7 @@ bool registered(const std::string& snapshot,const std::string& key,uint64_t uid)
     const auto found=registry.find(registry_id(snapshot,key));
     return found!=registry.end()&&found->second.generation==registry_generation&&found->second.snapshot==snapshot&&
         found->second.uid==uid&&!found->second.unknown&&!found->second.scene_owner.empty()&&found->second.scene_owner!="retired"&&found->second.scene_owner!="world"&&
-        found->second.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+0x16c1390;
+        found->second.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+0x16c7730;
 }
 bool prepare_saved(const dungeon_scene_identity_runtime::Census& census,const scenery_scene_snapshot_alias::Manifest& aliases,std::string& error,bool publish){
     if(!census.snapshot_census||!aliases.present||!scenery_scene_snapshot_alias::valid(aliases,census.world.sha256,error)){
@@ -32,7 +32,7 @@ bool capture_saved(const dungeon_scene_identity_runtime::Census& census,scenery_
     out={};if(!census.snapshot_census){error="Scene Scenery alias capture requires its exact original snapshot census";return false;}
     scenery_scene_snapshot_alias::Manifest next;next.present=true;next.root_present=true;const auto snapshot=net::current_snapshot_id();
     const prop_lease::World world{census.world.world_epoch,census.world.generation,census.world.world,census.world.map};
-    const auto ap=uintptr_t(GetModuleHandleW(nullptr))+0x16c1390;
+    const auto ap=uintptr_t(GetModuleHandleW(nullptr))+0x16c7730;
     bool root_initialized=false,scene_initialized=false;size_t alive=0,matched=0;
     if(saved_admission&&saved_admission->consumed&&saved_admission->world.uuid==snapshot&&
        prop_lease::World{saved_admission->world.world_epoch,saved_admission->world.generation,saved_admission->world.world,saved_admission->world.map}==world)
@@ -83,7 +83,7 @@ bool append_saved(json& list,std::string& error){
     // Old same-world Scenery entries must not compete with the newly admitted UID.
     for(auto& [id,entry]:after){(void)id;
         if(entry.generation==registry_generation&&entry.world==world&&entry.snapshot!=saved.world.uuid&&
-           entry.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+0x16c1390)entry.revoked=true;
+           entry.class_addresspoint==uintptr_t(GetModuleHandleW(nullptr))+0x16c7730)entry.revoked=true;
     }
     for(const auto& row:saved.rows){const auto alias=std::find_if(saved.aliases.rows.begin(),saved.aliases.rows.end(),[&](const auto& entry){return entry.record==row.record;});
         if(alias==saved.aliases.rows.end()){error="Scene Scenery pending saved alias disappeared";return false;}
@@ -93,7 +93,7 @@ bool append_saved(json& list,std::string& error){
         native::BuildingState value;if(!scenery_kiss::read_action_prop(row.uid,value,error))return false;
         const auto id=registry_id(saved.world.uuid,alias->key);if(after.contains(id)||counter==UINT64_MAX){error="Scene Scenery saved alias is reused or entry counter exhausted";return false;}
         Bound fresh;fresh.snapshot=saved.world.uuid;fresh.key=alias->key;fresh.sha=saved.world.sha256;fresh.uid=row.uid;fresh.entry=++counter;fresh.generation=registry_generation;
-        fresh.world=world;fresh.metadata=building_metadata(value);fresh.object=row.object;fresh.class_addresspoint=uintptr_t(GetModuleHandleW(nullptr))+0x16c1390;fresh.scene_owner=row.scene;if(row.scene=="world")fresh.scene_record=row.record;fresh.scene_manager=row.manager;fresh.scene_shard=row.shard;fresh.scene_region=row.region;
+        fresh.world=world;fresh.metadata=building_metadata(value);fresh.object=row.object;fresh.class_addresspoint=uintptr_t(GetModuleHandleW(nullptr))+0x16c7730;fresh.scene_owner=row.scene;if(row.scene=="world")fresh.scene_record=row.record;fresh.scene_manager=row.manager;fresh.scene_shard=row.shard;fresh.scene_region=row.region;
         after.emplace(id,std::move(fresh));
     }
     for(const auto& key:saved.aliases.retired){const auto id=registry_id(saved.world.uuid,key);if(after.contains(id)||counter==UINT64_MAX){error="Scene Scenery retired saved alias is reused or entry counter exhausted";return false;}
@@ -134,7 +134,7 @@ bool resolve(const dungeon_scene_identity_runtime::World& expected,uintptr_t obj
         if(entry.generation!=registry_generation||entry.snapshot!=net::current_snapshot_id()||entry.world!=lifetime||entry.uid!=uid||entry.revoked||entry.unknown)continue;
         if(matched){error="Scene Scenery full UID has multiple canonical aliases";return false;}matched=&entry;
     }
-    if(!matched||!scenery_scene_key::valid(matched->key)||matched->scene_owner!=row.scene||matched->scene_manager!=row.manager||matched->scene_shard!=row.shard||matched->scene_region!=row.region||matched->object!=object||matched->class_addresspoint!=uintptr_t(GetModuleHandleW(nullptr))+0x16c1390){
+    if(!matched||!scenery_scene_key::valid(matched->key)||matched->scene_owner!=row.scene||matched->scene_manager!=row.manager||matched->scene_shard!=row.shard||matched->scene_region!=row.region||matched->object!=object||matched->class_addresspoint!=uintptr_t(GetModuleHandleW(nullptr))+0x16c7730){
         error="Scene Scenery exact current unrevoked canonical alias is unavailable";return false;}
     key=matched->key;error.clear();return true;
 }

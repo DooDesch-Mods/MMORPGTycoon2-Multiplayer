@@ -27,20 +27,20 @@ int main()try{
     constexpr uintptr_t service=0x91000,building=0x94000,destination=0x96000,node=0xa0000;
     sh::Daily daily;daily.entries={5,7};daily.history={3,6,9};daily.words={4,22,100,10,8,2};daily.warning=1;
     auto put_daily=[&](f::Memory& memory,uintptr_t pointer,const sh::Daily& value,int32_t extra_capacity){
-        memory.put(pointer,f::image+0x16e4710);
+        memory.put(pointer,f::image+0x16eaab0);
         for(size_t i=0;i<2;++i){const auto offset=i?size_t(0x40):size_t(0x28);const auto& values=i?value.history:value.entries;
             const auto data=pointer+0x8000+i*0x1000;memory.put(pointer+offset,data);memory.put(pointer+offset+8,int32_t(values.size()));
             memory.put(pointer+offset+12,int32_t(values.size())+extra_capacity);
             for(size_t j=0;j<values.size();++j)memory.put(data+j*4,values[j]);}
         memory.put(pointer+0x50,value.words);memory.put(pointer+0x68,value.warning);
     };
-    auto fixture=[&](){f::Memory memory;memory.put(service,f::image+0x1718480);memory.put(service+0x18,uint64_t(91));
+    auto fixture=[&](){f::Memory memory;memory.put(service,f::image+0x171e820);memory.put(service+0x18,uint64_t(91));
         memory.put(service+0x148,building);memory.put(building+0x18,uint64_t(94));memory.put(destination+0x18,uint64_t(96));
         memory.put(service+0x20,int32_t(2));memory.put(service+0x48,std::array<uint8_t,3>{1,0,1});memory.put(service+0x130,destination);
-        memory.put(service+0x28,f::image+0x174ab50);memory.put(service+0x40,std::array<int32_t,2>{0,25});
+        memory.put(service+0x28,f::image+0x1750ef0);memory.put(service+0x40,std::array<int32_t,2>{0,25});
         put_daily(memory,service+0x50,daily,4);put_daily(memory,service+0xc0,daily,6);
-        memory.put(node,f::image+0x1737830);memory.put(f::image+0x1737830+0x10,f::image+0x547370);
-        memory.put(node+0xb8,uint64_t(91));memory.put(node+0xc0,int32_t(2));memory.put(node+0xc8,f::image+0x174ab50);
+        memory.put(node,f::image+0x173dbd0);memory.put(f::image+0x173dbd0+0x10,f::image+0x54d950);
+        memory.put(node+0xb8,uint64_t(91));memory.put(node+0xc0,int32_t(2));memory.put(node+0xc8,f::image+0x1750ef0);
         memory.put(node+0xe0,std::array<int32_t,2>{0,25});memory.put(node+0x108,std::array<uint8_t,3>{1,0,1});
         memory.put(node+0x1f0,uint64_t(94));memory.put(node+0x1f8,uint64_t(96));
         put_daily(memory,node+0x110,daily,0);put_daily(memory,node+0x180,daily,0);return memory;};
@@ -127,12 +127,12 @@ int main()try{
         bh::Saved expected;expected.form=form;expected.uid=77;expected.root=f::root;expected.name="Owned Building";expected.state=2;expected.user_set=1;
         expected.fluff_sha="full-localized-fluff";expected.transform[7]=23;
         size_t name_offset=0xc0,fluff_offset=0xe0,state_offset=0x118,flag_offset=0x11c,root_offset=0x128,pose_offset=0x130;
-        uintptr_t addresspoint=0x1723270,method=0x548b00;
+        uintptr_t addresspoint=0x1729610,method=0x54f0e0;
         if(form==bh::Form::Art)expected.model=0x78900;
         else {expected.type="SmallInn";expected.variant="Wood";expected.bugs_sha="complete-bugs";
-            if(form==bh::Form::Functional){addresspoint=0x173c5b0;method=0x548c70;name_offset=0xc8;fluff_offset=0xe8;
+            if(form==bh::Form::Functional){addresspoint=0x1742950;method=0x54f250;name_offset=0xc8;fluff_offset=0xe8;
                 state_offset=0x120;flag_offset=0x124;root_offset=0x168;pose_offset=0x170;expected.parent_uid=88;expected.dungeon=0x98700;}
-            else{addresspoint=0x1737870;method=0x5491d0;root_offset=0x198;pose_offset=0x1a0;
+            else{addresspoint=0x173dc10;method=0x54f7b0;root_offset=0x198;pose_offset=0x1a0;
                 expected.theme="Theme";expected.layout_sha="complete-layout";expected.plan_sha="complete-plan";}}
         auto make=[&](){f::Memory m;m.put(node,f::image+addresspoint);m.put(f::image+addresspoint+0x10,f::image+method);
             m.put(node+0xb8,expected.uid);m.put(node+state_offset,expected.state);m.put(node+flag_offset,expected.user_set);
@@ -157,7 +157,7 @@ int main()try{
         m=make();m.put(node+state_offset,int32_t(4));f::need(!verify(),"changed stored Building state accepted");
         m=make();bad_text=true;f::need(!verify(),"changed stored Building name/type/variant accepted");bad_text=false;
         if(form!=bh::Form::Art){m=make();bad_record=true;f::need(!verify(),"changed owned Building record accepted");}
-        auto current=[&](){f::Memory live;live.put(building,f::image+0x16d93c0);live.put(building+0x18,expected.uid);
+        auto current=[&](){f::Memory live;live.put(building,f::image+0x16df760);live.put(building+0x18,expected.uid);
             live.put(building+0xcba,uint8_t(form==bh::Form::Art));live.put(building+0x7d0,uintptr_t(form==bh::Form::Modular?0x77700:0));
             live.put(building+0x170,expected.root);live.put(building+0x100,expected.transform);live.put(building+0x7a8,expected.state);
             live.put(building+0xbd0,expected.user_set);

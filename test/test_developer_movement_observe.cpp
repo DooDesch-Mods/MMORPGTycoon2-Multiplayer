@@ -35,14 +35,14 @@ void reset(){fixture_bytes.clear();capture={};census={};resolver_error.clear();r
         developer_staff::job_census::Developer dev;dev.pointer=receiver;dev.id=100+i;census.developers.push_back(dev);
         put(receiver+0x100,std::array<float,4>{0,0,0,1});put(receiver+0x11c,std::array<float,3>{1,1,1});
     }
-    put(image+0x13df630,selection);put(selection,image+uintptr_t(0x17205d0));
+    put(image+0x13eb630,selection);put(selection,image+uintptr_t(0x1726970));
     bound={selection,building,42,4,7,"common-snapshot","action:building","SmallInn","base",true,false,{}};
 }
 void root_region(){const uintptr_t root=map+0x1c0;
-    put(map,image+uintptr_t(0x1742860));put(root,image+uintptr_t(0x174ad20));put(root+0x48,int32_t(0));
-    put(map+0x230,image+uintptr_t(0x16f04e0));put(map+0x238,array);put(map+0x240,int32_t(1));put(map+0x244,int32_t(1));
+    put(map,image+uintptr_t(0x1748c00));put(root,image+uintptr_t(0x17510c0));put(root+0x48,int32_t(0));
+    put(map+0x230,image+uintptr_t(0x16f6880));put(map+0x238,array);put(map+0x240,int32_t(1));put(map+0x244,int32_t(1));
     put(map+0x358,uintptr_t(0));put(map+0x360,int32_t(0));put(map+0x364,int32_t(0));put(array,fixture_region);
-    put(fixture_region,image+uintptr_t(0x1787930));put(fixture_region+0x70,root);put(fixture_region+0x834,int32_t(33));
+    put(fixture_region,image+uintptr_t(0x178dcd0));put(fixture_region+0x70,root);put(fixture_region+0x834,int32_t(33));
     put(actor+0x170,root);put(actor+0x178,fixture_region);
 }
 }

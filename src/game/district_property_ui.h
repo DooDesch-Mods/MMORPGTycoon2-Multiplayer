@@ -22,10 +22,10 @@ bool bind(Memory& memory,uintptr_t image,uintptr_t widget,Widget type,Binding& o
     if(!q::at(memory,value,8,object,error))return false;
     if(!object)return true;
     if(!q::at(memory,object,0,ap,error))return false;
-    if(ap!=image+0x16da000)return true;
+    if(ap!=image+0x16e03a0)return true;
     ours=true;
-    const uintptr_t widget_ap=type==Widget::Spinner?0x16c1720:type==Widget::Checkbox?0x16d98c0:0x17224a0;
-    const uintptr_t value_ap=type==Widget::Spinner?0x1749660:type==Widget::Checkbox?0x1749610:0x1749520;
+    const uintptr_t widget_ap=type==Widget::Spinner?0x16c7ac0:type==Widget::Checkbox?0x16dfc60:0x1728840;
+    const uintptr_t value_ap=type==Widget::Spinner?0x174fa00:type==Widget::Checkbox?0x174f9b0:0x174f8c0;
     if(!q::typed(memory,image,widget,widget_ap,error)||!q::typed(memory,image,value,value_ap,error))return false;
     std::string name;uintptr_t scalar=0;uint64_t uid=0;uint8_t editing=0;
     if(!district_reader::text(memory,value,0x18,name,error)||!q::at(memory,value,0x38,scalar,error)||
@@ -34,7 +34,7 @@ bool bind(Memory& memory,uintptr_t image,uintptr_t widget,Widget type,Binding& o
     const auto field_type=type==Widget::Spinner?property::Type::Number:type==Widget::Checkbox?property::Type::Flag:property::Type::Color;
     if(!field||field->type!=field_type||scalar!=object+field->offset||!uid||editing>1)
         return q::fail(error,"District native widget property/type/bound address/full UID/edit state differs");
-    const uintptr_t property_ap=field_type==property::Type::Number?0x16d3050:field_type==property::Type::Flag?0x16cfb60:0x16c69b0;
+    const uintptr_t property_ap=field_type==property::Type::Number?0x16d93f0:field_type==property::Type::Flag?0x16d5f00:0x16ccd50;
     uintptr_t offset=0;
     if(!q::typed(memory,image,image+field->property,property_ap,error)||!q::at(memory,image+field->property,0x38,offset,error))return false;
     if(offset!=field->offset)return q::fail(error,"District original property descriptor offset differs");

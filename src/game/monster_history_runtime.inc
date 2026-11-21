@@ -19,7 +19,7 @@ std::map<std::string,PlaceSource> placed_sources;
 bool history_code(Memory& memory,std::string& error){
     for(const auto& pin:monster_history_codes::values){std::string bytes(pin.size,'\0'),sha;
         if(!memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error))return false;
-        if(pin.rva==0x55ed80){
+        if(pin.rva==0x565410){
             if(!hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))
                 return fail(error,"Monster original history body differs RVA="+std::to_string(pin.rva)+" original="+error);
             continue;
@@ -44,19 +44,19 @@ bool graph(Memory& memory,uintptr_t pointer,uint64_t uid,bool moving,Graph& out,
         if(!field(memory,data,size_t(i)*8,node,error))return false;
         if(!node||!unique.insert(node).second)return fail(error,"Monster history original graph node is null or repeated");
         if(!field(memory,node,0,ap,error)||!field(memory,ap,0x10,method,error))return false;
-        if(moving){if(ap!=state.image+0x1786ff0||method!=state.image+0x55ed80)return fail(error,"Monster Move history graph contains a foreign original node");end=0xe8;}
-        else if(ap==state.image+0x1706550&&method==state.image+0x5507c0)end=0x178;
-        else if(ap==state.image+0x16de860&&method==state.image+0x53e1c0)end=0xc0;
-        else if(ap==state.image+0x1713330&&method==state.image+0x563f50)end=0xe0;
+        if(moving){if(ap!=state.image+0x178d390||method!=state.image+0x565410)return fail(error,"Monster Move history graph contains a foreign original node");end=0xe8;}
+        else if(ap==state.image+0x170c8f0&&method==state.image+0x556dd0)end=0x178;
+        else if(ap==state.image+0x16e4c00&&method==state.image+0x544780)end=0xc0;
+        else if(ap==state.image+0x17196d0&&method==state.image+0x56a5e0)end=0xe0;
         else return fail(error,"Monster Remove history graph contains a foreign original node");
         if(!field(memory,node,0xb8,actual,error))return false;
         if(!actual)return fail(error,"Monster history original node full UID is zero");
-        if(ap!=state.image+0x1713330){if(actual!=uid)return fail(error,"Monster history graph targets another full UID");++target;}
+        if(ap!=state.image+0x17196d0){if(actual!=uid)return fail(error,"Monster history graph targets another full UID");++target;}
         std::string bytes(end,'\0'),sha;
         if(!memory.copy(node,bytes.data(),bytes.size(),error))return false;
-        if(ap==state.image+0x1706550){std::string name;if(!npc_quest_records::read_string(memory,node,0xc0,"Monster retained Make name",name,error))return false;
+        if(ap==state.image+0x170c8f0){std::string name;if(!npc_quest_records::read_string(memory,node,0xc0,"Monster retained Make name",name,error))return false;
             bytes+=json(name).dump();}
-        if(ap==state.image+0x1713330){uintptr_t records=0;int32_t count=0,capacity=0;
+        if(ap==state.image+0x17196d0){uintptr_t records=0;int32_t count=0,capacity=0;
             if(!field(memory,node,0xd0,records,error)||!field(memory,node,0xd8,count,error)||!field(memory,node,0xdc,capacity,error))return false;
             if(count<0||count>4096||capacity<count||capacity>100000||(count&&!records)||records>UINTPTR_MAX-size_t(count)*0x58)
                 return fail(error,"Monster retained Quest inverse record bounds differ");
@@ -166,13 +166,13 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
         if(!effect(memory,pin,before,value,error,restoring?0:uid)||!a::monster_shared_state(value,authority->monster_before))return unknown(error.empty()?"Monster history adopted RNG before proof differs":error);}
     op.before=before;op.quests_before=quests;op.refs_before=refs;op.evidence.before=ledger(before.money);op.evidence.monster_before=value;
     if(placing&&removing)placed_sources[request.target_action_uuid]={place_birth,quests};
-    // SpawnNewMonsterHere_UID owns its counter at +0x1a30b74; ordinary Place uses +0x1a30b70.
-    if(!field(memory,state.image,0x1a30b74,op.uid_serial_before,error))return unknown(error);
+    // SpawnNewMonsterHere_UID owns its counter at +0x1a37b74; ordinary Place uses +0x1a37b70.
+    if(!field(memory,state.image,0x1a37b74,op.uid_serial_before,error))return unknown(error);
     op.uid_serial_before_read=true;
     if(op.uid_serial_before<0||(restoring&&op.uid_serial_before==INT32_MAX))return unknown("Monster history UID spawn serial cannot advance");
     op.attempted=true;const auto result=building_history_slice::perform(request.action,request.target_action_uuid,error);
     if(result!=a::Outcome::Confirmed)return unknown(error);
-    if(!field(memory,state.image,0x1a30b74,op.uid_serial_after,error))return unknown(error);
+    if(!field(memory,state.image,0x1a37b74,op.uid_serial_after,error))return unknown(error);
     op.uid_serial_after_read=true;
     if(restoring){uintptr_t restored=0;const auto seh=lookup(pin.api.find,uid,restored);d::Sample fresh;
         if(seh||!restored||!direct_sample(memory,pin,fresh,error))return unknown(error.empty()?"Monster original Make full UID lookup failed SEH="+std::to_string(seh):error);
@@ -261,7 +261,7 @@ bool remember_place_history(Memory& memory,uintptr_t graph,uint64_t uid,const st
     if(original.nodes.size()!=1)return fail(error,"Monster Place original Undo graph is not one exact Destroy node");
     uintptr_t node=original.nodes.front().first,addresspoint=0;
     if(!field(memory,node,0,addresspoint,error))return false;
-    if(addresspoint!=state.image+0x16de860)return fail(error,"Monster Place original Undo node is not Destroy");
+    if(addresspoint!=state.image+0x16e4c00)return fail(error,"Monster Place original Undo node is not Destroy");
     return building_history_slice::remember_monster(action,graph,error);
 }
 }

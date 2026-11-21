@@ -95,10 +95,10 @@ bool initialize(const std::filesystem::path& root,uintptr_t image,std::string& e
     if(!witness::initialize(root,error))return false;
     struct Entry {uintptr_t rva;void* detour;void** original;uint32_t bit;};
     const Entry entries[]={
-        {0x95ec00,reinterpret_cast<void*>(&file_ctor),reinterpret_cast<void**>(&original_file),1},
-        {0xa02d10,reinterpret_cast<void*>(&stream_ctor),reinterpret_cast<void**>(&original_stream),2},
-        {0x96bbd0,reinterpret_cast<void*>(&reader_ctor),reinterpret_cast<void**>(&original_reader),4},
-        {0xbd7a80,reinterpret_cast<void*>(&worker_run),reinterpret_cast<void**>(&original_worker),8},
+        {0x967d60,reinterpret_cast<void*>(&file_ctor),reinterpret_cast<void**>(&original_file),1},
+        {0xa0d8d0,reinterpret_cast<void*>(&stream_ctor),reinterpret_cast<void**>(&original_stream),2},
+        {0x974df0,reinterpret_cast<void*>(&reader_ctor),reinterpret_cast<void**>(&original_reader),4},
+        {0xbe4100,reinterpret_cast<void*>(&worker_run),reinterpret_cast<void**>(&original_worker),8},
     };
     for(const auto& entry:entries) {
         if(!hooks::create_hook(reinterpret_cast<void*>(image+entry.rva),entry.detour,entry.original)) {

@@ -23,7 +23,7 @@ bool new_entry(void*,void*);void remove_entry(void*);void dock_entry(void*,void*
 bool reject(const std::string& error){++rejected;if(cause!=error){cause=error;LOG_ERROR("[AbilityMembership] {}",error);}return false;}
 bool code(Memory& memory,std::string& error){
     if(!character_membership::code(memory,error)||!ability_edit::code(memory,error))return false;
-    const std::array<uintptr_t,3> rvas{0x651990,0x565400,0x567d70};
+    const std::array<uintptr_t,3> rvas{0x6588b0,0x56ba90,0x56e400};
     const std::array<uintptr_t,3> originals{uintptr_t(original_new),uintptr_t(original_remove),uintptr_t(original_dock)};
     const std::array<uintptr_t,3> detours{uintptr_t(&new_entry),uintptr_t(&remove_entry),uintptr_t(&dock_entry)};
     constexpr std::array<size_t,3> copied{6,11,6};
@@ -82,11 +82,11 @@ bool sample(Memory& memory,const a::Binding& binding,const std::string& snapshot
 }
 struct GameString {uintptr_t data=0;size_t size=0;std::array<unsigned char,16> storage{};};
 uint32_t query_name(uintptr_t owner,const quest_list::QuestTitleView& input,GameString& result)noexcept{
-    __try{reinterpret_cast<void(*)(void*,void*,const quest_list::QuestTitleView&)>(state.image+0x95300)(&result,reinterpret_cast<void*>(owner),input);return 0;}
+    __try{reinterpret_cast<void(*)(void*,void*,const quest_list::QuestTitleView&)>(state.image+0x95ff0)(&result,reinterpret_cast<void*>(owner),input);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t destroy_string(GameString& value)noexcept{
-    __try{reinterpret_cast<void(*)(void*)>(state.image+0x11bd1e0)(&value);return 0;}
+    __try{reinterpret_cast<void(*)(void*)>(state.image+0x11c8b80)(&value);return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 bool copy_name(Memory& memory,uintptr_t owner,const std::string& source,std::string& result,std::string& error){
@@ -101,7 +101,7 @@ bool icon(Memory& memory,uintptr_t object,uintptr_t& prototype,uintptr_t& owner,
     uintptr_t ap=0,proxy=0,target=0,reciprocal=0;int32_t refs=0;uint8_t flag=2;
     if(!field(memory,object,0,ap,error)||!field(memory,object,0x320,prototype,error)||!field(memory,object,0x328,proxy,error)||
        !field(memory,object,0x330,owner,error)||!field(memory,object,0x399,flag,error))return false;
-    constexpr uintptr_t icon_ap=0x1717790;
+    constexpr uintptr_t icon_ap=0x171db30;
     if(ap!=state.image+icon_ap||!prototype||!proxy||flag>1||prototype>UINTPTR_MAX-0x40||
        !field(memory,proxy,0,target,error)||target!=prototype+0x38||!field(memory,proxy,8,refs,error)||refs<=0||
        !field(memory,prototype,0x40,reciprocal,error)||reciprocal!=proxy)
@@ -136,7 +136,7 @@ bool new_entry(void* receiver,void* record)try{
     if(!field(memory,uintptr_t(receiver),0,ap,error)||!field(memory,uintptr_t(receiver),0x340,owner,error)||
        !field(memory,uintptr_t(record),0x38,tokens,error)||!field(memory,uintptr_t(record),0x40,count,error)||
        !field(memory,uintptr_t(record),0x44,capacity,error))return reject(error);
-    if(ap!=state.image+0x171ca70||count!=2||capacity<count||!tokens)return reject("Ability New actual view/token bounds differ");
+    if(ap!=state.image+0x1722e10||count!=2||capacity<count||!tokens)return reject("Ability New actual view/token bounds differ");
     if(!npc_quest_records::read_string(memory,tokens,8,"Ability New first native token",label,error)||!field(memory,tokens,0x30,type,error)||
        !field(memory,tokens,0x58,level,error))return reject(error);
     if(label!="Level"||type!=4||level<0)return reject("Ability New requires the original Level integer command");
@@ -159,9 +159,9 @@ void dock_entry(void* receiver,void* button,float seconds,bool animate)try{
     Memory memory;uintptr_t owner=0,source_owner=0,prototype=0,ap=0;bool prefab=false;std::string error;
     if(!field(memory,uintptr_t(receiver),0,ap,error)||!field(memory,uintptr_t(receiver),0x340,owner,error)){reject(error);return;}
     if(!owner){original_dock(receiver,button,seconds,animate);return;}
-    if(ap!=state.image+0x1717a00||!icon(memory,uintptr_t(button),prototype,source_owner,prefab,error)){reject(error.empty()?"Ability Dock actual native slot class differs":error);return;}
+    if(ap!=state.image+0x171dda0||!icon(memory,uintptr_t(button),prototype,source_owner,prefab,error)){reject(error.empty()?"Ability Dock actual native slot class differs":error);return;}
     if(!prefab&&source_owner!=owner){reject("Ability Dock non-prefab source has a different actual Character owner");return;}
-    if(uintptr_t(_ReturnAddress())==state.image+0x652826){
+    if(uintptr_t(_ReturnAddress())==state.image+0x659746){
         if(!presentation_dock(memory,receiver,button,seconds,animate,owner,prototype,prefab,error)){fault=true;reject(error);}return;
     }
     a::AbilityMembershipIntent intent;intent.command=prefab?Command::Copy:Command::Dock;
@@ -179,7 +179,7 @@ bool enable_impl(std::string& error){
     if(ready){for(const auto& [id,op]:operations)if(!op.retired)return fail(error,"Ability membership retained unretired operation="+id);
         if(fault||pending_ui())return fail(error,"Ability membership retained unresolved capture");Memory memory;if(!code(memory,error))return false;operations.clear();return true;}
     if(installed)return fail(error,"Ability membership previous installation failed: "+cause);installed=true;Memory memory;if(!code(memory,error))return false;
-    const std::array<uintptr_t,3> rvas{0x651990,0x565400,0x567d70};
+    const std::array<uintptr_t,3> rvas{0x6588b0,0x56ba90,0x56e400};
     const std::array<void*,3> detours{reinterpret_cast<void*>(&new_entry),reinterpret_cast<void*>(&remove_entry),reinterpret_cast<void*>(&dock_entry)};
     const std::array<void**,3> originals{reinterpret_cast<void**>(&original_new),reinterpret_cast<void**>(&original_remove),reinterpret_cast<void**>(&original_dock)};
     for(size_t i=0;i<rvas.size();++i){const auto status=MH_CreateHook(reinterpret_cast<void*>(state.image+rvas[i]),detours[i],originals[i]);
@@ -208,14 +208,14 @@ namespace {
 uint32_t construct_native(NativeObjects& objects,Command command,uintptr_t owner,uintptr_t prototype,int32_t level,int32_t display_slot,const char* text)noexcept{
     __try{
         if(command==Command::Create){std::memcpy(objects.view.data()+0x340,&owner,sizeof owner);
-            reinterpret_cast<void(*)(void*,const char*)>(state.image+0x967370)(&objects.record,text);objects.record_constructed=true;return 0;}
-        if(command==Command::Copy){objects.source=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa02670)(0x210);
-            reinterpret_cast<void(*)(void*)>(state.image+0x15350)(reinterpret_cast<void*>(objects.source));objects.source_constructed=true;
+            reinterpret_cast<void(*)(void*,const char*)>(state.image+0x970590)(&objects.record,text);objects.record_constructed=true;return 0;}
+        if(command==Command::Copy){objects.source=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa0d230)(0x210);
+            reinterpret_cast<void(*)(void*)>(state.image+0x154e0)(reinterpret_cast<void*>(objects.source));objects.source_constructed=true;
             objects.source_uid=*reinterpret_cast<const uint64_t*>(objects.source+0x18);prototype=objects.source;}
-        objects.icon=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa02670)(0x410);
-        reinterpret_cast<void(*)(void*,void*,void*)>(state.image+0x565ad0)(reinterpret_cast<void*>(objects.icon),reinterpret_cast<void*>(prototype),command==Command::Copy?nullptr:reinterpret_cast<void*>(owner));
+        objects.icon=reinterpret_cast<uintptr_t(*)(size_t)>(state.image+0xa0d230)(0x410);
+        reinterpret_cast<void(*)(void*,void*,void*)>(state.image+0x56c160)(reinterpret_cast<void*>(objects.icon),reinterpret_cast<void*>(prototype),command==Command::Copy?nullptr:reinterpret_cast<void*>(owner));
         objects.icon_constructed=true;
-        if(command!=Command::Remove){reinterpret_cast<void(*)(void*,int32_t,int32_t,void*)>(state.image+0x566940)(objects.slot.data(),96,96,reinterpret_cast<void*>(owner));objects.slot_constructed=true;
+        if(command!=Command::Remove){reinterpret_cast<void(*)(void*,int32_t,int32_t,void*)>(state.image+0x56cfd0)(objects.slot.data(),96,96,reinterpret_cast<void*>(owner));objects.slot_constructed=true;
             std::memcpy(objects.slot.data()+0x348,&display_slot,sizeof display_slot);std::memcpy(objects.slot.data()+0x34c,&level,sizeof level);}
         return 0;
     }__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -230,7 +230,7 @@ uint32_t primary_native(NativeObjects& objects,Command command)noexcept{
 }
 uint32_t destroy_native(uintptr_t object,uintptr_t rva,size_t allocation,bool constructed)noexcept{
     __try{
-        if(!constructed)reinterpret_cast<void(*)(void*,size_t)>(state.image+0x1264b60)(reinterpret_cast<void*>(object),allocation);
+        if(!constructed)reinterpret_cast<void(*)(void*,size_t)>(state.image+0x1270520)(reinterpret_cast<void*>(object),allocation);
         else if(rva)reinterpret_cast<void(*)(void*)>(state.image+rva)(reinterpret_cast<void*>(object));
         else {const auto ap=*reinterpret_cast<const uintptr_t*>(object);
             reinterpret_cast<void(*)(void*)>(*reinterpret_cast<const uintptr_t*>(ap+8))(reinterpret_cast<void*>(object));}
@@ -247,10 +247,10 @@ bool finish_cleanup(Operation& op,Memory& memory,std::string& error){
         bool run(uintptr_t pointer,uintptr_t rva,size_t allocation,bool constructed,std::string& error){
             value.cleanup_exception=destroy_native(pointer,rva,allocation,constructed);
             return !value.cleanup_exception||fail(error,"Ability original private receiver cleanup SEH="+std::to_string(value.cleanup_exception));}
-        bool destroy_slot(std::string& error){return run(uintptr_t(value.slot.data()),0x568970,0,true,error);}
+        bool destroy_slot(std::string& error){return run(uintptr_t(value.slot.data()),0x56f000,0,true,error);}
         bool destroy_icon(uintptr_t pointer,bool constructed,std::string& error){return run(pointer,0,0x410,constructed,error);}
         bool destroy_source(uintptr_t pointer,bool constructed,std::string& error){return run(pointer,0,0x210,constructed,error);}
-        bool destroy_record(std::string& error){return run(uintptr_t(&value.record),0x9676a0,0,true,error);}
+        bool destroy_record(std::string& error){return run(uintptr_t(&value.record),0x9708c0,0,true,error);}
     } port{op.native};
     if(!ability_receiver_cleanup::finish(port,op.native,op.native.cleanup,error))return false;
     if(op.native.source_uid){uintptr_t registered=0;const auto seh=lookup(op.before.current.api.find,op.native.source_uid,registered);

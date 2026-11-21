@@ -10,19 +10,19 @@ nlohmann::json last;
 bool bind(Runtime& r,const a::Context& c,const a::Binding& b,Bound& out,std::string& e){
     out={};a::Context current;live::NativePort port(c,b,nullptr);
     if(GetCurrentThreadId()!=r.thread||!a::selected_session().current(current,e)||current!=c||!port.read(out.pin,e)||out.pin.image!=r.image)return fail(e,e.empty()?"Thought current Frame Session/Mainthread/image differs":e);
-    if(!at(r,r.image,0x13df690,out.manager,e)||!ap(r,out.manager,0x1725f40,e)||!at(r,out.manager,0x40,out.data,e)||!at(r,out.manager,0x48,out.count,e)||!at(r,out.manager,0x4c,out.capacity,e)||out.count<0||out.count>1000000||out.capacity<out.count||out.capacity>1000000||(!out.data&&out.capacity))return fail(e,e.empty()?"Thought current complete Subscriber manager extent differs":e);
+    if(!at(r,r.image,0x13eb690,out.manager,e)||!ap(r,out.manager,0x172c2e0,e)||!at(r,out.manager,0x40,out.data,e)||!at(r,out.manager,0x48,out.count,e)||!at(r,out.manager,0x4c,out.capacity,e)||out.count<0||out.count>1000000||out.capacity<out.count||out.capacity>1000000||(!out.data&&out.capacity))return fail(e,e.empty()?"Thought current complete Subscriber manager extent differs":e);
     std::set<uintptr_t> members;std::set<int32_t> ids;
     for(int32_t i=0;i<out.count;++i){uintptr_t subscriber=0,toon=0,reverse=0;int32_t id=-1;
-        if(!at(r,out.data,size_t(i)*8,subscriber,e)||!ap(r,subscriber,0x16e75f0,e)||!at(r,subscriber,0x20,id,e)||id<0||!at(r,subscriber,0x80,toon,e)||!members.insert(subscriber).second||!ids.insert(id).second)return fail(e,e.empty()?"Thought actual Subscriber class/ID/member differs":e);
+        if(!at(r,out.data,size_t(i)*8,subscriber,e)||!ap(r,subscriber,0x16ed990,e)||!at(r,subscriber,0x20,id,e)||id<0||!at(r,subscriber,0x80,toon,e)||!members.insert(subscriber).second||!ids.insert(id).second)return fail(e,e.empty()?"Thought actual Subscriber class/ID/member differs":e);
         out.subscribers.emplace_back(subscriber,id);if(!toon)continue;
-        if(!ap(r,toon,0x1744e90,e)||!at(r,toon,0x940,reverse,e)||reverse!=subscriber||!out.bindings.toons.emplace("toon:"+std::to_string(id),toon).second)return fail(e,e.empty()?"Thought current Toon reciprocal Subscriber/class differs":e);
+        if(!ap(r,toon,0x174b230,e)||!at(r,toon,0x940,reverse,e)||reverse!=subscriber||!out.bindings.toons.emplace("toon:"+std::to_string(id),toon).second)return fail(e,e.empty()?"Thought current Toon reciprocal Subscriber/class differs":e);
     }
     std::vector<remove_diagnostics::LocalTarget> buildings;
     {std::optional<live::apply_timing::Scope> measured_identity;if(live::apply_timing::host_capture_depth)measured_identity.emplace(live::apply_timing::host_query_part==live::apply_timing::Part::HostQueryManagementFinish?live::apply_timing::Part::HostManagementFinishIdentityBuildings:live::apply_timing::Part::HostManagementIdentityBuildings);else if(live::apply_timing::take_depth)measured_identity.emplace(live::apply_timing::Part::ClientManagementThoughtIdentityBuildings);live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);if(!remove_diagnostics::identity_building_targets(buildings,e))return false;}
-    for(const auto& item:buildings)if(item.normal_building){if(item.world_epoch!=b.native_epoch||item.world_generation!=b.native_generation||!ap(r,item.object,0x16d93c0,e)||!out.bindings.targets[0].emplace(item.record_key,item.object).second)return fail(e,e.empty()?"Thought Building current canonical key/World differs":e);}
+    for(const auto& item:buildings)if(item.normal_building){if(item.world_epoch!=b.native_epoch||item.world_generation!=b.native_generation||!ap(r,item.object,0x16df760,e)||!out.bindings.targets[0].emplace(item.record_key,item.object).second)return fail(e,e.empty()?"Thought Building current canonical key/World differs":e);}
     {live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);if(!world_zone_runtime::read_current(b,c.snapshot_uuid,out.zones,e))return false;}
     std::sort(out.zones.begin(),out.zones.end(),[](const auto& x,const auto& y){return x.key<y.key;});
-    for(const auto& zone:out.zones)if(!ap(r,zone.object,0x1745ce0,e)||!out.bindings.targets[1].emplace(zone.key,zone.object).second)return fail(e,e.empty()?"Thought Zone current canonical key/class differs":e);
+    for(const auto& zone:out.zones)if(!ap(r,zone.object,0x174c080,e)||!out.bindings.targets[1].emplace(zone.key,zone.object).second)return fail(e,e.empty()?"Thought Zone current canonical key/class differs":e);
     for(const auto* objects:{&out.bindings.toons,&out.bindings.targets[0],&out.bindings.targets[1]})for(const auto& item:*objects){uint64_t uid=0;uintptr_t registered=0;
         if(!at(r,item.second,0x18,uid,e)||!uid||!out.uids.emplace(item.second,uid).second)return fail(e,e.empty()?"Thought canonical allocation/full UID repeats":e);
         uint32_t exception=0;{live::apply_timing::PageReadScope boundary(live::apply_timing::PageBoundary::OriginalCall);exception=uid_lookup(r.image,uid,registered);}
@@ -41,22 +41,22 @@ bool code(Runtime& r,std::string& e,bool mutation_required=true){struct Body{uin
     };if(mutation_required)for(const auto& body:bodies){std::vector<unsigned char> bytes(body.bytes);if(!r.memory.copy(r.image+body.rva,bytes.data(),bytes.size(),e)||mt2mp::sha256(bytes)!=body.sha)return fail(e,e.empty()?"Thought original constructor/bookkeeping body differs RVA="+std::to_string(body.rva):e);}
     if(!thought_native::enabled||!thought_native::fault.empty())return fail(e,thought_native::fault.empty()?"Thought lifetime bridge is not enabled":thought_native::fault);
     auto copy=[&](auto p,auto out,auto count,auto& cause){return r.memory.copy(p,out,count,cause);};auto hash=[](const auto& bytes){return mt2mp::sha256(bytes);};
-    return release_ui_owner::verify(thought_native::destroy_owner,copy,hash,"b809f7293fa4d0c143cddd610b18480853bc841ab4ea3441fc6aacd40b0dc625",e);
+    return release_ui_owner::verify(thought_native::destroy_owner,copy,hash,"75d1262bbe8cb628c61ad814c30f10416161203dce0aa14624a625ab64ebcb4a",e);
 }
 enum class Op{Allocate,AllocateArray,FreeArray,Time,TimeDestroy,Thought,Clear,Notify,Register,Deregister,ThoughtDestroy};
 struct Call {Op op=Op::Allocate;uintptr_t image=0,object=0,owner=0,target=0,time=0,result=0;size_t bytes=0;int32_t kind=-1;const values::Row* value=nullptr;};
 uint32_t invoke(Call& call)noexcept{__try{switch(call.op){
-    case Op::Allocate:call.result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(call.image+0xa02670)(call.bytes));break;
-    case Op::AllocateArray:call.result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(call.image+0xa026c0)(call.bytes));break;
-    case Op::FreeArray:reinterpret_cast<void(*)(void*)>(call.image+0xa01280)(reinterpret_cast<void*>(call.object));break;
-    case Op::Time:reinterpret_cast<void(*)(void*,int32_t,int32_t,int32_t,int32_t)>(call.image+0x88ef80)(reinterpret_cast<void*>(call.object),call.value->time[0],call.value->time[1],call.value->time[2],call.value->time[3]);break;
-    case Op::TimeDestroy:reinterpret_cast<void(*)(void*)>(call.image+0xc36ba0)(reinterpret_cast<void*>(call.object));break;
-    case Op::Thought:if(call.kind<0)reinterpret_cast<void(*)(void*,int32_t,void*,const void*)>(call.image+0x3f1260)(reinterpret_cast<void*>(call.object),call.value->type,reinterpret_cast<void*>(call.owner),reinterpret_cast<void*>(call.time));
-        else reinterpret_cast<void(*)(void*,int32_t,void*,void*,const void*)>(call.image+(call.kind==0?0x3f0db0:call.kind==1?0x3f15a0:0x3f17d0))(reinterpret_cast<void*>(call.object),call.value->type,reinterpret_cast<void*>(call.owner),reinterpret_cast<void*>(call.target),reinterpret_cast<void*>(call.time));break;
-    case Op::Clear:reinterpret_cast<void(*)(void*)>(call.image+0x3dfb90)(reinterpret_cast<void*>(call.object));break;
-    case Op::Notify:reinterpret_cast<void(*)(void*,void*)>(call.image+(call.kind==0?0x4050c0:0x451f60))(reinterpret_cast<void*>(call.target),reinterpret_cast<void*>(call.object));break;
-    case Op::Register:case Op::Deregister:{auto* statistics=reinterpret_cast<void*(*)()>(call.image+0xb32220)();reinterpret_cast<void(*)(void*,void*)>(call.image+(call.op==Op::Register?0x3f7550:0x3f7ab0))(statistics,reinterpret_cast<void*>(call.object));break;}
-    case Op::ThoughtDestroy:reinterpret_cast<void(*)(void*)>(call.image+0x3f1170)(reinterpret_cast<void*>(call.object));break;
+    case Op::Allocate:call.result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(call.image+0xa0d230)(call.bytes));break;
+    case Op::AllocateArray:call.result=reinterpret_cast<uintptr_t>(reinterpret_cast<void*(*)(size_t)>(call.image+0xa0d280)(call.bytes));break;
+    case Op::FreeArray:reinterpret_cast<void(*)(void*)>(call.image+0xa0be40)(reinterpret_cast<void*>(call.object));break;
+    case Op::Time:reinterpret_cast<void(*)(void*,int32_t,int32_t,int32_t,int32_t)>(call.image+0x897ef0)(reinterpret_cast<void*>(call.object),call.value->time[0],call.value->time[1],call.value->time[2],call.value->time[3]);break;
+    case Op::TimeDestroy:reinterpret_cast<void(*)(void*)>(call.image+0xc43450)(reinterpret_cast<void*>(call.object));break;
+    case Op::Thought:if(call.kind<0)reinterpret_cast<void(*)(void*,int32_t,void*,const void*)>(call.image+0x3f5d70)(reinterpret_cast<void*>(call.object),call.value->type,reinterpret_cast<void*>(call.owner),reinterpret_cast<void*>(call.time));
+        else reinterpret_cast<void(*)(void*,int32_t,void*,void*,const void*)>(call.image+(call.kind==0?0x3f58c0:call.kind==1?0x3f60b0:0x3f62e0))(reinterpret_cast<void*>(call.object),call.value->type,reinterpret_cast<void*>(call.owner),reinterpret_cast<void*>(call.target),reinterpret_cast<void*>(call.time));break;
+    case Op::Clear:reinterpret_cast<void(*)(void*)>(call.image+0x3e46a0)(reinterpret_cast<void*>(call.object));break;
+    case Op::Notify:reinterpret_cast<void(*)(void*,void*)>(call.image+(call.kind==0?0x409c80:0x456f70))(reinterpret_cast<void*>(call.target),reinterpret_cast<void*>(call.object));break;
+    case Op::Register:case Op::Deregister:{auto* statistics=reinterpret_cast<void*(*)()>(call.image+0xb3e410)();reinterpret_cast<void(*)(void*,void*)>(call.image+(call.op==Op::Register?0x3fc110:0x3fc670))(statistics,reinterpret_cast<void*>(call.object));break;}
+    case Op::ThoughtDestroy:reinterpret_cast<void(*)(void*)>(call.image+0x3f5c80)(reinterpret_cast<void*>(call.object));break;
     }return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 struct Port {
     Runtime& r;const a::Context& context;const a::Binding& binding;Bound origin;live::ManagementReceipt& receipt;
@@ -70,7 +70,7 @@ struct Port {
     bool row(uintptr_t thinker,uintptr_t object,values::LocalRow& owner,values::Row& value,std::string& e){if(!current(e))return false;std::array<std::map<uintptr_t,std::string>,3> keys;
         for(size_t i=0;i<2;++i)for(const auto& item:origin.bindings.targets[i])keys[i].emplace(item.second,item.first);for(const auto& item:origin.bindings.toons)keys[2].emplace(item.second,item.first);
         auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){return at(r,base,offset,out,cause);};live::apply_timing::PageReadScope pages(!live::apply_timing::PageReadScope::reader_active());return values::read_row(read,r.image,thinker,object,keys,owner,value,e);}
-    bool array(uintptr_t toon,const values::Array& expected,std::string& e){if(!current(e)||!ap(r,toon+0x8c0,0x16eaae0,e))return false;values::Array actual;auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){return at(r,base,offset,out,cause);};return values::array(read,toon,0x8c8,actual,e)&&(actual==expected||fail(e,"Thought fresh owning array header changed"));}
+    bool array(uintptr_t toon,const values::Array& expected,std::string& e){if(!current(e)||!ap(r,toon+0x8c0,0x16f0e80,e))return false;values::Array actual;auto read=[&](uintptr_t base,size_t offset,auto& out,std::string& cause){return at(r,base,offset,out,cause);};return values::array(read,toon,0x8c8,actual,e)&&(actual==expected||fail(e,"Thought fresh owning array header changed"));}
 };
 inline bool compatible(const values::State& before,const values::State& target,const Bound& bound,std::string& e){
     if(!values::valid(before,e)||!values::valid(target,e)||before.toons.size()!=target.toons.size()||before.links.size()!=target.links.size())return fail(e,e.empty()?"Thought complete canonical census differs after original births/retirements":e);
@@ -118,7 +118,7 @@ bool reorder(Port& p,const values::State& target,Snapshot& actual,std::string& e
     for(size_t i=0;i<target.links.size();++i){const auto& desired=target.links[i];const auto& before=actual.value.links[i];if(desired.members==before.members)continue;
         if(std::set<std::string>(desired.members.begin(),desired.members.end())!=std::set<std::string>(before.members.begin(),before.members.end()))return fail(e,"Thought reciprocal order differs in membership");
         const auto object=p.origin.bindings.targets[size_t(desired.kind)].at(desired.key);const size_t base=desired.kind?0x580:0xce0;auto extent=actual.owners.links[i];
-        auto header=[&](){uintptr_t ap_=0;values::Array fresh;auto read=[&](uintptr_t pointer,size_t offset,auto& value,std::string& cause){return at(p.r,pointer,offset,value,cause);};return p.current(e)&&at(p.r,object,base,ap_,e)&&ap_==p.r.image+0x1717220&&values::array(read,object,base+0x20,fresh,e)&&(fresh==extent||fail(e,"Thought reciprocal current native array header changed"));};
+        auto header=[&](){uintptr_t ap_=0;values::Array fresh;auto read=[&](uintptr_t pointer,size_t offset,auto& value,std::string& cause){return at(p.r,pointer,offset,value,cause);};return p.current(e)&&at(p.r,object,base,ap_,e)&&ap_==p.r.image+0x171d5c0&&values::array(read,object,base+0x20,fresh,e)&&(fresh==extent||fail(e,"Thought reciprocal current native array header changed"));};
         if(!header()||!p.scalar(object+base+0x28,false,uint32_t(extent.count),0,e))return false;extent.count=0;
         std::vector<uintptr_t> slots;for(const auto& key:before.members)slots.push_back(objects.at(key));
         for(size_t n=0;n<desired.members.size();++n){if(!header())return false;for(size_t index=0;index<slots.size();++index){uintptr_t value=0;if(!at(p.r,extent.data,index*8,value,e)||value!=slots[index])return fail(e,e.empty()?"Thought reciprocal complete slot prior changed":e);}

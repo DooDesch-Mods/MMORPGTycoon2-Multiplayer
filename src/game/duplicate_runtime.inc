@@ -30,10 +30,10 @@ bool same_binding(const Sample& a,const Sample& b){return host::same_world(a.wor
     a.world.root==b.world.root&&a.world.selection==b.world.selection&&a.business==b.business&&a.release==b.release&&a.random==b.random;}
 bool cash_position(Runtime& r,uintptr_t behaviour,std::array<uint32_t,3>& out,std::string& e){
     uintptr_t cursor=0,current=0,axis=0;std::array<float,3> point{},up{};float scale=0;
-    if(!q::at(r.memory,r.image,0x13df9d0,cursor,e)||!q::typed(r.memory,r.image,cursor,0x1786dd0,e)||
+    if(!q::at(r.memory,r.image,0x13eb9d0,cursor,e)||!q::typed(r.memory,r.image,cursor,0x178d170,e)||
        !q::at(r.memory,cursor,0x190,current,e)||current!=behaviour||!q::at(r.memory,cursor,0x1e4,point,e)||
-       !q::at(r.memory,r.image,0x164b0d0,axis,e)||axis!=r.image+0x1c4e8f0||!q::at(r.memory,axis,0,up,e)||
-       !q::at(r.memory,r.image,0x14ee978,scale,e)||scale!=20.0f)return q::fail(e,e.empty()?"Duplicate original Cursor/YAxis/offset owner differs":e);
+       !q::at(r.memory,r.image,0x16506b0,axis,e)||axis!=r.image+0x1c558f0||!q::at(r.memory,axis,0,up,e)||
+       !q::at(r.memory,r.image,0x14f61f8,scale,e)||scale!=20.0f)return q::fail(e,e.empty()?"Duplicate original Cursor/YAxis/offset owner differs":e);
     for(size_t i=0;i<3;++i){const float offset=up[i]*scale;const float value=point[i]+offset;
         if(!std::isfinite(point[i])||!std::isfinite(up[i])||!std::isfinite(value))return q::fail(e,"Duplicate original cash point is nonfinite");out[i]=std::bit_cast<uint32_t>(value);}
     return true;
@@ -82,7 +82,7 @@ bool pending_source_matches(const action::DuplicateIntent& intent,const Sample& 
 bool pending(){return bool(captured);}
 bool capture_purchase(uintptr_t behaviour,uintptr_t caller,bool& handled,std::string& e){
     handled=false;auto* r=published.load(std::memory_order_acquire);
-    if(!r||!r->ready||caller!=r->image+0x5c2a20||GetCurrentThreadId()!=r->thread||!net::session_wire::connected())return true;
+    if(!r||!r->ready||caller!=r->image+0x5c91c0||GetCurrentThreadId()!=r->thread||!net::session_wire::connected())return true;
     uint8_t duplicate=0;if(!q::at(r->memory,behaviour,0x499,duplicate,e))return false;if(!duplicate)return true;handled=true;
     action::Binding binding;const auto controller=typed_action_runtime::controller_status();
     if(captured||r->pending||selection_move::pending()||group_edit::pending()||district_title::pending()||district_text::pending()||

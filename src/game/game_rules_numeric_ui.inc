@@ -7,10 +7,10 @@ bool rules_numeric_visible(Runtime& r,uintptr_t object,uintptr_t window,bool& vi
     }return true;
 }
 bool rules_numeric_children(Runtime& r,uintptr_t pane,uintptr_t klass,uintptr_t window,std::vector<uintptr_t>& pending,std::string& e){
-    if(klass!=r.image+0x17015b0)return service_ui_children(r,pane,klass,window,pending,e);
+    if(klass!=r.image+0x1707950)return service_ui_children(r,pane,klass,window,pending,e);
     uintptr_t view=0,page=0,next=0,owner=0;int32_t transition=0;std::string name,requested;
     if(!at(r,pane,0x3b8,view,e))return false;if(!view)return true;
-    if(!ap(r,view,0x16dfe90,e)||!at(r,view,0x280,owner,e)||owner!=window||!at(r,view,0x410,page,e)||!at(r,view,0x418,next,e)||!at(r,view,0x408,transition,e)||transition<0||transition>2)return fail(e,e.empty()?"Design numeric original tab owner/flags differ":e);
+    if(!ap(r,view,0x16e6230,e)||!at(r,view,0x280,owner,e)||owner!=window||!at(r,view,0x410,page,e)||!at(r,view,0x418,next,e)||!at(r,view,0x408,transition,e)||transition<0||transition>2)return fail(e,e.empty()?"Design numeric original tab owner/flags differ":e);
     if(!page||next!=page||transition)return true;
     if(!text(r,page+0x1b0,name,256,e)||!text(r,view+0x3e8,requested,256,e))return false;
     if(name!=requested){
@@ -25,36 +25,36 @@ bool rules_numeric_children(Runtime& r,uintptr_t pane,uintptr_t klass,uintptr_t 
     pending.push_back(page);return true;
 }
 bool rules_numeric_find(Runtime& r,const rules::Pin& pin,bool xp,RulesNumericUi& out,std::string& e){
-    out={};uintptr_t data=0;int32_t count=0,capacity=0;if(!at(r,r.image,0x1a3c478,data,e)||!at(r,r.image,0x1a3c480,count,e)||!at(r,r.image,0x1a3c484,capacity,e))return false;
+    out={};uintptr_t data=0;int32_t count=0,capacity=0;if(!at(r,r.image,0x1a43478,data,e)||!at(r,r.image,0x1a43480,count,e)||!at(r,r.image,0x1a43484,capacity,e))return false;
     if(count<0||count>1024||capacity<count||capacity>65536||(!data&&count))return fail(e,"Design numeric registry extent invalid");std::vector<uintptr_t> windows(size_t(count),0);if(count&&!r.memory.copy(data,windows.data(),windows.size()*8,e))return false;
-    for(auto window:windows){uintptr_t klass=0;if(!at(r,window,0,klass,e))return false;if(klass!=r.image+(xp?0x17883d0:0x16ff0a0))continue;std::string name;uintptr_t logic=1;uint8_t shown=0;
+    for(auto window:windows){uintptr_t klass=0;if(!at(r,window,0,klass,e))return false;if(klass!=r.image+(xp?0x178e770:0x1705440))continue;std::string name;uintptr_t logic=1;uint8_t shown=0;
         if(!text(r,window+0x1b0,name,256,e)||!at(r,window,0x318,logic,e)||!at(r,window,0x45f,shown,e))return false;if(name!=(xp?"design_levels":"design_combat")||logic||shown>1)continue;if(out.window)return fail(e,"Design numeric duplicate registered window");out.window=window;out.visible=shown!=0;
     }
     if(!out.window||!out.visible)return true;std::vector<uintptr_t> pending{out.window},properties;std::set<uintptr_t> seen;
     while(!pending.empty()){const auto pane=pending.back();pending.pop_back();if(!seen.insert(pane).second||seen.size()>2048)return fail(e,"Design numeric pane cycle/extent invalid");uintptr_t klass=0;if(!at(r,pane,0,klass,e))return false;
-        if(klass==r.image+0x1703ce0){if(out.view)return fail(e,"Design numeric multiple active XP views");out.view=pane;}
-        if(klass==r.image+0x1701d20)properties.push_back(pane);
+        if(klass==r.image+0x170a080){if(out.view)return fail(e,"Design numeric multiple active XP views");out.view=pane;}
+        if(klass==r.image+0x17080c0)properties.push_back(pane);
         if(!rules_numeric_children(r,pane,klass,out.window,pending,e))return false;
     }
-    if(xp){if(!out.view)return true;if(!ap(r,out.view+0x338,0x16d9f40,e)||!at(r,out.view,0x350,out.draft,e)||!at(r,out.view,0x318,out.apply,e)||!ap(r,out.apply,0x16e3ec0,e))return false;
+    if(xp){if(!out.view)return true;if(!ap(r,out.view+0x338,0x16e02e0,e)||!at(r,out.view,0x350,out.draft,e)||!at(r,out.view,0x318,out.apply,e)||!ap(r,out.apply,0x16ea260,e))return false;
         std::string name,command;uint8_t disabled=1,clickable=0;bool shown=false;
         if(!text(r,out.apply+0x1b0,name,256,e)||name!="xp_apply"||!text(r,out.apply+0x388,command,256,e)||command!="MessageTo Parent Apply"||!at(r,out.apply,0x46d,disabled,e)||disabled>1||!at(r,out.apply,0x174,clickable,e)||clickable>1||!rules_numeric_visible(r,out.apply,out.window,shown,e))return fail(e,e.empty()?"Design numeric original XP Apply button differs":e);
         out.apply_ready=shown&&!disabled&&clickable==1;
     }
     const auto model=xp?out.view+0x338:pin.design+0x1c0;const auto scalar=xp?out.view+0x354:pin.design+0x1d8;
     for(auto pane:properties){uintptr_t value=0,owner=0,address=0;if(!at(r,pane,0x450,value,e))return false;if(!value)continue;if(!at(r,value,8,owner,e)||!at(r,value,0x38,address,e))return false;if(owner!=model||address!=scalar)continue;
-        std::string property;if(!ap(r,value,0x17496b0,e)||!text(r,value+0x18,property,64,e)||property!=(xp?"xpPerMob":"seconds"))return fail(e,e.empty()?"Design numeric bound property differs":e);if(out.pane)return fail(e,"Design numeric bound property is not unique");out.pane=pane;
+        std::string property;if(!ap(r,value,0x174fa50,e)||!text(r,value+0x18,property,64,e)||property!=(xp?"xpPerMob":"seconds"))return fail(e,e.empty()?"Design numeric bound property differs":e);if(out.pane)return fail(e,"Design numeric bound property is not unique");out.pane=pane;
     }
     if(!out.pane)return true;uintptr_t parent=0,owner=0,direct=0;std::string command,preview;uint8_t clickable=0;bool visible=false;
-    if(!at(r,out.pane,0x458,out.edit,e)||!ap(r,out.edit,0x1703290,e)||!at(r,out.edit,0x278,parent,e)||parent!=out.pane||!at(r,out.edit,0x280,owner,e)||owner!=out.window||!at(r,out.edit,0x4a0,direct,e)||direct||!text(r,out.edit+0x3e0,command,256,e)||command!="MessageTo Parent ValueEdited"||!text(r,out.edit+0x400,preview,256,e)||!preview.empty()||!at(r,out.edit,0x174,clickable,e)||clickable>1||!rules_numeric_visible(r,out.edit,out.window,visible,e))return fail(e,e.empty()?"Design numeric original unbound editor/commit contract differs":e);
+    if(!at(r,out.pane,0x458,out.edit,e)||!ap(r,out.edit,0x1709630,e)||!at(r,out.edit,0x278,parent,e)||parent!=out.pane||!at(r,out.edit,0x280,owner,e)||owner!=out.window||!at(r,out.edit,0x4a0,direct,e)||direct||!text(r,out.edit+0x3e0,command,256,e)||command!="MessageTo Parent ValueEdited"||!text(r,out.edit+0x400,preview,256,e)||!preview.empty()||!at(r,out.edit,0x174,clickable,e)||clickable>1||!rules_numeric_visible(r,out.edit,out.window,visible,e))return fail(e,e.empty()?"Design numeric original unbound editor/commit contract differs":e);
     out.ready=visible&&clickable==1;return true;
 }
-uint32_t rules_numeric_focus(uintptr_t image,uintptr_t window,uintptr_t edit)noexcept{__try{reinterpret_cast<void(*)(void*,void*)>(image+0x81ada0)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(edit));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t rules_numeric_text(uintptr_t image,uintptr_t edit,const char* text,size_t length)noexcept{struct View{const char* data;size_t length;unsigned char rest[16];};const View value{text,length,{}};__try{reinterpret_cast<void(*)(void*,const View&)>(image+0x7f1630)(reinterpret_cast<void*>(edit),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
-uint32_t rules_numeric_commit(uintptr_t image,uintptr_t edit)noexcept{__try{reinterpret_cast<void(*)(void*)>(image+0x771f50)(reinterpret_cast<void*>(edit));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t rules_numeric_focus(uintptr_t image,uintptr_t window,uintptr_t edit)noexcept{__try{reinterpret_cast<void(*)(void*,void*)>(image+0x823390)(reinterpret_cast<void*>(window),reinterpret_cast<void*>(edit));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t rules_numeric_text(uintptr_t image,uintptr_t edit,const char* text,size_t length)noexcept{struct View{const char* data;size_t length;unsigned char rest[16];};const View value{text,length,{}};__try{reinterpret_cast<void(*)(void*,const View&)>(image+0x7f9b70)(reinterpret_cast<void*>(edit),value);return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
+uint32_t rules_numeric_commit(uintptr_t image,uintptr_t edit)noexcept{__try{reinterpret_cast<void(*)(void*)>(image+0x779a70)(reinterpret_cast<void*>(edit));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}}
 void rules_numeric_apply(uintptr_t image,uintptr_t view,GmFixtureCall& out)noexcept{
-    initial_release::Record record{};__try{reinterpret_cast<initial_release::RecordCtor>(image+0x967370)(&record,"Apply");out.constructed=true;out.label=reinterpret_cast<initial_release::RecordEquals>(image+0x1113d80)(&record,"Apply");if(out.label){out.attempted=true;out.accepted=reinterpret_cast<Ui>(image+0x8286c0)(reinterpret_cast<void*>(view),&record);out.returned=true;}}__except(EXCEPTION_EXECUTE_HANDLER){out.exception=GetExceptionCode();}
-    if(out.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9676a0)(&record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}}
+    initial_release::Record record{};__try{reinterpret_cast<initial_release::RecordCtor>(image+0x970590)(&record,"Apply");out.constructed=true;out.label=reinterpret_cast<initial_release::RecordEquals>(image+0x111f720)(&record,"Apply");if(out.label){out.attempted=true;out.accepted=reinterpret_cast<Ui>(image+0x830cb0)(reinterpret_cast<void*>(view),&record);out.returned=true;}}__except(EXCEPTION_EXECUTE_HANDLER){out.exception=GetExceptionCode();}
+    if(out.constructed){__try{reinterpret_cast<initial_release::RecordDtor>(image+0x9708c0)(&record);out.cleaned=true;}__except(EXCEPTION_EXECUTE_HANDLER){out.cleanup_exception=GetExceptionCode();}}
 }
 }
 bool rules_numeric_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std::string& e){
@@ -74,8 +74,8 @@ bool rules_numeric_ui_fixture(const nlohmann::json& args,nlohmann::json& out,std
         rules::Intent intent;intent.before=intent.after=before.state;intent.command=xp?rules::Command::ApplyXP:rules::Command::RespawnSeconds;
         if(edit){if(!ui.ready||expected!=(xp?int64_t(ui.draft[1]):before.state.respawn_seconds))return fail(e,"Design numeric actual visible value differs");if(!xp)intent.after.respawn_seconds=int32_t(value);}
         if(command=="ApplyXP"){intent.after.xp=ui.draft;if(!ui.apply_ready||!rules::valid(intent))return fail(e,"Design numeric original XP Apply is not ready");}
-        if(!rules_routes(*r,e)||!policy_route_code(*r,e))return false;if(show&&(!hud_time_runtime::verify_window_show_hook(r->image+0x81ec20,e)||!loan_ui_body(*r,0x6bf990,467,"e41f9ed9d4a7af627ff4b5ad82faad352928e50a5928e5b1eb33c835c697fb37",e)))return false;
-        if(command=="ApplyXP")for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x967370||guard.rva==0x9676a0||guard.rva==0x1113d80){std::vector<unsigned char> bytes(guard.size);if(!r->memory.copy(r->image+guard.rva,bytes.data(),bytes.size(),e)||std::memcmp(bytes.data(),guard.data,guard.size))return fail(e,e.empty()?"Design numeric original Record body differs":e);}
+        if(!rules_routes(*r,e)||!policy_route_code(*r,e))return false;if(show&&(!hud_time_runtime::verify_window_show_hook(r->image+0x827210,e)||!loan_ui_body(*r,0x6c6d60,467,"5cf2e3a48e7b45c4d2a6d7c2af2d77e1e014d85b80092ec897e02f6788d4e1b3",e)))return false;
+        if(command=="ApplyXP")for(const auto& guard:initial_release::bytes::guards)if(guard.rva==0x970590||guard.rva==0x9708c0||guard.rva==0x111f720){std::vector<unsigned char> bytes(guard.size);if(!r->memory.copy(r->image+guard.rva,bytes.data(),bytes.size(),e)||std::memcmp(bytes.data(),guard.data,guard.size))return fail(e,e.empty()?"Design numeric original Record body differs":e);}
         uintptr_t focused=0;if(edit&&(!at(*r,ui.window,0x3c0,focused,e)||(focused&&focused!=ui.edit)))return fail(e,e.empty()?"Design numeric UI has another active editor":e);
         out["token"]=token;out["command"]=command;out["ui_attempted"]=true;out["unknown"]=true;design_rules.ui_unknown=true;design_rules.ui_proofs.emplace(token,out);const auto captures=r->captures;bool ok=false;numeric_diagnostics::Scope diagnostic_scope(rules_numeric_trace,out["numeric_diagnostics"],edit);
         auto phase=[&](const char* name){numeric_diagnostics::phase(rules_numeric_trace,name,r->image,ui.window,ui.edit,[&](auto object,auto offset,auto& value,auto& cause){return at(*r,object,offset,value,cause);},[&](auto address,auto& value,auto& cause){return text(*r,address,value,128,cause);});};

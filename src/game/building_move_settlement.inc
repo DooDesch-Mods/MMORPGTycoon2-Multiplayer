@@ -4,7 +4,7 @@
 namespace mt2mp::game::ui_region_runtime {
 namespace {
 uint32_t moved_building_ground(uintptr_t image,uintptr_t root,const std::array<float,3>& position,float& height){
-    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x508390)(reinterpret_cast<void*>(root),position.data());return 0;}
+    __try{height=reinterpret_cast<float(*)(void*,const void*)>(image+0x50e4e0)(reinterpret_cast<void*>(root),position.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
 uint32_t selection_building_lookup(host::FindUid find,uint64_t uid,uintptr_t& object){

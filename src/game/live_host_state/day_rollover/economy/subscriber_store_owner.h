@@ -9,9 +9,9 @@ template<class Read>bool scalar_store_roots(Read read,const Pin& p,std::string& 
     auto fail=[&](const char* cause){if(error.empty())error=cause;return false;};
     uintptr_t clock=0,business=0,record=0,history=0,type=0,member=0;
     int32_t selected=-1,count=-1,capacity=-1,version=-1,cash=0;
-    if(!read(p.image,0x13df9a0,clock,error)||clock!=p.clock||!read(clock,0,type,error)||type!=p.image+0x17499d0||!read(clock,0x58,selected,error)||selected!=0||
-       !read(p.image,0x13df220,business,error)||business!=p.business||!read(business,0,type,error)||type!=p.image+0x16d97e0||!read(business,0x100,record,error)||record!=p.record||
-       !read(record,0,type,error)||type!=p.image+0x1712c00||!read(record,0x18,version,error)||version!=2||!read(business+0x60,0,type,error)||type!=p.image+0x16ec280||
+    if(!read(p.image,0x13eb9a0,clock,error)||clock!=p.clock||!read(clock,0,type,error)||type!=p.image+0x174fd70||!read(clock,0x58,selected,error)||selected!=0||
+       !read(p.image,0x13eb220,business,error)||business!=p.business||!read(business,0,type,error)||type!=p.image+0x16dfb80||!read(business,0x100,record,error)||record!=p.record||
+       !read(record,0,type,error)||type!=p.image+0x1718fa0||!read(record,0x18,version,error)||version!=2||!read(business+0x60,0,type,error)||type!=p.image+0x16f2620||
        !read(business,0x68,history,error)||history!=p.history||!read(business,0x70,count,error)||count!=p.history_count||!read(business,0x74,capacity,error)||capacity<count||
        !read(business,0x38,cash,error)||cash!=p.values.cash)return fail("economic scalar live Clock/Business/History/CurrentRecord roots differ");
     size_t matches=0;
@@ -27,7 +27,7 @@ template<class Read>bool subscriber_store_owner(Read read,const Owners& before,c
     struct Arrays {uintptr_t manager=0,subscribers=0,loans=0,offers=0;int32_t next_id=-1;std::array<int32_t,6> sizes{};bool operator==(const Arrays&)const=default;};
     auto arrays=[&](Arrays& out){
         uintptr_t type=0;
-        if(!read(p.image,0x13df690,out.manager,error)||out.manager!=before.subscriber_manager||!read(out.manager,0,type,error)||type!=p.image+0x1725f40||!read(out.manager,0x40,out.subscribers,error)||!read(out.manager,0x48,out.sizes[0],error)||!read(out.manager,0x4c,out.sizes[1],error)||!read(out.manager,0x68,out.next_id,error)||
+        if(!read(p.image,0x13eb690,out.manager,error)||out.manager!=before.subscriber_manager||!read(out.manager,0,type,error)||type!=p.image+0x172c2e0||!read(out.manager,0x40,out.subscribers,error)||!read(out.manager,0x48,out.sizes[0],error)||!read(out.manager,0x4c,out.sizes[1],error)||!read(out.manager,0x68,out.next_id,error)||
            !read(p.business,0x98,out.loans,error)||!read(p.business,0xa0,out.sizes[2],error)||!read(p.business,0xa4,out.sizes[3],error)||!read(p.business,0xc8,out.offers,error)||!read(p.business,0xd0,out.sizes[4],error)||!read(p.business,0xd4,out.sizes[5],error))return fail("economic direct Subscriber Manager/Loan/Offer header unreadable");
         if(out.subscribers!=before.subscriber_data||out.loans!=before.loan_data||out.offers!=before.offer_data||out.sizes[0]<0||out.sizes[0]>1000000||out.sizes[1]<out.sizes[0]||size_t(out.sizes[0])!=before.subscribers.size()||out.sizes[2]<0||out.sizes[2]>1024||out.sizes[3]<out.sizes[2]||size_t(out.sizes[2])!=before.loans.size()||out.sizes[4]<0||out.sizes[4]>1024||out.sizes[5]<out.sizes[4]||size_t(out.sizes[4])!=before.offers.size()||out.next_id<0)return fail("economic direct Subscriber Manager/Loan/Offer array identity differs");
         return true;

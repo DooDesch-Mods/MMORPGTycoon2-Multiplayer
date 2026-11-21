@@ -78,8 +78,8 @@ template<class T>bool at(Runtime& runtime,uintptr_t address,size_t offset,T& out
         if((address==100||address==200)&&offset==0x20){out=0x3000;return true;}
         if(address==0x3000&&offset==0){out=0x4000;return true;}
         if(address==0x3000&&offset==8){out=0x5000;return true;}
-        if(address==0x5000&&offset==0){out=runtime.image+0x1786fb0;return true;}
-        if(address==0x4000&&offset==0){out=runtime.image+0x1723230;return true;}
+        if(address==0x5000&&offset==0){out=runtime.image+0x178d350;return true;}
+        if(address==0x4000&&offset==0){out=runtime.image+0x17295d0;return true;}
         if(address==0x4000&&offset==0xb8){out=fixture_region_pointer();return true;}
     }else if constexpr(std::is_same_v<T,int32_t>){
         if(address==0x4000&&offset==0xc0){out=fixture_inverse_type;return true;}

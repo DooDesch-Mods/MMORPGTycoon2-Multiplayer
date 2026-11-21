@@ -101,7 +101,7 @@ private:
             error="Ordered Save request has stale native execution identity";return false;
         }
         if(request->kind==MT2FW_MT2_SAVE_QUIT){
-            if(quit_pending_||ordinary_save_pending()||request->caller_rva!=0x4a0690||request->filename_bytes!=8||
+            if(quit_pending_||ordinary_save_pending()||request->caller_rva!=0x4a5b80||request->filename_bytes!=8||
                 std::memcmp(request->filename,"autosave",8)){
                 error="Quit Save intent differs from the untouched original branch";return false;
             }

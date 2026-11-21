@@ -25,7 +25,7 @@ namespace {
 namespace host=mt2mp::build_actions::private_native::host;
 namespace identity=dungeon_gizmo_identity;
 identity::Registry registry;identity::Scope bound;std::mutex gate;
-constexpr const char* executable="bbab2dc68babcc644d0a1679548bf1e334b6c52aea669c3f61f6cb9d45c1aaf6";
+constexpr const char* executable="7efd8ee7b97f78362e7a2f8116b327fa6b756bdce23114b68143c4c9d2dd50eb";
 bool fail(std::string& e,const std::string& cause){e=cause;return false;}
 uint32_t original_find(host::FindUid call,uint64_t uid,uintptr_t& found)noexcept{
     __try{found=uintptr_t(call(uid));return 0;}__except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
@@ -73,14 +73,14 @@ static bool read_census(const World& world,const std::vector<Exterior>& exterior
     host::ProcessMemory memory;host::LookupApi api;if(!host::resolve_lookup(memory,image,digest,api,error))return false;
     struct Pin{uintptr_t rva;size_t bytes;const char* sha;};
     constexpr std::array<Pin,7> stream_contract{{
-        {0xe39220,880,"a774f62245dc31d1e2750a00fa09d6c3edd8a4b42eb0113c81a7a4c73d000973"},
-        {0xe39170,176,"dcf90d69d55472cbbed118382fc2cff02015f0990e868dcdbbd06d8e3f9b28b2"},
+        {0xe44d10,880,"262a1228a45b10a6689d27a565d9ca5768fe9f908fcf69d7229741d3719a98f2"},
+        {0xe44c60,176,"e61546aa8216d976462347faabeb6af976695bf72dcddea01058b9d311a9b429"},
 
-        {0xdde8e0,337,"d0361f2626f6af644b4f2f349adfcdf15f698f63e1c80a6234b63eb966ef4c5f"},
-        {0xdde8b0,37,"1130ec4f456035af71b381da6e5d47daf5cfd2df532c22d3a23c3d5f86eeb1e3"},
-        {0xe14190,268,"f9ce3891249b849fcd54b435745454f39ad8afab8c88589125e0630227798b4e"},
-        {0xc11fd0,1107,"14d2cff6a8c3cb290f055d6e790123133f30a38ce99fdb485c8f0363fd97a53f"},
-        {0x12903c0,868,"8d316c27bf91648d0df640a3921176b9f0ded232c238863d5148f47c5bae4eeb"}}};
+        {0xdea1f0,337,"27525448a04eed20627c8bc43aabbf40fa1f58e31da0d983170d20f6a6fb2d2a"},
+        {0xdea1c0,37,"1130ec4f456035af71b381da6e5d47daf5cfd2df532c22d3a23c3d5f86eeb1e3"},
+        {0xe1faa0,268,"58565f51cd9cb49b7dd309bedd69bd404c3664c90022a8a360dd2421c5d04270"},
+        {0xc1e710,1107,"077caee750be24161b8f62b095d9dfb5c3e3ec8c4db7abaf4d8a07b1f0223d66"},
+        {0x129bd80,868,"b893457950503a892c6617b80025275864760a2402fe063c36f7e3c899fb8a12"}}};
     if(snapshot)for(const auto& pin:stream_contract){std::vector<uint8_t> bytes(pin.bytes);if(!memory.copy(image+pin.rva,bytes.data(),bytes.size(),error))return false;
         net::SnapshotSha256 hash;hash.add(bytes.data(),bytes.size());if(hash.finish()!=pin.sha)return fail(error,"Dungeon scene original Gizmo stream/property body differs RVA="+std::to_string(pin.rva));}
     auto at=[&](uintptr_t p,size_t offset,auto& value,std::string& e){

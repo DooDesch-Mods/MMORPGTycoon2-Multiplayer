@@ -53,16 +53,16 @@ template<class Read,class Copy>bool array(Read& read,Copy& copy,uintptr_t object
 template<class Read,class Copy,class Text,class Find>bool read(Read& read,Copy& copy,Text& text,Find& find,uintptr_t image,Pin& pin,State& out,std::string& error){
     out={};pin={};uintptr_t ap=0;
     const auto owner=[&](size_t global,uintptr_t expected,uintptr_t& object){return read(image,global,object,error)&&read(object,0,ap,error)&&(ap==image+expected||(error="Design actual current singleton class differs",false));};
-    if(!owner(0x13df500,0x1715450,pin.software)||!owner(0x13df9e0,0x1786ef0,pin.design)||!owner(0x13df3c0,0x16ffdd0,pin.features)||!owner(0x13df250,0x16dc400,pin.tree))return false;
+    if(!owner(0x13eb500,0x171b7f0,pin.software)||!owner(0x13eb9e0,0x178d290,pin.design)||!owner(0x13eb3c0,0x1706170,pin.features)||!owner(0x13eb250,0x16e27a0,pin.tree))return false;
     if(pin.design!=pin.software+0x98){error="Design current Software embedded owner differs";return false;}
-    if(!read(pin.design+0x170,0,ap,error)||ap!=image+0x16d9f40||!read(pin.design+0x1c0,0,ap,error)||ap!=image+0x173cd30){if(error.empty())error="Design embedded XP/Respawn native classes differ";return false;}
+    if(!read(pin.design+0x170,0,ap,error)||ap!=image+0x16e02e0||!read(pin.design+0x1c0,0,ap,error)||ap!=image+0x17430d0){if(error.empty())error="Design embedded XP/Respawn native classes differ";return false;}
     uint8_t delay=0;if(!read(pin.design,0x188,out.xp,error)||!read(pin.design,0x1d8,out.respawn_seconds,error)||!read(pin.design,0x1dc,delay,error)||!read(pin.features,0x18,out.features,error))return false;
     if(delay>1){error="Design actual respawn delay is not Boolean";return false;}out.respawn_delay=delay!=0;
     std::vector<uintptr_t> techs,records;if(!array(read,copy,pin.tree,0x10,techs,error)||!array(read,copy,pin.software,0x280,records,error))return false;
     for(size_t i=0;i<2;++i){const std::string key=i?"parties":"pvpduels";if(!find(pin.tree,key,pin.tech[i],error))return false;if(!pin.tech[i])continue;
-        std::string name;const auto tech=pin.tech[i];if(std::count(techs.begin(),techs.end(),tech)!=1||!read(tech,0,ap,error)||(ap!=image+0x1744c40&&ap!=image+0x16dc330&&ap!=image+0x16e0ac0&&ap!=image+0x16fdb10)||!text(tech+0x20,name,error)||name!=key||!read(tech,0x1e8,pin.records[i],error)){if(error.empty())error="Design current keyed TechTree owner differs";return false;}
+        std::string name;const auto tech=pin.tech[i];if(std::count(techs.begin(),techs.end(),tech)!=1||!read(tech,0,ap,error)||(ap!=image+0x174afe0&&ap!=image+0x16e26d0&&ap!=image+0x16e6e60&&ap!=image+0x1703eb0)||!text(tech+0x20,name,error)||name!=key||!read(tech,0x1e8,pin.records[i],error)){if(error.empty())error="Design current keyed TechTree owner differs";return false;}
         const auto record=pin.records[i];uintptr_t back=0;std::array<uint8_t,3> flags{};
-        if(std::count(records.begin(),records.end(),record)!=1||!read(record,0,ap,error)||ap!=image+0x16e79d0||!read(record,0x60,back,error)||back!=tech||!text(record+0x38,name,error)||name!=key||!read(record,0x58,flags,error)){if(error.empty())error="Design current Software TechRecord reciprocity differs";return false;}
+        if(std::count(records.begin(),records.end(),record)!=1||!read(record,0,ap,error)||ap!=image+0x16edd70||!read(record,0x60,back,error)||back!=tech||!text(record+0x38,name,error)||name!=key||!read(record,0x58,flags,error)){if(error.empty())error="Design current Software TechRecord reciprocity differs";return false;}
         for(auto flag:flags)if(flag>1){error="Design required technology flag is not Boolean";return false;}out.available[i]=uint8_t(flags[1]||flags[2]);
     }
     if(!valid(out)){error="Design actual native rule value outside domain";return false;}error.clear();return true;

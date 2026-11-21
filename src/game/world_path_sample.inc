@@ -35,7 +35,7 @@ bool world_path_sample(region::Runtime& r,const std::string& snapshot,int32_t st
     region::LocalView first;
     if(!region::identity(r,start,0,first,error))return false;
     uintptr_t map=0;
-    if(!region::at(r,r.image,0x13df8c0,map,error))return false;
+    if(!region::at(r,r.image,0x13eb8c0,map,error))return false;
     mixed_path_native::Census census;
     if(!mixed_path_native::read_world(r.memory,r.image,map,first.world.root,census,error))return false;
     if(owner.snapshot.empty()){

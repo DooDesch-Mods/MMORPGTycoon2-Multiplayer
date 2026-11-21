@@ -26,7 +26,7 @@ struct ChildrenPort {
         uintptr_t selected=0;
         for(auto node:operations){uintptr_t ap=0;uint64_t uid=0;
             if(!field(memory,node,0,ap,error))return false;
-            if(ap!=state.image+0x16de8a0)continue;
+            if(ap!=state.image+0x16e4c40)continue;
             if(!field(memory,node,0xb8,uid,error))return false;
             if(uid!=receipt.child.row.local_uid)continue;
             if(selected)return fail(error,"Dungeon Building original child inverse repeats its complete saved UID");selected=node;
@@ -109,12 +109,12 @@ bool child_external(ChildrenPort& port,const Snapshot* previous,std::string& err
         names[row.local_pointer]=key;current_children.emplace_back(&building,row);
     }
     const dungeon_input_codes::Pin pins[]{
-        {0x9667c0,181,"f061a1fe2ca42b75546e22e95981092d682869382e859ed5b10af7ecd80ba6c9"},
-        {0x9676a0,148,"7f6e66c76e2be9e2d7f43ab04d8721cc060f16ddcd111a422605af135ab1bb4a"},
-        {0x89e580,106,"fc9d17c2e62785b1cfd9e4bb59ae1568cb603f1e232cb30ce48d429581f73646"},
-        {0x89e5f0,151,"0808e0234ca17c59c1fd755944f300a0145c52953160aa8231eef3006665e690"},
-        {0x10ecae0,87,"52f1b850ad131c46f7d249b5b6365e5c289a571e83c0a6d4996c36647dd36bc2"},
-        {0x10ecb40,409,"4a5445004eb0a955a6b8fb7a84c77341f2001af6fa5fa20489039ebe472c621e"}};
+        {0x96f9e0,181,"c17476a1733c67fd3eb338f89df6eeabf441b55f6478187288fa9c71cab2e532"},
+        {0x9708c0,148,"bb4624bbc533d99539535f19391f65e947168a081318a35d4e7eae53082253f9"},
+        {0x8a76a0,104,"84dedde177d3b1f6c787f0781bc69a770830098429da33ac063fc70fbf24eb6c"},
+        {0x8a7710,151,"ad04a9466902eea3b1bb7a50a2c321e6deebeae5690738e7653efed5719777ea"},
+        {0x10f8480,87,"f607fc29ae5236794cdaa10e67816bd0698741b2f104760f403c6a7d0a607406"},
+        {0x10f84e0,409,"e12ed44c45f4df9ba1070943b3dc1150d3f396c3888bb4620034238fccdfdf77"}};
     for(const auto& pin:pins){std::vector<unsigned char> bytes(pin.bytes);
         if(!port.memory.copy(state.image+pin.rva,bytes.data(),bytes.size(),error)||
            !hooks::framework::verify_original_hash(state.image+pin.rva,bytes.data(),bytes.size(),pin.sha,error))return false;
@@ -122,9 +122,9 @@ bool child_external(ChildrenPort& port,const Snapshot* previous,std::string& err
     for(const auto& [building,row]:current_children){(void)building;
         dungeon_cells::ValueMemory view(port.memory);dungeon_cells::ValueCapture captured{view};subscriber_lifecycle::CaptureReceipt cleanup;
         const subscriber_lifecycle::CaptureApi api{
-            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9667c0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9676a0),
-            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e580),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x89e5f0),
-            reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x10ecae0),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x10ecb40)};
+            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x96f9e0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x9708c0),
+            reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a76a0),reinterpret_cast<subscriber_lifecycle::Construct>(state.image+0x8a7710),
+            reinterpret_cast<subscriber_lifecycle::PrepareSave>(state.image+0x10f8480),reinterpret_cast<subscriber_lifecycle::SaveRecord>(state.image+0x10f84e0)};
         {live_host_state::apply_timing::PageReadScope original_call(live_host_state::apply_timing::PageBoundary::OriginalCall);
             if(!subscriber_lifecycle::capture_original(api,reinterpret_cast<const void*>(row.local_pointer),dungeon_cells::inspect_value,&captured,cleanup,error))return false;}
         for(const auto& link:captured.graph.private_links){if(link.has_inline_definition||names.contains(link.object))continue;

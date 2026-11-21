@@ -29,7 +29,7 @@ constexpr uintptr_t native_image=0x140000000,fixture_mode=0x200000,array=0x30000
 auto snapshot(Memory& m){
     mt2mp::game::tutorial_development::StartingpointSnapshot out;out.image=native_image;out.origin.mode=reinterpret_cast<void*>(fixture_mode);out.record=0x800000;out.row=mt2mp::game::tutorial_replication::startingpoint::Row{};out.creation=mt2mp::game::tutorial_development::CreationOwners{};out.creation->source=source;
     m.store(fixture_mode+0xa0,array);m.store<int32_t>(fixture_mode+0xa8,1);m.store<int32_t>(fixture_mode+0xac,2);m.store(array,ui);
-    m.store(ui,native_image+0x1722e60);m.store<uintptr_t>(ui+0x318,0);m.store<uint8_t>(ui+0x45f,1);m.store(ui+0x540,tabs);m.store(ui+0x610,source);m.store(ui+0x1b0,name);m.store<uint64_t>(ui+0x1b8,11);const char text[]="development";for(size_t i=0;i<sizeof(text);++i)m.bytes[name+i]=static_cast<unsigned char>(text[i]);return out;
+    m.store(ui,native_image+0x1729200);m.store<uintptr_t>(ui+0x318,0);m.store<uint8_t>(ui+0x45f,1);m.store(ui+0x540,tabs);m.store(ui+0x610,source);m.store(ui+0x1b0,name);m.store<uint64_t>(ui+0x1b8,11);const char text[]="development";for(size_t i=0;i<sizeof(text);++i)m.bytes[name+i]=static_cast<unsigned char>(text[i]);return out;
 }
 constexpr uintptr_t entry_address=0x100000,relay_address=0x110000,hook_address=0x120000;
 struct Code:Memory {
@@ -52,7 +52,7 @@ struct ApplyCalls {
 };
 }
 int main(){try{
-    {need(start::route(true,true,native_image,native_image+0x6c7e02)==start::Route::ClientIntent,"exact Client native Pay origin not selected");need(start::route(false,true,native_image,native_image+0x6c7e02)==start::Route::Original&&start::route(true,false,native_image,native_image+0x6c7e02)==start::Route::Original&&start::route(true,true,native_image,native_image+1)==start::Route::Original,"foreign Pay origin swallowed");pass("exact Client Mainthread UI return selects intent while foreign routes remain original");}
+    {need(start::route(true,true,native_image,native_image+0x6cf222)==start::Route::ClientIntent,"exact Client native Pay origin not selected");need(start::route(false,true,native_image,native_image+0x6cf222)==start::Route::Original&&start::route(true,false,native_image,native_image+0x6cf222)==start::Route::Original&&start::route(true,true,native_image,native_image+1)==start::Route::Original,"foreign Pay origin swallowed");pass("exact Client Mainthread UI return selects intent while foreign routes remain original");}
     {Calls c;start::Receipt r;need(!start::dispatch(start::Route::ClientIntent,c,r)&&r.suppressed&&r.submitted&&!r.original_attempted&&!c.originals&&c.submits==1,"Client intent paid locally or failed native false return");pass("Client capture submits once and returns original false path without local Pay");}
     {Calls c;c.capture_ok=false;start::Receipt r;need(!start::dispatch(start::Route::ClientIntent,c,r)&&r.suppressed&&!r.submitted&&!c.originals&&!c.submits&&r.cause=="original owned window rejected","capture rejection fell through to original Pay");pass("failed exact Client ownership never falls through to Pay");}
     {Calls c;c.submit_ok=false;start::Receipt r;need(!start::dispatch(start::Route::ClientIntent,c,r)&&!r.submitted&&!c.originals&&c.submits==1&&r.cause=="original Controller busy","Controller rejection was hidden or retried");pass("Controller rejection preserves cause with no native fallback or retry");}

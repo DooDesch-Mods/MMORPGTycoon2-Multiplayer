@@ -21,7 +21,7 @@ bool manager_pipes(const void* manager,std::vector<void*>& out,std::string& caus
 }
 bool pipe_read(void* object,const Roots& roots,Binding& row,std::string& cause){
     row={};row.node=object;
-    if(!vtable(object,0x16fca60)||!read_at(object,0x18,row.uid)||!row.uid||!read_at(object,0x178,row.region)||!read_at(object,0x170,row.shard)||
+    if(!vtable(object,0x1702e00)||!read_at(object,0x18,row.uid)||!row.uid||!read_at(object,0x178,row.region)||!read_at(object,0x170,row.shard)||
        row.shard!=roots.shard||std::find(roots.regions.begin(),roots.regions.end(),row.region)==roots.regions.end()||!vtable(row.region,region_vtable)||
        !read_at(row.region,0x834,row.region_id)||row.region_id<0||!read_at(row.region,0x978,row.manager)||!vtable(row.manager,manager_vtable)){
         cause="Network Pipe current class/full UID/Region/root differs";return false;

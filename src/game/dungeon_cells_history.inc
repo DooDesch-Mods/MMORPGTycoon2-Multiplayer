@@ -77,7 +77,7 @@ bool reconcile_history(Memory& memory,const a::Binding& binding,const a::Request
             const auto receipt=std::find_if(receipts.begin(),receipts.end(),[&](const auto& row){return row.node==node.pointer;});
             if(receipt==receipts.end())return fail(error,"Dungeon original Gizmo Make has no actual return receipt");
             object=receipt->object;uintptr_t ap=0;
-            if(!field(memory,object,0,ap,error)||ap!=state.image+0x1749ab0)return fail(error,error.empty()?"Dungeon original Gizmo return has a foreign concrete class":error);
+            if(!field(memory,object,0,ap,error)||ap!=state.image+0x174fe50)return fail(error,error.empty()?"Dungeon original Gizmo return has a foreign concrete class":error);
         }
         if(!object||!field(memory,object,0x18,uid,error)||!field(memory,object,0x170,shard,error)||!field(memory,object,0x178,region,error)||
            !uid||shard!=actor.shard||region!=actor.region)return fail(error,error.empty()?"Dungeon original actor restoration lacks its complete reciprocal scene owner":error);

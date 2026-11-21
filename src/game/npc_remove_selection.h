@@ -6,11 +6,11 @@ bool prepare_info_selection_body(uintptr_t image,nlohmann::json& probe,std::stri
                                  Read&& read,ActiveTool&& active_tool,Switch&& switch_default) {
     probe=nlohmann::json::object();uintptr_t cursor=0,ap=0,current=0,desired=0,slot=0;
     uint8_t keeps_selection=0;
-    if(!read(image,0x13df9d0,cursor,error)||!cursor||
-       !read(cursor,0,ap,error)||ap!=image+0x1786dd0||
+    if(!read(image,0x13eb9d0,cursor,error)||!cursor||
+       !read(cursor,0,ap,error)||ap!=image+0x178d170||
        !read(cursor,0x190,current,error)||!current||
        !read(cursor,0x198,desired,error)||!desired||
-       !read(desired,0,ap,error)||ap!=image+0x17391a0||
+       !read(desired,0,ap,error)||ap!=image+0x173f540||
        !read(desired,0x120,keeps_selection,error)||keeps_selection!=1) {
         if(error.empty())error="NPC Remove original cursor/default selection contract differs";
         return false;
@@ -20,8 +20,8 @@ bool prepare_info_selection_body(uintptr_t image,nlohmann::json& probe,std::stri
     if(current!=desired){
         const auto old=current;
         if(!active_tool(old,error))return false;
-        if(!read(old,0,ap,error)||ap!=image+0x172b450||
-           !read(ap,0xb0,slot,error)||slot!=image+0x5c3240) {
+        if(!read(old,0,ap,error)||ap!=image+0x17317f0||
+           !read(ap,0xb0,slot,error)||slot!=image+0x5c99e0) {
             if(error.empty())error="NPC Remove original tool Deactivate slot differs";
             return false;
         }

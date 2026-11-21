@@ -21,7 +21,7 @@ template<class Memory>bool observe(Memory& m,uintptr_t image,uintptr_t object,Wi
     uintptr_t ap=0,weak=0;Witness value;value.object=object;
     if(!at(m,object,0,ap,e)||!at(m,object,0x18,value.uid,e)||!at(m,object,0x178,value.region,e)||
        !at(m,object,0x28,value.proxy,e)||!at(m,value.proxy,0,weak,e))return false;
-    if(ap!=image+0x1742980||!value.uid||!value.region||object>UINTPTR_MAX-0x20||weak!=object+0x20)
+    if(ap!=image+0x1748d20||!value.uid||!value.region||object>UINTPTR_MAX-0x20||weak!=object+0x20)
         return fail(e,"Quest NPC destination class, UID, Region or weak proxy differs");
     out=std::move(value);return true;
 }

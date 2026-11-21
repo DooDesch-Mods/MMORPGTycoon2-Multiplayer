@@ -41,12 +41,12 @@ bool staff_measure(Pin& p,const tutorial_development::StartingpointSnapshot& s,i
     if(code)return fail(e,"startingpoint Staff completion getter exception="+std::to_string(code));
     if(done)issue("native debugging complete");
     bool tabs_ok=false,view_ok=false,project_ok=false,pips_ok=false,button_ok=false;uintptr_t staff=0,dev=0;
-    if(!at(p.window,0x540,out.tabs,e)||!read_type(out.tabs,0x17015b0,"tabs",tabs_ok))return false;
-    if(tabs_ok&&(!owner(out.tabs,"tabs")||!at(out.tabs,0x3b8,out.view,e)||!read_type(out.view,0x16dfe90,"view",view_ok)))return false;
+    if(!at(p.window,0x540,out.tabs,e)||!read_type(out.tabs,0x1707950,"tabs",tabs_ok))return false;
+    if(tabs_ok&&(!owner(out.tabs,"tabs")||!at(out.tabs,0x3b8,out.view,e)||!read_type(out.view,0x16e6230,"view",view_ok)))return false;
     if(view_ok&&!page(out.view,"staff_page","{dev_tab_staff}",staff))return false;
-    if(!at(p.window,0x568,out.project_view,e)||!read_type(out.project_view,0x16dfe90,"project_view",project_ok))return false;
+    if(!at(p.window,0x568,out.project_view,e)||!read_type(out.project_view,0x16e6230,"project_view",project_ok))return false;
     if(project_ok&&!page(out.project_view,"project_page","dev",dev))return false;
-    if(!at(p.window,0x588,out.pips,e)||!read_type(out.pips,0x1744290,"pips",pips_ok))return false;
+    if(!at(p.window,0x588,out.pips,e)||!read_type(out.pips,0x174a630,"pips",pips_ok))return false;
     if(pips_ok){
         uintptr_t data=0,children=0,parent=0;int32_t count=0,capacity=0,child_count=0,child_capacity=0,pip_count=0,value=0;std::string command;
         if(!owner(out.pips,"pips")||!at(out.pips,0x278,parent,e)||!text(out.pips,0x398,command,e)||!at(out.pips,0x3c4,pip_count,e)||
@@ -78,7 +78,7 @@ bool staff_measure(Pin& p,const tutorial_development::StartingpointSnapshot& s,i
             const bool members=buttons==owned&&count==pip_count;values["button_membership_matches"]=members;
             if(!members)issue("Pips button/owned-child membership differs");
         }
-        if(!read_type(out.button,0x16e3ec0,"button",button_ok))return false;
+        if(!read_type(out.button,0x16ea260,"button",button_ok))return false;
     }
     if(button_ok){uintptr_t parent=0;uint8_t disabled=0,toggle=0;std::string command;
         if(!owner(out.button,"button")||!at(out.button,0x278,parent,e)||!text(out.button,0x388,command,e)||!at(out.button,0x46d,disabled,e)||!at(out.button,0x46c,toggle,e))return false;

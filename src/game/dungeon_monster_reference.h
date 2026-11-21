@@ -28,16 +28,16 @@ bool read(Read& at,Find& find,Resolve& resolve,uintptr_t image,
         return fail(error,"Dungeon direct Monster requires an explicit current template/Instance scope");
     if(!at(manager,0,ap,error)||!at(manager,0x80,owner,error)||!at(scene.owner.region,0x70,shard,error)||
        !at(scene.owner.region,0x988,actual_manager,error))return false;
-    if(ap!=image+0x1714100||owner!=scene.owner.region||shard!=scene.owner.shard||actual_manager!=manager)
+    if(ap!=image+0x171a4a0||owner!=scene.owner.region||shard!=scene.owner.shard||actual_manager!=manager)
         return fail(error,"Dungeon direct Monster manager/Region/Shard ownership differs");
     if(!at(manager,0x38,ap,error))return false;
-    if(ap!=image+0x16e8b60)return fail(error,"Dungeon direct Monster current main array class differs");
+    if(ap!=image+0x16eef00)return fail(error,"Dungeon direct Monster current main array class differs");
     if(!dungeon_scene_roster::array(at,manager+0x38,next.array,error))return false;
     std::set<uint64_t> uids;bool found=false;
     for(const auto object:next.array.members){Member member;member.object=object;uintptr_t region=0,member_shard=0,registered=0;
         if(!at(object,0,ap,error)||!at(object,0x18,member.uid,error)||!at(object,0x170,member_shard,error)||!at(object,0x178,region,error)||
            !at(object,0x8d0,member.zone,error)||!at(object,0x8d8,member.proxy,error))return false;
-        if(ap!=image+0x16c0770||!member.uid||!uids.insert(member.uid).second||member_shard!=scene.owner.shard||region!=scene.owner.region)
+        if(ap!=image+0x16c6b10||!member.uid||!uids.insert(member.uid).second||member_shard!=scene.owner.shard||region!=scene.owner.region)
             return fail(error,"Dungeon Monster current member class/full UID/scene differs");
         if(!find(member.uid,registered,error))return false;
         if(registered!=object)return fail(error,"Dungeon Monster original full UID registry differs");

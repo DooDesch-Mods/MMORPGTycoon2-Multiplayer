@@ -4,7 +4,7 @@
 
 namespace mt2mp::game::saved_building_path {
 inline uint32_t cast(uintptr_t image,uintptr_t object,uintptr_t from,uintptr_t to,uintptr_t& found)noexcept{
-    __try{found=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,const void*,ptrdiff_t)>(image+0x12654f0)(
+    __try{found=uintptr_t(reinterpret_cast<void*(*)(void*,const void*,const void*,ptrdiff_t)>(image+0x1270eb0)(
         reinterpret_cast<void*>(object),reinterpret_cast<void*>(image+from),reinterpret_cast<void*>(image+to),0));return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }

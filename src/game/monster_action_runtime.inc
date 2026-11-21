@@ -39,18 +39,18 @@ identity::Scope scope(const Pin& p,const d::Sample& s){return {p.world.origin.uu
     p.world.origin.generation,p.world.root,p.region.region,s.state.monster_manager,p.scene};}
 bool code(Memory& m,bool hooked,std::string& e){
     for(const auto& c:elite_probe_codes::values){
-        if(c.rva==0x207820){bool owned=false;
+        if(c.rva==0x20a2b0){bool owned=false;
             if(!control_input::runtime::verify_item_activate(state.image,c.size,c.sha,owned,e))return false;
             if(owned)continue;
         }
-        if(c.rva==0x67fb40){if(!zone_action_runtime::verify_owned_entry(c.rva,e))return false;continue;}
+        if(c.rva==0x686d50){if(!zone_action_runtime::verify_owned_entry(c.rva,e))return false;continue;}
         std::string bytes(c.size,'\0'),sha;if(!m.copy(state.image+c.rva,bytes.data(),bytes.size(),e))return false;
-        if(c.rva==0x5854e0){
+        if(c.rva==0x58bca0){
             if(!hooks::framework::verify_original_hash(state.image+c.rva,bytes.data(),bytes.size(),c.sha,e))
                 return fail(e,"Monster Cursor SetBehaviour original body differs RVA="+std::to_string(c.rva)+" original="+e);
             continue;
         }
-        if(c.rva==0x5bf3c0&&hooked){
+        if(c.rva==0x5c5b60&&hooked){
             std::array<unsigned char,5> prefix{};std::array<unsigned char,6> jump{};uintptr_t target=0;
             constexpr std::array<unsigned char,6> ff25{0xff,0x25,0,0,0,0};
             if(uint8_t(bytes[0])!=0xe9||!state.release||
@@ -66,8 +66,8 @@ bool code(Memory& m,bool hooked,std::string& e){
         }else if(!quest_bridge::sha256(bytes,sha,e)||sha!=c.sha)return fail(e,e.empty()?"Monster native body differs RVA="+std::to_string(c.rva):e);
     }
     uintptr_t actual=0;
-    return field(m,state.image+0x1739500,0xe8,actual,e)&&
-        ((actual==state.image+0x5bf3c0)||fail(e,"Monster primary Release address point differs"));
+    return field(m,state.image+0x173f8a0,0xe8,actual,e)&&
+        ((actual==state.image+0x5c5b60)||fail(e,"Monster primary Release address point differs"));
 }
 bool pin(Memory& m,const a::Binding& binding,const std::string& snapshot,int32_t region,Pin& p,std::string& e){
     if(!state.ready||state.thread!=GetCurrentThreadId())return fail(e,"Monster action requires installed bound Mainthread");
@@ -126,7 +126,7 @@ bool capture_idle(const json& controller,std::string& e){
 bool full_uid(Memory& m,const Pin& p,const monster_zone_read::Monster& row,std::string& e){
     uintptr_t found=0,ap=0,proxy=0;uint64_t actual=0;const auto seh=lookup(p.api.find,row.uid,found);
     if(seh||found!=row.pointer||!field(m,row.pointer,0x18,actual,e)||actual!=row.uid||
-       !p.region.image||!field(m,row.pointer,0,ap,e)||ap!=p.region.image+0x16c0770||!field(m,row.pointer,0x8d8,proxy,e)||(!row.zone&&proxy))
+       !p.region.image||!field(m,row.pointer,0,ap,e)||ap!=p.region.image+0x16c6b10||!field(m,row.pointer,0x8d8,proxy,e)||(!row.zone&&proxy))
         return fail(e,e.empty()?"Monster full UID/class/current-manager/null-Zone proxy differs SEH="+std::to_string(seh):e);
     return true;
 }
@@ -164,7 +164,7 @@ bool effect(Memory& m,const Pin& p,d::Sample& sample,a::MonsterState& value,std:
     return true;
 }
 uint32_t input(uintptr_t rva,const ToolPin& tool,const std::array<float,3>& point)noexcept{
-    __try{auto call=rva==0x5bf3c0?state.release:reinterpret_cast<Release>(state.image+rva);
+    __try{auto call=rva==0x5c5b60?state.release:reinterpret_cast<Release>(state.image+rva);
         call(reinterpret_cast<void*>(tool.behaviour),reinterpret_cast<void*>(tool.cursor),point.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -174,16 +174,16 @@ struct ActivationReadback {
 uint32_t activate(uintptr_t player,const char* definition,uintptr_t expected,ActivationReadback& out)noexcept{
     struct String{uintptr_t data=0;size_t size=0;unsigned char storage[16]{};};String value;bool made=false;uint32_t code=0;
     out={};
-    __try{reinterpret_cast<void(*)(void*,const char*)>(state.image+0x49e090)(&value,definition);made=true;
-        out.lookup_item=reinterpret_cast<uintptr_t(*)(void*,const void*)>(state.image+0xd2fc0)(reinterpret_cast<void*>(player),&value);out.lookup_returned=true;
+    __try{reinterpret_cast<void(*)(void*,const char*)>(state.image+0x4a3580)(&value,definition);made=true;
+        out.lookup_item=reinterpret_cast<uintptr_t(*)(void*,const void*)>(state.image+0xd3ff0)(reinterpret_cast<void*>(player),&value);out.lookup_returned=true;
         if(out.lookup_item==expected){out.attempted=true;
-            reinterpret_cast<void(*)(void*,const void*)>(state.image+0xd30c0)(reinterpret_cast<void*>(player),&value);out.returned=true;}}
+            reinterpret_cast<void(*)(void*,const void*)>(state.image+0xd40f0)(reinterpret_cast<void*>(player),&value);out.returned=true;}}
     __except(EXCEPTION_EXECUTE_HANDLER){code=GetExceptionCode();}
-    if(made){__try{reinterpret_cast<void(*)(void*)>(state.image+0x11bd1e0)(&value);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
+    if(made){__try{reinterpret_cast<void(*)(void*)>(state.image+0x11c8b80)(&value);}__except(EXCEPTION_EXECUTE_HANDLER){if(!code)code=GetExceptionCode();}}
     return code;
 }
 uint32_t set_transform(const ToolPin& tool,const a::MonsterIntent& intent)noexcept{
-    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(state.image+0x9ff370)(
+    __try{reinterpret_cast<void(*)(void*,const float*,const float*,const float*)>(state.image+0xa09f30)(
         reinterpret_cast<void*>(tool.behaviour+0x36c),intent.rotation.data(),intent.position.data(),intent.scale.data());return 0;}
     __except(EXCEPTION_EXECUTE_HANDLER){return GetExceptionCode();}
 }
@@ -210,7 +210,7 @@ bool prepare(Memory& m,const Pin& p,const a::MonsterIntent& intent,ToolPin& tool
     json inventory,options,region,tutorial;bool clear=false;
     if(!tutorial_clear(m,state.image,p.world,tutorial,clear,e)||!clear)return fail(e,e.empty()?"Monster original tutorial message blocks action":e);
     uintptr_t manager=0,player=0,active=0;
-    if(!field(m,state.image,0x13df650,manager,e)||manager!=uintptr_t(p.world.origin.world)+0x180)return fail(e,"Monster WorldViewManager owner differs");
+    if(!field(m,state.image,0x13eb650,manager,e)||manager!=uintptr_t(p.world.origin.world)+0x180)return fail(e,"Monster WorldViewManager owner differs");
     op.preparation["phase"]="region-entry";
     op.attempted|=1;auto seh=prepare_region_call(state.image,manager,p.region.region);
     if(seh)return fail(e,"Monster original Region entry SEH="+std::to_string(seh));op.returned|=1;
@@ -222,7 +222,7 @@ bool prepare(Memory& m,const Pin& p,const a::MonsterIntent& intent,ToolPin& tool
     op.preparation["phase"]="activation";
     op.preparation["activation"]={{"needed",active!=tool.behaviour},{"lookup_returned",false},{"attempted",false},{"returned",false}};
     if(active!=tool.behaviour){
-        if(!field(m,state.image,0x13df9f0,player,e))return stopped("Monster activation Player read failed");
+        if(!field(m,state.image,0x13eb9f0,player,e))return stopped("Monster activation Player read failed");
         ActivationReadback readback;op.attempted|=2;seh=activate(player,tool.definition_name.c_str(),tool.item,readback);
         op.preparation["activation"]={{"needed",true},{"requested_definition",tool.definition_name},{"expected_item",tool.item},
             {"lookup_item",readback.lookup_item},{"lookup_returned",readback.lookup_returned},
@@ -275,7 +275,7 @@ bool prepare(Memory& m,const Pin& p,const a::MonsterIntent& intent,ToolPin& tool
 void release_entry(void* receiver,void* cursor,const float* point)try{
     if(state.replaying||!net::session_wire::connected()){state.release(receiver,cursor,point);return;}
     const auto controller=typed_action_runtime::controller_status();std::string e;
-    if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x587e6c||
+    if(!state.ready||GetCurrentThreadId()!=state.thread||uintptr_t(_ReturnAddress())!=state.image+0x58e62c||
        state.pending||state.fault||!controller.value("started",false)||controller.value("locked",true)||!capture_idle(controller,e)){
         reject("Monster Release requires exact native Cursor caller and idle bound Controller; original suppressed");return;}
     Memory m;ToolPin tool;json inventory,options;uintptr_t region=0;uint8_t pressed=0;
@@ -300,7 +300,7 @@ void release_entry(void* receiver,void* cursor,const float* point)try{
     // creation until Host ordering; no guessed field cleanup runs here.
     std::optional<a::Context> context;if(!capture_context(snapshot,binding,context,e)){reject(e);return;}
     state.pending=Pending{intent,binding,snapshot,state.ui_token,std::move(context)};++state.captures;
-    if(!state.ui_token.empty()){auto& job=state.ui_jobs.at(state.ui_token);job["captured"]=true;job["normal_dispatcher_return_rva"]="0x587e6c";}
+    if(!state.ui_token.empty()){auto& job=state.ui_jobs.at(state.ui_token);job["captured"]=true;job["normal_dispatcher_return_rva"]="0x58e62c";}
 }catch(const std::exception& x){state.fault=true;reject(std::string("Monster capture boundary: ")+x.what());}
  catch(...){state.fault=true;reject("Monster capture non-standard boundary exception");}
 }
@@ -321,9 +321,9 @@ bool enable(std::string& e){
         if(!upstream.empty())state.cause+=" cause="+upstream;
         return fail(e,state.cause);
     };
-    const auto created=MH_CreateHook(reinterpret_cast<void*>(state.image+0x5bf3c0),reinterpret_cast<void*>(&release_entry),reinterpret_cast<void**>(&state.release));
+    const auto created=MH_CreateHook(reinterpret_cast<void*>(state.image+0x5c5b60),reinterpret_cast<void*>(&release_entry),reinterpret_cast<void**>(&state.release));
     if(created!=MH_OK||!state.release)return hook_failure("MH_CreateHook",created);
-    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x5bf3c0));
+    const auto enabled=MH_EnableHook(reinterpret_cast<void*>(state.image+0x5c5b60));
     if(enabled!=MH_OK)return hook_failure("MH_EnableHook",enabled);
     if(!code(m,true,e))return false;state.ready=true;return true;
 }
@@ -416,9 +416,9 @@ bool native_ui(const json& args,json& result,std::string& e)try{
     for(float n:hit)if(!std::isfinite(n)||std::abs(n)>1000000.f)return unknown("Monster actual cursor hit outside domain");
     seh=shard_region(state.image,p.world.root,hit,target);if(seh||target!=p.region.region)return unknown("Monster actual cursor hit Region differs SEH="+std::to_string(seh));
     job["actual_hit"]=hit;intent.position=hit;
-    preparation.attempted|=32;seh=input(0x5bf6e0,tool,hit);if(seh)return unknown("Monster native UI MouseOver SEH="+std::to_string(seh));preparation.returned|=32;
+    preparation.attempted|=32;seh=input(0x5c5e80,tool,hit);if(seh)return unknown("Monster native UI MouseOver SEH="+std::to_string(seh));preparation.returned|=32;
     if(!pose(m,tool,intent,p.region.region,e,false))return unknown(e);
-    preparation.attempted|=64;seh=input(0x5beaf0,tool,hit);if(seh)return unknown("Monster native UI Press SEH="+std::to_string(seh));preparation.returned|=64;
+    preparation.attempted|=64;seh=input(0x5c5290,tool,hit);if(seh)return unknown("Monster native UI Press SEH="+std::to_string(seh));preparation.returned|=64;
     uint8_t monster_pressed=0,released=1,enabled=0,behavior_active=0;int32_t pressed=1;bool modal=true;
     preparation.attempted|=8192;seh=action_runtime::modal_window(state.image,modal);if(seh)return unknown("Monster original modal query SEH="+std::to_string(seh));preparation.returned|=8192;
     if(!field(m,tool.behaviour,0x3e6,monster_pressed,e)||!field(m,tool.cursor,0x238,pressed,e)||!field(m,tool.cursor,0x23c,released,e)||
@@ -458,9 +458,9 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
     ToolPin tool;if(!prepare(m,p,request.monster,tool,op,e))return unknown(e);
     d::Sample prepared;a::MonsterState prepared_state;
     if(!effect(m,p,prepared,prepared_state,e)||!no_gameplay_change(initial,prepared))return unknown(e.empty()?"Monster original UI preparation changed gameplay":e);
-    op.attempted|=32;auto seh=input(0x5bf6e0,tool,request.monster.position);if(seh)return unknown("Monster MouseOver SEH="+std::to_string(seh));op.returned|=32;
+    op.attempted|=32;auto seh=input(0x5c5e80,tool,request.monster.position);if(seh)return unknown("Monster MouseOver SEH="+std::to_string(seh));op.returned|=32;
     if(!pose(m,tool,request.monster,p.region.region,e,false))return unknown(e);
-    op.attempted|=64;seh=input(0x5beaf0,tool,request.monster.position);if(seh)return unknown("Monster Press SEH="+std::to_string(seh));op.returned|=64;
+    op.attempted|=64;seh=input(0x5c5290,tool,request.monster.position);if(seh)return unknown("Monster Press SEH="+std::to_string(seh));op.returned|=64;
     uint8_t pressed=0;if(!field(m,tool.behaviour,0x3e6,pressed,e)||pressed!=1)return unknown(e.empty()?"Monster original Press did not confirm":e);
     // Press invokes MouseOver again and resets scale from its local size mode.
     // Reconstruct the captured Transform after Press, before original Release.
@@ -478,7 +478,7 @@ a::Outcome perform(const a::Binding& binding,const a::Request& request,const a::
             return unknown(e.empty()?"Monster Host RNG adoption/current readback differs":e);
     }
     op.evidence.before=ledger(before.money);op.evidence.monster_before=value;
-    op.attempted|=128;state.replaying=true;seh=input(0x5bf3c0,tool,request.monster.position);state.replaying=false;
+    op.attempted|=128;state.replaying=true;seh=input(0x5c5b60,tool,request.monster.position);state.replaying=false;
     if(seh)return unknown("Monster original complete Release SEH="+std::to_string(seh));op.returned|=128;
     Pin after;if(!pin(m,binding,request.snapshot_uuid,request.monster.region,after,e)||!same_world(p.world,after.world)||after.region.region!=p.region.region)return unknown(e.empty()?"Monster Release current world/Region changed":e);
     d::Sample result;if(!d::sample(m,p.region,result,e)||result.state.monsters.size()!=before.state.monsters.size()+1||
